@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\PersonsController;
+use App\Http\Controllers\Admin\RecordsManagementController;
 use App\Http\Controllers\Users\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -26,5 +27,9 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     // user role management
     Route::get('admin/user-role-management', [UserController::class, 'index101'])->name('role.management101');
     Route::get('user/user-role-management', [UserController::class, 'index102'])->name('role.management102');
+    // records management
+    Route::get('records-management', [RecordsManagementController::class, 'index'])->name('records.management');
+    Route::get('records-management/create', [RecordsManagementController::class, 'create'])->name('records.management.create');
+    Route::get('records-management/store', [RecordsManagementController::class, 'store'])->name('records.management.store');
 
 });

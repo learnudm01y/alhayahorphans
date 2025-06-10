@@ -49,6 +49,10 @@ class Data extends Model
     ];
 
     // علاقات Eloquent
+    public function section()
+    {
+        return $this->belongsTo(GeneralCategory::class, 'data_section_id');
+    }
     public function person()
     {
         return $this->belongsTo(RePeople::class, 'file_id_number', 'file_id');
