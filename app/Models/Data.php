@@ -1,0 +1,121 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Data extends Model
+{
+    use HasFactory;
+
+    protected $table = 'data';
+
+    protected $fillable = [
+        'file_id_number',
+        'data_section_id',
+        'data_request_status',
+        'data_id_number',
+        'data_first_name',
+        'data_father_name',
+        'data_grand_father_name',
+        'data_family_name',
+        'data_relationship',
+        'data_birth_date',
+        'data_gender',
+        'data_phone_number',
+        'data_alt_phone_number',
+        'data_number_of_individuals',
+        'data_marital_status',
+        'data_academic_qualification',
+        'data_displacement_status',
+        'data_address_before_displacement',
+        'data_current_address',
+        'data_city',
+        'province',
+        'data_health_status',
+        'data_description_health_status',
+        'data_number_mail',
+        'data_number_female',
+        'data_number_alt',
+        'data_number_of_individuals_with_chronic_diseases',
+        'data_number_of_people_with_special_needs',
+        'data_employment_status_breadwinner',
+        'data_housing_status',
+        'data_current_housing_type',
+        'data_id_image',
+        'data_guardianship_argument_image',
+        'data_user_insert_data',
+    ];
+
+    // علاقات Eloquent
+    public function person()
+    {
+        return $this->belongsTo(RePeople::class, 'file_id_number', 'file_id');
+    }
+
+    public function guardianBankAccount()
+    {
+        return $this->belongsTo(GuardianBankAccount::class, 'file_id_number', 'file_id');
+    }
+
+    public function requestStatus()
+    {
+        return $this->belongsTo(RequestStatus::class, 'data_request_status');
+    }
+
+    public function relationship()
+    {
+        return $this->belongsTo(CategoryOfRelation::class, 'data_relationship');
+    }
+
+    public function maritalStatus()
+    {
+        return $this->belongsTo(MaritalStatus::class, 'data_marital_status');
+    }
+
+    public function academicQualification()
+    {
+        return $this->belongsTo(AcademicDegree::class, 'data_academic_qualification');
+    }
+
+    public function displacementStatus()
+    {
+        return $this->belongsTo(GeneralCategory::class, 'data_displacement_status');
+    }
+
+    public function city()
+    {
+        return $this->belongsTo(City::class, 'data_city');
+    }
+
+    public function province()
+    {
+        return $this->belongsTo(Province::class, 'province');
+    }
+
+    public function healthStatus()
+    {
+        return $this->belongsTo(HealthStatus::class, 'data_health_status');
+    }
+
+    public function employmentStatusBreadwinner()
+    {
+        return $this->belongsTo(Employment::class, 'data_employment_status_breadwinner');
+    }
+
+    public function housingStatus()
+    {
+        return $this->belongsTo(HousingStatus::class, 'data_housing_status');
+    }
+
+    public function currentHousingType()
+    {
+        return $this->belongsTo(TypeOfAccommodation::class, 'data_current_housing_type');
+    }
+
+    public function userInserted()
+    {
+        return $this->belongsTo(User::class, 'data_user_insert_data');
+    }
+}
