@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\DataTables\DocumentTypeDataTable;
 use App\Http\Controllers\Controller;
 use App\Models\DocumentType;
+use Exception;
 use Illuminate\Http\Request;
 use PhpParser\Comment\Doc;
 
@@ -18,36 +19,47 @@ class DocumentTypeCotroller extends Controller
         return $dataTable->render('admin.dashboard.category_management.documentType');
     }
 
-      /**
+    /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
     {
         $request->validate([
             'description' => 'required|string|max:255',
+            'pref' => 'required|string|max:255|unique:document_types,pref',
         ]);
 
-        DocumentType::create([
-            'description' => $request->description,
-        ]);
-
-        return redirect()->back()->with('success', 'تمت إضافة  نوع الوثيقة بنجاح');
+        try {
+            DocumentType::create([
+                'description' => $request->description,
+                'pref' => $request->pref,
+            ]);
+            return redirect()->back()->with('success', 'تمت إضافة نوع الوثيقة بنجاح');
+        } catch (Exception $e) {
+            return redirect()->back()->with('error', 'حدث خطأ أثناء إضافة نوع الوثيقة');
+        }
     }
+
     /**
      * Update the specified resource in storage.
      */
     public function update(Request $request, string $id)
     {
-         $request->validate([
+        $request->validate([
             'description' => 'required|string|max:255',
+            'pref' => 'required|string|max:255|unique:document_types,pref,' . $id,
         ]);
 
-        $DocumentType = DocumentType::findOrFail($id);
-        $DocumentType->update([
-            'description' => $request->description,
-        ]);
-
-        return redirect()->back()->with('success', 'تم تحديث  نوع الوثيقة بنجاح');
+        try {
+            $documentType = DocumentType::findOrFail($id);
+            $documentType->update([
+                'description' => $request->description,
+                'pref' => $request->pref,
+            ]);
+            return redirect()->back()->with('success', 'تم تحديث نوع الوثيقة بنجاح');
+        } catch (Exception $e) {
+            return redirect()->back()->with('error', 'حدث خطأ أثناء تحديث نوع الوثيقة');
+        }
     }
 
     /**

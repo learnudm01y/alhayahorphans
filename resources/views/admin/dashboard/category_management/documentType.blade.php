@@ -51,8 +51,12 @@
                 <form method="POST" action="{{ route('admin.DocumentType_name.store') }}">
                     @csrf
                     <div class="mb-3">
-                        <label for="add_name" class="form-label"> نوع وثيقة</label>
-                        <input type="text" name="description" id="add_name" class="form-control" value="{{ old('description') }}" required autofocus>
+                        <label for="add_description" class="form-label">نوع وثيقة</label>
+                        <input type="text" name="description" id="add_description" class="form-control" value="{{ old('description') }}" required autofocus>
+                    </div>
+                    <div class="mb-3">
+                        <label for="add_pref" class="form-label">المختصر</label>
+                        <input type="text" name="pref" id="add_pref" class="form-control" value="{{ old('pref') }}" required>
                     </div>
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-success">حفظ</button>
@@ -76,8 +80,12 @@
                     @method('PUT')
                     <input type="hidden" name="DocumentType_id" id="edit_DocumentType_id">
                     <div class="mb-3">
-                        <label for="edit_name" class="form-label"> نوع وثيقة</label>
-                        <input type="text" name="description" id="edit_name" class="form-control" required>
+                        <label for="edit_description" class="form-label">نوع وثيقة</label>
+                        <input type="text" name="description" id="edit_description" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_pref" class="form-label">المختصر</label>
+                        <input type="text" name="pref" id="edit_pref" class="form-control" required>
                     </div>
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-warning">تحديث</button>
@@ -119,12 +127,14 @@
         $('#editDocumentTypeModal').on('show.bs.modal', function (event) {
             var button = $(event.relatedTarget);
             var id = button.data('id');
-            var name = button.data('name');
+            var description = button.data('description');
+            var pref = button.data('pref');
             var actionUrl = button.data('action');
 
             var modal = $(this);
             modal.find('#edit_DocumentType_id').val(id);
-            modal.find('#edit_name').val(name);
+            modal.find('#edit_description').val(description);
+            modal.find('#edit_pref').val(pref);
             modal.find('#editDocumentTypeForm').attr('action', actionUrl);
         });
 

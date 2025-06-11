@@ -12,11 +12,23 @@ class DeadPepole extends Model
     public $incrementing = false;
     protected $fillable = [
         // father
-        'father_first_name','father_second_name','father_third_name','father_last_name',
-        'father_id','father_death_date','father_death_reason','father_death_certificate',
+        'father_first_name',
+        'father_second_name',
+        'father_third_name',
+        'father_last_name',
+        'father_id',
+        'father_death_date',
+        'father_death_reason',
+        'father_death_certificate',
         // mother
-        'mother_first_name','mother_second_name','mother_third_name','mother_last_name',
-        'mother_id','mother_death_date','mother_death_reason','mother_death_certificate',
+        'mother_first_name',
+        'mother_second_name',
+        'mother_third_name',
+        'mother_last_name',
+        'mother_id',
+        'mother_death_date',
+        'mother_death_reason',
+        'mother_death_certificate',
     ];
 
     public function fatherDeathReason()
@@ -27,5 +39,9 @@ class DeadPepole extends Model
     public function motherDeathReason()
     {
         return $this->belongsTo(DeathReason::class, 'mother_death_reason');
+    }
+    public function attachments()
+    {
+        return $this->morphMany(Attachment::class, 'attachable');
     }
 }

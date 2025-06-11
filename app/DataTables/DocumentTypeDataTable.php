@@ -69,6 +69,9 @@ class DocumentTypeDataTable extends DataTable
             Column::make('description')
                 ->title(' انواع الوثائق ')
                 ->addClass('text-center'),
+            Column::make('pref')
+                ->title('الاختصار')
+                ->addClass('text-center'),
             Column::computed('actions')
                 ->title('الإجراءات')
                 ->exportable(false)

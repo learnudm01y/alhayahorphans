@@ -11,10 +11,19 @@ class RePeople extends Model
     protected $primaryKey = 'file_id';
     public $incrementing = false;
     protected $fillable = [
-        'registration_id','sponsorship_status',
-        'first_name','second_name','third_name','last_name',
-        'orphan_id','orphan_birth_date','orphan_age','orphan_gender',
-        'orphan_health_status','orphan_birth_certificate','orphan_photo',
+        'registration_id',
+        'sponsorship_status',
+        'first_name',
+        'second_name',
+        'third_name',
+        'last_name',
+        'orphan_id',
+        'orphan_birth_date',
+        'orphan_age',
+        'orphan_gender',
+        'orphan_health_status',
+        'orphan_birth_certificate',
+        'orphan_photo',
         'orphan_type_of_guarantee'
     ];
 
@@ -36,5 +45,9 @@ class RePeople extends Model
     public function documentType()
     {
         return $this->belongsTo(DocumentType::class, 'document_type');
+    }
+    public function attachments()
+    {
+        return $this->morphMany(Attachment::class, 'attachable');
     }
 }

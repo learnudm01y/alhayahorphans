@@ -122,4 +122,8 @@ class Data extends Model
     {
         return $this->belongsTo(User::class, 'data_user_insert_data');
     }
+    public function attachments()
+    {
+        return $this->morphMany(Attachment::class, 'attachable');
+    }
 }

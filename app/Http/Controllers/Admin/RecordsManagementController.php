@@ -10,13 +10,17 @@ use App\Models\City;
 use App\Models\GeneralCategory;
 use App\Models\Data;
 use App\Models\DisplacementStatus;
+use App\Models\DocumentType;
 use App\Models\Employment;
 use App\Models\HealthStatus;
 use App\Models\HousingStatus;
 use App\Models\MaritalStatus;
 use App\Models\Province;
+use App\Models\SponsorshipStatus;
 use App\Models\TypeOfAccommodation;
+use App\Models\TypeOfGuarantee;
 use Illuminate\Http\Request;
+use PhpParser\Comment\Doc;
 
 class RecordsManagementController extends Controller
 {
@@ -38,6 +42,9 @@ class RecordsManagementController extends Controller
         $employment_status_breadwinner = Employment::all();
         $HousingStatus = HousingStatus::all();
         $TypeOfAccommodation = TypeOfAccommodation::all();
+        $documentTypes = DocumentType::all(); // Assuming you have a DocumentType model
+        $sponsorship_status = SponsorshipStatus::all();
+        $guarantee_types = TypeOfGuarantee::all(); // Assuming you have a TypeOfGuarantee model
         return view('admin.dashboard.records_management.create',
          compact(
             'generalSection',
@@ -51,7 +58,10 @@ class RecordsManagementController extends Controller
             'health_status',
             'employment_status_breadwinner',
             'HousingStatus',
-            'TypeOfAccommodation'
+            'TypeOfAccommodation',
+            'documentTypes',
+            'sponsorship_status',
+            'guarantee_types',
         ));
     }
     public function store(Request $request)

@@ -9,7 +9,7 @@ class DocumentType extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['description'];
+    protected $fillable = ['description', 'pref'];
     protected $table = 'document_types';
 
     public function orphans()
