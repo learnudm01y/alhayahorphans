@@ -9,6 +9,7 @@ class Province extends Model
 {
     use HasFactory;
     protected $fillable = ['description'];
+    protected $table = 'provinces';
 
     public function data()
     {

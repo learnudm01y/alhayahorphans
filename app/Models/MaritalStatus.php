@@ -9,6 +9,7 @@ class MaritalStatus extends Model
 {
     use HasFactory;
     protected $fillable = ['description'];
+    protected $table = 'marital_status';
 
     public function data()
     {

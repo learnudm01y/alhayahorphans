@@ -57,15 +57,22 @@ class RecordsManagementeDataTable extends DataTable
                     ->columns($this->getColumns())
                     ->minifiedAjax()
                     //->dom('Bfrtip')
-                    ->orderBy(1)
+                    ->orderBy(0, 'desc')
                     ->selectStyleSingle()
                     ->buttons([
                         Button::make('excel'),
                         Button::make('csv'),
                         Button::make('pdf'),
                         Button::make('print'),
-                        Button::make('reset'),
-                        Button::make('reload')
+                        // Button::make('reset'),
+                        // Button::make('reload')
+                    ])
+                    ->parameters([
+                        'language' => [
+                            'emptyTable' => 'لا توجد بيانات متاحة في الجدول',
+                            'zeroRecords' => 'لم يتم العثور على سجلات مطابقة',
+                            // يمكنك تخصيص رسائل أخرى هنا إذا رغبت
+                        ],
                     ]);
     }
 

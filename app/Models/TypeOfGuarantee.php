@@ -9,9 +9,10 @@ class TypeOfGuarantee extends Model
 {
     use HasFactory;
     protected $fillable = ['description'];
+    protected $table = 'type_of_guarantee';
 
     public function orphans()
     {
-        return $this->hasMany(Orphan::class, 'orphan_type_of_guarantee');
+        return $this->hasMany(RePeople::class, 'orphan_type_of_guarantee');
     }
 }

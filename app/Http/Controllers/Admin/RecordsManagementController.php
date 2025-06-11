@@ -4,8 +4,18 @@ namespace App\Http\Controllers\Admin;
 
 use App\DataTables\RecordsManagementeDataTable;
 use App\Http\Controllers\Controller;
+use App\Models\AcademicDegree;
+use App\Models\CategoryOfRelation;
+use App\Models\City;
 use App\Models\GeneralCategory;
 use App\Models\Data;
+use App\Models\DisplacementStatus;
+use App\Models\Employment;
+use App\Models\HealthStatus;
+use App\Models\HousingStatus;
+use App\Models\MaritalStatus;
+use App\Models\Province;
+use App\Models\TypeOfAccommodation;
 use Illuminate\Http\Request;
 
 class RecordsManagementController extends Controller
@@ -18,7 +28,31 @@ class RecordsManagementController extends Controller
     {
         $generalSection = GeneralCategory::all();
         $file_id_number = generateFiveDigitCode(Data::class, 'file_id_number');
-        return view('admin.dashboard.records_management.create', compact('generalSection', 'file_id_number'));
+        $category_of_relationship = CategoryOfRelation::all();
+        $marital_status = MaritalStatus::all();
+        $academic_qualification = AcademicDegree::all();
+        $displacement_status = DisplacementStatus::all();
+        $city = City::all();
+        $province = Province::all();
+        $health_status = HealthStatus::all();
+        $employment_status_breadwinner = Employment::all();
+        $HousingStatus = HousingStatus::all();
+        $TypeOfAccommodation = TypeOfAccommodation::all();
+        return view('admin.dashboard.records_management.create',
+         compact(
+            'generalSection',
+            'file_id_number',
+            'category_of_relationship',
+            'marital_status',
+            'academic_qualification',
+            'displacement_status',
+            'city',
+            'province',
+            'health_status',
+            'employment_status_breadwinner',
+            'HousingStatus',
+            'TypeOfAccommodation'
+        ));
     }
     public function store(Request $request)
     {

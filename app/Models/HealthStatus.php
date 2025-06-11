@@ -8,8 +8,9 @@ use Illuminate\Database\Eloquent\Model;
 class HealthStatus extends Model
 {
     use HasFactory;
-    
+
     protected $fillable = ['description'];
+    protected $table = 'health_statuses';
 
     public function data()
     {

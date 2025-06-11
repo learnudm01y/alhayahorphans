@@ -9,9 +9,10 @@ class SponsorshipStatus extends Model
 {
     use HasFactory;
     protected $fillable = ['description'];
+    protected $table = 'sponsorship_statuses';
 
     public function orphans()
     {
-        return $this->hasMany(Orphan::class, 'sponsorship_status');
+        return $this->hasMany(RePeople::class, 'sponsorship_status');
     }
 }

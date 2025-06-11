@@ -73,7 +73,7 @@ class PersonsDataTable extends DataTable
             ->minifiedAjax()
             ->processing(true)
             ->serverSide(true)
-            ->orderBy(1)
+            ->orderBy(0, 'desc')
             ->pageLength(10)
             ->responsive(true)
             ->autoWidth(false)

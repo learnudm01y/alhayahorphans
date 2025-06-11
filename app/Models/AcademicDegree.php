@@ -9,6 +9,7 @@ class AcademicDegree extends Model
 {
     use HasFactory;
     protected $fillable = ['description'];
+    protected $table = 'academic_degrees';
 
     public function data()
     {

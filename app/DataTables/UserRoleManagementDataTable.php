@@ -57,7 +57,7 @@ class UserRoleManagementDataTable extends DataTable
             ->columns($this->getColumns())
             // استخدم minifiedAjax() بدون أي تعليق أو تعديل
             ->minifiedAjax()
-            ->orderBy(1)
+            ->orderBy(0, 'desc')
             ->selectStyleSingle()
             ->parameters([
                 'paging' => true,

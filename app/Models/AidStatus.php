@@ -9,6 +9,7 @@ class AidStatus extends Model
 {
     use HasFactory;
     protected $fillable = ['description'];
+    protected $table = 'aid_status';
 
     public function beneficiaries()
     {

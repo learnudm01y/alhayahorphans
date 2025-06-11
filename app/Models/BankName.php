@@ -9,6 +9,7 @@ class BankName extends Model
 {
     use HasFactory;
     protected $fillable = ['description'];
+    protected $table = 'bank_names';
 
     public function guardianAccounts()
     {

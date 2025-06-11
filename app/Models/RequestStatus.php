@@ -9,6 +9,7 @@ class RequestStatus extends Model
 {
     use HasFactory;
     protected $fillable = ['description'];
+    protected $table = 'request_status';
 
     public function data()
     {

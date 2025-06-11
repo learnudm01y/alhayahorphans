@@ -8,4 +8,6 @@ use Illuminate\Database\Eloquent\Model;
 class CategoryOfRelation extends Model
 {
     use HasFactory;
+
+    protected $table = 'category_of_relations';
 }

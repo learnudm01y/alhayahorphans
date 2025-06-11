@@ -1,8 +1,26 @@
 <?php
 
+use App\Http\Controllers\Admin\AcademicDegreeController;
 use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\Admin\AidStatusController;
+use App\Http\Controllers\Admin\BankNameController;
+use App\Http\Controllers\Admin\CityController;
+use App\Http\Controllers\Admin\CurrencyTypeController;
+use App\Http\Controllers\Admin\DeathReasonController;
+use App\Http\Controllers\Admin\DisplacementStatusController;
+use App\Http\Controllers\Admin\DocumentTypeCotroller;
+use App\Http\Controllers\Admin\EmploymentCotroller;
+use App\Http\Controllers\Admin\GeneralCategoryCotroller;
+use App\Http\Controllers\Admin\HealthStatusCotroller;
+use App\Http\Controllers\Admin\HousingStatusController;
+use App\Http\Controllers\Admin\MaritalStatusController;
 use App\Http\Controllers\Admin\PersonsController;
+use App\Http\Controllers\Admin\ProvinceController;
 use App\Http\Controllers\Admin\RecordsManagementController;
+use App\Http\Controllers\Admin\RequestStatusController;
+use App\Http\Controllers\Admin\SponsorshipStatusController;
+use App\Http\Controllers\Admin\TypeOfAccommodationController;
+use App\Http\Controllers\Admin\TypeOfGuaranteeController;
 use App\Http\Controllers\Users\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -30,6 +48,47 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     // records management
     Route::get('records-management', [RecordsManagementController::class, 'index'])->name('records.management');
     Route::get('records-management/create', [RecordsManagementController::class, 'create'])->name('records.management.create');
-    Route::get('records-management/store', [RecordsManagementController::class, 'store'])->name('records.management.store');
+    Route::post('records-management/store', [RecordsManagementController::class, 'store'])->name('records.management.store');
+    // category management
+    Route::get('category-management/academicdegree', [AcademicDegreeController::class, 'academicdegree'])->name('category.management.academicdegree');
+    Route::post('category-management/academicdegree/store', [AcademicDegreeController::class, 'createAcademicDegree'])->name('store.category.management.academicdegree');
+    Route::put('/admin/category/academicdegree/{id}', [AcademicDegreeController::class, 'academicDegreeUpdate'])
+    ->name('update.category.management.academicdegree');
+    Route::delete('/admin/category/academicdegree/{id}', [AcademicDegreeController::class, 'academicDegreeDestroy'])
+    ->name('delete.category.management.academicdegree');
+    // Aid Status Management
+    Route::resource('aid_status',AidStatusController::class);
+    // Bank Name Management
+    Route::resource('bank_name',BankNameController::class);
+    // city name Management
+    Route::resource('city_name',CityController::class);
+    // currency type  Management
+    Route::resource('CurrencyType_name',CurrencyTypeController::class);
+    // Death Reason description Management
+    Route::resource('DeathReason_name',DeathReasonController::class);
+    // Displacement status Management
+    Route::resource('DisplacementStatus_name',DisplacementStatusController::class);
+    //  DocumentType Name Management
+    Route::resource('DocumentType_name',DocumentTypeCotroller::class);
+    //  Employment status Management
+    Route::resource('Employment_name',EmploymentCotroller::class);
+    //   General Category Management
+    Route::resource('GeneralCategory_name',GeneralCategoryCotroller::class);
+    //   Health  Status Management
+    Route::resource('HealthStatus_name',HealthStatusCotroller::class);
+    //   Housing Status Management
+    Route::resource('HousingStatus_name',HousingStatusController::class);
+    //   Marital Status Management
+    Route::resource('MaritalStatus_name',MaritalStatusController::class);
+    //   Province Name  Management
+    Route::resource('Province_name',ProvinceController::class);
+    //   Request Status   Management
+    Route::resource('RequestStatus_name',RequestStatusController::class);
+    //   Sponsorship Status Management
+    Route::resource('SponsorshipStatus_name',SponsorshipStatusController::class);
+    //   Type Of Accommodation Management
+    Route::resource('TypeOfAccommodation_name',TypeOfAccommodationController::class);
+    //   Type Of Guarantee Management
+    Route::resource('TypeOfGuarantee_name',TypeOfGuaranteeController::class);
 
 });

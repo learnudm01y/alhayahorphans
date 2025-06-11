@@ -10,9 +10,10 @@ class DocumentType extends Model
     use HasFactory;
 
     protected $fillable = ['description'];
+    protected $table = 'document_types';
 
     public function orphans()
     {
-        return $this->hasMany(Orphan::class, 'document_type');
+        return $this->hasMany(RePeople::class, 'document_type');
     }
 }

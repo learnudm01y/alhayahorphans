@@ -61,9 +61,10 @@
                                 <div class="col-md-4">
                                     <label class="form-label">صلة القرابة <span class="text-danger">*</span></label>
                                     <select name="data_relationship" class="form-select">
-                                        <option value="">اختر الحالة</option>
-                                        <option value="displaced">نازح</option>
-                                        <option value="resident">مقيم</option>
+                                        <option value="">اختر صلة القرابة</option>
+                                        @foreach ($category_of_relationship as $category)
+                                            <option value="{{ $category->id }}">{{ $category->attribute }}</option>
+                                        @endforeach
                                     </select>
                                 </div>
                                 <div class="col-md-4">
@@ -74,8 +75,8 @@
                                     <label class="form-label">الجنس <span class="text-danger">*</span></label>
                                     <select name="data_gender" class="form-select">
                                         <option value="">اختر الجنس</option>
-                                        <option value="male">ذكر</option>
-                                        <option value="female">أنثى</option>
+                                        <option value="1">ذكر</option>
+                                        <option value="2">أنثى</option>
                                     </select>
                                 </div>
                                 <div class="col-md-4">
@@ -95,26 +96,29 @@
                                     <label class="form-label">الحالة الاجتماعية<span class="text-danger">*</span></label>
                                     <select name="data_marital_status" class="form-select">
                                         <option value="">اختر الحالة</option>
-                                        <option value="single">أعزب</option>
-                                        <option value="married">متزوج</option>
-                                        <option value="divorced">مطلق</option>
-                                        <option value="widowed">أرمل</option>
+                                        @foreach ($marital_status as $marital)
+                                            <option value="{{ $marital->id }}">{{ $marital->description }}</option>
+                                        @endforeach
                                     </select>
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">المؤهل العلمي </label>
                                     <select name="data_academic_qualification" class="form-select">
-                                        <option value="">اختر الحالة</option>
-                                        <option value="displaced">نازح</option>
-                                        <option value="resident">مقيم</option>
+                                        <option value="">اختر المؤهل</option>
+                                        @foreach ($academic_qualification as $qualification)
+                                            <option value="{{ $qualification->id }}">{{ $qualification->description }}
+                                            </option>
+                                        @endforeach
                                     </select>
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">حالة النزوح <span class="text-danger">*</span></label>
                                     <select name="data_displacement_status" class="form-select">
                                         <option value="">اختر الحالة</option>
-                                        <option value="displaced">نازح</option>
-                                        <option value="resident">مقيم</option>
+                                        @foreach ($displacement_status as $displacement_status_item)
+                                            <option value="{{ $displacement_status_item->id }}">
+                                                {{ $displacement_status_item->description }}</option>
+                                        @endforeach
                                     </select>
                                 </div>
                                 <div class="col-12">
@@ -132,17 +136,20 @@
                                         <div class="col-md-3">
                                             <label class="form-label">المدينة <span class="text-danger">*</span></label>
                                             <select name="data_city" class="form-select">
-                                                <option value="">اختر الحالة</option>
-                                                <option value="displaced">نازح</option>
-                                                <option value="resident">مقيم</option>
+                                                <option value="">اختر المدينة</option>
+                                                @foreach ($city as $city_item)
+                                                    <option value="{{ $city_item->id }}">{{ $city_item->city }}</option>
+                                                @endforeach
                                             </select>
                                         </div>
                                         <div class="col-md-3">
                                             <label class="form-label">المحافظة <span class="text-danger">*</span></label>
                                             <select name="province" class="form-select">
-                                                <option value="">اختر الحالة</option>
-                                                <option value="displaced">نازح</option>
-                                                <option value="resident">مقيم</option>
+                                                <option value="">اختر المحافظة</option>
+                                                @foreach ($province as $province_item)
+                                                    <option value="{{ $province_item->id }}">
+                                                        {{ $province_item->description }}</option>
+                                                @endforeach
                                             </select>
                                         </div>
                                     </div>
@@ -150,12 +157,13 @@
                                 <div class="col-12">
                                     <div class="row g-3">
                                         <div class="col-md-4">
-                                            <label class="form-label">الحالة الصحية <span
-                                                    class="text-danger">*</span></label>
+                                            <label class="form-label">الحالة الصحية <span class="text-danger">*</span></label>
                                             <select name="data_health_status" class="form-select">
                                                 <option value="">اختر الحالة</option>
-                                                <option value="displaced">نازح</option>
-                                                <option value="resident">مقيم</option>
+                                               @foreach ($health_status as $health_status_item)
+                                                    <option value="{{ $health_status_item->id }}">
+                                                        {{ $health_status_item->description }}</option>
+                                               @endforeach
                                             </select>
                                         </div>
                                         <div class="col-md-8">
@@ -192,24 +200,32 @@
                                     <label class="form-label">حالة عمل المعيل <span class="text-danger">*</span></label>
                                     <select name="data_employment_status_breadwinner" class="form-select">
                                         <option value="">اختر الحالة</option>
-                                        <option value="displaced">نازح</option>
-                                        <option value="resident">مقيم</option>
+                                       @foreach ($employment_status_breadwinner as $employment_status_item)
+                                            <option value="{{ $employment_status_item->id }}">
+                                                {{ $employment_status_item->description }}</option>
+
+                                       @endforeach
                                     </select>
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">حالةالسكن <span class="text-danger">*</span></label>
                                     <select name="data_employment_status_breadwinner" class="form-select">
                                         <option value="">اختر الحالة</option>
-                                        <option value="displaced">نازح</option>
-                                        <option value="resident">مقيم</option>
+                                 @foreach ($HousingStatus as $HousingStatusItem)
+                                            <option value="{{ $HousingStatusItem->id }}">
+                                                {{ $HousingStatusItem->description }}</option>
+
+                                 @endforeach
                                     </select>
                                 </div>
                                 <div class="col-md-4">
                                     <label class="form-label">نوع السكن الحالي <span class="text-danger">*</span></label>
                                     <select name="data_current_housing_type" class="form-select">
                                         <option value="">اختر الحالة</option>
-                                        <option value="displaced">نازح</option>
-                                        <option value="resident">مقيم</option>
+                                        @foreach ($TypeOfAccommodation as $TypeOfAccommodationItem)
+                                            <option value="{{ $TypeOfAccommodationItem->id }}">
+                                                {{ $TypeOfAccommodationItem->description }}</option>
+                                        @endforeach
                                     </select>
                                 </div>
                                 <div class="col-md-4">
@@ -224,8 +240,8 @@
                                 <div class="col-md-4">
                                     <label class="form-label">المستخدم المدخل للبيانات</label>
                                     <input type="text" name="data_user_insert_data"
-                                        class="form-control bg-secondary bg-opacity-25" value="{{ auth()->user()->name }}"
-                                        readonly>
+                                        class="form-control bg-secondary bg-opacity-25"
+                                        value="{{ auth()->user()->name }}" readonly>
                                 </div>
                             </div>
 

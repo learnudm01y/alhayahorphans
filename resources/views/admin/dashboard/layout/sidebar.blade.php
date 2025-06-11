@@ -58,6 +58,243 @@
         </div>
         <!--end:Menu item-->
         <!--begin:Menu item-->
+        <div data-kt-menu-trigger="click" class="menu-item menu-accordion">
+            <!--begin:Menu link-->
+            <span class="menu-link">
+                <span class="menu-icon">
+                    <i class="ki-duotone ki-element-11 fs-2">
+                        <span class="path1"></span>
+                        <span class="path2"></span>
+                        <span class="path3"></span>
+                        <span class="path4"></span>
+                    </i>
+                </span>
+                <span class="menu-title"> إدارة التصنيفات </span>
+                <span class="menu-arrow"></span>
+            </span>
+            <!--end:Menu link-->
+            <!--begin:Menu sub-->
+            <div class="menu-sub menu-sub-accordion">
+                <!--begin:Menu item-->
+                <div class="menu-item">
+                    <!--begin:Menu link-->
+                    <a class="menu-link" href="{{ route('admin.category.management.academicdegree') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-graduation-cap"></i>
+                        </span>
+                        <span class="menu-title"> الدرجة العلمية </span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                <!--end:Menu item-->
+                <!--begin:Menu item-->
+                <div class="menu-item">
+                    <!--begin:Menu link-->
+                    <a class="menu-link" href="{{ route('admin.aid_status.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-hands-helping"></i>
+                        </span>
+                        <span class="menu-title"> حالة المساعدة </span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                <!--end:Menu item-->
+                <div class="menu-item">
+                    <!--begin:Menu link-->
+                    <a class="menu-link" href="{{ route('admin.bank_name.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-university"></i>
+                        </span>
+                        <span class="menu-title"> اسماء البنوك </span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                <!--end:Menu item-->
+                <!--end:Menu item-->
+                <div class="menu-item">
+                    <!--begin:Menu link-->
+                    <a class="menu-link" href="{{ route('admin.city_name.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-city"></i>
+                        </span>
+                        <span class="menu-title"> اسماء المدن </span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                <!--end:Menu item-->
+                <!--end:Menu item-->
+                <div class="menu-item">
+                    <!--begin:Menu link-->
+                    <a class="menu-link" href="{{ route('admin.CurrencyType_name.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-money-bill-wave"></i>
+                        </span>
+                        <span class="menu-title"> العملات  </span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                <!--end:Menu item-->
+                <!--end:Menu item-->
+                <div class="menu-item">
+                    <!--begin:Menu link-->
+                    <a class="menu-link" href="{{ route('admin.DeathReason_name.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-book-dead"></i>
+                        </span>
+                        <span class="menu-title"> أسباب الوفاة  </span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                <!--end:Menu item-->
+                <!--end:Menu item-->
+                <div class="menu-item">
+                    <!--begin:Menu link-->
+                    <a class="menu-link" href="{{ route('admin.DisplacementStatus_name.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-walking"></i>
+                        </span>
+                        <span class="menu-title"> حالة النزوح   </span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                <!--end:Menu item-->
+                <!--end:Menu item-->
+                <div class="menu-item">
+                    <!--begin:Menu link-->
+                    <a class="menu-link" href="{{ route('admin.DocumentType_name.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-file-alt"></i>
+                        </span>
+                        <span class="menu-title"> انواع الوثائق  </span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                <!--end:Menu item-->
+                <!--end:Menu item-->
+                <div class="menu-item">
+                    <!--begin:Menu link-->
+                    <a class="menu-link" href="{{ route('admin.Employment_name.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-briefcase"></i>
+                        </span>
+                        <span class="menu-title"> الحالة وظيفية   </span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                <!--end:Menu item-->
+                <!--end:Menu item-->
+                <div class="menu-item">
+                    <!--begin:Menu link-->
+                    <a class="menu-link" href="{{ route('admin.GeneralCategory_name.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-th-list"></i>
+                        </span>
+                        <span class="menu-title"> الاقسام الرئيسية للموقع   </span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                <!--end:Menu item-->
+                <!--end:Menu item-->
+                <div class="menu-item">
+                    <!--begin:Menu link-->
+                    <a class="menu-link" href="{{ route('admin.HealthStatus_name.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-heartbeat"></i>
+                        </span>
+                        <span class="menu-title"> الحالة الصحية   </span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                <!--end:Menu item-->
+                <!--end:Menu item-->
+                <div class="menu-item">
+                    <!--begin:Menu link-->
+                    <a class="menu-link" href="{{ route('admin.HousingStatus_name.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-home"></i>
+                        </span>
+                        <span class="menu-title"> حالة المنزل    </span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                <!--end:Menu item-->
+                <!--end:Menu item-->
+                <div class="menu-item">
+                    <!--begin:Menu link-->
+                    <a class="menu-link" href="{{ route('admin.MaritalStatus_name.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-ring"></i>
+                        </span>
+                        <span class="menu-title"> الحالة الإجتماعية </span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                <!--end:Menu item-->
+                <!--end:Menu item-->
+                <div class="menu-item">
+                    <!--begin:Menu link-->
+                    <a class="menu-link" href="{{ route('admin.Province_name.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-map-marked-alt"></i>
+                        </span>
+                        <span class="menu-title"> المحافظات</span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                <!--end:Menu item-->
+                <!--end:Menu item-->
+                <div class="menu-item">
+                    <!--begin:Menu link-->
+                    <a class="menu-link" href="{{ route('admin.RequestStatus_name.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-clipboard-check"></i>
+                        </span>
+                        <span class="menu-title"> حالة الطلب</span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                <!--end:Menu item-->
+                <!--end:Menu item-->
+                <div class="menu-item">
+                    <!--begin:Menu link-->
+                    <a class="menu-link" href="{{ route('admin.SponsorshipStatus_name.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-hand-holding-heart"></i>
+                        </span>
+                        <span class="menu-title"> حالة الكفالة</span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                <!--end:Menu item-->
+                <!--end:Menu item-->
+                <div class="menu-item">
+                    <!--begin:Menu link-->
+                    <a class="menu-link" href="{{ route('admin.TypeOfAccommodation_name.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-building"></i>
+                        </span>
+                        <span class="menu-title"> نوع السكن </span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                <!--end:Menu item-->
+                <!--end:Menu item-->
+                <div class="menu-item">
+                    <!--begin:Menu link-->
+                    <a class="menu-link" href="{{ route('admin.TypeOfGuarantee_name.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-shield-alt"></i>
+                        </span>
+                        <span class="menu-title"> نوع الكفالة </span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                <!--end:Menu item-->
+            </div>
+            <!--end:Menu sub-->
+        </div>
+        <!--end:Menu item-->
+        <!--begin:Menu item-->
         <div class="menu-item pt-5">
             <!--begin:Menu content-->
             <div class="menu-content">
