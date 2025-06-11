@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('document_types', function (Blueprint $table) {
-           $table->string('pref')->unique()->after('description');
+           $table->string('pref')->after('description');
         });
     }
 
