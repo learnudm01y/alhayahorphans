@@ -28,7 +28,7 @@ return new class extends Migration
 
             // فهرسة رقم الهوية لتحسين الاستعلامات
             $table->index('person_identity_number');
-             $table->string('file_type')->default(0)->after('file_path');
+             $table->string('file_type')->default(0);
 
         });
     }
