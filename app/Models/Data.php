@@ -65,7 +65,7 @@ class Data extends Model
         return $this->belongsTo(RequestStatus::class, 'data_request_status');
     }
 
-    public function relationship()
+    public function categoryOfRelation()
     {
         return $this->belongsTo(CategoryOfRelation::class, 'data_relationship');
     }

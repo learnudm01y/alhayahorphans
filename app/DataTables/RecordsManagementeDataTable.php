@@ -34,6 +34,34 @@ class RecordsManagementeDataTable extends DataTable
                 //         <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm(\'هل أنت متأكد من الحذف؟\')">حذف</button>
                 //     </form>
                 // ';
+
+            })
+            ->addColumn('full_name', function($row) {
+                return "{$row->data_first_name} {$row->data_father_name} {$row->data_grand_father_name} {$row->data_family_name}";
+            })
+            ->addColumn('section_name', function($row) {
+                return optional($row->section)->description; // القسم من العلاقة
+            })
+            ->addColumn('request_status_name', function($row) {
+                return optional($row->requestStatus)->description; // حالة الطلب من العلاقة
+            })
+            ->addColumn('relationship_name', function($row) {
+                return optional($row->categoryOfRelation)->description; // صلة القرابة من العلاقة الجديدة
+            })
+            ->addColumn('health_status_name', function($row) {
+                return optional($row->healthStatus)->description; // الحالة الصحية من العلاقة
+            })
+            ->addColumn('marital_status_name', function($row) {
+                return optional($row->maritalStatus)->description; // الحالة الاجتماعية من العلاقة
+            })
+            ->addColumn('academic_qualification_name', function($row) {
+                return optional($row->academicQualification)->description; // المؤهل العلمي من العلاقة
+            })
+            ->addColumn('city_name', function($row) {
+                return optional($row->city)->city; // المدينة من العلاقة
+            })
+            ->addColumn('employment_status_name', function($row) {
+                return optional($row->employmentStatusBreadwinner)->description; // حالة عمل العائل من العلاقة
             })
             // ->rawColumns(['action'])
             ->setRowId('id');
@@ -82,29 +110,27 @@ class RecordsManagementeDataTable extends DataTable
     public function getColumns(): array
     {
         return [
-            Column::make('file_id_number'),
-            Column::make('data_section_id'),
-            Column::make('data_request_status'),
-            Column::make('data_id_number'),
-            Column::make('data_first_name'),
-            Column::make('data_father_name'),
-            Column::make('data_grand_father_name'),
-            Column::make('data_family_name'),
-            Column::make('data_birth_date'),
-            Column::make('data_relationship'),
-            Column::make('data_health_status'),
-            Column::make('data_phone_number'),
-            Column::make('data_phone_number'),
-            Column::make('data_marital_status'),
-            Column::make('data_academic_qualification'),
-            Column::make('data_city'),
-            Column::make('data_employment_status_breadwinner'),
-            Column::make('data_description_needs'),
+            Column::make('file_id_number')->title('رقم الملف'),
+            Column::make('section_name')->title('القسم'),
+            Column::make('request_status_name')->title('حالة الطلب'),
+            Column::make('data_id_number')->title('رقم الهوية'),
+            Column::make('full_name')->title('الاسم الكامل'),
+            Column::make('data_birth_date')->title('تاريخ الميلاد'),
+            Column::make('relationship_name')->title('صلة القرابة'),
+            Column::make('health_status_name')->title('الحالة الصحية'),
+            Column::make('data_phone_number')->title('رقم الجوال'),
+            Column::make('data_phone_number')->title('رقم جوال إضافي'),
+            Column::make('marital_status_name')->title('الحالة الاجتماعية'),
+            Column::make('academic_qualification_name')->title('المؤهل العلمي'),
+            Column::make('city_name')->title('المدينة'),
+            Column::make('employment_status_name')->title('حالة عمل العائل'),
+            Column::make('data_description_needs')->title('وصف الاحتياج'),
             Column::computed('action')
                   ->exportable(false)
                   ->printable(false)
                   ->width(120)
-                  ->addClass('text-center'),
+                  ->addClass('text-center')
+                  ->title('إجراء'),
         ];
     }
 
