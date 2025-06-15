@@ -24,18 +24,18 @@ class RecordsManagementeDataTable extends DataTable
     {
         return (new EloquentDataTable($query))
             ->addColumn('action', function($row) {
-                $editUrl = route('records_management.edit', $row->id);
-                $deleteUrl = route('records_management.destroy', $row->id);
-                return '
-                    <a href="'.$editUrl.'" class="btn btn-sm btn-primary">تعديل</a>
-                    <form action="'.$deleteUrl.'" method="POST" style="display:inline;">
-                        '.csrf_field().'
-                        '.method_field('DELETE').'
-                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm(\'هل أنت متأكد من الحذف؟\')">حذف</button>
-                    </form>
-                ';
+                // $editUrl = route('records_management.edit', $row->id);
+                // $deleteUrl = route('records_management.destroy', $row->id);
+                // return '
+                //     <a href="'.$editUrl.'" class="btn btn-sm btn-primary">تعديل</a>
+                //     <form action="'.$deleteUrl.'" method="POST" style="display:inline;">
+                //         '.csrf_field().'
+                //         '.method_field('DELETE').'
+                //         <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm(\'هل أنت متأكد من الحذف؟\')">حذف</button>
+                //     </form>
+                // ';
             })
-            ->rawColumns(['action'])
+            // ->rawColumns(['action'])
             ->setRowId('id');
     }
 
@@ -88,17 +88,17 @@ class RecordsManagementeDataTable extends DataTable
             Column::make('data_id_number'),
             Column::make('data_first_name'),
             Column::make('data_father_name'),
-            Column::make('data_grandfather_name'),
+            Column::make('data_grand_father_name'),
             Column::make('data_family_name'),
             Column::make('data_birth_date'),
-            Column::make('data_birth_place'),
-            Column::make('data_mother_name'),
-            Column::make('data_gender'),
-            Column::make('data_nationality'),
+            Column::make('data_relationship'),
+            Column::make('data_health_status'),
+            Column::make('data_phone_number'),
+            Column::make('data_phone_number'),
             Column::make('data_marital_status'),
-            Column::make('data_job'),
-            Column::make('data_address'),
-            Column::make('data_phone'),
+            Column::make('data_academic_qualification'),
+            Column::make('data_city'),
+            Column::make('data_employment_status_breadwinner'),
             Column::make('data_description_needs'),
             Column::computed('action')
                   ->exportable(false)
