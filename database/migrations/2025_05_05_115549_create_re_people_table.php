@@ -13,26 +13,25 @@ return new class extends Migration
     {
         Schema::create('re_people', function (Blueprint $table) {
             $table->bigIncrements('id');
-            $table->unsignedBigInteger('file_id')->index();
-            $table->unsignedBigInteger('registration_id');
-            $table->unsignedBigInteger('sponsorship_status');
-            $table->string('first_name');
-            $table->string('second_name');
-            $table->string('third_name');
-            $table->string('last_name');
-            $table->bigInteger('orphan_id');
-            $table->date('orphan_birth_date');
-            $table->integer('orphan_age');
-            $table->integer('orphan_gender');
-            $table->unsignedBigInteger('orphan_health_status');
-            $table->string('orphan_birth_certificate');
-            $table->string('orphan_photo');
-            $table->unsignedBigInteger('orphan_type_of_guarantee');
+            $table->unsignedBigInteger('registration_id')->nullable();
+            $table->unsignedBigInteger('sponsorship_status')->nullable()->default(1);
+            $table->string('first_name')->nullable();
+            $table->string('second_name')->nullable();
+            $table->string('third_name')->nullable();
+            $table->string('last_name')->nullable();
+            $table->bigInteger('person_id')->nullable();
+            $table->date('person_birth_date')->nullable();
+            $table->integer('person_age')->nullable();
+            $table->integer('person_gender')->nullable();
+            $table->unsignedBigInteger('person_health_status')->nullable();
+            $table->string('person_birth_certificate')->nullable();
+            $table->string('person_photo')->nullable();
+            $table->unsignedBigInteger('person_type_of_guarantee')->nullable();
             $table->timestamps();
 
             $table->foreign('sponsorship_status')->references('id')->on('sponsorship_statuses');
-            $table->foreign('orphan_health_status')->references('id')->on('health_statuses');
-            $table->foreign('orphan_type_of_guarantee')->references('id')->on('type_of_guarantee');
+            $table->foreign('person_health_status')->references('id')->on('health_statuses');
+            $table->foreign('person_type_of_guarantee')->references('id')->on('type_of_guarantee');
         });
 
     }
@@ -42,6 +41,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('orphans');
+        Schema::dropIfExists('persons');
     }
 };

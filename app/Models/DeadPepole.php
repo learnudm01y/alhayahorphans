@@ -8,10 +8,12 @@ use Illuminate\Database\Eloquent\Model;
 class DeadPepole extends Model
 {
     use HasFactory;
-    protected $primaryKey = 'file_id';
+    protected $primaryKey = 're_file_id';
+    protected $table = 'dead_people';
     public $incrementing = false;
     protected $fillable = [
         // father
+        're_file_id',
         'father_first_name',
         'father_second_name',
         'father_third_name',

@@ -99,7 +99,7 @@ class RecordsManagementeDataTable extends DataTable
             Column::make('data_job'),
             Column::make('data_address'),
             Column::make('data_phone'),
-            Column::make('data_notes'),
+            Column::make('data_description_needs'),
             Column::computed('action')
                   ->exportable(false)
                   ->printable(false)

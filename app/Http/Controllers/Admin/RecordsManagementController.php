@@ -5,10 +5,13 @@ namespace App\Http\Controllers\Admin;
 use App\DataTables\RecordsManagementeDataTable;
 use App\Http\Controllers\Controller;
 use App\Models\AcademicDegree;
+use App\Models\Attachment;
 use App\Models\CategoryOfRelation;
 use App\Models\City;
 use App\Models\GeneralCategory;
 use App\Models\Data;
+use App\Models\DeadPepole;
+use App\Models\DeathReason;
 use App\Models\DisplacementStatus;
 use App\Models\DocumentType;
 use App\Models\Employment;
@@ -16,10 +19,14 @@ use App\Models\HealthStatus;
 use App\Models\HousingStatus;
 use App\Models\MaritalStatus;
 use App\Models\Province;
+use App\Models\RePeople;
 use App\Models\SponsorshipStatus;
 use App\Models\TypeOfAccommodation;
 use App\Models\TypeOfGuarantee;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use PhpParser\Comment\Doc;
 
 class RecordsManagementController extends Controller
@@ -45,47 +52,260 @@ class RecordsManagementController extends Controller
         $documentTypes = DocumentType::all(); // Assuming you have a DocumentType model
         $sponsorship_status = SponsorshipStatus::all();
         $guarantee_types = TypeOfGuarantee::all(); // Assuming you have a TypeOfGuarantee model
-        return view('admin.dashboard.records_management.create',
-         compact(
-            'generalSection',
-            'file_id_number',
-            'category_of_relationship',
-            'marital_status',
-            'academic_qualification',
-            'displacement_status',
-            'city',
-            'province',
-            'health_status',
-            'employment_status_breadwinner',
-            'HousingStatus',
-            'TypeOfAccommodation',
-            'documentTypes',
-            'sponsorship_status',
-            'guarantee_types',
-        ));
+        $death_reasons = DeathReason::all(); // Assuming you have a DeathReason model
+        return view(
+            'admin.dashboard.records_management.create',
+            compact(
+                'generalSection',
+                'file_id_number',
+                'category_of_relationship',
+                'marital_status',
+                'academic_qualification',
+                'displacement_status',
+                'city',
+                'province',
+                'health_status',
+                'employment_status_breadwinner',
+                'HousingStatus',
+                'TypeOfAccommodation',
+                'documentTypes',
+                'sponsorship_status',
+                'guarantee_types',
+                'death_reasons'
+            )
+        );
     }
     public function store(Request $request)
     {
-        // Logic to store a new record
-        // Validate and save the data
-        // Redirect or return a response
+        try {
+            // 1. Validate basic data and attachments
+            $request->validate([
+                'file_id_number' => 'required|string',
+                'data_section_id' => 'required|integer',
+                'data_id_number' => 'required|string',
+                'data_first_name' => 'required|string|max:255',
+                'data_father_name' => 'nullable|string|max:255',
+                'data_grand_father_name' => 'nullable|string|max:255',
+                'data_family_name' => 'nullable|string|max:255',
+                'data_relationship' => 'nullable|string|max:100',
+                'data_birth_date' => 'nullable|date',
+                'data_gender' => 'nullable|in:1,2',
+                'data_phone_number' => 'nullable|integer',
+                'data_alt_phone_number' => 'nullable|integer',
+                'data_number_of_individuals' => 'nullable|integer',
+                'data_marital_status' => 'nullable|string',
+                'data_academic_qualification' => 'nullable|string',
+                'data_displacement_status' => 'nullable|string',
+                'data_address_before_displacement' => 'nullable|string',
+                'data_current_address' => 'nullable|string',
+                'data_city' => 'nullable|string',
+                'data_province' => 'required|integer|exists:provinces,id',
+                'data_health_status' => 'nullable|string',
+                'data_description_needs' => 'nullable|string',
+                'data_number_mail' => 'nullable|integer',
+                'data_number_female' => 'nullable|integer',
+                'data_number_of_individuals_with_chronic_diseases' => 'nullable|integer',
+                'data_number_of_people_with_special_needs' => 'nullable|integer',
+                'data_employment_status_breadwinner' => 'nullable|string',
+                'data_housing_status' => 'nullable|string',
+                'data_current_housing_type' => 'nullable|string',
+                'data_user_insert_data' => 'nullable|string',
+                // Family members (if any)
+                'family_members' => 'sometimes|array',
+                // Attachments
+                // 'person_identity_number' => 'required|string',
+                'file_type' => 'required|string',
+                'document_file.*' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            ], [
+                'file_id_number.required' => 'رقم الملف الموحد مطلوب.',
+                'document_file.*.mimes' => 'يجب أن تكون صيغة الملف jpg أو jpeg أو png أو pdf.',
+                'document_file.*.max' => 'حجم الملف لا يجوز أن يتجاوز 5 ميغابايت.',
+            ]);
+
+
+            DB::beginTransaction();
+
+            // 2. Store main Data record
+            $data = Data::create([
+                'file_id_number' => $request->input('file_id_number'),
+                'data_section_id' => $request->input('data_section_id'),
+                'data_id_number' => $request->input('data_id_number'),
+                'data_first_name' => $request->input('data_first_name'),
+                'data_father_name' => $request->input('data_father_name'),
+                'data_grand_father_name' => $request->input('data_grand_father_name'),
+                'data_family_name' => $request->input('data_family_name'),
+                'data_relationship' => $request->input('data_relationship'),
+                'data_birth_date' => $request->input('data_birth_date'),
+                'data_gender' => $request->input('data_gender'),
+                'data_phone_number' => $request->input('data_phone_number'),
+                'data_alt_phone_number' => $request->input('data_alt_phone_number'),
+                'data_number_of_individuals' => $request->input('data_number_of_individuals'),
+                'data_marital_status' => $request->input('data_marital_status'),
+                'data_academic_qualification' => $request->input('data_academic_qualification'),
+                'data_displacement_status' => $request->input('data_displacement_status'),
+                'data_address_before_displacement' => $request->input('data_address_before_displacement'),
+                'data_current_address' => $request->input('data_current_address'),
+                'data_city' => $request->input('data_city'),
+                'data_province' => $request->input('data_province'), // <-- تم التصحيح هنا
+                'data_health_status' => $request->input('data_health_status'),
+                'data_description_needs' => $request->input('data_description_needs'),
+                'data_number_mail' => $request->input('data_number_mail'),
+                'data_number_female' => $request->input('data_number_female'),
+                'data_number_of_individuals_with_chronic_diseases' => $request->input('data_number_of_individuals_with_chronic_diseases'),
+                'data_number_of_people_with_special_needs' => $request->input('data_number_of_people_with_special_needs'),
+                'data_employment_status_breadwinner' => $request->input('data_employment_status_breadwinner'),
+                'data_housing_status' => $request->input('data_housing_status'),
+                'data_current_housing_type' => $request->input('data_current_housing_type'),
+                'data_user_insert_data' => $request->input('data_user_insert_data'),
+                'data_request_status' => 2, // تأكد من وجود هذا السطر دائماً
+            ]);
+
+            // 3. Store deceased only إذا كان القسم أيتام ويوجد بيانات للأب أو الأم
+            if ($request->input('data_section_id') == 1) {
+                $fatherFilled = $request->filled('father_first_name') || $request->filled('father_last_name') || $request->filled('father_id');
+                $motherFilled = $request->filled('mother_first_name') || $request->filled('mother_last_name') || $request->filled('mother_id');
+                if ($fatherFilled || $motherFilled) {
+                    DeadPepole::create([
+                        're_file_id' => $request->input('file_id_number'),
+
+                        // بيانات الأب
+                        'father_first_name' => $request->input('father_first_name'),
+                        'father_second_name' => $request->input('father_second_name'),
+                        'father_third_name' => $request->input('father_third_name'),
+                        'father_last_name' => $request->input('father_last_name'),
+                        'father_id' => $request->input('father_id'),
+                        'father_death_date' => $request->input('father_death_date'),
+                        'father_death_reason' => $request->input('father_death_reason'),
+
+                        // بيانات الأم (قد تكون فارغة)
+                        'mother_first_name' => $request->input('mother_first_name'),
+                        'mother_second_name' => $request->input('mother_second_name'),
+                        'mother_third_name' => $request->input('mother_third_name'),
+                        'mother_last_name' => $request->input('mother_last_name'),
+                        'mother_id' => $request->input('mother_id'),
+                        'mother_death_date' => $request->input('mother_death_date'),
+                        'mother_death_reason' => $request->input('mother_death_reason'),
+                    ]);
+                }
+            }
+
+
+            // 4. Store family members
+            $familyMembers = $request->input('family_members');
+
+            if (is_array($familyMembers)) {
+                foreach ($familyMembers as $member) {
+                    RePeople::create([
+                        'registration_id' => $request->input('file_id_number'),
+                        'sponsorship_status' => $member['sponsorship_status'] ?? null,
+                        'first_name' => $member['first_name'] ?? null,
+                        'second_name' => $member['second_name'] ?? null,
+                        'third_name' => $member['third_name'] ?? null,
+                        'last_name' => $member['last_name'] ?? null,
+                        'person_id' => $member['person_id'] ?? null,
+                        'person_birth_date' => $member['person_birth_date'] ?? null,
+                        'person_age' => $member['person_age'] ?? null,
+                        'person_gender' => $member['person_gender'] ?? null,
+                        'person_health_status' => $member['person_health_status'] ?? null,
+                        'person_type_of_guarantee' => $member['person_type_of_guarantee'] ?? null,
+                    ]);
+                }
+            }
+
+
+
+            $fileIdNumber =$request->input('file_id_number');
+
+            if ($request->hasFile('document_file')) {
+                $files = $request->file('document_file');
+                $names = $request->input('stored_file_name', []);
+                $types = $request->input('file_type', []);
+                $personIds = $request->input('person_identity_number', []);
+
+                foreach ($files as $index => $file) {
+                    $storedFileName = $names[$index] ?? $file->getClientOriginalName();
+                    $personId = $personIds[$index] ?? null;
+                    $type = $types[$index] ?? null;
+
+                    $folder = 'uploads/' . $fileIdNumber;
+                    $path = $file->storeAs($folder, $storedFileName, 'public');
+
+                    Attachment::create([
+                        'person_identity_number' => $personId,
+                        'stored_file_name' => $storedFileName,
+                        'file_path' => 'storage/' . $path,
+                        'file_type' => $type,
+                    ]);
+                }
+            }
+
+            // معالجة المرفقات الجديدة كمصفوفة Laravel
+            $attachments = $request->file('attachments') ?? [];
+            $attachmentsData = $request->input('attachments', []);
+
+            foreach ($attachments as $index => $fileArray) {
+                // إذا كان $fileArray عبارة عن مصفوفة فيها 'file' => UploadedFile
+                $file = is_array($fileArray) && isset($fileArray['file']) ? $fileArray['file'] : $fileArray;
+                $personType = $attachmentsData[$index]['person_identity_number'] ?? null; // هذا قد يكون نص مثل main أو family_0 أو رقم
+                $fileType = $attachmentsData[$index]['file_type'] ?? null;
+                $fileIdNumber = $attachmentsData[$index]['file_id_number'] ?? $request->input('file_id_number');
+                $storedFileName = $attachmentsData[$index]['stored_file_name'] ?? ($file ? $file->getClientOriginalName() : null);
+
+                // استخراج رقم الهوية الحقيقي حسب نوع الشخص
+                $realPersonId = null;
+                if ($personType === 'main') {
+                    $realPersonId = $request->input('data_id_number');
+                } elseif ($personType === 'deceased_father') {
+                    $realPersonId = $request->input('father_id');
+                } elseif ($personType === 'deceased_mother') {
+                    $realPersonId = $request->input('mother_id');
+                } elseif (strpos($personType, 'family_') === 0) {
+                    $familyIndex = (int)str_replace('family_', '', $personType);
+                    $familyMembers = $request->input('family_members', []);
+                    $realPersonId = isset($familyMembers[$familyIndex]['person_id']) ? $familyMembers[$familyIndex]['person_id'] : null;
+                } else {
+                    // إذا كان رقم فعلي بالفعل
+                    $realPersonId = is_numeric($personType) ? $personType : null;
+                }
+
+                // تأكد أن رقم الهوية رقمي فقط
+                if ($file && $realPersonId && $fileType && $fileIdNumber && $storedFileName && is_numeric($realPersonId)) {
+                    $extension = $file->getClientOriginalExtension();
+                    $newFileName = "{$fileType}_{$fileIdNumber}_{$realPersonId}.{$extension}";
+
+                    $folder = 'uploads/' . $fileIdNumber;
+                    $path = $file->storeAs($folder, $newFileName, 'public');
+
+                    Attachment::create([
+                        'person_identity_number' => $realPersonId,
+                        'stored_file_name' => $newFileName,
+                        'file_path' => 'storage/' . $path,
+                        'file_type' => $fileType,
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => true]);
+            }
+            return redirect()->route('admin.records.management.create')
+                ->with('success', 'تم حفظ السجل بنجاح');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('خطأ في تخزين السجل: ' . $e->getMessage());
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => $e->getMessage()
+                ], 500);
+            }
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'حدث خطأ أثناء حفظ السجل: ' . $e->getMessage());
+        }
     }
-//     public function edit($id)
-//     {
-//         // Logic to show the form for editing an existing record
-//         // Fetch the record by ID and pass it to the view
-//         return view('admin.dashboard.records_management.edit', compact('id'));
-//     }
-//     public function update(Request $request, $id)
-//     {
-//         // Logic to update an existing record
-//         // Validate and update the data
-//         // Redirect or return a response
-//     }
-//     public function destroy($id)
-//     {
-//         // Logic to delete an existing record
-//         // Find the record by ID and delete it
-//         // Redirect or return a response
-//     }
 }
+
+

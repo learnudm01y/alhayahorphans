@@ -50,6 +50,7 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::get('records-management/create', [RecordsManagementController::class, 'create'])->name('records.management.create');
     Route::post('records-management/store', [RecordsManagementController::class, 'store'])->name('records.management.store');
     Route::post('records-management/upload', [RecordsManagementController::class, 'upload'])->name('documents.upload');
+    // Route::post('records-management/upload/attachments', [RecordsManagementController::class, 'uploadDocsAjax'])->name('records.ajax.store');
     // category management
     Route::get('category-management/academicdegree', [AcademicDegreeController::class, 'academicdegree'])->name('category.management.academicdegree');
     Route::post('category-management/academicdegree/store', [AcademicDegreeController::class, 'createAcademicDegree'])->name('store.category.management.academicdegree');

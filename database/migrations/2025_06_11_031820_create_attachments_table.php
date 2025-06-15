@@ -14,19 +14,22 @@ return new class extends Migration
         Schema::create('attachments', function (Blueprint $table) {
             $table->id();
 
-            // علاقة متعددة الأشكال
-            $table->unsignedBigInteger('attachable_id');
-            $table->string('attachable_type');
+            // رقم الهوية المرتبط بالوثيقة (مطلوب)
+            $table->string('person_identity_number');
 
-            // نوع الوثيقة
-            $table->unsignedBigInteger('document_type_id')->nullable();
-            $table->foreign('document_type_id')
-                ->references('id')
-                ->on('document_types')
-                ->nullOnDelete();
+            // اسم الملف الفعلي المخزن (يتضمن رقم الهوية + نوع الوثيقة)
+            $table->string('stored_file_name');
 
+            // مسار تخزين الملف
             $table->string('file_path');
+
+            // التواريخ
             $table->timestamps();
+
+            // فهرسة رقم الهوية لتحسين الاستعلامات
+            $table->index('person_identity_number');
+             $table->string('file_type')->default(0)->after('file_path');
+
         });
     }
 

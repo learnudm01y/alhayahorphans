@@ -15,7 +15,7 @@ return new class extends Migration
             $table->bigIncrements('id');
             $table->unsignedBigInteger('file_id_number')->unique();
             $table->unsignedBigInteger('data_section_id');
-            $table->unsignedBigInteger('data_request_status');
+            $table->unsignedBigInteger('data_request_status')->default(1); 
             $table->integer('data_id_number');
             $table->string('data_first_name');
             $table->string('data_father_name');
@@ -35,7 +35,7 @@ return new class extends Migration
             $table->unsignedBigInteger('data_city');
             $table->unsignedBigInteger('data_province');
             $table->unsignedBigInteger('data_health_status');
-            $table->text('data_description_health_status');
+            $table->text('data_description_needs');
             $table->integer('data_number_mail');
             $table->integer('data_number_female');
             $table->integer('data_number_alt');
@@ -44,8 +44,6 @@ return new class extends Migration
             $table->unsignedBigInteger('data_employment_status_breadwinner');
             $table->unsignedBigInteger('data_housing_status');
             $table->unsignedBigInteger('data_current_housing_type');
-            $table->string('data_id_image');// صورة الهوية
-            $table->string('data_guardianship_argument_image');// صورة حجة الولاية
             $table->string('data_user_insert_data');// المستخدم الذي قام بإدخال البيانات
             $table->timestamps();
 

@@ -14,7 +14,6 @@ class Data extends Model
     protected $fillable = [
         'file_id_number',
         'data_section_id',
-        'data_request_status',
         'data_id_number',
         'data_first_name',
         'data_father_name',
@@ -32,20 +31,18 @@ class Data extends Model
         'data_address_before_displacement',
         'data_current_address',
         'data_city',
-        'province',
+        'data_province',
         'data_health_status',
-        'data_description_health_status',
+        'data_description_needs',
         'data_number_mail',
         'data_number_female',
-        'data_number_alt',
         'data_number_of_individuals_with_chronic_diseases',
         'data_number_of_people_with_special_needs',
         'data_employment_status_breadwinner',
         'data_housing_status',
         'data_current_housing_type',
-        'data_id_image',
-        'data_guardianship_argument_image',
         'data_user_insert_data',
+        'data_request_status',
     ];
 
     // علاقات Eloquent

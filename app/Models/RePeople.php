@@ -8,8 +8,8 @@ use Illuminate\Database\Eloquent\Model;
 class RePeople extends Model
 {
     use HasFactory;
-    protected $primaryKey = 'file_id';
     public $incrementing = false;
+    protected $table = 're_people';
     protected $fillable = [
         'registration_id',
         'sponsorship_status',
@@ -17,14 +17,14 @@ class RePeople extends Model
         'second_name',
         'third_name',
         'last_name',
-        'orphan_id',
-        'orphan_birth_date',
-        'orphan_age',
-        'orphan_gender',
-        'orphan_health_status',
-        'orphan_birth_certificate',
-        'orphan_photo',
-        'orphan_type_of_guarantee'
+        'person_id',
+        'person_birth_date',
+        'person_age',
+        'person_gender',
+        'person_health_status',
+        'person_birth_certificate',
+        'person_photo',
+        'person_type_of_guarantee'
     ];
 
     public function sponsorshipStatus()
@@ -34,12 +34,12 @@ class RePeople extends Model
 
     public function healthStatus()
     {
-        return $this->belongsTo(HealthStatus::class, 'orphan_health_status');
+        return $this->belongsTo(HealthStatus::class, 'person_health_status');
     }
 
     public function guaranteeType()
     {
-        return $this->belongsTo(TypeOfGuarantee::class, 'orphan_type_of_guarantee');
+        return $this->belongsTo(TypeOfGuarantee::class, 'person_type_of_guarantee');
     }
 
     public function documentType()

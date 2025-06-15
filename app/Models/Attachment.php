@@ -9,13 +9,11 @@ class Attachment extends Model
 {
     use HasFactory;
 
-    public function attachable()
-    {
-        return $this->morphTo();
-    }
-
-    public function documentType()
-    {
-        return $this->belongsTo(DocumentType::class);
-    }
+    protected $fillable = [
+        'person_identity_number',
+        'stored_file_name',
+        'file_path',
+        'file_type'
+    ];
+    protected $table = 'attachments';
 }
