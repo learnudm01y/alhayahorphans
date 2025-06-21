@@ -196,7 +196,7 @@
     </style>
 @endpush
 
-@push('scripts')
+@push('scriptsCode')
     <script>
         // تهيئة Select2 مع الترجمة العربية
         $(document).ready(function() {
@@ -212,7 +212,7 @@
     </script>
 @endpush
 
-@push('scripts')
+@push('scriptsCode')
     <script>
         $(document).ready(function() {
             // تهيئة Select2 للرتبة

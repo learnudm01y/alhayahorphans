@@ -24,17 +24,8 @@ class RecordsManagementeDataTable extends DataTable
     {
         return (new EloquentDataTable($query))
             ->addColumn('action', function($row) {
-                // $editUrl = route('records_management.edit', $row->id);
-                // $deleteUrl = route('records_management.destroy', $row->id);
-                // return '
-                //     <a href="'.$editUrl.'" class="btn btn-sm btn-primary">تعديل</a>
-                //     <form action="'.$deleteUrl.'" method="POST" style="display:inline;">
-                //         '.csrf_field().'
-                //         '.method_field('DELETE').'
-                //         <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm(\'هل أنت متأكد من الحذف؟\')">حذف</button>
-                //     </form>
-                // ';
-
+                $editUrl = route('admin.records.management.edit', $row->id);
+                return '<a href="'.$editUrl.'" class="btn btn-sm btn-primary">تعديل</a>';
             })
             ->addColumn('full_name', function($row) {
                 return "{$row->data_first_name} {$row->data_father_name} {$row->data_grand_father_name} {$row->data_family_name}";
@@ -46,7 +37,7 @@ class RecordsManagementeDataTable extends DataTable
                 return optional($row->requestStatus)->description; // حالة الطلب من العلاقة
             })
             ->addColumn('relationship_name', function($row) {
-                return optional($row->categoryOfRelation)->description; // صلة القرابة من العلاقة الجديدة
+                return optional($row->categoryOfRelation)->attribute; // صلة القرابة من العلاقة الجديدة
             })
             ->addColumn('health_status_name', function($row) {
                 return optional($row->healthStatus)->description; // الحالة الصحية من العلاقة

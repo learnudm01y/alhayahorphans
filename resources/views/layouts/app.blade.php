@@ -27,10 +27,14 @@
                 </header>
             @endif
 
+            <!-- إضافة عنصر بحث وهمي لمنع أخطاء القالب -->
+            
+            <!-- نهاية العنصر الوهمي -->
             <!-- Page Content -->
             <main>
                 {{ $slot }}
             </main>
         </div>
+        @stack('scriptsCode')
     </body>
 </html>

@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AcademicDegreeController;
 use App\Http\Controllers\Admin\AdminController;
 use App\Http\Controllers\Admin\AidStatusController;
 use App\Http\Controllers\Admin\BankNameController;
+use App\Http\Controllers\Admin\CategoryOfRelationController;
 use App\Http\Controllers\Admin\CityController;
 use App\Http\Controllers\Admin\CurrencyTypeController;
 use App\Http\Controllers\Admin\DeathReasonController;
@@ -17,6 +18,7 @@ use App\Http\Controllers\Admin\MaritalStatusController;
 use App\Http\Controllers\Admin\PersonsController;
 use App\Http\Controllers\Admin\ProvinceController;
 use App\Http\Controllers\Admin\RecordsManagementController;
+use App\Http\Controllers\Admin\RecordsManagementEditController;
 use App\Http\Controllers\Admin\RequestStatusController;
 use App\Http\Controllers\Admin\SponsorshipStatusController;
 use App\Http\Controllers\Admin\TypeOfAccommodationController;
@@ -50,47 +52,68 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::get('records-management/create', [RecordsManagementController::class, 'create'])->name('records.management.create');
     Route::post('records-management/store', [RecordsManagementController::class, 'store'])->name('records.management.store');
     Route::post('records-management/upload', [RecordsManagementController::class, 'upload'])->name('documents.upload');
-    // Route::post('records-management/upload/attachments', [RecordsManagementController::class, 'uploadDocsAjax'])->name('records.ajax.store');
+    Route::get('records-management/{id}/edit', [RecordsManagementEditController::class, 'edit'])->name('records.management.edit');
+    // إصلاح مسار حذف فرد الأسرة ليكون POST كما يتوقعه الجافاسكريبت
+    Route::post('records-management/delete-family-member/{id}', [RecordsManagementEditController::class, 'deleteFamilyMember'])
+        ->name('records-management.delete-family-member');
+
+    // إضافة مسار حذف المرفق عبر AJAX
+    Route::post('records-management/delete-attachment/{id}', [RecordsManagementEditController::class, 'deleteAttachment'])
+        ->name('records-management.delete-attachment');
+
+    // مسار إنشاء سجل جديد (upload via AJAX optional أو ضمن create form)
+    Route::post('records-management/upload', [RecordsManagementEditController::class, 'upload'])
+        ->name('records.management.upload');
+
+    // مسار تعديل سجل موجود (update via AJAX or full form submit)
+    Route::put('records-management/{id}', [RecordsManagementEditController::class, 'update'])
+        ->name('records.management.update');
+
+    Route::delete('records-management/{id}', [RecordsManagementEditController::class, 'delete'])->name('records.management.delete');
+    // إضافة هذا السطر لدعم حذف فرد الأسرة عبر AJAX
+    // Route::delete('records-management/family-member/delete/{id}', [RecordsManagementEditController::class, 'deleteFamilyMember'])->name('records.management.family_member.delete');
+
     // category management
     Route::get('category-management/academicdegree', [AcademicDegreeController::class, 'academicdegree'])->name('category.management.academicdegree');
     Route::post('category-management/academicdegree/store', [AcademicDegreeController::class, 'createAcademicDegree'])->name('store.category.management.academicdegree');
     Route::put('/admin/category/academicdegree/{id}', [AcademicDegreeController::class, 'academicDegreeUpdate'])
-    ->name('update.category.management.academicdegree');
+        ->name('update.category.management.academicdegree');
     Route::delete('/admin/category/academicdegree/{id}', [AcademicDegreeController::class, 'academicDegreeDestroy'])
-    ->name('delete.category.management.academicdegree');
+        ->name('delete.category.management.academicdegree');
     // Aid Status Management
-    Route::resource('aid_status',AidStatusController::class);
+    Route::resource('aid_status', AidStatusController::class);
     // Bank Name Management
-    Route::resource('bank_name',BankNameController::class);
+    Route::resource('bank_name', BankNameController::class);
+    // Category Of Relation Management
+    Route::resource('CategoryOfRelation_name', CategoryOfRelationController::class);
     // city name Management
-    Route::resource('city_name',CityController::class);
+    Route::resource('city_name', CityController::class);
     // currency type  Management
-    Route::resource('CurrencyType_name',CurrencyTypeController::class);
+    Route::resource('CurrencyType_name', CurrencyTypeController::class);
     // Death Reason description Management
-    Route::resource('DeathReason_name',DeathReasonController::class);
+    Route::resource('DeathReason_name', DeathReasonController::class);
     // Displacement status Management
-    Route::resource('DisplacementStatus_name',DisplacementStatusController::class);
+    Route::resource('DisplacementStatus_name', DisplacementStatusController::class);
     //  DocumentType Name Management
-    Route::resource('DocumentType_name',DocumentTypeCotroller::class);
+    Route::resource('DocumentType_name', DocumentTypeCotroller::class);
     //  Employment status Management
-    Route::resource('Employment_name',EmploymentCotroller::class);
+    Route::resource('Employment_name', EmploymentCotroller::class);
     //   General Category Management
-    Route::resource('GeneralCategory_name',GeneralCategoryCotroller::class);
+    Route::resource('GeneralCategory_name', GeneralCategoryCotroller::class);
     //   Health  Status Management
-    Route::resource('HealthStatus_name',HealthStatusCotroller::class);
+    Route::resource('HealthStatus_name', HealthStatusCotroller::class);
     //   Housing Status Management
-    Route::resource('HousingStatus_name',HousingStatusController::class);
+    Route::resource('HousingStatus_name', HousingStatusController::class);
     //   Marital Status Management
-    Route::resource('MaritalStatus_name',MaritalStatusController::class);
+    Route::resource('MaritalStatus_name', MaritalStatusController::class);
     //   Province Name  Management
-    Route::resource('Province_name',ProvinceController::class);
+    Route::resource('Province_name', ProvinceController::class);
     //   Request Status   Management
-    Route::resource('RequestStatus_name',RequestStatusController::class);
+    Route::resource('RequestStatus_name', RequestStatusController::class);
     //   Sponsorship Status Management
-    Route::resource('SponsorshipStatus_name',SponsorshipStatusController::class);
+    Route::resource('SponsorshipStatus_name', SponsorshipStatusController::class);
     //   Type Of Accommodation Management
-    Route::resource('TypeOfAccommodation_name',TypeOfAccommodationController::class);
+    Route::resource('TypeOfAccommodation_name', TypeOfAccommodationController::class);
     //   Type Of Guarantee Management
-    Route::resource('TypeOfGuarantee_name',TypeOfGuaranteeController::class);
-
+    Route::resource('TypeOfGuarantee_name', TypeOfGuaranteeController::class);
 });

@@ -67,9 +67,9 @@
                             enctype="multipart/form-data" autocomplete="off" id="main_form">
                             @csrf
                             <input type="hidden" name="file_id_number" value="{{ $file_id_number ?? '' }}">
-                            <input type="hidden" id="person_identity_number_hidden" name="person_identity_number"
-                                value="">
+                            <input type="hidden" id="person_identity_number_hidden" name="person_identity_number" value="">
                             <input type="hidden" id="file_type_hidden" name="file_type" value="">
+                            <!-- تأكد من وجود هذه الحقول المخفية -->
                             <div class="tab-content" id="formTabsContent">
                                 <!-- Basic Info Tab -->
                                 <div class="tab-pane fade show active" id="basic" role="tabpanel"
@@ -731,6 +731,6 @@
 
 
     @include('admin.dashboard.records_management.style')
-    @include('admin.dashboard.records_management.javascript')
+    @include('admin.dashboard.records_management.javascript_create')
 @endsection
 

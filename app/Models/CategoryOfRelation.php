@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Model;
 class CategoryOfRelation extends Model
 {
     use HasFactory;
-
+    protected $fillable = [
+        'attribute',
+    ];
     protected $table = 'category_of_relations';
 }

@@ -10,13 +10,14 @@ if (!function_exists('generateFiveDigitCode')) {
      */
     function generateFiveDigitCode(string $modelClass, string $column = 'code'): string
     {
-        // Get the current maximum numeric value from the column
-        $max = $modelClass::max($column);
-
-        // Remove any leading zeros and increment
-        $next = (int)$max + 1;
-
-        // Format it as 6 digits with leading zeros
+        $all = $modelClass::pluck($column)->map(function($val) {
+            // تأكد من تحويل القيمة إلى رقم صحيح حتى لو كانت نصية مع أصفار بادئة
+            return (int)preg_replace('/\D/', '', $val);
+        });
+        $max = $all->max() ?? 0;
+        $next = $max + 1;
+        // أرجع الرقم مع الأصفار البادئة
         return str_pad($next, 6, '0', STR_PAD_LEFT);
     }
 }
+

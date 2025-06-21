@@ -121,6 +121,19 @@ class Data extends Model
     }
     public function attachments()
     {
-        return $this->morphMany(Attachment::class, 'attachable');
+        // علاقة hasMany الأصلية: فقط مرفقات صاحب الملف
+        return $this->hasMany(Attachment::class, 'person_identity_number', 'data_id_number');
+    }
+
+    public function rePeople()
+    {
+        // علاقة أفراد الأسرة: كل سجل Data له عدة أفراد أسرة عبر registration_id <-> file_id_number
+        return $this->hasMany(RePeople::class, 'registration_id', 'file_id_number');
+    }
+
+    public function deadPepole()
+    {
+        // علاقة واحد لواحد مع جدول المتوفين عبر re_file_id <-> file_id_number
+        return $this->hasOne(\App\Models\DeadPepole::class, 're_file_id', 'file_id_number');
     }
 }

@@ -1,5 +1,4 @@
-
-    @push('styles')
+@push('styles')
         <style>
             .nav-tabs .nav-link {
                 border: none;
@@ -398,5 +397,88 @@
             .save-record-btn i {
                 font-size: 1.5rem;
             }
+
+            .preview-item .card,
+            .family-member-documents .card,
+            .document-card,
+            .deceased-person-card,
+            .family-member-form {
+                width: 100%;
+                max-width: 100%;
+                margin: 0;
+            }
+
+            .card,
+            .document-card,
+            .deceased-person-card,
+            .family-member-form {
+                padding: 0.5rem !important;
+            }
+
+            .card-body,
+            .document-card .card-body,
+            .deceased-person-card .card-body,
+            .family-member-form .card-body {
+                padding: 0.5rem !important;
+            }
+
+            .file-upload-wrapper,
+            #preview,
+            .deceased-docs-section {
+                padding: 0.5rem !important;
+            }
+
+            .documents-flex-container,
+            #family_members_docs .d-flex {
+                padding: 0.25rem 0 !important;
+                gap: 0.5rem !important;
+            }
+
+            .document-card,
+            .family-member-documents .card {
+                min-width: 150px !important;
+            }
+
+            /* Responsive: تقليل الحشوات أكثر للجوال */
+            @media (max-width: 576px) {
+                .card,
+                .document-card,
+                .deceased-person-card,
+                .family-member-form {
+                    padding: 0.2rem !important;
+                }
+                .card-body,
+                .document-card .card-body,
+                .deceased-person-card .card-body,
+                .family-member-form .card-body {
+                    padding: 0.2rem !important;
+                }
+                .file-upload-wrapper,
+                #preview,
+                .deceased-docs-section {
+                    padding: 0.2rem !important;
+                }
+                .documents-flex-container,
+                #family_members_docs .d-flex {
+                    padding: 0.1rem 0 !important;
+                    gap: 0.2rem !important;
+                }
+                .document-card,
+                .family-member-documents .card {
+                    min-width: 120px !important;
+                }
+            }
         </style>
+        <style>
+            /* مثال:
+            .document-card { width: 150px; }
+            .documents-flex-container { overflow-x: auto; }
+            حسب التصميم العام. */
+            .document-card {
+                width: 150px;
+            }
+            .documents-flex-container {
+                overflow-x: auto;
+            }
+            </style>
     @endpush

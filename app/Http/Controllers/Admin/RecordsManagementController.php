@@ -35,7 +35,7 @@ class RecordsManagementController extends Controller
     {
         return $dataTable->render('admin.dashboard.records_management.index');
     }
-    public function create()
+       public function create()
     {
         $generalSection = GeneralCategory::all();
         $file_id_number = generateFiveDigitCode(Data::class, 'file_id_number');
@@ -75,7 +75,7 @@ class RecordsManagementController extends Controller
             )
         );
     }
-    public function store(Request $request)
+     public function store(Request $request)
     {
         try {
             // 1. Validate basic data and attachments
@@ -125,9 +125,12 @@ class RecordsManagementController extends Controller
 
             DB::beginTransaction();
 
+            // استخدم رقم الملف مع الأصفار البادئة دائماً
+            $fileIdNumber = str_pad($request->input('file_id_number'), 6, '0', STR_PAD_LEFT);
+
             // 2. Store main Data record
             $data = Data::create([
-                'file_id_number' => $request->input('file_id_number'),
+                'file_id_number' => $fileIdNumber,
                 'data_section_id' => $request->input('data_section_id'),
                 'data_id_number' => $request->input('data_id_number'),
                 'data_first_name' => $request->input('data_first_name'),
@@ -166,7 +169,7 @@ class RecordsManagementController extends Controller
                 $motherFilled = $request->filled('mother_first_name') || $request->filled('mother_last_name') || $request->filled('mother_id');
                 if ($fatherFilled || $motherFilled) {
                     DeadPepole::create([
-                        're_file_id' => $request->input('file_id_number'),
+                        're_file_id' => $fileIdNumber,
 
                         // بيانات الأب
                         'father_first_name' => $request->input('father_first_name'),
@@ -196,7 +199,7 @@ class RecordsManagementController extends Controller
             if (is_array($familyMembers)) {
                 foreach ($familyMembers as $member) {
                     RePeople::create([
-                        'registration_id' => $request->input('file_id_number'),
+                        'registration_id' => $fileIdNumber,
                         'sponsorship_status' => $member['sponsorship_status'] ?? null,
                         'first_name' => $member['first_name'] ?? null,
                         'second_name' => $member['second_name'] ?? null,
@@ -214,7 +217,9 @@ class RecordsManagementController extends Controller
 
 
 
-            $fileIdNumber =$request->input('file_id_number');
+            // عند التخزين، Laravel سيحفظ في storage/app/public/$folder
+            // تأكد أن $folder لا يساوي 'public' فقط، بل دائماً يوجد مجلد فرعي (مثل 'uploads/000123')
+            // تأكد من صلاحيات الكتابة على storage/app/public ووجود الرابط الرمزي public/storage
 
             if ($request->hasFile('document_file')) {
                 $files = $request->file('document_file');
@@ -227,7 +232,20 @@ class RecordsManagementController extends Controller
                     $personId = $personIds[$index] ?? null;
                     $type = $types[$index] ?? null;
 
-                    $folder = 'uploads/' . $fileIdNumber;
+                    // تحقق من وجود اسم ملف صالح
+                    if (!$storedFileName) {
+                        $storedFileName = $file->getClientOriginalName();
+                    }
+                    // إذا بقي الاسم فارغًا لأي سبب، تجاهل التخزين
+                    if (!$file || !$storedFileName) {
+                        continue;
+                    }
+
+                    $folder = 'uploads/' . $fileIdNumber; // يجب أن يكون دائماً مجلد فرعي
+                    // منع أي محاولة لتخزين في مجلد public مباشرة
+                    if ($folder === 'public' || $folder === 'public/') {
+                        throw new \Exception('خطأ في مسار التخزين: يجب تحديد مجلد فرعي داخل uploads');
+                    }
                     $path = $file->storeAs($folder, $storedFileName, 'public');
 
                     Attachment::create([
@@ -248,8 +266,20 @@ class RecordsManagementController extends Controller
                 $file = is_array($fileArray) && isset($fileArray['file']) ? $fileArray['file'] : $fileArray;
                 $personType = $attachmentsData[$index]['person_identity_number'] ?? null; // هذا قد يكون نص مثل main أو family_0 أو رقم
                 $fileType = $attachmentsData[$index]['file_type'] ?? null;
-                $fileIdNumber = $attachmentsData[$index]['file_id_number'] ?? $request->input('file_id_number');
+                // استخدم رقم الملف مع الأصفار البادئة دائماً
+                $fileIdNumberAttach = isset($attachmentsData[$index]['file_id_number'])
+                    ? str_pad($attachmentsData[$index]['file_id_number'], 6, '0', STR_PAD_LEFT)
+                    : $fileIdNumber;
                 $storedFileName = $attachmentsData[$index]['stored_file_name'] ?? ($file ? $file->getClientOriginalName() : null);
+
+                // تحقق من وجود اسم ملف صالح
+                if (!$storedFileName && $file) {
+                    $storedFileName = $file->getClientOriginalName();
+                }
+                // إذا بقي الاسم فارغًا لأي سبب، تجاهل التخزين
+                if (!$file || !$storedFileName) {
+                    continue;
+                }
 
                 // استخراج رقم الهوية الحقيقي حسب نوع الشخص
                 $realPersonId = null;
@@ -269,11 +299,14 @@ class RecordsManagementController extends Controller
                 }
 
                 // تأكد أن رقم الهوية رقمي فقط
-                if ($file && $realPersonId && $fileType && $fileIdNumber && $storedFileName && is_numeric($realPersonId)) {
+                if ($file && $realPersonId && $fileType && $fileIdNumberAttach && $storedFileName && is_numeric($realPersonId)) {
                     $extension = $file->getClientOriginalExtension();
-                    $newFileName = "{$fileType}_{$fileIdNumber}_{$realPersonId}.{$extension}";
+                    $newFileName = "{$fileType}_{$fileIdNumberAttach}_{$realPersonId}.{$extension}";
 
-                    $folder = 'uploads/' . $fileIdNumber;
+                    $folder = 'uploads/' . $fileIdNumberAttach; // يجب أن يكون دائماً مجلد فرعي
+                    if ($folder === 'public' || $folder === 'public/') {
+                        throw new \Exception('خطأ في مسار التخزين: يجب تحديد مجلد فرعي داخل uploads');
+                    }
                     $path = $file->storeAs($folder, $newFileName, 'public');
 
                     Attachment::create([
@@ -306,6 +339,8 @@ class RecordsManagementController extends Controller
                 ->with('error', 'حدث خطأ أثناء حفظ السجل: ' . $e->getMessage());
         }
     }
+
+
 }
 
 

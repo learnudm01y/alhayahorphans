@@ -90,6 +90,18 @@
                 <!--begin:Menu item-->
                 <div class="menu-item">
                     <!--begin:Menu link-->
+                    <a class="menu-link" href="{{ route('admin.CategoryOfRelation_name.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-graduation-cap"></i>
+                        </span>
+                        <span class="menu-title"> صلة القرابة  </span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                <!--end:Menu item-->
+                <!--begin:Menu item-->
+                <div class="menu-item">
+                    <!--begin:Menu link-->
                     <a class="menu-link" href="{{ route('admin.aid_status.index') }}">
                         <span class="menu-bullet">
                             <i class="fas fa-hands-helping"></i>

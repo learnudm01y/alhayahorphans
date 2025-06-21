@@ -739,7 +739,7 @@
     <!--end::Theme Mode Script-->
     @yield('scripts')
     @stack('scriptsCode')
-    
+
     <!--end::Custom Javascript-->
     <!--end::Javascript-->
 

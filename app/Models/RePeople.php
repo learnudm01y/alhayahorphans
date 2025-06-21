@@ -22,8 +22,6 @@ class RePeople extends Model
         'person_age',
         'person_gender',
         'person_health_status',
-        'person_birth_certificate',
-        'person_photo',
         'person_type_of_guarantee'
     ];
 
