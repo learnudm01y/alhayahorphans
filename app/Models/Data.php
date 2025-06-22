@@ -92,7 +92,7 @@ class Data extends Model
 
     public function province()
     {
-        return $this->belongsTo(Province::class, 'province');
+        return $this->belongsTo(Province::class, 'data_province');
     }
 
     public function healthStatus()

@@ -20,14 +20,14 @@
                         </div>
                     </div>
 
-                    <!-- Add Tab Navigation -->
-                    <ul class="nav nav-tabs nav-fill mb-4" id="formTabs" role="tablist">
+                    <!-- Add Tab Navigation (mobile-bottom-tabs style) -->
+                    <ul class="nav nav-tabs nav-fill mb-4 mobile-bottom-tabs" id="formTabs" role="tablist">
                         <li class="nav-item" role="presentation">
                             <button class="nav-link active py-3" id="basic-tab" data-bs-toggle="tab" data-bs-target="#basic"
                                 type="button" role="tab" aria-controls="basic" aria-selected="true">
                                 <div class="d-flex flex-column align-items-center">
-                                    <i class="fas fa-user fa-2x mb-2"></i>
-                                    <span class="fs-4 fw-bold">البيانات الأساسية</span>
+                                    <i class="fas fa-user tab-icon mb-2"></i>
+                                    <span class="fs-4 fw-bold tab-label">البيانات الأساسية</span>
                                 </div>
                             </button>
                         </li>
@@ -36,8 +36,8 @@
                                 data-bs-target="#family-members" type="button" role="tab"
                                 aria-controls="family-members" aria-selected="false">
                                 <div class="d-flex flex-column align-items-center">
-                                    <i class="fas fa-users fa-2x mb-2"></i>
-                                    <span class="fs-4 fw-bold">أفراد الأسرة</span>
+                                    <i class="fas fa-users tab-icon mb-2"></i>
+                                    <span class="fs-4 fw-bold tab-label">أفراد الأسرة</span>
                                 </div>
                             </button>
                         </li>
@@ -45,8 +45,8 @@
                             <button class="nav-link py-3" id="deceased-tab" data-bs-toggle="tab" data-bs-target="#deceased"
                                 type="button" role="tab" aria-controls="deceased" aria-selected="false">
                                 <div class="d-flex flex-column align-items-center">
-                                    <i class="fas fa-user-times fa-2x mb-2"></i>
-                                    <span class="fs-4 fw-bold">الأفراد المتوفين</span>
+                                    <i class="fas fa-user-times tab-icon mb-2"></i>
+                                    <span class="fs-4 fw-bold tab-label">الأفراد المتوفين</span>
                                 </div>
                             </button>
                         </li>
@@ -55,13 +55,111 @@
                                 data-bs-target="#attachments" type="button" role="tab" aria-controls="attachments"
                                 aria-selected="false">
                                 <div class="d-flex flex-column align-items-center">
-                                    <i class="fas fa-paperclip fa-2x mb-2"></i>
-                                    <span class="fs-4 fw-bold">المرفقات</span>
+                                    <i class="fas fa-paperclip tab-icon mb-2"></i>
+                                    <span class="fs-4 fw-bold tab-label">المرفقات</span>
                                 </div>
                             </button>
                         </li>
                     </ul>
-
+                    <style>
+                    .tab-icon {
+                        font-size: 2rem;
+                        color: #0d6efd;
+                        background: none !important;
+                        border-radius: 0 !important;
+                        padding: 0 !important;
+                        margin-bottom: 0.2rem;
+                        border: none !important;
+                        transition: none !important;
+                        box-shadow: none !important;
+                    }
+                    .nav-tabs .nav-link.active .tab-icon,
+                    .nav-tabs .nav-link:focus .tab-icon,
+                    .nav-tabs .nav-link:hover .tab-icon {
+                        background: none !important;
+                        color: #0d6efd !important;
+                        border: none !important;
+                        transform: none !important;
+                        box-shadow: none !important;
+                    }
+                    @media (max-width: 576px) {
+                        .mobile-bottom-tabs {
+                            position: fixed;
+                            bottom: 0;
+                            left: 0;
+                            right: 0;
+                            z-index: 1050;
+                            background: rgba(245,245,245,0.95);
+                            box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
+                            margin-bottom: 0 !important;
+                            border-top: 1.5px solid #e5e7eb;
+                            border-radius: 22px 22px 0 0;
+                            padding: 0.2rem 0.5rem 0.3rem 0.5rem;
+                            display: flex !important;
+                            justify-content: space-between;
+                            gap: 0 !important;
+                        }
+                        .mobile-bottom-tabs .nav-item {
+                            flex: 1 1 0;
+                            display: flex;
+                            justify-content: center;
+                            align-items: stretch;
+                            position: relative;
+                        }
+                        .mobile-bottom-tabs .nav-link {
+                            padding: 0.4rem 0 !important;
+                            background: transparent !important;
+                            border: none !important;
+                            box-shadow: none !important;
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            border-radius: 18px !important;
+                            position: relative;
+                            height: 100%;
+                            min-width: 0;
+                        }
+                        .mobile-bottom-tabs .tab-label {
+                            display: none !important;
+                        }
+                        .tab-icon {
+                            font-size: 2.1rem !important;
+                            color: #232323 !important;
+                            background: rgba(200,200,200,0.18) !important;
+                            border-radius: 16px !important;
+                            padding: 0.55rem !important;
+                            margin-bottom: 0 !important;
+                            border: none !important;
+                            box-shadow: 0 1px 6px rgba(0,0,0,0.04) !important;
+                            transition: background 0.2s, color 0.2s, box-shadow 0.2s !important;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                        }
+                        .nav-tabs .nav-link.active .tab-icon,
+                        .nav-tabs .nav-link:focus .tab-icon,
+                        .nav-tabs .nav-link:hover .tab-icon {
+                            color: #232323 !important;
+                            background: rgba(44,44,44,0.13) !important;
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.10) !important;
+                        }
+                        .mobile-bottom-tabs .nav-item:not(:last-child)::after {
+                            content: "";
+                            position: absolute;
+                            top: 18%;
+                            right: 0;
+                            width: 1.5px;
+                            height: 64%;
+                            background: #e5e7eb;
+                            border-radius: 2px;
+                            opacity: 0.85;
+                            z-index: 2;
+                        }
+                        body {
+                            padding-bottom: 80px !important;
+                        }
+                    }
+                    </style>
                     <div class="card-body bg-light">
                         <form action="{{ route('admin.records.management.store') }}" method="POST"
                             enctype="multipart/form-data" autocomplete="off" id="main_form">

@@ -46,6 +46,7 @@ class RePeople extends Model
     }
     public function attachments()
     {
-        return $this->morphMany(Attachment::class, 'attachable');
+        // إذا كان جدول attachments لا يحتوي على أعمدة polymorphic، استخدم علاقة hasMany بدلاً من morphMany
+        return $this->hasMany(Attachment::class, 'person_identity_number', 'person_id');
     }
 }

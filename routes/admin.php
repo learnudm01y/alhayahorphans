@@ -116,4 +116,5 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::resource('TypeOfAccommodation_name', TypeOfAccommodationController::class);
     //   Type Of Guarantee Management
     Route::resource('TypeOfGuarantee_name', TypeOfGuaranteeController::class);
+    Route::get('records-management/{id}/show', [RecordsManagementEditController::class, 'show'])->name('records.management.show');
 });

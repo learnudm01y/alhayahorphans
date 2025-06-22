@@ -25,7 +25,9 @@ class RecordsManagementeDataTable extends DataTable
         return (new EloquentDataTable($query))
             ->addColumn('action', function($row) {
                 $editUrl = route('admin.records.management.edit', $row->id);
-                return '<a href="'.$editUrl.'" class="btn btn-sm btn-primary">تعديل</a>';
+                $showUrl = route('admin.records.management.show', $row->id);
+                return '<a href="'.$showUrl.'" class="btn btn-sm btn-info" style="margin-left:5px">عرض</a>' .
+                       '<a href="'.$editUrl.'" class="btn btn-sm btn-primary">تعديل</a>';
             })
             ->addColumn('full_name', function($row) {
                 return "{$row->data_first_name} {$row->data_father_name} {$row->data_grand_father_name} {$row->data_family_name}";
@@ -114,12 +116,12 @@ class RecordsManagementeDataTable extends DataTable
             Column::make('marital_status_name')->title('الحالة الاجتماعية'),
             Column::make('academic_qualification_name')->title('المؤهل العلمي'),
             Column::make('city_name')->title('المدينة'),
-            Column::make('employment_status_name')->title('حالة عمل العائل'),
+            Column::make('employment_status_name')->title('حالة عمل المعيل'),
             Column::make('data_description_needs')->title('وصف الاحتياج'),
             Column::computed('action')
                   ->exportable(false)
                   ->printable(false)
-                  ->width(120)
+                  ->width(200)
                   ->addClass('text-center')
                   ->title('إجراء'),
         ];

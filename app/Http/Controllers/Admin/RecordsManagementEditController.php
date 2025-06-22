@@ -67,6 +67,27 @@ class RecordsManagementEditController extends Controller
         ));
     }
 
+    public function show($id)
+    {
+        $data = Data::with([
+            'section',
+            'requestStatus',
+            'categoryOfRelation',
+            'healthStatus',
+            'maritalStatus',
+            'academicQualification',
+            'city',
+            'employmentStatusBreadwinner',
+            'province',
+            'housingStatus',
+            'currentHousingType', // <-- التصحيح هنا
+            'attachments',
+            'rePeople',
+            'deadPepole',
+        ])->findOrFail($id);
+        return view('admin.dashboard.records_management.show', compact('data'));
+    }
+
  public function update(Request $request, $id)
     {
         try {
