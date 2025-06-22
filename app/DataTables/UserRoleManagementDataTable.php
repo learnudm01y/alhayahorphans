@@ -69,6 +69,7 @@ class UserRoleManagementDataTable extends DataTable
                 'serverSide' => true,
                 'stateSave' => true,
                 'dom' => 'lrtip',
+                'select' => false, // منع التحديد/التفاعل
             ]);
     }
 

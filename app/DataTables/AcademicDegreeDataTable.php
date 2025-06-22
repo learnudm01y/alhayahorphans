@@ -74,7 +74,8 @@ class AcademicDegreeDataTable extends DataTable
                 'initComplete' => 'function(settings, json) {
                     $("#academicdegree-table").css("text-align", "right");
                     $("#academicdegree-table").css("direction", "rtl");
-                }'
+                }',
+                'select' => false, // منع التحديد/التفاعل
             ]);
     }
 

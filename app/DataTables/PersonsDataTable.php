@@ -79,9 +79,10 @@ class PersonsDataTable extends DataTable
             ->autoWidth(false)
             ->parameters([
                 'searching'   => true,
-                'searchDelay' => 500, // يقلل الضغط على السيرفر
+                'searchDelay' => 500,
                 'stateSave'   => true,
                 'lengthMenu'  => [10,25, 50, 100],
+                'select' => false, // منع التحديد/التفاعل
             ])
             ->buttons(['excel','csv','pdf','print','reset','reload']);
     }

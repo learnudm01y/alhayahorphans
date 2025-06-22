@@ -53,6 +53,9 @@ class AdminsDataTable extends DataTable
                         Button::make('print'),
                         Button::make('reset'),
                         Button::make('reload')
+                    ])
+                    ->parameters([
+                        'select' => false, // منع التحديد/التفاعل
                     ]);
     }
 

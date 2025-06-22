@@ -298,8 +298,8 @@ class RecordsManagementController extends Controller
                     $realPersonId = is_numeric($personType) ? $personType : null;
                 }
 
-                // تأكد أن رقم الهوية رقمي فقط
-                if ($file && $realPersonId && $fileType && $fileIdNumberAttach && $storedFileName && is_numeric($realPersonId)) {
+                // فقط إذا كان رقم الهوية رقمي وغير فارغ
+                if ($file && $realPersonId && $fileType && $fileIdNumberAttach && $storedFileName && preg_match('/^\d+$/', $realPersonId)) {
                     $extension = $file->getClientOriginalExtension();
                     $newFileName = "{$fileType}_{$fileIdNumberAttach}_{$realPersonId}.{$extension}";
 

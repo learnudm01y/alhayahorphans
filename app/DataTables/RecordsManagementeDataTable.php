@@ -26,8 +26,34 @@ class RecordsManagementeDataTable extends DataTable
             ->addColumn('action', function($row) {
                 $editUrl = route('admin.records.management.edit', $row->id);
                 $showUrl = route('admin.records.management.show', $row->id);
-                return '<a href="'.$showUrl.'" class="btn btn-sm btn-info" style="margin-left:5px">عرض</a>' .
-                       '<a href="'.$editUrl.'" class="btn btn-sm btn-primary">تعديل</a>';
+                $deleteUrl = route('admin.records.management.delete', $row->id);
+                return '
+                <div class="dropdown">
+                  <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    الإجراءات
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end" style="min-width: 140px;">
+                    <li>
+                      <a class="dropdown-item" style="color:#222;" href="'.$showUrl.'">
+                        <i class="bi bi-eye text-info"></i> عرض
+                      </a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item" style="color:#222;" href="'.$editUrl.'">
+                        <i class="bi bi-pencil-square text-primary"></i> تعديل
+                      </a>
+                    </li>
+                    <li>
+                      <form action="'.$deleteUrl.'" method="POST" style="display:inline;" onsubmit="return confirm(\'هل أنت متأكد من حذف السجل؟\');">
+                        '.csrf_field().method_field('DELETE').'
+                        <button type="submit" class="dropdown-item text-danger" style="width:100%;text-align:right;">
+                          <i class="bi bi-trash text-danger"></i> حذف
+                        </button>
+                      </form>
+                    </li>
+                  </ul>
+                </div>
+                ';
             })
             ->addColumn('full_name', function($row) {
                 return "{$row->data_first_name} {$row->data_father_name} {$row->data_grand_father_name} {$row->data_family_name}";
@@ -79,14 +105,12 @@ class RecordsManagementeDataTable extends DataTable
                     ->minifiedAjax()
                     //->dom('Bfrtip')
                     ->orderBy(0, 'desc')
-                    ->selectStyleSingle()
+                    // ->selectStyleSingle()
                     ->buttons([
                         Button::make('excel'),
                         Button::make('csv'),
                         Button::make('pdf'),
                         Button::make('print'),
-                        // Button::make('reset'),
-                        // Button::make('reload')
                     ])
                     ->parameters([
                         'language' => [
@@ -94,6 +118,12 @@ class RecordsManagementeDataTable extends DataTable
                             'zeroRecords' => 'لم يتم العثور على سجلات مطابقة',
                             // يمكنك تخصيص رسائل أخرى هنا إذا رغبت
                         ],
+                        'select' => false,
+                        // اجعل العناوين في المنتصف مع اتجاه من اليمين لليسار
+                        'initComplete' => "function() {
+                            $('#recordsmanagemente-table thead').css({'direction':'rtl'});
+                            $('#recordsmanagemente-table thead th').css({'text-align':'center'});
+                        }",
                     ]);
     }
 
@@ -103,25 +133,25 @@ class RecordsManagementeDataTable extends DataTable
     public function getColumns(): array
     {
         return [
-            Column::make('file_id_number')->title('رقم الملف'),
-            Column::make('section_name')->title('القسم'),
-            Column::make('request_status_name')->title('حالة الطلب'),
-            Column::make('data_id_number')->title('رقم الهوية'),
-            Column::make('full_name')->title('الاسم الكامل'),
-            Column::make('data_birth_date')->title('تاريخ الميلاد'),
-            Column::make('relationship_name')->title('صلة القرابة'),
-            Column::make('health_status_name')->title('الحالة الصحية'),
-            Column::make('data_phone_number')->title('رقم الجوال'),
-            Column::make('data_phone_number')->title('رقم جوال إضافي'),
-            Column::make('marital_status_name')->title('الحالة الاجتماعية'),
-            Column::make('academic_qualification_name')->title('المؤهل العلمي'),
-            Column::make('city_name')->title('المدينة'),
-            Column::make('employment_status_name')->title('حالة عمل المعيل'),
-            Column::make('data_description_needs')->title('وصف الاحتياج'),
+            Column::make('file_id_number')->title('رقم الملف')->width(150),
+            Column::make('section_name')->title('القسم')->width(100),
+            Column::make('request_status_name')->title('حالة الطلب')->visible(false)->width(150),
+            Column::make('data_id_number')->title('رقم الهوية')->width(180),
+            Column::make('full_name')->title('الاسم الكامل')->width(250),
+            Column::make('data_birth_date')->title('تاريخ الميلاد')->width(120),
+            Column::make('relationship_name')->title('صلة القرابة')->visible(false)->width(120),
+            Column::make('health_status_name')->title('الحالة الصحية')->visible(false)->width(120),
+            Column::make('data_phone_number')->title('رقم الجوال')->width(150),
+            Column::make('data_phone_number')->title('رقم جوال إضافي')->visible(false)->width(150),
+            Column::make('marital_status_name')->title('الحالة الاجتماعية')->visible(false)->width(150),
+            Column::make('academic_qualification_name')->title('المؤهل العلمي')->visible(false)->width(150),
+            Column::make('city_name')->title('المدينة')->width(150),
+            Column::make('employment_status_name')->title('حالة عمل المعيل')->visible(false)->width(150),
+
             Column::computed('action')
                   ->exportable(false)
                   ->printable(false)
-                  ->width(200)
+                  ->width(100)
                   ->addClass('text-center')
                   ->title('إجراء'),
         ];
@@ -135,3 +165,7 @@ class RecordsManagementeDataTable extends DataTable
         return 'RecordsManagemente_' . date('YmdHis');
     }
 }
+    {
+        return 'RecordsManagemente_' . date('YmdHis');
+    }
+

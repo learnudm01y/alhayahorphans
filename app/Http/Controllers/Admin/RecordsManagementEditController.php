@@ -80,7 +80,7 @@ class RecordsManagementEditController extends Controller
             'employmentStatusBreadwinner',
             'province',
             'housingStatus',
-            'currentHousingType', // <-- التصحيح هنا
+            'currentHousingType',
             'attachments',
             'rePeople',
             'deadPepole',
@@ -542,6 +542,57 @@ class RecordsManagementEditController extends Controller
                 'message' => 'حدث خطأ أثناء حذف المرفق: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    public function delete($id)
+    {
+        $record = \App\Models\Data::findOrFail($id);
+
+        // حذف جميع أفراد الأسرة المرتبطين
+        $familyMembers = \App\Models\RePeople::where('registration_id', $record->file_id_number)->get();
+        $familyPeopleIds = $familyMembers->pluck('person_id')
+            ->filter(function($id) {
+                return preg_match('/^\d+$/', $id);
+            })
+            ->map(function($id) { return (string) $id; })
+            ->values()
+            ->all();
+
+        // حذف جميع أفراد الأسرة
+        \App\Models\RePeople::where('registration_id', $record->file_id_number)->delete();
+
+        // حذف جميع بيانات المتوفين المرتبطة
+        $dead = \App\Models\DeadPepole::where('re_file_id', $record->file_id_number)->first();
+        $deadIds = [];
+        if ($dead) {
+            if (preg_match('/^\d+$/', $dead->father_id)) {
+                $deadIds[] = (string) $dead->father_id;
+            }
+            if (preg_match('/^\d+$/', $dead->mother_id)) {
+                $deadIds[] = (string) $dead->mother_id;
+            }
+        }
+        \App\Models\DeadPepole::where('re_file_id', $record->file_id_number)->delete();
+
+        // جميع أرقام الهوية المرتبطة بالمرفقات (السجل الرئيسي + الأسرة + المتوفين)
+        $mainIds = [];
+        if (preg_match('/^\d+$/', $record->data_id_number)) {
+            $mainIds[] = (string) $record->data_id_number;
+        }
+        if (preg_match('/^\d+$/', $record->file_id_number)) {
+            $mainIds[] = (string) $record->file_id_number;
+        }
+        $allAttachmentIds = array_merge($mainIds, $familyPeopleIds, $deadIds);
+
+        // حذف جميع المرفقات المرتبطة بهذه الأرقام (حتى لو كان هناك أكثر من مرفق لنفس الرقم)
+        if (!empty($allAttachmentIds)) {
+            \App\Models\Attachment::whereIn('person_identity_number', $allAttachmentIds)->delete();
+        }
+
+        // حذف السجل الرئيسي
+        $record->delete();
+
+        return redirect()->route('admin.records.management')->with('success', 'تم حذف السجل وجميع البيانات المرتبطة به بنجاح');
     }
 
 

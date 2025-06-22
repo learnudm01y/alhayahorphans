@@ -54,6 +54,9 @@ class HousingStatusDataTable extends DataTable
                         Button::make('csv'),
                         Button::make('pdf'),
                         Button::make('print'),
+                    ])
+                    ->parameters([
+                        'select' => false, // منع التحديد/التفاعل
                     ]);
     }
 

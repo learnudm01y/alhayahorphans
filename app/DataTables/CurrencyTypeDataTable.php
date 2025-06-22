@@ -55,6 +55,9 @@ class CurrencyTypeDataTable extends DataTable
                         Button::make('pdf'),
                         Button::make('print'),
 
+                    ])
+                    ->parameters([
+                        'select' => false, // منع التحديد/التفاعل
                     ]);
     }
 
