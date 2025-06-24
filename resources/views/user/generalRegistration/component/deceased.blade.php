@@ -1,4 +1,4 @@
-  <div class="tab-pane fade" id="deceased" role="tabpanel" aria-labelledby="deceased-tab">
+<div class="tab-pane fade" id="deceased" role="tabpanel" aria-labelledby="deceased-tab">
       <div class="row g-3">
           <!-- Father Information -->
           <div class="col-12">
@@ -152,4 +152,22 @@
               </div>
           </div>
       </div>
+
+      <!-- Next Button -->
+      <div class="mt-4 text-end">
+          <button type="button" class="btn btn-success px-5 py-2 fs-5" id="goToFamilyTabBtn">
+              التالي <i class="fas fa-arrow-left ms-2"></i>
+          </button>
+      </div>
+      <script>
+          document.addEventListener('DOMContentLoaded', function() {
+              const nextBtn = document.getElementById('goToFamilyTabBtn');
+              if (nextBtn) {
+                  nextBtn.addEventListener('click', function() {
+                      const familyTab = document.getElementById('family-members-tab');
+                      if (familyTab) familyTab.click();
+                  });
+              }
+          });
+      </script>
   </div>

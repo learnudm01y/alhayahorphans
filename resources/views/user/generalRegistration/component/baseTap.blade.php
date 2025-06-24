@@ -275,3 +275,28 @@
                                 </div>
 
                                 @include('user.generalRegistration.javascript.baseTapJavascript')
+                                <div class="mt-4 text-end">
+                                    <button type="button" class="btn btn-success px-5 py-2 fs-5" id="goToNextTabBtn">
+                                        التالي <i class="fas fa-arrow-left ms-2"></i>
+                                    </button>
+                                </div>
+                                <script>
+                                    document.addEventListener('DOMContentLoaded', function() {
+                                        const nextBtn = document.getElementById('goToNextTabBtn');
+                                        if (nextBtn) {
+                                            nextBtn.addEventListener('click', function() {
+                                                const sectionSelect = document.querySelector('select[name="data_section_id"]');
+                                                const selectedValue = sectionSelect ? sectionSelect.value : '';
+                                                // عدل رقم قسم الأيتام حسب قاعدة البيانات لديك
+                                                const orphansSectionId = '1'; // مثال: 3 هو رقم قسم الأيتام
+                                                if (selectedValue === orphansSectionId) {
+                                                    const deceasedTab = document.getElementById('deceased-tab');
+                                                    if (deceasedTab) deceasedTab.click();
+                                                } else {
+                                                    const familyTab = document.getElementById('family-members-tab');
+                                                    if (familyTab) familyTab.click();
+                                                }
+                                            });
+                                        }
+                                    });
+                                </script>
