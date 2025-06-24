@@ -1,7 +1,16 @@
 <ul class="nav nav-tabs nav-fill mb-4 mobile-bottom-tabs" id="formTabs" role="tablist">
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link active py-3" id="basic-tab" data-bs-toggle="tab" data-bs-target="#basic"
-                                type="button" role="tab" aria-controls="basic" aria-selected="true">
+                            <button class="nav-link active py-3" id="instructions-tab" data-bs-toggle="tab" data-bs-target="#instructions"
+                                type="button" role="tab" aria-controls="instructions" aria-selected="true">
+                                <div class="d-flex flex-column align-items-center">
+                                   <i class="fas fa-home tab-icon mb-2"></i>
+                                    <span class="fs-4 fw-bold tab-label"> البوابة الرئيسية </span>
+                                </div>
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link py-3" id="basic-tab" data-bs-toggle="tab" data-bs-target="#basic"
+                                type="button" role="tab" aria-controls="basic" aria-selected="false">
                                 <div class="d-flex flex-column align-items-center">
                                     <i class="fas fa-user tab-icon mb-2"></i>
                                     <span class="fs-4 fw-bold tab-label">البيانات الأساسية</span>

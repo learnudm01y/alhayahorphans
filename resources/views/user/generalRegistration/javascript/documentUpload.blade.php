@@ -38,7 +38,7 @@
                     reader.readAsDataURL(file);
                 } else {
                     previewImg.src =
-                    '/path/to/default/document/icon.png'; // استبدل بمسار أيقونة المستند الافتراضية
+                        '/path/to/default/document/icon.png'; // استبدل بمسار أيقونة المستند الافتراضية
                     preview.classList.remove('d-none');
                 }
             });
@@ -327,6 +327,13 @@
                     }
                 });
 
+                // تفريغ عناصر رفع الملفات عند الاستنساخ
+                template.querySelectorAll('.mainDocumentTypeSelect').forEach(sel => sel.value = '');
+                template.querySelectorAll('.mainDocumentFileInput').forEach(inp => inp.value = '');
+                // الأهم: تفريغ معاينة وأسماء الملفات دائماً
+                template.querySelectorAll('.mainDocumentPreview').forEach(div => div.innerHTML = '');
+                template.querySelectorAll('.mainDocumentNames').forEach(div => div.innerHTML = '');
+
                 // إضافة مستمع حدث للحذف
                 template.querySelector('.delete-member').onclick = function() {
                     Swal.fire({
@@ -369,7 +376,9 @@
             }
 
             // تعريف المتغير مرة واحدة فقط هنا
-            const familyMembersContainer = document.getElementById('familyMembersContainer');
+            if (typeof familyMembersContainer === 'undefined') {
+                const familyMembersContainer = document.getElementById('familyMembersContainer');
+            }
 
             // مراقبة التغييرات في نماذج أفراد الأسرة
             if (familyMembersContainer) {
@@ -386,7 +395,7 @@
                         if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
                             mutation.addedNodes.forEach(node => {
                                 if (node.classList && node.classList.contains(
-                                    'family-member-form')) {
+                                        'family-member-form')) {
                                     // يمكنك هنا استدعاء أي دالة تريدها عند إضافة فرد جديد
                                     // مثال: fillFamilyMemberFields(node);
                                 }
@@ -434,6 +443,7 @@
             document.querySelector('input[name="data_family_name"]').addEventListener('input', updatePersonsList);
 
             // مراقبة التغييرات في نماذج أفراد الأسرة
+            const familyMembersContainer = document.getElementById('familyMembersContainer');
             familyMembersContainer.addEventListener('input', function(e) {
                 if (e.target.name && (e.target.name.includes('[first_name]') || e.target.name.includes(
                         '[last_name]'))) {
