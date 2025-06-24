@@ -22,7 +22,8 @@ class RePeople extends Model
         'person_age',
         'person_gender',
         'person_health_status',
-        'person_type_of_guarantee'
+        'person_type_of_guarantee',
+        'person_note'
     ];
 
     public function sponsorshipStatus()
