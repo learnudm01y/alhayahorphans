@@ -9,7 +9,12 @@ class GuardianBankAccount extends Model
 {
     use HasFactory;
     protected $fillable = [
-        'guardian_registration','bank_name','account_number_or_related_phone_number'
+        'guardian_registration',
+        'bank_name',
+        'account_number_or_related_phone_number',
+        're_id_number',
+        're_guardian_name',
+        're_phone_number'
     ];
 
     public function guardian()

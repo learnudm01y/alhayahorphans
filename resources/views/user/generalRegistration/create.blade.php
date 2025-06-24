@@ -111,6 +111,7 @@
                                             }
                                         });
                                     </script>
+                                    <div id="didding" style="padding-bottom: 80px;"></div>
                                 </div>
                                 <!-- نهاية بوابة تعليمات الإدخال -->
 
@@ -287,6 +288,18 @@
                     }
                 });
             });
+        });
+    </script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // إضافة مسافة أسفل تبويب عرض المعلومات المدخلة
+            const reviewPane = document.getElementById('review');
+            if (reviewPane && !reviewPane.querySelector('#didding')) {
+                const diddingDiv = document.createElement('div');
+                diddingDiv.id = 'didding';
+                diddingDiv.style.paddingBottom = '80px';
+                reviewPane.appendChild(diddingDiv);
+            }
         });
     </script>
 @endpush

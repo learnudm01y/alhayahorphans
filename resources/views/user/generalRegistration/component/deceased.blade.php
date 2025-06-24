@@ -17,11 +17,13 @@
                               <input type="text" name="father_first_name" class="form-control">
                           </div>
                           <div class="col-md-3">
-                              <label class="form-label">الاسم الثاني</label>
+                              <label class="form-label">الاسم الثاني <span class="text-primary"
+                                      style="color:#6c757d !important;">(اختياري)</span></label>
                               <input type="text" name="father_second_name" class="form-control">
                           </div>
                           <div class="col-md-3">
-                              <label class="form-label">الاسم الثالث</label>
+                              <label class="form-label">الاسم الثالث <span class="text-primary"
+                                      style="color:#6c757d !important;">(اختياري)</span></label>
                               <input type="text" name="father_third_name" class="form-control">
                           </div>
                           <div class="col-md-3">
@@ -52,7 +54,7 @@
                               <!-- ملاحظة توضيحية لرفع الملفات -->
                               <div class="alert alert-primary py-2 mb-2" style="font-size: 0.97rem;">
                                   يرجى اختيار نوع الوثيقة أولاً، وسوف يتم تحويلك لرفع الصورة
-                                  المطلوبة. يمكنك رفع صورة فقط.
+                                  المطلوبة.
                               </div>
                               <label class="form-label fw-bold"> رفع الملفات <span class="text-danger">*</span></label>
                               <select class="form-select" id="mainDocumentTypeSelect">
@@ -96,11 +98,13 @@
                               <input type="text" name="mother_first_name" class="form-control">
                           </div>
                           <div class="col-md-3">
-                              <label class="form-label">الاسم الثاني</label>
+                              <label class="form-label">الاسم الثاني <span class="text-primary"
+                                      style="color:#6c757d !important;">(اختياري)</span></label>
                               <input type="text" name="mother_second_name" class="form-control">
                           </div>
                           <div class="col-md-3">
-                              <label class="form-label">الاسم الثالث</label>
+                              <label class="form-label">الاسم الثالث <span class="text-primary"
+                                      style="color:#6c757d !important;">(اختياري)</span></label>
                               <input type="text" name="mother_third_name" class="form-control">
                           </div>
                           <div class="col-md-3">
@@ -131,7 +135,7 @@
                               <!-- ملاحظة توضيحية لرفع الملفات -->
                               <div class="alert alert-primary py-2 mb-2" style="font-size: 0.97rem;">
                                   يرجى اختيار نوع الوثيقة أولاً، وسوف يتم تحويلك لرفع الصورة
-                                  المطلوبة. يمكنك رفع صورة فقط.
+                                  المطلوبة. 
                               </div>
                               <label class="form-label fw-bold"> رفع الملفات <span
                                       class="text-danger">*</span></label>
@@ -159,11 +163,77 @@
               التالي <i class="fas fa-arrow-left ms-2"></i>
           </button>
       </div>
+      <div id="didding" style="padding-bottom: 80px;"></div>
+      <!-- SweetAlert2 CDN -->
+      <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
       <script>
           document.addEventListener('DOMContentLoaded', function() {
               const nextBtn = document.getElementById('goToFamilyTabBtn');
               if (nextBtn) {
-                  nextBtn.addEventListener('click', function() {
+                  nextBtn.addEventListener('click', function(e) {
+                      // حقول الأب المطلوبة
+                      const fatherRequired = [
+                          { name: 'father_first_name', label: 'الاسم الأول للأب' },
+                          { name: 'father_last_name', label: 'اسم العائلة للأب' },
+                          { name: 'father_id', label: 'رقم هوية الأب' },
+                          { name: 'father_death_date', label: 'تاريخ وفاة الأب' },
+                          { name: 'father_death_reason', label: 'سبب وفاة الأب' },
+                      ];
+                      // حقل رفع الملفات للأب
+                      const fatherDocType = document.querySelector('#deceased .card-body select#mainDocumentTypeSelect');
+                      const fatherFileInput = document.querySelector('#deceased .card-body input[type="file"]');
+                      let firstInvalid = null;
+                      for (const field of fatherRequired) {
+                          const el = document.querySelector(`[name="${field.name}"]`);
+                          if (el && !el.value) {
+                              firstInvalid = field.label;
+                              break;
+                          }
+                      }
+                      // تحقق من رفع الملف أو اختيار نوع الوثيقة
+                      if (!firstInvalid && fatherDocType && fatherFileInput) {
+                          const hasFile = fatherFileInput.files && fatherFileInput.files.length > 0;
+                          if (!fatherDocType.value && !hasFile) {
+                              firstInvalid = 'نوع الوثيقة أو رفع الملف للأب';
+                          }
+                      }
+                      // إذا ظهرت بيانات الأم، تحقق من حقولها أيضًا
+                      const motherSection = document.getElementById('motherInfoSection');
+                      if (!firstInvalid && motherSection && motherSection.style.display !== 'none') {
+                          const motherRequired = [
+                              { name: 'mother_first_name', label: 'الاسم الأول للأم' },
+                              { name: 'mother_last_name', label: 'اسم العائلة للأم' },
+                              { name: 'mother_id', label: 'رقم هوية الأم' },
+                              { name: 'mother_death_date', label: 'تاريخ وفاة الأم' },
+                              { name: 'mother_death_reason', label: 'سبب وفاة الأم' },
+                          ];
+                          const motherDocType = motherSection.querySelector('select#mainDocumentTypeSelect');
+                          const motherFileInput = motherSection.querySelector('input[type="file"]');
+                          for (const field of motherRequired) {
+                              const el = motherSection.querySelector(`[name="${field.name}"]`);
+                              if (el && !el.value) {
+                                  firstInvalid = field.label;
+                                  break;
+                              }
+                          }
+                          if (!firstInvalid && motherDocType && motherFileInput) {
+                              const hasFile = motherFileInput.files && motherFileInput.files.length > 0;
+                              if (!motherDocType.value && !hasFile) {
+                                  firstInvalid = 'نوع الوثيقة أو رفع الملف للأم';
+                              }
+                          }
+                      }
+                      if (firstInvalid) {
+                          e.preventDefault();
+                          Swal.fire({
+                              icon: 'warning',
+                              title: 'تنبيه',
+                              text: `يرجى إدخال ${firstInvalid} قبل المتابعة!`,
+                              confirmButtonText: 'حسنًا'
+                          });
+                          return;
+                      }
+                      // ...existing code for tab navigation...
                       const familyTab = document.getElementById('family-members-tab');
                       if (familyTab) familyTab.click();
                   });

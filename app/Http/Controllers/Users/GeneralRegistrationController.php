@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Users;
 use App\Http\Controllers\Controller;
 use App\Models\AcademicDegree;
 use App\Models\Attachment;
+use App\Models\BankName;
 use App\Models\CategoryOfRelation;
 use App\Models\City;
 use App\Models\Data;
@@ -26,6 +27,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Models\GuardianBankAccount;
 
 class GeneralRegistrationController extends Controller
 {
@@ -46,6 +48,7 @@ class GeneralRegistrationController extends Controller
         $sponsorship_status = SponsorshipStatus::all();
         $guarantee_types = TypeOfGuarantee::all(); // Assuming you have a TypeOfGuarantee model
         $death_reasons = DeathReason::all(); // Assuming you have a DeathReason model
+        $bank_name = BankName::all(); // Assuming you have a BankName model
         return view(
             'user.generalRegistration.create',
             compact(
@@ -64,7 +67,8 @@ class GeneralRegistrationController extends Controller
                 'documentTypes',
                 'sponsorship_status',
                 'guarantee_types',
-                'death_reasons'
+                'death_reasons',
+                'bank_name'
             )
         );
   }
@@ -159,6 +163,20 @@ class GeneralRegistrationController extends Controller
                 'data_user_insert_data' => $request->input('data_user_insert_data'),
                 'data_request_status' => 2, // تأكد من وجود هذا السطر دائماً
             ]);
+
+            // إضافة بيانات الحساب البنكي إذا وُجدت أي قيمة بنكية
+            if ($request->filled('bank_name_id') || $request->filled('bank_account_usd') || $request->filled('bank_account_ils') || $request->filled('bank_account_holder_name') || $request->filled('bank_phone_number')) {
+                GuardianBankAccount::create([
+                    'guardian_registration' => $fileIdNumber,
+                    'bank_name' => $request->input('bank_name_id'),
+                    // الأولوية لحساب الدولار ثم الشيكل ثم رقم الهاتف
+                    'account_number_or_related_phone_number' => $request->input('bank_account_usd') ?: ($request->input('bank_account_ils') ?: $request->input('bank_phone_number')),
+                    're_id_number' => $request->input('data_id_number'),
+                    're_guardian_name' => $request->input('bank_account_holder_name'),
+                    're_phone_number' => $request->input('bank_phone_number'),
+                ]);
+            }
+
 
             // 3. Store deceased only إذا كان القسم أيتام ويوجد بيانات للأب أو الأم
             if ($request->input('data_section_id') == 1) {
