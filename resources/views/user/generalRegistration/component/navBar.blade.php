@@ -36,14 +36,4 @@
                                 </div>
                             </button>
                         </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link py-3" id="attachments-tab" data-bs-toggle="tab"
-                                data-bs-target="#attachments" type="button" role="tab" aria-controls="attachments"
-                                aria-selected="false">
-                                <div class="d-flex flex-column align-items-center">
-                                    <i class="fas fa-paperclip tab-icon mb-2"></i>
-                                    <span class="fs-4 fw-bold tab-label">المرفقات</span>
-                                </div>
-                            </button>
-                        </li>
                     </ul>
