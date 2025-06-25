@@ -182,53 +182,32 @@
                 `;
                 }
 
-                // --- المرفقات (صور) ---
+                // --- المرفقات (من Map البرمجية) ---
                 let attachmentsHtml = '';
-                // صاحب الملف
-                const mainDocs = document.querySelectorAll('#main_person_docs .document-card img');
-                if (mainDocs.length) {
-                    attachmentsHtml +=
-                        `<div class="mb-3"><span class="fw-bold text-primary"><i class="fas fa-paperclip me-1"></i>مرفقات صاحب الملف:</span><div class="d-flex gap-2 flex-wrap">`;
-                    mainDocs.forEach(img => {
-                        attachmentsHtml +=
-                            `<img src="${img.src}" style="max-width:120px;max-height:120px;border-radius:8px;border:2px solid #0d6efd;background:#fff;">`;
-                    });
-                    attachmentsHtml += `</div></div>`;
-                }
-                // أفراد الأسرة
-                document.querySelectorAll('#family_members_docs .documents-flex-container').forEach((container,
-                    idx) => {
-                    const imgs = container.querySelectorAll('img');
-                    if (imgs.length) {
-                        attachmentsHtml +=
-                            `<div class="mb-3"><span class="fw-bold text-info"><i class="fas fa-paperclip me-1"></i>مرفقات فرد الأسرة #${idx + 1}:</span><div class="d-flex gap-2 flex-wrap">`;
-                        imgs.forEach(img => {
-                            attachmentsHtml +=
-                                `<img src="${img.src}" style="max-width:120px;max-height:120px;border-radius:8px;border:2px solid #17a2b8;background:#fff;">`;
+                if (window.allDocs) {
+                    window.allDocs.forEach((docsArr, personKey) => {
+                        docsArr.forEach((doc, idx) => {
+                            let label = '';
+                            if (personKey === 'main') {
+                                label = 'مرفق صاحب الملف:';
+                            } else if (personKey === 'deceased_father') {
+                                label = 'مرفق الأب المتوفى:';
+                            } else if (personKey === 'deceased_mother') {
+                                label = 'مرفق الأم المتوفية:';
+                            } else if (personKey.startsWith('family_')) {
+                                const famIdx = parseInt(personKey.replace('family_', '')) + 1;
+                                label = `مرفق فرد الأسرة #${famIdx}:`;
+                            } else {
+                                label = 'مرفق:';
+                            }
+                            if (doc.file && doc.file.type && doc.file.type.startsWith('image/')) {
+                                const url = URL.createObjectURL(doc.file);
+                                attachmentsHtml += `<div class="mb-2"><span class="fw-bold"><i class="fas fa-paperclip me-1"></i>${label}</span><br><img src="${url}" style="max-width:120px;max-height:120px;border-radius:8px;border:2px solid #0d6efd;background:#fff;"></div>`;
+                            } else {
+                                attachmentsHtml += `<div class="mb-2"><span class="fw-bold"><i class="fas fa-paperclip me-1"></i>${label}</span> ${doc.name}</div>`;
+                            }
                         });
-                        attachmentsHtml += `</div></div>`;
-                    }
-                });
-                // المتوفين
-                const fatherDocs = document.querySelectorAll('#father_docs img');
-                if (fatherDocs.length) {
-                    attachmentsHtml +=
-                        `<div class="mb-3"><span class="fw-bold text-danger"><i class="fas fa-paperclip me-1"></i>مرفقات الأب المتوفى:</span><div class="d-flex gap-2 flex-wrap">`;
-                    fatherDocs.forEach(img => {
-                        attachmentsHtml +=
-                            `<img src="${img.src}" style="max-width:120px;max-height:120px;border-radius:8px;border:2px solid #dc3545;background:#fff;">`;
                     });
-                    attachmentsHtml += `</div></div>`;
-                }
-                const motherDocs = document.querySelectorAll('#mother_docs img');
-                if (motherDocs.length) {
-                    attachmentsHtml +=
-                        `<div class="mb-3"><span class="fw-bold text-danger"><i class="fas fa-paperclip me-1"></i>مرفقات الأم المتوفية:</span><div class="d-flex gap-2 flex-wrap">`;
-                    motherDocs.forEach(img => {
-                        attachmentsHtml +=
-                            `<img src="${img.src}" style="max-width:120px;max-height:120px;border-radius:8px;border:2px solid #dc3545;background:#fff;">`;
-                    });
-                    attachmentsHtml += `</div></div>`;
                 }
 
                 reviewContent.innerHTML = `

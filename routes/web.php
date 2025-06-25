@@ -5,6 +5,7 @@ use App\Http\Controllers\Roles\RoleController;
 use App\Http\Controllers\Users\UserController;
 use App\Http\Controllers\Users\CreateRecordsController;
 use App\Http\Controllers\Users\GeneralRegistrationController;
+use App\Http\Controllers\Users\UserLoginContoller;
 use App\Http\Controllers\Users\UserProfileController;
 use Illuminate\Support\Facades\Route;
 
@@ -50,7 +51,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('users', UserController::class);
 });
 
-
+Route::post('/login/user', [UserLoginContoller::class, 'login'])->name('user.login');
 
 
 

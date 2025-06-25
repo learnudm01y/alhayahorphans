@@ -56,18 +56,21 @@
                                   يرجى اختيار نوع الوثيقة أولاً، وسوف يتم تحويلك لرفع الصورة
                                   المطلوبة.
                               </div>
-                              <label class="form-label fw-bold"> رفع الملفات <span class="text-danger">*</span></label>
-                              <select class="form-select" id="mainDocumentTypeSelect">
-                                  <option value="">اختر نوع الوثيقة</option>
-                                  @foreach ($documentTypes as $documentType)
-                                      <option value="{{ $documentType->pref }}">
-                                          {{ $documentType->description }}</option>
-                                  @endforeach
-                              </select>
-                              <input type="file" id="mainDocumentFileInput" accept="image/*,.pdf"
-                                  style="display:none;">
-                              <div id="mainDocumentPreview" class="mt-2"></div>
-                              <div id="mainDocumentNames" class="mt-2"></div>
+                              <!-- منطقة رفع الملفات للأب المتوفى -->
+                              <div data-upload-zone="deceased_father" data-person-id="{{ $father_id ?? '' }}">
+                                  <label class="form-label fw-bold"> رفع الملفات <span class="text-danger">*</span></label>
+                                  <select class="form-select" id="mainDocumentTypeSelect">
+                                      <option value="">اختر نوع الوثيقة</option>
+                                      @foreach ($documentTypes as $documentType)
+                                          <option value="{{ $documentType->pref }}">
+                                              {{ $documentType->description }}</option>
+                                      @endforeach
+                                  </select>
+                                  <input type="file" id="mainDocumentFileInput" accept="image/*,.pdf"
+                                      style="display:none;">
+                                  <div id="mainDocumentPreview" class="mt-2"></div>
+                                  <div id="mainDocumentNames" class="mt-2"></div>
+                              </div>
                           </div>
                       </div>
                   </div>
@@ -135,21 +138,24 @@
                               <!-- ملاحظة توضيحية لرفع الملفات -->
                               <div class="alert alert-primary py-2 mb-2" style="font-size: 0.97rem;">
                                   يرجى اختيار نوع الوثيقة أولاً، وسوف يتم تحويلك لرفع الصورة
-                                  المطلوبة. 
+                                  المطلوبة.
                               </div>
-                              <label class="form-label fw-bold"> رفع الملفات <span
-                                      class="text-danger">*</span></label>
-                              <select class="form-select" id="mainDocumentTypeSelect">
-                                  <option value="">اختر نوع الوثيقة</option>
-                                  @foreach ($documentTypes as $documentType)
-                                      <option value="{{ $documentType->pref }}">
-                                          {{ $documentType->description }}</option>
-                                  @endforeach
-                              </select>
-                              <input type="file" id="mainDocumentFileInput" accept="image/*,.pdf"
-                                  style="display:none;">
-                              <div id="mainDocumentPreview" class="mt-2"></div>
-                              <div id="mainDocumentNames" class="mt-2"></div>
+                              <!-- منطقة رفع الملفات للأم المتوفية -->
+                              <div data-upload-zone="deceased_mother" data-person-id="{{ $mother_id ?? '' }}">
+                                  <label class="form-label fw-bold"> رفع الملفات <span
+                                          class="text-danger">*</span></label>
+                                  <select class="form-select" id="mainDocumentTypeSelect">
+                                      <option value="">اختر نوع الوثيقة</option>
+                                      @foreach ($documentTypes as $documentType)
+                                          <option value="{{ $documentType->pref }}">
+                                              {{ $documentType->description }}</option>
+                                      @endforeach
+                                  </select>
+                                  <input type="file" id="mainDocumentFileInput" accept="image/*,.pdf"
+                                      style="display:none;">
+                                  <div id="mainDocumentPreview" class="mt-2"></div>
+                                  <div id="mainDocumentNames" class="mt-2"></div>
+                              </div>
                           </div>
                       </div>
                   </div>

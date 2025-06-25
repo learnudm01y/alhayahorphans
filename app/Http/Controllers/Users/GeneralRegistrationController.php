@@ -112,7 +112,6 @@ class GeneralRegistrationController extends Controller
                 'family_members' => 'sometimes|array',
                 // Attachments
                 // 'person_identity_number' => 'required|string',
-                'file_type' => 'required|string',
                 'document_file.*' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
             ], [
                 'file_id_number.required' => 'رقم الملف الموحد مطلوب.',
@@ -233,10 +232,8 @@ class GeneralRegistrationController extends Controller
 
 
 
-            // عند التخزين، Laravel سيحفظ في storage/app/public/$folder
-            // تأكد أن $folder لا يساوي 'public' فقط، بل دائماً يوجد مجلد فرعي (مثل 'uploads/000123')
-            // تأكد من صلاحيات الكتابة على storage/app/public ووجود الرابط الرمزي public/storage
-
+            // --- تم تعطيل معالجة المرفقات القديمة (document_file, file_type, person_identity_number) ---
+            /*
             if ($request->hasFile('document_file')) {
                 $files = $request->file('document_file');
                 $names = $request->input('stored_file_name', []);
@@ -272,67 +269,74 @@ class GeneralRegistrationController extends Controller
                     ]);
                 }
             }
+            */
+
 
             // معالجة المرفقات الجديدة كمصفوفة Laravel
-            $attachments = $request->file('attachments') ?? [];
             $attachmentsData = $request->input('attachments', []);
-
-            foreach ($attachments as $index => $fileArray) {
-                // إذا كان $fileArray عبارة عن مصفوفة فيها 'file' => UploadedFile
-                $file = is_array($fileArray) && isset($fileArray['file']) ? $fileArray['file'] : $fileArray;
-                $personType = $attachmentsData[$index]['person_identity_number'] ?? null; // هذا قد يكون نص مثل main أو family_0 أو رقم
-                $fileType = $attachmentsData[$index]['file_type'] ?? null;
-                // استخدم رقم الملف مع الأصفار البادئة دائماً
-                $fileIdNumberAttach = isset($attachmentsData[$index]['file_id_number'])
-                    ? str_pad($attachmentsData[$index]['file_id_number'], 6, '0', STR_PAD_LEFT)
-                    : $fileIdNumber;
-                $storedFileName = $attachmentsData[$index]['stored_file_name'] ?? ($file ? $file->getClientOriginalName() : null);
-
-                // تحقق من وجود اسم ملف صالح
-                if (!$storedFileName && $file) {
-                    $storedFileName = $file->getClientOriginalName();
-                }
-                // إذا بقي الاسم فارغًا لأي سبب، تجاهل التخزين
-                if (!$file || !$storedFileName) {
-                    continue;
-                }
-
-                // استخراج رقم الهوية الحقيقي حسب نوع الشخص
-                $realPersonId = null;
-                if ($personType === 'main') {
-                    $realPersonId = $request->input('data_id_number');
-                } elseif ($personType === 'deceased_father') {
-                    $realPersonId = $request->input('father_id');
-                } elseif ($personType === 'deceased_mother') {
-                    $realPersonId = $request->input('mother_id');
-                } elseif (strpos($personType, 'family_') === 0) {
-                    $familyIndex = (int)str_replace('family_', '', $personType);
-                    $familyMembers = $request->input('family_members', []);
-                    $realPersonId = isset($familyMembers[$familyIndex]['person_id']) ? $familyMembers[$familyIndex]['person_id'] : null;
-                } else {
-                    // إذا كان رقم فعلي بالفعل
-                    $realPersonId = is_numeric($personType) ? $personType : null;
-                }
-
-                // فقط إذا كان رقم الهوية رقمي وغير فارغ
-                if ($file && $realPersonId && $fileType && $fileIdNumberAttach && $storedFileName && preg_match('/^\d+$/', $realPersonId)) {
-                    $extension = $file->getClientOriginalExtension();
-                    $newFileName = "{$fileType}_{$fileIdNumberAttach}_{$realPersonId}.{$extension}";
-
-                    $folder = 'uploads/' . $fileIdNumberAttach; // يجب أن يكون دائماً مجلد فرعي
-                    if ($folder === 'public' || $folder === 'public/') {
-                        throw new \Exception('خطأ في مسار التخزين: يجب تحديد مجلد فرعي داخل uploads');
-                    }
-                    $path = $file->storeAs($folder, $newFileName, 'public');
-
-                    Attachment::create([
-                        'person_identity_number' => $realPersonId,
-                        'stored_file_name' => $newFileName,
-                        'file_path' => 'storage/' . $path,
-                        'file_type' => $fileType,
-                    ]);
+Log::info('🟢 عدد المرفقات المستلمة من جميع البوابات:', ['count' => count($attachmentsData), 'attachments' => $attachmentsData, 'family_members' => $request->input('family_members', [])]);
+foreach ($attachmentsData as $index => $data) {
+    $file = $request->file("attachments.$index.file");
+    Log::info('🟠 معالجة مرفق فرد أسرة', ['index' => $index, 'data' => $data, 'file' => $file]);
+    $personType = $data['person_identity_number'] ?? null;
+    $fileType = $data['file_type'] ?? null;
+    $fileIdNumberAttach = isset($data['file_id_number'])
+        ? str_pad($data['file_id_number'], 6, '0', STR_PAD_LEFT)
+        : $fileIdNumber;
+    $storedFileName = $data['stored_file_name'] ?? ($file ? $file->getClientOriginalName() : null);
+    if (!$storedFileName && $file) {
+        $storedFileName = $file->getClientOriginalName();
+    }
+    if (!$file || !$storedFileName) {
+        Log::error('🔴 تجاهل مرفق بسبب نقص البيانات', ['index' => $index, 'file' => $file, 'storedFileName' => $storedFileName, 'data' => $data]);
+        continue;
+    }
+    $realPersonId = null;
+    if ($personType === 'main') {
+        $realPersonId = $request->input('data_id_number');
+    } elseif ($personType === 'deceased_father') {
+        $realPersonId = $request->input('father_id');
+    } elseif ($personType === 'deceased_mother') {
+        $realPersonId = $request->input('mother_id');
+    } elseif (strpos($personType, 'family_') === 0) {
+        // استخراج الفهرس من family_N
+        $familyIndex = (int)str_replace('family_', '', $personType);
+        $familyMembers = $request->input('family_members', []);
+        // تصحيح: ابحث عن أول فرد يحمل نفس رقم الهوية إذا لم يوجد فهرس مطابق
+        if (isset($familyMembers[$familyIndex]['person_id'])) {
+            $realPersonId = $familyMembers[$familyIndex]['person_id'];
+        } else {
+            // fallback: ابحث عن أول فرد يحمل نفس رقم الهوية
+            foreach ($familyMembers as $member) {
+                if (isset($member['person_id']) && $member['person_id'] == $personType) {
+                    $realPersonId = $member['person_id'];
+                    break;
                 }
             }
+        }
+    } else {
+        $realPersonId = is_numeric($personType) ? $personType : null;
+    }
+    if ($file && $realPersonId && $fileType && $fileIdNumberAttach && $storedFileName && preg_match('/^\d+$/', $realPersonId)) {
+        $extension = $file->getClientOriginalExtension();
+        $newFileName = "{$fileType}_{$fileIdNumberAttach}_{$realPersonId}.{$extension}";
+        $folder = 'uploads/' . $fileIdNumberAttach;
+        if ($folder === 'public' || $folder === 'public/') {
+            throw new \Exception('خطأ في مسار التخزين: يجب تحديد مجلد فرعي داخل uploads');
+        }
+        $path = $file->storeAs($folder, $newFileName, 'public');
+        Attachment::create([
+            'person_identity_number' => $realPersonId,
+            'stored_file_name' => $newFileName,
+            'file_path' => 'storage/' . $path,
+            'file_type' => $fileType,
+        ]);
+        Log::info('🟢 تم تخزين مرفق بنجاح', ['index' => $index, 'file' => $file, 'data' => $data]);
+    } else {
+        Log::error('🔴 تجاهل مرفق بسبب شرط تحقق نهائي', ['index' => $index, 'file' => $file, 'data' => $data]);
+    }
+}
+
 
             // إضافة مستخدم جديد عند التسجيل العام
             $user = \App\Models\User::create([

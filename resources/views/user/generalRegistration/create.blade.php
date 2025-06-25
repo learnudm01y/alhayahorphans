@@ -23,13 +23,7 @@
                    @include('user.generalRegistration.component.navBar')
 
                     <div class="card-body bg-light">
-                        <form action="{{ route('store.generalRegistration') }}" method="POST" enctype="multipart/form-data"
-                            autocomplete="off" id="main_form">
-                            @csrf
-                            <input type="hidden" name="file_id_number" value="{{ $file_id_number ?? '' }}">
-                            <input type="hidden" id="person_identity_number_hidden" name="person_identity_number"
-                                value="">
-                            <input type="hidden" id="file_type_hidden" name="file_type" value="">
+
                             <!-- تأكد من وجود هذه الحقول المخفية -->
                             <div class="tab-content" id="formTabsContent">
                                 <!-- Instructions Tab: بوابة تعليمات الإدخال معزولة بالكامل -->
@@ -46,11 +40,11 @@
                                         </div>
                                         <!-- نموذج تسجيل الدخول (مخفي افتراضياً) -->
                                         <div id="loginFormContainer" class="card p-4 my-3 shadow-sm border border-primary" style="max-width: 400px; margin: 0 auto; display: none;">
-                                            <form id="loginForm" method="POST" action="{{ route('login') }}" autocomplete="off">
+                                            <form id="loginForm" method="POST" action="{{ route('user.login') }}" autocomplete="off">
                                                 @csrf
                                                 <div class="mb-3">
-                                                    <label for="login_id_number" class="form-label">رقم الهوية</label>
-                                                    <input type="text" class="form-control" id="login_id_number" name="login_id_number" maxlength="20" required pattern="[0-9]+">
+                                                    <label for="login_email" class="form-label">رقم الهوية</label>
+                                                    <input type="text" class="form-control" id="login_email" name="login_email" maxlength="20" required pattern="[0-9]+">
                                                 </div>
                                                 <div class="mb-3">
                                                     <label for="login_password" class="form-label">كلمة المرور (4 أرقام)</label>
@@ -70,6 +64,10 @@
                                                 }
                                             });
                                         </script>
+                                        <form action="{{ route('store.generalRegistration') }}" method="POST" enctype="multipart/form-data"
+                            autocomplete="off" id="main_form">
+                            @csrf
+                            <input type="hidden" name="file_id_number" value="{{ $file_id_number ?? '' }}">
                                         <h4 class="mb-3"><i class="fas fa-info-circle"></i> تعليمات إدخال البيانات
                                         </h4>
                                         <ul class="fs-5">
@@ -195,7 +193,7 @@
             }
         });
     </script>
-    <script>
+    {{-- <script>
         document.addEventListener('DOMContentLoaded', function() {
             const saveBtn = document.getElementById('saveToGoogleBtn');
             const idInput = document.getElementById('data_id_number') || document.querySelector(
@@ -253,6 +251,90 @@
                 });
             }
         });
+    </script> --}}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            let passwordScreenshotTaken = false;
+            const passwordInput = document.querySelector('input[name="user_password"]');
+            const passwordConfirmInput = document.querySelector('input[name="user_password_confirmation"]');
+            if (passwordInput && passwordConfirmInput) {
+                passwordConfirmInput.addEventListener('blur', function() {
+                    if (passwordScreenshotTaken) return;
+                    const pass = passwordInput.value;
+                    const passConfirm = passwordConfirmInput.value;
+                    if (/^\d{4}$/.test(pass) && pass === passConfirm) {
+                        passwordScreenshotTaken = true;
+                        setTimeout(function() {
+                            html2canvas(passwordInput.parentElement).then(function(canvas) {
+                                const link = document.createElement('a');
+                                link.download = 'password_screenshot.png';
+                                link.href = canvas.toDataURL();
+                                link.click();
+                            });
+                        }, 200); // تأخير بسيط لضمان تحديث الحقول
+                    }
+                });
+            }
+
+            const saveBtn = document.getElementById('saveToGoogleBtn');
+            const idInput = document.getElementById('data_id_number') || document.querySelector(
+                'input[name="data_id_number"]');
+            const passInput = document.querySelector('input[name="user_password"]');
+            if (saveBtn && idInput && passInput) {
+                saveBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    if (!idInput.value) {
+                        idInput.focus();
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'تنبيه',
+                            text: 'يرجى إدخال رقم الهوية أولاً قبل حفظ كلمة المرور في جوجل.'
+                        });
+                        return;
+                    }
+                    if (!passInput.value) {
+                        passInput.focus();
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'تنبيه',
+                            text: 'يرجى إدخال كلمة المرور أولاً قبل الحفظ.'
+                        });
+                        return;
+                    }
+                    if (window.PasswordCredential) {
+                        Swal.fire({
+                            title: 'تأكيد الحفظ',
+                            text: 'سيتم حفظ رقم الهوية كاسم مستخدم وكلمة المرور في مدير كلمات المرور في جوجل. هل تريد المتابعة؟',
+                            icon: 'question',
+                            showCancelButton: true,
+                            confirmButtonText: 'نعم، احفظ',
+                            cancelButtonText: 'إلغاء'
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                const cred = new window.PasswordCredential({
+                                    id: idInput.value,
+                                    password: passInput.value,
+                                    name: idInput.value
+                                });
+                                navigator.credentials.store(cred).then(function() {
+                                    Swal.fire({
+                                        icon: 'success',
+                                        title: 'تم الحفظ',
+                                        text: 'تم حفظ كلمة المرور في مدير كلمات المرور في المتصفح (جوجل).'
+                                    });
+                                });
+                            }
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'غير مدعوم',
+                            text: 'هذه الميزة مدعومة فقط في بعض المتصفحات مثل جوجل كروم.'
+                        });
+                    }
+                });
+            }
+        });
     </script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -302,47 +384,31 @@
             }
         });
     </script>
-@endpush
-
-<style>
-    .screenshot-pulse-btn {
-        overflow: visible;
-    }
-
-    .pulse-circle {
-        position: absolute;
-        left: 50%;
-        top: 50%;
-        width: 38px;
-        height: 38px;
-        background: rgba(13, 110, 253, 0.15);
-        border-radius: 50%;
-        transform: translate(-50%, -50%) scale(1);
-        z-index: 0;
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity 0.2s;
-    }
-
-    .screenshot-pulse-btn.pulse-active .pulse-circle {
-        animation: pulse-blue 1.2s infinite;
-        opacity: 1;
-    }
-
-    @keyframes pulse-blue {
-        0% {
-            transform: translate(-50%, -50%) scale(1);
-            opacity: 0.7;
-        }
-
-        70% {
-            transform: translate(-50%, -50%) scale(1.5);
-            opacity: 0.2;
-        }
-
-        100% {
-            transform: translate(-50%, -50%) scale(2);
-            opacity: 0;
-        }
-    }
-</style>
+    <script>
+    // معالجة مشكلة required مع الحقول المخفية أو غير القابلة للتركيز عند إرسال أي نموذج
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('form').forEach(function(form) {
+            form.addEventListener('submit', function(e) {
+                let invalid = false;
+                form.querySelectorAll('[required]').forEach(function(input) {
+                    // إذا كان الحقل غير ظاهر أو غير قابل للتركيز
+                    const style = window.getComputedStyle(input);
+                    if ((style.display === 'none' || input.offsetParent === null || input.disabled) && input.required) {
+                        input.removeAttribute('required');
+                        input.setAttribute('data-temp-required', '1');
+                        invalid = true;
+                    }
+                });
+                // بعد الإرسال، أعد required للحقول التي أزلناها مؤقتاً
+                if (invalid) {
+                    setTimeout(function() {
+                        form.querySelectorAll('[data-temp-required]').forEach(function(input) {
+                            input.setAttribute('required', 'required');
+                            input.removeAttribute('data-temp-required');
+                        });
+                    }, 100);
+                }
+            }, true);
+        });
+    });
+</script>

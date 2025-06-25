@@ -1,89 +1,6 @@
 @push('scriptsCodeUserRegistration')
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            let passwordScreenshotTaken = false;
-            const passwordInput = document.querySelector('input[name="user_password"]');
-            const passwordConfirmInput = document.querySelector('input[name="user_password_confirmation"]');
-            if (passwordInput && passwordConfirmInput) {
-                passwordConfirmInput.addEventListener('blur', function() {
-                    if (passwordScreenshotTaken) return;
-                    const pass = passwordInput.value;
-                    const passConfirm = passwordConfirmInput.value;
-                    if (/^\d{4}$/.test(pass) && pass === passConfirm) {
-                        passwordScreenshotTaken = true;
-                        setTimeout(function() {
-                            html2canvas(passwordInput.parentElement).then(function(canvas) {
-                                const link = document.createElement('a');
-                                link.download = 'password_screenshot.png';
-                                link.href = canvas.toDataURL();
-                                link.click();
-                            });
-                        }, 200); // تأخير بسيط لضمان تحديث الحقول
-                    }
-                });
-            }
 
-            const saveBtn = document.getElementById('saveToGoogleBtn');
-            const idInput = document.getElementById('data_id_number') || document.querySelector(
-                'input[name="data_id_number"]');
-            const passInput = document.querySelector('input[name="user_password"]');
-            if (saveBtn && idInput && passInput) {
-                saveBtn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    if (!idInput.value) {
-                        idInput.focus();
-                        Swal.fire({
-                            icon: 'warning',
-                            title: 'تنبيه',
-                            text: 'يرجى إدخال رقم الهوية أولاً قبل حفظ كلمة المرور في جوجل.'
-                        });
-                        return;
-                    }
-                    if (!passInput.value) {
-                        passInput.focus();
-                        Swal.fire({
-                            icon: 'warning',
-                            title: 'تنبيه',
-                            text: 'يرجى إدخال كلمة المرور أولاً قبل الحفظ.'
-                        });
-                        return;
-                    }
-                    if (window.PasswordCredential) {
-                        Swal.fire({
-                            title: 'تأكيد الحفظ',
-                            text: 'سيتم حفظ رقم الهوية كاسم مستخدم وكلمة المرور في مدير كلمات المرور في جوجل. هل تريد المتابعة؟',
-                            icon: 'question',
-                            showCancelButton: true,
-                            confirmButtonText: 'نعم، احفظ',
-                            cancelButtonText: 'إلغاء'
-                        }).then((result) => {
-                            if (result.isConfirmed) {
-                                const cred = new window.PasswordCredential({
-                                    id: idInput.value,
-                                    password: passInput.value,
-                                    name: idInput.value
-                                });
-                                navigator.credentials.store(cred).then(function() {
-                                    Swal.fire({
-                                        icon: 'success',
-                                        title: 'تم الحفظ',
-                                        text: 'تم حفظ كلمة المرور في مدير كلمات المرور في المتصفح (جوجل).'
-                                    });
-                                });
-                            }
-                        });
-                    } else {
-                        Swal.fire({
-                            icon: 'info',
-                            title: 'غير مدعوم',
-                            text: 'هذه الميزة مدعومة فقط في بعض المتصفحات مثل جوجل كروم.'
-                        });
-                    }
-                });
-            }
-        });
-    </script>
 @endpush
 @push('scriptsCodeUserRegistration')
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -138,65 +55,7 @@
             }
         });
     </script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const saveBtn = document.getElementById('saveToGoogleBtn');
-            const idInput = document.getElementById('data_id_number') || document.querySelector(
-                'input[name="data_id_number"]');
-            const passInput = document.querySelector('input[name="user_password"]');
-            if (saveBtn && idInput && passInput) {
-                saveBtn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    if (!idInput.value) {
-                        idInput.focus();
-                        // استبدال التنبيه التقليدي بـ Swal.fire
-                        Swal.fire({
-                            icon: 'warning',
-                            title: 'تنبيه',
-                            text: 'يرجى إدخال رقم الهوية أولاً قبل حفظ كلمة المرور في جوجل.'
-                        });
-                        return;
-                    }
-                    if (!passInput.value) {
-                        passInput.focus();
-                        // استبدال التنبيه التقليدي بـ Swal.fire
-                        Swal.fire({
-                            icon: 'warning',
-                            title: 'تنبيه',
-                            text: 'يرجى إدخال كلمة المرور أولاً قبل الحفظ.'
-                        });
-                        return;
-                    }
-                    if (window.PasswordCredential) {
-                        if (confirm(
-                                'سيتم حفظ رقم الهوية كاسم مستخدم وكلمة المرور في مدير كلمات المرور في جوجل. هل تريد المتابعة؟'
-                                )) {
-                            const cred = new window.PasswordCredential({
-                                id: idInput.value,
-                                password: passInput.value,
-                                name: idInput.value
-                            });
-                            navigator.credentials.store(cred).then(function() {
-                                // استبدال التنبيه التقليدي بـ Swal.fire
-                                Swal.fire({
-                                    icon: 'success',
-                                    title: 'تم',
-                                    text: 'تم حفظ كلمة المرور في مدير كلمات المرور في المتصفح (جوجل).'
-                                });
-                            });
-                        }
-                    } else {
-                        // استبدال التنبيه التقليدي بـ Swal.fire
-                        Swal.fire({
-                            icon: 'info',
-                            title: 'معلومات',
-                            text: 'هذه الميزة مدعومة فقط في بعض المتصفحات مثل جوجل كروم.'
-                        });
-                    }
-                });
-            }
-        });
-    </script>
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // دعم جميع البوابات التي تحتوي على نفس معرفات رفع الملفات
@@ -479,7 +338,6 @@
             width: 60vw;
         }
     }
-
     @media (max-width: 767.98px) {
         .cropper-modal-dialog {
             max-width: 98vw;
@@ -488,126 +346,173 @@
             margin: 0 auto;
         }
     }
-</style>
-<script>
-    // تحسين دالة showCropperModal: أزرار تحكم كاملة، صورة داخل هاوبة، خطوط شبكة واضحة
-    window.showCropperModal = function(file, callback) {
-        const modalEl = document.getElementById('cropperModal');
-        const cropperImage = document.getElementById('cropperImage');
-        const cropBtn = document.getElementById('cropperCropBtn');
-        let cropper = null;
-
-        // إزالة أي حدث سابق لمنع التكرار
-        cropBtn.onclick = null;
-
-        // إضافة أزرار تحكم متقدمة
-        let controls = document.getElementById('cropperControls');
-        if (!controls) {
-            controls = document.createElement('div');
-            controls.id = 'cropperControls';
-            controls.className = 'd-flex flex-wrap gap-2 justify-content-center mb-2';
-            controls.innerHTML = `
-                <button type="button" class="btn btn-outline-primary" id="cropperZoomIn"><i class="bi bi-zoom-in"></i> تكبير</button>
-                <button type="button" class="btn btn-outline-primary" id="cropperZoomOut"><i class="bi bi-zoom-out"></i> تصغير</button>
-                <button type="button" class="btn btn-outline-secondary" id="cropperRotateLeft"><i class="bi bi-arrow-counterclockwise"></i> تدوير يسار</button>
-                <button type="button" class="btn btn-outline-secondary" id="cropperRotateRight"><i class="bi bi-arrow-clockwise"></i> تدوير يمين</button>
-                <button type="button" class="btn btn-outline-warning" id="cropperReset"><i class="bi bi-arrow-repeat"></i> إعادة ضبط</button>
-            `;
-            modalEl.querySelector('.modal-body').prepend(controls);
-        }
-
-        // قراءة الصورة
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            cropperImage.src = e.target.result;
-            cropperImage.onload = function() {
-                if (cropper) cropper.destroy();
-                cropper = new Cropper(cropperImage, {
-                    aspectRatio: NaN,
-                    viewMode: 1,
-                    responsive: true,
-                    autoCropArea: 1,
-                    movable: true,
-                    zoomable: true,
-                    rotatable: true,
-                    scalable: true,
-                    background: false,
-                    minContainerWidth: 320,
-                    minContainerHeight: 320,
-                    guides: true,
-                    center: true,
-                    highlight: true,
-                    dragMode: 'move',
-                    cropBoxResizable: true,
-                    cropBoxMovable: true,
-                    ready() {
-                        // تكبير خطوط الشبكة والنقاط
-                        const style = document.createElement('style');
-                        style.id = 'cropperCustomGridStyle';
-                        style.innerHTML = `
-                            .cropper-point {
-                                width: 18px !important;
-                                height: 18px !important;
-                                background: #0d6efd !important;
-                                border: 2px solid #fff !important;
-                            }
-                            .cropper-line {
-                                background-color: #0d6efd !important;
-                                opacity: 0.8 !important;
-                                height: 3px !important;
-                            }
-                            .cropper-center {
-                                background: #ffc107 !important;
-                                width: 12px !important;
-                                height: 12px !important;
-                            }
-                            .cropper-view-box {
-                                border: 3px solid #0d6efd !important;
-                            }
-                        `;
-                        document.head.appendChild(style);
-                    }
-                });
-            };
-        };
-        reader.readAsDataURL(file);
-
-        // إظهار المودال
-        let bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
-        bsModal.show();
-
-        // أزرار التحكم
-        controls.querySelector('#cropperZoomIn').onclick = () => cropper && cropper.zoom(0.1);
-        controls.querySelector('#cropperZoomOut').onclick = () => cropper && cropper.zoom(-0.1);
-        controls.querySelector('#cropperRotateLeft').onclick = () => cropper && cropper.rotate(-45);
-        controls.querySelector('#cropperRotateRight').onclick = () => cropper && cropper.rotate(45);
-        controls.querySelector('#cropperReset').onclick = () => cropper && cropper.reset();
-
-        // زر القص
-        cropBtn.onclick = function() {
-            if (!cropper || !cropperImage) return;
-            const canvas = cropper.getCroppedCanvas({
-                maxWidth: 2048,
-                maxHeight: 2048,
-                imageSmoothingQuality: 'high'
-            });
-            if (!canvas) return;
-            canvas.toBlob(function(blob) {
-                if (!blob) return;
-                const croppedFile = new File([blob], file.name, {
-                    type: file.type
-                });
-                bsModal.hide();
-                cropper.destroy();
-                cropper = null;
-                // إزالة خطوط الشبكة المخصصة
-                const style = document.getElementById('cropperCustomGridStyle');
-                if (style) style.remove();
-                // إزالة الصورة من هاوبة
-                callback(croppedFile);
-            }, file.type);
-        };
+    /* مركز الحاوية الخاصة بالصورة */
+    .cropper-center-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 350px;
+        background: #f8f9fa;
+        border-radius: 12px;
+        border: 1px solid #e0e0e0;
+        margin-bottom: 1rem;
+        position: relative;
     }
+    /* تكبير نقاط التحديد */
+    .cropper-point {
+        width: 18px !important;
+        height: 18px !important;
+        background: #2196f3 !important;
+        border: 2px solid #fff !important;
+        box-shadow: 0 0 6px #2196f3cc;
+    }
+    /* أزرار التحكم */
+    .cropper-controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        justify-content: center;
+        margin-bottom: 1rem;
+    }
+    .cropper-controls button {
+        min-width: 44px;
+        min-height: 44px;
+        font-size: 1.3rem;
+        border-radius: 50%;
+        border: none;
+        background: #f1f3f4;
+        color: #333;
+        transition: background 0.2s;
+        box-shadow: 0 1px 4px #0001;
+    }
+    .cropper-controls button:hover {
+        background: #e3f2fd;
+        color: #1976d2;
+    }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet" />
+<script>
+window.showCropperModal = function(file, callback) {
+    const modalEl = document.getElementById('cropperModal');
+    const cropperImage = document.getElementById('cropperImage');
+    const cropBtn = document.getElementById('cropperCropBtn');
+    let cropper = null;
+    // إزالة أي حدث سابق لمنع التكرار
+    cropBtn.onclick = null;
+    // إزالة أي cropper سابق
+    if (cropperImage.cropperInstance) {
+        cropperImage.cropperInstance.destroy();
+        cropperImage.cropperInstance = null;
+    }
+    // قراءة الصورة
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        cropperImage.src = e.target.result;
+        cropperImage.onload = function() {
+            if (cropperImage.cropperInstance) {
+                cropperImage.cropperInstance.destroy();
+            }
+            cropper = new Cropper(cropperImage, {
+                aspectRatio: NaN,
+                viewMode: 1,
+                responsive: true,
+                autoCropArea: 1,
+                movable: true,
+                zoomable: true,
+                rotatable: true,
+                scalable: true,
+                background: false,
+                minContainerWidth: 320,
+                minContainerHeight: 320,
+                guides: true,
+                center: true,
+                highlight: true,
+                dragMode: 'move',
+                cropBoxResizable: true,
+                cropBoxMovable: true,
+            });
+            cropperImage.cropperInstance = cropper;
+        };
+    };
+    reader.readAsDataURL(file);
+    // إظهار المودال
+    let bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    bsModal.show();
+    // إضافة أزرار التحكم مع الأيقونات
+    let controls = modalEl.querySelector('.cropper-controls');
+    if (!controls) {
+        controls = document.createElement('div');
+        controls.className = 'cropper-controls';
+        controls.innerHTML = `
+            <button type="button" title="تحريك للأعلى" id="cropperMoveUp"><i class="fas fa-arrow-up"></i></button>
+            <button type="button" title="تحريك لليسار" id="cropperMoveLeft"><i class="fas fa-arrow-left"></i></button>
+            <button type="button" title="تحريك لليمين" id="cropperMoveRight"><i class="fas fa-arrow-right"></i></button>
+            <button type="button" title="تحريك للأسفل" id="cropperMoveDown"><i class="fas fa-arrow-down"></i></button>
+            <button type="button" title="تكبير" id="cropperZoomIn"><i class="fas fa-search-plus"></i></button>
+            <button type="button" title="تصغير" id="cropperZoomOut"><i class="fas fa-search-minus"></i></button>
+            <button type="button" title="تدوير يمين" id="cropperRotateRight"><i class="fas fa-undo"></i></button>
+            <button type="button" title="تدوير يسار" id="cropperRotateLeft"><i class="fas fa-redo"></i></button>
+            <button type="button" title="قلب أفقي" id="cropperFlipH"><i class="fas fa-arrows-alt-h"></i></button>
+            <button type="button" title="قلب عمودي" id="cropperFlipV"><i class="fas fa-arrows-alt-v"></i></button>
+            <button type="button" title="إعادة تعيين" id="cropperReset"><i class="fas fa-sync-alt"></i></button>
+        `;
+        // أضفها أعلى الصورة
+        const modalBody = modalEl.querySelector('.modal-body');
+        modalBody.insertBefore(controls, modalBody.firstChild);
+    }
+    // وضع الصورة داخل حاوية وسطية
+    let container = modalEl.querySelector('.cropper-center-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'cropper-center-container';
+        const img = cropperImage;
+        container.appendChild(img);
+        // أضف الحاوية مكان الصورة الأصلية
+        const modalBody = modalEl.querySelector('.modal-body');
+        modalBody.appendChild(container);
+    } else {
+        if (!container.contains(cropperImage)) {
+            container.innerHTML = '';
+            container.appendChild(cropperImage);
+        }
+    }
+    // تفعيل أزرار التحكم
+    setTimeout(() => {
+        if (!cropper) return;
+        controls.querySelector('#cropperMoveUp').onclick = () => cropper.move(0, -10);
+        controls.querySelector('#cropperMoveDown').onclick = () => cropper.move(0, 10);
+        controls.querySelector('#cropperMoveLeft').onclick = () => cropper.move(-10, 0);
+        controls.querySelector('#cropperMoveRight').onclick = () => cropper.move(10, 0);
+        controls.querySelector('#cropperZoomIn').onclick = () => cropper.zoom(0.1);
+        controls.querySelector('#cropperZoomOut').onclick = () => cropper.zoom(-0.1);
+        controls.querySelector('#cropperRotateRight').onclick = () => cropper.rotate(45);
+        controls.querySelector('#cropperRotateLeft').onclick = () => cropper.rotate(-45);
+        controls.querySelector('#cropperFlipH').onclick = () => cropper.scaleX(cropper.getData().scaleX === 1 ? -1 : 1);
+        controls.querySelector('#cropperFlipV').onclick = () => cropper.scaleY(cropper.getData().scaleY === 1 ? -1 : 1);
+        controls.querySelector('#cropperReset').onclick = () => cropper.reset();
+    }, 500);
+    // زر القص
+    cropBtn.onclick = function() {
+        if (!cropperImage.cropperInstance) return;
+        const canvas = cropperImage.cropperInstance.getCroppedCanvas({
+            maxWidth: 2048,
+            maxHeight: 2048,
+            imageSmoothingQuality: 'high'
+        });
+        if (!canvas) return;
+        canvas.toBlob(function(blob) {
+            if (!blob) return;
+            const croppedFile = new File([blob], file.name, {
+                type: file.type
+            });
+            bsModal.hide();
+            cropperImage.cropperInstance.destroy();
+            cropperImage.cropperInstance = null;
+            callback(croppedFile);
+        }, file.type);
+    };
+}
 </script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -810,4 +715,148 @@
             });
         }
     });
+</script>
+@push('scriptsCodeUserRegistration')
+<script>
+// منع ظهور خطأ "input غير قابل للتركيز" عند التحقق من الحقول المطلوبة في تبويبات مخفية
+// وتفعيل التبويب تلقائياً عند وجود خطأ في أحد حقوله
+
+document.addEventListener('DOMContentLoaded', function() {
+    // دالة مساعدة: تفعيل تبويب حسب id
+    function activateTab(tabId) {
+        const tabBtn = document.getElementById(tabId);
+        if (tabBtn) tabBtn.click();
+    }
+
+    // دالة عامة للتحقق من الحقول المطلوبة في تبويب معين
+    function validateTabFields(tabSelector, requiredFields) {
+        let firstInvalid = null;
+        requiredFields.forEach(field => {
+            const el = document.querySelector(`${tabSelector} [name="${field.name}"]`);
+            if (el && !el.value) {
+                firstInvalid = el;
+            }
+        });
+        return firstInvalid;
+    }
+
+    // مثال: عند الضغط على زر "التالي" في بوابة المتوفين
+    const deceasedNextBtn = document.getElementById('goToFamilyTabBtn');
+    if (deceasedNextBtn) {
+        deceasedNextBtn.addEventListener('click', function(e) {
+            // تحقق من الأب
+            const fatherFields = [
+                { name: 'father_first_name' },
+                { name: 'father_last_name' },
+                { name: 'father_id' },
+                { name: 'father_death_date' },
+                { name: 'father_death_reason' },
+            ];
+            let invalid = validateTabFields('#deceased', fatherFields);
+            if (invalid) {
+                // فعّل تبويب المتوفين
+                activateTab('deceased-tab');
+                setTimeout(() => invalid.focus(), 200);
+                e.preventDefault();
+                Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يرجى تعبئة جميع الحقول المطلوبة للأب.' });
+                return;
+            }
+            // تحقق من الأم إذا كانت ظاهرة
+            const motherSection = document.getElementById('motherInfoSection');
+            if (motherSection && motherSection.style.display !== 'none') {
+                const motherFields = [
+                    { name: 'mother_first_name' },
+                    { name: 'mother_last_name' },
+                    { name: 'mother_id' },
+                    { name: 'mother_death_date' },
+                    { name: 'mother_death_reason' },
+                ];
+                invalid = validateTabFields('#motherInfoSection', motherFields);
+                if (invalid) {
+                    activateTab('deceased-tab');
+                    setTimeout(() => invalid.focus(), 200);
+                    e.preventDefault();
+                    Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يرجى تعبئة جميع الحقول المطلوبة للأم.' });
+                    return;
+                }
+            }
+        });
+    }
+
+    // مثال: عند التحقق من أفراد الأسرة
+    const familyNextBtn = document.getElementById('goToReviewTabBtn');
+    if (familyNextBtn) {
+        familyNextBtn.addEventListener('click', function(e) {
+            let invalid = null;
+            document.querySelectorAll('.family-member-form').forEach(function(form) {
+                if (invalid) return;
+                const requiredFields = [
+                    { name: 'first_name' },
+                    { name: 'last_name' },
+                    { name: 'person_birth_date' },
+                    { name: 'person_gender' },
+                ];
+                requiredFields.forEach(field => {
+                    const el = form.querySelector(`[name*="[${field.name}]"]`);
+                    if (el && !el.value) invalid = el;
+                });
+            });
+            if (invalid) {
+                activateTab('family-members-tab');
+                setTimeout(() => invalid.focus(), 200);
+                e.preventDefault();
+                Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يرجى تعبئة جميع الحقول المطلوبة لأفراد الأسرة.' });
+                return;
+            }
+        });
+    }
+
+    // يمكن تكرار نفس المنطق لأي تبويب آخر
+});
+</script>
+@endpush
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('form').forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+            let invalid = false;
+            form.querySelectorAll('[required]').forEach(function(input) {
+                const style = window.getComputedStyle(input);
+                if ((style.display === 'none' || input.offsetParent === null || input.disabled) && input.required) {
+                    input.removeAttribute('required');
+                    input.setAttribute('data-temp-required', '1');
+                    invalid = true;
+                }
+            });
+            if (invalid) {
+                setTimeout(function() {
+                    form.querySelectorAll('[data-temp-required]').forEach(function(input) {
+                        input.setAttribute('required', 'required');
+                        input.removeAttribute('data-temp-required');
+                    });
+                }, 100);
+            }
+        }, true);
+    });
+});
+</script>
+<script>
+document.addEventListener('invalid', function(e) {
+    // إذا كان الحقل غير ظاهر أو غير قابل للتركيز
+    const input = e.target;
+    if ((input.offsetParent === null || input.disabled) && input.name) {
+        // تفعيل التبويب المناسب تلقائياً
+        if (input.name === 'mother_id' || input.closest('#motherInfoSection')) {
+            const tabBtn = document.getElementById('deceased-tab');
+            if (tabBtn) tabBtn.click();
+        } else if (input.name === 'father_id' || input.closest('#deceased')) {
+            const tabBtn = document.getElementById('deceased-tab');
+            if (tabBtn) tabBtn.click();
+        } else if (input.name.startsWith('family_members') || input.closest('.family-member-form')) {
+            const tabBtn = document.getElementById('family-members-tab');
+            if (tabBtn) tabBtn.click();
+        }
+        setTimeout(() => { input.focus && input.focus(); }, 200);
+    }
+}, true);
 </script>

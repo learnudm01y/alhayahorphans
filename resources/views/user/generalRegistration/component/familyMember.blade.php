@@ -84,23 +84,24 @@
                                 <div class="col-md-4 mt-3">
                                     <!-- ملاحظة توضيحية لرفع الملفات -->
                                     <div class="alert alert-primary py-2 mb-2" style="font-size: 0.97rem;">
-                                        يرجى اختيار نوع الوثيقة أولاً، وسوف يتم تحويلك لرفع
-                                        الصورة المطلوبة.
+                                        يرجى اختيار نوع الوثيقة أولاً، وسوف يتم تحويلك لرفع الصورة المطلوبة.
                                     </div>
                                     <label class="form-label fw-bold"> رفع الملفات <span
                                             class="text-danger">*</span></label>
-                                    <select class="form-select mainDocumentTypeSelect" id="mainDocumentTypeSelect_0">
-                                        <option value="">اختر نوع الوثيقة</option>
-                                        @foreach ($documentTypes as $documentType)
-                                            <option value="{{ $documentType->pref }}">
-                                                {{ $documentType->description }}</option>
-                                        @endforeach
-                                    </select>
-                                    <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_0"
-                                        accept="image/*,.pdf"
-                                        style="display:none !important; visibility:hidden !important; width:0; height:0; pointer-events:none; opacity:0; position:absolute; left:-9999px;">
-                                    <div class="mainDocumentPreview mt-2" id="mainDocumentPreview_0"></div>
-                                    <div class="mainDocumentNames mt-2" id="mainDocumentNames_0"></div>
+                                    <div class="upload-zone" data-upload-zone="family_0">
+                                        <select class="form-select mainDocumentTypeSelect" id="mainDocumentTypeSelect_0">
+                                            <option value="">اختر نوع الوثيقة</option>
+                                            @foreach ($documentTypes as $documentType)
+                                                <option value="{{ $documentType->pref }}">
+                                                    {{ $documentType->description }}</option>
+                                            @endforeach
+                                        </select>
+                                        <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_0"
+                                            accept="image/*,.pdf"
+                                            style="display:none !important; visibility:hidden !important; width:0; height:0; pointer-events:none; opacity:0; position:absolute; left:-9999px;">
+                                        <div class="mainDocumentPreview mt-2" id="mainDocumentPreview_0"></div>
+                                        <div class="mainDocumentNames mt-2" id="mainDocumentNames_0"></div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -330,6 +331,149 @@
                         });
                     });
                 </script>
+@push('scriptsCodeUserRegistration')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // تعريف دالة نسخ نموذج فرد الأسرة وإضافته
+    function addFamilyMember() {
+        const container = document.getElementById('familyMembersContainer');
+        const forms = container.querySelectorAll('.family-member-form');
+        const lastIndex = forms.length - 1;
+        const lastForm = forms[lastIndex];
+        if (!lastForm) return;
+        // نسخ النموذج
+        const clone = lastForm.cloneNode(true);
+        // تحديث الفهارس في الأسماء
+        const newIndex = lastIndex + 1;
+        clone.setAttribute('data-member-index', newIndex);
+        // تحديث data-upload-zone في منطقة رفع الملفات للفرد الجديد
+        const uploadZone = clone.querySelector('[data-upload-zone]');
+        if (uploadZone) {
+            uploadZone.setAttribute('data-upload-zone', `family_${newIndex}`);
+        }
+        clone.querySelectorAll('[name]').forEach(function(input) {
+            input.name = input.name.replace(/\[\d+\]/, `[${newIndex}]`);
+            // إذا كان الحقل هو رقم الملف العام، انسخ قيمته من النموذج الأصلي
+            if (input.name.endsWith('[file_id]')) {
+                const originalFileId = lastForm.querySelector('[name$="[file_id]"]');
+                if (originalFileId) input.value = originalFileId.value;
+            // إذا كان الحقل هو رقم التسجيل، انسخ قيمته من النموذج الأصلي
+            } else if (input.name.endsWith('[registration_id]')) {
+                const originalRegId = lastForm.querySelector('[name$="[registration_id]"]');
+                if (originalRegId) input.value = originalRegId.value;
+                input.readOnly = true;
+                input.classList.add('bg-secondary', 'bg-opacity-10');
+            } else if (input.type === 'text' || input.type === 'number' || input.type === 'date') {
+                input.value = '';
+            } else if (input.tagName === 'SELECT') {
+                input.selectedIndex = 0;
+            }
+        });
+        // تفريغ معاينة وأسماء الملفات
+        clone.querySelectorAll('.mainDocumentPreview, .mainDocumentNames').forEach(div => div.innerHTML = '');
+        // إضافة card-header وزر حذف
+        let cardHeader = clone.querySelector('.card-header');
+        if (!cardHeader) {
+            cardHeader = document.createElement('div');
+            cardHeader.className = 'card-header bg-gradient-primary text-dark py-3 d-flex justify-content-between align-items-center';
+            cardHeader.innerHTML = `
+                <h5 class="card-title mb-0 d-flex align-items-center">
+                    <i class="fas fa-user fs-4 me-2"></i>
+                    بيانات فرد الأسرة
+                </h5>
+                <button type="button" class="btn btn-danger btn-sm delete-member">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            clone.insertBefore(cardHeader, clone.firstChild);
+        } else {
+            // إذا كان موجوداً، تأكد من وجود زر الحذف
+            if (!cardHeader.querySelector('.delete-member')) {
+                const delBtn = document.createElement('button');
+                delBtn.type = 'button';
+                delBtn.className = 'btn btn-danger btn-sm delete-member';
+                delBtn.innerHTML = '<i class="fas fa-times"></i>';
+                cardHeader.appendChild(delBtn);
+            }
+        }
+        // إضافة مستمع حذف مع SweetAlert
+        cardHeader.querySelector('.delete-member').onclick = function(e) {
+            e.preventDefault();
+            Swal.fire({
+                title: 'هل أنت متأكد؟',
+                text: 'سيتم حذف هذا الفرد من القائمة',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'نعم، احذف',
+                cancelButtonText: 'إلغاء'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    clone.style.opacity = '0';
+                    clone.style.transform = 'scale(0.9)';
+                    setTimeout(() => {
+                        clone.remove();
+                    }, 300);
+                }
+            });
+        };
+        // إضافة النموذج الجديد
+        container.appendChild(clone);
+    }
+    // ربط الزر بالدالة
+    const addFamilyMemberBtn = document.getElementById('addFamilyMember');
+    if (addFamilyMemberBtn) {
+        addFamilyMemberBtn.onclick = null;
+        addFamilyMemberBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            addFamilyMember();
+        });
+    }
+    // اجعل الدالة متاحة عالمياً إذا احتجت
+    window.addFamilyMember = addFamilyMember;
+    // دالة لإعادة ترتيب فهارس النماذج وأسماء الحقول بعد أي حذف أو إضافة
+    function reindexFamilyMembers() {
+        const forms = document.querySelectorAll('#familyMembersContainer .family-member-form');
+        forms.forEach(function(form, idx) {
+            form.setAttribute('data-member-index', idx);
+            // تحديث أسماء الحقول
+            form.querySelectorAll('[name]').forEach(function(input) {
+                input.name = input.name.replace(/family_members\[\d+\]/g, `family_members[${idx}]`);
+            });
+            // تحديث data-upload-zone
+            const uploadZone = form.querySelector('[data-upload-zone]');
+            if (uploadZone) {
+                uploadZone.setAttribute('data-upload-zone', `family_${idx}`);
+            }
+            // تحديث id العناصر الخاصة بالملفات والمعاينة (اختياري)
+            const docType = form.querySelector('.mainDocumentTypeSelect');
+            if (docType) docType.id = `mainDocumentTypeSelect_${idx}`;
+            const fileInput = form.querySelector('.mainDocumentFileInput');
+            if (fileInput) fileInput.id = `mainDocumentFileInput_${idx}`;
+            const preview = form.querySelector('.mainDocumentPreview');
+            if (preview) preview.id = `mainDocumentPreview_${idx}`;
+            const names = form.querySelector('.mainDocumentNames');
+            if (names) names.id = `mainDocumentNames_${idx}`;
+        });
+    }
+    // استدعاء الدالة بعد إضافة فرد جديد
+    if (window.addFamilyMember) {
+        const originalAdd = window.addFamilyMember;
+        window.addFamilyMember = function() {
+            originalAdd();
+            reindexFamilyMembers();
+        };
+    }
+    // استدعاء الدالة بعد حذف فرد (زر الحذف)
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('.delete-member')) {
+            setTimeout(reindexFamilyMembers, 350); // بعد الحذف
+        }
+    });
+});
+</script>
+@endpush
             </div>
         </div>
     </div>
