@@ -200,11 +200,14 @@
                             } else {
                                 label = 'مرفق:';
                             }
+                            // عرض فقط الصور المقصوصة أو الملفات غير الصور
                             if (doc.file && doc.file.type && doc.file.type.startsWith('image/')) {
-                                const url = URL.createObjectURL(doc.file);
-                                attachmentsHtml += `<div class="mb-2"><span class="fw-bold"><i class="fas fa-paperclip me-1"></i>${label}</span><br><img src="${url}" style="max-width:120px;max-height:120px;border-radius:8px;border:2px solid #0d6efd;background:#fff;"></div>`;
-                            } else {
-                                attachmentsHtml += `<div class="mb-2"><span class="fw-bold"><i class="fas fa-paperclip me-1"></i>${label}</span> ${doc.name}</div>`;
+                                if (doc.file.name && doc.file.name.includes('_cropped')) {
+                                    const url = URL.createObjectURL(doc.file);
+                                    attachmentsHtml += `<div class="mb-2"><span class="fw-bold"><i class="fas fa-paperclip me-1"></i>${label}</span><br><img src="${url}" style="max-width:120px;max-height:120px;border-radius:8px;border:2px solid #0d6efd;background:#fff;"></div>`;
+                                }
+                            } else if (doc.file) {
+                                attachmentsHtml += `<div class="mb-2"><span class="fw-bold"><i class="fas fa-paperclip me-1"></i>${label}</span> ${doc.name || doc.docName || ''}</div>`;
                             }
                         });
                     });

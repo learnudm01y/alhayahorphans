@@ -129,7 +129,7 @@
 
 
                             <!-- Deceased Tab -->
-                            <div class="tab-pane fade" id="deceased" role="tabpanel" aria-labelledby="deceased-tab">
+                            {{-- <div class="tab-pane fade" id="deceased" role="tabpanel" aria-labelledby="deceased-tab">
                                 <div class="row g-3">
                                     <!-- Father Information -->
                                     <div class="col-12">
@@ -328,7 +328,8 @@
                                     </button>
                                 </div>
                                 <div id="didding" style="padding-bottom: 80px;"></div>
-                            </div>
+                            </div> --}}
+                            @include('user.generalRegistration.component.deceased')
                             <!-- بوابة عرض المعلومات المدخلة ستُضاف ديناميكياً من جافاسكريبت -->
                         </div>
                         </form>

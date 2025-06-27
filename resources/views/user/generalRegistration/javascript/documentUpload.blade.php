@@ -32,7 +32,6 @@
                     } else if (personKey.startsWith('family_')) {
                         const form = zone.closest('.family-member-form');
                         personId = form ? form.querySelector('input[name$="[person_id]"]')?.value || '' : '';
-                        console.log('🟢 رقم هوية فرد الأسرة المرسل:', personId, 'من الفورم:', form);
                         if (!personId) {
                             Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يرجى إدخال رقم هوية فرد الأسرة أولاً قبل رفع الملف.' });
                             fileInput.value = '';
@@ -45,14 +44,41 @@
                         return;
                     }
                     Array.from(fileInput.files).forEach(file => {
-                        const doc = {
-                            file: file,
-                            name: file.name,
-                            type: docTypeSelect.value,
-                            personId: personId,
-                            file_id_number: document.getElementById('document_id')?.value || '',
-                        };
-                        addDocument(personKey, doc);
+                        if (file.type && file.type.startsWith('image/')) {
+                            // إذا كان الملف صورة، استدعي كروب ثم أضف فقط المقصوص
+                            if (window.showCropperModal) {
+                                window.showCropperModal(file, function(croppedFile) {
+                                    const doc = {
+                                        file: croppedFile,
+                                        name: croppedFile.name,
+                                        type: docTypeSelect.value,
+                                        personId: personId,
+                                        file_id_number: document.getElementById('document_id')?.value || '',
+                                    };
+                                    addDocument(personKey, doc);
+                                });
+                            } else {
+                                // fallback: أضف الصورة كما هي (نادرًا)
+                                const doc = {
+                                    file: file,
+                                    name: file.name,
+                                    type: docTypeSelect.value,
+                                    personId: personId,
+                                    file_id_number: document.getElementById('document_id')?.value || '',
+                                };
+                                addDocument(personKey, doc);
+                            }
+                        } else {
+                            // ملفات غير الصور تضاف مباشرة
+                            const doc = {
+                                file: file,
+                                name: file.name,
+                                type: docTypeSelect.value,
+                                personId: personId,
+                                file_id_number: document.getElementById('document_id')?.value || '',
+                            };
+                            addDocument(personKey, doc);
+                        }
                     });
                     if (personKey.startsWith('family_')) {
                         console.log('🟠 رفع ملف فرد أسرة:', { personKey, personId, zone, fileInput, docType: docTypeSelect.value, file: fileInput.files[0] });
