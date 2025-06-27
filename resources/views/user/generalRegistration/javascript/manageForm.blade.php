@@ -844,7 +844,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (familyNextBtn) {
         familyNextBtn.addEventListener('click', function(e) {
             let invalid = null;
-            document.querySelectorAll('.family-member-form').forEach(function(form) {
+            document.querySelectorAll('.family-member-form:not(.d-none)').forEach(function(form) {
                 if (invalid) return;
                 const requiredFields = [
                     { name: 'first_name' },
@@ -1085,6 +1085,26 @@ document.addEventListener('invalid', function(e) {
             e.preventDefault();
             // جمع جميع البيانات في FormData
             const formData = new FormData(mainForm);
+
+            // حذف أي بيانات أفراد أسرة قديمة من FormData
+            Array.from(formData.keys()).forEach(key => {
+                if (key.startsWith('family_members')) {
+                    formData.delete(key);
+                }
+            });
+
+            // جمع بيانات أفراد الأسرة من النماذج الظاهرة فقط
+            document.querySelectorAll('.family-member-form:not(.d-none)').forEach(function(form, idx) {
+                form.querySelectorAll('[name]').forEach(function(input) {
+                    // مثال: family_members[0][first_name]
+                    const name = input.name;
+                    const value = input.value;
+                    if (name.startsWith('family_members[')) {
+                        formData.append(name, value);
+                    }
+                });
+            });
+
             // جمع جميع الملفات المقصوصة من جميع مناطق رفع الملفات
             document.querySelectorAll('.mainDocumentPreview').forEach(function(preview, idx) {
                 // ابحث عن مصفوفة documents في كل منطقة

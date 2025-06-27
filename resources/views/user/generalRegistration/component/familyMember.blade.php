@@ -8,8 +8,8 @@
 
                     </div>
                     <div id="familyMembersContainer">
-                        <!-- نموذج إضافة فرد -->
-                        <div class="family-member-form border rounded p-3 mb-3" data-member-index="0">
+                        <!-- نموذج إضافة فرد (مخفي كقالب) -->
+                        <div class="family-member-form border rounded p-3 mb-3 d-none" data-member-index="0" id="familyMemberTemplate">
                             <div class="row g-3">
                                 <input type="hidden" name="family_members[0][file_id]"
                                     value="{{ $file_id_number ?? '' }}">
@@ -19,7 +19,7 @@
                                         class="form-control bg-secondary bg-opacity-10" readonly
                                         value="{{ $file_id_number ?? '' }}">
                                 </div>
-                                  <div class="col-md-4">
+                                <div class="col-md-4">
                                     <label class="form-label">رقم هوية اليتيم</label>
                                     <input type="text" name="family_members[0][person_id]" class="form-control"
                                         inputmode="numeric" pattern="[0-9]*" maxlength="10"
@@ -121,32 +121,17 @@
                         const reviewBtn = document.getElementById('goToReviewTabBtn');
                         if (reviewBtn) {
                             reviewBtn.addEventListener('click', function(e) {
-                                // تحقق من جميع أفراد الأسرة
                                 let invalidField = null;
                                 let invalidLabel = '';
-                                document.querySelectorAll('.family-member-form').forEach(function(form) {
-                                    if (invalidField) return; // توقف عند أول خطأ فقط
-                                    // الحقول المطلوبة لكل فرد
-                                    const requiredFields = [{
-                                            selector: 'input[name$="[first_name]"]',
-                                            label: 'الاسم الأول'
-                                        },
-                                        {
-                                            selector: 'input[name$="[last_name]"]',
-                                            label: 'اسم العائلة'
-                                        },
-                                        {
-                                            selector: 'input[name$="[person_id]"]',
-                                            label: 'رقم هوية اليتيم'
-                                        },
-                                        {
-                                            selector: 'input[name$="[person_birth_date]"]',
-                                            label: 'تاريخ الميلاد'
-                                        },
-                                        {
-                                            selector: 'select[name$="[person_gender]"]',
-                                            label: 'الجنس'
-                                        },
+                                // تحقق فقط من النماذج الظاهرة
+                                document.querySelectorAll('.family-member-form:not(.d-none)').forEach(function(form) {
+                                    if (invalidField) return;
+                                    const requiredFields = [
+                                        { selector: 'input[name$="[first_name]"]', label: 'الاسم الأول' },
+                                        { selector: 'input[name$="[last_name]"]', label: 'اسم العائلة' },
+                                        { selector: 'input[name$="[person_id]"]', label: 'رقم هوية اليتيم' },
+                                        { selector: 'input[name$="[person_birth_date]"]', label: 'تاريخ الميلاد' },
+                                        { selector: 'select[name$="[person_gender]"]', label: 'الجنس' },
                                     ];
                                     for (const field of requiredFields) {
                                         const el = form.querySelector(field.selector);
@@ -160,8 +145,7 @@
                                     if (!invalidField) {
                                         const docType = form.querySelector('.mainDocumentTypeSelect');
                                         const fileInput = form.querySelector('.mainDocumentFileInput');
-                                        const hasFile = fileInput && fileInput.files && fileInput.files.length >
-                                            0;
+                                        const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
                                         if (docType && !docType.value && !hasFile) {
                                             invalidField = docType;
                                             invalidLabel = 'نوع الوثيقة أو رفع الملف';
@@ -198,7 +182,7 @@
                                 // تحقق من جميع أفراد الأسرة
                                 let invalidField = null;
                                 let invalidLabel = '';
-                                document.querySelectorAll('.family-member-form').forEach(function(form) {
+                                document.querySelectorAll('.family-member-form:not(.d-none)').forEach(function(form) {
                                     if (invalidField) return;
                                     const requiredFields = [{
                                             selector: 'input[name$="[first_name]"]',
@@ -269,7 +253,7 @@
                                 let invalidLabel = '';
                                 // بوابة أفراد الأسرة
                                 if (activeTab.id === 'family-members') {
-                                    document.querySelectorAll('.family-member-form').forEach(function(form) {
+                                    document.querySelectorAll('.family-member-form:not(.d-none)').forEach(function(form) {
                                         if (invalidField) return;
                                         const requiredFields = [{
                                                 selector: 'input[name$="[first_name]"]',
@@ -334,33 +318,22 @@
 @push('scriptsCodeUserRegistration')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // تعريف دالة نسخ نموذج فرد الأسرة وإضافته
+    // عند أول إضافة، انسخ النموذج المخفي وأظهره
     function addFamilyMember() {
         const container = document.getElementById('familyMembersContainer');
-        const forms = container.querySelectorAll('.family-member-form');
-        const lastIndex = forms.length - 1;
-        const lastForm = forms[lastIndex];
-        if (!lastForm) return;
-        // نسخ النموذج
-        const clone = lastForm.cloneNode(true);
-        // تحديث الفهارس في الأسماء
-        const newIndex = lastIndex + 1;
+        let forms = container.querySelectorAll('.family-member-form:not(.d-none)');
+        let template = document.getElementById('familyMemberTemplate');
+        let newIndex = forms.length;
+        let clone = template.cloneNode(true);
+        clone.classList.remove('d-none');
+        clone.removeAttribute('id');
         clone.setAttribute('data-member-index', newIndex);
-        // تحديث data-upload-zone في منطقة رفع الملفات للفرد الجديد
-        const uploadZone = clone.querySelector('[data-upload-zone]');
-        if (uploadZone) {
-            uploadZone.setAttribute('data-upload-zone', `family_${newIndex}`);
-        }
         clone.querySelectorAll('[name]').forEach(function(input) {
             input.name = input.name.replace(/\[\d+\]/, `[${newIndex}]`);
-            // إذا كان الحقل هو رقم الملف العام، انسخ قيمته من النموذج الأصلي
             if (input.name.endsWith('[file_id]')) {
-                const originalFileId = lastForm.querySelector('[name$="[file_id]"]');
-                if (originalFileId) input.value = originalFileId.value;
-            // إذا كان الحقل هو رقم التسجيل، انسخ قيمته من النموذج الأصلي
+                input.value = template.querySelector('[name$="[file_id]"]').value;
             } else if (input.name.endsWith('[registration_id]')) {
-                const originalRegId = lastForm.querySelector('[name$="[registration_id]"]');
-                if (originalRegId) input.value = originalRegId.value;
+                input.value = template.querySelector('[name$="[registration_id]"]').value;
                 input.readOnly = true;
                 input.classList.add('bg-secondary', 'bg-opacity-10');
             } else if (input.type === 'text' || input.type === 'number' || input.type === 'date') {
@@ -369,7 +342,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 input.selectedIndex = 0;
             }
         });
-        // تفريغ معاينة وأسماء الملفات
         clone.querySelectorAll('.mainDocumentPreview, .mainDocumentNames').forEach(div => div.innerHTML = '');
         // إضافة card-header وزر حذف
         let cardHeader = clone.querySelector('.card-header');
@@ -387,7 +359,6 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
             clone.insertBefore(cardHeader, clone.firstChild);
         } else {
-            // إذا كان موجوداً، تأكد من وجود زر الحذف
             if (!cardHeader.querySelector('.delete-member')) {
                 const delBtn = document.createElement('button');
                 delBtn.type = 'button';
@@ -396,7 +367,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 cardHeader.appendChild(delBtn);
             }
         }
-        // إضافة مستمع حذف مع SweetAlert
         cardHeader.querySelector('.delete-member').onclick = function(e) {
             e.preventDefault();
             Swal.fire({
@@ -418,8 +388,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         };
-        // إضافة النموذج الجديد
         container.appendChild(clone);
+        reindexFamilyMembers();
+        // إعادة ربط حدث حساب العمر على جميع حقول تاريخ الميلاد
+        setTimeout(function() {
+            document.querySelectorAll('.family-member-form:not(.d-none) input[name$="[person_birth_date]"]').forEach(function(input) {
+                input.oninput = function() {
+                    window.calculateAge(this);
+                };
+            });
+        }, 100);
     }
     // ربط الزر بالدالة
     const addFamilyMemberBtn = document.getElementById('addFamilyMember');
@@ -434,11 +412,11 @@ document.addEventListener('DOMContentLoaded', function() {
     window.addFamilyMember = addFamilyMember;
     // دالة لإعادة ترتيب فهارس النماذج وأسماء الحقول بعد أي حذف أو إضافة
     function reindexFamilyMembers() {
-        const forms = document.querySelectorAll('#familyMembersContainer .family-member-form');
+        const forms = document.querySelectorAll('#familyMembersContainer .family-member-form:not(.d-none)');
         forms.forEach(function(form, idx) {
             form.setAttribute('data-member-index', idx);
-            // تحديث أسماء الحقول
             form.querySelectorAll('[name]').forEach(function(input) {
+                // تحديث كل الفهارس لأي حقل باسم family_members[رقم] في الاسم كله
                 input.name = input.name.replace(/family_members\[\d+\]/g, `family_members[${idx}]`);
             });
             // تحديث data-upload-zone
@@ -456,6 +434,18 @@ document.addEventListener('DOMContentLoaded', function() {
             const names = form.querySelector('.mainDocumentNames');
             if (names) names.id = `mainDocumentNames_${idx}`;
         });
+        // Debug: طباعة أسماء الحقول بعد كل إعادة فهرسة
+        forms.forEach(function(form, idx) {
+            console.log(`نموذج ${idx}:`, Array.from(form.querySelectorAll('[name]')).map(i => i.name));
+        });
+        // إعادة ربط حدث حساب العمر على جميع حقول تاريخ الميلاد بعد كل إعادة فهرسة
+        setTimeout(function() {
+            document.querySelectorAll('.family-member-form:not(.d-none) input[name$="[person_birth_date]"]').forEach(function(input) {
+                input.oninput = function() {
+                    window.calculateAge(this);
+                };
+            });
+        }, 100);
     }
     // استدعاء الدالة بعد إضافة فرد جديد
     if (window.addFamilyMember) {
@@ -472,6 +462,28 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 });
+// تعريف دالة حساب العمر في النطاق العام
+window.calculateAge = function(inputElement) {
+    const birthDate = new Date(inputElement.value);
+    if (isNaN(birthDate.getTime())) return;
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+    }
+    // استخراج الفهرس الصحيح من اسم الحقل (أكثر أمانًا)
+    const match = inputElement.name.match(/family_members\[(\d+)\]/);
+    if (!match) return;
+    const formIndex = match[1];
+    // ابحث عن الحقل داخل نفس النموذج فقط
+    const form = inputElement.closest('.family-member-form');
+    if (!form) return;
+    const ageInput = form.querySelector(`input[name="family_members[${formIndex}][person_age]"]`);
+    if (ageInput) {
+        ageInput.value = age;
+    }
+};
 </script>
 @endpush
             </div>
