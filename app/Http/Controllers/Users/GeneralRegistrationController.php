@@ -31,8 +31,9 @@ use App\Models\GuardianBankAccount;
 
 class GeneralRegistrationController extends Controller
 {
-  public function index() :View{
-    $generalSection = GeneralCategory::all();
+    public function index(): View
+    {
+        $generalSection = GeneralCategory::all();
         $file_id_number = generateFiveDigitCode(Data::class, 'file_id_number');
         $category_of_relationship = CategoryOfRelation::all();
         $marital_status = MaritalStatus::all();
@@ -71,9 +72,9 @@ class GeneralRegistrationController extends Controller
                 'bank_name'
             )
         );
-  }
+    }
 
-  public function store(Request $request)
+    public function store(Request $request)
     {
         try {
             // 1. Validate basic data and attachments
@@ -232,110 +233,82 @@ class GeneralRegistrationController extends Controller
 
 
 
-            // --- تم تعطيل معالجة المرفقات القديمة (document_file, file_type, person_identity_number) ---
-            /*
-            if ($request->hasFile('document_file')) {
-                $files = $request->file('document_file');
-                $names = $request->input('stored_file_name', []);
-                $types = $request->input('file_type', []);
-                $personIds = $request->input('person_identity_number', []);
 
-                foreach ($files as $index => $file) {
-                    $storedFileName = $names[$index] ?? $file->getClientOriginalName();
-                    $personId = $personIds[$index] ?? null;
-                    $type = $types[$index] ?? null;
-
-                    // تحقق من وجود اسم ملف صالح
-                    if (!$storedFileName) {
-                        $storedFileName = $file->getClientOriginalName();
-                    }
-                    // إذا بقي الاسم فارغًا لأي سبب، تجاهل التخزين
-                    if (!$file || !$storedFileName) {
-                        continue;
-                    }
-
-                    $folder = 'uploads/' . $fileIdNumber; // يجب أن يكون دائماً مجلد فرعي
-                    // منع أي محاولة لتخزين في مجلد public مباشرة
-                    if ($folder === 'public' || $folder === 'public/') {
-                        throw new \Exception('خطأ في مسار التخزين: يجب تحديد مجلد فرعي داخل uploads');
-                    }
-                    $path = $file->storeAs($folder, $storedFileName, 'public');
-
-                    Attachment::create([
-                        'person_identity_number' => $personId,
-                        'stored_file_name' => $storedFileName,
-                        'file_path' => 'storage/' . $path,
-                        'file_type' => $type,
-                    ]);
-                }
-            }
-            */
 
 
             // معالجة المرفقات الجديدة كمصفوفة Laravel
             $attachmentsData = $request->input('attachments', []);
-Log::info('🟢 عدد المرفقات المستلمة من جميع البوابات:', ['count' => count($attachmentsData), 'attachments' => $attachmentsData, 'family_members' => $request->input('family_members', [])]);
-foreach ($attachmentsData as $index => $data) {
-    $file = $request->file("attachments.$index.file");
-    Log::info('🟠 معالجة مرفق فرد أسرة', ['index' => $index, 'data' => $data, 'file' => $file]);
-    $personType = $data['person_identity_number'] ?? null;
-    $fileType = $data['file_type'] ?? null;
-    $fileIdNumberAttach = isset($data['file_id_number'])
-        ? str_pad($data['file_id_number'], 6, '0', STR_PAD_LEFT)
-        : $fileIdNumber;
-    $storedFileName = $data['stored_file_name'] ?? ($file ? $file->getClientOriginalName() : null);
-    if (!$storedFileName && $file) {
-        $storedFileName = $file->getClientOriginalName();
-    }
-    if (!$file || !$storedFileName) {
-        Log::error('🔴 تجاهل مرفق بسبب نقص البيانات', ['index' => $index, 'file' => $file, 'storedFileName' => $storedFileName, 'data' => $data]);
-        continue;
-    }
-    $realPersonId = null;
-    if ($personType === 'main') {
-        $realPersonId = $request->input('data_id_number');
-    } elseif ($personType === 'deceased_father') {
-        $realPersonId = $request->input('father_id');
-    } elseif ($personType === 'deceased_mother') {
-        $realPersonId = $request->input('mother_id');
-    } elseif (strpos($personType, 'family_') === 0) {
-        // استخراج الفهرس من family_N
-        $familyIndex = (int)str_replace('family_', '', $personType);
-        $familyMembers = $request->input('family_members', []);
-        // تصحيح: ابحث عن أول فرد يحمل نفس رقم الهوية إذا لم يوجد فهرس مطابق
-        if (isset($familyMembers[$familyIndex]['person_id'])) {
-            $realPersonId = $familyMembers[$familyIndex]['person_id'];
-        } else {
-            // fallback: ابحث عن أول فرد يحمل نفس رقم الهوية
-            foreach ($familyMembers as $member) {
-                if (isset($member['person_id']) && $member['person_id'] == $personType) {
-                    $realPersonId = $member['person_id'];
-                    break;
+            Log::info('🟢 عدد المرفقات المستلمة من جميع البوابات:', ['count' => count($attachmentsData), 'attachments' => $attachmentsData, 'family_members' => $request->input('family_members', [])]);
+            foreach ($attachmentsData as $index => $data) {
+                $file = $request->file("attachments.$index.file");
+                if ($file) {
+                    Log::info('📸 اسم الملف المستلم: ' . $file->getClientOriginalName() . ' | الحجم: ' . $file->getSize());
+                }
+                Log::info('🟠 معالجة مرفق فرد أسرة', ['index' => $index, 'data' => $data, 'file' => $file]);
+                $personType = $data['person_identity_number'] ?? null;
+                $fileType = $data['file_type'] ?? null;
+                $fileIdNumberAttach = isset($data['file_id_number']) && $data['file_id_number'] && $data['file_id_number'] !== 'undefined' && preg_match('/^\d+$/', $data['file_id_number'])
+                    ? str_pad($data['file_id_number'], 6, '0', STR_PAD_LEFT)
+                    : $fileIdNumber;
+                if (!$fileIdNumberAttach || $fileIdNumberAttach === 'undefined') {
+                    Log::warning('🚫 تجاهل مرفق بسبب عدم وجود رقم ملف عام صالح', ['index' => $index, 'data' => $data]);
+                    continue;
+                }
+                $storedFileName = $data['stored_file_name'] ?? ($file ? $file->getClientOriginalName() : null);
+                if (!$storedFileName && $file) {
+                    $storedFileName = $file->getClientOriginalName();
+                }
+                // تجاهل أي صورة أصلية (غير مقصوصة)
+                if ($file && $file->isValid() && strpos($file->getMimeType(), 'image/') === 0 && (strpos($file->getClientOriginalName(), '_cropped') === false && strpos($storedFileName, '_cropped') === false)) {
+                    Log::warning('🚫 تجاهل صورة أصلية غير مقصوصة', ['index' => $index, 'file' => $file->getClientOriginalName(), 'data' => $data]);
+                    continue;
+                }
+                if (!$file || !$storedFileName) {
+                    Log::error('🔴 تجاهل مرفق بسبب نقص البيانات', ['index' => $index, 'file' => $file, 'storedFileName' => $storedFileName, 'data' => $data]);
+                    continue;
+                }
+                $realPersonId = null;
+                if ($personType === 'main') {
+                    $realPersonId = $request->input('data_id_number');
+                } elseif ($personType === 'deceased_father') {
+                    $realPersonId = $request->input('father_id');
+                } elseif ($personType === 'deceased_mother') {
+                    $realPersonId = $request->input('mother_id');
+                } elseif (strpos($personType, 'family_') === 0) {
+                    $familyIndex = (int)str_replace('family_', '', $personType);
+                    $familyMembers = $request->input('family_members', []);
+                    if (isset($familyMembers[$familyIndex]['person_id'])) {
+                        $realPersonId = $familyMembers[$familyIndex]['person_id'];
+                    } else {
+                        foreach ($familyMembers as $member) {
+                            if (isset($member['person_id']) && $member['person_id'] == $personType) {
+                                $realPersonId = $member['person_id'];
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    $realPersonId = is_numeric($personType) ? $personType : null;
+                }
+                if ($file && $realPersonId && $fileType && $fileIdNumberAttach && $storedFileName && preg_match('/^\d+$/', $realPersonId)) {
+                    $extension = $file->getClientOriginalExtension();
+                    $newFileName = "{$fileType}_{$fileIdNumberAttach}_{$realPersonId}.{$extension}";
+                    $folder = 'uploads/' . $fileIdNumberAttach;
+                    if ($folder === 'public' || $folder === 'public/') {
+                        throw new \Exception('خطأ في مسار التخزين: يجب تحديد مجلد فرعي داخل uploads');
+                    }
+                    $path = $file->storeAs($folder, $newFileName, 'public');
+                    Attachment::create([
+                        'person_identity_number' => $realPersonId,
+                        'stored_file_name' => $newFileName,
+                        'file_path' => 'storage/' . $path,
+                        'file_type' => $fileType,
+                    ]);
+                    Log::info('🟢 تم تخزين مرفق بنجاح', ['index' => $index, 'file' => $file, 'data' => $data]);
+                } else {
+                    Log::error('🔴 تجاهل مرفق بسبب شرط تحقق نهائي', ['index' => $index, 'file' => $file, 'data' => $data]);
                 }
             }
-        }
-    } else {
-        $realPersonId = is_numeric($personType) ? $personType : null;
-    }
-    if ($file && $realPersonId && $fileType && $fileIdNumberAttach && $storedFileName && preg_match('/^\d+$/', $realPersonId)) {
-        $extension = $file->getClientOriginalExtension();
-        $newFileName = "{$fileType}_{$fileIdNumberAttach}_{$realPersonId}.{$extension}";
-        $folder = 'uploads/' . $fileIdNumberAttach;
-        if ($folder === 'public' || $folder === 'public/') {
-            throw new \Exception('خطأ في مسار التخزين: يجب تحديد مجلد فرعي داخل uploads');
-        }
-        $path = $file->storeAs($folder, $newFileName, 'public');
-        Attachment::create([
-            'person_identity_number' => $realPersonId,
-            'stored_file_name' => $newFileName,
-            'file_path' => 'storage/' . $path,
-            'file_type' => $fileType,
-        ]);
-        Log::info('🟢 تم تخزين مرفق بنجاح', ['index' => $index, 'file' => $file, 'data' => $data]);
-    } else {
-        Log::error('🔴 تجاهل مرفق بسبب شرط تحقق نهائي', ['index' => $index, 'file' => $file, 'data' => $data]);
-    }
-}
 
 
             // إضافة مستخدم جديد عند التسجيل العام
