@@ -240,7 +240,8 @@ class GeneralRegistrationController extends Controller
             $attachmentsData = $request->input('attachments', []);
             Log::info('🟢 عدد المرفقات المستلمة من جميع البوابات:', ['count' => count($attachmentsData), 'attachments' => $attachmentsData, 'family_members' => $request->input('family_members', [])]);
             foreach ($attachmentsData as $index => $data) {
-                $file = $request->file("attachments.$index.file");
+                // استخدم hasFile للبحث عن الملف داخل attachments[$index][file]
+                $file = $request->hasFile("attachments.$index.file") ? $request->file("attachments.$index.file") : null;
                 if ($file) {
                     Log::info('📸 اسم الملف المستلم: ' . $file->getClientOriginalName() . ' | الحجم: ' . $file->getSize());
                 }

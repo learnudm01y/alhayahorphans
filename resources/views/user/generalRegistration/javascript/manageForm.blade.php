@@ -188,19 +188,20 @@
                                     card.style.boxShadow =
                                         '0 0 60px 0 #00bcd44d, 0 0 0 2px #fff8';
                                     setTimeout(function() {
+                                        // حذف من مصفوفة documents المحلية
                                         documents.splice(idx, 1);
+                                        // حذف من window.allDocs أيضاً بشكل صحيح
                                         if (window.allDocs && window.allDocs instanceof Map) {
                                             const personKey = doc.personId || doc.personKey || 'main';
                                             if (window.allDocs.has(personKey)) {
                                                 const arr = window.allDocs.get(personKey);
+                                                // حذف كل العناصر المطابقة لنفس docName وtype وfileId
                                                 for (let i = arr.length - 1; i >= 0; i--) {
                                                     if (
                                                         arr[i].docName === doc.docName &&
                                                         arr[i].type === doc.type &&
-                                                        arr[i].personId === doc.personId &&
                                                         arr[i].fileId === doc.fileId
                                                     ) {
-                                                        console.log('🗑️ حذف مرفق من window.allDocs:', arr[i]);
                                                         arr.splice(i, 1);
                                                     }
                                                 }
@@ -286,25 +287,41 @@
                             if (typeof window.showCropperModal === 'function') {
                                 window.showCropperModal(file, function(croppedFile) {
                                     if (!croppedFile || !fileId || !personId) return;
-                                    // فقط بعد القص يتم التخزين
-                                    const docObj = {
-                                        type: typeVal,
-                                        typeText: typeText,
-                                        file: croppedFile,
-                                        docName: docName,
-                                        personId: personId,
-                                        fileId: fileId
-                                    };
-                                    documents.push(docObj);
-                                    if (!window.allDocs.has(personKey)) window.allDocs.set(personKey, []);
-                                    window.allDocs.get(personKey).push(docObj);
-                                    console.log('🟡 إضافة ملف للإرسال:', docObj);
-                                    renderDocuments();
+                                    // تحقق من اسم الصورة المقصوصة
+                                    if (croppedFile.name && croppedFile.name.includes('_cropped') && croppedFile.name !== 'undefined') {
+                                        // احذف أي صورة أصلية أو مكررة لنفس الشخص ولنفس النوع
+                                        let docsArr = window.allDocs.get(personKey) || [];
+                                        docsArr = docsArr.filter(doc => {
+                                            if (!doc.file) return true;
+                                            // احذف أي صورة أصلية أو صورة مقصوصة بنفس الاسم
+                                            if (doc.file.type.startsWith('image/')) {
+                                                if (!doc.file.name.includes('_cropped')) return false;
+                                                if (doc.file.name === croppedFile.name) return false;
+                                            }
+                                            return true;
+                                        });
+                                        window.allDocs.set(personKey, docsArr);
+                                        // أضف الصورة المقصوصة
+                                        const docObj = {
+                                            type: typeVal,
+                                            typeText: typeText,
+                                            file: croppedFile,
+                                            docName: docName,
+                                            personId: personId,
+                                            fileId: fileId
+                                        };
+                                        docsArr.push(docObj);
+                                        window.allDocs.set(personKey, docsArr);
+                                        documents.push(docObj);
+                                        console.log('🟡 إضافة ملف للإرسال:', docObj);
+                                        // طباعة محتوى allDocs بعد الإضافة
+                                        console.log('🟢 محتوى allDocs بعد إضافة صورة مقصوصة:', window.allDocs);
+                                        renderDocuments();
+                                    }
                                     docTypeSelect.value = '';
                                 });
                             }
                         } else {
-                            // لا يتم تخزين أي ملف صورة أصلية أبداً
                             // فقط أضف الملفات غير الصور إذا بياناتها مكتملة
                             if (!fileId || !personId) return;
                             const docObj = {
@@ -315,9 +332,10 @@
                                 personId: personId,
                                 fileId: fileId
                             };
+                            let docsArr = window.allDocs.get(personKey) || [];
+                            docsArr.push(docObj);
+                            window.allDocs.set(personKey, docsArr);
                             documents.push(docObj);
-                            if (!window.allDocs.has(personKey)) window.allDocs.set(personKey, []);
-                            window.allDocs.get(personKey).push(docObj);
                             console.log('🟡 إضافة ملف للإرسال:', docObj);
                             renderDocuments();
                             docTypeSelect.value = '';
@@ -643,16 +661,22 @@ window.showCropperModal = function(file, callback) {
                                 setTimeout(function() {
                                     // حذف من مصفوفة documents المحلية
                                     documents.splice(idx, 1);
-                                    // حذف من window.allDocs أيضاً
+                                    // حذف من window.allDocs أيضاً بشكل صحيح
                                     if (window.allDocs && window.allDocs instanceof Map) {
                                         const personKey = doc.personId || doc.personKey || 'main';
                                         if (window.allDocs.has(personKey)) {
                                             const arr = window.allDocs.get(personKey);
-                                            const foundIdx = arr.findIndex(d => d.docName === doc.docName && d.type === doc.type && d.personId === doc.personId);
-                                            if (foundIdx !== -1) {
-                                                arr.splice(foundIdx, 1);
-                                                if (arr.length === 0) window.allDocs.delete(personKey);
+                                            // حذف كل العناصر المطابقة لنفس docName وtype وfileId
+                                            for (let i = arr.length - 1; i >= 0; i--) {
+                                                if (
+                                                    arr[i].docName === doc.docName &&
+                                                    arr[i].type === doc.type &&
+                                                    arr[i].fileId === doc.fileId
+                                                ) {
+                                                    arr.splice(i, 1);
+                                                }
                                             }
+                                            if (arr.length === 0) window.allDocs.delete(personKey);
                                         }
                                     }
                                     renderDocuments();
@@ -717,23 +741,42 @@ window.showCropperModal = function(file, callback) {
                         if (typeof window.showCropperModal === 'function') {
                             window.showCropperModal(file, function(croppedFile) {
                                 if (!croppedFile || !fileId || !personId) return;
-                                const docObj = {
-                                    type: typeVal,
-                                    typeText: typeText,
-                                    file: croppedFile,
-                                    docName: docName,
-                                    personId: personId,
-                                    fileId: fileId
-                                };
-                                documents.push(docObj);
-                                if (!window.allDocs.has(personKey)) window.allDocs.set(personKey, []);
-                                window.allDocs.get(personKey).push(docObj);
-                                console.log('🟡 إضافة ملف للإرسال:', docObj);
-                                renderDocuments();
+                                // تحقق من اسم الصورة المقصوصة
+                                if (croppedFile.name && croppedFile.name.includes('_cropped') && croppedFile.name !== 'undefined') {
+                                    // احذف أي صورة أصلية أو مكررة لنفس الشخص ولنفس النوع
+                                    let docsArr = window.allDocs.get(personKey) || [];
+                                    docsArr = docsArr.filter(doc => {
+                                        if (!doc.file) return true;
+                                        // احذف أي صورة أصلية أو صورة مقصوصة بنفس الاسم
+                                        if (doc.file.type.startsWith('image/')) {
+                                            if (!doc.file.name.includes('_cropped')) return false;
+                                            if (doc.file.name === croppedFile.name) return false;
+                                        }
+                                        return true;
+                                    });
+                                    window.allDocs.set(personKey, docsArr);
+                                    // أضف الصورة المقصوصة
+                                    const docObj = {
+                                        type: typeVal,
+                                        typeText: typeText,
+                                        file: croppedFile,
+                                        docName: docName,
+                                        personId: personId,
+                                        fileId: fileId
+                                    };
+                                    docsArr.push(docObj);
+                                    window.allDocs.set(personKey, docsArr);
+                                    documents.push(docObj);
+                                    console.log('🟡 إضافة ملف للإرسال:', docObj);
+                                    // طباعة محتوى allDocs بعد الإضافة
+                                    console.log('🟢 محتوى allDocs بعد إضافة صورة مقصوصة:', window.allDocs);
+                                    renderDocuments();
+                                }
                                 docTypeSelect.value = '';
                             });
                         }
                     } else {
+                        // فقط أضف الملفات غير الصور إذا بياناتها مكتملة
                         if (!fileId || !personId) return;
                         const docObj = {
                             type: typeVal,
@@ -743,9 +786,10 @@ window.showCropperModal = function(file, callback) {
                             personId: personId,
                             fileId: fileId
                         };
+                        let docsArr = window.allDocs.get(personKey) || [];
+                        docsArr.push(docObj);
+                        window.allDocs.set(personKey, docsArr);
                         documents.push(docObj);
-                        if (!window.allDocs.has(personKey)) window.allDocs.set(personKey, []);
-                        window.allDocs.get(personKey).push(docObj);
                         console.log('🟡 إضافة ملف للإرسال:', docObj);
                         renderDocuments();
                         docTypeSelect.value = '';
@@ -1096,7 +1140,6 @@ document.addEventListener('invalid', function(e) {
             // جمع بيانات أفراد الأسرة من النماذج الظاهرة فقط
             document.querySelectorAll('.family-member-form:not(.d-none)').forEach(function(form, idx) {
                 form.querySelectorAll('[name]').forEach(function(input) {
-                    // مثال: family_members[0][first_name]
                     const name = input.name;
                     const value = input.value;
                     if (name.startsWith('family_members[')) {
@@ -1105,21 +1148,42 @@ document.addEventListener('invalid', function(e) {
                 });
             });
 
-            // جمع جميع الملفات المقصوصة من جميع مناطق رفع الملفات
-            document.querySelectorAll('.mainDocumentPreview').forEach(function(preview, idx) {
-                // ابحث عن مصفوفة documents في كل منطقة
-                if (window.documents && Array.isArray(window.documents)) {
-                    window.documents.forEach(function(doc, docIdx) {
-                        if (doc.file) {
-                            formData.append(`attachments[${docIdx}][file]`, doc.file, doc.docName || doc.file.name);
-                            formData.append(`attachments[${docIdx}][file_type]`, doc.type);
-                            formData.append(`attachments[${docIdx}][person_identity_number]`, preview.closest('[data-upload-zone]')?.getAttribute('data-upload-zone') || 'main');
-                            formData.append(`attachments[${docIdx}][file_id_number]`, document.querySelector('input[name="file_id_number"]').value || '');
-                            formData.append(`attachments[${docIdx}][stored_file_name]`, doc.docName || doc.file.name);
-                        }
-                    });
+            // حذف أي مرفقات قديمة من FormData
+            Array.from(formData.keys()).forEach(key => {
+                if (key.startsWith('attachments')) {
+                    formData.delete(key);
                 }
             });
+
+            // جمع جميع المرفقات من window.allDocs بشكل ديناميكي لأي شخص أو بوابة
+            let attachIndex = 0;
+            if (window.allDocs && window.allDocs instanceof Map) {
+                // أضف فقط الصور المقصوصة أو الملفات غير الصور
+                window.allDocs.forEach((docsArr, personKey) => {
+                    docsArr.forEach(doc => {
+                        if (doc.file && doc.file.type && doc.file.type.startsWith('image/')) {
+                            if (doc.file.name && doc.file.name.includes('_cropped')) {
+                                formData.append(`attachments[${attachIndex}][file]`, doc.file);
+                                formData.append(`attachments[${attachIndex}][person_identity_number]`, doc.personId);
+                                formData.append(`attachments[${attachIndex}][file_type]`, doc.type);
+                                formData.append(`attachments[${attachIndex}][stored_file_name]`, doc.file.name);
+                                formData.append(`attachments[${attachIndex}][file_id_number]`, doc.fileId || '');
+                                attachIndex++;
+                                console.log('🟢 إضافة صورة مقصوصة للإرسال:', doc.file.name);
+                            }
+                        } else if (doc.file) {
+                            formData.append(`attachments[${attachIndex}][file]`, doc.file);
+                            formData.append(`attachments[${attachIndex}][person_identity_number]`, doc.personId);
+                            formData.append(`attachments[${attachIndex}][file_type]`, doc.type);
+                            formData.append(`attachments[${attachIndex}][stored_file_name]`, doc.file.name);
+                            formData.append(`attachments[${attachIndex}][file_id_number]`, doc.fileId || '');
+                            attachIndex++;
+                            console.log('🟢 إضافة ملف غير صورة للإرسال:', doc.file.name);
+                        }
+                    });
+                });
+            }
+
             // إرسال البيانات عبر AJAX
             fetch(mainForm.action, {
                 method: 'POST',
