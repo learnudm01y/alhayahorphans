@@ -113,7 +113,9 @@
 
                 // --- أفراد الأسرة ---
                 let familyHtml = '';
+                // تجاهل النماذج المخفية أو القالب
                 document.querySelectorAll('.family-member-form').forEach((form, idx) => {
+                    if (form.classList.contains('d-none') || form.id === 'familyMemberTemplate') return;
                     const getInputByName = n => form.querySelector(`[name$="[${n}]"]`)?.value || '';
                     const getSel = n => {
                         const sel = form.querySelector(`[name$="[${n}]"]`);

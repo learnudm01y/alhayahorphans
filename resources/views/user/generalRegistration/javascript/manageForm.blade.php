@@ -232,6 +232,11 @@
                         return;
                     }
                     if (fileDialogOpen) return;
+                    // السماح فقط برفع الصور jpg, jpeg, png
+                    if (docTypeSelect.value && fileInput) {
+                        fileInput.setAttribute('accept', 'image/jpeg,image/png');
+                        fileInput.setAttribute('capture', 'environment'); // توجيه المستخدم مباشرة للاستديو/الكاميرا
+                    }
                     fileDialogOpen = true;
                     fileInput.value = '';
                     const resetDialog = () => {
@@ -307,6 +312,43 @@
                                         docsArr.push(docObj);
                                         window.allDocs.set(personKey, docsArr);
                                         documents.push(docObj);
+                                        // تعريف دالة العرض مرة واحدة في الأعلى
+                                        if (!window.attachmentsDisplayList) window.attachmentsDisplayList = [];
+                                        window.addAttachmentDisplayEntry = function(docObj, parent) {
+                                            let personName = '';
+                                            let label = docObj.typeText;
+                                            if (parent && parent.classList && parent.classList.contains('family-member-form')) {
+                                                const firstName = parent.querySelector('[name$="[first_name]"]')?.value || '';
+                                                const lastName = parent.querySelector('[name$="[last_name]"]')?.value || '';
+                                                personName = `${firstName} ${lastName}`.trim();
+                                            } else if (parent && parent.closest && parent.closest('#basic')) {
+                                                const firstName = document.querySelector('[name="data_first_name"]')?.value || '';
+                                                const lastName = document.querySelector('[name="data_family_name"]')?.value || '';
+                                                personName = `${firstName} ${lastName}`.trim();
+                                            } else if (parent && parent.closest && parent.closest('#deceased')) {
+                                                const firstName = document.querySelector('[name="father_first_name"]')?.value || '';
+                                                const lastName = document.querySelector('[name="father_last_name"]')?.value || '';
+                                                personName = `${firstName} ${lastName}`.trim();
+                                            } else if (
+                                                (parent && parent.closest && parent.closest('#motherInfoSection')) ||
+                                                (parent && parent.id === 'motherInfoSection') ||
+                                                (document.querySelector('#motherInfoSection') && document.querySelector('#motherInfoSection').contains(parent))
+                                            ) {
+                                                // الأم المتوفية
+                                                const firstName = document.querySelector('[name="mother_first_name"]')?.value || '';
+                                                const lastName = document.querySelector('[name="mother_last_name"]')?.value || '';
+                                                personName = `${firstName} ${lastName}`.trim();
+                                                label = 'مرفق الأم المتوفية:';
+                                            }
+                                            window.attachmentsDisplayList.push({
+                                                personName,
+                                                label,
+                                                doc: docObj.file,
+                                                docName: docObj.docName
+                                            });
+                                        }
+                                        // بعد إضافة docObj إلى window.allDocs و/أو documents، أضف إلى مصفوفة العرض
+                                        window.addAttachmentDisplayEntry(docObj, parent);
                                         renderDocuments();
                                     }
                                     docTypeSelect.value = '';
@@ -326,6 +368,43 @@
                             docsArr.push(docObj);
                             window.allDocs.set(personKey, docsArr);
                             documents.push(docObj);
+                            // تعريف دالة العرض مرة واحدة في الأعلى
+                            if (!window.attachmentsDisplayList) window.attachmentsDisplayList = [];
+                            window.addAttachmentDisplayEntry = function(docObj, parent) {
+                                let personName = '';
+                                let label = docObj.typeText;
+                                if (parent && parent.classList && parent.classList.contains('family-member-form')) {
+                                    const firstName = parent.querySelector('[name$="[first_name]"]')?.value || '';
+                                    const lastName = parent.querySelector('[name$="[last_name]"]')?.value || '';
+                                    personName = `${firstName} ${lastName}`.trim();
+                                } else if (parent && parent.closest && parent.closest('#basic')) {
+                                    const firstName = document.querySelector('[name="data_first_name"]')?.value || '';
+                                    const lastName = document.querySelector('[name="data_family_name"]')?.value || '';
+                                    personName = `${firstName} ${lastName}`.trim();
+                                } else if (parent && parent.closest && parent.closest('#deceased')) {
+                                    const firstName = document.querySelector('[name="father_first_name"]')?.value || '';
+                                    const lastName = document.querySelector('[name="father_last_name"]')?.value || '';
+                                    personName = `${firstName} ${lastName}`.trim();
+                                } else if (
+                                    (parent && parent.closest && parent.closest('#motherInfoSection')) ||
+                                    (parent && parent.id === 'motherInfoSection') ||
+                                    (document.querySelector('#motherInfoSection') && document.querySelector('#motherInfoSection').contains(parent))
+                                ) {
+                                    // الأم المتوفية
+                                    const firstName = document.querySelector('[name="mother_first_name"]')?.value || '';
+                                    const lastName = document.querySelector('[name="mother_last_name"]')?.value || '';
+                                    personName = `${firstName} ${lastName}`.trim();
+                                    label = 'مرفق الأم المتوفية:';
+                                }
+                                window.attachmentsDisplayList.push({
+                                    personName,
+                                    label,
+                                    doc: docObj.file,
+                                    docName: docObj.docName
+                                });
+                            }
+                            // بعد إضافة docObj إلى window.allDocs و/أو documents، أضف إلى مصفوفة العرض
+                            window.addAttachmentDisplayEntry(docObj, parent);
                             renderDocuments();
                             docTypeSelect.value = '';
                         }
@@ -607,6 +686,11 @@ window.showCropperModal = function(file, callback) {
                     return;
                 }
                 if (fileDialogOpen) return;
+                // السماح فقط برفع الصور jpg, jpeg, png
+                if (docTypeSelect.value && fileInput) {
+                    fileInput.setAttribute('accept', 'image/jpeg,image/png');
+                    fileInput.setAttribute('capture', 'environment'); // توجيه المستخدم مباشرة للاستديو/الكاميرا
+                }
                 fileDialogOpen = true;
                 fileInput.value = '';
                 const resetDialog = () => {
@@ -671,9 +755,43 @@ window.showCropperModal = function(file, callback) {
                                     docsArr.push(docObj);
                                     window.allDocs.set(personKey, docsArr);
                                     documents.push(docObj);
-                                    console.log('🟡 إضافة ملف للإرسال:', docObj);
-                                    // طباعة محتوى allDocs بعد الإضافة
-                                    console.log('🟢 محتوى allDocs بعد إضافة صورة مقصوصة:', window.allDocs);
+                                    // تعريف دالة العرض مرة واحدة في الأعلى
+                                    if (!window.attachmentsDisplayList) window.attachmentsDisplayList = [];
+                                    window.addAttachmentDisplayEntry = function(docObj, parent) {
+                                        let personName = '';
+                                        let label = docObj.typeText;
+                                        if (parent && parent.classList && parent.classList.contains('family-member-form')) {
+                                            const firstName = parent.querySelector('[name$="[first_name]"]')?.value || '';
+                                            const lastName = parent.querySelector('[name$="[last_name]"]')?.value || '';
+                                            personName = `${firstName} ${lastName}`.trim();
+                                        } else if (parent && parent.closest && parent.closest('#basic')) {
+                                            const firstName = document.querySelector('[name="data_first_name"]')?.value || '';
+                                            const lastName = document.querySelector('[name="data_family_name"]')?.value || '';
+                                            personName = `${firstName} ${lastName}`.trim();
+                                        } else if (parent && parent.closest && parent.closest('#deceased')) {
+                                            const firstName = document.querySelector('[name="father_first_name"]')?.value || '';
+                                            const lastName = document.querySelector('[name="father_last_name"]')?.value || '';
+                                            personName = `${firstName} ${lastName}`.trim();
+                                        } else if (
+                                            (parent && parent.closest && parent.closest('#motherInfoSection')) ||
+                                            (parent && parent.id === 'motherInfoSection') ||
+                                            (document.querySelector('#motherInfoSection') && document.querySelector('#motherInfoSection').contains(parent))
+                                        ) {
+                                            // الأم المتوفية
+                                            const firstName = document.querySelector('[name="mother_first_name"]')?.value || '';
+                                            const lastName = document.querySelector('[name="mother_last_name"]')?.value || '';
+                                            personName = `${firstName} ${lastName}`.trim();
+                                            label = 'مرفق الأم المتوفية:';
+                                        }
+                                        window.attachmentsDisplayList.push({
+                                            personName,
+                                            label,
+                                            doc: docObj.file,
+                                            docName: docObj.docName
+                                        });
+                                    }
+                                    // بعد إضافة docObj إلى window.allDocs و/أو documents، أضف إلى مصفوفة العرض
+                                    window.addAttachmentDisplayEntry(docObj, parent);
                                     renderDocuments();
                                 }
                                 docTypeSelect.value = '';
@@ -690,11 +808,46 @@ window.showCropperModal = function(file, callback) {
                             personId: personId,
                             fileId: fileId
                         };
-                        let docsArr = window.allDocs.get(personKey) || [];
                         docsArr.push(docObj);
                         window.allDocs.set(personKey, docsArr);
                         documents.push(docObj);
-                        console.log('🟡 إضافة ملف للإرسال:', docObj);
+                        // تعريف دالة العرض مرة واحدة في الأعلى
+                        if (!window.attachmentsDisplayList) window.attachmentsDisplayList = [];
+                        window.addAttachmentDisplayEntry = function(docObj, parent) {
+                            let personName = '';
+                            let label = docObj.typeText;
+                            if (parent && parent.classList && parent.classList.contains('family-member-form')) {
+                                const firstName = parent.querySelector('[name$="[first_name]"]')?.value || '';
+                                const lastName = parent.querySelector('[name$="[last_name]"]')?.value || '';
+                                personName = `${firstName} ${lastName}`.trim();
+                            } else if (parent && parent.closest && parent.closest('#basic')) {
+                                const firstName = document.querySelector('[name="data_first_name"]')?.value || '';
+                                const lastName = document.querySelector('[name="data_family_name"]')?.value || '';
+                                personName = `${firstName} ${lastName}`.trim();
+                            } else if (parent && parent.closest && parent.closest('#deceased')) {
+                                const firstName = document.querySelector('[name="father_first_name"]')?.value || '';
+                                const lastName = document.querySelector('[name="father_last_name"]')?.value || '';
+                                personName = `${firstName} ${lastName}`.trim();
+                            } else if (
+                                (parent && parent.closest && parent.closest('#motherInfoSection')) ||
+                                (parent && parent.id === 'motherInfoSection') ||
+                                (document.querySelector('#motherInfoSection') && document.querySelector('#motherInfoSection').contains(parent))
+                            ) {
+                                // الأم المتوفية
+                                const firstName = document.querySelector('[name="mother_first_name"]')?.value || '';
+                                const lastName = document.querySelector('[name="mother_last_name"]')?.value || '';
+                                personName = `${firstName} ${lastName}`.trim();
+                                label = 'مرفق الأم المتوفية:';
+                            }
+                            window.attachmentsDisplayList.push({
+                                personName,
+                                label,
+                                doc: docObj.file,
+                                docName: docObj.docName
+                            });
+                        }
+                        // بعد إضافة docObj إلى window.allDocs و/أو documents، أضف إلى مصفوفة العرض
+                        window.addAttachmentDisplayEntry(docObj, parent);
                         renderDocuments();
                         docTypeSelect.value = '';
                     }
@@ -1062,7 +1215,7 @@ document.addEventListener('invalid', function(e) {
             // جمع جميع المرفقات من window.allDocs بشكل ديناميكي لأي شخص أو بوابة
             let attachIndex = 0;
             if (window.allDocs && window.allDocs instanceof Map) {
-                // أضف فقط الصور المقصوصة أو الملفات غير الصور
+                // أضف فقط الصور المقصوصة أو الملفات غير صور
                 window.allDocs.forEach((docsArr, personKey) => {
                     docsArr.forEach(doc => {
                         if (doc.file && doc.file.type && doc.file.type.startsWith('image/')) {

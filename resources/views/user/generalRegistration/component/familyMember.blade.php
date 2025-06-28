@@ -380,27 +380,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 cancelButtonText: 'إلغاء'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    // حذف المرفقات الخاصة بهذا الفرد من window.allDocs
-                    const personIdInput = clone.querySelector('input[name$="[person_id]"]');
-                    let personId = personIdInput ? personIdInput.value : null;
-                    let possibleKeys = [];
-                    const uploadZone = clone.querySelector('[data-upload-zone]');
-                    if (uploadZone) {
-                        possibleKeys.push(uploadZone.getAttribute('data-upload-zone'));
-                    }
-                    if (personId) {
-                        possibleKeys.push(personId);
-                    }
-                    if (window.allDocs && window.allDocs instanceof Map) {
-                        possibleKeys.forEach(function(key) {
-                            if (window.allDocs.has(key)) {
-                                window.allDocs.delete(key);
-                            }
-                        });
-                    }
-                    if (typeof window.renderReviewContent === 'function') {
-                        setTimeout(() => window.renderReviewContent(), 400);
-                    }
                     clone.style.opacity = '0';
                     clone.style.transform = 'scale(0.9)';
                     setTimeout(() => {
