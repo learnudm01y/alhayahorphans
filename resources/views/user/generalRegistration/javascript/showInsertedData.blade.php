@@ -186,32 +186,53 @@
 
                 // --- المرفقات (من Map البرمجية) ---
                 let attachmentsHtml = '';
+
                 if (window.allDocs) {
-                    window.allDocs.forEach((docsArr, personKey) => {
-                        docsArr.forEach((doc, idx) => {
-                            let label = '';
-                            if (personKey === 'main') {
-                                label = 'مرفق صاحب الملف:';
-                            } else if (personKey === 'deceased_father') {
-                                label = 'مرفق الأب المتوفى:';
-                            } else if (personKey === 'deceased_mother') {
-                                label = 'مرفق الأم المتوفية:';
-                            } else if (personKey.startsWith('family_')) {
-                                const famIdx = parseInt(personKey.replace('family_', '')) + 1;
-                                label = `مرفق فرد الأسرة #${famIdx}:`;
-                            } else {
-                                label = 'مرفق:';
-                            }
-                            // عرض فقط الصور المقصوصة أو الملفات غير الصور
+                    // ترتيب العرض: صاحب الملف، الأب، الأم، أفراد الأسرة، أخرى
+                    const order = ['main', 'deceased_father', 'deceased_mother'];
+                    // عرض مرفقات كل شخص بجانب بعضها
+                    order.concat(Array.from(window.allDocs.keys()).filter(k => !order.includes(k))).forEach(personKey => {
+                        if (!window.allDocs.has(personKey)) return;
+                        const docsArr = window.allDocs.get(personKey);
+                        if (!docsArr.length) return;
+
+                        // اسم الشخص للعنوان
+                        let personLabel = '';
+                        if (personKey === 'main') personLabel = 'مرفقات صاحب الملف';
+                        else if (personKey === 'deceased_father') personLabel = 'مرفقات الأب المتوفى';
+                        else if (personKey === 'deceased_mother') {
+                            // جلب اسم الأم من الحقول
+                            const motherFirstName = document.querySelector('input[name="mother_first_name"]')?.value || '';
+                            const motherLastName = document.querySelector('input[name="mother_last_name"]')?.value || '';
+                            const motherFullName = (motherFirstName + ' ' + motherLastName).trim();
+                            personLabel = `مرفقات الأم المتوفاة${motherFullName ? ' - ' + motherFullName : ''}`;
+                        }
+                        else if (personKey.startsWith('family_')) {
+                            const famIdx = parseInt(personKey.replace('family_', '')) + 1;
+                            personLabel = `مرفقات فرد الأسرة #${famIdx}`;
+                        } else {
+                            personLabel = 'مرفقات أخرى';
+                        }
+
+                        attachmentsHtml += `<div class="mb-3"><div class="fw-bold text-primary mb-2" style="font-size:1.08rem;">${personLabel}</div>`;
+                        attachmentsHtml += `<div class="d-flex flex-wrap gap-3">`;
+
+                        docsArr.forEach(doc => {
+                            // نوع الوثيقة
+                            const docType = doc.typeText || doc.type || '';
+                            attachmentsHtml += `<div class="card shadow-sm border-0" style="width:170px;min-height:180px;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;">`;
+                            attachmentsHtml += `<div class="bg-light text-dark fw-bold py-2 px-2 w-100 text-center" style="font-size:0.97rem;border-bottom:1px solid #eee;">${docType}</div>`;
+                            attachmentsHtml += `<div class="p-2 w-100 d-flex flex-column align-items-center justify-content-center" style="min-height:120px;">`;
                             if (doc.file && doc.file.type && doc.file.type.startsWith('image/')) {
-                                if (doc.file.name && doc.file.name.includes('_cropped')) {
-                                    const url = URL.createObjectURL(doc.file);
-                                    attachmentsHtml += `<div class="mb-2"><span class="fw-bold"><i class="fas fa-paperclip me-1"></i>${label}</span><br><img src="${url}" style="max-width:120px;max-height:120px;border-radius:8px;border:2px solid #0d6efd;background:#fff;"></div>`;
-                                }
+                                const url = URL.createObjectURL(doc.file);
+                                attachmentsHtml += `<img src="${url}" style="max-width:110px;max-height:110px;border-radius:10px;border:2px solid #0d6efd;background:#fff;box-shadow:0 2px 8px #0001;">`;
                             } else if (doc.file) {
-                                attachmentsHtml += `<div class="mb-2"><span class="fw-bold"><i class="fas fa-paperclip me-1"></i>${label}</span> ${doc.name || doc.docName || ''}</div>`;
+                                attachmentsHtml += `<span class="text-secondary" style="font-size:0.98rem;"><i class="fas fa-file-alt me-1"></i>${doc.name || doc.docName || ''}</span>`;
                             }
+                            attachmentsHtml += `</div></div>`;
                         });
+
+                        attachmentsHtml += `</div></div>`;
                     });
                 }
 
@@ -225,7 +246,6 @@
                             <div class="card-header bg-primary text-white fw-bold d-flex align-items-center" style="border-radius:14px 14px 0 0;">
                                 <span style="font-size:1.1rem;">المرفقات</span>
                                 <i class="fas fa-paperclip me-2 text-white"></i>
-
                             </div>
                             <div class="card-body bg-white">${attachmentsHtml || '<span class="text-muted">لا يوجد مرفقات</span>'}</div>
                         </div>
