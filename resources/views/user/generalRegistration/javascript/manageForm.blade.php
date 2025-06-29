@@ -313,10 +313,15 @@
                                         docsArr.push(docObj);
                                         window.allDocs.set(personKey, docsArr);
                                         documents.push(docObj);
+                                        // إذا كانت هذه أول صورة مقصوصة في البوابة الرئيسية، اعرضها في الكارد فوراً
+                                        if (personKey === 'main' && docsArr.length === 1) {
+                                            renderDocuments();
+                                        } else {
+                                            renderDocuments();
+                                        }
                                         console.log('🟡 إضافة ملف للإرسال:', docObj);
                                         // طباعة محتوى allDocs بعد الإضافة
                                         console.log('🟢 محتوى allDocs بعد إضافة صورة مقصوصة:', window.allDocs);
-                                        renderDocuments();
                                     }
                                     docTypeSelect.value = '';
                                 });
@@ -561,10 +566,15 @@
                                     docsArr.push(docObj);
                                     window.allDocs.set(personKey, docsArr);
                                     documents.push(docObj);
+                                    // إذا كانت هذه أول صورة مقصوصة في البوابة الرئيسية، اعرضها في الكارد فوراً
+                                    if (personKey === 'main' && docsArr.length === 1) {
+                                        renderDocuments();
+                                    } else {
+                                        renderDocuments();
+                                    }
                                     console.log('🟡 إضافة ملف للإرسال:', docObj);
                                     // طباعة محتوى allDocs بعد الإضافة
                                     console.log('🟢 محتوى allDocs بعد إضافة صورة مقصوصة:', window.allDocs);
-                                    renderDocuments();
                                 }
                                 docTypeSelect.value = '';
                             });

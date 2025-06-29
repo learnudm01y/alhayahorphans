@@ -108,7 +108,7 @@
     /* Adjustments for move buttons in a cross pattern */
     .controls-grid .move-up { grid-column: 2; grid-row: 1; }
     .controls-grid .move-left { grid-column: 1; grid-row: 2; }
-    .controls-grid .move-center { grid-column: 2; grid-row: 2; display: none; } /* Placeholder or an action button */
+    .controls-grid .move-center { grid-column: 2; grid-row: 2; display: none; /* Placeholder or an action button */ }
     .controls-grid .move-right { grid-column: 3; grid-row: 2; }
     .controls-grid .move-down { grid-column: 2; grid-row: 3; }
 
@@ -403,7 +403,9 @@
   </div>
 </div>
 
-<!-- Script to Handle Cropper Logic -->
+<!-- إضافة مكتبة browser-image-compression -->
+<script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
+
 <script>
   window.showCropperModal = function(file, callback) {
     const modalEl = document.getElementById('cropperModal');
@@ -473,12 +475,11 @@
         enableCropperControls();
 
         // إعادة ربط زر القص في كل مرة (يسمح بالقص عدة مرات)
-        cropBtn.onclick = function() {
+        cropBtn.onclick = async function() {
           if (!cropper) return;
           // إذا كان حجم الملف الأصلي أقل من أو يساوي 100KiB، أدرجه مباشرة بدون قص أو ضغط وبدون إظهار اللودر
           if (file.size <= 100 * 1024) {
             bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-            // أعد تسمية الملف ليحمل لاحقة _cropped مثل الملفات الكبيرة
             const originalName = file.name;
             const ext = originalName.substring(originalName.lastIndexOf('.'));
             const base = originalName.replace(ext, '');
@@ -490,12 +491,16 @@
               type: newFile.type
             });
             console.log('حجم الصورة بعد الضغط:', newFile.size, 'bytes');
-            callback(newFile);
+            // معالجة مشكلة عدم إضافة الملف للمصفوفة أو العرض: إعادة استدعاء callback دائماً بعد التأكد من انتهاء المودال
+            setTimeout(() => {
+              loaderModal.hide();
+              callback(newFile);
+            }, 0);
+            // تأكيد إخفاء اللودر بعد فترة قصيرة في حال لم يختفِ بسبب مشاكل في DOM
+            setTimeout(() => { loaderModal.hide(); }, 700);
             return;
           }
-          // أخفِ مودال القص مباشرة
           bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-          // أظهر اللودر وعنوان الإدراج
           document.getElementById('compressLoaderTitle').textContent = 'جاري إدراج الوثيقة';
           loaderModal.show();
 
@@ -506,76 +511,71 @@
             imageSmoothingQuality: 'high'
           });
 
-          let mimeType = file.type;
-          let quality = 0.7;
-          let useQuality = false;
-          if (mimeType === 'image/jpeg' || mimeType === 'image/webp') {
-            useQuality = true;
-          }
-
-          // الحد الأقصى للحجم بالبايت (100KiB)
-          const MAX_SIZE = 100 * 1024;
-
-          function compressAndExport(currentQuality, resizeFactor = 1) {
-            // إذا كانت الصورة كبيرة جداً، صغر الأبعاد تدريجياً مع تقليل الجودة
-            let exportCanvas = canvas;
-            if (resizeFactor < 1) {
-              // إنشاء كانفاس جديد بأبعاد أصغر
-              const tmpCanvas = document.createElement('canvas');
-              tmpCanvas.width = Math.max(1, Math.round(canvas.width * resizeFactor));
-              tmpCanvas.height = Math.max(1, Math.round(canvas.height * resizeFactor));
-              const ctx = tmpCanvas.getContext('2d');
-              ctx.drawImage(canvas, 0, 0, tmpCanvas.width, tmpCanvas.height);
-              exportCanvas = tmpCanvas;
+          canvas.toBlob(async function(blob) {
+            // إذا كان حجم الصورة بعد القص أقل من أو يساوي 100KiB، أدرجها مباشرة بدون ضغط وبدون إظهار اللودر
+            if (blob.size <= 100 * 1024) {
+              const originalName = file.name;
+              const ext = originalName.substring(originalName.lastIndexOf('.'));
+              const base = originalName.replace(ext, '');
+              const newFile = new File([blob], base + '_cropped' + ext, { type: file.type });
+              console.log('تم قص الصورة:', {
+                name: newFile.name,
+                size: newFile.size,
+                type: newFile.type
+              });
+              console.log('حجم الصورة بعد الضغط:', newFile.size, 'bytes');
+              cropBtn.blur && cropBtn.blur();
+              bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+              setTimeout(() => {
+                loaderModal.hide();
+                callback(newFile);
+              }, 0);
+              setTimeout(() => { loaderModal.hide(); }, 700);
+              return;
             }
-            exportCanvas.toBlob(function(blob) {
-              // إذا كان الحجم أقل من الحد أو الجودة أقل من 0.01 توقف
-              if (blob.size <= MAX_SIZE || !useQuality || currentQuality <= 0.01) {
-                // إذا كان الحجم أكبر من 100KiB حتى بعد تقليل الجودة والأبعاد، أنبه المستخدم
-                if (blob.size > MAX_SIZE) {
-                  if (resizeFactor > 0.1) {
-                    // صغر الأبعاد أكثر وأعد المحاولة
-                    compressAndExport(0.7, resizeFactor - 0.1);
-                  } else {
-                    loaderModal.hide();
-                    alert('لا يمكن ضغط الصورة إلى أقل من 100 كيلوبايت. يرجى اختيار صورة أصغر أو اقتصاص جزء أصغر.');
-                    bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-                    callback(null);
-                  }
-                  return;
-                }
-                const originalName = file.name;
-                const ext = originalName.substring(originalName.lastIndexOf('.'));
-                const base = originalName.replace(ext, '');
-                const newFile = new File([blob], base + '_cropped' + ext, { type: file.type });
-                // سجل الحجم بعد الضغط بنفس التنسيق
-                console.log('تم قص الصورة:', {
-                  name: newFile.name,
-                  size: newFile.size,
-                  type: newFile.type
-                });
-                console.log('حجم الصورة بعد الضغط:', newFile.size, 'bytes');
-                // أخفِ اللودر بشكل آمن بعد انتهاء الضغط
-                setTimeout(() => {
-                  loaderModal.hide();
-                  bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-                  callback(newFile);
-                }, 100); // تأخير بسيط لضمان إخفاء المودال بشكل متسلسل
-              } else {
-                compressAndExport(currentQuality - 0.05, resizeFactor);
+            // إذا كان الحجم أكبر من 100KiB، أظهر اللودر ثم اضغط الصورة
+            document.getElementById('compressLoaderTitle').textContent = 'جاري إدراج الوثيقة';
+            loaderModal.show();
+            try {
+              const originalName = file.name;
+              const ext = originalName.substring(originalName.lastIndexOf('.'));
+              const base = originalName.replace(ext, '');
+              let compressedFile = blob;
+              let compressedSize = blob.size;
+              let quality = 0.7;
+              let maxTries = 7;
+              let options = {
+                maxSizeMB: 0.1,
+                maxWidthOrHeight: Math.max(canvas.width, canvas.height),
+                useWebWorker: true,
+                initialQuality: quality,
+                fileType: file.type
+              };
+              for (let i = 0; i < maxTries && compressedSize > 100 * 1024; i++) {
+                compressedFile = await imageCompression(compressedFile, options);
+                compressedSize = compressedFile.size;
+                options.initialQuality = Math.max(0.1, options.initialQuality - 0.1);
               }
-            }, mimeType, useQuality ? currentQuality : undefined);
-          }
-
-          // عرض حجم الصورة قبل الضغط
-          canvas.toBlob(function(blob) {
-            console.log('حجم الصورة قبل الضغط:', blob.size, 'bytes');
-            if (blob.size > 5 * 1024 * 1024) {
-              compressAndExport(0.7, 0.5);
-            } else {
-              compressAndExport(quality, 1);
+              const newFile = new File([compressedFile], base + '_cropped' + ext, { type: file.type });
+              console.log('تم قص الصورة:', {
+                name: newFile.name,
+                size: newFile.size,
+                type: newFile.type
+              });
+              console.log('حجم الصورة بعد الضغط:', newFile.size, 'bytes');
+              cropBtn.blur && cropBtn.blur();
+              bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+              setTimeout(() => {
+                loaderModal.hide();
+                callback(newFile);
+              }, 0);
+              setTimeout(() => { loaderModal.hide(); }, 700);
+            } catch (err) {
+              loaderModal.hide();
+              alert('حدث خطأ أثناء ضغط الصورة');
+              callback(null);
             }
-          }, mimeType, useQuality ? quality : undefined);
+          }, file.type, 0.7);
         };
       };
     };
@@ -628,5 +628,10 @@
       });
     }
   });
+
+</script>
+    }
+  });
+
 </script>
 
