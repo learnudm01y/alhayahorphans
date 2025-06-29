@@ -352,11 +352,19 @@
       imgEl.cropperInstance = null;
     }
 
+    // إزالة أي حدث سابق من زر القص لتجنب تكرار التنفيذ
+    cropBtn.onclick = null;
+
     // Read file
     const reader = new FileReader();
     reader.onload = function(e) {
       imgEl.src = e.target.result;
       imgEl.onload = function() {
+        // Destroy previous cropper if exists
+        if (imgEl.cropperInstance) {
+          imgEl.cropperInstance.destroy();
+          imgEl.cropperInstance = null;
+        }
         // Initialize Cropper
         cropper = new Cropper(imgEl, {
           aspectRatio: NaN,
@@ -377,6 +385,27 @@
 
         // Attach controls safely
         enableCropperControls();
+
+        // إعادة ربط زر القص في كل مرة (يسمح بالقص عدة مرات)
+        cropBtn.onclick = function() {
+          if (!cropper) return;
+          const data = cropper.getData(true);
+          const canvas = cropper.getCroppedCanvas({
+            width: Math.round(data.width),
+            height: Math.round(data.height),
+            imageSmoothingQuality: 'high'
+          });
+          canvas.toBlob(blob => {
+            const originalName = file.name;
+            const ext = originalName.substring(originalName.lastIndexOf('.'));
+            const base = originalName.replace(ext, '');
+            const newFile = new File([blob], base + '_cropped' + ext, { type: file.type });
+            // لا تدمر cropper ولا تفرغ imgEl.cropperInstance هنا حتى يمكن إعادة فتح المودال لاحقاً
+            // فقط أخفِ المودال ونفذ callback
+            bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+            callback(newFile);
+          }, file.type);
+        };
       };
     };
     reader.readAsDataURL(file);
@@ -402,24 +431,15 @@
       });
     }
 
-    // Crop and return file
-    cropBtn.onclick = function() {
-      if (!cropper) return;
-      const data = cropper.getData(true);
-      const canvas = cropper.getCroppedCanvas({
-        width: Math.round(data.width),
-        height: Math.round(data.height),
-        imageSmoothingQuality: 'high'
-      });
-      canvas.toBlob(blob => {
-        const originalName = file.name;
-        const ext = originalName.substring(originalName.lastIndexOf('.'));
-        const base = originalName.replace(ext, '');
-        const newFile = new File([blob], base + '_cropped' + ext, { type: file.type });
-        bsModal.hide();
-        cropper.destroy();
-        callback(newFile);
-      }, file.type);
-    };
+    // عند إغلاق المودال، دمر cropper لتفادي التسربات
+    modalEl.addEventListener('hidden.bs.modal', function cleanup() {
+      if (imgEl.cropperInstance) {
+        imgEl.cropperInstance.destroy();
+        imgEl.cropperInstance = null;
+      }
+      cropper = null;
+      cropBtn.onclick = null;
+      modalEl.removeEventListener('hidden.bs.modal', cleanup);
+    });
   };
 </script>
