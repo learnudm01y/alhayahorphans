@@ -242,40 +242,18 @@
             </select>
         </div>
         <div class="col-md-4 mt-3">
-            <!-- ملاحظة و زر إظهار الحقول البنكية -->
+            <!-- ملاحظة و زر إضافة حساب بنكي جديد -->
             <div class="alert alert-info py-2 mb-2 d-flex align-items-center justify-content-between" style="font-size: 0.97rem;">
-                <span>إذا كنت تمتلك حساب بنك قم بإضافة المعلومات المطلوبة</span>
-                <button type="button" class="btn btn-outline-primary btn-sm ms-2" id="showBankFieldsBtn">إظهار الحقول البنكية</button>
+                <span>إذا كنت تمتلك حساب بنك قم بإضافة المعلومات المطلوبة. يمكنك إضافة حتى 10 حسابات بنكية.</span>
+                <button type="button" class="btn btn-outline-primary btn-sm ms-2" id="addBankAccountBtn" style="border: 2px solid #0d6efd; border-radius: 8px; box-shadow: 0 0 0 2px #e7f1ff;">
+                    إضافة حساب بنكي
+                </button>
             </div>
-            <!-- الحقول البنكية المخفية -->
-            <div id="bankFields" class="row g-3 d-none">
-                <div class="col-md-12">
-                    <label class="form-label">اسم صاحب حساب البنك <span class="text-primary">(اختياري)</span></label>
-                    <input type="text" name="bank_account_holder_name" class="form-control" maxlength="100">
-                </div>
-                <div class="col-md-12">
-                    <label class="form-label">رقم الجوال المربوط بحساب البنك <span class="text-primary">(اختياري)</span></label>
-                    <input type="text" name="bank_phone_number" class="form-control" maxlength="20">
-                </div>
-                <div class="col-md-12">
-                    <label class="form-label">رقم حساب البنك الدولاري (IBAN) <span class="text-primary">(اختياري)</span></label>
-                    <input type="text" name="bank_account_usd" class="form-control" maxlength="34">
-                </div>
-                <div class="col-md-12">
-                    <label class="form-label">رقم حساب البنك الشيكل (IBAN) <span class="text-primary">(اختياري)</span></label>
-                    <input type="text" name="bank_account_ils" class="form-control" maxlength="34">
-                </div>
-                <div class="col-md-12">
-                    <label class="form-label">اسم البنك <span class="text-primary">(اختياري)</span></label>
-                    <select name="bank_name_id" class="form-select">
-                        <option value="">اختر البنك</option>
-                        @foreach ($bank_name as $bank)
-                            <option value="{{ $bank->id }}">{{ $bank->description }}</option>
-                        @endforeach
-                    </select>
-                </div>
+            <!-- منطقة الحسابات البنكية الديناميكية (مخفية في البداية) -->
+            <div id="bankAccountsContainer" class="d-none">
+                <!-- سيتم توليد النماذج البنكية هنا عبر الجافاسكريبت -->
             </div>
-              <!-- ملاحظة توضيحية لرفع الملفات -->
+            <!-- ملاحظة توضيحية لرفع الملفات -->
             <div class="alert alert-primary py-2 mb-2 mt-3" style="font-size: 0.97rem;">
                 يرجى اختيار نوع الوثيقة أولاً، وسوف يتم تحويلك لرفع الصورة
                 المطلوبة.
@@ -439,11 +417,166 @@
                 showBankFieldsBtn.innerText = 'تم عرض الحقول';
             });
         }
+        // منطقة الحسابات البنكية الديناميكية
+        const bankAccountsContainer = document.getElementById('bankAccountsContainer');
+        const addBankAccountBtn = document.getElementById('addBankAccountBtn');
+        let bankAccountCount = 0;
+        const maxBankAccounts = 10;
+        const bankNames = @json($bank_name);
+
+        function createBankAccountForm(index) {
+            return `
+            <div class="bank-account-form border rounded p-2 mb-3 position-relative"
+                 data-index="${index}"
+                 style="border:2px dashed #000 !important;">
+                <button type="button" class="btn-close position-absolute top-0 end-0 m-2 remove-bank-account-btn" title="حذف الحساب"></button>
+                <div class="mb-2">
+                    <label class="form-label">اسم صاحب حساب البنك <span class="text-primary">(اختياري)</span></label>
+                    <input type="text" name="bank_accounts[${index}][re_guardian_name]" class="form-control" maxlength="100">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">رقم هوية صاحب الحساب <span class="text-primary">(اختياري)</span></label>
+                    <input type="text" name="bank_accounts[${index}][person_owner_identity_number]" class="form-control" maxlength="20">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">رقم هاتف صاحب الحساب <span class="text-primary">(اختياري)</span></label>
+                    <input type="text" name="bank_accounts[${index}][re_phone_number]" class="form-control" maxlength="20">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">رقم حساب البنك <span class="text-primary">(اختياري)</span></label>
+                    <input type="text" name="bank_accounts[${index}][account_number_or_related_phone_number]" class="form-control" maxlength="34">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">اسم البنك <span class="text-primary">(اختياري)</span></label>
+                    <select name="bank_accounts[${index}][bank_name]" class="form-select">
+                        <option value="">اختر البنك</option>
+                        ${bankNames.map(bank => `<option value="${bank.id}">${bank.description}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+            `;
+        }
+
+        function updateRemoveButtons() {
+            document.querySelectorAll('.remove-bank-account-btn').forEach(btn => {
+                btn.onclick = function(e) {
+                    e.preventDefault();
+                    Swal.fire({
+                        title: 'تأكيد الحذف',
+                        text: 'هل أنت متأكد أنك تريد حذف معلومات الحساب البنكي؟',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonText: 'نعم، احذف',
+                        cancelButtonText: 'إلغاء'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            btn.closest('.bank-account-form').remove();
+                            bankAccountCount--;
+                            if (bankAccountCount < maxBankAccounts) addBankAccountBtn.disabled = false;
+                            if (bankAccountCount === 0) bankAccountsContainer.classList.add('d-none');
+                        }
+                    });
+                }
+            });
+        }
+
+        addBankAccountBtn.addEventListener('click', function() {
+            if (bankAccountCount < maxBankAccounts) {
+                if (bankAccountsContainer.classList.contains('d-none')) {
+                    bankAccountsContainer.classList.remove('d-none');
+                }
+                bankAccountsContainer.insertAdjacentHTML('beforeend', createBankAccountForm(bankAccountCount));
+                bankAccountCount++;
+                updateRemoveButtons();
+                if (bankAccountCount >= maxBankAccounts) addBankAccountBtn.disabled = true;
+            }
+        });
+        // لا تضف نموذج افتراضي عند التحميل، بل انتظر الضغط على الزر
+    }); // نهاية document.addEventListener('DOMContentLoaded', ...)
+
+    // إذا كان الإرسال AJAX، أضف الكود التالي لجمع الحقول البنكية قبل الإرسال:
+    document.addEventListener('DOMContentLoaded', function() {
+        const mainForm = document.getElementById('main_form');
+        if (!mainForm) return;
+        mainForm.addEventListener('submit', function(e) {
+            // ...existing code لجمع بيانات أفراد الأسرة والمرفقات...
+
+            // حذف أي بيانات حسابات بنكية قديمة من FormData
+            const formData = new FormData(mainForm);
+            Array.from(formData.keys()).forEach(key => {
+                if (key.startsWith('bank_accounts')) {
+                    formData.delete(key);
+                }
+            });
+
+            // جمع بيانات الحسابات البنكية الديناميكية
+            document.querySelectorAll('.bank-account-form').forEach(function(form, idx) {
+                form.querySelectorAll('[name]').forEach(function(input) {
+                    const name = input.name;
+                    const value = input.value;
+                    if (name.startsWith('bank_accounts[')) {
+                        formData.append(name, value);
+                    }
+                });
+            });
+
+            // طباعة بيانات الحسابات البنكية في الواجهة قبل الإرسال
+            let bankAccountsDebug = [];
+            document.querySelectorAll('.bank-account-form').forEach(function(form, idx) {
+                let obj = {};
+                form.querySelectorAll('[name]').forEach(function(input) {
+                    obj[input.name] = input.value;
+                });
+                bankAccountsDebug.push(obj);
+            });
+            console.log('🚀 بيانات الحسابات البنكية المرسلة:', bankAccountsDebug);
+
+            // إرسال البيانات عبر AJAX
+            fetch(mainForm.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    Swal.fire({ icon: 'success', title: 'تم الحفظ', text: 'تم حفظ السجل بنجاح' });
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    Swal.fire({ icon: 'error', title: 'خطأ', text: data.error || 'حدث خطأ أثناء الحفظ' });
+                }
+            })
+            .catch(err => {
+                Swal.fire({ icon: 'error', title: 'خطأ', text: 'حدث خطأ أثناء الحفظ' });
+            });
+
+            // منع الإرسال الافتراضي
+            e.preventDefault();
+        });
+    });
+    // عند الإرسال AJAX، أو عند الإرسال العادي، عالج مشكلة required مع الحقول المخفية أو غير القابلة للتركيز
+    // الحل: إزالة required مؤقتاً من الحقول غير الظاهرة قبل الإرسال ثم إرجاعها بعد الإرسال
+    document.addEventListener('DOMContentLoaded', function() {
+        const mainForm = document.getElementById('main_form');
+        if (!mainForm) return;
+        mainForm.addEventListener('submit', function(e) {
+            // إزالة required مؤقتاً من الحقول غير الظاهرة أو غير القابلة للتركيز
+            mainForm.querySelectorAll('[required]').forEach(function(input) {
+                const style = window.getComputedStyle(input);
+                if ((style.display === 'none' || input.offsetParent === null || input.disabled) && input.required) {
+                    input.removeAttribute('required');
+                    input.setAttribute('data-temp-required', '1');
+                }
+            });
+            // بعد الإرسال، أعد required للحقول التي أزلناها مؤقتاً
+            setTimeout(function() {
+                mainForm.querySelectorAll('[data-temp-required]').forEach(function(input) {
+                    input.setAttribute('required', 'required');
+                    input.removeAttribute('data-temp-required');
+                });
+            }, 100);
+        }, true);
     });
 </script>
-<div class="mt-4 text-end">
-    <button type="button" class="btn btn-success px-5 py-2 fs-5" id="goToNextTabBtn">
-        التالي <i class="fas fa-arrow-left ms-2"></i>
-    </button>
-</div>
-<div id="didding" style="padding-bottom: 80px;"></div>

@@ -129,6 +129,14 @@ class GeneralRegistrationController extends Controller
             // استخدم رقم الملف مع الأصفار البادئة دائماً
             $fileIdNumber = str_pad($request->input('file_id_number'), 6, '0', STR_PAD_LEFT);
 
+            // تحقق من عدم تكرار رقم الملف العام
+            if (\App\Models\Data::where('file_id_number', $fileIdNumber)->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'رقم الملف العام مستخدم مسبقاً. يرجى استخدام رقم جديد.'
+                ], 422);
+            }
+
             // 2. Store main Data record
             $data = Data::create([
                 'file_id_number' => $fileIdNumber,
@@ -165,16 +173,31 @@ class GeneralRegistrationController extends Controller
             ]);
 
             // إضافة بيانات الحساب البنكي إذا وُجدت أي قيمة بنكية
-            if ($request->filled('bank_name_id') || $request->filled('bank_account_usd') || $request->filled('bank_account_ils') || $request->filled('bank_account_holder_name') || $request->filled('bank_phone_number')) {
-                GuardianBankAccount::create([
-                    'guardian_registration' => $fileIdNumber,
-                    'bank_name' => $request->input('bank_name_id'),
-                    // الأولوية لحساب الدولار ثم الشيكل ثم رقم الهاتف
-                    'account_number_or_related_phone_number' => $request->input('bank_account_usd') ?: ($request->input('bank_account_ils') ?: $request->input('bank_phone_number')),
-                    're_id_number' => $request->input('data_id_number'),
-                    're_guardian_name' => $request->input('bank_account_holder_name'),
-                    're_phone_number' => $request->input('bank_phone_number'),
-                ]);
+            $bankAccounts = $request->input('bank_accounts', []);
+            // سجل البيانات البنكية المستلمة في اللوج
+            Log::info('🟢 بيانات الحسابات البنكية المستلمة من الواجهة:', ['bank_accounts' => $bankAccounts]);
+            if (is_array($bankAccounts) && count($bankAccounts) > 0) {
+                foreach ($bankAccounts as $bankAccount) {
+                    // سجل كل حساب بنكي في اللوج
+                    Log::info('🔵 حساب بنكي فردي:', $bankAccount);
+                    // تحقق من وجود أي قيمة مهمة
+                    if (
+                        (!empty($bankAccount['bank_name'])) ||
+                        (!empty($bankAccount['account_number_or_related_phone_number'])) ||
+                        (!empty($bankAccount['re_guardian_name'])) ||
+                        (!empty($bankAccount['re_phone_number'])) ||
+                        (!empty($bankAccount['person_owner_identity_number']))
+                    ) {
+                        GuardianBankAccount::create([
+                            'guardian_registration' => $fileIdNumber,
+                            'bank_name' => $bankAccount['bank_name'] ?? null,
+                            'account_number_or_related_phone_number' => $bankAccount['account_number_or_related_phone_number'] ?? null,
+                            're_id_number' => $bankAccount['person_owner_identity_number'] ?? null,
+                            're_guardian_name' => $bankAccount['re_guardian_name'] ?? null,
+                            're_phone_number' => $bankAccount['re_phone_number'] ?? null,
+                        ]);
+                    }
+                }
             }
 
 
@@ -342,3 +365,4 @@ class GeneralRegistrationController extends Controller
         }
     }
 }
+
