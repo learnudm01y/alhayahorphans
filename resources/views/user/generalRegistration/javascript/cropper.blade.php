@@ -13,6 +13,8 @@
         flex-grow: 1; /* Allow body to take available height */
         padding: 0 !important; /* Remove default padding to maximize space for image */
         overflow: hidden; /* Hide overflow */
+        min-height: 400px;
+        min-width: 320px;
     }
 
     /* Desktop layout: Side-by-side */
@@ -36,6 +38,9 @@
         background-color: #f8f9fa; /* Light background */
         overflow: hidden; /* Important for Cropper.js */
         padding: 10px; /* Small padding inside crop area */
+        min-width: 350px;
+        min-height: 350px;
+        /* زيادة الحجم الافتراضي */
     }
 
     .crop-area img {
@@ -44,6 +49,28 @@
         max-width: 100%;
         max-height: 100%;
         object-fit: contain; /* Ensure image fits without distortion */
+    }
+
+    @media (min-width: 992px) {
+        .modal-dialog {
+            max-width: 900px;
+            width: 90vw;
+        }
+        .cropper-modal-body {
+            flex-direction: row;
+            min-height: 600px;
+            min-width: 700px;
+        }
+        .crop-area {
+            min-width: 600px;
+            min-height: 600px;
+            max-width: 700px;
+            max-height: 700px;
+        }
+        .controls-panel-container {
+            min-width: 160px;
+            max-width: 200px;
+        }
     }
 
     /* Controls Panel Styles */
@@ -57,7 +84,8 @@
         flex-shrink: 0; /* Don't shrink the controls panel */
         /* Ensure it's never smaller than its content on mobile */
         min-height: fit-content;
-        min-width: fit-content;
+        min-width: 120px;
+        z-index: 2;
     }
 
     @media (min-width: 768px) {
@@ -99,6 +127,11 @@
     }
 
     @media (max-width: 767.98px) { /* Mobile specific styles */
+        .cropper-modal-body {
+            flex-direction: column;
+            min-width: 0;
+            min-height: 0;
+        }
         .controls-panel-container {
             flex-direction: row; /* Horizontal on mobile */
             justify-content: space-around;
@@ -106,6 +139,8 @@
             flex-wrap: wrap; /* Allow buttons to wrap */
             padding: 0.5rem;
             border-top: 1px solid #dee2e6; /* Separator from image */
+            min-width: 0;
+            max-width: 100vw;
         }
         .controls-grid {
             grid-template-columns: repeat(auto-fit, minmax(40px, 1fr)); /* More flexible grid for mobile */
@@ -153,6 +188,8 @@
         flex-grow: 1;
         padding: 0 !important;
         overflow: hidden;
+        min-height: 400px;
+        min-width: 320px;
     }
 
     @media (min-width: 768px) {
@@ -175,6 +212,9 @@
         background-color: #f8f9fa;
         overflow: hidden;
         padding: 10px;
+        min-width: 350px;
+        min-height: 350px;
+        /* زيادة الحجم الافتراضي */
     }
 
     .crop-area img {
@@ -182,6 +222,28 @@
         max-width: 100%;
         max-height: 100%;
         object-fit: contain;
+    }
+
+    @media (min-width: 992px) {
+        .modal-dialog {
+            max-width: 900px;
+            width: 90vw;
+        }
+        .cropper-modal-body {
+            flex-direction: row;
+            min-height: 600px;
+            min-width: 700px;
+        }
+        .crop-area {
+            min-width: 600px;
+            min-height: 600px;
+            max-width: 700px;
+            max-height: 700px;
+        }
+        .controls-panel-container {
+            min-width: 160px;
+            max-width: 200px;
+        }
     }
 
     .controls-panel-container {
@@ -193,7 +255,8 @@
         gap: 1rem;
         flex-shrink: 0;
         min-height: fit-content;
-        min-width: fit-content;
+        min-width: 120px;
+        z-index: 2;
     }
 
     @media (min-width: 768px) {
@@ -232,6 +295,11 @@
     }
 
     @media (max-width: 767.98px) {
+        .cropper-modal-body {
+            flex-direction: column;
+            min-width: 0;
+            min-height: 0;
+        }
         .controls-panel-container {
             flex-direction: row;
             justify-content: space-around;
@@ -239,6 +307,8 @@
             flex-wrap: wrap;
             padding: 0.5rem;
             border-top: 1px solid #dee2e6;
+            min-width: 0;
+            max-width: 100vw;
         }
         .controls-grid {
             grid-template-columns: repeat(auto-fit, minmax(40px, 1fr));
@@ -395,16 +465,53 @@
             height: Math.round(data.height),
             imageSmoothingQuality: 'high'
           });
-          canvas.toBlob(blob => {
-            const originalName = file.name;
-            const ext = originalName.substring(originalName.lastIndexOf('.'));
-            const base = originalName.replace(ext, '');
-            const newFile = new File([blob], base + '_cropped' + ext, { type: file.type });
-            // لا تدمر cropper ولا تفرغ imgEl.cropperInstance هنا حتى يمكن إعادة فتح المودال لاحقاً
-            // فقط أخفِ المودال ونفذ callback
-            bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-            callback(newFile);
-          }, file.type);
+
+          let mimeType = file.type;
+          let quality = 0.7;
+          let useQuality = false;
+          if (mimeType === 'image/jpeg' || mimeType === 'image/webp') {
+            useQuality = true;
+          }
+
+          // الحد الأقصى للحجم بالبايت (100KiB)
+          const MAX_SIZE = 100 * 1024;
+
+          // دالة لضغط الصورة حتى الوصول للحجم المطلوب أو أقل
+          function compressAndExport(currentQuality) {
+            canvas.toBlob(function(blob) {
+              // إذا كان الحجم أقل من الحد أو الجودة أقل من 0.01 توقف
+              if (blob.size <= MAX_SIZE || !useQuality || currentQuality <= 0.01) {
+                // إذا كان الحجم أكبر من 100KiB حتى بعد تقليل الجودة، أنشئ ملف فارغ أو أنبه المستخدم
+                if (blob.size > MAX_SIZE) {
+                  alert('لا يمكن ضغط الصورة إلى أقل من 100 كيلوبايت. يرجى اختيار صورة أصغر أو اقتصاص جزء أصغر.');
+                  bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                  callback(null);
+                  return;
+                }
+                const originalName = file.name;
+                const ext = originalName.substring(originalName.lastIndexOf('.'));
+                const base = originalName.replace(ext, '');
+                const newFile = new File([blob], base + '_cropped' + ext, { type: file.type });
+                console.log('تم قص الصورة:', {
+                  name: newFile.name,
+                  size: newFile.size,
+                  type: newFile.type
+                });
+                console.log('حجم الصورة بعد الضغط:', newFile.size, 'bytes');
+                bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                callback(newFile);
+              } else {
+                // قلل الجودة وأعد المحاولة
+                compressAndExport(currentQuality - 0.05);
+              }
+            }, mimeType, useQuality ? currentQuality : undefined);
+          }
+
+          // عرض حجم الصورة قبل الضغط
+          canvas.toBlob(function(blob) {
+            console.log('حجم الصورة قبل الضغط:', blob.size, 'bytes');
+            compressAndExport(quality);
+          }, mimeType, useQuality ? quality : undefined);
         };
       };
     };
