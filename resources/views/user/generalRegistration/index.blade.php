@@ -78,20 +78,6 @@
             padding-right: 0;
         }
 
-        /* نزيل البادينغ حتى تمتلئ الصورة مساحة body بالكامل */
-        /* نجعل المودال لا يتعدّى 80% من ارتفاع الشاشة */
-        #cropperModal .modal-body {
-            padding: 0;
-            max-height: 60vh;
-            overflow: hidden;
-        }
-
-        /* الصورة تملأ العرض بالكامل وتحافظ على ratio */
-        #cropperImage {
-            display: block;
-            width: 80%;
-            height: auto;
-        }
     </style>
     @stack('UserStylesGeneralRegistration')
 
