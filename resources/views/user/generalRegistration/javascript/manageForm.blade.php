@@ -400,7 +400,7 @@ window.showCropperModal = function(file, callback) {
     // إظهار المودال
     let bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
     bsModal.show();
-    // إضافة أزرار التحكم مع الأيقونات
+    // إضافة أزرار التحكم مع الأيقونات (تم حذف آخر خمس أدوات)
     let controls = modalEl.querySelector('.cropper-controls');
     if (!controls) {
         controls = document.createElement('div');
@@ -413,10 +413,6 @@ window.showCropperModal = function(file, callback) {
             <button type="button" title="تكبير" id="cropperZoomIn"><i class="fas fa-search-plus"></i></button>
             <button type="button" title="تصغير" id="cropperZoomOut"><i class="fas fa-search-minus"></i></button>
             <button type="button" title="تدوير يمين" id="cropperRotateRight"><i class="fas fa-undo"></i></button>
-            <button type="button" title="تدوير يسار" id="cropperRotateLeft"><i class="fas fa-redo"></i></button>
-            <button type="button" title="قلب أفقي" id="cropperFlipH"><i class="fas fa-arrows-alt-h"></i></button>
-            <button type="button" title="قلب عمودي" id="cropperFlipV"><i class="fas fa-arrows-alt-v"></i></button>
-            <button type="button" title="إعادة تعيين" id="cropperReset"><i class="fas fa-sync-alt"></i></button>
         `;
         // أضفها أعلى الصورة
         const modalBody = modalEl.querySelector('.modal-body');
@@ -448,10 +444,6 @@ window.showCropperModal = function(file, callback) {
         controls.querySelector('#cropperZoomIn').onclick = () => cropper.zoom(0.1);
         controls.querySelector('#cropperZoomOut').onclick = () => cropper.zoom(-0.1);
         controls.querySelector('#cropperRotateRight').onclick = () => cropper.rotate(45);
-        controls.querySelector('#cropperRotateLeft').onclick = () => cropper.rotate(-45);
-        controls.querySelector('#cropperFlipH').onclick = () => cropper.scaleX(cropper.getData().scaleX === 1 ? -1 : 1);
-        controls.querySelector('#cropperFlipV').onclick = () => cropper.scaleY(cropper.getData().scaleY === 1 ? -1 : 1);
-        controls.querySelector('#cropperReset').onclick = () => cropper.reset();
     }, 500);
     // زر القص
     cropBtn.onclick = function() {
@@ -1136,3 +1128,4 @@ document.addEventListener('invalid', function(e) {
     });
 </script>
 @endpush
+
