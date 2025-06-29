@@ -327,8 +327,26 @@
     const cropBtn = document.getElementById('cropperCropBtn');
     let cropper;
 
+    // تعطيل جميع الأزرار عند البداية
+    function disableAllControls() {
+      cropBtn.disabled = true;
+      ['MoveUp','MoveDown','MoveLeft','MoveRight','ZoomIn','ZoomOut','RotateRight'].forEach(action => {
+        const btn = document.getElementById('cropper' + action);
+        if (btn) btn.disabled = true;
+      });
+    }
+
+    // تفعيل جميع الأزرار بعد تحميل الصورة وتهيئة cropper
+    function enableAllControls() {
+      cropBtn.disabled = false;
+      ['MoveUp','MoveDown','MoveLeft','MoveRight','ZoomIn','ZoomOut','RotateRight'].forEach(action => {
+        const btn = document.getElementById('cropper' + action);
+        if (btn) btn.disabled = false;
+      });
+    }
+
     // Reset any previous state
-    cropBtn.disabled = true;
+    disableAllControls();
     if (imgEl.cropperInstance) {
       imgEl.cropperInstance.destroy();
       imgEl.cropperInstance = null;
@@ -355,13 +373,7 @@
           dragMode: 'move',
         });
         imgEl.cropperInstance = cropper;
-        cropBtn.disabled = false;
-
-        // Enable control buttons
-        ['MoveUp','MoveDown','MoveLeft','MoveRight','ZoomIn','ZoomOut','RotateRight'].forEach(action => {
-          const btn = document.getElementById('cropper' + action);
-          btn.disabled = false;
-        });
+        enableAllControls();
 
         // Attach controls safely
         enableCropperControls();
