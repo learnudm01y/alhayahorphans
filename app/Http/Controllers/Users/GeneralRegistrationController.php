@@ -34,7 +34,8 @@ class GeneralRegistrationController extends Controller
     public function index(): View
     {
         $generalSection = GeneralCategory::all();
-        $file_id_number = generateFiveDigitCode(Data::class, 'file_id_number');
+        // $file_id_number = generateFiveDigitCode(Data::class, 'file_id_number');
+        $file_id_number = generateUniqueReservedCode('data', 'file_id_number');
         $category_of_relationship = CategoryOfRelation::all();
         $marital_status = MaritalStatus::all();
         $academic_qualification = AcademicDegree::all();
@@ -178,6 +179,11 @@ class GeneralRegistrationController extends Controller
                 'data_user_insert_data' => $request->input('data_user_insert_data'),
                 'data_request_status' => 2, // تأكد من وجود هذا السطر دائماً
             ]);
+
+            // تحديث حالة الرقم في جدول reserved_codes ليصبح مستخدم فعلياً
+            DB::table('reserved_codes')
+                ->where('code', $fileIdNumber)
+                ->update(['used' => true]);
 
             // إضافة بيانات الحساب البنكي إذا وُجدت أي قيمة بنكية
             $bankAccounts = $request->input('bank_accounts', []);

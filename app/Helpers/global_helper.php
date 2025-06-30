@@ -21,3 +21,88 @@ if (!function_exists('generateFiveDigitCode')) {
     }
 }
 
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+
+if (!function_exists('generateUniqueReservedCode')) {
+    /**
+     * Generate and reserve a unique 6-digit code based on the max value in a given table/column and reserved_codes.
+     * Uses DB transaction and lock to prevent race conditions.
+     *
+     * @param string $table
+     * @param string $column
+     * @param string|null $sessionId
+     * @return string|null
+     */
+    function generateUniqueReservedCode(string $table, string $column, ?string $sessionId = null): ?string
+    {
+        return DB::transaction(function () use ($table, $column, $sessionId) {
+            // جلب أكبر رقم رقمي فقط من الجدول الأساسي
+            $maxMain = DB::table($table)
+                ->select(DB::raw("MAX(CAST($column as UNSIGNED)) as max_code"))
+                ->whereRaw("LENGTH($column) = 6 AND $column REGEXP '^[0-9]+$'")
+                ->value('max_code');
+
+            // جلب أكبر رقم رقمي فقط من جدول reserved_codes مع قفل للكتابة
+            $maxReserved = DB::table('reserved_codes')
+                ->select(DB::raw("MAX(CAST(code as UNSIGNED)) as max_code"))
+                ->whereRaw("LENGTH(code) = 6 AND code REGEXP '^[0-9]+$'")
+                ->lockForUpdate()
+                ->value('max_code');
+
+            // احسب الرقم التالي
+            $next = max((int)$maxMain, (int)$maxReserved) + 1;
+            $code = str_pad($next, 6, '0', STR_PAD_LEFT);
+
+            // تحقق من عدم وجود الرقم في reserved_codes (داخل نفس المعاملة)
+            $exists = DB::table('reserved_codes')->where('code', $code)->lockForUpdate()->exists();
+            if (!$exists) {
+                DB::table('reserved_codes')->insert([
+                    'code' => $code,
+                    'session_id' => $sessionId ?? Str::uuid(),
+                    'reserved_at' => now(),
+                    'used' => false,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                return $code;
+            }
+            // إذا كان الرقم مستخدم بالفعل (حالة نادرة)، كرر حتى تجد رقم غير مستخدم
+            for ($i = 1; $i <= 10; $i++) {
+                $next++;
+                $code = str_pad($next, 6, '0', STR_PAD_LEFT);
+                $exists = DB::table('reserved_codes')->where('code', $code)->lockForUpdate()->exists();
+                if (!$exists) {
+                    DB::table('reserved_codes')->insert([
+                        'code' => $code,
+                        'session_id' => $sessionId ?? Str::uuid(),
+                        'reserved_at' => now(),
+                        'used' => false,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    return $code;
+                }
+            }
+            // إذا لم يتمكن من توليد رقم فريد
+            return null;
+        });
+    }
+}
+
+if (!function_exists('cleanupOldReservedCodes')) {
+    /**
+     * Delete old, unused reserved codes older than given minutes.
+     *
+     * @param int $minutes
+     * @return int عدد السجلات المحذوفة
+     */
+    function cleanupOldReservedCodes(int $minutes = 1): int
+    {
+        return DB::table('reserved_codes')
+            ->where('used', false)
+            ->where('reserved_at', '<', now()->subMinutes($minutes))
+            ->delete();
+    }
+}
+

@@ -1048,18 +1048,33 @@ document.addEventListener('invalid', function(e) {
                     'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
                 }
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    Swal.fire({ icon: 'success', title: 'تم الحفظ', text: 'تم حفظ السجل بنجاح' });
-                    setTimeout(() => window.location.reload(), 1500);
-                } else {
-                    Swal.fire({ icon: 'error', title: 'خطأ', text: data.error || 'حدث خطأ أثناء الحفظ' });
-                }
-            })
-            .catch(err => {
-                Swal.fire({ icon: 'error', title: 'خطأ', text: 'حدث خطأ أثناء الحفظ' });
-            });
+            .then(async response => {
+    let data, isJson = false;
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.indexOf('application/json') !== -1) {
+        data = await response.json();
+        isJson = true;
+    } else {
+        data = await response.text();
+    }
+    return { data, status: response.status, isJson };
+})
+.then(({ data, status, isJson }) => {
+    if ((isJson && data.success) ||
+        (status === 200 && typeof data === 'string' && data.indexOf('success') !== -1)) {
+        Swal.fire({ icon: 'success', title: 'تم الحفظ', text: 'تم حفظ السجل بنجاح' });
+        setTimeout(() => window.location.reload(), 1500);
+    } else {
+        Swal.fire({
+            icon: 'error',
+            title: 'خطأ',
+            text: (isJson && data && data.error) ? data.error : 'حدث خطأ أثناء الحفظ'
+        });
+    }
+})
+.catch(err => {
+    Swal.fire({ icon: 'error', title: 'خطأ', text: err.message || 'حدث خطأ أثناء الحفظ' });
+});
         });
     });
 </script>
