@@ -131,10 +131,17 @@ class GeneralRegistrationController extends Controller
 
             // تحقق من عدم تكرار رقم الملف العام
             if (\App\Models\Data::where('file_id_number', $fileIdNumber)->exists()) {
-                return response()->json([
-                    'success' => false,
-                    'error' => 'رقم الملف العام مستخدم مسبقاً. يرجى استخدام رقم جديد.'
-                ], 422);
+                // إذا كان الطلب AJAX أرجع رسالة واضحة
+                if ($request->ajax() || $request->wantsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'error' => 'رقم الملف العام مستخدم مسبقاً. يرجى تحديث الصفحة أو استخدام رقم جديد.'
+                    ], 422);
+                }
+                // إذا كان الطلب عادي
+                return redirect()->back()
+                    ->withInput()
+                    ->with('error', 'رقم الملف العام مستخدم مسبقاً. يرجى تحديث الصفحة أو استخدام رقم جديد.');
             }
 
             // 2. Store main Data record
@@ -174,28 +181,32 @@ class GeneralRegistrationController extends Controller
 
             // إضافة بيانات الحساب البنكي إذا وُجدت أي قيمة بنكية
             $bankAccounts = $request->input('bank_accounts', []);
-            // سجل البيانات البنكية المستلمة في اللوج
             Log::info('🟢 بيانات الحسابات البنكية المستلمة من الواجهة:', ['bank_accounts' => $bankAccounts]);
             if (is_array($bankAccounts) && count($bankAccounts) > 0) {
                 foreach ($bankAccounts as $bankAccount) {
-                    // سجل كل حساب بنكي في اللوج
                     Log::info('🔵 حساب بنكي فردي:', $bankAccount);
-                    // تحقق من وجود أي قيمة مهمة
+                    // تأكد من استقبال وتخزين person_owner_identity_number
+                    $reIdNumber = $bankAccount['person_owner_identity_number'] ?? null;
                     if (
                         (!empty($bankAccount['bank_name'])) ||
-                        (!empty($bankAccount['account_number_or_related_phone_number'])) ||
+                        (!empty($bankAccount['iban_usd'])) ||
+                        (!empty($bankAccount['iban_shekel'])) ||
                         (!empty($bankAccount['re_guardian_name'])) ||
                         (!empty($bankAccount['re_phone_number'])) ||
-                        (!empty($bankAccount['person_owner_identity_number']))
+                        (!empty($reIdNumber))
                     ) {
                         GuardianBankAccount::create([
                             'guardian_registration' => $fileIdNumber,
                             'bank_name' => $bankAccount['bank_name'] ?? null,
-                            'account_number_or_related_phone_number' => $bankAccount['account_number_or_related_phone_number'] ?? null,
-                            're_id_number' => $bankAccount['person_owner_identity_number'] ?? null,
+                            'iban_usd' => $bankAccount['iban_usd'] ?? null,
+                            'iban_shekel' => $bankAccount['iban_shekel'] ?? null,
+                            're_id_number' => $reIdNumber,
                             're_guardian_name' => $bankAccount['re_guardian_name'] ?? null,
                             're_phone_number' => $bankAccount['re_phone_number'] ?? null,
                         ]);
+                        Log::info('🟢 تم تخزين حساب بنكي مع رقم هوية صاحب الحساب:', ['re_id_number' => $reIdNumber]);
+                    } else {
+                        Log::warning('⚠️ لم يتم تخزين حساب بنكي بسبب نقص البيانات', $bankAccount);
                     }
                 }
             }
@@ -257,17 +268,17 @@ class GeneralRegistrationController extends Controller
 
 
 
-
-
             // معالجة المرفقات الجديدة كمصفوفة Laravel
             $attachmentsData = $request->input('attachments', []);
             Log::info('🟢 عدد المرفقات المستلمة من جميع البوابات:', ['count' => count($attachmentsData), 'attachments' => $attachmentsData, 'family_members' => $request->input('family_members', [])]);
             foreach ($attachmentsData as $index => $data) {
-                // استخدم hasFile للبحث عن الملف داخل attachments[$index][file]
+                // استقبال الملف بشكل صحيح
                 $file = $request->hasFile("attachments.$index.file") ? $request->file("attachments.$index.file") : null;
-                if ($file) {
-                    Log::info('📸 اسم الملف المستلم: ' . $file->getClientOriginalName() . ' | الحجم: ' . $file->getSize());
+                if (!$file) {
+                    Log::error('🔴 لم يتم استقبال الملف من الواجهة', ['index' => $index, 'data' => $data, 'all_files' => $request->allFiles()]);
+                    continue;
                 }
+                Log::info('📸 اسم الملف المستلم: ' . $file->getClientOriginalName() . ' | الحجم: ' . $file->getSize());
                 Log::info('🟠 معالجة مرفق فرد أسرة', ['index' => $index, 'data' => $data, 'file' => $file]);
                 $personType = $data['person_identity_number'] ?? null;
                 $fileType = $data['file_type'] ?? null;

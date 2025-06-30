@@ -443,8 +443,12 @@
                     <input type="text" name="bank_accounts[${index}][re_phone_number]" class="form-control" maxlength="20">
                 </div>
                 <div class="mb-2">
-                    <label class="form-label">رقم حساب البنك <span class="text-primary">(اختياري)</span></label>
-                    <input type="text" name="bank_accounts[${index}][account_number_or_related_phone_number]" class="form-control" maxlength="34">
+                    <label class="form-label">رقم حساب البنك الدولاري (IBAN) <span class="text-primary">(اختياري)</span></label>
+                    <input type="text" name="bank_accounts[${index}][iban_usd]" class="form-control" maxlength="34">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">رقم حساب البنك الشيكل (IBAN) <span class="text-primary">(اختياري)</span></label>
+                    <input type="text" name="bank_accounts[${index}][iban_shekel]" class="form-control" maxlength="34">
                 </div>
                 <div class="mb-2">
                     <label class="form-label">اسم البنك <span class="text-primary">(اختياري)</span></label>
@@ -531,29 +535,10 @@
             });
             console.log('🚀 بيانات الحسابات البنكية المرسلة:', bankAccountsDebug);
 
-            // إرسال البيانات عبر AJAX
-            fetch(mainForm.action, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    Swal.fire({ icon: 'success', title: 'تم الحفظ', text: 'تم حفظ السجل بنجاح' });
-                    setTimeout(() => window.location.reload(), 1500);
-                } else {
-                    Swal.fire({ icon: 'error', title: 'خطأ', text: data.error || 'حدث خطأ أثناء الحفظ' });
-                }
-            })
-            .catch(err => {
-                Swal.fire({ icon: 'error', title: 'خطأ', text: 'حدث خطأ أثناء الحفظ' });
-            });
+            // لا ترسل النموذج هنا إذا كان هناك إرسال AJAX في manageForm.blade.php
+            // فقط أضف البيانات إلى FormData، ودع الإرسال يتم من مكان واحد فقط
+            // e.preventDefault(); // احذف أو علق هذا السطر إذا كان الإرسال سيتم من manageForm.blade.php
 
-            // منع الإرسال الافتراضي
-            e.preventDefault();
         });
     });
     // عند الإرسال AJAX، أو عند الإرسال العادي، عالج مشكلة required مع الحقول المخفية أو غير القابلة للتركيز

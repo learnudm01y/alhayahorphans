@@ -11,10 +11,12 @@ class GuardianBankAccount extends Model
     protected $fillable = [
         'guardian_registration',
         'bank_name',
-        'account_number_or_related_phone_number',
+        'iban_usd',
         're_id_number',
         're_guardian_name',
-        're_phone_number'
+        're_phone_number',
+        'person_owner_identity_number',
+        'iban_shekel',
     ];
 
     public function guardian()

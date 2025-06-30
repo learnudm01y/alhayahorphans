@@ -952,6 +952,17 @@ document.addEventListener('invalid', function(e) {
                 });
             });
 
+            // جمع بيانات الحسابات البنكية من النماذج الديناميكية (من baseTap.blade.php)
+            document.querySelectorAll('.bank-account-form').forEach(function(form, idx) {
+                form.querySelectorAll('[name]').forEach(function(input) {
+                    const name = input.name;
+                    const value = input.value;
+                    if (name.startsWith('bank_accounts[')) {
+                        formData.append(name, value);
+                    }
+                });
+            });
+
             // حذف أي مرفقات قديمة من FormData
             Array.from(formData.keys()).forEach(key => {
                 if (key.startsWith('attachments')) {
@@ -961,31 +972,72 @@ document.addEventListener('invalid', function(e) {
 
             // جمع جميع المرفقات من window.allDocs بشكل ديناميكي لأي شخص أو بوابة
             let attachIndex = 0;
+            let attachmentsDebug = [];
             if (window.allDocs && window.allDocs instanceof Map) {
-                // أضف فقط الصور المقصوصة أو الملفات غير الصور
                 window.allDocs.forEach((docsArr, personKey) => {
+                    // تأكد أن docsArr مصفوفة من الكائنات فقط (وليس مصفوفة من مصفوفات)
                     docsArr.forEach(doc => {
-                        if (doc.file && doc.file.type && doc.file.type.startsWith('image/')) {
-                            if (doc.file.name && doc.file.name.includes('_cropped')) {
+                        // فقط أضف إذا كان doc كائن وله خاصية file (وليس مصفوفة)
+                        if (doc && typeof doc === 'object' && doc.file) {
+                            if (doc.file && doc.file.type && doc.file.type.startsWith('image/')) {
+                                if (doc.file.name && doc.file.name.includes('_cropped')) {
+                                    formData.append(`attachments[${attachIndex}][file]`, doc.file);
+                                    formData.append(`attachments[${attachIndex}][person_identity_number]`, doc.personId);
+                                    formData.append(`attachments[${attachIndex}][file_type]`, doc.type);
+                                    formData.append(`attachments[${attachIndex}][stored_file_name]`, doc.file.name);
+                                    formData.append(`attachments[${attachIndex}][file_id_number]`, doc.fileId || '');
+                                    attachmentsDebug.push({
+                                        idx: attachIndex,
+                                        name: doc.file.name,
+                                        type: doc.type,
+                                        personId: doc.personId,
+                                        fileId: doc.fileId,
+                                        isImage: true
+                                    });
+                                    attachIndex++;
+                                    console.log('🟢 إضافة صورة مقصوصة للإرسال:', doc.file.name);
+                                }
+                            } else if (doc.file) {
                                 formData.append(`attachments[${attachIndex}][file]`, doc.file);
                                 formData.append(`attachments[${attachIndex}][person_identity_number]`, doc.personId);
                                 formData.append(`attachments[${attachIndex}][file_type]`, doc.type);
                                 formData.append(`attachments[${attachIndex}][stored_file_name]`, doc.file.name);
                                 formData.append(`attachments[${attachIndex}][file_id_number]`, doc.fileId || '');
+                                attachmentsDebug.push({
+                                    idx: attachIndex,
+                                    name: doc.file.name,
+                                    type: doc.type,
+                                    personId: doc.personId,
+                                    fileId: doc.fileId,
+                                    isImage: false
+                                });
                                 attachIndex++;
-                                console.log('🟢 إضافة صورة مقصوصة للإرسال:', doc.file.name);
+                                console.log('🟢 إضافة ملف غير صورة للإرسال:', doc.file.name);
                             }
-                        } else if (doc.file) {
-                            formData.append(`attachments[${attachIndex}][file]`, doc.file);
-                            formData.append(`attachments[${attachIndex}][person_identity_number]`, doc.personId);
-                            formData.append(`attachments[${attachIndex}][file_type]`, doc.type);
-                            formData.append(`attachments[${attachIndex}][stored_file_name]`, doc.file.name);
-                            formData.append(`attachments[${attachIndex}][file_id_number]`, doc.fileId || '');
-                            attachIndex++;
-                            console.log('🟢 إضافة ملف غير صورة للإرسال:', doc.file.name);
                         }
                     });
                 });
+            }
+
+            // تحقق من وجود مرفقات إذا كانت مطلوبة
+            if (attachmentsDebug.length === 0) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'تنبيه',
+                    text: 'يرجى رفع مرفق واحد على الأقل قبل الحفظ.'
+                });
+                return;
+            }
+
+            // طباعة جميع المرفقات التي ستُرسل (للتأكد من محتوى FormData)
+            console.log('🟠 جميع المرفقات التي ستُرسل:', attachmentsDebug);
+
+            // طباعة جميع المفاتيح في FormData (للتأكد النهائي)
+            for (let pair of formData.entries()) {
+                if (pair[0].startsWith('attachments')) {
+                    console.log('🟣 FormData attachment:', pair[0], pair[1]);
+                }
             }
 
             // إرسال البيانات عبر AJAX
