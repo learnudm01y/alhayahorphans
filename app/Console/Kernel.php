@@ -16,7 +16,12 @@ class Kernel extends ConsoleKernel
             if (function_exists('cleanupOldReservedCodes')) {
                 cleanupOldReservedCodes(1);
             }
-        })->hourly();
+        })->everyMinute();
+
+        // مهمة اختبارية للتأكد من عمل الجدولة
+        $schedule->call(function () {
+            file_put_contents(storage_path('logs/scheduler-test.log'), now() . "\n", FILE_APPEND);
+        })->everyMinute();
     }
 
     /**
