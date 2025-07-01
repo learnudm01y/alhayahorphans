@@ -436,19 +436,19 @@ window.showCropperModal = function(file, callback) {
   }
   cropBtn.onclick = null;
 
-  // --- إصلاح متقدم للجوال: إعادة تهيئة cropper عدة مرات بعد تحميل الصورة وبعد ظهور المودال، مع fallback قوي للجوال ---
+  // تهيئة cropper بشكل موثوق للجوال والحاسوب
   const reader = new FileReader();
   reader.onload = function(e) {
     imgEl.src = e.target.result;
     let cropperReady = false;
     let tryCount = 0;
-    const maxTries = 12;
+    const maxTries = 15;
 
     function isMobile() {
       return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     }
 
-    function tryInitCropper() {
+    function initCropper(force = false) {
       // معالجة الصور الطويلة جداً على الجوال: ضبط max-height للصورة مؤقتاً
       if (isMobile() && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
         imgEl.style.maxHeight = '70vh';
@@ -457,8 +457,7 @@ window.showCropperModal = function(file, callback) {
         imgEl.style.maxHeight = '';
         imgEl.style.maxWidth = '';
       }
-      // شرط نجاح تحميل الصورة
-      if (imgEl.naturalWidth > 0 && imgEl.naturalHeight > 0) {
+      if ((imgEl.naturalWidth > 0 && imgEl.naturalHeight > 0) || force) {
         if (imgEl.cropperInstance) {
           imgEl.cropperInstance.destroy();
           imgEl.cropperInstance = null;
@@ -480,7 +479,7 @@ window.showCropperModal = function(file, callback) {
             cropperReady = true;
             enableAllControls();
             enableCropperControls();
-            // إصلاح cropper للجوال: إذا كانت الصورة طويلة جداً، اضبط cropBox تلقائياً
+            // معالجة cropBox للصور الطويلة على الجوال
             if (isMobile() && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
               try {
                 const containerData = cropper.getContainerData();
@@ -499,20 +498,20 @@ window.showCropperModal = function(file, callback) {
         imgEl.cropperInstance = cropper;
       } else if (tryCount < maxTries) {
         tryCount++;
-        setTimeout(tryInitCropper, 120 * tryCount);
+        setTimeout(initCropper, 120 * tryCount);
       }
     }
 
-    // أعد المحاولة عدة مرات حتى يتم تحميل الصورة وتهيئة cropper (حتى 12 محاولة)
-    setTimeout(tryInitCropper, 60);
+    // أعد المحاولة عدة مرات حتى يتم تحميل الصورة وتهيئة cropper (حتى 15 محاولة)
+    setTimeout(initCropper, 60);
 
-    // زر القص: انتظر حتى cropper جاهز فعلياً
+    // زر القص: أعد تهيئة cropper إذا لم يكن جاهزاً (خاصة للجوال)
     cropBtn.onclick = async function() {
-      if (!cropperReady || !cropper) {
+      if (!cropperReady || !cropper || !cropper.getCroppedCanvas) {
         // إعادة المحاولة الأخيرة للجوال إذا لم يتم التهيئة
         if (isMobile() && tryCount < maxTries) {
-          tryInitCropper();
-          setTimeout(() => cropBtn.onclick(), 200 + 80 * tryCount);
+          initCropper(true);
+          setTimeout(() => cropBtn.onclick(), 350 + 80 * tryCount);
           return;
         }
         Swal.fire({ icon: 'error', title: 'خطأ', text: 'لم يتم تهيئة أداة القص بعد. يرجى الانتظار أو إعادة المحاولة.' });
@@ -529,19 +528,10 @@ window.showCropperModal = function(file, callback) {
         const ext = originalName.substring(originalName.lastIndexOf('.'));
         const base = originalName.replace(ext, '');
         const newFile = new File([file], base + '_cropped' + ext, { type: file.type });
-        // سجل الحجم بنفس تنسيق الكونسول
-        console.log('تم قص الصورة:', {
-          name: newFile.name,
-          size: newFile.size,
-          type: newFile.type
-        });
-        console.log('حجم الصورة بعد الضغط:', newFile.size, 'bytes');
-        // معالجة مشكلة عدم إضافة الملف للمصفوفة أو العرض: إعادة استدعاء callback دائماً بعد التأكد من انتهاء المودال
         setTimeout(() => {
           loaderModal.hide();
           callback(newFile);
         }, 0);
-        // تأكيد إخفاء اللودر بعد فترة قصيرة في حال لم يختفِ بسبب مشاكل في DOM
         setTimeout(() => { loaderModal.hide(); }, 700);
         return;
       }
@@ -550,25 +540,35 @@ window.showCropperModal = function(file, callback) {
       loaderModal.show();
 
       const data = cropper.getData(true);
-      const canvas = cropper.getCroppedCanvas({
-        width: Math.round(data.width),
-        height: Math.round(data.height),
-        imageSmoothingQuality: 'high'
-      });
+      let canvas;
+      try {
+        canvas = cropper.getCroppedCanvas({
+          width: Math.round(data.width),
+          height: Math.round(data.height),
+          imageSmoothingQuality: 'high'
+        });
+      } catch (err) {
+        Swal.fire({ icon: 'error', title: 'خطأ', text: 'تعذر قص الصورة. يرجى التأكد من أن الصورة ظاهرة بشكل صحيح ثم أعد المحاولة.' });
+        loaderModal.hide();
+        return;
+      }
+      if (!canvas || canvas.width === 0 || canvas.height === 0) {
+        Swal.fire({ icon: 'error', title: 'خطأ', text: 'تعذر قص الصورة. يرجى التأكد من أن الصورة ظاهرة بشكل صحيح ثم أعد المحاولة.' });
+        loaderModal.hide();
+        return;
+      }
 
       canvas.toBlob(async function(blob) {
-        // إذا كان حجم الصورة بعد القص أقل من أو يساوي 100KiB، أدرجها مباشرة بدون ضغط وبدون إظهار اللودر
+        if (!blob) {
+          Swal.fire({ icon: 'error', title: 'خطأ', text: 'تعذر معالجة الصورة. يرجى إعادة المحاولة أو اختيار صورة أخرى.' });
+          loaderModal.hide();
+          return;
+        }
         if (blob.size <= 100 * 1024) {
           const originalName = file.name;
           const ext = originalName.substring(originalName.lastIndexOf('.'));
           const base = originalName.replace(ext, '');
           const newFile = new File([blob], base + '_cropped' + ext, { type: file.type });
-          console.log('تم قص الصورة:', {
-            name: newFile.name,
-            size: newFile.size,
-            type: newFile.type
-          });
-          console.log('حجم الصورة بعد الضغط:', newFile.size, 'bytes');
           cropBtn.blur && cropBtn.blur();
           bootstrap.Modal.getOrCreateInstance(modalEl).hide();
           setTimeout(() => {
@@ -578,7 +578,6 @@ window.showCropperModal = function(file, callback) {
           setTimeout(() => { loaderModal.hide(); }, 700);
           return;
         }
-        // إذا كان الحجم أكبر من 100KiB، أظهر اللودر ثم اضغط الصورة
         document.getElementById('compressLoaderTitle').textContent = 'جاري إدراج الوثيقة';
         loaderModal.show();
         try {
@@ -602,12 +601,6 @@ window.showCropperModal = function(file, callback) {
             options.initialQuality = Math.max(0.1, options.initialQuality - 0.1);
           }
           const newFile = new File([compressedFile], base + '_cropped' + ext, { type: file.type });
-          console.log('تم قص الصورة:', {
-            name: newFile.name,
-            size: newFile.size,
-            type: newFile.type
-          });
-          console.log('حجم الصورة بعد الضغط:', newFile.size, 'bytes');
           cropBtn.blur && cropBtn.blur();
           bootstrap.Modal.getOrCreateInstance(modalEl).hide();
           setTimeout(() => {
@@ -629,7 +622,7 @@ window.showCropperModal = function(file, callback) {
   const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
   bsModal.show();
 
-  // --- إصلاح إضافي: عند إظهار المودال، أعد محاولة تهيئة cropper إذا لم يكن جاهزاً مع معالجة الصور الطويلة ---
+  // عند إظهار المودال، أعد محاولة تهيئة cropper إذا لم يكن جاهزاً مع معالجة الصور الطويلة
   modalEl.addEventListener('shown.bs.modal', function onShown() {
     let shownTry = 0;
     function tryInitOnModal() {
@@ -638,7 +631,6 @@ window.showCropperModal = function(file, callback) {
           imgEl.cropperInstance.destroy();
           imgEl.cropperInstance = null;
         }
-        // معالجة الصور الطويلة جداً على الجوال
         if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
           imgEl.style.maxHeight = '70vh';
           imgEl.style.maxWidth = '95vw';
@@ -662,7 +654,6 @@ window.showCropperModal = function(file, callback) {
           ready() {
             enableAllControls();
             enableCropperControls();
-            // إصلاح cropper للجوال: إذا كانت الصورة طويلة جداً، اضبط cropBox تلقائياً
             if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
               try {
                 const containerData = cropper.getContainerData();
@@ -679,7 +670,7 @@ window.showCropperModal = function(file, callback) {
           }
         });
         imgEl.cropperInstance = cropper;
-      } else if (shownTry < 6 && imgEl.naturalWidth === 0) {
+      } else if (shownTry < 8 && imgEl.naturalWidth === 0) {
         shownTry++;
         setTimeout(tryInitOnModal, 120 * shownTry);
       }
@@ -715,6 +706,7 @@ window.showCropperModal = function(file, callback) {
   });
 };
 // ...existing code...
+
 </script>
 
 
