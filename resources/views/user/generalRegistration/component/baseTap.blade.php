@@ -278,13 +278,13 @@
                 <div id="mainDocumentNames" class="mt-2"></div>
             </div>
         </div>
-        <!-- زر التالي مع تباعد مناسب -->
-        <div class="mt-5 mb-5 text-end">
-            <button type="button" class="btn btn-success px-5 py-2 fs-5" id="goToNextTabBtn" style="margin-top: 2rem; margin-bottom: 5rem;">
-                التالي <i class="fas fa-arrow-left ms-2"></i>
-            </button>
-        </div>
     </div>
+</div>
+<!-- زر التالي مع تباعد مناسب -->
+<div class="mt-5 mb-5 text-end">
+    <button type="button" class="btn btn-success px-5 py-2 fs-5" id="goToNextTabBtn" style="margin-top: 10rem; margin-bottom: 5rem;">
+        التالي <i class="fas fa-arrow-left ms-2"></i>
+    </button>
 </div>
 
 @include('user.generalRegistration.javascript.baseTapJavascript')
