@@ -271,9 +271,13 @@
                 <div id="mainDocumentPreview" class="mt-2"></div>
                 <div id="mainDocumentNames" class="mt-2"></div>
             </div>
-
         </div>
-
+        <!-- زر التالي مع تباعد مناسب -->
+        <div class="mt-5 mb-5 text-end">
+            <button type="button" class="btn btn-success px-5 py-2 fs-5" id="goToNextTabBtn" style="margin-top: 2rem; margin-bottom: 2rem;">
+                التالي <i class="fas fa-arrow-left ms-2"></i>
+            </button>
+        </div>
     </div>
 </div>
 
@@ -286,7 +290,8 @@
         if (nextBtn) {
             nextBtn.addEventListener('click', function(e) {
                 // جميع الحقول المطلوبة (input/select/textarea) التي عليها نجمة
-                const requiredFields = [{
+                const requiredFields = [
+                    {
                         name: 'data_section_id',
                         label: 'القسم'
                     },
@@ -395,9 +400,10 @@
                     });
                     return;
                 }
+                // منطق الانتقال حسب القسم
                 const sectionSelect = document.querySelector('select[name="data_section_id"]');
                 const selectedValue = sectionSelect ? sectionSelect.value : '';
-                const orphansSectionId = '1';
+                const orphansSectionId = '1'; // عدل هذا الرقم حسب قاعدة البيانات لديك إذا لزم الأمر
                 if (selectedValue === orphansSectionId) {
                     const deceasedTab = document.getElementById('deceased-tab');
                     if (deceasedTab) deceasedTab.click();
@@ -564,4 +570,5 @@
             }, 100);
         }, true);
     });
+</script>
 </script>
