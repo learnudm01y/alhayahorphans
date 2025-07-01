@@ -407,228 +407,253 @@
 <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
 
 <script>
-  window.showCropperModal = function(file, callback) {
-    const modalEl = document.getElementById('cropperModal');
-    const imgEl = document.getElementById('cropperImage');
-    const cropBtn = document.getElementById('cropperCropBtn');
-    const loaderModalEl = document.getElementById('compressLoaderModal');
-    const loaderModal = bootstrap.Modal.getOrCreateInstance(loaderModalEl);
-    let cropper;
+window.showCropperModal = function(file, callback) {
+  const modalEl = document.getElementById('cropperModal');
+  const imgEl = document.getElementById('cropperImage');
+  const cropBtn = document.getElementById('cropperCropBtn');
+  const loaderModalEl = document.getElementById('compressLoaderModal');
+  const loaderModal = bootstrap.Modal.getOrCreateInstance(loaderModalEl);
+  let cropper;
 
-    // تعطيل جميع الأزرار عند البداية
-    function disableAllControls() {
-      cropBtn.disabled = true;
-      ['MoveUp','MoveDown','MoveLeft','MoveRight','ZoomIn','ZoomOut','RotateRight'].forEach(action => {
-        const btn = document.getElementById('cropper' + action);
-        if (btn) btn.disabled = true;
-      });
-    }
+  function disableAllControls() {
+    cropBtn.disabled = true;
+    ['MoveUp','MoveDown','MoveLeft','MoveRight','ZoomIn','ZoomOut','RotateRight'].forEach(action => {
+      const btn = document.getElementById('cropper' + action);
+      if (btn) btn.disabled = true;
+    });
+  }
+  function enableAllControls() {
+    cropBtn.disabled = false;
+    ['MoveUp','MoveDown','MoveLeft','MoveRight','ZoomIn','ZoomOut','RotateRight'].forEach(action => {
+      const btn = document.getElementById('cropper' + action);
+      if (btn) btn.disabled = false;
+    });
+  }
+  disableAllControls();
+  if (imgEl.cropperInstance) {
+    imgEl.cropperInstance.destroy();
+    imgEl.cropperInstance = null;
+  }
+  cropBtn.onclick = null;
 
-    // تفعيل جميع الأزرار بعد تحميل الصورة وتهيئة cropper
-    function enableAllControls() {
-      cropBtn.disabled = false;
-      ['MoveUp','MoveDown','MoveLeft','MoveRight','ZoomIn','ZoomOut','RotateRight'].forEach(action => {
-        const btn = document.getElementById('cropper' + action);
-        if (btn) btn.disabled = false;
-      });
-    }
-
-    // Reset any previous state
-    disableAllControls();
-    if (imgEl.cropperInstance) {
-      imgEl.cropperInstance.destroy();
-      imgEl.cropperInstance = null;
-    }
-
-    // إزالة أي حدث سابق من زر القص لتجنب تكرار التنفيذ
-    cropBtn.onclick = null;
-
-    // Read file
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      imgEl.src = e.target.result;
-      imgEl.onload = function() {
-        // Destroy previous cropper if exists
-        if (imgEl.cropperInstance) {
-          imgEl.cropperInstance.destroy();
-          imgEl.cropperInstance = null;
-        }
-        // Initialize Cropper
-        cropper = new Cropper(imgEl, {
-          aspectRatio: NaN,
-          viewMode: 1,
-          responsive: true,
-          autoCropArea: 1,
-          movable: true,
-          zoomable: true,
-          rotatable: true,
-          scalable: true,
-          background: false,
-          guides: true,
-          center: true,
-          dragMode: 'move',
-        });
-        imgEl.cropperInstance = cropper;
-        enableAllControls();
-
-        // Attach controls safely
-        enableCropperControls();
-
-        // إعادة ربط زر القص في كل مرة (يسمح بالقص عدة مرات)
-        cropBtn.onclick = async function() {
-          if (!cropper) return;
-          // إذا كان حجم الملف الأصلي أقل من أو يساوي 100KiB، أدرجه مباشرة بدون قص أو ضغط وبدون إظهار اللودر
-          if (file.size <= 100 * 1024) {
-            bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-            const originalName = file.name;
-            const ext = originalName.substring(originalName.lastIndexOf('.'));
-            const base = originalName.replace(ext, '');
-            const newFile = new File([file], base + '_cropped' + ext, { type: file.type });
-            // سجل الحجم بنفس تنسيق الكونسول
-            console.log('تم قص الصورة:', {
-              name: newFile.name,
-              size: newFile.size,
-              type: newFile.type
-            });
-            console.log('حجم الصورة بعد الضغط:', newFile.size, 'bytes');
-            // معالجة مشكلة عدم إضافة الملف للمصفوفة أو العرض: إعادة استدعاء callback دائماً بعد التأكد من انتهاء المودال
-            setTimeout(() => {
-              loaderModal.hide();
-              callback(newFile);
-            }, 0);
-            // تأكيد إخفاء اللودر بعد فترة قصيرة في حال لم يختفِ بسبب مشاكل في DOM
-            setTimeout(() => { loaderModal.hide(); }, 700);
-            return;
-          }
-          bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-          document.getElementById('compressLoaderTitle').textContent = 'جاري إدراج الوثيقة';
-          loaderModal.show();
-
-          const data = cropper.getData(true);
-          const canvas = cropper.getCroppedCanvas({
-            width: Math.round(data.width),
-            height: Math.round(data.height),
-            imageSmoothingQuality: 'high'
-          });
-
-          canvas.toBlob(async function(blob) {
-            // إذا كان حجم الصورة بعد القص أقل من أو يساوي 100KiB، أدرجها مباشرة بدون ضغط وبدون إظهار اللودر
-            if (blob.size <= 100 * 1024) {
-              const originalName = file.name;
-              const ext = originalName.substring(originalName.lastIndexOf('.'));
-              const base = originalName.replace(ext, '');
-              const newFile = new File([blob], base + '_cropped' + ext, { type: file.type });
-              console.log('تم قص الصورة:', {
-                name: newFile.name,
-                size: newFile.size,
-                type: newFile.type
-              });
-              console.log('حجم الصورة بعد الضغط:', newFile.size, 'bytes');
-              cropBtn.blur && cropBtn.blur();
-              bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-              setTimeout(() => {
-                loaderModal.hide();
-                callback(newFile);
-              }, 0);
-              setTimeout(() => { loaderModal.hide(); }, 700);
-              return;
-            }
-            // إذا كان الحجم أكبر من 100KiB، أظهر اللودر ثم اضغط الصورة
-            document.getElementById('compressLoaderTitle').textContent = 'جاري إدراج الوثيقة';
-            loaderModal.show();
-            try {
-              const originalName = file.name;
-              const ext = originalName.substring(originalName.lastIndexOf('.'));
-              const base = originalName.replace(ext, '');
-              let compressedFile = blob;
-              let compressedSize = blob.size;
-              let quality = 0.7;
-              let maxTries = 7;
-              let options = {
-                maxSizeMB: 0.1,
-                maxWidthOrHeight: Math.max(canvas.width, canvas.height),
-                useWebWorker: true,
-                initialQuality: quality,
-                fileType: file.type
-              };
-              for (let i = 0; i < maxTries && compressedSize > 100 * 1024; i++) {
-                compressedFile = await imageCompression(compressedFile, options);
-                compressedSize = compressedFile.size;
-                options.initialQuality = Math.max(0.1, options.initialQuality - 0.1);
-              }
-              const newFile = new File([compressedFile], base + '_cropped' + ext, { type: file.type });
-              console.log('تم قص الصورة:', {
-                name: newFile.name,
-                size: newFile.size,
-                type: newFile.type
-              });
-              console.log('حجم الصورة بعد الضغط:', newFile.size, 'bytes');
-              cropBtn.blur && cropBtn.blur();
-              bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-              setTimeout(() => {
-                loaderModal.hide();
-                callback(newFile);
-              }, 0);
-              setTimeout(() => { loaderModal.hide(); }, 700);
-            } catch (err) {
-              loaderModal.hide();
-              alert('حدث خطأ أثناء ضغط الصورة');
-              callback(null);
-            }
-          }, file.type, 0.7);
-        };
-      };
-    };
-    reader.readAsDataURL(file);
-
-    // Show modal
-    const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
-    bsModal.show();
-
-    // Wire control buttons
-    function enableCropperControls() {
-      const actions = [
-        ['MoveUp',    () => cropper && cropper.move(0, -10)],
-        ['MoveDown',  () => cropper && cropper.move(0, 10)],
-        ['MoveLeft',  () => cropper && cropper.move(-10, 0)],
-        ['MoveRight', () => cropper && cropper.move(10, 0)],
-        ['ZoomIn',    () => cropper && cropper.zoom(0.1)],
-        ['ZoomOut',   () => cropper && cropper.zoom(-0.1)],
-        ['RotateRight', () => cropper && cropper.rotate && cropper.rotate(45)]
-      ];
-      actions.forEach(([id, fn]) => {
-        const btn = document.getElementById('cropper' + id);
-        if (btn) btn.onclick = fn;
-      });
-    }
-
-    // عند إغلاق المودال، دمر cropper لتفادي التسربات
-    modalEl.addEventListener('hidden.bs.modal', function cleanup() {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    imgEl.src = e.target.result;
+    imgEl.onload = function() {
       if (imgEl.cropperInstance) {
         imgEl.cropperInstance.destroy();
         imgEl.cropperInstance = null;
       }
-      cropper = null;
-      cropBtn.onclick = null;
-      modalEl.removeEventListener('hidden.bs.modal', cleanup);
-    });
-  };
-
-  // اعتراض جميع عمليات رفع الصور في الموقع
-  document.addEventListener('change', function(e) {
-    const input = e.target;
-    if (input.type === 'file' && input.files && input.files.length > 0) {
-      Array.from(input.files).forEach(file => {
-        if (file.type.startsWith('image/')) {
-          // سجل حجم الصورة الأصلية
-          console.log('جم الصورة قبل الضغط:', file.size, 'bytes');
-          // إذا لم يتم ضغط الصورة لاحقاً (مثلاً لم تمر على cropper)، سجلها مباشرة بعد الإضافة
-          // إذا تم ضغطها عبر cropper، سيتم تسجيل الحجم بعد الضغط هناك
-        }
+      cropper = new Cropper(imgEl, {
+        aspectRatio: NaN,
+        viewMode: 1,
+        responsive: true,
+        autoCropArea: 1,
+        movable: true,
+        zoomable: true,
+        rotatable: true,
+        scalable: true,
+        background: false,
+        guides: true,
+        center: true,
+        dragMode: 'move',
       });
+      imgEl.cropperInstance = cropper;
+      enableAllControls();
+      enableCropperControls();
+
+      cropBtn.onclick = async function() {
+        if (!cropper) return;
+        if (!imgEl || !imgEl.src || imgEl.naturalWidth === 0 || imgEl.naturalHeight === 0) {
+          Swal.fire({ icon: 'error', title: 'خطأ', text: 'لم يتم تحميل الصورة بشكل صحيح. يرجى إعادة المحاولة أو اختيار صورة أخرى.' });
+          return;
+        }
+        const cropData = cropper.getData();
+        if (
+          !cropData ||
+          cropData.width < 5 ||
+          cropData.height < 5 ||
+          cropData.x < 0 ||
+          cropData.y < 0 ||
+          cropData.x + cropData.width > imgEl.naturalWidth + 1 ||
+          cropData.y + cropData.height > imgEl.naturalHeight + 1
+        ) {
+          Swal.fire({ icon: 'error', title: 'خطأ', text: 'تعذر قص الصورة. يرجى التأكد من تحديد منطقة قص مناسبة داخل الصورة ثم أعد المحاولة.' });
+          loaderModal.hide();
+          return;
+        }
+        let canvas;
+        try {
+          canvas = cropper.getCroppedCanvas({
+            imageSmoothingQuality: 'high'
+          });
+        } catch (err) {
+          Swal.fire({ icon: 'error', title: 'خطأ', text: 'تعذر قص الصورة. يرجى التأكد من أن الصورة ظاهرة بشكل صحيح ثم أعد المحاولة.' });
+          loaderModal.hide();
+          return;
+        }
+        if (!canvas || canvas.width === 0 || canvas.height === 0) {
+          Swal.fire({ icon: 'error', title: 'خطأ', text: 'تعذر قص الصورة. يرجى التأكد من أن الصورة ظاهرة بشكل صحيح ثم أعد المحاولة.' });
+          loaderModal.hide();
+          return;
+        }
+
+        // أخفِ المودال فوراً عند الضغط على زر القص (قبل أي معالجة)
+        bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+
+        canvas.toBlob(async function(blob) {
+          if (!blob) {
+            Swal.fire({ icon: 'error', title: 'خطأ', text: 'تعذر معالجة الصورة. يرجى إعادة المحاولة أو اختيار صورة أخرى.' });
+            loaderModal.hide();
+            return;
+          }
+          if (blob.size <= 100 * 1024) {
+            const originalName = file.name;
+            const ext = originalName.substring(originalName.lastIndexOf('.'));
+            const base = originalName.replace(ext, '');
+            const newFile = new File([blob], base + '_cropped' + ext, { type: file.type });
+            cropBtn.blur && cropBtn.blur();
+            // bootstrap.Modal.getOrCreateInstance(modalEl).hide(); // تم النقل للأعلى
+            setTimeout(() => {
+              loaderModal.hide();
+              // عرض الصورة المقصوصة أسفل القائمة المنسدلة مباشرة
+              let preview = null;
+              let lastActiveSelect = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('mainDocumentTypeSelect')
+                ? document.activeElement
+                : null;
+              if (!lastActiveSelect) {
+                const selects = document.querySelectorAll('.mainDocumentTypeSelect, #mainDocumentTypeSelect');
+                lastActiveSelect = selects[selects.length - 1];
+              }
+              if (lastActiveSelect) {
+                preview = lastActiveSelect.closest('.upload-zone, .col-md-4, .col-md-3, .col-12, .row, .card-body, form')
+                  ?.querySelector('.mainDocumentPreview, #mainDocumentPreview');
+              }
+              if (!preview) {
+                preview = document.querySelector('.mainDocumentPreview, #mainDocumentPreview');
+              }
+              if (preview) {
+                preview.innerHTML = '';
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(newFile);
+                img.style.maxWidth = '120px';
+                img.style.maxHeight = '120px';
+                img.className = 'rounded border mb-1';
+                img.onload = function() { URL.revokeObjectURL(img.src); };
+                preview.appendChild(img);
+              }
+              callback(newFile);
+            }, 0);
+            setTimeout(() => { loaderModal.hide(); }, 700);
+            return;
+          }
+          document.getElementById('compressLoaderTitle').textContent = 'جاري إدراج الوثيقة';
+          loaderModal.show();
+          try {
+            const originalName = file.name;
+            const ext = originalName.substring(originalName.lastIndexOf('.'));
+            const base = originalName.replace(ext, '');
+            let compressedFile = blob;
+            let compressedSize = blob.size;
+            let quality = 0.7;
+            let maxTries = 7;
+            let options = {
+              maxSizeMB: 0.1,
+              maxWidthOrHeight: Math.max(canvas.width, canvas.height),
+              useWebWorker: true,
+              initialQuality: quality,
+              fileType: file.type
+            };
+            for (let i = 0; i < maxTries && compressedSize > 100 * 1024; i++) {
+              compressedFile = await imageCompression(compressedFile, options);
+              compressedSize = compressedFile.size;
+              options.initialQuality = Math.max(0.1, options.initialQuality - 0.1);
+            }
+            const newFile = new File([compressedFile], base + '_cropped' + ext, { type: file.type });
+            cropBtn.blur && cropBtn.blur();
+            bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+            setTimeout(() => { loaderModal.hide(); callback(newFile); }, 0);
+            setTimeout(() => { loaderModal.hide(); }, 700);
+          } catch (err) {
+            loaderModal.hide();
+            alert('حدث خطأ أثناء ضغط الصورة');
+            callback(null);
+          }
+        }, file.type, 0.7);
+      };
+    };
+  };
+  reader.readAsDataURL(file);
+
+  const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+  bsModal.show();
+
+  modalEl.addEventListener('shown.bs.modal', function onShown() {
+    if (!imgEl.cropperInstance) {
+      setTimeout(function() {
+        if (imgEl.src && !imgEl.cropperInstance) {
+          cropper = new Cropper(imgEl, {
+            aspectRatio: NaN,
+            viewMode: 1,
+            responsive: true,
+            autoCropArea: 1,
+            movable: true,
+            zoomable: true,
+            rotatable: true,
+            scalable: true,
+            background: false,
+            guides: true,
+            center: true,
+            dragMode: 'move',
+          });
+          imgEl.cropperInstance = cropper;
+          enableAllControls();
+          enableCropperControls();
+        }
+      }, 100);
     }
+    modalEl.removeEventListener('shown.bs.modal', onShown);
   });
 
+  function enableCropperControls() {
+    const actions = [
+      ['MoveUp',    () => cropper && cropper.move(0, -10)],
+      ['MoveDown',  () => cropper && cropper.move(0, 10)],
+      ['MoveLeft',  () => cropper && cropper.move(-10, 0)],
+      ['MoveRight', () => cropper && cropper.move(10, 0)],
+      ['ZoomIn',    () => cropper && cropper.zoom(0.1)],
+      ['ZoomOut',   () => cropper && cropper.zoom(-0.1)],
+      ['RotateRight', () => cropper && cropper.rotate && cropper.rotate(45)]
+    ];
+    actions.forEach(([id, fn]) => {
+      const btn = document.getElementById('cropper' + id);
+      if (btn) btn.onclick = fn;
+    });
+  }
+
+  modalEl.addEventListener('hidden.bs.modal', function cleanup() {
+    if (imgEl.cropperInstance) {
+      imgEl.cropperInstance.destroy();
+      imgEl.cropperInstance = null;
+    }
+    cropper = null;
+    cropBtn.onclick = null;
+    modalEl.removeEventListener('hidden.bs.modal', cleanup);
+  });
+};
+
+// اعتراض جميع عمليات رفع الصور في الموقع (للتصحيح فقط)
+document.addEventListener('change', function(e) {
+  const input = e.target;
+  if (input.type === 'file' && input.files && input.files.length > 0) {
+    Array.from(input.files).forEach(file => {
+      if (file.type.startsWith('image/')) {
+        console.log('جم الصورة قبل الضغط:', file.size, 'bytes');
+      }
+    });
+  }
+});
 </script>
+
 
 

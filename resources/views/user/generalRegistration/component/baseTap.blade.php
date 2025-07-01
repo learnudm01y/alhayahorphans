@@ -98,11 +98,17 @@
         </div>
         <div class="col-md-4">
             <label class="form-label">رقم الهاتف<span class="text-danger">*</span></label>
-            <input type="number" name="data_phone_number" class="form-control">
+            <input type="number" name="data_phone_number" class="form-control" maxlength="10"
+                oninput="if(this.value.length>10)this.value=this.value.slice(0,10);"
+                placeholder="مثال: 0599905588">
+            <small class="text-muted">أدخل رقم الجوال بهذا الشكل: 0599905588</small>
         </div>
         <div class="col-md-4">
             <label class="form-label">رقم هاتف بديل <span class="text-primary">(اختياري)</span></label>
-            <input type="number" name="data_alt_phone_number" class="form-control">
+            <input type="number" name="data_alt_phone_number" class="form-control" maxlength="10"
+                oninput="if(this.value.length>10)this.value=this.value.slice(0,10);"
+                placeholder="مثال: 0599905588">
+            <small class="text-muted">أدخل رقم الجوال بهذا الشكل: 0599905588</small>
         </div>
         <div class="col-md-4">
             <label class="form-label">عدد افراد الاسرة <span class="text-primary">(اختياري)</span></label>
@@ -274,7 +280,7 @@
         </div>
         <!-- زر التالي مع تباعد مناسب -->
         <div class="mt-5 mb-5 text-end">
-            <button type="button" class="btn btn-success px-5 py-2 fs-5" id="goToNextTabBtn" style="margin-top: 2rem; margin-bottom: 2rem;">
+            <button type="button" class="btn btn-success px-5 py-2 fs-5" id="goToNextTabBtn" style="margin-top: 2rem; margin-bottom: 5rem;">
                 التالي <i class="fas fa-arrow-left ms-2"></i>
             </button>
         </div>
