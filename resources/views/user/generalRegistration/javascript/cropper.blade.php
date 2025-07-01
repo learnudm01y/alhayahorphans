@@ -516,20 +516,27 @@ window.showCropperModal = function(file, callback) {
             // bootstrap.Modal.getOrCreateInstance(modalEl).hide(); // تم النقل للأعلى
             setTimeout(() => {
               loaderModal.hide();
-              // عرض الصورة المقصوصة أسفل القائمة المنسدلة مباشرة
+              // --- تعديل طريقة البحث عن معاينة البوابة الأساسية فقط ---
+              // إذا كان رفع الملف في بوابة البيانات الأساسية، ابحث عن أقرب preview داخل نفس upload-zone
               let preview = null;
+              // ابحث عن أقرب upload-zone من القائمة المنسدلة النشطة
               let lastActiveSelect = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('mainDocumentTypeSelect')
                 ? document.activeElement
                 : null;
               if (!lastActiveSelect) {
-                const selects = document.querySelectorAll('.mainDocumentTypeSelect, #mainDocumentTypeSelect');
-                lastActiveSelect = selects[selects.length - 1];
+                // fallback: ابحث عن أول select في البوابة الأساسية فقط
+                const mainZone = document.querySelector('[data-upload-zone="main"]');
+                if (mainZone) {
+                  lastActiveSelect = mainZone.querySelector('.mainDocumentTypeSelect');
+                }
               }
               if (lastActiveSelect) {
-                preview = lastActiveSelect.closest('.upload-zone, .col-md-4, .col-md-3, .col-12, .row, .card-body, form')
+                // ابحث عن المعاينة القريبة من القائمة المنسدلة داخل نفس upload-zone فقط
+                preview = lastActiveSelect.closest('[data-upload-zone]')
                   ?.querySelector('.mainDocumentPreview, #mainDocumentPreview');
               }
               if (!preview) {
+                // fallback: ابحث عن أول معاينة في الصفحة
                 preview = document.querySelector('.mainDocumentPreview, #mainDocumentPreview');
               }
               if (preview) {
