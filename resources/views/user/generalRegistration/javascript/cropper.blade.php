@@ -436,189 +436,255 @@ window.showCropperModal = function(file, callback) {
   }
   cropBtn.onclick = null;
 
+  // --- إصلاح متقدم للجوال: إعادة تهيئة cropper عدة مرات بعد تحميل الصورة وبعد ظهور المودال، مع fallback قوي للجوال ---
   const reader = new FileReader();
   reader.onload = function(e) {
     imgEl.src = e.target.result;
-    imgEl.onload = function() {
-      if (imgEl.cropperInstance) {
-        imgEl.cropperInstance.destroy();
-        imgEl.cropperInstance = null;
+    let cropperReady = false;
+    let tryCount = 0;
+    const maxTries = 12;
+
+    function isMobile() {
+      return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
+
+    function tryInitCropper() {
+      // معالجة الصور الطويلة جداً على الجوال: ضبط max-height للصورة مؤقتاً
+      if (isMobile() && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
+        imgEl.style.maxHeight = '70vh';
+        imgEl.style.maxWidth = '95vw';
+      } else {
+        imgEl.style.maxHeight = '';
+        imgEl.style.maxWidth = '';
       }
-      cropper = new Cropper(imgEl, {
-        aspectRatio: NaN,
-        viewMode: 1,
-        responsive: true,
-        autoCropArea: 1,
-        movable: true,
-        zoomable: true,
-        rotatable: true,
-        scalable: true,
-        background: false,
-        guides: true,
-        center: true,
-        dragMode: 'move',
-      });
-      imgEl.cropperInstance = cropper;
-      enableAllControls();
-      enableCropperControls();
-
-      cropBtn.onclick = async function() {
-        if (!cropper) return;
-        if (!imgEl || !imgEl.src || imgEl.naturalWidth === 0 || imgEl.naturalHeight === 0) {
-          Swal.fire({ icon: 'error', title: 'خطأ', text: 'لم يتم تحميل الصورة بشكل صحيح. يرجى إعادة المحاولة أو اختيار صورة أخرى.' });
-          return;
+      // شرط نجاح تحميل الصورة
+      if (imgEl.naturalWidth > 0 && imgEl.naturalHeight > 0) {
+        if (imgEl.cropperInstance) {
+          imgEl.cropperInstance.destroy();
+          imgEl.cropperInstance = null;
         }
-        const cropData = cropper.getData();
-        if (
-          !cropData ||
-          cropData.width < 5 ||
-          cropData.height < 5 ||
-          cropData.x < 0 ||
-          cropData.y < 0 ||
-          cropData.x + cropData.width > imgEl.naturalWidth + 1 ||
-          cropData.y + cropData.height > imgEl.naturalHeight + 1
-        ) {
-          Swal.fire({ icon: 'error', title: 'خطأ', text: 'تعذر قص الصورة. يرجى التأكد من تحديد منطقة قص مناسبة داخل الصورة ثم أعد المحاولة.' });
-          loaderModal.hide();
-          return;
-        }
-        let canvas;
-        try {
-          canvas = cropper.getCroppedCanvas({
-            imageSmoothingQuality: 'high'
-          });
-        } catch (err) {
-          Swal.fire({ icon: 'error', title: 'خطأ', text: 'تعذر قص الصورة. يرجى التأكد من أن الصورة ظاهرة بشكل صحيح ثم أعد المحاولة.' });
-          loaderModal.hide();
-          return;
-        }
-        if (!canvas || canvas.width === 0 || canvas.height === 0) {
-          Swal.fire({ icon: 'error', title: 'خطأ', text: 'تعذر قص الصورة. يرجى التأكد من أن الصورة ظاهرة بشكل صحيح ثم أعد المحاولة.' });
-          loaderModal.hide();
-          return;
-        }
-
-        // أخفِ المودال فوراً عند الضغط على زر القص (قبل أي معالجة)
-        bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-
-        canvas.toBlob(async function(blob) {
-          if (!blob) {
-            Swal.fire({ icon: 'error', title: 'خطأ', text: 'تعذر معالجة الصورة. يرجى إعادة المحاولة أو اختيار صورة أخرى.' });
-            loaderModal.hide();
-            return;
-          }
-          if (blob.size <= 100 * 1024) {
-            const originalName = file.name;
-            const ext = originalName.substring(originalName.lastIndexOf('.'));
-            const base = originalName.replace(ext, '');
-            const newFile = new File([blob], base + '_cropped' + ext, { type: file.type });
-            cropBtn.blur && cropBtn.blur();
-            // bootstrap.Modal.getOrCreateInstance(modalEl).hide(); // تم النقل للأعلى
-            setTimeout(() => {
-              loaderModal.hide();
-              // --- تعديل طريقة البحث عن معاينة البوابة الأساسية فقط ---
-              // إذا كان رفع الملف في بوابة البيانات الأساسية، ابحث عن أقرب preview داخل نفس upload-zone
-              let preview = null;
-              // ابحث عن أقرب upload-zone من القائمة المنسدلة النشطة
-              let lastActiveSelect = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('mainDocumentTypeSelect')
-                ? document.activeElement
-                : null;
-              if (!lastActiveSelect) {
-                // fallback: ابحث عن أول select في البوابة الأساسية فقط
-                const mainZone = document.querySelector('[data-upload-zone="main"]');
-                if (mainZone) {
-                  lastActiveSelect = mainZone.querySelector('.mainDocumentTypeSelect');
-                }
-              }
-              if (lastActiveSelect) {
-                // ابحث عن المعاينة القريبة من القائمة المنسدلة داخل نفس upload-zone فقط
-                preview = lastActiveSelect.closest('[data-upload-zone]')
-                  ?.querySelector('.mainDocumentPreview, #mainDocumentPreview');
-              }
-              if (!preview) {
-                // fallback: ابحث عن أول معاينة في الصفحة
-                preview = document.querySelector('.mainDocumentPreview, #mainDocumentPreview');
-              }
-              if (preview) {
-                preview.innerHTML = '';
-                const img = document.createElement('img');
-                img.src = URL.createObjectURL(newFile);
-                img.style.maxWidth = '120px';
-                img.style.maxHeight = '120px';
-                img.className = 'rounded border mb-1';
-                img.onload = function() { URL.revokeObjectURL(img.src); };
-                preview.appendChild(img);
-              }
-              callback(newFile);
-            }, 0);
-            setTimeout(() => { loaderModal.hide(); }, 700);
-            return;
-          }
-          document.getElementById('compressLoaderTitle').textContent = 'جاري إدراج الوثيقة';
-          loaderModal.show();
-          try {
-            const originalName = file.name;
-            const ext = originalName.substring(originalName.lastIndexOf('.'));
-            const base = originalName.replace(ext, '');
-            let compressedFile = blob;
-            let compressedSize = blob.size;
-            let quality = 0.7;
-            let maxTries = 7;
-            let options = {
-              maxSizeMB: 0.1,
-              maxWidthOrHeight: Math.max(canvas.width, canvas.height),
-              useWebWorker: true,
-              initialQuality: quality,
-              fileType: file.type
-            };
-            for (let i = 0; i < maxTries && compressedSize > 100 * 1024; i++) {
-              compressedFile = await imageCompression(compressedFile, options);
-              compressedSize = compressedFile.size;
-              options.initialQuality = Math.max(0.1, options.initialQuality - 0.1);
+        cropper = new Cropper(imgEl, {
+          aspectRatio: NaN,
+          viewMode: 1,
+          responsive: true,
+          autoCropArea: 1,
+          movable: true,
+          zoomable: true,
+          rotatable: true,
+          scalable: true,
+          background: false,
+          guides: true,
+          center: true,
+          dragMode: 'move',
+          ready() {
+            cropperReady = true;
+            enableAllControls();
+            enableCropperControls();
+            // إصلاح cropper للجوال: إذا كانت الصورة طويلة جداً، اضبط cropBox تلقائياً
+            if (isMobile() && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
+              try {
+                const containerData = cropper.getContainerData();
+                const cropBoxWidth = Math.min(containerData.width * 0.9, imgEl.naturalWidth);
+                const cropBoxHeight = Math.min(containerData.height * 0.7, imgEl.naturalHeight);
+                cropper.setCropBoxData({
+                  width: cropBoxWidth,
+                  height: cropBoxHeight,
+                  left: (containerData.width - cropBoxWidth) / 2,
+                  top: (containerData.height - cropBoxHeight) / 2
+                });
+              } catch(e){}
             }
-            const newFile = new File([compressedFile], base + '_cropped' + ext, { type: file.type });
-            cropBtn.blur && cropBtn.blur();
-            bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-            setTimeout(() => { loaderModal.hide(); callback(newFile); }, 0);
-            setTimeout(() => { loaderModal.hide(); }, 700);
-          } catch (err) {
-            loaderModal.hide();
-            alert('حدث خطأ أثناء ضغط الصورة');
-            callback(null);
           }
-        }, file.type, 0.7);
-      };
+        });
+        imgEl.cropperInstance = cropper;
+      } else if (tryCount < maxTries) {
+        tryCount++;
+        setTimeout(tryInitCropper, 120 * tryCount);
+      }
+    }
+
+    // أعد المحاولة عدة مرات حتى يتم تحميل الصورة وتهيئة cropper (حتى 12 محاولة)
+    setTimeout(tryInitCropper, 60);
+
+    // زر القص: انتظر حتى cropper جاهز فعلياً
+    cropBtn.onclick = async function() {
+      if (!cropperReady || !cropper) {
+        // إعادة المحاولة الأخيرة للجوال إذا لم يتم التهيئة
+        if (isMobile() && tryCount < maxTries) {
+          tryInitCropper();
+          setTimeout(() => cropBtn.onclick(), 200 + 80 * tryCount);
+          return;
+        }
+        Swal.fire({ icon: 'error', title: 'خطأ', text: 'لم يتم تهيئة أداة القص بعد. يرجى الانتظار أو إعادة المحاولة.' });
+        return;
+      }
+      if (!imgEl || !imgEl.src || imgEl.naturalWidth === 0 || imgEl.naturalHeight === 0) {
+        Swal.fire({ icon: 'error', title: 'خطأ', text: 'لم يتم تحميل الصورة بشكل صحيح. يرجى إعادة المحاولة أو اختيار صورة أخرى.' });
+        return;
+      }
+      // إذا كان حجم الملف الأصلي أقل من أو يساوي 100KiB، أدرجه مباشرة بدون قص أو ضغط وبدون إظهار اللودر
+      if (file.size <= 100 * 1024) {
+        bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+        const originalName = file.name;
+        const ext = originalName.substring(originalName.lastIndexOf('.'));
+        const base = originalName.replace(ext, '');
+        const newFile = new File([file], base + '_cropped' + ext, { type: file.type });
+        // سجل الحجم بنفس تنسيق الكونسول
+        console.log('تم قص الصورة:', {
+          name: newFile.name,
+          size: newFile.size,
+          type: newFile.type
+        });
+        console.log('حجم الصورة بعد الضغط:', newFile.size, 'bytes');
+        // معالجة مشكلة عدم إضافة الملف للمصفوفة أو العرض: إعادة استدعاء callback دائماً بعد التأكد من انتهاء المودال
+        setTimeout(() => {
+          loaderModal.hide();
+          callback(newFile);
+        }, 0);
+        // تأكيد إخفاء اللودر بعد فترة قصيرة في حال لم يختفِ بسبب مشاكل في DOM
+        setTimeout(() => { loaderModal.hide(); }, 700);
+        return;
+      }
+      bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+      document.getElementById('compressLoaderTitle').textContent = 'جاري إدراج الوثيقة';
+      loaderModal.show();
+
+      const data = cropper.getData(true);
+      const canvas = cropper.getCroppedCanvas({
+        width: Math.round(data.width),
+        height: Math.round(data.height),
+        imageSmoothingQuality: 'high'
+      });
+
+      canvas.toBlob(async function(blob) {
+        // إذا كان حجم الصورة بعد القص أقل من أو يساوي 100KiB، أدرجها مباشرة بدون ضغط وبدون إظهار اللودر
+        if (blob.size <= 100 * 1024) {
+          const originalName = file.name;
+          const ext = originalName.substring(originalName.lastIndexOf('.'));
+          const base = originalName.replace(ext, '');
+          const newFile = new File([blob], base + '_cropped' + ext, { type: file.type });
+          console.log('تم قص الصورة:', {
+            name: newFile.name,
+            size: newFile.size,
+            type: newFile.type
+          });
+          console.log('حجم الصورة بعد الضغط:', newFile.size, 'bytes');
+          cropBtn.blur && cropBtn.blur();
+          bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+          setTimeout(() => {
+            loaderModal.hide();
+            callback(newFile);
+          }, 0);
+          setTimeout(() => { loaderModal.hide(); }, 700);
+          return;
+        }
+        // إذا كان الحجم أكبر من 100KiB، أظهر اللودر ثم اضغط الصورة
+        document.getElementById('compressLoaderTitle').textContent = 'جاري إدراج الوثيقة';
+        loaderModal.show();
+        try {
+          const originalName = file.name;
+          const ext = originalName.substring(originalName.lastIndexOf('.'));
+          const base = originalName.replace(ext, '');
+          let compressedFile = blob;
+          let compressedSize = blob.size;
+          let quality = 0.7;
+          let maxTries = 7;
+          let options = {
+            maxSizeMB: 0.1,
+            maxWidthOrHeight: Math.max(canvas.width, canvas.height),
+            useWebWorker: true,
+            initialQuality: quality,
+            fileType: file.type
+          };
+          for (let i = 0; i < maxTries && compressedSize > 100 * 1024; i++) {
+            compressedFile = await imageCompression(compressedFile, options);
+            compressedSize = compressedFile.size;
+            options.initialQuality = Math.max(0.1, options.initialQuality - 0.1);
+          }
+          const newFile = new File([compressedFile], base + '_cropped' + ext, { type: file.type });
+          console.log('تم قص الصورة:', {
+            name: newFile.name,
+            size: newFile.size,
+            type: newFile.type
+          });
+          console.log('حجم الصورة بعد الضغط:', newFile.size, 'bytes');
+          cropBtn.blur && cropBtn.blur();
+          bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+          setTimeout(() => {
+            loaderModal.hide();
+            callback(newFile);
+          }, 0);
+          setTimeout(() => { loaderModal.hide(); }, 700);
+        } catch (err) {
+          loaderModal.hide();
+          alert('حدث خطأ أثناء ضغط الصورة');
+          callback(null);
+        }
+      }, file.type, 0.7);
     };
   };
   reader.readAsDataURL(file);
 
+  // Show modal
   const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
   bsModal.show();
 
+  // --- إصلاح إضافي: عند إظهار المودال، أعد محاولة تهيئة cropper إذا لم يكن جاهزاً مع معالجة الصور الطويلة ---
   modalEl.addEventListener('shown.bs.modal', function onShown() {
-    if (!imgEl.cropperInstance) {
-      setTimeout(function() {
-        if (imgEl.src && !imgEl.cropperInstance) {
-          cropper = new Cropper(imgEl, {
-            aspectRatio: NaN,
-            viewMode: 1,
-            responsive: true,
-            autoCropArea: 1,
-            movable: true,
-            zoomable: true,
-            rotatable: true,
-            scalable: true,
-            background: false,
-            guides: true,
-            center: true,
-            dragMode: 'move',
-          });
-          imgEl.cropperInstance = cropper;
-          enableAllControls();
-          enableCropperControls();
+    let shownTry = 0;
+    function tryInitOnModal() {
+      if ((!imgEl.cropperInstance || !imgEl.cropperInstance.getData) && imgEl.naturalWidth > 0) {
+        if (imgEl.cropperInstance) {
+          imgEl.cropperInstance.destroy();
+          imgEl.cropperInstance = null;
         }
-      }, 100);
+        // معالجة الصور الطويلة جداً على الجوال
+        if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
+          imgEl.style.maxHeight = '70vh';
+          imgEl.style.maxWidth = '95vw';
+        } else {
+          imgEl.style.maxHeight = '';
+          imgEl.style.maxWidth = '';
+        }
+        cropper = new Cropper(imgEl, {
+          aspectRatio: NaN,
+          viewMode: 1,
+          responsive: true,
+          autoCropArea: 1,
+          movable: true,
+          zoomable: true,
+          rotatable: true,
+          scalable: true,
+          background: false,
+          guides: true,
+          center: true,
+          dragMode: 'move',
+          ready() {
+            enableAllControls();
+            enableCropperControls();
+            // إصلاح cropper للجوال: إذا كانت الصورة طويلة جداً، اضبط cropBox تلقائياً
+            if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
+              try {
+                const containerData = cropper.getContainerData();
+                const cropBoxWidth = Math.min(containerData.width * 0.9, imgEl.naturalWidth);
+                const cropBoxHeight = Math.min(containerData.height * 0.7, imgEl.naturalHeight);
+                cropper.setCropBoxData({
+                  width: cropBoxWidth,
+                  height: cropBoxHeight,
+                  left: (containerData.width - cropBoxWidth) / 2,
+                  top: (containerData.height - cropBoxHeight) / 2
+                });
+              } catch(e){}
+            }
+          }
+        });
+        imgEl.cropperInstance = cropper;
+      } else if (shownTry < 6 && imgEl.naturalWidth === 0) {
+        shownTry++;
+        setTimeout(tryInitOnModal, 120 * shownTry);
+      }
     }
+    setTimeout(tryInitOnModal, 120);
     modalEl.removeEventListener('shown.bs.modal', onShown);
   });
 
@@ -648,19 +714,7 @@ window.showCropperModal = function(file, callback) {
     modalEl.removeEventListener('hidden.bs.modal', cleanup);
   });
 };
-
-// اعتراض جميع عمليات رفع الصور في الموقع (للتصحيح فقط)
-document.addEventListener('change', function(e) {
-  const input = e.target;
-  if (input.type === 'file' && input.files && input.files.length > 0) {
-    Array.from(input.files).forEach(file => {
-      if (file.type.startsWith('image/')) {
-        console.log('جم الصورة قبل الضغط:', file.size, 'bytes');
-      }
-    });
-  }
-});
+// ...existing code...
 </script>
-
 
 
