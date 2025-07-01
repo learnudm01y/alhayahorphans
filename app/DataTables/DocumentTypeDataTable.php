@@ -22,10 +22,28 @@ class DocumentTypeDataTable extends DataTable
     public function dataTable(QueryBuilder $query): EloquentDataTable
     {
         return (new EloquentDataTable($query))
-              ->addColumn('actions', function ($row) {
+            ->addColumn('basic_enabled', function ($row) {
+                return view('admin.dashboard.category_management.partials.DocumentTypeSwitch', [
+                    'row' => $row,
+                    'portal' => 'basic'
+                ])->render();
+            })
+            ->addColumn('deceased_enabled', function ($row) {
+                return view('admin.dashboard.category_management.partials.DocumentTypeSwitch', [
+                    'row' => $row,
+                    'portal' => 'deceased'
+                ])->render();
+            })
+            ->addColumn('family_enabled', function ($row) {
+                return view('admin.dashboard.category_management.partials.DocumentTypeSwitch', [
+                    'row' => $row,
+                    'portal' => 'family'
+                ])->render();
+            })
+            ->addColumn('actions', function ($row) {
                 return view('admin.dashboard.category_management.partials.DocumentTypeActions', compact('row'))->render();
             })
-            ->rawColumns(['actions'])
+            ->rawColumns(['actions', 'basic_enabled', 'deceased_enabled', 'family_enabled'])
             ->setRowId('id');
     }
 
@@ -65,15 +83,30 @@ class DocumentTypeDataTable extends DataTable
      */
     public function getColumns(): array
     {
-            return [
+        return [
             Column::make('id')
                 ->title('الرقم')
                 ->addClass('text-center'),
             Column::make('description')
-                ->title(' انواع الوثائق ')
+                ->title('انواع الوثائق')
                 ->addClass('text-center'),
             Column::make('pref')
                 ->title('الاختصار')
+                ->addClass('text-center'),
+            Column::computed('basic_enabled')
+                ->title('البيانات الأساسية')
+                ->exportable(false)
+                ->printable(false)
+                ->addClass('text-center'),
+            Column::computed('deceased_enabled')
+                ->title('المتوفين')
+                ->exportable(false)
+                ->printable(false)
+                ->addClass('text-center'),
+            Column::computed('family_enabled')
+                ->title('أفراد الأسرة')
+                ->exportable(false)
+                ->printable(false)
                 ->addClass('text-center'),
             Column::computed('actions')
                 ->title('الإجراءات')

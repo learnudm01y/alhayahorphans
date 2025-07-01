@@ -122,6 +122,9 @@
 
 @push('scriptsCode')
     {!! $dataTable->scripts() !!}
+    <!-- toastr CSS & JS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" rel="stylesheet"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     <script>
         // Populate Edit Modal
         $('#editDocumentTypeModal').on('show.bs.modal', function (event) {
@@ -154,6 +157,62 @@
             $(".alert").delay(5000).slideUp(300, function() {
                 $(this).alert('close');
             });
+        });
+
+        // متغير لضمان عدم تكرار رسالة toastr عند التحديث الجماعي
+        let documentTypeToastrShown = false;
+
+        function bindDocumentTypeSwitches() {
+            document.querySelectorAll('.document-type-switch').forEach(function(switchEl) {
+                switchEl.onchange = null;
+                switchEl.addEventListener('change', function() {
+                    const id = this.dataset.id;
+                    const portal = this.dataset.portal;
+                    const enabled = this.checked ? 1 : 0;
+                    fetch("{{ route('admin.DocumentType_name.update', 0) }}".replace('/0', '/' + id), {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            portal: portal,
+                            enabled: enabled,
+                            _method: 'PATCH'
+                        })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            // عرض toastr مرة واحدة فقط مهما كان عدد التحديثات المتزامنة
+                            if (!documentTypeToastrShown) {
+                                toastr.success('تم تحديث حالة الوثيقة بنجاح');
+                                documentTypeToastrShown = true;
+                                setTimeout(() => { documentTypeToastrShown = false; }, 1500);
+                            }
+                            if (window.LaravelDataTables && window.LaravelDataTables['documenttype-table']) {
+                                window.LaravelDataTables['documenttype-table'].ajax.reload(function() {
+                                    bindDocumentTypeSwitches();
+                                }, false);
+                            }
+                        } else {
+                            toastr.error('فشل التحديث: ' + (data.error || 'خطأ غير معروف'));
+                        }
+                    })
+                    .catch((err) => {
+                        toastr.error('حدث خطأ أثناء الاتصال بالخادم');
+                        console.error(err);
+                    });
+                });
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            bindDocumentTypeSwitches();
+        });
+        $(document).on('draw.dt', function() {
+            bindDocumentTypeSwitches();
         });
     </script>
 @endpush

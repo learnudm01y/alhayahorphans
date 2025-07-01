@@ -91,7 +91,7 @@
                                     <div class="upload-zone" data-upload-zone="family_0">
                                         <select class="form-select mainDocumentTypeSelect" id="mainDocumentTypeSelect_0">
                                             <option value="">اختر نوع الوثيقة</option>
-                                            @foreach ($documentTypes as $documentType)
+                                            @foreach ($documentTypes->where('family_enabled', 1) as $documentType)
                                                 <option value="{{ $documentType->pref }}">
                                                     {{ $documentType->description }}</option>
                                             @endforeach

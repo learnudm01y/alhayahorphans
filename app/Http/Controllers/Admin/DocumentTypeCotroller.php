@@ -7,7 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DocumentType;
 use Exception;
 use Illuminate\Http\Request;
-use PhpParser\Comment\Doc;
+use Illuminate\Support\Facades\Log;
 
 class DocumentTypeCotroller extends Controller
 {
@@ -45,13 +45,42 @@ class DocumentTypeCotroller extends Controller
      */
     public function update(Request $request, string $id)
     {
+        $documentType = DocumentType::findOrFail($id);
+
+        // تتبع القيم القادمة من Ajax
+        Log::info('DocumentType update request', [
+            'id' => $id,
+            'portal' => $request->input('portal'),
+            'enabled' => $request->input('enabled'),
+            'all' => $request->all()
+        ]);
+
+        $portal = $request->input('portal');
+        $enabled = $request->input('enabled');
+
+        if ($portal !== null && $enabled !== null) {
+            $col = $portal . '_enabled';
+            if (in_array($col, ['basic_enabled', 'deceased_enabled', 'family_enabled'])) {
+                $documentType->$col = (int)$enabled; // استخدم int لضمان 0/1
+                $documentType->save();
+                Log::info('DocumentType updated', [
+                    'id' => $id,
+                    'col' => $col,
+                    'new_value' => $documentType->$col
+                ]);
+                return response()->json(['success' => true, 'col' => $col, 'value' => $documentType->$col]);
+            } else {
+                Log::warning('Invalid column for portal', ['portal' => $portal, 'col' => $col]);
+                return response()->json(['success' => false, 'error' => 'عمود غير صالح']);
+            }
+        }
+
         $request->validate([
             'description' => 'required|string|max:255',
             'pref' => 'required|string|max:255|unique:document_types,pref,' . $id,
         ]);
 
         try {
-            $documentType = DocumentType::findOrFail($id);
             $documentType->update([
                 'description' => $request->description,
                 'pref' => $request->pref,

@@ -46,7 +46,7 @@ class GeneralRegistrationController extends Controller
         $employment_status_breadwinner = Employment::all();
         $HousingStatus = HousingStatus::all();
         $TypeOfAccommodation = TypeOfAccommodation::all();
-        $documentTypes = DocumentType::all(); // Assuming you have a DocumentType model
+        $documentTypes = \App\Models\DocumentType::all(); // Assuming you have a DocumentType model
         $sponsorship_status = SponsorshipStatus::all();
         $guarantee_types = TypeOfGuarantee::all(); // Assuming you have a TypeOfGuarantee model
         $death_reasons = DeathReason::all(); // Assuming you have a DeathReason model

@@ -263,7 +263,7 @@
                 <label class="form-label fw-bold"> رفع الملفات <span class="text-danger">*</span></label>
                 <select class="form-select" id="mainDocumentTypeSelect">
                     <option value="">اختر نوع الوثيقة</option>
-                    @foreach ($documentTypes as $documentType)
+                    @foreach ($documentTypes->where('basic_enabled', 1) as $documentType)
                         <option value="{{ $documentType->pref }}">{{ $documentType->description }}</option>
                     @endforeach
                 </select>
