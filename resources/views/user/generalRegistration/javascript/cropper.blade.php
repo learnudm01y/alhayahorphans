@@ -414,6 +414,7 @@ window.showCropperModal = function(file, callback) {
   const loaderModalEl = document.getElementById('compressLoaderModal');
   const loaderModal = bootstrap.Modal.getOrCreateInstance(loaderModalEl);
   let cropper;
+  let cropperReady = false;
 
   function disableAllControls() {
     cropBtn.disabled = true;
@@ -436,11 +437,11 @@ window.showCropperModal = function(file, callback) {
   }
   cropBtn.onclick = null;
 
-  // تهيئة cropper بشكل موثوق للجوال والحاسوب
+  // تهيئة cropper بعد تحميل الصورة
   const reader = new FileReader();
   reader.onload = function(e) {
     imgEl.src = e.target.result;
-    let cropperReady = false;
+    cropperReady = false;
     let tryCount = 0;
     const maxTries = 15;
 
@@ -449,7 +450,6 @@ window.showCropperModal = function(file, callback) {
     }
 
     function initCropper(force = false) {
-      // معالجة الصور الطويلة جداً على الجوال: ضبط max-height للصورة مؤقتاً
       if (isMobile() && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
         imgEl.style.maxHeight = '70vh';
         imgEl.style.maxWidth = '95vw';
@@ -479,7 +479,6 @@ window.showCropperModal = function(file, callback) {
             cropperReady = true;
             enableAllControls();
             enableCropperControls();
-            // معالجة cropBox للصور الطويلة على الجوال
             if (isMobile() && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
               try {
                 const containerData = cropper.getContainerData();
@@ -508,7 +507,6 @@ window.showCropperModal = function(file, callback) {
     // زر القص: أعد تهيئة cropper إذا لم يكن جاهزاً (خاصة للجوال)
     cropBtn.onclick = async function() {
       if (!cropperReady || !cropper || !cropper.getCroppedCanvas) {
-        // إعادة المحاولة الأخيرة للجوال إذا لم يتم التهيئة
         if (isMobile() && tryCount < maxTries) {
           initCropper(true);
           setTimeout(() => cropBtn.onclick(), 350 + 80 * tryCount);
@@ -521,20 +519,20 @@ window.showCropperModal = function(file, callback) {
         Swal.fire({ icon: 'error', title: 'خطأ', text: 'لم يتم تحميل الصورة بشكل صحيح. يرجى إعادة المحاولة أو اختيار صورة أخرى.' });
         return;
       }
-      // إذا كان حجم الملف الأصلي أقل من أو يساوي 100KiB، أدرجه مباشرة بدون قص أو ضغط وبدون إظهار اللودر
-      if (file.size <= 100 * 1024) {
-        bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-        const originalName = file.name;
-        const ext = originalName.substring(originalName.lastIndexOf('.'));
-        const base = originalName.replace(ext, '');
-        const newFile = new File([file], base + '_cropped' + ext, { type: file.type });
-        setTimeout(() => {
-          loaderModal.hide();
-          callback(newFile);
-        }, 0);
-        setTimeout(() => { loaderModal.hide(); }, 700);
-        return;
-      }
+      // *** تم حذف شرط تجاوز القص للصور الصغيرة ***
+      // if (file.size <= 100 * 1024) {
+      //   bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+      //   const originalName = file.name;
+      //   const ext = originalName.substring(originalName.lastIndexOf('.'));
+      //   const base = originalName.replace(ext, '');
+      //   const newFile = new File([file], base + '_cropped' + ext, { type: file.type });
+      //   setTimeout(() => {
+      //     loaderModal.hide();
+      //     callback(newFile);
+      //   }, 0);
+      //   setTimeout(() => { loaderModal.hide(); }, 700);
+      //   return;
+      // }
       bootstrap.Modal.getOrCreateInstance(modalEl).hide();
       document.getElementById('compressLoaderTitle').textContent = 'جاري إدراج الوثيقة';
       loaderModal.show();
@@ -564,6 +562,7 @@ window.showCropperModal = function(file, callback) {
           loaderModal.hide();
           return;
         }
+        // *** تم تعديل شرط الضغط: إذا كانت الصورة صغيرة، أرسلها مباشرة بعد القص بدون ضغط ***
         if (blob.size <= 100 * 1024) {
           const originalName = file.name;
           const ext = originalName.substring(originalName.lastIndexOf('.'));
@@ -622,7 +621,7 @@ window.showCropperModal = function(file, callback) {
   const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
   bsModal.show();
 
-  // عند إظهار المودال، أعد محاولة تهيئة cropper إذا لم يكن جاهزاً مع معالجة الصور الطويلة
+  // تهيئة cropper بعد ظهور المودال (مهم للجوال)
   modalEl.addEventListener('shown.bs.modal', function onShown() {
     let shownTry = 0;
     function tryInitOnModal() {
@@ -652,6 +651,7 @@ window.showCropperModal = function(file, callback) {
           center: true,
           dragMode: 'move',
           ready() {
+            cropperReady = true;
             enableAllControls();
             enableCropperControls();
             if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
@@ -705,8 +705,6 @@ window.showCropperModal = function(file, callback) {
     modalEl.removeEventListener('hidden.bs.modal', cleanup);
   });
 };
-// ...existing code...
-
 </script>
 
 
