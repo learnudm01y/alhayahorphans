@@ -1,228 +1,371 @@
 @push('scriptsCodeUserRegistration')
-    <script>
-        // نظام موحد لجمع وتجهيز جميع المرفقات من جميع البوابات
-        // يدعم: البيانات الأساسية، الأفراد المتوفين، أفراد الأسرة
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // --- Enhanced Attachment State Engine ---
+    const allDocs = new Map();
+    window.allDocs = allDocs;
 
-        document.addEventListener('DOMContentLoaded', function() {
-            // Map لحفظ كل الملفات المرفوعة: المفتاح = معرف فريد (مثلاً: main, deceased_father, family_0 ...)
-            // والقيمة: مصفوفة من الملفات (يدعم أكثر من ملف لكل شخص)
-            const allDocs = new Map();
-            window.allDocs = allDocs; // اجعلها متاحة عالمياً
+    function generateTaskId() {
+        return 'att_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+    }
 
-            // دالة تجهيز منطقة رفع ملفات واحدة
-            function initUploadZone(zone) {
-                const personKey = zone.getAttribute('data-upload-zone');
-                const fileInput = zone.querySelector('input[type="file"]');
-                const docTypeSelect = zone.querySelector('select');
-                if (!fileInput || !docTypeSelect) return;
-                // عند اختيار ملف
-                fileInput.addEventListener('change', function(e) {
-                    if (!docTypeSelect.value) {
-                        Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يجب اختيار نوع الوثيقة أولاً قبل رفع الملف.' });
-                        fileInput.value = '';
-                        return;
-                    }
-                    let personId = '';
-                    if (personKey === 'main') {
-                        personId = document.getElementById('data_id_number')?.value || '';
-                    } else if (personKey === 'deceased_father') {
-                        personId = document.querySelector('input[name="father_id"]')?.value || '';
-                    } else if (personKey === 'deceased_mother') {
-                        personId = document.querySelector('input[name="mother_id"]')?.value || '';
-                    } else if (personKey.startsWith('family_')) {
-                        const form = zone.closest('.family-member-form');
-                        personId = form ? form.querySelector('input[name$="[person_id]"]')?.value || '' : '';
-                        if (!personId) {
-                            Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يرجى إدخال رقم هوية فرد الأسرة أولاً قبل رفع الملف.' });
-                            fileInput.value = '';
-                            return;
-                        }
-                    }
-                    if (!personId) {
-                        Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يرجى إدخال رقم الهوية أولاً قبل رفع الملف.' });
-                        fileInput.value = '';
-                        return;
-                    }
-                    Array.from(fileInput.files).forEach(file => {
-                        if (file.type && file.type.startsWith('image/')) {
-                            // إذا كان الملف صورة، استدعي كروب ثم أضف فقط المقصوص
-                            if (window.showCropperModal) {
-                                window.showCropperModal(file, function(croppedFile) {
-                                    const doc = {
-                                        file: croppedFile,
-                                        name: croppedFile.name,
-                                        type: docTypeSelect.value,
-                                        personId: personId,
-                                        file_id_number: document.getElementById('document_id')?.value || '',
-                                    };
-                                    addDocument(personKey, doc);
-                                });
-                            } else {
-                                // fallback: أضف الصورة كما هي (نادرًا)
-                                const doc = {
-                                    file: file,
-                                    name: file.name,
-                                    type: docTypeSelect.value,
-                                    personId: personId,
-                                    file_id_number: document.getElementById('document_id')?.value || '',
-                                };
-                                addDocument(personKey, doc);
-                            }
-                        } else {
-                            // ملفات غير الصور تضاف مباشرة
-                            const doc = {
-                                file: file,
-                                name: file.name,
-                                type: docTypeSelect.value,
-                                personId: personId,
-                                file_id_number: document.getElementById('document_id')?.value || '',
-                            };
-                            addDocument(personKey, doc);
-                        }
-                    });
-                    if (personKey.startsWith('family_')) {
-                        console.log('🟠 رفع ملف فرد أسرة:', { personKey, personId, zone, fileInput, docType: docTypeSelect.value, file: fileInput.files[0] });
-                    }
-                });
-                // عند تغيير نوع الوثيقة
-                docTypeSelect.addEventListener('change', function() {
-                    if (!allDocs.has(personKey)) return;
-                    allDocs.get(personKey).forEach(doc => { doc.type = docTypeSelect.value; });
-                });
+    function addAttachmentTask(personKey, file, docType, personId, fileIdNumber) {
+        const id = generateTaskId();
+        const task = {
+            id,
+            personKey,
+            originalFile: file,
+            processedFile: null,
+            docType,
+            personId,
+            fileIdNumber,
+            status: 'pending',
+            errorMessage: null,
+            timestamp: Date.now()
+        };
+        if (!allDocs.has(personKey)) allDocs.set(personKey, []);
+        allDocs.get(personKey).push(task);
+        console.log('[Attachment] Task added', task);
+        processAttachment(id);
+        renderAttachmentTasksUI(personKey);
+        return id;
+    }
+
+    function updateAttachmentTaskStatus(id, status, processedFile = null, errorMessage = null) {
+        for (let [personKey, arr] of allDocs.entries()) {
+            const task = arr.find(t => t.id === id);
+            if (task) {
+                task.status = status;
+                if (processedFile !== undefined) task.processedFile = processedFile;
+                if (errorMessage !== undefined) task.errorMessage = errorMessage;
+                task.updatedAt = Date.now();
+                console.log(`[Attachment] Task ${id} status updated:`, status, errorMessage);
+                renderAttachmentTasksUI(personKey);
+                return;
             }
+        }
+    }
 
-            // تجهيز جميع المناطق الحالية عند تحميل الصفحة
-            document.querySelectorAll('[data-upload-zone]').forEach(initUploadZone);
-
-            // مراقبة إضافة أفراد جدد ديناميكياً
-            const familyContainer = document.getElementById('familyMembersContainer');
-            if (familyContainer) {
-                const observer = new MutationObserver(function(mutations) {
-                    mutations.forEach(function(mutation) {
-                        mutation.addedNodes.forEach(function(node) {
-                            if (node.nodeType === 1 && node.querySelector && node.querySelector('[data-upload-zone]')) {
-                                node.querySelectorAll('[data-upload-zone]').forEach(initUploadZone);
-                            }
-                        });
-                    });
-                });
-                observer.observe(familyContainer, { childList: true });
+    async function processAttachment(id) {
+        let task;
+        for (let arr of allDocs.values()) {
+            task = arr.find(t => t.id === id);
+            if (task) break;
+        }
+        if (!task) return;
+        if (task.status !== 'pending') return;
+        updateAttachmentTaskStatus(id, 'processing');
+        if (task.originalFile.type && task.originalFile.type.startsWith('image/')) {
+            try {
+                const croppedFile = await showCropperModalPromise(task.originalFile, 60000);
+                if (!croppedFile) {
+                    updateAttachmentTaskStatus(id, 'failed', null, 'لم يتم قص الصورة أو حدث خطأ.');
+                } else {
+                    updateAttachmentTaskStatus(id, 'completed', croppedFile, null);
+                }
+            } catch (err) {
+                updateAttachmentTaskStatus(id, 'failed', null, err && err.message ? err.message : 'خطأ غير معروف أثناء معالجة الصورة.');
             }
+        } else {
+            updateAttachmentTaskStatus(id, 'completed', task.originalFile, null);
+        }
+    }
 
-            // دالة مساعدة لإضافة ملف لمجموعة شخص معين
-            function addDocument(personKey, doc) {
-                if (!allDocs.has(personKey)) allDocs.set(personKey, []);
-                allDocs.get(personKey).push(doc);
+    function showCropperModalPromise(file, timeoutMs = 60000) {
+        return new Promise((resolve, reject) => {
+            let finished = false;
+            let timer = setTimeout(() => {
+                if (!finished) {
+                    finished = true;
+                    reject(new Error('Timeout: لم يتم استكمال قص الصورة خلال الوقت المحدد.'));
+                }
+            }, timeoutMs);
+            if (typeof window.showCropperModal !== 'function') {
+                clearTimeout(timer);
+                return reject(new Error('Cropper غير متوفر.'));
             }
-
-            // دالة مساعدة لحذف ملف من مجموعة شخص معين
-            function removeDocument(personKey, fileName) {
-                if (!allDocs.has(personKey)) return;
-                allDocs.set(personKey, allDocs.get(personKey).filter(doc => doc.name !== fileName));
-            }
-
-            // عند حذف ملف (مثلاً زر حذف بجانب كل ملف)
-            document.querySelectorAll('[data-remove-doc-btn]').forEach(function(btn) {
-                btn.addEventListener('click', function() {
-                    const personKey = btn.getAttribute('data-person-key');
-                    const fileName = btn.getAttribute('data-file-name');
-                    removeDocument(personKey, fileName);
-                    // احذف العنصر من الواجهة إذا لزم
-                });
+            window.showCropperModal(file, function(croppedFile) {
+                if (finished) return;
+                finished = true;
+                clearTimeout(timer);
+                if (!croppedFile) return reject(new Error('لم يتم قص الصورة أو تم الإلغاء.'));
+                resolve(croppedFile);
             });
+        });
+    }
 
-            // عند إرسال النموذج الرئيسي
-            const form = document.getElementById('main_form');
-            if (form) {
-                form.addEventListener('submit', function(e) {
-                    // Debug: طباعة كل المرفقات في الكونسول قبل الإرسال
-                    console.log('🟢 جميع المرفقات المجمعة للإرسال:', Array.from(allDocs.entries()));
-                    // تحقق أولاً: لا يوجد ملف بدون نوع وثيقة
-                    let missingType = false;
-                    allDocs.forEach((docsArr, personKey) => {
-                        docsArr.forEach(doc => {
-                            if (!doc.type) missingType = true;
-                        });
-                    });
-                    if (missingType) {
-                        e.preventDefault();
-                        Swal.fire({
-                            icon: 'warning',
-                            title: 'تنبيه',
-                            text: 'يجب اختيار نوع الوثيقة لكل ملف قبل الإرسال.'
-                        });
-                        return false;
+    function removeAttachmentTask(personKey, taskId) {
+        if (!allDocs.has(personKey)) return;
+        const arr = allDocs.get(personKey);
+        const idx = arr.findIndex(t => t.id === taskId);
+        if (idx !== -1) {
+            const task = arr[idx];
+            if (task.processedFile && task.processedFile.previewUrl) {
+                try { URL.revokeObjectURL(task.processedFile.previewUrl); } catch {}
+            }
+            arr.splice(idx, 1);
+            if (arr.length === 0) allDocs.delete(personKey);
+            renderAttachmentTasksUI(personKey);
+        }
+    }
+
+    // حذف جميع المهام المرتبطة ببوابة معينة (مثلاً عند حذف فرد أسرة)
+    function removeAllAttachmentTasksForPersonKey(personKey) {
+        if (window.allDocs && window.allDocs.has(personKey)) {
+            window.allDocs.delete(personKey);
+        }
+    }
+
+    // تحديث renderAttachmentTasksUI: لا تعرض المرفقات إلا إذا كانت البوابة موجودة فعلياً في الصفحة
+    function renderAttachmentTasksUI(personKey) {
+        // تحقق أن البوابة موجودة فعلياً في الصفحة
+        let previewDiv = null;
+        if (personKey === 'main') previewDiv = document.getElementById('mainDocumentPreview');
+        else if (personKey === 'deceased_father') previewDiv = document.querySelector('[data-upload-zone="deceased_father"] .mainDocumentPreview, #mainDocumentPreview');
+        else if (personKey === 'deceased_mother') previewDiv = document.querySelector('[data-upload-zone="deceased_mother"] .mainDocumentPreview, #mainDocumentPreview');
+        else if (personKey.startsWith('family_')) previewDiv = document.querySelector(`[data-upload-zone="${personKey}"] .mainDocumentPreview, #mainDocumentPreview_${personKey.replace('family_','')}`);
+        // إذا لم توجد البوابة في الصفحة، لا تعرض شيئاً واحذف المرفقات من allDocs
+        if (!previewDiv) {
+            removeAllAttachmentTasksForPersonKey(personKey);
+            return;
+        }
+        previewDiv.innerHTML = '';
+        const arr = allDocs.get(personKey) || [];
+        arr.forEach(task => {
+            const card = document.createElement('div');
+            card.className = 'card mb-2';
+            card.style.width = '170px';
+            card.style.display = 'inline-block';
+            card.style.marginRight = '8px';
+            const cardBody = document.createElement('div');
+            cardBody.className = 'card-body p-2 text-center';
+            const docType = document.createElement('div');
+            docType.className = 'fw-bold mb-1';
+            docType.textContent = task.docType || '';
+            cardBody.appendChild(docType);
+            const docNameDiv = document.createElement('div');
+            docNameDiv.className = 'small text-muted mb-1';
+            docNameDiv.textContent = task.processedFile ? (task.processedFile.name || '') : (task.originalFile.name || '');
+            cardBody.appendChild(docNameDiv);
+            if (task.processedFile && task.processedFile.type && task.processedFile.type.startsWith('image/')) {
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(task.processedFile);
+                img.style.maxWidth = '100px';
+                img.style.maxHeight = '100px';
+                img.className = 'rounded border mb-1';
+                img.onload = function() { URL.revokeObjectURL(img.src); };
+                cardBody.appendChild(img);
+            } else if (task.originalFile && task.originalFile.type && task.originalFile.type.startsWith('image/') && !task.processedFile) {
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(task.originalFile);
+                img.style.maxWidth = '100px';
+                img.style.maxHeight = '100px';
+                img.className = 'rounded border mb-1';
+                img.onload = function() { URL.revokeObjectURL(img.src); };
+                cardBody.appendChild(img);
+            }
+            const statusDiv = document.createElement('div');
+            statusDiv.className = 'mt-1';
+            if (task.status === 'pending') {
+                statusDiv.innerHTML = '<span class="badge bg-secondary">قيد الانتظار</span>';
+            } else if (task.status === 'processing') {
+                statusDiv.innerHTML = '<span class="spinner-border spinner-border-sm text-primary"></span> <span class="text-primary">جاري المعالجة...</span>';
+            } else if (task.status === 'completed') {
+                statusDiv.innerHTML = '<span class="badge bg-success">تمت المعالجة</span>';
+            } else if (task.status === 'failed') {
+                statusDiv.innerHTML = `<span class="badge bg-danger">فشل</span><br><span class="text-danger small">${task.errorMessage || 'خطأ غير معروف'}</span>`;
+            }
+            cardBody.appendChild(statusDiv);
+            const delBtn = document.createElement('button');
+            delBtn.type = 'button';
+            delBtn.className = 'btn btn-danger btn-sm mt-2';
+            delBtn.textContent = 'حذف';
+            delBtn.onclick = function() {
+                Swal.fire({
+                    title: 'تأكيد الحذف',
+                    text: 'هل أنت متأكد أنك تريد حذف هذا المرفق؟',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'نعم، احذف',
+                    cancelButtonText: 'إلغاء'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        removeAttachmentTask(personKey, task.id);
                     }
-                    // امسح جميع حقول الملفات الأصلية من الفورم (لمنع إرسال ملفات بدون نوع)
-                    Array.from(form.querySelectorAll('input[type="file"]')).forEach(input => input.remove());
-                    // قبل الإرسال: أضف جميع الملفات من allDocs إلى النموذج
-                    let index = 0;
-                    allDocs.forEach((docsArr, personKey) => {
-                        docsArr.forEach(doc => {
-                            // Debug: طباعة تفاصيل كل ملف
-                            console.log(`🟡 إضافة ملف للإرسال:`, doc);
-                            // ملف المرفق
-                            const fileInput = document.createElement('input');
-                            fileInput.type = 'file';
-                            fileInput.name = `attachments[${index}][file]`;
-                            fileInput.style.display = 'none';
-                            const dt = new DataTransfer();
-                            dt.items.add(doc.file);
-                            fileInput.files = dt.files;
-                            form.appendChild(fileInput);
+                });
+            };
+            cardBody.appendChild(delBtn);
+            card.appendChild(cardBody);
+            previewDiv.appendChild(card);
+        });
+    }
 
-                            // رقم الهوية
-                            const personIdInput = document.createElement('input');
-                            personIdInput.type = 'hidden';
-                            personIdInput.name = `attachments[${index}][person_identity_number]`;
-                            personIdInput.value = doc.personId;
-                            form.appendChild(personIdInput);
+    function initUploadZone(zone) {
+        const personKey = zone.getAttribute('data-upload-zone');
+        const fileInput = zone.querySelector('input[type="file"]');
+        const docTypeSelect = zone.querySelector('select');
+        if (!fileInput || !docTypeSelect) return;
+        fileInput.addEventListener('change', function(e) {
+            if (!docTypeSelect.value) {
+                Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يجب اختيار نوع الوثيقة أولاً قبل رفع الملف.' });
+                fileInput.value = '';
+                return;
+            }
+            let personId = '';
+            if (personKey === 'main') {
+                personId = document.getElementById('data_id_number')?.value || '';
+            } else if (personKey === 'deceased_father') {
+                personId = document.querySelector('input[name="father_id"]')?.value || '';
+            } else if (personKey === 'deceased_mother') {
+                personId = document.querySelector('input[name="mother_id"]')?.value || '';
+            } else if (personKey.startsWith('family_')) {
+                const form = zone.closest('.family-member-form');
+                personId = form ? form.querySelector('input[name$="[person_id]"]')?.value || '' : '';
+                if (!personId) {
+                    Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يرجى إدخال رقم هوية فرد الأسرة أولاً قبل رفع الملف.' });
+                    fileInput.value = '';
+                    return;
+                }
+            }
+            if (!personId) {
+                Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يرجى إدخال رقم الهوية أولاً قبل رفع الملف.' });
+                fileInput.value = '';
+                return;
+            }
+            Array.from(fileInput.files).forEach(file => {
+                addAttachmentTask(personKey, file, docTypeSelect.value, personId, document.querySelector('input[name="file_id_number"]')?.value || '');
+            });
+        });
+        docTypeSelect.addEventListener('change', function() {
+            if (!allDocs.has(personKey)) return;
+            allDocs.get(personKey).forEach(task => { task.docType = docTypeSelect.value; });
+            renderAttachmentTasksUI(personKey);
+        });
+    }
 
-                            // اسم الملف
-                            const fileNameInput = document.createElement('input');
-                            fileNameInput.type = 'hidden';
-                            fileNameInput.name = `attachments[${index}][stored_file_name]`;
-                            fileNameInput.value = doc.name;
-                            form.appendChild(fileNameInput);
+    document.querySelectorAll('[data-upload-zone]').forEach(initUploadZone);
 
-                            // نوع الوثيقة
-                            const fileTypeInput = document.createElement('input');
-                            fileTypeInput.type = 'hidden';
-                            fileTypeInput.name = `attachments[${index}][file_type]`;
-                            fileTypeInput.value = doc.type;
-                            form.appendChild(fileTypeInput);
-
-                            // رقم الملف العام
-                            const fileIdInput = document.createElement('input');
-                            fileIdInput.type = 'hidden';
-                            fileIdInput.name = `attachments[${index}][file_id_number]`;
-                            fileIdInput.value = doc.file_id_number;
-                            form.appendChild(fileIdInput);
-
-                            index++;
-                        });
-                    });
+    // مراقبة حذف أفراد الأسرة من DOM، وحذف مرفقاتهم تلقائياً
+    const familyContainer = document.getElementById('familyMembersContainer');
+    if (familyContainer) {
+        const observer = new MutationObserver(function(mutations) {
+            // اجمع جميع personKey الحاليين في الصفحة
+            const currentKeys = Array.from(familyContainer.querySelectorAll('[data-upload-zone]'))
+                .map(zone => zone.getAttribute('data-upload-zone'));
+            // احذف أي مرفقات في allDocs لم يعد لها بوابة في الصفحة
+            if (window.allDocs) {
+                Array.from(window.allDocs.keys()).forEach(personKey => {
+                    if (personKey.startsWith('family_') && !currentKeys.includes(personKey)) {
+                        removeAllAttachmentTasksForPersonKey(personKey);
+                    }
                 });
             }
-
-            // تحديث رقم الهوية في جميع ملفات فرد الأسرة عند تغييره
-            document.querySelectorAll('.family-member-form input[name$="[person_id]"]').forEach(function(input) {
-                input.addEventListener('input', function(e) {
-                    const form = input.closest('.family-member-form');
-                    // استخراج فهرس الفرد من اسم الحقل (مثلاً: family_members[2][person_id])
-                    const match = input.name.match(/family_members\[(\d+)\]/);
-                    if (!match) return;
-                    const index = match[1];
-                    const personKey = `family_${index}`;
-                    if (window.allDocs && window.allDocs.has(personKey)) {
-                        window.allDocs.get(personKey).forEach(doc => {
-                            doc.personId = input.value;
-                        });
-                        // Debug: طباعة تحديث رقم الهوية في جميع ملفات هذا الفرد
-                        console.log('🟢 تم تحديث رقم هوية فرد الأسرة في جميع مرفقاته:', personKey, input.value, window.allDocs.get(personKey));
+            mutations.forEach(function(mutation) {
+                mutation.addedNodes.forEach(function(node) {
+                    if (node.nodeType === 1 && node.querySelector && node.querySelector('[data-upload-zone]')) {
+                        node.querySelectorAll('[data-upload-zone]').forEach(initUploadZone);
                     }
                 });
             });
         });
-    </script>
+        observer.observe(familyContainer, { childList: true, subtree: true });
+    }
+
+    // ملاحظة مهمة: إذا كان لديك إرسال AJAX (fetch) في ملف آخر مثل manageForm.blade.php،
+    // يجب أن يتم التحقق من وجود المرفقات فقط في ذلك الملف وليس هنا.
+    // إذا كان الإرسال يتم عبر AJAX، أزل أو علق التحقق من المرفقات هنا نهائياً.
+
+    const form = document.getElementById('main_form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            // علق أو احذف التحقق التالي إذا كان لديك إرسال AJAX:
+            /*
+            const validPersonKeys = new Set();
+            document.querySelectorAll('[data-upload-zone]').forEach(zone => {
+                validPersonKeys.add(zone.getAttribute('data-upload-zone'));
+            });
+            let completedCount = 0;
+            allDocs.forEach((tasksArr, personKey) => {
+                if (!validPersonKeys.has(personKey)) return;
+                tasksArr.forEach(task => {
+                    if (task.status === 'completed' && task.processedFile) completedCount++;
+                });
+            });
+            if (completedCount === 0) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'تنبيه',
+                    text: 'يرجى رفع مرفق واحد على الأقل قبل الحفظ.'
+                });
+                return false;
+            }
+            */
+            Array.from(form.querySelectorAll('input[type="file"]')).forEach(input => input.remove());
+            let index = 0;
+            allDocs.forEach((tasksArr, personKey) => {
+                tasksArr.forEach(task => {
+                    if (task.status !== 'completed' || !task.processedFile) return;
+                    const fileInput = document.createElement('input');
+                    fileInput.type = 'file';
+                    fileInput.name = `attachments[${index}][file]`;
+                    fileInput.style.display = 'none';
+                    const dt = new DataTransfer();
+                    dt.items.add(task.processedFile);
+                    fileInput.files = dt.files;
+                    form.appendChild(fileInput);
+
+                    const personIdInput = document.createElement('input');
+                    personIdInput.type = 'hidden';
+                    personIdInput.name = `attachments[${index}][person_identity_number]`;
+                    personIdInput.value = task.personId;
+                    form.appendChild(personIdInput);
+
+                    const fileNameInput = document.createElement('input');
+                    fileNameInput.type = 'hidden';
+                    fileNameInput.name = `attachments[${index}][stored_file_name]`;
+                    fileNameInput.value = task.processedFile.name;
+                    form.appendChild(fileNameInput);
+
+                    const fileTypeInput = document.createElement('input');
+                    fileTypeInput.type = 'hidden';
+                    fileTypeInput.name = `attachments[${index}][file_type]`;
+                    fileTypeInput.value = task.docType;
+                    form.appendChild(fileTypeInput);
+
+                    const fileIdInput = document.createElement('input');
+                    fileIdInput.type = 'hidden';
+                    fileIdInput.name = `attachments[${index}][file_id_number]`;
+                    fileIdInput.value = task.fileIdNumber;
+                    form.appendChild(fileIdInput);
+
+                    index++;
+                });
+            });
+
+            // ملاحظة: إذا كان لديك إرسال AJAX في ملفات أخرى (مثل manageForm.blade.php)،
+            // لا داعي لهذا التحقق هنا، لأن التحقق الفعلي يتم في manageForm.blade.php.
+            // إذا كنت تعتمد على الإرسال AJAX فقط، يمكنك تعطيل التحقق هنا نهائياً:
+            return true;
+        });
+    }
+
+    document.querySelectorAll('.family-member-form input[name$="[person_id]"]').forEach(function(input) {
+        input.addEventListener('input', function(e) {
+            const form = input.closest('.family-member-form');
+            const match = input.name.match(/family_members\[(\d+)\]/);
+            if (!match) return;
+            const index = match[1];
+            const personKey = `family_${index}`;
+            if (window.allDocs && window.allDocs.has(personKey)) {
+                window.allDocs.get(personKey).forEach(task => {
+                    task.personId = input.value;
+                });
+                renderAttachmentTasksUI(personKey);
+                console.log('🟢 تم تحديث رقم هوية فرد الأسرة في جميع مهامه:', personKey, input.value, window.allDocs.get(personKey));
+            }
+        });
+    });
+});
+</script>
 @endpush

@@ -188,31 +188,21 @@
                 let attachmentsHtml = '';
 
                 if (window.allDocs) {
-                    // ترتيب العرض: صاحب الملف، الأب، الأم، أفراد الأسرة، أخرى
-                    const order = ['main', 'deceased_father', 'deceased_mother'];
-                    // عرض مرفقات كل شخص بجانب بعضها
-                    order.concat(Array.from(window.allDocs.keys()).filter(k => !order.includes(k))).forEach(personKey => {
+                    // فقط عرض "مرفقات أخرى" (أي بوابة غير main, deceased_father, deceased_mother, family_*)
+                    Array.from(window.allDocs.keys()).forEach(personKey => {
+                        // تجاهل بوابات صاحب الملف والمتوفين وأفراد الأسرة
+                        if (
+                            personKey === 'main' ||
+                            personKey === 'deceased_father' ||
+                            personKey === 'deceased_mother' ||
+                            personKey.startsWith('family_')
+                        ) return;
                         if (!window.allDocs.has(personKey)) return;
                         const docsArr = window.allDocs.get(personKey);
                         if (!docsArr.length) return;
 
-                        // اسم الشخص للعنوان
-                        let personLabel = '';
-                        if (personKey === 'main') personLabel = 'مرفقات صاحب الملف';
-                        else if (personKey === 'deceased_father') personLabel = 'مرفقات الأب المتوفى';
-                        else if (personKey === 'deceased_mother') {
-                            // جلب اسم الأم من الحقول
-                            const motherFirstName = document.querySelector('input[name="mother_first_name"]')?.value || '';
-                            const motherLastName = document.querySelector('input[name="mother_last_name"]')?.value || '';
-                            const motherFullName = (motherFirstName + ' ' + motherLastName).trim();
-                            personLabel = `مرفقات الأم المتوفاة${motherFullName ? ' - ' + motherFullName : ''}`;
-                        }
-                        else if (personKey.startsWith('family_')) {
-                            const famIdx = parseInt(personKey.replace('family_', '')) + 1;
-                            personLabel = `مرفقات فرد الأسرة #${famIdx}`;
-                        } else {
-                            personLabel = 'مرفقات أخرى';
-                        }
+                        // تصنيف "مرفقات أخرى"
+                        let personLabel = 'مرفقات أخرى';
 
                         attachmentsHtml += `<div class="mb-3"><div class="fw-bold text-primary mb-2" style="font-size:1.08rem;">${personLabel}</div>`;
                         attachmentsHtml += `<div class="d-flex flex-wrap gap-3">`;
