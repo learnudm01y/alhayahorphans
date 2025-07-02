@@ -562,12 +562,14 @@ window.showCropperModal = function(file, callback) {
           loaderModal.hide();
           return;
         }
-        // *** تم تعديل شرط الضغط: إذا كانت الصورة صغيرة، أرسلها مباشرة بعد القص بدون ضغط ***
+        // *** توليد اسم فريد دائماً للملف المقصوص ***
+        const originalName = file.name;
+        const ext = originalName.substring(originalName.lastIndexOf('.'));
+        const base = originalName.replace(ext, '');
+        const uniqueSuffix = '_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+        // اسم فريد حتى للصور الصغيرة
         if (blob.size <= 100 * 1024) {
-          const originalName = file.name;
-          const ext = originalName.substring(originalName.lastIndexOf('.'));
-          const base = originalName.replace(ext, '');
-          const newFile = new File([blob], base + '_cropped' + ext, { type: file.type });
+          const newFile = new File([blob], base + uniqueSuffix + '_cropped' + ext, { type: file.type });
           cropBtn.blur && cropBtn.blur();
           bootstrap.Modal.getOrCreateInstance(modalEl).hide();
           setTimeout(() => {
@@ -599,7 +601,8 @@ window.showCropperModal = function(file, callback) {
             compressedSize = compressedFile.size;
             options.initialQuality = Math.max(0.1, options.initialQuality - 0.1);
           }
-          const newFile = new File([compressedFile], base + '_cropped' + ext, { type: file.type });
+          // بعد الضغط، أيضاً استخدم اسم فريد
+          const newFile = new File([compressedFile], base + uniqueSuffix + '_cropped' + ext, { type: file.type });
           cropBtn.blur && cropBtn.blur();
           bootstrap.Modal.getOrCreateInstance(modalEl).hide();
           setTimeout(() => {

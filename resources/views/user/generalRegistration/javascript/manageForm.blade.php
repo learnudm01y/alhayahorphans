@@ -1049,31 +1049,34 @@ document.addEventListener('invalid', function(e) {
                 }
             })
             .then(async response => {
-                let respData, isJson = false;
-                const contentType = response.headers.get('content-type');
-                if (contentType && contentType.indexOf('application/json') !== -1) {
-                    respData = await response.json();
-                    isJson = true;
-                } else {
-                    respData = await response.text();
+                let data;
+                try {
+                    data = await response.clone().json();
+                } catch {
+                    data = await response.text();
                 }
-                return { respData, status: response.status, isJson };
+                return { data, status: response.status };
             })
-            .then(({ respData, status, isJson }) => {
-                if ((isJson && respData.success) ||
-                    (status === 200 && typeof respData === 'string' && respData.indexOf('success') !== -1)) {
+            .then(({ data, status }) => {
+                // إذا كانت الاستجابة JSON وبها success=true
+                if (typeof data === 'object' && data && data.success) {
                     Swal.fire({ icon: 'success', title: 'تم الحفظ', text: 'تم حفظ السجل بنجاح' });
                     setTimeout(() => window.location.reload(), 1500);
-                } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'خطأ',
-                        text: (isJson && respData && respData.error) ? respData.error : 'حدث خطأ أثناء الحفظ'
-                    });
+                }
+                // إذا كانت الاستجابة نصية والكود 200، اعتبرها نجاح (حل مشكلة Laravel redirect)
+                else if (status === 200 && typeof data === 'string') {
+                    Swal.fire({ icon: 'success', title: 'تم الحفظ', text: 'تم حفظ السجل بنجاح' });
+                    setTimeout(() => window.location.reload(), 1500);
+                }
+                else {
+                    // اطبع الاستجابة في الـ console لتسهيل التشخيص
+                    console.error('استجابة غير متوقعة من السيرفر:', data);
+                    Swal.fire({ icon: 'error', title: 'خطأ', text: (data && data.error) ? data.error : 'حدث خطأ أثناء الحفظ' });
                 }
             })
             .catch(err => {
-                Swal.fire({ icon: 'error', title: 'خطأ', text: err.message || 'حدث خطأ أثناء الحفظ' });
+                console.error('خطأ أثناء الاتصال أو المعالجة:', err);
+                Swal.fire({ icon: 'error', title: 'خطأ', text: 'حدث خطأ أثناء الحفظ' });
             });
         });
     });
