@@ -14,27 +14,25 @@
                           <input type="hidden" name="re_file_id" value="{{ $file_id_number ?? '' }}">
                           <div class="col-md-3">
                               <label class="form-label">الاسم الأول <span class="text-danger">*</span></label>
-                              <input type="text" name="father_first_name" class="form-control">
+                              <input type="text" name="father_first_name" class="form-control" maxlength="30">
                           </div>
                           <div class="col-md-3">
                               <label class="form-label">الاسم الثاني <span class="text-primary"
                                       style="color:#6c757d !important;">(اختياري)</span></label>
-                              <input type="text" name="father_second_name" class="form-control">
+                              <input type="text" name="father_second_name" class="form-control" maxlength="30">
                           </div>
                           <div class="col-md-3">
                               <label class="form-label">الاسم الثالث <span class="text-primary"
                                       style="color:#6c757d !important;">(اختياري)</span></label>
-                              <input type="text" name="father_third_name" class="form-control">
+                              <input type="text" name="father_third_name" class="form-control" maxlength="30">
                           </div>
                           <div class="col-md-3">
                               <label class="form-label">اسم العائلة <span class="text-danger">*</span></label>
-                              <input type="text" name="father_last_name" class="form-control">
+                              <input type="text" name="father_last_name" class="form-control" maxlength="30">
                           </div>
                           <div class="col-md-4">
                               <label class="form-label">رقم الهوية <span class="text-danger">*</span></label>
-                              <input type="text" name="father_id" class="form-control" inputmode="numeric"
-                                  pattern="[0-9]*" maxlength="10"
-                                  oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+                              <input type="text" name="father_id" class="form-control" inputmode="numeric" minlength="9" maxlength="10" pattern="[0-9]{9,10}" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
                           </div>
                           <div class="col-md-4">
                               <label class="form-label">تاريخ الوفاة <span class="text-danger">*</span></label>
@@ -98,27 +96,25 @@
                           <input type="hidden" name="re_file_id" value="{{ $file_id_number ?? '' }}">
                           <div class="col-md-3">
                               <label class="form-label">الاسم الأول <span class="text-danger">*</span></label>
-                              <input type="text" name="mother_first_name" class="form-control">
+                              <input type="text" name="mother_first_name" class="form-control" maxlength="30">
                           </div>
                           <div class="col-md-3">
                               <label class="form-label">الاسم الثاني <span class="text-primary"
                                       style="color:#6c757d !important;">(اختياري)</span></label>
-                              <input type="text" name="mother_second_name" class="form-control">
+                              <input type="text" name="mother_second_name" class="form-control" maxlength="30">
                           </div>
                           <div class="col-md-3">
                               <label class="form-label">الاسم الثالث <span class="text-primary"
                                       style="color:#6c757d !important;">(اختياري)</span></label>
-                              <input type="text" name="mother_third_name" class="form-control">
+                              <input type="text" name="mother_third_name" class="form-control" maxlength="30">
                           </div>
                           <div class="col-md-3">
                               <label class="form-label">اسم العائلة <span class="text-danger">*</span></label>
-                              <input type="text" name="mother_last_name" class="form-control">
+                              <input type="text" name="mother_last_name" class="form-control" maxlength="30">
                           </div>
                           <div class="col-md-4">
                               <label class="form-label">رقم الهوية <span class="text-danger">*</span></label>
-                              <input type="text" name="mother_id" class="form-control" inputmode="numeric"
-                                  pattern="[0-9]*" maxlength="10"
-                                  oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+                              <input type="text" name="mother_id" class="form-control" inputmode="numeric" minlength="9" maxlength="10" pattern="[0-9]{9,10}" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
                           </div>
                           <div class="col-md-4">
                               <label class="form-label">تاريخ الوفاة <span class="text-danger">*</span></label>

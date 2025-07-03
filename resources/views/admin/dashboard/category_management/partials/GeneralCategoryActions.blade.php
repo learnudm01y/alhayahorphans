@@ -16,3 +16,7 @@
         <i class="fas fa-trash"></i>
     </button>
 </div>
+
+{{-- filepath: i:\unit test\ASO\ASO - Copy\resources\views\admin\dashboard\category_management\generalcategory.blade.php --}}
+{{-- ...existing code... --}}
+

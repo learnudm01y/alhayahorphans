@@ -216,3 +216,56 @@
         });
     </script>
 @endpush
+
+@push('scriptsCode')
+<script>
+function bindDocumentTypeRequiredRadios() {
+    document.querySelectorAll('.document-type-required-radio').forEach(function(radioEl) {
+        if (!radioEl.dataset.bound) {
+            radioEl.addEventListener('change', function() {
+                const id = this.dataset.id;
+                const is_required = this.value;
+                fetch("{{ route('admin.DocumentType_name.update', 0) }}".replace('/0', '/' + id), {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        is_required: is_required,
+                        _method: 'PATCH'
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        toastr.success('تم تحديث حالة الإلزامية بنجاح');
+                        if (window.LaravelDataTables && window.LaravelDataTables['documenttype-table']) {
+                            window.LaravelDataTables['documenttype-table'].ajax.reload(null, false);
+                        }
+                    } else {
+                        toastr.error('فشل التحديث: ' + (data.error || 'خطأ غير معروف'));
+                    }
+                })
+                .catch((err) => {
+                    toastr.error('حدث خطأ أثناء الاتصال بالخادم');
+                    console.error(err);
+                });
+            });
+            radioEl.dataset.bound = "1";
+        }
+    });
+}
+
+$(document).ready(function() {
+    bindDocumentTypeRequiredRadios();
+    if (window.LaravelDataTables && window.LaravelDataTables['documenttype-table']) {
+        window.LaravelDataTables['documenttype-table'].on('draw', function() {
+            bindDocumentTypeRequiredRadios();
+        });
+    }
+});
+</script>
+@endpush
+

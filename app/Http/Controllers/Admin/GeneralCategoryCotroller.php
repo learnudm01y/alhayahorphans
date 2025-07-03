@@ -58,4 +58,24 @@ class GeneralCategoryCotroller extends Controller
 
         return redirect()->back()->with('success', 'تم حذف  القسم بنجاح');
     }
+    /**
+     * Toggle status via AJAX.
+     */
+    public function toggleStatus(Request $request)
+    {
+        if (!$request->ajax()) {
+            return response()->json(['success' => false, 'message' => 'Invalid request'], 400);
+        }
+
+        $request->validate([
+            'id' => 'required|exists:general_category,id',
+            'status' => 'required|in:0,1'
+        ]);
+
+        $category = GeneralCategory::findOrFail($request->id);
+        $category->status = (int)$request->status;
+        $category->save();
+
+        return response()->json(['success' => true, 'status' => $category->status]);
+    }
 }

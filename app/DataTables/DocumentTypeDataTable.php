@@ -40,10 +40,15 @@ class DocumentTypeDataTable extends DataTable
                     'portal' => 'family'
                 ])->render();
             })
+            ->addColumn('is_required', function ($row) {
+                return view('admin.dashboard.category_management.partials.DocumentTypeRequiredSwitch', [
+                    'row' => $row
+                ])->render();
+            })
             ->addColumn('actions', function ($row) {
                 return view('admin.dashboard.category_management.partials.DocumentTypeActions', compact('row'))->render();
             })
-            ->rawColumns(['actions', 'basic_enabled', 'deceased_enabled', 'family_enabled'])
+            ->rawColumns(['actions', 'basic_enabled', 'deceased_enabled', 'family_enabled', 'is_required'])
             ->setRowId('id');
     }
 
@@ -105,6 +110,11 @@ class DocumentTypeDataTable extends DataTable
                 ->addClass('text-center'),
             Column::computed('family_enabled')
                 ->title('أفراد الأسرة')
+                ->exportable(false)
+                ->printable(false)
+                ->addClass('text-center'),
+            Column::computed('is_required')
+                ->title('إجباري / اختياري')
                 ->exportable(false)
                 ->printable(false)
                 ->addClass('text-center'),

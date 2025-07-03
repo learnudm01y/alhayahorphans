@@ -147,3 +147,28 @@
         });
     </script>
 @endpush
+@push('scriptsCode')
+<script>
+$(document).on('change', '.toggle-status-radio', function() {
+    var id = $(this).data('id');
+    var status = $(this).val();
+    $.ajax({
+        url: '{{ route("admin.general-category.toggle-status") }}',
+        type: 'POST',
+        data: {
+            id: id,
+            status: status,
+            _token: '{{ csrf_token() }}'
+        },
+        success: function(response) {
+            if(response.success){
+                toastr.success('تم تحديث حالة القسم بنجاح');
+            }
+        },
+        error: function() {
+            toastr.error('حدث خطأ أثناء تحديث الحالة');
+        }
+    });
+});
+</script>
+@endpush

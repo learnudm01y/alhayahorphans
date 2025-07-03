@@ -136,7 +136,8 @@
     <script src="{{ asset('admin/assets/js/custom/utilities/modals/users-search.js') }}"></script>
     <!--end::Custom Javascript-->
     <script src="{{ asset('admin/assets/plugins/custom/cropper/cropper.bundle.js') }}"></script>
-
+<link href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     <!--begin::Theme Mode Script-->
 
     <script>

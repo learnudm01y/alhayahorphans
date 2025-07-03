@@ -22,10 +22,24 @@ class GeneralCategoryDataTable extends DataTable
     public function dataTable(QueryBuilder $query): EloquentDataTable
     {
         return (new EloquentDataTable($query))
-           ->addColumn('actions', function ($row) {
+            ->addColumn('status', function ($row) {
+                $onChecked = $row->status ? 'checked' : '';
+                $offChecked = !$row->status ? 'checked' : '';
+                return '
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input toggle-status-radio" type="radio" name="status_'.$row->id.'" data-id="'.$row->id.'" value="1" '.$onChecked.'>
+                        <label class="form-check-label text-success" style="font-weight:bold;">مفعل</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input toggle-status-radio" type="radio" name="status_'.$row->id.'" data-id="'.$row->id.'" value="0" '.$offChecked.'>
+                        <label class="form-check-label text-danger" style="font-weight:bold;">معطل</label>
+                    </div>
+                ';
+            })
+            ->addColumn('actions', function ($row) {
                 return view('admin.dashboard.category_management.partials.GeneralCategoryActions', compact('row'))->render();
             })
-            ->rawColumns(['actions'])
+            ->rawColumns(['actions', 'status'])
             ->setRowId('id');
     }
 
@@ -72,6 +86,11 @@ class GeneralCategoryDataTable extends DataTable
                 ->addClass('text-center'),
             Column::make('description')
                 ->title(' اقسام الموقع الرئيسية   ')
+                ->addClass('text-center'),
+            Column::computed('status')
+                ->title('الحالة')
+                ->exportable(false)
+                ->printable(false)
                 ->addClass('text-center'),
             Column::computed('actions')
                 ->title('الإجراءات')

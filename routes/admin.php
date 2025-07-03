@@ -98,6 +98,9 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::resource('DocumentType_name', DocumentTypeCotroller::class);
     //  Employment status Management
     Route::resource('Employment_name', EmploymentCotroller::class);
+    // General Category Toggle Status (AJAX)
+    Route::post('general-category/toggle-status', [GeneralCategoryCotroller::class, 'toggleStatus'])->name('general-category.toggle-status');
+
     //   General Category Management
     Route::resource('GeneralCategory_name', GeneralCategoryCotroller::class);
     //   Health  Status Management

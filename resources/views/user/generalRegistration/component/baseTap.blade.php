@@ -2,18 +2,21 @@
     <div class="row g-3">
         <div class="col-md-4">
             <label class="form-label">القسم <span class="text-danger">*</span></label>
-            <select name="data_section_id" class="form-select">
-                <option value="">اختر القسم</option>
-                @foreach ($generalSection as $section)
-                    <option value="{{ $section->id }}">{{ $section->description }}
-                    </option>
-                @endforeach
+            <select name="data_section_id" class="form-select" readonly disabled>
+                @php
+                    $activeSection = $generalSection->firstWhere('status', 1);
+                @endphp
+                @if($activeSection)
+                    <option value="{{ $activeSection->id }}" selected>{{ $activeSection->description }}</option>
+                @else
+                    <option value="">لا يوجد قسم مفعل</option>
+                @endif
             </select>
+            <input type="hidden" name="data_section_id" value="{{ $activeSection->id ?? '' }}">
         </div>
         <div class="col-md-4">
             <label class="form-label">رقم الهوية <span class="text-danger">*</span></label>
-            <input type="text" name="data_id_number" id="data_id_number" class="form-control" inputmode="numeric"
-                pattern="[0-9]*" maxlength="10" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+            <input type="text" name="data_id_number" id="data_id_number" class="form-control" inputmode="numeric" minlength="9" maxlength="10" pattern="[0-9]{9,10}" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
         </div>
         <div class="col-md-8">
             <div class="row g-2 align-items-end">
@@ -59,19 +62,19 @@
             <div class="row g-3">
                 <div class="col-md-3">
                     <label class="form-label">الاسم الأول <span class="text-danger">*</span></label>
-                    <input type="text" name="data_first_name" class="form-control">
+                    <input type="text" name="data_first_name" class="form-control" maxlength="30">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">اسم الأب <span class="text-danger">*</span></label>
-                    <input type="text" name="data_father_name" class="form-control">
+                    <input type="text" name="data_father_name" class="form-control" maxlength="30">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">اسم الجد<span class="text-danger">*</span></label>
-                    <input type="text" name="data_grand_father_name" class="form-control">
+                    <input type="text" name="data_grand_father_name" class="form-control" maxlength="30">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">اسم العائلة<span class="text-danger">*</span></label>
-                    <input type="text" name="data_family_name" class="form-control">
+                    <input type="text" name="data_family_name" class="form-control" maxlength="30">
                 </div>
             </div>
         </div>
@@ -149,11 +152,11 @@
             <div class="row g-3">
                 <div class="col-md-3">
                     <label class="form-label">العنوان قبل النزوح <span class="text-primary">(اختياري)</span></label>
-                    <input type="text" name="data_address_before_displacement" class="form-control">
+                    <input type="text" name="data_address_before_displacement" class="form-control" maxlength="30">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">العنوان الحالي <span class="text-danger">*</span></label>
-                    <input type="text" name="data_current_address" class="form-control">
+                    <input type="text" name="data_current_address" class="form-control" maxlength="30">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">المدينة <span class="text-danger">*</span></label>
@@ -199,21 +202,21 @@
             <div class="row g-3">
                 <div class="col-md-3">
                     <label class="form-label">عدد الذكور <span class="text-primary">(اختياري)</span></label>
-                    <input type="number" name="data_number_mail" class="form-control" min="0">
+                    <input type="number" name="data_number_mail" class="form-control" min="0" max="9999" maxlength="4" oninput="if(this.value.length>4)this.value=this.value.slice(0,4);">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">عدد الإناث <span class="text-primary">(اختياري)</span></label>
-                    <input type="number" name="data_number_female" class="form-control" min="0">
+                    <input type="number" name="data_number_female" class="form-control" min="0" max="9999" maxlength="4" oninput="if(this.value.length>4)this.value=this.value.slice(0,4);">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">عدد الأفراد المصابين بأمراض مزمنة <span class="text-primary">(اختياري)</span></label>
                     <input type="number" name="data_number_of_individuals_with_chronic_diseases"
-                        class="form-control" min="0">
+                        class="form-control" min="0" max="9999" maxlength="4" oninput="if(this.value.length>4)this.value=this.value.slice(0,4);">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">عدد ذوي الاحتياجات الخاصة <span class="text-primary">(اختياري)</span></label>
                     <input type="number" name="data_number_of_people_with_special_needs" class="form-control"
-                        min="0">
+                        min="0" max="9999" maxlength="4" oninput="if(this.value.length>4)this.value=this.value.slice(0,4);">
                 </div>
             </div>
         </div>

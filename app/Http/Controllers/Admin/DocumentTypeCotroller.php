@@ -75,6 +75,13 @@ class DocumentTypeCotroller extends Controller
             }
         }
 
+        // تحديث حالة is_required عبر AJAX
+        if ($request->has('is_required')) {
+            $documentType->is_required = (int)$request->input('is_required');
+            $documentType->save();
+            return response()->json(['success' => true, 'is_required' => $documentType->is_required]);
+        }
+
         $request->validate([
             'description' => 'required|string|max:255',
             'pref' => 'required|string|max:255|unique:document_types,pref,' . $id,

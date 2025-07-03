@@ -8,12 +8,12 @@ use Illuminate\Database\Eloquent\Model;
 class GeneralCategory extends Model
 {
     use HasFactory;
-    protected $fillable = ['description'];
+    protected $fillable = ['description', 'status'];
     protected $table = 'general_category';
 
     public function data()
     {
         return $this->hasMany(Data::class, 'data_displacement_status');
     }
-    
+
 }

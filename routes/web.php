@@ -52,6 +52,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 });
 
 Route::post('/login/user', [UserLoginContoller::class, 'login'])->name('user.login');
+Route::post('admin/general-category/toggle-status', [\App\Http\Controllers\Admin\GeneralCategoryCotroller::class, 'toggleStatus'])->name('admin.general-category.toggle-status');
 
 
 

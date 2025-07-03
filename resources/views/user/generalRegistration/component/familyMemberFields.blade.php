@@ -1,27 +1,27 @@
 <input type="hidden" name="family_members[{{ $idx }}][file_id]" value="{{ $file_id_number }}">
 <div class="col-md-6">
     <label class="form-label">رقم التسجيل <span class="text-danger">*</span></label>
-    <input type="text" name="family_members[{{ $idx }}][registration_id]" class="form-control bg-secondary bg-opacity-10" readonly value="{{ $file_id_number }}">
+    <input type="text" name="family_members[{{ $idx }}][registration_id]" class="form-control bg-secondary bg-opacity-10" readonly value="{{ $file_id_number }}" maxlength="30">
 </div>
 <div class="col-md-4">
     <label class="form-label">رقم هوية اليتيم</label>
-    <input type="text" name="family_members[{{ $idx }}][person_id]" class="form-control" inputmode="numeric" pattern="[0-9]*" maxlength="10" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+    <input type="text" name="family_members[{{ $idx }}][person_id]" class="form-control" inputmode="numeric" minlength="9" maxlength="10" pattern="[0-9]{9,10}" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
 </div>
 <div class="col-md-3">
     <label class="form-label">الاسم الأول <span class="text-danger">*</span></label>
-    <input type="text" name="family_members[{{ $idx }}][first_name]" class="form-control">
+    <input type="text" name="family_members[{{ $idx }}][first_name]" class="form-control" maxlength="30">
 </div>
 <div class="col-md-3">
     <label class="form-label">الاسم الثاني <span class="text-primary" style="color:#6c757d !important;">(اختياري)</span></label>
-    <input type="text" name="family_members[{{ $idx }}][second_name]" class="form-control">
+    <input type="text" name="family_members[{{ $idx }}][second_name]" class="form-control" maxlength="30">
 </div>
 <div class="col-md-3">
     <label class="form-label">الاسم الثالث <span class="text-primary" style="color:#6c757d !important;">(اختياري)</span></label>
-    <input type="text" name="family_members[{{ $idx }}][third_name]" class="form-control">
+    <input type="text" name="family_members[{{ $idx }}][third_name]" class="form-control" maxlength="30">
 </div>
 <div class="col-md-3">
     <label class="form-label">اسم العائلة <span class="text-danger">*</span></label>
-    <input type="text" name="family_members[{{ $idx }}][last_name]" class="form-control">
+    <input type="text" name="family_members[{{ $idx }}][last_name]" class="form-control" maxlength="30">
 </div>
 <div class="col-md-4">
     <label class="form-label">تاريخ الميلاد <span class="text-danger">*</span></label>
