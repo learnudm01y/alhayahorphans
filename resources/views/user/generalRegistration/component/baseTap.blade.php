@@ -267,15 +267,15 @@
             <!-- منطقة رفع الملفات للبيانات الأساسية -->
             <div data-upload-zone="main" data-person-id="{{ $data_id_number ?? '' }}">
                 <label class="form-label fw-bold"> رفع الملفات <span class="text-danger">*</span></label>
-                <select class="form-select" id="mainDocumentTypeSelect">
+                <select class="form-select mainDocumentTypeSelect" id="mainDocumentTypeSelect_main">
                     <option value="">اختر نوع الوثيقة</option>
                     @foreach ($documentTypes->where('basic_enabled', 1) as $documentType)
                         <option value="{{ $documentType->pref }}">{{ $documentType->description }}</option>
                     @endforeach
                 </select>
-                <input type="file" id="mainDocumentFileInput" accept="image/*,.pdf" style="display:none;">
-                <div id="mainDocumentPreview" class="mt-2"></div>
-                <div id="mainDocumentNames" class="mt-2"></div>
+                <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_main" accept="image/*,.pdf" style="display:none;">
+                <div class="mainDocumentPreview" id="mainDocumentPreview_main"></div>
+                <div class="mainDocumentNames" id="mainDocumentNames_main"></div>
             </div>
         </div>
     </div>

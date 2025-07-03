@@ -8,103 +8,13 @@
 
                     </div>
                     <div id="familyMembersContainer">
-                        <!-- نموذج إضافة فرد (مخفي كقالب) -->
-                        <div class="family-member-form border rounded p-3 mb-3 d-none" data-member-index="0" id="familyMemberTemplate">
+                        <!-- نموذج إضافة فرد (مخفي كقالب فقط) -->
+                        <div class="family-member-form border rounded p-3 mb-3 d-none" data-member-index="template" id="familyMemberTemplate" data-upload-zone="template">
                             <div class="row g-3">
-                                <input type="hidden" name="family_members[0][file_id]"
-                                    value="{{ $file_id_number ?? '' }}">
-                                <div class="col-md-6">
-                                    <label class="form-label">رقم التسجيل <span class="text-danger">*</span></label>
-                                    <input type="text" name="family_members[0][registration_id]"
-                                        class="form-control bg-secondary bg-opacity-10" readonly
-                                        value="{{ $file_id_number ?? '' }}">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">رقم هوية اليتيم</label>
-                                    <input type="text" name="family_members[0][person_id]" class="form-control"
-                                        inputmode="numeric" pattern="[0-9]*" maxlength="10"
-                                        oninput="this.value = this.value.replace(/[^0-9]/g, '');">
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">الاسم الأول <span class="text-danger">*</span></label>
-                                    <input type="text" name="family_members[0][first_name]" class="form-control">
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">الاسم الثاني <span class="text-primary"
-                                            style="color:#6c757d !important;">(اختياري)</span>
-                                    </label>
-                                    <input type="text" name="family_members[0][second_name]" class="form-control">
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">الاسم الثالث <span class="text-primary"
-                                            style="color:#6c757d !important;">(اختياري)</span>
-                                    </label>
-                                    <input type="text" name="family_members[0][third_name]" class="form-control">
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">اسم العائلة <span class="text-danger">*</span></label>
-                                    <input type="text" name="family_members[0][last_name]" class="form-control">
-                                </div>
-
-                                <div class="col-md-4">
-                                    <label class="form-label">تاريخ الميلاد <span class="text-danger">*</span></label>
-                                    <input type="date" name="family_members[0][person_birth_date]"
-                                        class="form-control">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">العمر</label>
-                                    <input type="number" name="family_members[0][person_age]" class="form-control"
-                                        readonly>
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">الجنس <span class="text-danger">*</span></label>
-                                    <select name="family_members[0][person_gender]" class="form-select">
-                                        <option value="">اختر الجنس</option>
-                                        <option value="1">ذكر</option>
-                                        <option value="2">أنثى</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">الحالة الصحية</label>
-                                    <select name="family_members[0][person_health_status]" class="form-select">
-                                        <option value="">اختر الحالة</option>
-                                        @foreach ($health_status as $status)
-                                            <option value="{{ $status->id }}">
-                                                {{ $status->description }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label fw-bold text-primary">ملاحظة <span class="text-primary"
-                                            style="color:#6c757d !important;">(اختياري)</span></label>
-                                    <textarea name="family_members[0][person_note]" cols="30" rows="4"
-                                        class="form-control rounded shadow-sm border-primary bg-light" placeholder="أدخل ملاحظتك هنا..."
-                                        style="resize: vertical; min-height: 80px;"></textarea>
-                                </div>
-                                <div class="col-md-4 mt-3">
-                                    <!-- ملاحظة توضيحية لرفع الملفات -->
-                                    <div class="alert alert-primary py-2 mb-2" style="font-size: 0.97rem;">
-                                        يرجى اختيار نوع الوثيقة أولاً، وسوف يتم تحويلك لرفع الصورة المطلوبة.
-                                    </div>
-                                    <label class="form-label fw-bold"> رفع الملفات <span
-                                            class="text-danger">*</span></label>
-                                    <div class="upload-zone" data-upload-zone="family_0">
-                                        <select class="form-select mainDocumentTypeSelect" id="mainDocumentTypeSelect_0">
-                                            <option value="">اختر نوع الوثيقة</option>
-                                            @foreach ($documentTypes->where('family_enabled', 1) as $documentType)
-                                                <option value="{{ $documentType->pref }}">
-                                                    {{ $documentType->description }}</option>
-                                            @endforeach
-                                        </select>
-                                        <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_0"
-                                            accept="image/*,.pdf"
-                                            style="display:none !important; visibility:hidden !important; width:0; height:0; pointer-events:none; opacity:0; position:absolute; left:-9999px;">
-                                        <div class="mainDocumentPreview mt-2" id="mainDocumentPreview_0"></div>
-                                        <div class="mainDocumentNames mt-2" id="mainDocumentNames_0"></div>
-                                    </div>
-                                </div>
+                                @include('user.generalRegistration.component.familyMemberFields', ['idx' => 'template', 'file_id_number' => $file_id_number ?? '', 'health_status' => $health_status, 'documentTypes' => $documentTypes])
                             </div>
                         </div>
+
                     </div>
                     <button type="button" class="btn btn-primary" id="addFamilyMember">
                         <i class="fas fa-plus me-2"></i>إضافة فرد
@@ -318,6 +228,13 @@
 @push('scriptsCodeUserRegistration')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // عند تحميل الصفحة، تأكد من تعريف window.allDocs وتهيئة النموذج الأول فقط، ثم فعّل reindexFamilyMembers لمرة واحدة
+    setTimeout(function() {
+        if (typeof window.allDocs !== 'object' || !window.allDocs) {
+            window.allDocs = {};
+        }
+        // لا تهيئ window.allDocs['family_0'] هنا إطلاقًا، فقط عند إضافة النماذج
+    }, 0);
     // عند أول إضافة، انسخ النموذج المخفي وأظهره
     function addFamilyMember() {
         const container = document.getElementById('familyMembersContainer');
@@ -328,21 +245,51 @@ document.addEventListener('DOMContentLoaded', function() {
         clone.classList.remove('d-none');
         clone.removeAttribute('id');
         clone.setAttribute('data-member-index', newIndex);
+
+        // تحديث أسماء الحقول والفهارس لكل عنصر يحمل name
         clone.querySelectorAll('[name]').forEach(function(input) {
-            input.name = input.name.replace(/\[\d+\]/, `[${newIndex}]`);
+            // تحديث كل الفهارس لأي حقل باسم family_members[رقم] في الاسم كله
+            input.name = input.name.replace(/family_members\[\d+\]/g, `family_members[${newIndex}]`);
             if (input.name.endsWith('[file_id]')) {
-                input.value = template.querySelector('[name$="[file_id]"]').value;
+                let fileIdInput = template.querySelector('[name$="[file_id]"]');
+                if (fileIdInput) input.value = fileIdInput.value;
             } else if (input.name.endsWith('[registration_id]')) {
-                input.value = template.querySelector('[name$="[registration_id]"]').value;
-                input.readOnly = true;
-                input.classList.add('bg-secondary', 'bg-opacity-10');
+                let regIdInput = template.querySelector('[name$="[registration_id]"]');
+                if (regIdInput) {
+                    input.value = regIdInput.value;
+                    input.readOnly = true;
+                    input.classList.add('bg-secondary', 'bg-opacity-10');
+                }
             } else if (input.type === 'text' || input.type === 'number' || input.type === 'date') {
                 input.value = '';
             } else if (input.tagName === 'SELECT') {
                 input.selectedIndex = 0;
             }
         });
+
+        // تحديث data-upload-zone
+        const uploadZone = clone.querySelector('[data-upload-zone]');
+        if (uploadZone) {
+            uploadZone.setAttribute('data-upload-zone', `family_${newIndex}`);
+        }
+        // تحديث id العناصر الخاصة بالملفات والمعاينة
+        const docType = clone.querySelector('.mainDocumentTypeSelect');
+        if (docType) docType.id = `mainDocumentTypeSelect_${newIndex}`;
+        const fileInput = clone.querySelector('.mainDocumentFileInput');
+        if (fileInput) fileInput.id = `mainDocumentFileInput_${newIndex}`;
+        const preview = clone.querySelector('.mainDocumentPreview');
+        if (preview) preview.id = `mainDocumentPreview_${newIndex}`;
+        const names = clone.querySelector('.mainDocumentNames');
+        if (names) names.id = `mainDocumentNames_${newIndex}`;
+
+        // مسح معاينة المرفقات وأسماء الملفات
         clone.querySelectorAll('.mainDocumentPreview, .mainDocumentNames').forEach(div => div.innerHTML = '');
+
+        // إعادة تهيئة window.allDocs لهذا النموذج فقط
+        if (window.allDocs && typeof window.allDocs === 'object') {
+            window.allDocs[`family_${newIndex}`] = [];
+        }
+
         // إضافة card-header وزر حذف
         let cardHeader = clone.querySelector('.card-header');
         if (!cardHeader) {
@@ -384,20 +331,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     clone.style.transform = 'scale(0.9)';
                     setTimeout(() => {
                         clone.remove();
+                        reindexFamilyMembers();
                     }, 300);
                 }
             });
         };
         container.appendChild(clone);
+
+        // طباعة معلومات النموذج الجديد في الـ console
+        const uploadZoneKey = clone.querySelector('[data-upload-zone]')?.getAttribute('data-upload-zone') || 'N/A';
+        const fieldNames = Array.from(clone.querySelectorAll('[name]')).map(i => i.name);
+        console.log(`تم توليد نموذج ${newIndex}: data-upload-zone = ${uploadZoneKey}, أسماء الحقول:`, fieldNames);
+
+        // بعد الإضافة، فعّل إعادة الفهرسة مباشرة
         reindexFamilyMembers();
-        // إعادة ربط حدث حساب العمر على جميع حقول تاريخ الميلاد
-        setTimeout(function() {
-            document.querySelectorAll('.family-member-form:not(.d-none) input[name$="[person_birth_date]"]').forEach(function(input) {
-                input.oninput = function() {
-                    window.calculateAge(this);
-                };
-            });
-        }, 100);
     }
     // ربط الزر بالدالة
     const addFamilyMemberBtn = document.getElementById('addFamilyMember');
@@ -434,9 +381,11 @@ document.addEventListener('DOMContentLoaded', function() {
             const names = form.querySelector('.mainDocumentNames');
             if (names) names.id = `mainDocumentNames_${idx}`;
         });
-        // Debug: طباعة أسماء الحقول بعد كل إعادة فهرسة
+        // Debug: طباعة أسماء الحقول ومفتاح data-upload-zone بعد كل إعادة فهرسة
         forms.forEach(function(form, idx) {
-            console.log(`نموذج ${idx}:`, Array.from(form.querySelectorAll('[name]')).map(i => i.name));
+            const uploadZone = form.querySelector('[data-upload-zone]');
+            const zoneKey = uploadZone ? uploadZone.getAttribute('data-upload-zone') : 'N/A';
+            console.log(`نموذج ${idx}: data-upload-zone = ${zoneKey}, أسماء الحقول:`, Array.from(form.querySelectorAll('[name]')).map(i => i.name));
         });
         // إعادة ربط حدث حساب العمر على جميع حقول تاريخ الميلاد بعد كل إعادة فهرسة
         setTimeout(function() {
@@ -446,15 +395,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 };
             });
         }, 100);
+        // إعادة تفعيل أحداث رفع المرفقات لكل نموذج ظاهر بعد كل إعادة فهرسة
+        setTimeout(function() {
+            if (typeof window.setupDocumentUploadHandlersForMember === 'function') {
+                document.querySelectorAll('.family-member-form:not(.d-none)').forEach(function(form, idx) {
+                    window.setupDocumentUploadHandlersForMember(form, idx);
+                });
+            }
+        }, 150);
     }
-    // استدعاء الدالة بعد إضافة فرد جديد
-    if (window.addFamilyMember) {
-        const originalAdd = window.addFamilyMember;
-        window.addFamilyMember = function() {
-            originalAdd();
-            reindexFamilyMembers();
-        };
-    }
+    // لا يتم توليد أي نموذج تلقائيًا عند التحميل، فقط عند الضغط على زر إضافة فرد
     // استدعاء الدالة بعد حذف فرد (زر الحذف)
     document.addEventListener('click', function(e) {
         if (e.target.closest('.delete-member')) {

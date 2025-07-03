@@ -11,23 +11,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function addAttachmentTask(personKey, file, docType, personId, fileIdNumber) {
         const id = generateTaskId();
+        const isImage = file.type && file.type.startsWith('image/');
+        // تأكد من تمرير docType الصحيح (pref)
         const task = {
             id,
             personKey,
             originalFile: file,
-            processedFile: null,
-            docType,
+            processedFile: isImage ? null : file,
+            docType: docType,
             personId,
             fileIdNumber,
-            status: 'pending',
+            status: isImage ? 'pending' : 'completed',
             errorMessage: null,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            timer: null
         };
         if (!allDocs.has(personKey)) allDocs.set(personKey, []);
         allDocs.get(personKey).push(task);
-        console.log('[Attachment] Task added', task);
+        // عرض حي لكل عملية إضافة
+        console.log('🟡 إضافة مرفق:', task);
         processAttachment(id);
         renderAttachmentTasksUI(personKey);
+        // عرض حي لجميع المرفقات بعد كل إضافة
+        console.log('🟢 جميع المرفقات الحالية:', Array.from(window.allDocs.entries()));
         return id;
     }
 
@@ -56,14 +62,20 @@ document.addEventListener('DOMContentLoaded', function() {
         if (task.status !== 'pending') return;
         updateAttachmentTaskStatus(id, 'processing');
         if (task.originalFile.type && task.originalFile.type.startsWith('image/')) {
+            // اربط timeout خاص بهذه المهمة
+            task.timer = setTimeout(() => {
+                updateAttachmentTaskStatus(id, 'failed', null, 'انتهى الوقت لهذه الصورة.');
+            }, 300000); // 5 دقائق
             try {
-                const croppedFile = await showCropperModalPromise(task.originalFile, 60000);
+                const croppedFile = await showCropperModalPromise(task.originalFile, 300000);
+                clearTimeout(task.timer); // ألغِ المؤقت عند النجاح
                 if (!croppedFile) {
                     updateAttachmentTaskStatus(id, 'failed', null, 'لم يتم قص الصورة أو حدث خطأ.');
                 } else {
                     updateAttachmentTaskStatus(id, 'completed', croppedFile, null);
                 }
             } catch (err) {
+                clearTimeout(task.timer); // ألغِ المؤقت عند الفشل
                 updateAttachmentTaskStatus(id, 'failed', null, err && err.message ? err.message : 'خطأ غير معروف أثناء معالجة الصورة.');
             }
         } else {
@@ -71,7 +83,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function showCropperModalPromise(file, timeoutMs = 60000) {
+    function showCropperModalPromise(file, timeoutMs = 300000) {
         return new Promise((resolve, reject) => {
             let finished = false;
             let timer = setTimeout(() => {
@@ -120,10 +132,11 @@ document.addEventListener('DOMContentLoaded', function() {
     function renderAttachmentTasksUI(personKey) {
         // تحقق أن البوابة موجودة فعلياً في الصفحة
         let previewDiv = null;
-        if (personKey === 'main') previewDiv = document.getElementById('mainDocumentPreview');
-        else if (personKey === 'deceased_father') previewDiv = document.querySelector('[data-upload-zone="deceased_father"] .mainDocumentPreview, #mainDocumentPreview');
-        else if (personKey === 'deceased_mother') previewDiv = document.querySelector('[data-upload-zone="deceased_mother"] .mainDocumentPreview, #mainDocumentPreview');
-        else if (personKey.startsWith('family_')) previewDiv = document.querySelector(`[data-upload-zone="${personKey}"] .mainDocumentPreview, #mainDocumentPreview_${personKey.replace('family_','')}`);
+        // استخدم دومًا الفئة مع data-upload-zone
+        const zone = document.querySelector(`[data-upload-zone="${personKey}"]`);
+        if (zone) {
+            previewDiv = zone.querySelector('.mainDocumentPreview');
+        }
         // إذا لم توجد البوابة في الصفحة، لا تعرض شيئاً واحذف المرفقات من allDocs
         if (!previewDiv) {
             removeAllAttachmentTasksForPersonKey(personKey);
@@ -134,6 +147,7 @@ document.addEventListener('DOMContentLoaded', function() {
         arr.forEach(task => {
             const card = document.createElement('div');
             card.className = 'card mb-2';
+            card.id = 'preview_att_' + task.id; // معرف فريد لكل بطاقة
             card.style.width = '170px';
             card.style.display = 'inline-block';
             card.style.marginRight = '8px';
@@ -198,6 +212,20 @@ document.addEventListener('DOMContentLoaded', function() {
             card.appendChild(cardBody);
             previewDiv.appendChild(card);
         });
+
+        // إخفاء جميع عناصر input[type="file"] الخاصة بالرفع
+        setTimeout(() => {
+            document.querySelectorAll('[data-upload-zone] input[type="file"]').forEach(input => {
+                input.style.display = 'none';
+                input.style.visibility = 'hidden';
+                input.style.width = '0';
+                input.style.height = '0';
+                input.style.pointerEvents = 'none';
+                input.style.opacity = '0';
+                input.style.position = 'absolute';
+                input.style.left = '-9999px';
+            });
+        }, 0);
     }
 
     function initUploadZone(zone) {
@@ -205,8 +233,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const fileInput = zone.querySelector('input[type="file"]');
         const docTypeSelect = zone.querySelector('select');
         if (!fileInput || !docTypeSelect) return;
+        // دعم رفع ملفات متعددة
+        fileInput.setAttribute('multiple', 'multiple');
         fileInput.addEventListener('change', function(e) {
-            if (!docTypeSelect.value) {
+            console.log('🟠 محاولة رفع ملف، قيمة نوع الوثيقة (docTypeSelect.value):', docTypeSelect.value);
+            if (!docTypeSelect.value || docTypeSelect.value === 'undefined') {
                 Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يجب اختيار نوع الوثيقة أولاً قبل رفع الملف.' });
                 fileInput.value = '';
                 return;
@@ -232,13 +263,28 @@ document.addEventListener('DOMContentLoaded', function() {
                 fileInput.value = '';
                 return;
             }
+            // دعم رفع ملفات متعددة بشكل تراكمي
+            let docsArr = window.allDocs.get(personKey) || [];
+            const docTypeValue = docTypeSelect.value;
             Array.from(fileInput.files).forEach(file => {
-                addAttachmentTask(personKey, file, docTypeSelect.value, personId, document.querySelector('input[name="file_id_number"]')?.value || '');
+                // تأكد من تمرير نوع الوثيقة الصحيح
+                console.log('🟢 رفع ملف جديد:', file.name, 'نوع الوثيقة (pref):', docTypeValue);
+                addAttachmentTask(personKey, file, docTypeValue, personId, document.querySelector('input[name="file_id_number"]')?.value || '');
             });
+            // لا تستبدل docsArr بل أضف إليها فقط
+            // إعادة تعيين قيمة input حتى يمكن رفع نفس الملف مرة أخرى إذا لزم الأمر
+            fileInput.value = '';
         });
+        // لا تعيد تعيين select إلا بعد رفع الملفات فعليًا (يمكنك التعليق على السطر التالي إذا أردت إبقاء الاختيار)
+        // docTypeSelect.value = '';
         docTypeSelect.addEventListener('change', function() {
             if (!allDocs.has(personKey)) return;
-            allDocs.get(personKey).forEach(task => { task.docType = docTypeSelect.value; });
+            // تحديث نوع الوثيقة فقط للمهام التي لم تكتمل بعد (pending/processing)
+            allDocs.get(personKey).forEach(task => {
+                if (task.status === 'pending' || task.status === 'processing') {
+                    task.docType = docTypeSelect.value;
+                }
+            });
             renderAttachmentTasksUI(personKey);
         });
     }
@@ -278,29 +324,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const form = document.getElementById('main_form');
     if (form) {
         form.addEventListener('submit', function(e) {
-            // علق أو احذف التحقق التالي إذا كان لديك إرسال AJAX:
-            /*
-            const validPersonKeys = new Set();
-            document.querySelectorAll('[data-upload-zone]').forEach(zone => {
-                validPersonKeys.add(zone.getAttribute('data-upload-zone'));
-            });
-            let completedCount = 0;
-            allDocs.forEach((tasksArr, personKey) => {
-                if (!validPersonKeys.has(personKey)) return;
-                tasksArr.forEach(task => {
-                    if (task.status === 'completed' && task.processedFile) completedCount++;
-                });
-            });
-            if (completedCount === 0) {
-                e.preventDefault();
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'تنبيه',
-                    text: 'يرجى رفع مرفق واحد على الأقل قبل الحفظ.'
-                });
-                return false;
-            }
-            */
+            // إلغاء التحقق من وجود مرفق واحد على الأقل نهائياً
+            // return true;
             Array.from(form.querySelectorAll('input[type="file"]')).forEach(input => input.remove());
             let index = 0;
             allDocs.forEach((tasksArr, personKey) => {
@@ -342,10 +367,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     index++;
                 });
             });
-
-            // ملاحظة: إذا كان لديك إرسال AJAX في ملفات أخرى (مثل manageForm.blade.php)،
-            // لا داعي لهذا التحقق هنا، لأن التحقق الفعلي يتم في manageForm.blade.php.
-            // إذا كنت تعتمد على الإرسال AJAX فقط، يمكنك تعطيل التحقق هنا نهائياً:
+            // لا تظهر أي رسالة تحقق هنا
             return true;
         });
     }

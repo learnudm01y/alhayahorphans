@@ -276,12 +276,31 @@ class GeneralRegistrationController extends Controller
 
             // معالجة المرفقات الجديدة كمصفوفة Laravel
             $attachmentsData = $request->input('attachments', []);
-            Log::info('🟢 عدد المرفقات المستلمة من جميع البوابات:', ['count' => count($attachmentsData), 'attachments' => $attachmentsData, 'family_members' => $request->input('family_members', [])]);
+            $allFiles = $request->allFiles();
+            Log::info('🟢 عدد المرفقات المستلمة من جميع البوابات:', [
+                'count' => count($attachmentsData),
+                'attachments' => $attachmentsData,
+                'family_members' => $request->input('family_members', []),
+                'all_files_keys' => array_keys($allFiles),
+                'all_files_debug' => array_map(function($f){
+                    if (is_array($f)) return array_map(function($ff){ return is_object($ff) && method_exists($ff, 'getClientOriginalName') ? $ff->getClientOriginalName() : 'NOT_FILE_OBJECT'; }, $f);
+                    return is_object($f) && method_exists($f, 'getClientOriginalName') ? $f->getClientOriginalName() : 'NOT_FILE_OBJECT';
+                }, $allFiles)
+            ]);
             foreach ($attachmentsData as $index => $data) {
                 // استقبال الملف بشكل صحيح
                 $file = $request->hasFile("attachments.$index.file") ? $request->file("attachments.$index.file") : null;
                 if (!$file) {
-                    Log::error('🔴 لم يتم استقبال الملف من الواجهة', ['index' => $index, 'data' => $data, 'all_files' => $request->allFiles()]);
+                    Log::error('🔴 لم يتم استقبال الملف من الواجهة', [
+                        'index' => $index,
+                        'data' => $data,
+                        'all_files' => $request->allFiles(),
+                        'all_files_keys' => array_keys($allFiles),
+                        'all_files_debug' => array_map(function($f){
+                            if (is_array($f)) return array_map(function($ff){ return $ff->getClientOriginalName(); }, $f);
+                            return $f->getClientOriginalName();
+                        }, $allFiles)
+                    ]);
                     continue;
                 }
                 Log::info('📸 اسم الملف المستلم: ' . $file->getClientOriginalName() . ' | الحجم: ' . $file->getSize());
@@ -333,6 +352,7 @@ class GeneralRegistrationController extends Controller
                 }
                 if ($file && $realPersonId && $fileType && $fileIdNumberAttach && $storedFileName && preg_match('/^\d+$/', $realPersonId)) {
                     $extension = $file->getClientOriginalExtension();
+                    // اسم الملف: نوع الوثيقة _ رقم الملف الخاص بالشخص _ رقم هوية الشخص
                     $newFileName = "{$fileType}_{$fileIdNumberAttach}_{$realPersonId}.{$extension}";
                     $folder = 'uploads/' . $fileIdNumberAttach;
                     if ($folder === 'public' || $folder === 'public/') {
@@ -345,7 +365,7 @@ class GeneralRegistrationController extends Controller
                         'file_path' => 'storage/' . $path,
                         'file_type' => $fileType,
                     ]);
-                    Log::info('🟢 تم تخزين مرفق بنجاح', ['index' => $index, 'file' => $file, 'data' => $data]);
+                    Log::info('🟢 تم تخزين مرفق بنجاح', ['index' => $index, 'file' => $file, 'data' => $data, 'newFileName' => $newFileName]);
                 } else {
                     Log::error('🔴 تجاهل مرفق بسبب شرط تحقق نهائي', ['index' => $index, 'file' => $file, 'data' => $data]);
                 }

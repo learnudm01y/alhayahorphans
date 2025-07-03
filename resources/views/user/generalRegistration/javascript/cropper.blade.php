@@ -466,13 +466,13 @@ window.showCropperModal = function(file, callback) {
     modalEl.removeEventListener('hidden.bs.modal', cleanupListener);
   });
 
-  // timeout صارم (60 ثانية)
+  // timeout صارم (5 دقائق)
   timeoutTimer = setTimeout(() => {
     cleanup();
     loaderModal.hide();
-    Swal.fire({ icon: 'error', title: 'انتهى الوقت', text: 'لم يتم استكمال قص الصورة خلال الوقت المحدد.' });
+    Swal.fire({ icon: 'error', title: 'انتهى الوقت', text: 'لم يتم استكمال قص الصورة خلال الوقت المحدد (5 دقائق).' });
     callback(null);
-  }, 60000);
+  }, 300000);
 
   // تحميل الصورة (مع تحرير objectURL)
   const reader = new FileReader();
@@ -537,92 +537,115 @@ window.showCropperModal = function(file, callback) {
     }
     setTimeout(initCropper, 60);
 
-    cropBtn.onclick = async function() {
-      bootstrap.Modal.getOrCreateInstance(modalEl).hide();
-      if (!cropperReady || !cropper || !cropper.getCroppedCanvas) {
-        if (isMobileChrome() && tryCount < maxTries) {
-          initCropper(true);
-          setTimeout(() => cropBtn.onclick(), 350 + 80 * tryCount);
+      cropBtn.onclick = async function() {
+        bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+        if (!cropperReady || !cropper || !cropper.getCroppedCanvas) {
+          if (isMobileChrome() && tryCount < maxTries) {
+            initCropper(true);
+            setTimeout(() => cropBtn.onclick(), 350 + 80 * tryCount);
+            return;
+          }
+          Swal.fire({ icon: 'error', title: 'خطأ', text: 'لم يتم تهيئة أداة القص بعد. يرجى الانتظار أو إعادة المحاولة.' });
+          cleanup();
+          callback(null);
           return;
         }
-        Swal.fire({ icon: 'error', title: 'خطأ', text: 'لم يتم تهيئة أداة القص بعد. يرجى الانتظار أو إعادة المحاولة.' });
-        cleanup();
-        callback(null);
-        return;
-      }
-      if (!imgEl || !imgEl.src || imgEl.naturalWidth === 0 || imgEl.naturalHeight === 0) {
-        Swal.fire({ icon: 'error', title: 'خطأ', text: 'لم يتم تحميل الصورة بشكل صحيح. يرجى إعادة المحاولة أو اختيار صورة أخرى.' });
-        cleanup();
-        callback(null);
-        return;
-      }
-      const data = cropper.getData(true);
-      let canvas;
-      try {
-        canvas = cropper.getCroppedCanvas({
-          width: Math.round(data.width),
-          height: Math.round(data.height),
-          imageSmoothingQuality: 'high'
-        });
-      } catch (err) {
-        Swal.fire({ icon: 'error', title: 'خطأ', text: 'تعذر قص الصورة. يرجى التأكد من أن الصورة ظاهرة بشكل صحيح ثم أعد المحاولة.' });
-        loaderModal.hide();
-        cleanup();
-        callback(null);
-        return;
-      }
-      if (!canvas || canvas.width === 0 || canvas.height === 0) {
-        Swal.fire({ icon: 'error', title: 'خطأ', text: 'تعذر قص الصورة. يرجى التأكد من أن الصورة ظاهرة بشكل صحيح ثم أعد المحاولة.' });
-        loaderModal.hide();
-        cleanup();
-        callback(null);
-        return;
-      }
-      function destroyCanvas(c) {
+        if (!imgEl || !imgEl.src || imgEl.naturalWidth === 0 || imgEl.naturalHeight === 0) {
+          Swal.fire({ icon: 'error', title: 'خطأ', text: 'لم يتم تحميل الصورة بشكل صحيح. يرجى إعادة المحاولة أو اختيار صورة أخرى.' });
+          cleanup();
+          callback(null);
+          return;
+        }
+        const data = cropper.getData(true);
+        let canvas;
         try {
-          if (c && c.parentNode) c.parentNode.removeChild(c);
-        } catch {}
-      }
-      canvas.toBlob(async function(blob) {
-        if (!blob) {
-          Swal.fire({ icon: 'error', title: 'خطأ', text: 'تعذر معالجة الصورة. يرجى إعادة المحاولة أو اختيار صورة أخرى.' });
+          canvas = cropper.getCroppedCanvas({
+            width: Math.round(data.width),
+            height: Math.round(data.height),
+            imageSmoothingQuality: 'high'
+          });
+        } catch (err) {
+          Swal.fire({ icon: 'error', title: 'خطأ', text: 'تعذر قص الصورة. يرجى التأكد من أن الصورة ظاهرة بشكل صحيح ثم أعد المحاولة.' });
           loaderModal.hide();
           cleanup();
           callback(null);
           return;
         }
-        const originalName = file.name;
-        const ext = originalName.substring(originalName.lastIndexOf('.'));
-        const base = originalName.replace(ext, '');
-        const uniqueSuffix = '_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
-        let compressOptions = {
-          maxSizeMB: isMobileChrome() ? 0.08 : 0.1,
-          maxWidthOrHeight: isMobileChrome() ? 900 : Math.max(canvas.width, canvas.height),
-          useWebWorker: true,
-          initialQuality: isMobileChrome() ? 0.5 : 0.7,
-          fileType: file.type
-        };
-        let compressedFile = blob;
-        let compressedSize = blob.size;
-        let maxTries = 7;
-        if (blob.size > 100 * 1024) {
-          for (let i = 0; i < maxTries && compressedSize > 100 * 1024; i++) {
-            compressedFile = await imageCompression(compressedFile, compressOptions);
-            compressedSize = compressedFile.size;
-            compressOptions.initialQuality = Math.max(0.1, compressOptions.initialQuality - 0.1);
-          }
-        }
-        const newFile = new File([compressedFile], base + uniqueSuffix + '_cropped' + ext, { type: file.type });
-        cropBtn.blur && cropBtn.blur();
-        setTimeout(() => {
+        if (!canvas || canvas.width === 0 || canvas.height === 0) {
+          Swal.fire({ icon: 'error', title: 'خطأ', text: 'تعذر قص الصورة. يرجى التأكد من أن الصورة ظاهرة بشكل صحيح ثم أعد المحاولة.' });
           loaderModal.hide();
           cleanup();
-          callback(newFile);
-        }, 0);
-        setTimeout(() => { loaderModal.hide(); }, 700);
-        destroyCanvas(canvas);
-      }, file.type, isMobileChrome() ? 0.5 : 0.7);
-    };
+          callback(null);
+          return;
+        }
+        // Non-blocking compression using Web Worker + OffscreenCanvas
+        try {
+          // Show loader/progress
+          if (loaderModalEl) loaderModalEl.querySelector('#compressLoaderTitle').textContent = 'جاري معالجة الصورة...';
+          // Create ImageBitmap from canvas
+          let imageBitmap;
+          if (canvas.transferToImageBitmap) {
+            imageBitmap = canvas.transferToImageBitmap();
+          } else {
+            imageBitmap = await createImageBitmap(canvas);
+          }
+          // Prepare options
+          const originalName = file.name;
+          const ext = originalName.substring(originalName.lastIndexOf('.'));
+          const base = originalName.replace(ext, '');
+          const uniqueSuffix = '_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+          let compressOptions = {
+            maxSizeMB: isMobileChrome() ? 0.08 : 0.1,
+            maxWidthOrHeight: isMobileChrome() ? 900 : Math.max(canvas.width, canvas.height),
+            initialQuality: isMobileChrome() ? 0.5 : 0.7,
+            fileType: file.type
+          };
+          // Start worker
+          // Use public path for worker to avoid browser path issues
+          const worker = new Worker('/js/imageProcessorWorker.js');
+          worker.postMessage({ imageBitmap, options: compressOptions }, [imageBitmap]);
+          worker.onmessage = function(ev) {
+            if (ev.data.type === 'progress') {
+              if (loaderModalEl) {
+                loaderModalEl.querySelector('#compressLoaderTitle').textContent = `جاري ضغط الصورة... (${Math.round(ev.data.percent)}%)`;
+                // If you add a progress bar, update it here
+              }
+            } else if (ev.data.type === 'done') {
+              const compressedBlob = ev.data.blob;
+              const fileType = ev.data.fileType || file.type;
+              const newFile = new File([compressedBlob], base + uniqueSuffix + '_cropped' + ext, { type: fileType });
+              cropBtn.blur && cropBtn.blur();
+              setTimeout(() => {
+                loaderModal.hide();
+                cleanup();
+                callback(newFile);
+              }, 0);
+              setTimeout(() => { loaderModal.hide(); }, 700);
+              worker.terminate();
+            } else if (ev.data.type === 'error') {
+              console.error('Worker error:', ev.data.message);
+              Swal.fire({ icon: 'error', title: 'خطأ', text: 'تعذر ضغط الصورة: ' + (ev.data.message || '') });
+              loaderModal.hide();
+              cleanup();
+              callback(null);
+              worker.terminate();
+            }
+          };
+          worker.onerror = function(err) {
+            console.error('Worker onerror:', err);
+            Swal.fire({ icon: 'error', title: 'خطأ', text: 'حدث خطأ في معالجة الصورة (العامل).' });
+            loaderModal.hide();
+            cleanup();
+            callback(null);
+            worker.terminate();
+          };
+        } catch (err) {
+          Swal.fire({ icon: 'error', title: 'خطأ', text: 'فشل معالجة الصورة: ' + (err && err.message ? err.message : err) });
+          loaderModal.hide();
+          cleanup();
+          callback(null);
+        }
+      };
   };
   reader.readAsDataURL(file);
 
@@ -703,6 +726,110 @@ window.showCropperModal = function(file, callback) {
   }
 };
 
+// FileUploadHandler: Robust AJAX file upload for all upload zones
+document.addEventListener('DOMContentLoaded', function() {
+  // Helper: Find all upload zones
+  const uploadZones = document.querySelectorAll('[data-upload-role="zone"]');
+  uploadZones.forEach(function(zone) {
+    const fileInput = zone.querySelector('[data-file-role="input"]');
+    const selectBtn = zone.querySelector('[data-file-role="select"]');
+    const preview = zone.querySelector('[data-file-role="preview"]');
+    const hiddenFileId = zone.querySelector('[data-file-role="file_id"]');
+    const hiddenTempName = zone.querySelector('[data-file-role="temp_file_name"]');
+    const hiddenDocType = zone.querySelector('[data-file-role="document_type_value"]');
+
+    // When select button is clicked, trigger file input
+    if (selectBtn && fileInput) {
+      selectBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        fileInput.click();
+      });
+    }
+
+    // On file input change
+    if (fileInput) {
+      fileInput.addEventListener('change', function(e) {
+        const file = fileInput.files[0];
+        if (!file) return;
+        // Optionally: validate file type/size here
+        // Show cropper modal if image, else upload directly
+        if (file.type.startsWith('image/')) {
+          window.showCropperModal(file, function(croppedFile) {
+            if (croppedFile) {
+              uploadFileAJAX(croppedFile, zone, preview, hiddenFileId, hiddenTempName, hiddenDocType);
+            } else {
+              // User cancelled or error
+              fileInput.value = '';
+            }
+          });
+        } else {
+          uploadFileAJAX(file, zone, preview, hiddenFileId, hiddenTempName, hiddenDocType);
+        }
+      });
+    }
+  });
+
+  // AJAX upload logic
+  function uploadFileAJAX(file, zone, preview, hiddenFileId, hiddenTempName, hiddenDocType) {
+    // Show loader
+    const loaderModalEl = document.getElementById('compressLoaderModal');
+    const loaderModal = loaderModalEl ? bootstrap.Modal.getOrCreateInstance(loaderModalEl) : null;
+    loaderModal && loaderModal.show();
+
+    const formData = new FormData();
+    formData.append('file', file);
+    // Optionally: add CSRF token if needed
+    const csrf = document.querySelector('meta[name="csrf-token"]');
+    if (csrf) formData.append('_token', csrf.getAttribute('content'));
+    // Optionally: add document_type_value if available
+    if (hiddenDocType && hiddenDocType.value) {
+      formData.append('document_type_value', hiddenDocType.value);
+    }
+
+    fetch('/ajax/file-upload', {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'Accept': 'application/json',
+      },
+    })
+    .then(response => response.json())
+    .then(data => {
+      loaderModal && loaderModal.hide();
+      if (data.success && data.file_id && data.temp_file_name) {
+        // Update hidden fields
+        if (hiddenFileId) hiddenFileId.value = data.file_id;
+        if (hiddenTempName) hiddenTempName.value = data.temp_file_name;
+        // Show preview (if image)
+        if (preview && file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            preview.src = e.target.result;
+            preview.style.display = '';
+          };
+          reader.readAsDataURL(file);
+        } else if (preview) {
+          preview.textContent = file.name;
+          preview.style.display = '';
+        }
+        // Optionally: show success message
+      } else {
+        Swal.fire({ icon: 'error', title: 'خطأ', text: data.message || 'فشل رفع الملف. حاول مرة أخرى.' });
+        // Reset hidden fields
+        if (hiddenFileId) hiddenFileId.value = '';
+        if (hiddenTempName) hiddenTempName.value = '';
+        if (preview) preview.style.display = 'none';
+      }
+    })
+    .catch(err => {
+      loaderModal && loaderModal.hide();
+      Swal.fire({ icon: 'error', title: 'خطأ', text: 'حدث خطأ أثناء رفع الملف. حاول مرة أخرى.' });
+      if (hiddenFileId) hiddenFileId.value = '';
+      if (hiddenTempName) hiddenTempName.value = '';
+      if (preview) preview.style.display = 'none';
+    });
+  }
+});
 </script>
 
 

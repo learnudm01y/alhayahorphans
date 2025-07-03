@@ -56,20 +56,20 @@
                                   يرجى اختيار نوع الوثيقة أولاً، وسوف يتم تحويلك لرفع الصورة
                                   المطلوبة.
                               </div>
-                              <!-- منطقة رفع الملفات للأب المتوفى -->
+                              <!-- منطقة رفع الملفات للأب المتوفى (معرفات فريدة) -->
                               <div data-upload-zone="deceased_father" data-person-id="{{ $father_id ?? '' }}">
                                   <label class="form-label fw-bold"> رفع الملفات <span class="text-danger">*</span></label>
-                                  <select class="form-select" id="mainDocumentTypeSelect">
+                                  <select class="form-select mainDocumentTypeSelect" id="mainDocumentTypeSelect_father">
                                       <option value="">اختر نوع الوثيقة</option>
                                       @foreach ($documentTypes->where('deceased_enabled', 1) as $documentType)
                                           <option value="{{ $documentType->pref }}">
                                               {{ $documentType->description }}</option>
                                       @endforeach
                                   </select>
-                                  <input type="file" id="mainDocumentFileInput" accept="image/*,.pdf"
+                                  <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_father" accept="image/*,.pdf"
                                       style="display:none;">
-                                  <div id="mainDocumentPreview" class="mt-2"></div>
-                                  <div id="mainDocumentNames" class="mt-2"></div>
+                                  <div class="mainDocumentPreview" id="mainDocumentPreview_father"></div>
+                                  <div class="mainDocumentNames" id="mainDocumentNames_father"></div>
                               </div>
                           </div>
                       </div>
@@ -140,21 +140,20 @@
                                   يرجى اختيار نوع الوثيقة أولاً، وسوف يتم تحويلك لرفع الصورة
                                   المطلوبة.
                               </div>
-                              <!-- منطقة رفع الملفات للأم المتوفية -->
+                              <!-- منطقة رفع الملفات للأم المتوفية (معرفات فريدة) -->
                               <div data-upload-zone="deceased_mother" data-person-id="{{ $mother_id ?? '' }}">
-                                  <label class="form-label fw-bold"> رفع الملفات <span
-                                          class="text-danger">*</span></label>
-                                  <select class="form-select" id="mainDocumentTypeSelect">
+                                  <label class="form-label fw-bold"> رفع الملفات <span class="text-danger">*</span></label>
+                                  <select class="form-select mainDocumentTypeSelect" id="mainDocumentTypeSelect_mother">
                                       <option value="">اختر نوع الوثيقة</option>
                                       @foreach ($documentTypes->where('deceased_enabled', 1) as $documentType)
                                           <option value="{{ $documentType->pref }}">
                                               {{ $documentType->description }}</option>
                                       @endforeach
                                   </select>
-                                  <input type="file" id="mainDocumentFileInput" accept="image/*,.pdf"
+                                  <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_mother" accept="image/*,.pdf"
                                       style="display:none;">
-                                  <div id="mainDocumentPreview" class="mt-2"></div>
-                                  <div id="mainDocumentNames" class="mt-2"></div>
+                                  <div class="mainDocumentPreview" id="mainDocumentPreview_mother"></div>
+                                  <div class="mainDocumentNames" id="mainDocumentNames_mother"></div>
                               </div>
                           </div>
                       </div>

@@ -186,23 +186,27 @@
 
                 // --- المرفقات (من Map البرمجية) ---
                 let attachmentsHtml = '';
-
                 if (window.allDocs) {
-                    // فقط عرض "مرفقات أخرى" (أي بوابة غير main, deceased_father, deceased_mother, family_*)
+                    // عرض جميع المرفقات لكل بوابة (main, deceased_father, deceased_mother, family_X, وأخرى)
+                    const labelMap = {
+                        'main': 'مرفقات صاحب الطلب',
+                        'deceased_father': 'مرفقات الأب المتوفى',
+                        'deceased_mother': 'مرفقات الأم المتوفاة'
+                    };
                     Array.from(window.allDocs.keys()).forEach(personKey => {
-                        // تجاهل بوابات صاحب الملف والمتوفين وأفراد الأسرة
-                        if (
-                            personKey === 'main' ||
-                            personKey === 'deceased_father' ||
-                            personKey === 'deceased_mother' ||
-                            personKey.startsWith('family_')
-                        ) return;
                         if (!window.allDocs.has(personKey)) return;
                         const docsArr = window.allDocs.get(personKey);
                         if (!docsArr.length) return;
 
-                        // تصنيف "مرفقات أخرى"
-                        let personLabel = 'مرفقات أخرى';
+                        let personLabel = labelMap[personKey] || '';
+                        if (!personLabel && personKey.startsWith('family_')) {
+                            // استخراج رقم فرد الأسرة
+                            const idx = parseInt(personKey.replace('family_', '')) + 1;
+                            personLabel = `مرفقات فرد الأسرة #${idx}`;
+                        }
+                        if (!personLabel) {
+                            personLabel = 'مرفقات أخرى';
+                        }
 
                         attachmentsHtml += `<div class="mb-3"><div class="fw-bold text-primary mb-2" style="font-size:1.08rem;">${personLabel}</div>`;
                         attachmentsHtml += `<div class="d-flex flex-wrap gap-3">`;
