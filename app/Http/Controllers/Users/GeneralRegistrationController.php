@@ -297,8 +297,8 @@ class GeneralRegistrationController extends Controller
                         'all_files' => $request->allFiles(),
                         'all_files_keys' => array_keys($allFiles),
                         'all_files_debug' => array_map(function($f){
-                            if (is_array($f)) return array_map(function($ff){ return $ff->getClientOriginalName(); }, $f);
-                            return $f->getClientOriginalName();
+                            if (is_array($f)) return array_map(function($ff){ return is_object($ff) && method_exists($ff, 'getClientOriginalName') ? $ff->getClientOriginalName() : 'NOT_FILE_OBJECT'; }, $f);
+                            return is_object($f) && method_exists($f, 'getClientOriginalName') ? $f->getClientOriginalName() : 'NOT_FILE_OBJECT';
                         }, $allFiles)
                     ]);
                     continue;

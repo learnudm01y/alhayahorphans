@@ -73,6 +73,8 @@
             function renderReviewContent() {
                 const reviewContent = document.getElementById('reviewContent');
                 if (!reviewContent) return;
+                // Debug: طباعة جميع المرفقات في الذاكرة
+                console.log('window.allDocs عند عرض المراجعة:', window.allDocs);
 
                 // اجمع البيانات من الحقول
                 const getVal = name => document.querySelector(`[name="${name}"]`)?.value || '';
@@ -185,8 +187,8 @@
                 }
 
                 // --- المرفقات (من Map البرمجية) ---
-                let attachmentsHtml = '';
-                if (window.allDocs) {
+let attachmentsHtml = '';
+                if (window.allDocs && typeof window.allDocs.keys === 'function') {
                     // عرض جميع المرفقات لكل بوابة (main, deceased_father, deceased_mother, family_X, وأخرى)
                     const labelMap = {
                         'main': 'مرفقات صاحب الطلب',
@@ -196,7 +198,7 @@
                     Array.from(window.allDocs.keys()).forEach(personKey => {
                         if (!window.allDocs.has(personKey)) return;
                         const docsArr = window.allDocs.get(personKey);
-                        if (!docsArr.length) return;
+                        if (!docsArr || !docsArr.length) return;
 
                         let personLabel = labelMap[personKey] || '';
                         if (!personLabel && personKey.startsWith('family_')) {
@@ -212,16 +214,26 @@
                         attachmentsHtml += `<div class="d-flex flex-wrap gap-3">`;
 
                         docsArr.forEach(doc => {
-                            // نوع الوثيقة
-                            const docType = doc.typeText || doc.type || '';
+                            // استخراج نوع الوثيقة
+                            const docType = doc.docType || doc.typeText || doc.type || '';
+                            // استخراج اسم الملف
+                            const fileName = doc.name || doc.docName || (doc.originalFile && doc.originalFile.name) || (doc.processedFile && doc.processedFile.name) || '';
+                            // استخراج الملف نفسه
+                            const fileObj = doc.file || doc.originalFile || doc.processedFile || null;
+                            // نوع الملف
+                            const fileType = fileObj && fileObj.type ? fileObj.type : '';
+
                             attachmentsHtml += `<div class="card shadow-sm border-0" style="width:170px;min-height:180px;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;">`;
                             attachmentsHtml += `<div class="bg-light text-dark fw-bold py-2 px-2 w-100 text-center" style="font-size:0.97rem;border-bottom:1px solid #eee;">${docType}</div>`;
                             attachmentsHtml += `<div class="p-2 w-100 d-flex flex-column align-items-center justify-content-center" style="min-height:120px;">`;
-                            if (doc.file && doc.file.type && doc.file.type.startsWith('image/')) {
-                                const url = URL.createObjectURL(doc.file);
+                            if (fileObj && fileType.startsWith('image/')) {
+                                const url = URL.createObjectURL(fileObj);
                                 attachmentsHtml += `<img src="${url}" style="max-width:110px;max-height:110px;border-radius:10px;border:2px solid #0d6efd;background:#fff;box-shadow:0 2px 8px #0001;">`;
-                            } else if (doc.file) {
-                                attachmentsHtml += `<span class="text-secondary" style="font-size:0.98rem;"><i class="fas fa-file-alt me-1"></i>${doc.name || doc.docName || ''}</span>`;
+                                attachmentsHtml += `<div class="mt-2 text-truncate" style="max-width:120px;font-size:0.93rem;">${fileName}</div>`;
+                            } else if (fileObj) {
+                                attachmentsHtml += `<span class="text-secondary" style="font-size:0.98rem;"><i class="fas fa-file-alt me-1"></i>${fileName}</span>`;
+                            } else {
+                                attachmentsHtml += `<span class="text-danger" style="font-size:0.95rem;">لا يوجد ملف</span>`;
                             }
                             attachmentsHtml += `</div></div>`;
                         });
