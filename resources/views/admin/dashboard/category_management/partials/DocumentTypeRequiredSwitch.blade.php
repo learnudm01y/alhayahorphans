@@ -1,12 +1,14 @@
 @php
-    $requiredChecked = $row->is_required ? 'checked' : '';
-    $optionalChecked = !$row->is_required ? 'checked' : '';
+    $col = $portal . '_required';
+    $requiredChecked = $row->$col ? 'checked' : '';
+    $optionalChecked = !$row->$col ? 'checked' : '';
 @endphp
 <div class="form-check form-check-inline">
     <input class="form-check-input document-type-required-radio"
            type="radio"
-           name="is_required_{{ $row->id }}"
+           name="{{ $col }}_{{ $row->id }}"
            data-id="{{ $row->id }}"
+           data-portal="{{ $portal }}"
            value="1"
            {{ $requiredChecked }}>
     <label class="form-check-label text-danger" style="font-weight:bold;">إجباري</label>
@@ -14,8 +16,9 @@
 <div class="form-check form-check-inline">
     <input class="form-check-input document-type-required-radio"
            type="radio"
-           name="is_required_{{ $row->id }}"
+           name="{{ $col }}_{{ $row->id }}"
            data-id="{{ $row->id }}"
+           data-portal="{{ $portal }}"
            value="0"
            {{ $optionalChecked }}>
     <label class="form-check-label text-success" style="font-weight:bold;">اختياري</label>

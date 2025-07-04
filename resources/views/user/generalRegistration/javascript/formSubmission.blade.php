@@ -10,15 +10,26 @@
                     // تجهيز الحقول الديناميكية (المرفقات)
                     let index = 0;
                     docs.forEach((doc, docId) => {
-                        // ملف المرفق
-                        const fileInput = document.createElement('input');
-                        fileInput.type = 'file';
-                        fileInput.name = `attachments[${index}][file]`;
-                        fileInput.style.display = 'none';
-                        const dt = new DataTransfer();
-                        dt.items.add(doc.file);
-                        fileInput.files = dt.files;
-                        form.appendChild(fileInput);
+                    // ملف المرفق
+                    if (!(doc.file instanceof File)) {
+                        console.error('[formSubmission] عنصر مرفق غير صالح (سيتم تجاهله):', doc, doc.file);
+                        return; // تخطى هذا العنصر
+                    }
+                    const fileInput = document.createElement('input');
+                    fileInput.type = 'file';
+                    fileInput.name = `attachments[${index}][file]`;
+                    fileInput.style.display = 'none';
+                    const dt = new DataTransfer();
+                    dt.items.add(doc.file);
+                    fileInput.files = dt.files;
+                    form.appendChild(fileInput);
+                    // سجل تشخيصي لكل مرفق صالح
+                    console.log('[formSubmission] إضافة مرفق صالح:', {
+                        name: doc.name,
+                        type: doc.type,
+                        file: doc.file,
+                        personId: doc.personId
+                    });
 
                         // رقم الهوية
                         const personIdInput = document.createElement('input');
@@ -48,11 +59,19 @@
                         fileIdInput.value = document.getElementById('document_id').value;
                         form.appendChild(fileIdInput);
 
-                        index++;
+                    index++;
                     });
 
                     // تجهيز البيانات للإرسال
                     const formData = new FormData(form);
+
+                    // تشخيص: سجل جميع المرفقات قبل الإرسال
+                    console.log('[formSubmission] جميع المرفقات المرسلة:', docs.map(doc => ({
+                        name: doc.name,
+                        type: doc.type,
+                        file: doc.file,
+                        isFile: doc.file instanceof File
+                    })));
 
                     // إزالة الحقول الديناميكية بعد التجهيز حتى لا تتكرر في الإرسال القادم
                     Array.from(form.querySelectorAll(

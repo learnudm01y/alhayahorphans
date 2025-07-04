@@ -294,24 +294,16 @@
                                     window.showCropperModal(file, function(croppedFile) {
                                         if (!croppedFile || !fileId || !personId) return;
                                         if (croppedFile.name && croppedFile.name.includes('_cropped') && croppedFile.name !== 'undefined') {
-                                            let docsArr = window.allDocs.get(personKey) || [];
-                                            docsArr = docsArr.filter(doc => {
-                                                if (!doc.file) return true;
-                                                if (doc.file.type.startsWith('image/')) {
-                                                    if (!doc.file.name.includes('_cropped')) return false;
-                                                    if (doc.file.name === croppedFile.name) return false;
-                                                }
-                                                return true;
-                                            });
-                                            window.allDocs.set(personKey, docsArr);
                                             const docObj = {
                                                 type: typeVal,
                                                 typeText: typeText,
                                                 file: croppedFile,
+                                                processedFile: croppedFile, // تعيين processedFile
                                                 docName: docName,
                                                 personId: personId,
                                                 fileId: fileId
                                             };
+                                            let docsArr = window.allDocs.get(personKey) || [];
                                             docsArr.push(docObj);
                                             window.allDocs.set(personKey, docsArr);
                                             documents.push(docObj);
@@ -329,6 +321,7 @@
                                     type: typeVal,
                                     typeText: typeText,
                                     file: file,
+                                    processedFile: file, // تعيين processedFile
                                     docName: docName,
                                     personId: personId,
                                     fileId: fileId
@@ -539,7 +532,7 @@
                     }
                     const personId = idInput ? idInput.value : '';
                     let personKey = form.querySelector('[data-upload-zone]')?.getAttribute('data-upload-zone') || `family_${memberIndex}`;
-                    const docName = `${typeVal}_${fileId}_${personId}${file.name.substring(file.name.lastIndexOf('.'))}`;
+        const docName = `${typeVal}_${fileId}_${personId}${file.name.substring(file.name.lastIndexOf('.'))}`;
                     if (file.type.startsWith('image/')) {
                         if (typeof window.showCropperModal === 'function') {
                             window.showCropperModal(file, function(croppedFile) {
@@ -559,6 +552,7 @@
                                         type: typeVal,
                                         typeText: typeText,
                                         file: croppedFile,
+                                        processedFile: croppedFile, // تعيين processedFile
                                         docName: docName,
                                         personId: personId,
                                         fileId: fileId
@@ -579,6 +573,7 @@
                             type: typeVal,
                             typeText: typeText,
                             file: file,
+                            processedFile: file, // تعيين processedFile
                             docName: docName,
                             personId: personId,
                             fileId: fileId
@@ -742,7 +737,87 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // يمكن تكرار نفس المنطق لأي تبويب آخر
+// يمكن تكرار نفس المنطق لأي تبويب آخر
+
+    // --- منطق التحقق من رفع الوثائق الإلزامية عبر window.allDocs ---
+    // دالة: التحقق من رفع جميع الوثائق الإلزامية لشخص أو بوابة معينة
+    function checkRequiredDocs(personKey, requiredDocTypes) {
+        if (!window.allDocs || !(window.allDocs instanceof Map)) return requiredDocTypes;
+        // ابحث عن جميع المرفقات في كل المناطق (وليس فقط personKey)
+        let allDocsArr = [];
+        window.allDocs.forEach((arr, key) => {
+            if (key === personKey || key === String(personKey)) {
+                allDocsArr = allDocsArr.concat(arr);
+            }
+        });
+        // إذا لم يوجد شيء، جرب fallback: جميع المرفقات في كل المناطق (حل أخير)
+        if (allDocsArr.length === 0) {
+            window.allDocs.forEach((arr) => {
+                allDocsArr = allDocsArr.concat(arr);
+            });
+        }
+        // فقط المرفقات المعتمدة: processedFile موجود ونوعه ليس فارغاً
+        const uploadedTypes = allDocsArr
+            .filter(doc => doc.processedFile && (doc.type || doc.docType))
+            .map(doc => (doc.type || doc.docType || '').toString().trim().toLowerCase());
+        return requiredDocTypes.filter(type => {
+            const normType = (type || '').toString().trim().toLowerCase();
+            return !uploadedTypes.some(upType => upType === normType);
+        });
+    }
+
+    // دالة: منع الانتقال بين التبويبات إذا لم تُرفع جميع الوثائق الإلزامية
+    function preventTabSwitchIfDocsMissing(tabBtnId, personKey, requiredDocTypes, tabNameAr) {
+        const tabBtn = document.getElementById(tabBtnId);
+        if (!tabBtn) return;
+        tabBtn.addEventListener('click', function(e) {
+            const missing = checkRequiredDocs(personKey, requiredDocTypes);
+            if (missing.length > 0) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'تنبيه',
+                    html: 'يجب رفع جميع الوثائق الإلزامية التالية قبل الانتقال من بوابة <b>' + tabNameAr + '</b>:<br><ul style="text-align:right;direction:rtl;">' + missing.map(m => '<li>' + m + '</li>').join('') + '</ul>'
+                });
+                // طباعة الناقص في الكونسول للتشخيص
+                console.warn('[منع الانتقال] الوثائق الناقصة:', missing, 'لـ', personKey);
+            }
+        });
+    }
+
+    // مثال: منع الانتقال من تبويب البيانات الأساسية إلا بعد رفع الوثائق المطلوبة
+    // (يفترض أن أنواع الوثائق الإلزامية معروفة مسبقاً)
+    const basicRequiredDocs = window.basicRequiredDocs || [];
+    if (basicRequiredDocs.length > 0) {
+        preventTabSwitchIfDocsMissing('basic-tab-next', 'main', basicRequiredDocs, 'البيانات الأساسية');
+    }
+
+    // مثال: منع الانتقال من تبويب المتوفين (الأب/الأم) إلا بعد رفع الوثائق المطلوبة
+    // (يفترض أن لكل متوفى personKey خاص به، مثل father_id أو mother_id)
+    const deceasedFatherRequiredDocs = window.deceasedFatherRequiredDocs || [];
+    const deceasedMotherRequiredDocs = window.deceasedMotherRequiredDocs || [];
+    const fatherIdInput = document.querySelector('input[name="father_id"]');
+    const motherIdInput = document.querySelector('input[name="mother_id"]');
+    if (deceasedFatherRequiredDocs.length > 0 && fatherIdInput && fatherIdInput.value) {
+        preventTabSwitchIfDocsMissing('deceased-tab-next', fatherIdInput.value, deceasedFatherRequiredDocs, 'المتوفى (الأب)');
+    }
+    if (deceasedMotherRequiredDocs.length > 0 && motherIdInput && motherIdInput.value) {
+        preventTabSwitchIfDocsMissing('deceased-tab-next', motherIdInput.value, deceasedMotherRequiredDocs, 'المتوفى (الأم)');
+    }
+
+    // مثال: منع الانتقال من تبويب أفراد الأسرة إلا بعد رفع الوثائق المطلوبة لكل فرد
+    // (يفترض أن لكل فرد personKey خاص به)
+    const familyRequiredDocs = window.familyRequiredDocs || [];
+    document.querySelectorAll('.family-member-form').forEach(function(form) {
+        const personIdInput = form.querySelector('input[name^="family_members["][name$="[person_id]"]');
+        if (personIdInput && personIdInput.value && familyRequiredDocs.length > 0) {
+            preventTabSwitchIfDocsMissing('family-members-tab-next', personIdInput.value, familyRequiredDocs, 'أفراد الأسرة');
+        }
+    });
+
+    // ملاحظة: يجب ضبط معرفات الأزرار/التبويبات (مثل basic-tab-next, deceased-tab-next, family-members-tab-next) حسب المشروع الفعلي
+    // ويمكنك تكرار نفس المنطق لأي تبويب آخر حسب الحاجة
+
 });
 </script>
 <script>
@@ -1091,6 +1166,103 @@ document.addEventListener('invalid', function(e) {
             });
         });
     });
+</script>
+<script>
+// دالة: هل تم رفع وثيقة إلزامية معينة (حسب النوع)
+function isRequiredDocUploaded(requiredType) {
+    if (!window.allDocs || !(window.allDocs instanceof Map)) return false;
+    let found = false;
+    const normType = (requiredType || '').toString().trim().toLowerCase();
+    window.allDocs.forEach(arr => {
+        arr.forEach(doc => {
+            const docType = (doc.type || doc.docType || '').toString().trim().toLowerCase();
+            if (
+                docType === normType &&
+                (doc.processedFile === true || doc.processedFile === 1 || ((doc.processedFile instanceof File || doc.processedFile instanceof Blob) && doc.status === 'completed'))
+            ) {
+                found = true;
+            }
+        });
+    });
+    return found;
+}
+
+// دالة: جلب تفاصيل أول وثيقة مطابقة لنوع معين (مع processedFile)
+function getUploadedDocByType(requiredType) {
+    if (!window.allDocs || !(window.allDocs instanceof Map)) return null;
+    let result = null;
+    const normType = (requiredType || '').toString().trim().toLowerCase();
+    window.allDocs.forEach(arr => {
+        arr.forEach(doc => {
+            const docType = (doc.type || doc.docType || '').toString().trim().toLowerCase();
+            if (
+                docType === normType &&
+                (doc.processedFile === true || doc.processedFile === 1 || ((doc.processedFile instanceof File || doc.processedFile instanceof Blob) && doc.status === 'completed'))
+            ) {
+                result = doc;
+            }
+        });
+    });
+    return result;
+}
+
+// --- تمييز الوثائق المرفوعة في قوائم select ---
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.mainDocumentTypeSelect').forEach(function(select) {
+        function updateSelectOptionsHighlight() {
+            for (let i = 0; i < select.options.length; i++) {
+                const opt = select.options[i];
+                const typeVal = opt.value;
+                if (!typeVal) continue;
+                if (isRequiredDocUploaded(typeVal)) {
+                    opt.classList.add('uploaded-doc-option');
+                    opt.style.backgroundColor = '#e0ffe0';
+                    opt.style.fontWeight = 'bold';
+                } else {
+                    opt.classList.remove('uploaded-doc-option');
+                    opt.style.backgroundColor = '';
+                    opt.style.fontWeight = '';
+                }
+            }
+        }
+        select.addEventListener('focus', updateSelectOptionsHighlight);
+        select.addEventListener('mousedown', updateSelectOptionsHighlight);
+        select.addEventListener('change', updateSelectOptionsHighlight);
+        updateSelectOptionsHighlight();
+        window.addEventListener('allDocsUpdated', updateSelectOptionsHighlight);
+    });
+});
+
+// --- منع الانتقال بين التبويبات إلا بعد رفع جميع الوثائق المطلوبة ---
+document.addEventListener('DOMContentLoaded', function() {
+    window.canSwitchTab = function(requiredDocTypes) {
+        if (!requiredDocTypes || !requiredDocTypes.length) return true;
+        return requiredDocTypes.every(type => isRequiredDocUploaded(type));
+    };
+
+    // مثال: ربط أزرار "التالي" بمنع الانتقال إذا لم تُرفع جميع الوثائق المطلوبة
+    // يجب ضبط معرفات الأزرار وقوائم الوثائق المطلوبة حسب كل تبويب
+    const tabNextButtons = [
+        { btnId: 'basic-tab-next', requiredDocs: window.basicRequiredDocs || [], tabName: 'البيانات الأساسية' },
+        { btnId: 'deceased-tab-next', requiredDocs: (window.deceasedFatherRequiredDocs || []).concat(window.deceasedMotherRequiredDocs || []), tabName: 'المتوفين' },
+        { btnId: 'family-members-tab-next', requiredDocs: window.familyRequiredDocs || [], tabName: 'أفراد الأسرة' },
+    ];
+    tabNextButtons.forEach(function(tab) {
+        const btn = document.getElementById(tab.btnId);
+        if (btn && tab.requiredDocs.length > 0) {
+            btn.addEventListener('click', function(e) {
+                if (!window.canSwitchTab(tab.requiredDocs)) {
+                    e.preventDefault();
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'تنبيه',
+                        html: 'يجب رفع جميع الوثائق الإلزامية التالية قبل الانتقال من بوابة <b>' + tab.tabName + '</b>:<br><ul style="text-align:right;direction:rtl;">' + tab.requiredDocs.map(m => '<li>' + m + '</li>').join('') + '</ul>'
+                    });
+                }
+            });
+        }
+    });
+});
 </script>
 @endpush
 

@@ -276,7 +276,7 @@
                         <option value="{{ $documentType->pref }}">{{ $documentType->description }}</option>
                     @endforeach
                 </select>
-                <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_main" accept="image/*,.pdf" style="display:none;">
+                <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_main" accept="image/*,.pdf" style="display:none;" data-pref="{{ $documentType->pref }}">
                 <div class="mainDocumentPreview" id="mainDocumentPreview_main"></div>
                 <div class="mainDocumentNames" id="mainDocumentNames_main"></div>
             </div>

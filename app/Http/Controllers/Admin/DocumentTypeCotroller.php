@@ -75,11 +75,18 @@ class DocumentTypeCotroller extends Controller
             }
         }
 
-        // تحديث حالة is_required عبر AJAX
-        if ($request->has('is_required')) {
-            $documentType->is_required = (int)$request->input('is_required');
-            $documentType->save();
-            return response()->json(['success' => true, 'is_required' => $documentType->is_required]);
+        // تحديث حالة required لأي بوابة عبر AJAX
+        if ($request->has('required_portal') && $request->has('required_value')) {
+            $portal = $request->input('required_portal');
+            $value = (int)$request->input('required_value');
+            $col = $portal . '_required';
+            if (in_array($col, ['basic_required', 'deceased_required', 'family_required'])) {
+                $documentType->$col = $value;
+                $documentType->save();
+                return response()->json(['success' => true, 'col' => $col, 'value' => $value]);
+            } else {
+                return response()->json(['success' => false, 'error' => 'عمود غير صالح']);
+            }
         }
 
         $request->validate([
