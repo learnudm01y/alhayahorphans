@@ -1221,18 +1221,18 @@
                     console.log(`🔧 [docTypeSelect] تم تطبيق تكوين الجهاز قبل فتح الحوار`);
                 }
 
-                // تحديد نوع الملفات المقبولة حسب الجهاز
-                if (isMobileDevice()) {
-                    // للجوال: توجيه إلى معرض الصور فقط
-                    fileInput.accept = 'image/*';
-                    fileInput.capture = 'environment'; // استخدام الكاميرا الخلفية
-                    console.log(`📱 [docTypeSelect] تم تفعيل وضع الجوال - معرض الصور والكاميرا`);
-                } else {
-                    // للكمبيوتر: الصور والـ PDF
-                    fileInput.accept = 'image/*,.pdf';
-                    fileInput.removeAttribute('capture');
-                    console.log(`💻 [docTypeSelect] تم تفعيل وضع الكمبيوتر - الصور والـ PDF`);
-                }
+                // // تحديد نوع الملفات المقبولة حسب الجهاز
+                // if (isMobileDevice()) {
+                //     // للجوال: توجيه إلى معرض الصور فقط
+                //     fileInput.accept = 'image/*';
+                //     fileInput.capture = 'environment'; // استخدام الكاميرا الخلفية
+                //     console.log(`📱 [docTypeSelect] تم تفعيل وضع الجوال - معرض الصور والكاميرا`);
+                // } else {
+                //     // للكمبيوتر: الصور والـ PDF
+                //     fileInput.accept = 'image/*,.pdf';
+                //     fileInput.removeAttribute('capture');
+                //     console.log(`💻 [docTypeSelect] تم تفعيل وضع الكمبيوتر - الصور والـ PDF`);
+                // }
 
                 // مستمع مؤقت لإعادة التهيئة عند إلغاء اختيار الملف
                 const resetOnCancel = () => {
