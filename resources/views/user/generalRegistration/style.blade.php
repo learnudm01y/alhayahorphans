@@ -572,12 +572,29 @@
                 justify-content: center;
             }
 
+            /* Styling for disabled navigation items */
+            .mobile-bottom-tabs .nav-link.disabled .tab-icon,
+            .mobile-bottom-tabs .nav-link[disabled] .tab-icon,
+            .mobile-bottom-tabs .nav-item .disabled .tab-icon {
+                color: #9e9e9e !important; /* Gray color for disabled icons */
+                background: rgba(200, 200, 200, 0.1) !important;
+                box-shadow: none !important;
+                opacity: 0.7 !important;
+            }
+
             .nav-tabs .nav-link.active .tab-icon,
             .nav-tabs .nav-link:focus .tab-icon,
             .nav-tabs .nav-link:hover .tab-icon {
                 color: #232323 !important;
                 background: rgba(44, 44, 44, 0.13) !important;
                 box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10) !important;
+            }
+
+            /* Make sure active items override disabled styles */
+            .nav-tabs .nav-link.disabled.active .tab-icon,
+            .nav-tabs .nav-link[disabled].active .tab-icon {
+                color: #232323 !important;
+                opacity: 1 !important;
             }
 
             .mobile-bottom-tabs .nav-item:not(:last-child)::after {
@@ -598,114 +615,4 @@
             }
         }
     </style>
-      <style>
-                        .tab-icon {
-                            font-size: 2rem;
-                            color: #0d6efd;
-                            background: none !important;
-                            border-radius: 0 !important;
-                            padding: 0 !important;
-                            margin-bottom: 0.2rem;
-                            border: none !important;
-                            transition: none !important;
-                            box-shadow: none !important;
-                        }
-
-                        .nav-tabs .nav-link.active .tab-icon,
-                        .nav-tabs .nav-link:focus .tab-icon,
-                        .nav-tabs .nav-link:hover .tab-icon {
-                            background: none !important;
-                            color: #0d6efd !important;
-                            border: none !important;
-                            transform: none !important;
-                            box-shadow: none !important;
-                        }
-
-                        @media (max-width: 576px) {
-                            .mobile-bottom-tabs {
-                                position: fixed;
-                                bottom: 0;
-                                left: 0;
-                                right: 0;
-                                z-index: 1050;
-                                background: rgba(245, 245, 245, 0.95);
-                                box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
-                                margin-bottom: 0 !important;
-                                border-top: 1.5px solid #e5e7eb;
-                                border-radius: 22px 22px 0 0;
-                                padding: 0.2rem 0.5rem 0.3rem 0.5rem;
-                                display: flex !important;
-                                justify-content: space-between;
-                                gap: 0 !important;
-                            }
-
-                            .mobile-bottom-tabs .nav-item {
-                                flex: 1 1 0;
-                                display: flex;
-                                justify-content: center;
-                                align-items: stretch;
-                                position: relative;
-                            }
-
-                            .mobile-bottom-tabs .nav-link {
-                                padding: 0.4rem 0 !important;
-                                background: transparent !important;
-                                border: none !important;
-                                box-shadow: none !important;
-                                display: flex;
-                                flex-direction: column;
-                                align-items: center;
-                                border-radius: 18px !important;
-                                position: relative;
-                                height: 100%;
-                                min-width: 0;
-                            }
-
-                            .mobile-bottom-tabs .tab-label {
-                                display: none !important;
-                            }
-
-                            .tab-icon {
-                                font-size: 2.1rem !important;
-                                color: #232323 !important;
-                                background: rgba(200, 200, 200, 0.18) !important;
-                                border-radius: 16px !important;
-                                padding: 0.55rem !important;
-                                margin-bottom: 0 !important;
-                                border: none !important;
-                                box-shadow: 0 1px 6px rgba(0, 0, 0, 0.04) !important;
-                                transition: background 0.2s, color 0.2s, box-shadow 0.2s !important;
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                            }
-
-                            .nav-tabs .nav-link.active .tab-icon,
-                            .nav-tabs .nav-link:focus .tab-icon,
-                            .nav-tabs .nav-link:hover .tab-icon {
-                                color: #232323 !important;
-                                background: rgba(44, 44, 44, 0.13) !important;
-                                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10) !important;
-                            }
-
-                            .mobile-bottom-tabs .nav-item:not(:last-child)::after {
-                                content: "";
-                                position: absolute;
-                                top: 18%;
-                                right: 0;
-                                width: 1.5px;
-                                height: 64%;
-                                background: #e5e7eb;
-                                border-radius: 2px;
-                                opacity: 0.85;
-                                z-index: 2;
-                            }
-
-                            body {
-                                padding-bottom: 80px !important;
-                            }
-                        }
-                    </style>
-                    
-
 @endpush
