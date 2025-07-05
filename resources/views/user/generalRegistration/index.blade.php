@@ -1,4 +1,4 @@
-    <!DOCTYPE html>
+<!DOCTYPE html>
 <html direction="rtl" dir="rtl" style="direction: rtl">
 <!--begin::Head-->
 
@@ -174,7 +174,7 @@
     <!--end::Theme Mode Script-->
     {{-- @yield('scripts') --}}
     @stack('scriptsCodeUserRegistration')
-
+    @include('user.generalRegistration.javascript.deviceCapture')
     <!--end::Custom Javascript-->
     <!--end::Javascript-->
 

@@ -115,7 +115,7 @@
         </div>
         <div class="col-md-4">
             <label class="form-label">عدد افراد الاسرة <span class="text-primary">(اختياري)</span></label>
-            <input type="number" name="data_number_of_individuals" class="form-control" min="0">
+            <input type="number" name="data_number_of_individuals" class="form-control" min="0" max="9999" maxlength="4" oninput="if(this.value.length>4)this.value=this.value.slice(0,4);">
         </div>
         <div class="col-md-4">
             <label class="form-label">الحالة الاجتماعية<span class="text-danger">*</span></label>

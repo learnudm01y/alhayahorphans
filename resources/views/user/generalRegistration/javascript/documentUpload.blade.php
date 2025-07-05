@@ -114,6 +114,41 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('[documentUpload] window.showCropper:', typeof window.showCropper);
     console.log('[documentUpload] window.cropperReady:', window.cropperReady);
 
+    // متغير عام لتتبع حالة المعالجة
+    window.isProcessingAttachment = false;
+    let processingAlert = null;
+
+    // دالة لعرض رسالة الانتظار
+    function showProcessingAlert() {
+        if (processingAlert) return; // تجنب العرض المزدوج
+
+        processingAlert = Swal.fire({
+            title: 'جاري المعالجة...',
+            html: 'الرجاء الانتظار حتى تكتمل معالجة الملف',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            allowEnterKey: false,
+            showConfirmButton: false,
+            didOpen: () => {
+                Swal.showLoading();
+            },
+            // لا نغلق تلقائياً - سيتم إغلاقها من خلال hideProcessingAlert
+        });
+
+        window.isProcessingAttachment = true;
+        console.log('[Processing] ⏳ بدء عملية المعالجة، تم عرض تنبيه الانتظار');
+    }
+
+    // دالة لإخفاء رسالة الانتظار
+    function hideProcessingAlert() {
+        if (processingAlert) {
+            Swal.close();
+            processingAlert = null;
+        }
+        window.isProcessingAttachment = false;
+        console.log('[Processing] ✅ انتهت عملية المعالجة، تم إغلاق تنبيه الانتظار');
+    }
+
     // الاستماع لإشارة جاهزية أداة القص
     window.addEventListener('cropperReady', function(event) {
         console.log('[documentUpload] ✅ تم استلام إشارة جاهزية أداة القص:', event.detail);
@@ -495,6 +530,7 @@ document.addEventListener('DOMContentLoaded', function() {
             task.timer = setTimeout(() => {
                 console.error('[processAttachment] انتهى الوقت المحدد لمعالجة الصورة:', id, task.originalFile.name);
                 updateAttachmentTaskStatus(id, 'failed', null, 'انتهى الوقت المحدد لمعالجة الصورة (دقيقتان). يرجى المحاولة مرة أخرى.');
+                hideProcessingAlert(); // إغلاق التنبيه عند انتهاء المهلة
 
                 if (window.ErrorTracker && window.ErrorTracker.log) {
                     window.ErrorTracker.log('error', 'image-processing-timeout', 'Image processing timed out after 2 minutes', {
@@ -513,6 +549,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         task.timer = null;
                     }
 
+                    // إخفاء تنبيه الانتظار
+                    hideProcessingAlert();
+
                     if (croppedFile && (croppedFile instanceof File || croppedFile instanceof Blob)) {
                         console.log('[processAttachment] تم قص الصورة بنجاح:', id, croppedFile.name || 'cropped-image');
                         updateAttachmentTaskStatus(id, 'completed', croppedFile, null);
@@ -527,6 +566,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         clearTimeout(task.timer);
                         task.timer = null;
                     }
+
+                    // إخفاء تنبيه الانتظار حتى في حالة الخطأ
+                    hideProcessingAlert();
 
                     console.error('[processAttachment] خطأ أثناء معالجة الصورة:', id, error);
                     const errorMessage = error && error.message ? error.message : 'خطأ غير معروف أثناء معالجة الصورة';
@@ -589,6 +631,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.error('[showCropperModalPromise]', errorMsg);
 
                     // إظهار رسالة خطأ للمستخدم
+                    hideProcessingAlert(); // إخفاء تنبيه الانتظار
+
                     Swal.fire({
                         icon: 'error',
                         title: 'خطأ في أداة القص',
@@ -611,6 +655,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         finished = true;
                         const errorMsg = `انتهت مهلة معالجة الصورة (${timeoutMs/1000} ثانية)`;
                         console.error('[showCropperModalPromise]', errorMsg);
+
+                        hideProcessingAlert(); // إخفاء تنبيه الانتظار عند انتهاء المهلة
 
                         Swal.fire({
                             icon: 'warning',
@@ -636,6 +682,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // ⭐ CRITICAL: التأكد من تمرير الملف بشكل صحيح
                     showCropper(file, function(croppedFile, error) {
+                        // ⭐ أضف هنا: إظهار رسالة الانتظار بعد الضغط على زر "قص وحفظ"
+                        showProcessingAlert();
+
                         cropperStarted = true;
 
                         if (finished) {
@@ -648,6 +697,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
                         if (error) {
                             console.error('[showCropperModalPromise] خطأ من أداة القص:', error);
+
+                            // إخفاء تنبيه الانتظار عند حدوث خطأ
+                            hideProcessingAlert();
+
                             if (window.ErrorTracker && window.ErrorTracker.log) {
                                 window.ErrorTracker.log('error', 'cropper-callback-error', error, { file: file.name });
                             }
@@ -657,6 +710,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
                         if (!croppedFile) {
                             console.warn('[showCropperModalPromise] لم يتم إرجاع ملف مقصوص');
+
+                            // إخفاء تنبيه الانتظار عند الإلغاء
+                            hideProcessingAlert();
+
                             reject(new Error('لم يتم قص الصورة أو تم إلغاء العملية'));
                             return;
                         }
@@ -681,6 +738,10 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
 
                         console.log('[showCropperModalPromise] تم قص الصورة بنجاح:', resultFile.name || 'unnamed');
+
+                        // إخفاء تنبيه الانتظار بعد النجاح
+                        hideProcessingAlert();
+
                         resolve(resultFile);
                     });
 
@@ -690,6 +751,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     clearTimeout(mainTimer);
                     finished = true;
                     console.error('[showCropperModalPromise] استثناء أثناء استدعاء أداة القص:', error);
+
+                    // إخفاء تنبيه الانتظار عند حدوث خطأ
+                    hideProcessingAlert();
 
                     Swal.fire({
                         icon: 'error',
@@ -903,7 +967,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     break;
                 case 'completed':
                     statusDiv.innerHTML = '<span class="status-badge completed">✅ تم بنجاح</span>';
-                    // إضافة تأثير النجاح للبطاقة
+                    // إضافة تأثير نجاح للبطاقة
                     card.classList.add('attachment-card');
                     setTimeout(() => {
                         card.classList.add('success-flash');
@@ -996,6 +1060,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
         newFileInput.addEventListener('change', function(e) {
             console.log('🟠 محاولة رفع ملف، قيمة نوع الوثيقة:', docTypeSelect.value, 'في المنطقة:', personKey);
+
+            // منع المستخدم من الرفع إذا كانت هناك معالجة جارية
+            if (window.isProcessingAttachment) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'جاري معالجة ملف آخر',
+                    text: 'الرجاء الانتظار حتى تنتهي معالجة الملف الحالي قبل رفع ملف جديد.',
+                    confirmButtonText: 'حسناً'
+                });
+                newFileInput.value = '';
+                return;
+            }
 
             if (!docTypeSelect.value || docTypeSelect.value === 'undefined' || docTypeSelect.value === '') {
                 Swal.fire({
@@ -1146,6 +1222,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 })
                 .catch(error => {
                     console.error('❌ خطأ في التأكد من توفر أداة القص:', error);
+                    hideProcessingAlert(); // تأكد من إخفاء التنبيه في حالة الخطأ
                     Swal.fire({
                         icon: 'error',
                         title: 'خطأ',
@@ -1155,6 +1232,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     newFileInput.value = '';
                 });
         });
+
+        // تعطيل القائمة المنسدلة أثناء المعالجة
+        docTypeSelect.addEventListener('mousedown', function(e) {
+            if (window.isProcessingAttachment) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'جاري معالجة ملف',
+                    text: 'الرجاء الانتظار حتى تنتهي معالجة الملف الحالي.',
+                    confirmButtonText: 'حسناً'
+                });
+                return false;
+            }
+        });
+
         // لا تعيد تعيين select إلا بعد رفع الملفات فعليًا (يمكنك التعليق على السطر التالي إذا أردت إبقاء الاختيار)
         // docTypeSelect.value = '';
         docTypeSelect.addEventListener('change', function() {
@@ -1634,6 +1726,6 @@ if (familyContainer) {
     console.log('[documentUpload] تم تهيئة مراقب أفراد الأسرة مع حماية المرفقات');
 }
 
-// ...existing code...
+
 </script>
 @endpush
