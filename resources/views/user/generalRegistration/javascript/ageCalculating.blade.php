@@ -1,13 +1,13 @@
 @push('scriptsCodeUserRegistration')
     <script>
-        // حساب العمر تلقائياً عند تغيير تاريخ الميلاد في نماذج أفراد الأسرة فقط
+        // حساب العمر تلقائياً عند تغيير تاريخ الميلاد في نماذج أفراد الأسرة فقط (يدعم template)
         document.addEventListener('input', function(e) {
-            if (e.target.name && e.target.name.match(/^family_members\[\d+\]\[person_birth_date\]$/)) {
+            if (e.target.name && e.target.name.match(/^family_members\[(\d+|template)\]\[person_birth_date\]$/)) {
                 window.calculateAge(e.target);
             }
         });
 
-        // دالة حساب العمر خاصة بأفراد الأسرة
+        // دالة حساب العمر خاصة بأفراد الأسرة (يدعم template)
         window.calculateAge = function(inputElement) {
             const birthDate = new Date(inputElement.value);
             if (isNaN(birthDate.getTime())) return;
@@ -17,8 +17,8 @@
             if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
                 age--;
             }
-            // استخراج الفهرس الصحيح من اسم الحقل
-            const match = inputElement.name.match(/family_members\[(\d+)\]/);
+            // استخراج الفهرس الصحيح من اسم الحقل (يدعم template)
+            const match = inputElement.name.match(/family_members\[(\d+|template)\]/);
             if (!match) return;
             const formIndex = match[1];
             // ابحث عن الحقل داخل نفس النموذج فقط

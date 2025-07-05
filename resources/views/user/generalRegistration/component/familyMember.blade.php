@@ -561,9 +561,10 @@
             // إعادة ربط حساب العمر
             setTimeout(function() {
                 document.querySelectorAll('.family-member-form:not(.d-none) input[name$="[person_birth_date]"]').forEach(function(input) {
-                    input.oninput = function() {
-                        window.calculateAge(this);
-                    };
+                    // تم حذف الربط اليدوي هنا لأن سكريبت ageCalculating.blade.php يربط الحدث بشكل عام
+                    // input.oninput = function() {
+                    //     window.calculateAge(this);
+                    // };
                 });
             }, 100);
 
@@ -1479,30 +1480,30 @@
         window.addFamilyMember = addFamilyMember;
     });
 
-    // دالة حساب العمر
-    window.calculateAge = function(inputElement) {
-        const birthDate = new Date(inputElement.value);
-        if (isNaN(birthDate.getTime())) return;
+    // تم حذف تعريف الدالة هنا لتجنب التعارض مع ملف ageCalculating.blade.php
+    // window.calculateAge = function(inputElement) {
+    //     const birthDate = new Date(inputElement.value);
+    //     if (isNaN(birthDate.getTime())) return;
 
-        const today = new Date();
-        let age = today.getFullYear() - birthDate.getFullYear();
-        const monthDiff = today.getMonth() - birthDate.getMonth();
+    //     const today = new Date();
+    //     let age = today.getFullYear() - birthDate.getFullYear();
+    //     const monthDiff = today.getMonth() - birthDate.getMonth();
 
-        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-            age--;
-        }
+    //     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    //         age--;
+    //     }
 
-        const match = inputElement.name.match(/family_members\[(\d+)\]/);
-        if (!match) return;
+    //     const match = inputElement.name.match(/family_members\[(\d+)\]/);
+    //     if (!match) return;
 
-        const formIndex = match[1];
-        const form = inputElement.closest('.family-member-form');
-        if (!form) return;
+    //     const formIndex = match[1];
+    //     const form = inputElement.closest('.family-member-form');
+    //     if (!form) return;
 
-        const ageInput = form.querySelector(`input[name="family_members[${formIndex}][person_age]"]`);
-        if (ageInput) {
-            ageInput.value = age;
-        }
-    };
+    //     const ageInput = form.querySelector(`input[name="family_members[${formIndex}][person_age]"]`);
+    //     if (ageInput) {
+    //         ageInput.value = age;
+    //     }
+    // };
     </script>
 @endpush
