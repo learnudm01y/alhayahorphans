@@ -212,7 +212,7 @@
     </script>
 
     {{-- استيراد نظام كشف الجهاز وتوجيه مستعرض الصور --}}
-    @include('user.generalRegistration.javascript.deviceDetectionAndImageCapture')
+    {{-- @include('user.generalRegistration.javascript.deviceDetectionAndImageCapture') --}}
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {

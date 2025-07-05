@@ -4,10 +4,7 @@
           <div class="col-12">
               <div class="card border-0 shadow-sm">
                   <div class="card-header bg-gradient-primary text-dark py-3">
-                      <h5 class="card-title mb-0 d-flex align-items-center">
-                          <i class="fas fa-male fs-4 me-2"></i>
-                          بيانات الأب المتوفى
-                      </h5>
+                      <h5 class="mb-0">بيانات الأب المتوفى</h5>
                   </div>
                   <div class="card-body bg-light">
                       <div class="row g-3">
@@ -48,15 +45,10 @@
                                   @endforeach
                               </select>
                           </div>
-                          <div class="col-md-4 mt-3">
-                              <!-- ملاحظة توضيحية لرفع الملفات -->
-                              <div class="alert alert-primary py-2 mb-2" style="font-size: 0.97rem;">
-                                  يرجى اختيار نوع الوثيقة أولاً، وسوف يتم تحويلك لرفع الصورة
-                                  المطلوبة.
-                              </div>
+                          <div class="col-md-12 mt-3">
                               <!-- منطقة رفع الملفات للأب المتوفى -->
-                              <div data-upload-zone="deceased_father" data-person-id="{{ $father_id ?? '' }}">
-                                  <label class="form-label fw-bold"> رفع الملفات <span class="text-danger">*</span></label>
+                              <div data-upload-zone="deceased_father" class="upload-zone">
+                                  <label class="form-label fw-bold">رفع وثائق الأب المتوفى</label>
                                   <select class="form-select mainDocumentTypeSelect" id="mainDocumentTypeSelect_father">
                                       <option value="">اختر نوع الوثيقة</option>
                                       @foreach ($documentTypes->where('deceased_enabled', 1) as $documentType)
@@ -66,7 +58,6 @@
                                   </select>
                                   <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_father" style="display:none;">
                                   <div class="mainDocumentPreview" id="mainDocumentPreview_father"></div>
-                                  <div class="mainDocumentNames" id="mainDocumentNames_father"></div>
                               </div>
                           </div>
                       </div>
@@ -85,10 +76,7 @@
           <div class="col-12" id="motherInfoSection" style="display: none;">
               <div class="card border-0 shadow-sm">
                   <div class="card-header bg-gradient-primary text-dark py-3">
-                      <h5 class="card-title mb-0 d-flex align-items-center">
-                          <i class="fas fa-female fs-4 me-2"></i>
-                          بيانات الأم المتوفية
-                      </h5>
+                      <h5 class="mb-0">بيانات الأم المتوفية</h5>
                   </div>
                   <div class="card-body bg-light">
                       <div class="row g-3">
@@ -129,15 +117,10 @@
                                   @endforeach
                               </select>
                           </div>
-                          <div class="col-md-4 mt-3">
-                              <!-- ملاحظة توضيحية لرفع الملفات -->
-                              <div class="alert alert-primary py-2 mb-2" style="font-size: 0.97rem;">
-                                  يرجى اختيار نوع الوثيقة أولاً، وسوف يتم تحويلك لرفع الصورة
-                                  المطلوبة.
-                              </div>
+                          <div class="col-md-12 mt-3">
                               <!-- منطقة رفع الملفات للأم المتوفية -->
-                              <div data-upload-zone="deceased_mother" data-person-id="{{ $mother_id ?? '' }}">
-                                  <label class="form-label fw-bold"> رفع الملفات <span class="text-danger">*</span></label>
+                              <div data-upload-zone="deceased_mother" class="upload-zone">
+                                  <label class="form-label fw-bold">رفع وثائق الأم المتوفية</label>
                                   <select class="form-select mainDocumentTypeSelect" id="mainDocumentTypeSelect_mother">
                                       <option value="">اختر نوع الوثيقة</option>
                                       @foreach ($documentTypes->where('deceased_enabled', 1) as $documentType)
@@ -147,7 +130,6 @@
                                   </select>
                                   <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_mother" style="display:none;">
                                   <div class="mainDocumentPreview" id="mainDocumentPreview_mother"></div>
-                                  <div class="mainDocumentNames" id="mainDocumentNames_mother"></div>
                               </div>
                           </div>
                       </div>
