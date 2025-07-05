@@ -54,7 +54,7 @@
                                   يرجى اختيار نوع الوثيقة أولاً، وسوف يتم تحويلك لرفع الصورة
                                   المطلوبة.
                               </div>
-                              <!-- منطقة رفع الملفات للأب المتوفى -->
+                              <!-- منطقة رفع الملفات للأب المتوفى (معرفات فريدة) -->
                               <div data-upload-zone="deceased_father" data-person-id="{{ $father_id ?? '' }}">
                                   <label class="form-label fw-bold"> رفع الملفات <span class="text-danger">*</span></label>
                                   <select class="form-select mainDocumentTypeSelect" id="mainDocumentTypeSelect_father">
@@ -64,7 +64,8 @@
                                               {{ $documentType->description }}</option>
                                       @endforeach
                                   </select>
-                                  <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_father" style="display:none;">
+                                  <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_father" accept="image/*,.pdf"
+                                      style="display:none;">
                                   <div class="mainDocumentPreview" id="mainDocumentPreview_father"></div>
                                   <div class="mainDocumentNames" id="mainDocumentNames_father"></div>
                               </div>
@@ -135,7 +136,7 @@
                                   يرجى اختيار نوع الوثيقة أولاً، وسوف يتم تحويلك لرفع الصورة
                                   المطلوبة.
                               </div>
-                              <!-- منطقة رفع الملفات للأم المتوفية -->
+                              <!-- منطقة رفع الملفات للأم المتوفية (معرفات فريدة) -->
                               <div data-upload-zone="deceased_mother" data-person-id="{{ $mother_id ?? '' }}">
                                   <label class="form-label fw-bold"> رفع الملفات <span class="text-danger">*</span></label>
                                   <select class="form-select mainDocumentTypeSelect" id="mainDocumentTypeSelect_mother">
@@ -145,7 +146,8 @@
                                               {{ $documentType->description }}</option>
                                       @endforeach
                                   </select>
-                                  <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_mother" style="display:none;">
+                                  <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_mother" accept="image/*,.pdf"
+                                      style="display:none;">
                                   <div class="mainDocumentPreview" id="mainDocumentPreview_mother"></div>
                                   <div class="mainDocumentNames" id="mainDocumentNames_mother"></div>
                               </div>
@@ -238,7 +240,5 @@
                   });
               }
           });
-      </script>
-  </div>
       </script>
   </div>

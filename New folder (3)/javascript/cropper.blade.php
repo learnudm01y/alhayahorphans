@@ -214,6 +214,7 @@
         padding: 10px;
         min-width: 350px;
         min-height: 350px;
+        /* زيادة الحجم الافتراضي */
     }
 
     .crop-area img {
@@ -377,7 +378,7 @@
 
         <!-- Crop Area -->
         <div class="crop-area flex-grow-1 d-flex justify-content-center align-items-center bg-light p-2">
-          <img id="cropperImage" src="" alt="Image to crop" style="max-width: 100%; height: auto;" />
+          <img id="cropperImage" src="" alt="Image to crop" class="img-fluid" />
         </div>
 
         <!-- Controls Panel -->
@@ -407,81 +408,10 @@
 
 <script>
 window.showCropperModal = function(file, callback) {
-  // فحص شامل للملف المُمرر
-  console.log('[showCropperModal] بدء فحص الملف المُمرر:', file);
-  
-  // التحقق من وجود الملف
-  if (!file) {
-    console.error('[showCropperModal] لم يتم تمرير ملف!');
-    Swal.fire({ icon: 'error', title: 'خطأ', text: 'لم يتم تمرير ملف للمعالجة.' });
-    if (callback) callback(null, 'لم يتم تمرير ملف');
-    return;
-  }
-  
-  // التحقق من أن الملف هو File أو Blob
-  if (!(file instanceof File) && !(file instanceof Blob)) {
-    console.error('[showCropperModal] الملف المُمرر ليس من نوع File أو Blob:', typeof file, file);
-    Swal.fire({ icon: 'error', title: 'خطأ', text: 'نوع الملف المُمرر غير صالح.' });
-    if (callback) callback(null, 'نوع الملف غير صالح');
-    return;
-  }
-  
-  // التحقق من نوع الملف
-  if (!file.type || !file.type.startsWith('image/')) {
-    console.error('[showCropperModal] الملف ليس صورة! نوع الملف:', file.type);
-    Swal.fire({ icon: 'error', title: 'خطأ', text: 'الملف المُمرر ليس صورة صالحة.' });
-    if (callback) callback(null, 'الملف ليس صورة');
-    return;
-  }
-  
-  // التحقق من حجم الملف
-  if (file.size === 0) {
-    console.error('[showCropperModal] الملف فارغ! حجم الملف:', file.size);
-    Swal.fire({ icon: 'error', title: 'خطأ', text: 'الملف المُمرر فارغ.' });
-    if (callback) callback(null, 'الملف فارغ');
-    return;
-  }
-  
-  // التحقق من حجم الملف (حد أقصى 50MB)
-  const maxSize = 50 * 1024 * 1024; // 50MB
-  if (file.size > maxSize) {
-    console.error('[showCropperModal] الملف كبير جداً! حجم الملف:', file.size, 'الحد الأقصى:', maxSize);
-    Swal.fire({ icon: 'error', title: 'خطأ', text: `حجم الملف كبير جداً (${Math.round(file.size / 1024 / 1024)}MB). الحد الأقصى 50MB.` });
-    if (callback) callback(null, 'حجم الملف كبير جداً');
-    return;
-  }
-  
-  console.log('[showCropperModal] ✅ الملف صالح - الاسم:', file.name, 'النوع:', file.type, 'الحجم:', file.size, 'bytes');
-  
   const modalEl = document.getElementById('cropperModal');
   const imgEl = document.getElementById('cropperImage');
   const cropBtn = document.getElementById('cropperCropBtn');
   const loaderModalEl = document.getElementById('compressLoaderModal');
-  
-  // التحقق من وجود العناصر المطلوبة
-  if (!modalEl) {
-    console.error('[showCropperModal] عنصر المودال غير موجود!');
-    Swal.fire({ icon: 'error', title: 'خطأ', text: 'عنصر نافذة القص غير موجود في الصفحة.' });
-    if (callback) callback(null, 'عنصر المودال مفقود');
-    return;
-  }
-  
-  if (!imgEl) {
-    console.error('[showCropperModal] عنصر الصورة غير موجود!');
-    Swal.fire({ icon: 'error', title: 'خطأ', text: 'عنصر الصورة غير موجود في الصفحة.' });
-    if (callback) callback(null, 'عنصر الصورة مفقود');
-    return;
-  }
-  
-  if (!cropBtn) {
-    console.error('[showCropperModal] زر القص غير موجود!');
-    Swal.fire({ icon: 'error', title: 'خطأ', text: 'زر القص غير موجود في الصفحة.' });
-    if (callback) callback(null, 'زر القص مفقود');
-    return;
-  }
-  
-  console.log('[showCropperModal] ✅ جميع العناصر موجودة، بدء تحميل الصورة...');
-  
   const loaderModal = bootstrap.Modal.getOrCreateInstance(loaderModalEl);
   let cropper;
   let cropperReady = false;
@@ -544,166 +474,65 @@ window.showCropperModal = function(file, callback) {
     callback(null);
   }, 300000);
 
-  // تحميل الصورة مع تشخيص محسن
-  console.log('[showCropperModal] بدء قراءة الملف باستخدام FileReader...');
+  // تحميل الصورة (مع تحرير objectURL)
   const reader = new FileReader();
-  
-  reader.onerror = function(error) {
-    console.error('[showCropperModal] خطأ في قراءة الملف:', error);
-    cleanup();
-    loaderModal.hide();
-    Swal.fire({ 
-      icon: 'error', 
-      title: 'خطأ في قراءة الملف', 
-      text: 'تعذر قراءة الملف المُختار. يرجى التأكد من صحة الملف والمحاولة مرة أخرى.' 
-    });
-    if (callback) callback(null, 'خطأ في قراءة الملف');
-  };
-  
-  reader.onloadstart = function() {
-    console.log('[showCropperModal] بدء قراءة الملف...');
-  };
-  
-  reader.onprogress = function(e) {
-    if (e.lengthComputable) {
-      const percentLoaded = Math.round((e.loaded / e.total) * 100);
-      console.log('[showCropperModal] تقدم قراءة الملف:', percentLoaded + '%');
-    }
-  };
-  
   reader.onload = function(e) {
-    console.log('[showCropperModal] تم قراءة الملف بنجاح، بدء تحميل الصورة...');
-    
-    if (!e.target.result) {
-      console.error('[showCropperModal] لم يتم الحصول على بيانات من الملف!');
-      cleanup();
-      loaderModal.hide();
-      Swal.fire({ icon: 'error', title: 'خطأ', text: 'فشل في قراءة بيانات الملف.' });
-      if (callback) callback(null, 'لا توجد بيانات في الملف');
-      return;
-    }
-    
-    if (objectUrl) { 
-      try { URL.revokeObjectURL(objectUrl); } catch {} 
-    }
+    if (objectUrl) { try { URL.revokeObjectURL(objectUrl); } catch {} }
     objectUrl = e.target.result;
-    
-    // تعيين مصدر الصورة
     imgEl.src = objectUrl;
     cropperReady = false;
     let tryCount = 0;
     const maxTries = 15;
-    
-    console.log('[showCropperModal] تم تعيين مصدر الصورة، انتظار تحميل الصورة...');
-    
-    // مستمع تحميل الصورة
-    imgEl.onload = function() {
-      console.log('[showCropperModal] تم تحميل الصورة بنجاح! الأبعاد:', imgEl.naturalWidth + 'x' + imgEl.naturalHeight);
-    };
-    
-    imgEl.onerror = function(imgError) {
-      console.error('[showCropperModal] خطأ في تحميل الصورة:', imgError);
-      cleanup();
-      loaderModal.hide();
-      Swal.fire({ icon: 'error', title: 'خطأ في تحميل الصورة', text: 'تعذر تحميل الصورة. تأكد من أن الملف صورة صالحة.' });
-      if (callback) callback(null, 'خطأ في تحميل الصورة');
-    };
-    
-    imgEl.onerror = function(imgError) {
-      console.error('[showCropperModal] خطأ في تحميل الصورة:', imgError);
-      cleanup();
-      loaderModal.hide();
-      Swal.fire({ icon: 'error', title: 'خطأ في تحميل الصورة', text: 'تعذر تحميل الصورة. تأكد من أن الملف صورة صالحة.' });
-      if (callback) callback(null, 'خطأ في تحميل الصورة');
-    };
 
     function initCropper(force = false) {
-      console.log('[showCropperModal] محاولة تهيئة أداة القص - المحاولة:', tryCount + 1, 'إجبار:', force);
-      console.log('[showCropperModal] أبعاد الصورة الطبيعية:', imgEl.naturalWidth + 'x' + imgEl.naturalHeight);
-      console.log('[showCropperModal] أبعاد الصورة المعروضة:', imgEl.width + 'x' + imgEl.height);
-      
       if (isMobileChrome() && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
         imgEl.style.maxHeight = '70vh';
         imgEl.style.maxWidth = '95vw';
-        console.log('[showCropperModal] تطبيق أسلوب موبايل كروم للصور الطويلة');
       } else {
         imgEl.style.maxHeight = '';
         imgEl.style.maxWidth = '';
       }
-      
       if ((imgEl.naturalWidth > 0 && imgEl.naturalHeight > 0) || force) {
-        console.log('[showCropperModal] الصورة جاهزة، بدء تهيئة Cropper.js...');
-        
         if (imgEl.cropperInstance) {
-          console.log('[showCropperModal] تدمير أداة القص الموجودة...');
           imgEl.cropperInstance.destroy();
           imgEl.cropperInstance = null;
         }
-        
-        try {
-          cropper = new Cropper(imgEl, {
-            aspectRatio: NaN,
-            viewMode: 1,
-            responsive: true,
-            autoCropArea: 1,
-            movable: true,
-            zoomable: true,
-            rotatable: true,
-            scalable: true,
-            background: false,
-            guides: true,
-            center: true,
-            dragMode: 'move',
-            ready() {
-              console.log('[showCropperModal] ✅ تم تهيئة أداة القص بنجاح!');
-              cropperReady = true;
-              enableAllControls();
-              enableCropperControls();
-              
-              if (isMobileChrome() && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
-                try {
-                  const containerData = cropper.getContainerData();
-                  const cropBoxWidth = Math.min(containerData.width * 0.9, imgEl.naturalWidth);
-                  const cropBoxHeight = Math.min(containerData.height * 0.7, imgEl.naturalHeight);
-                  cropper.setCropBoxData({
-                    width: cropBoxWidth,
-                    height: cropBoxHeight,
-                    left: (containerData.width - cropBoxWidth) / 2,
-                    top: (containerData.height - cropBoxHeight) / 2
-                  });
-                  console.log('[showCropperModal] تم تطبيق إعدادات موبايل كروم');
-                } catch(e){
-                  console.warn('[showCropperModal] فشل في تطبيق إعدادات موبايل كروم:', e);
-                }
-              }
-            },
-            error(err) {
-              console.error('[showCropperModal] خطأ في تهيئة أداة القص:', err);
-              cleanup();
-              loaderModal.hide();
-              Swal.fire({ icon: 'error', title: 'خطأ في أداة القص', text: 'فشل في تهيئة أداة قص الصور.' });
-              if (callback) callback(null, 'خطأ في تهيئة أداة القص');
+        cropper = new Cropper(imgEl, {
+          aspectRatio: NaN,
+          viewMode: 1,
+          responsive: true,
+          autoCropArea: 1,
+          movable: true,
+          zoomable: true,
+          rotatable: true,
+          scalable: true,
+          background: false,
+          guides: true,
+          center: true,
+          dragMode: 'move',
+          ready() {
+            cropperReady = true;
+            enableAllControls();
+            enableCropperControls();
+            if (isMobileChrome() && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
+              try {
+                const containerData = cropper.getContainerData();
+                const cropBoxWidth = Math.min(containerData.width * 0.9, imgEl.naturalWidth);
+                const cropBoxHeight = Math.min(containerData.height * 0.7, imgEl.naturalHeight);
+                cropper.setCropBoxData({
+                  width: cropBoxWidth,
+                  height: cropBoxHeight,
+                  left: (containerData.width - cropBoxWidth) / 2,
+                  top: (containerData.height - cropBoxHeight) / 2
+                });
+              } catch(e){}
             }
-          });
-          imgEl.cropperInstance = cropper;
-          console.log('[showCropperModal] تم إنشاء أداة القص وربطها بالصورة');
-        } catch (cropperError) {
-          console.error('[showCropperModal] استثناء في إنشاء أداة القص:', cropperError);
-          cleanup();
-          loaderModal.hide();
-          Swal.fire({ icon: 'error', title: 'خطأ', text: 'فشل في إنشاء أداة قص الصور: ' + cropperError.message });
-          if (callback) callback(null, 'استثناء في أداة القص');
-        }
+          }
+        });
+        imgEl.cropperInstance = cropper;
       } else if (tryCount < maxTries) {
         tryCount++;
-        console.log('[showCropperModal] الصورة غير جاهزة، إعادة المحاولة بعد', 120 * tryCount, 'مللي ثانية');
         setTimeout(initCropper, 120 * tryCount);
-      } else {
-        console.error('[showCropperModal] فشل في تحميل الصورة بعد', maxTries, 'محاولة');
-        cleanup();
-        loaderModal.hide();
-        Swal.fire({ icon: 'error', title: 'خطأ', text: 'فشل في تحميل الصورة بعد عدة محاولات.' });
-        if (callback) callback(null, 'فشل في تحميل الصورة');
       }
     }
     setTimeout(initCropper, 60);
@@ -1001,27 +830,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 });
-</script>
-
-<!-- دالة مختصرة لسهولة الوصول -->
-<script>
-window.showCropper = window.showCropperModal;
-
-// فحص تشخيصي لتأكيد توفر أداة القص
-console.log('[Cropper] ✅ تم تحميل أداة القص بنجاح');
-console.log('[Cropper] window.showCropperModal:', typeof window.showCropperModal);
-console.log('[Cropper] window.showCropper:', typeof window.showCropper);
-
-// إرسال إشارة عالمية بأن أداة القص جاهزة
-window.cropperReady = true;
-if (window.dispatchEvent) {
-  window.dispatchEvent(new CustomEvent('cropperReady', { 
-    detail: { 
-      showCropperModal: window.showCropperModal,
-      showCropper: window.showCropper
-    }
-  }));
-}
 </script>
 
 

@@ -1,6 +1,153 @@
 @push('scriptsCodeUserRegistration')
-<script>
+    <!-- تحسينات CSS للمعاينة السلسة -->
+    <style>
+        /* تأثيرات سلسة للصور أثناء المعالجة */
+        .attachment-preview-container {
+            position: relative;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+        
+        .attachment-preview-container img {
+            transition: all 0.3s ease;
+            border-radius: 8px;
+        }
+        
+        .attachment-preview-container.processing img {
+            opacity: 0.7;
+            filter: blur(1px);
+        }
+        
+        .attachment-preview-container.completed img {
+            opacity: 1;
+            filter: none;
+        }
+        
+        /* overlay للمعالجة */
+        .processing-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.3s ease;
+        }
+        
+        .processing-overlay.fade-out {
+            opacity: 0;
+        }
+        
+        /* تحسينات للموبايل */
+        @media (max-width: 768px) {
+            .attachment-preview-container img {
+                max-width: 80px;
+                max-height: 80px;
+            }
+            
+            .processing-overlay .spinner-border {
+                width: 1.2rem;
+                height: 1.2rem;
+            }
+            
+            .processing-overlay .small {
+                font-size: 0.6rem;
+            }
+        }
+        
+        /* تأثير النجاح */
+        .attachment-card.success-flash {
+            animation: successFlash 0.6s ease;
+        }
+        
+        @keyframes successFlash {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); background-color: #d4edda; }
+            100% { transform: scale(1); background-color: white; }
+        }
+        
+        /* تحسين شارات الحالة */
+        .status-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+        
+        .status-badge.pending {
+            background-color: #cce7ff;
+            color: #0066cc;
+        }
+        
+        .status-badge.processing {
+            background-color: #fff3cd;
+            color: #856404;
+            animation: pulse 1.5s infinite;
+        }
+        
+        .status-badge.completed {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .status-badge.failed {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+    </style>
+    <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // فحص تشخيصي لحالة أداة القص
+    console.log('[documentUpload] فحص حالة أداة القص...');
+    console.log('[documentUpload] window.showCropperModal:', typeof window.showCropperModal);
+    console.log('[documentUpload] window.showCropper:', typeof window.showCropper);
+    console.log('[documentUpload] window.cropperReady:', window.cropperReady);
+    
+    // الاستماع لإشارة جاهزية أداة القص
+    window.addEventListener('cropperReady', function(event) {
+        console.log('[documentUpload] ✅ تم استلام إشارة جاهزية أداة القص:', event.detail);
+        
+        // إعادة تهيئة مناطق الرفع للتأكد من ربطها بأداة القص
+        setTimeout(() => {
+            console.log('[documentUpload] إعادة تهيئة مناطق الرفع بعد جاهزية أداة القص...');
+            initializeAllUploadZones();
+        }, 100);
+    });
+    
+    // انتظار تحميل أداة القص إذا لم تكن متوفرة
+    if (!window.showCropperModal && !window.showCropper && !window.cropperReady) {
+        console.warn('[documentUpload] أداة القص غير متوفرة عند تحميل الصفحة، انتظار التحميل...');
+        let checkCount = 0;
+        const checkCropper = () => {
+            if (window.showCropperModal || window.showCropper || window.cropperReady) {
+                console.log('[documentUpload] ✅ تم تحميل أداة القص بنجاح');
+                // إعادة تهيئة مناطق الرفع
+                setTimeout(() => {
+                    initializeAllUploadZones();
+                }, 100);
+            } else if (checkCount < 50) { // انتظار 10 ثواني
+                checkCount++;
+                setTimeout(checkCropper, 200);
+            } else {
+                console.error('[documentUpload] ❌ فشل في تحميل أداة القص بعد 10 ثواني');
+            }
+        };
+        checkCropper();
+    } else {
+        console.log('[documentUpload] ✅ أداة القص متوفرة ومجهزة');
+    }
+    
     // --- Enhanced Attachment State Engine ---
     const allDocs = new Map();
     window.allDocs = allDocs;
@@ -10,62 +157,117 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function addAttachmentTask(personKey, file, docType, personId, fileIdNumber) {
-        // منع إضافة أي مهمة إذا كان personKey أو personId فارغ أو يحمل template
-        if (!personKey || personKey === 'template' || !personId || personId === 'template') {
-            console.warn('[addAttachmentTask] محاولة إضافة مرفق بقيم غير صالحة:', {personKey, personId, file, docType, fileIdNumber});
+        // التحقق الصارم من صحة البيانات المدخلة
+        if (!personKey || personKey === 'template' || personKey.includes('template')) {
+            console.warn('[addAttachmentTask] محاولة إضافة مرفق بـ personKey غير صالح:', {personKey, personId, file, docType, fileIdNumber});
             return null;
         }
-        if (!file || !docType) {
-            console.warn('[addAttachmentTask] محاولة إضافة مرفق بدون ملف أو نوع وثيقة:', {personKey, personId, file, docType, fileIdNumber});
+        if (!personId || personId === 'template' || personId.trim() === '') {
+            console.warn('[addAttachmentTask] محاولة إضافة مرفق بـ personId غير صالح:', {personKey, personId, file, docType, fileIdNumber});
             return null;
         }
+        if (!file || !docType || docType === '' || docType === 'undefined') {
+            console.warn('[addAttachmentTask] محاولة إضافة مرفق بدون ملف أو نوع وثيقة صالح:', {personKey, personId, file, docType, fileIdNumber});
+            return null;
+        }
+
+        // التأكد من أن منطقة الرفع موجودة فعلياً في الصفحة
+        const uploadZone = document.querySelector(`[data-upload-zone="${personKey}"]`);
+        if (!uploadZone) {
+            console.warn('[addAttachmentTask] منطقة الرفع غير موجودة في الصفحة:', {personKey, personId, file, docType});
+            return null;
+        }
+
         const id = generateTaskId();
         const isImage = file.type && file.type.startsWith('image/');
         const task = {
             id,
             personKey,
             originalFile: file,
-            processedFile: isImage ? null : file,
+            // ⭐ CRITICAL FIX: تعيين الملف فوراً للعرض الفوري
+            processedFile: file, 
             docType: docType,
-            personId,
-            fileIdNumber,
-            status: isImage ? 'pending' : 'completed',
+            personId: personId.toString().trim(),
+            fileIdNumber: fileIdNumber || '',
+            status: 'pending', // دائماً pending في البداية للعرض الفوري
             errorMessage: null,
             timestamp: Date.now(),
-            timer: null
+            timer: null,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            // علامة للتمييز بين الملف الأصلي والمعالج
+            isProcessed: false // دائماً false في البداية
         };
-        // لا تضف نفس المهمة مرتين لنفس الشخص أو لنفس رقم الهوية
+
+        // إدارة محسنة للتكرار - امنع المهام المكررة بنفس الملف ونوع الوثيقة للشخص نفسه
         if (!allDocs.has(personKey)) allDocs.set(personKey, []);
-        // لا تضف نفس المهمة إذا كان هناك مهمة بنفس الملف ونوع الوثيقة قيد التنفيذ أو بانتظار القص أو حتى فشلت لنفس الشخص
-        const existingTask = allDocs.get(personKey).find(t => t.originalFile.name === file.name && t.docType === docType && t.personId === personId);
-        if (existingTask) {
-            // إذا كانت المهمة السابقة فشلت أو انتهت، احذفها وأضف الجديدة
-            if (existingTask.status === 'failed' || existingTask.status === 'completed') {
-                removeAttachmentTask(personKey, existingTask.id);
-                allDocs.get(personKey).push(task);
+        
+        const tasks = allDocs.get(personKey);
+        const duplicateTask = tasks.find(t => 
+            t.originalFile.name === file.name && 
+            t.docType === docType && 
+            t.personId === task.personId
+        );
+        
+        if (duplicateTask) {
+            if (duplicateTask.status === 'failed') {
+                // استبدال المهمة الفاشلة بمهمة جديدة
+                console.log('[addAttachmentTask] استبدال مهمة فاشلة بمهمة جديدة:', duplicateTask.id, '→', id);
+                removeAttachmentTask(personKey, duplicateTask.id);
+            } else if (duplicateTask.status === 'completed') {
+                // السماح بإعادة رفع ملف مكتمل (استبدال)
+                console.log('[addAttachmentTask] استبدال مهمة مكتملة بمهمة جديدة:', duplicateTask.id, '→', id);
+                removeAttachmentTask(personKey, duplicateTask.id);
             } else {
-                // هناك مهمة قيد التنفيذ أو بانتظار القص لنفس الملف ولنفس الشخص ولنفس نوع الوثيقة، تجاهل الإضافة
-                console.warn('[addAttachmentTask] مهمة مكررة قيد التنفيذ أو بانتظار القص، لن تتم الإضافة:', {personKey, personId, file, docType, fileIdNumber});
-                return null;
-            }
-        } else {
-            allDocs.get(personKey).push(task);
-        }
-        if (personId && personId !== personKey) {
-            if (!allDocs.has(personId)) allDocs.set(personId, []);
-            const alreadyExistsById = allDocs.get(personId).some(t => t.originalFile === file && t.docType === docType);
-            if (!alreadyExistsById) {
-                allDocs.get(personId).push(task);
+                // رفض المهمة المكررة إذا كانت قيد التنفيذ
+                console.warn('[addAttachmentTask] مهمة مكررة قيد التنفيذ، لن تتم الإضافة:', {
+                    existing: duplicateTask.id, 
+                    newTask: id, 
+                    status: duplicateTask.status
+                });
+                return duplicateTask.id; // إرجاع معرف المهمة الموجودة
             }
         }
-        // عرض حي لكل عملية إضافة
-        console.log('🟡 إضافة مرفق:', task);
-        processAttachment(id);
+
+        // إضافة المهمة الجديدة
+        tasks.push(task);
+        
+        console.log('🟡 إضافة مرفق جديد:', {
+            id, 
+            personKey, 
+            personId: task.personId, 
+            fileName: file.name, 
+            docType, 
+            isImage,
+            processedFile: task.processedFile ? 'موجود' : 'null',
+            status: task.status
+        });
+
+        // ⭐ CRITICAL: عرض فوري للصورة قبل أي معالجة
+        console.log('📸 عرض فوري للصورة قبل المعالجة:', {
+            fileName: file.name,
+            personKey: personKey,
+            isImage: isImage,
+            hasProcessedFile: !!task.processedFile,
+            taskStatus: task.status
+        });
+        
+        // تحديث الواجهة فوراً - هذا سيعرض الصورة قبل modal القص
         renderAttachmentTasksUI(personKey);
-        // عرض حي لجميع المرفقات بعد كل إضافة
-        console.log('🟢 جميع المرفقات الحالية:', Array.from(window.allDocs.entries()));
-        // Diagnostic marker for workflow verification
-        console.log('🟢');
+        
+        // انتظار قصير للتأكد من عرض الصورة قبل بدء المعالجة
+        setTimeout(() => {
+            console.log('🔄 بدء معالجة المرفق بعد العرض الفوري:', id);
+            
+            // للملفات غير الصور، أكمل فوراً
+            if (!isImage) {
+                updateAttachmentTaskStatus(id, 'completed', task.originalFile, null);
+            } else {
+                // للصور، ابدأ المعالجة
+                processAttachment(id);
+            }
+        }, 100); // انتظار 100ms لضمان عرض الصورة
+        
         return id;
     }
 
@@ -86,27 +288,91 @@ document.addEventListener('DOMContentLoaded', function() {
         for (let [personKey, arr] of allDocs.entries()) {
             const task = arr.find(t => t.id === id);
             if (task) {
+                const previousStatus = task.status; // حفظ الحالة السابقة
                 task.status = status;
                 // لا تعيّن processedFile إلا إذا كان فعلاً من نوع File
                 if (processedFile !== undefined) {
                     if (status === 'completed') {
-                        if (processedFile instanceof File) {
+                        if (processedFile instanceof File || processedFile instanceof Blob) {
                             task.processedFile = processedFile;
+                            task.isProcessed = true; // علامة أن الملف تم معالجته
                         } else if (!processedFile && task.originalFile instanceof File) {
                             // fallback: استخدم الملف الأصلي إذا لم يتم تمرير processedFile
                             task.processedFile = task.originalFile;
+                            task.isProcessed = false; // لم يتم معالجة الملف فعلياً
                         } else {
                             // إذا لم يكن هناك ملف صالح، لا تغيّر processedFile أبداً
                             console.error('[updateAttachmentTaskStatus] محاولة تعيين processedFile غير صالحة عند الاكتمال. سيتم تجاهلها ولن يتم تغيير الملف الحالي.', {id, status, processedFile, task});
                         }
                     } else {
                         // في الحالات الأخرى (processing/pending/failed) لا تفرض أي حماية على processedFile
-                        if (processedFile instanceof File) {
+                        if (processedFile instanceof File || processedFile instanceof Blob) {
                             task.processedFile = processedFile;
                         } // لا تعيّن null أو true أو أي قيمة أخرى أبداً
                     }
                 }
                 if (errorMessage !== undefined) task.errorMessage = errorMessage;
+                
+                task.updatedAt = Date.now();
+                console.log(`[updateAttachmentTaskStatus] ✅ تحديث حالة المهمة ${id}:`, {
+                    من: previousStatus,
+                    إلى: status,
+                    ملف_معالج: processedFile ? 'موجود' : 'لا يوجد',
+                    معالج: task.isProcessed,
+                    رسالة_خطأ: errorMessage
+                });
+                
+                // تحديث فوري للواجهة مع تأثيرات انتقالية سلسة
+                requestAnimationFrame(() => {
+                    renderAttachmentTasksUI(personKey);
+                    
+                    // ⭐ تأثيرات خاصة عند اكتمال المعالجة
+                    if (status === 'completed') {
+                        setTimeout(() => {
+                            const taskCard = document.getElementById('preview_att_' + id);
+                            if (taskCard) {
+                                console.log(`[updateAttachmentTaskStatus] 🎉 إضافة تأثيرات النجاح للمهمة ${id}`);
+                                
+                                // إزالة تأثيرات المعالجة
+                                const imgContainer = taskCard.querySelector('.attachment-preview-container');
+                                if (imgContainer) {
+                                    imgContainer.classList.remove('pending', 'processing');
+                                    imgContainer.classList.add('completed');
+                                    
+                                    // تحسين الصورة (إزالة التشويش)
+                                    const img = imgContainer.querySelector('img');
+                                    if (img) {
+                                        img.style.opacity = '1';
+                                        img.style.filter = 'none';
+                                    }
+                                }
+                                
+                                // إزالة overlay مع تأثير fade
+                                const overlay = taskCard.querySelector('.processing-overlay');
+                                if (overlay) {
+                                    overlay.classList.add('fade-out');
+                                    setTimeout(() => {
+                                        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+                                    }, 300);
+                                }
+                                
+                                // إضافة تأثير نجاح واضح للبطاقة
+                                taskCard.classList.add('success-flash');
+                                setTimeout(() => {
+                                    taskCard.classList.remove('success-flash');
+                                }, 600);
+                                
+                                // تحديث شارة الحالة لتأكيد النجاح
+                                const statusBadge = taskCard.querySelector('.status-badge');
+                                if (statusBadge) {
+                                    statusBadge.innerHTML = '✅ تم بنجاح';
+                                    statusBadge.className = 'status-badge completed';
+                                }
+                            }
+                        }, 100);
+                    }
+                });
+                
                 // إذا كانت صورة، حدث صورة المعاينة العامة
                 if (task.status === 'completed' && task.originalFile && task.originalFile.type && task.originalFile.type.startsWith('image/')) {
                     const reader = new FileReader();
@@ -166,141 +432,280 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function processAttachment(id) {
         let task;
-        for (let arr of allDocs.values()) {
+        let personKey;
+        for (let [pk, arr] of allDocs.entries()) {
             task = arr.find(t => t.id === id);
-            if (task) break;
-        }
-        if (!task) {
-            console.log('[processAttachment] لم يتم العثور على المهمة', id);
-            return;
-        }
-        if (task.status !== 'pending') {
-            console.log('[processAttachment] حالة المهمة ليست pending، لن تتم المعالجة', id, task.status);
-            return;
-        }
-        updateAttachmentTaskStatus(id, 'processing');
-        if (task.originalFile.type && task.originalFile.type.startsWith('image/')) {
-            // اربط timeout خاص بهذه المهمة
-            task.timer = setTimeout(() => {
-                console.log('[processAttachment] انتهى الوقت لهذه الصورة، المهمة ستفشل', id);
-                updateAttachmentTaskStatus(id, 'failed', null, 'انتهى الوقت لهذه الصورة.');
-            }, 300000); // 5 دقائق
-            try {
-                console.log('[processAttachment] سيتم استدعاء showCropperModalPromise للصورة', id, task.originalFile);
-                const croppedFile = await showCropperModalPromise(task.originalFile, 300000);
-                clearTimeout(task.timer); // ألغِ المؤقت عند النجاح
-                if (croppedFile && croppedFile instanceof File) {
-                    console.log('[processAttachment] تم قص الصورة بنجاح', id, croppedFile);
-                    updateAttachmentTaskStatus(id, 'completed', croppedFile, null);
-                } else {
-                    console.log('[processAttachment] لم يتم قص الصورة أو حدث خطأ', id, croppedFile);
-                    updateAttachmentTaskStatus(id, 'failed', null, 'لم يتم قص الصورة أو حدث خطأ.');
-                }
-            } catch (err) {
-                clearTimeout(task.timer); // ألغِ المؤقت عند الفشل
-                console.log('[processAttachment] حدث خطأ أثناء معالجة الصورة', id, err);
-                updateAttachmentTaskStatus(id, 'failed', null, err && err.message ? err.message : 'خطأ غير معروف أثناء معالجة الصورة.');
+            if (task) {
+                personKey = pk;
+                break;
             }
+        }
+        
+        if (!task) {
+            console.error('[processAttachment] لم يتم العثور على المهمة:', id);
+            return;
+        }
+        
+        if (task.status !== 'pending') {
+            console.log('[processAttachment] حالة المهمة ليست pending، لن تتم المعالجة:', id, task.status);
+            return;
+        }
+
+        console.log(`[processAttachment] 🚀 بدء معالجة المهمة ${id}:`, {
+            fileName: task.originalFile.name,
+            fileType: task.originalFile.type,
+            isImage: task.originalFile.type.startsWith('image/')
+        });
+
+        // التحقق من وجود منطقة الرفع قبل المعالجة
+        const uploadZone = document.querySelector(`[data-upload-zone="${task.personKey}"]`);
+        if (!uploadZone) {
+            console.error('[processAttachment] منطقة الرفع غير موجودة، المهمة ستفشل:', task.personKey);
+            updateAttachmentTaskStatus(id, 'failed', null, 'منطقة الرفع غير موجودة في الصفحة');
+            return;
+        }
+
+        // تحديث الحالة إلى "processing" 
+        updateAttachmentTaskStatus(id, 'processing');
+        
+        if (task.originalFile.type && task.originalFile.type.startsWith('image/')) {
+            console.log('[processAttachment] 📸 بدء معالجة الصورة:', id, task.originalFile.name);
+            
+            // التحقق السريع من توفر أداة القص
+            const showCropper = window.showCropperModal || window.showCropper;
+            if (!showCropper) {
+                console.error('[processAttachment] أداة القص غير متوفرة');
+                updateAttachmentTaskStatus(id, 'failed', null, 'أداة قص الصور غير متوفرة. يرجى تحديث الصفحة.');
+                return;
+            }
+            
+            // إعداد مؤقت محسن مع تتبع أفضل
+            const timeoutMs = 120000; // دقيقتان
+            task.timer = setTimeout(() => {
+                console.error('[processAttachment] انتهى الوقت المحدد لمعالجة الصورة:', id, task.originalFile.name);
+                updateAttachmentTaskStatus(id, 'failed', null, 'انتهى الوقت المحدد لمعالجة الصورة (دقيقتان). يرجى المحاولة مرة أخرى.');
+                
+                if (window.ErrorTracker && window.ErrorTracker.log) {
+                    window.ErrorTracker.log('error', 'image-processing-timeout', 'Image processing timed out after 2 minutes', {
+                        taskId: id,
+                        personKey: task.personKey,
+                        fileName: task.originalFile.name
+                    });
+                }
+            }, timeoutMs);
+            
+            showCropperModalPromise(task.originalFile, timeoutMs)
+                .then(croppedFile => {
+                    // تنظيف المؤقت عند النجاح
+                    if (task.timer) {
+                        clearTimeout(task.timer);
+                        task.timer = null;
+                    }
+                    
+                    if (croppedFile && (croppedFile instanceof File || croppedFile instanceof Blob)) {
+                        console.log('[processAttachment] تم قص الصورة بنجاح:', id, croppedFile.name || 'cropped-image');
+                        updateAttachmentTaskStatus(id, 'completed', croppedFile, null);
+                    } else {
+                        console.warn('[processAttachment] فشل في قص الصورة أو تم الإلغاء:', id);
+                        updateAttachmentTaskStatus(id, 'failed', null, 'فشل في قص الصورة أو تم إلغاء العملية');
+                    }
+                })
+                .catch(error => {
+                    // تنظيف المؤقت عند حدوث خطأ
+                    if (task.timer) {
+                        clearTimeout(task.timer);
+                        task.timer = null;
+                    }
+                    
+                    console.error('[processAttachment] خطأ أثناء معالجة الصورة:', id, error);
+                    const errorMessage = error && error.message ? error.message : 'خطأ غير معروف أثناء معالجة الصورة';
+                    updateAttachmentTaskStatus(id, 'failed', null, errorMessage);
+                    
+                    if (window.ErrorTracker && window.ErrorTracker.log) {
+                        window.ErrorTracker.log('error', 'image-processing-error', errorMessage, {
+                            taskId: id,
+                            personKey: task.personKey,
+                            fileName: task.originalFile.name,
+                            error: error
+                        });
+                    }
+                });
         } else {
+            // الملفات غير الصورة (PDF، إلخ)
             if (task.originalFile instanceof File) {
-                console.log('[processAttachment] الملف ليس صورة، سيتم تعيينه مباشرة كمرفق نهائي', id, task.originalFile);
+                console.log('[processAttachment] معالجة ملف غير صورة:', id, task.originalFile.name);
                 updateAttachmentTaskStatus(id, 'completed', task.originalFile, null);
             } else {
-                console.log('[processAttachment] الملف الأصلي غير صالح، المهمة ستفشل', id, task.originalFile);
-                updateAttachmentTaskStatus(id, 'failed', null, 'الملف الأصلي غير صالح.');
+                console.error('[processAttachment] الملف الأصلي غير صالح:', id, task.originalFile);
+                updateAttachmentTaskStatus(id, 'failed', null, 'الملف الأصلي غير صالح');
             }
         }
     }
 
-    function showCropperModalPromise(file, timeoutMs = 300000) {
+    function showCropperModalPromise(file, timeoutMs = 120000) {
         return new Promise((resolve, reject) => {
             let finished = false;
             let cropperStarted = false;
-            let cropperResolved = false;
-            // Diagnostic logging
-            console.log('[showCropperModalPromise] Invoked for file:', file);
-            // Fail fast if cropper modal is not opened within 2 seconds
-            let fastFailTimer = setTimeout(() => {
-                if (!cropperStarted) {
-                    finished = true;
-                    if (window.ErrorTracker && window.ErrorTracker.log) window.ErrorTracker.log('error', 'cropper-fast-fail', 'Cropper modal not invoked within 2s', { file });
-                    console.error('[showCropperModalPromise] ❌ لم يتم استدعاء نافذة القص (cropper) خلال ثانيتين!');
-                    reject(new Error('تعذر فتح أداة قص الصور. يرجى تحديث الصفحة أو التواصل مع الدعم.'));
-                }
-            }, 2000);
-            // Main timeout for cropper operation
-            let timer = setTimeout(() => {
-                if (!finished) {
-                    finished = true;
-                    if (window.ErrorTracker && window.ErrorTracker.log) window.ErrorTracker.log('error', 'cropper-timeout', 'Cropper callback not called within timeout', { file });
-                    console.error('[showCropperModalPromise] ⏰ Timeout: لم يتم فتح نافذة القص (cropper) خلال الوقت المحدد!');
-                    reject(new Error('انتهت مهلة معالجة الصورة. يرجى المحاولة مجدداً.'));
-                }
-            }, timeoutMs);
-
-            // --- Robust cropper modal invocation for all upload zones ---
-            // Try to always use the global cropper modal function, fallback to window
-            let showCropper = window.showCropperModal || window.showCropper || null;
-            if (!showCropper) {
-                // Try to find cropper modal function in other scripts
-                for (let k in window) {
-                    if (typeof window[k] === 'function' && /cropper/i.test(k)) {
-                        showCropper = window[k];
-                        break;
-                    }
-                }
-            }
-            if (!showCropper) {
-                clearTimeout(timer);
-                clearTimeout(fastFailTimer);
-                if (window.ErrorTracker && window.ErrorTracker.log) window.ErrorTracker.log('error', 'cropper-missing', 'No cropper modal function found', { file });
-                console.error('[showCropperModalPromise] ❌ الدالة window.showCropperModal غير معرفة! تأكد من تضمين كود المودال لجميع مناطق الرفع، خاصة أفراد الأسرة.');
-                reject(new Error('لم يتم تحميل أداة قص الصور بشكل صحيح. يرجى تحديث الصفحة أو التواصل مع الدعم.'));
-                return;
-            }
-            try {
-                console.log('[showCropperModalPromise] سيتم فتح نافذة القص (cropper) لهذا الملف:', file);
-                showCropper(file, function(croppedFile, error) {
-                    cropperStarted = true;
-                    clearTimeout(fastFailTimer);
-                    if (finished) return;
-                    finished = true;
-                    clearTimeout(timer);
-                    if (error) {
-                        if (window.ErrorTracker && window.ErrorTracker.log) window.ErrorTracker.log('error', 'cropper-error', error, { file });
-                        console.warn('[showCropperModalPromise] cropper callback error:', error);
-                        reject(error instanceof Error ? error : new Error(error));
-                        return;
-                    }
-                    if (!croppedFile) {
-                        if (window.ErrorTracker && window.ErrorTracker.log) window.ErrorTracker.log('error', 'cropper-blob-missing', 'No blob returned from cropper', { file });
-                        console.warn('[showCropperModalPromise] لم يتم قص الصورة أو تم الإلغاء');
-                        reject(new Error('لم يتم قص الصورة أو تم الإلغاء.'));
-                        return;
-                    }
-                    cropperResolved = true;
-                    // Convert blob to File if needed
-                    let resultFile = croppedFile;
-                    if (!(croppedFile instanceof File) && croppedFile instanceof Blob) {
-                        try {
-                            resultFile = new File([croppedFile], file.name, { type: croppedFile.type || file.type });
-                        } catch (e) {
-                            // fallback: use blob
-                            resultFile = croppedFile;
+            
+            console.log('[showCropperModalPromise] بدء معالجة ملف:', file.name, 'الحجم:', file.size);
+            
+            // البحث عن دالة أداة القص مع انتظار قصير
+            function findCropperFunction() {
+                let showCropper = window.showCropperModal || window.showCropper;
+                
+                if (!showCropper) {
+                    // البحث في جميع الدوال المتاحة
+                    for (let key in window) {
+                        if (typeof window[key] === 'function' && /cropper/i.test(key)) {
+                            showCropper = window[key];
+                            console.log('[showCropperModalPromise] تم العثور على دالة القص:', key);
+                            break;
                         }
                     }
-                    console.log('[showCropperModalPromise] تم قص الصورة وإرجاع ملف جديد', resultFile);
-                    resolve(resultFile);
-                });
-                cropperStarted = true;
-                clearTimeout(fastFailTimer);
-            } catch (err) {
-                clearTimeout(timer);
-                clearTimeout(fastFailTimer);
-                finished = true;
-                if (window.ErrorTracker && window.ErrorTracker.log) window.ErrorTracker.log('error', 'cropper-exception', err, { file });
-                console.error('[showCropperModalPromise] استثناء أثناء محاولة فتح نافذة القص:', err);
-                reject(new Error('حدث خطأ أثناء فتح أداة قص الصور.'));
+                }
+                
+                return showCropper;
+            }
+            
+            function startCropperProcess() {
+                if (finished) return;
+                
+                const showCropper = findCropperFunction();
+                
+                if (!showCropper) {
+                    finished = true;
+                    const errorMsg = 'أداة قص الصور غير متوفرة';
+                    console.error('[showCropperModalPromise]', errorMsg);
+                    
+                    // إظهار رسالة خطأ للمستخدم
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'خطأ في أداة القص',
+                        text: 'أداة قص الصور غير متوفرة. يرجى تحديث الصفحة والمحاولة مرة أخرى.',
+                        confirmButtonText: 'حسناً'
+                    });
+                    
+                    if (window.ErrorTracker && window.ErrorTracker.log) {
+                        window.ErrorTracker.log('error', 'cropper-missing', errorMsg, { file: file.name });
+                    }
+                    reject(new Error('أداة قص الصور غير متوفرة. يرجى تحديث الصفحة.'));
+                    return;
+                }
+                
+                console.log('[showCropperModalPromise] بدء عملية القص للملف:', file.name);
+                
+                // مؤقت رئيسي لعملية القص
+                let mainTimer = setTimeout(() => {
+                    if (!finished) {
+                        finished = true;
+                        const errorMsg = `انتهت مهلة معالجة الصورة (${timeoutMs/1000} ثانية)`;
+                        console.error('[showCropperModalPromise]', errorMsg);
+                        
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'انتهت المهلة الزمنية',
+                            text: 'انتهت مهلة معالجة الصورة. يرجى المحاولة مرة أخرى.',
+                            confirmButtonText: 'حسناً'
+                        });
+                        
+                        if (window.ErrorTracker && window.ErrorTracker.log) {
+                            window.ErrorTracker.log('error', 'cropper-timeout', errorMsg, { file: file.name });
+                        }
+                        reject(new Error('انتهت مهلة معالجة الصورة. يرجى المحاولة مرة أخرى.'));
+                    }
+                }, timeoutMs);
+                
+                try {
+                    console.log('[showCropperModalPromise] 🎯 استدعاء أداة القص للملف:', file.name);
+                    console.log('[showCropperModalPromise] 📊 تفاصيل الملف:', {
+                        name: file.name,
+                        type: file.type,
+                        size: file.size
+                    });
+                    
+                    // ⭐ CRITICAL: التأكد من تمرير الملف بشكل صحيح
+                    showCropper(file, function(croppedFile, error) {
+                        cropperStarted = true;
+                        
+                        if (finished) {
+                            console.log('[showCropperModalPromise] تم تجاهل النتيجة - العملية منتهية مسبقاً');
+                            return;
+                        }
+                        
+                        finished = true;
+                        clearTimeout(mainTimer);
+                        
+                        if (error) {
+                            console.error('[showCropperModalPromise] خطأ من أداة القص:', error);
+                            if (window.ErrorTracker && window.ErrorTracker.log) {
+                                window.ErrorTracker.log('error', 'cropper-callback-error', error, { file: file.name });
+                            }
+                            reject(error instanceof Error ? error : new Error(String(error)));
+                            return;
+                        }
+                        
+                        if (!croppedFile) {
+                            console.warn('[showCropperModalPromise] لم يتم إرجاع ملف مقصوص');
+                            reject(new Error('لم يتم قص الصورة أو تم إلغاء العملية'));
+                            return;
+                        }
+                        
+                        console.log('[showCropperModalPromise] ✅ تم القص بنجاح:', {
+                            originalName: file.name,
+                            croppedSize: croppedFile.size,
+                            croppedType: croppedFile.type || 'unknown'
+                        });
+                        
+                        // تحويل Blob إلى File إذا لزم الأمر
+                        let resultFile = croppedFile;
+                        if (!(croppedFile instanceof File) && croppedFile instanceof Blob) {
+                            try {
+                                resultFile = new File([croppedFile], file.name, { 
+                                    type: croppedFile.type || file.type 
+                                });
+                            } catch (e) {
+                                console.warn('[showCropperModalPromise] فشل في تحويل Blob إلى File، سيتم استخدام Blob');
+                                resultFile = croppedFile;
+                            }
+                        }
+                        
+                        console.log('[showCropperModalPromise] تم قص الصورة بنجاح:', resultFile.name || 'unnamed');
+                        resolve(resultFile);
+                    });
+                    
+                    cropperStarted = true;
+                    
+                } catch (error) {
+                    clearTimeout(mainTimer);
+                    finished = true;
+                    console.error('[showCropperModalPromise] استثناء أثناء استدعاء أداة القص:', error);
+                    
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'خطأ في فتح أداة القص',
+                        text: 'حدث خطأ أثناء فتح أداة قص الصور. يرجى المحاولة مرة أخرى.',
+                        confirmButtonText: 'حسناً'
+                    });
+                    
+                    if (window.ErrorTracker && window.ErrorTracker.log) {
+                        window.ErrorTracker.log('error', 'cropper-exception', error, { file: file.name });
+                    }
+                    reject(new Error('حدث خطأ أثناء فتح أداة قص الصور'));
+                }
+            }
+            
+            // التحقق الفوري من وجود أداة القص، إذا لم توجد انتظار قصير
+            const showCropper = findCropperFunction();
+            if (showCropper) {
+                startCropperProcess();
+            } else {
+                console.warn('[showCropperModalPromise] أداة القص غير متوفرة فوراً، انتظار قصير...');
+                // انتظار قصير (ثانية واحدة فقط) ثم المحاولة
+                setTimeout(() => {
+                    if (!finished) {
+                        startCropperProcess();
+                    }
+                }, 1000);
             }
         });
     }
@@ -311,85 +716,199 @@ document.addEventListener('DOMContentLoaded', function() {
         const idx = arr.findIndex(t => t.id === taskId);
         if (idx !== -1) {
             const task = arr[idx];
+            // تنظيف المؤقتات
+            if (task.timer) {
+                clearTimeout(task.timer);
+                task.timer = null;
+                console.log('[removeAttachmentTask] تم إلغاء المؤقت للمهمة:', taskId);
+            }
+            // تنظيف URLs
             if (task.processedFile && task.processedFile.previewUrl) {
                 try { URL.revokeObjectURL(task.processedFile.previewUrl); } catch {}
             }
             arr.splice(idx, 1);
             if (arr.length === 0) allDocs.delete(personKey);
             renderAttachmentTasksUI(personKey);
+            console.log('[removeAttachmentTask] تم حذف المهمة بنجاح:', taskId);
         }
     }
 
     // حذف جميع المهام المرتبطة ببوابة معينة (مثلاً عند حذف فرد أسرة)
     function removeAllAttachmentTasksForPersonKey(personKey) {
         if (window.allDocs && window.allDocs.has(personKey)) {
+            const tasks = window.allDocs.get(personKey);
+            // تنظيف جميع المؤقتات
+            tasks.forEach(task => {
+                if (task.timer) {
+                    clearTimeout(task.timer);
+                    task.timer = null;
+                }
+                // تنظيف URLs
+                if (task.processedFile && task.processedFile.previewUrl) {
+                    try { URL.revokeObjectURL(task.processedFile.previewUrl); } catch {}
+                }
+            });
             window.allDocs.delete(personKey);
+            console.log('[removeAllAttachmentTasksForPersonKey] تم حذف جميع المهام للشخص:', personKey);
         }
     }
 
-    // تحديث renderAttachmentTasksUI: لا تعرض المرفقات إلا إذا كانت البوابة موجودة فعلياً في الصفحة
+    // تحسين renderAttachmentTasksUI للعرض الفوري المحسن
     function renderAttachmentTasksUI(personKey) {
+        console.log(`[renderAttachmentTasksUI] 🎨 تحديث واجهة البوابة: ${personKey}`);
+        
         // تحقق أن البوابة موجودة فعلياً في الصفحة
         let previewDiv = null;
-        // استخدم دومًا الفئة مع data-upload-zone
         const zone = document.querySelector(`[data-upload-zone="${personKey}"]`);
         if (zone) {
             previewDiv = zone.querySelector('.mainDocumentPreview');
         }
+        
         // إذا لم توجد البوابة في الصفحة، لا تعرض شيئاً واحذف المرفقات من allDocs
         if (!previewDiv) {
+            console.warn(`[renderAttachmentTasksUI] بوابة ${personKey} غير موجودة في الصفحة`);
             removeAllAttachmentTasksForPersonKey(personKey);
             return;
         }
+        
         previewDiv.innerHTML = '';
         const arr = allDocs.get(personKey) || [];
-        arr.forEach(task => {
+        
+        console.log(`[renderAttachmentTasksUI] عدد المهام للعرض: ${arr.length}`);
+        
+        arr.forEach((task, index) => {
+            console.log(`[renderAttachmentTasksUI] معالجة مهمة ${index + 1}/${arr.length}:`, {
+                id: task.id,
+                status: task.status,
+                fileName: task.originalFile ? task.originalFile.name : 'مجهول',
+                isImage: task.originalFile ? task.originalFile.type.startsWith('image/') : false
+            });
+            
             const card = document.createElement('div');
-            card.className = 'card mb-2';
+            card.className = 'card mb-2 attachment-card';
             card.id = 'preview_att_' + task.id; // معرف فريد لكل بطاقة
             card.style.width = '170px';
             card.style.display = 'inline-block';
             card.style.marginRight = '8px';
+            
             const cardBody = document.createElement('div');
             cardBody.className = 'card-body p-2 text-center';
+            
+            // عنوان نوع الوثيقة
             const docType = document.createElement('div');
             docType.className = 'fw-bold mb-1';
             docType.textContent = task.docType || '';
             cardBody.appendChild(docType);
+            
+            // اسم الملف
             const docNameDiv = document.createElement('div');
             docNameDiv.className = 'small text-muted mb-1';
             docNameDiv.textContent = task.processedFile ? (task.processedFile.name || '') : (task.originalFile.name || '');
             cardBody.appendChild(docNameDiv);
 
-            // دائماً اعرض صورة المعاينة إذا كان لدينا ملف صورة أصلي أو نهائي
+            // ⭐ منطق العرض الفوري المحسن
             let previewFile = null;
-            if (task.processedFile && task.processedFile.type && task.processedFile.type.startsWith('image/')) {
-                previewFile = task.processedFile;
-            } else if (task.originalFile && task.originalFile.type && task.originalFile.type.startsWith('image/')) {
-                previewFile = task.originalFile;
+            let showProcessingOverlay = false;
+            
+            // أولوية العرض: دائماً اعرض ملف صالح
+            if (task.originalFile && task.originalFile.type && task.originalFile.type.startsWith('image/')) {
+                previewFile = task.originalFile; // العرض الفوري للملف الأصلي
+                console.log(`[renderAttachmentTasksUI] ✅ استخدام الملف الأصلي للعرض الفوري: ${task.originalFile.name}`);
+                
+                // استبدال بالملف المعالج إذا اكتمل القص فعلياً
+                if (task.status === 'completed' && 
+                    task.isProcessed && 
+                    task.processedFile && 
+                    task.processedFile !== task.originalFile && 
+                    task.processedFile.type && 
+                    task.processedFile.type.startsWith('image/')) {
+                    previewFile = task.processedFile;
+                    console.log(`[renderAttachmentTasksUI] 🔄 استبدال بالملف المعالج: ${task.processedFile.name}`);
+                }
+                
+                // إظهار overlay المعالجة أثناء pending/processing فقط
+                if (task.status === 'pending' || task.status === 'processing') {
+                    showProcessingOverlay = true;
+                    console.log(`[renderAttachmentTasksUI] 🔄 إظهار overlay للحالة: ${task.status}`);
+                }
             }
+            
             if (previewFile) {
+                const imgContainer = document.createElement('div');
+                imgContainer.className = 'position-relative mb-1 attachment-preview-container';
+                imgContainer.style.display = 'inline-block';
+                
                 const img = document.createElement('img');
                 const objectUrl = URL.createObjectURL(previewFile);
                 img.src = objectUrl;
                 img.style.maxWidth = '100px';
                 img.style.maxHeight = '100px';
-                img.className = 'rounded border mb-1';
-                // لا تستدعِ revokeObjectURL هنا
-                cardBody.appendChild(img);
+                img.className = 'rounded border';
+                
+                // إضافة تأثير المعالجة إذا لزم الأمر
+                if (showProcessingOverlay) {
+                    // تطبيق تأثير شفافية على الصورة أثناء المعالجة
+                    img.style.opacity = '0.7';
+                    img.style.filter = 'blur(1px)';
+                    
+                    // إضافة spinner فوق الصورة
+                    const overlay = document.createElement('div');
+                    overlay.className = 'position-absolute top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center processing-overlay';
+                    overlay.style.background = 'rgba(0,0,0,0.3)';
+                    overlay.style.borderRadius = '8px';
+                    
+                    const spinner = document.createElement('div');
+                    spinner.className = 'spinner-border spinner-border-sm text-light';
+                    spinner.style.width = '1.5rem';
+                    spinner.style.height = '1.5rem';
+                    
+                    const processingText = document.createElement('div');
+                    processingText.className = 'small text-light mt-1 text-center';
+                    processingText.style.fontSize = '0.7rem';
+                    processingText.textContent = task.status === 'pending' ? 'انتظار...' : 'معالجة...';
+                    
+                    overlay.appendChild(spinner);
+                    overlay.appendChild(processingText);
+                    imgContainer.appendChild(img);
+                    imgContainer.appendChild(overlay);
+                } else {
+                    imgContainer.appendChild(img);
+                }
+                
+                cardBody.appendChild(imgContainer);
                 card.dataset.objectUrl = objectUrl;
             }
 
             const statusDiv = document.createElement('div');
             statusDiv.className = 'mt-1';
-            if (task.status === 'pending') {
-                statusDiv.innerHTML = '<span class="badge bg-secondary">قيد الانتظار</span>';
-            } else if (task.status === 'processing') {
-                statusDiv.innerHTML = '<span class="spinner-border spinner-border-sm text-primary"></span> <span class="text-primary">جاري المعالجة...</span>';
-            } else if (task.status === 'completed') {
-                statusDiv.innerHTML = '<span class="badge bg-success">تمت المعالجة</span>';
-            } else if (task.status === 'failed') {
-                statusDiv.innerHTML = `<span class="badge bg-danger">فشل</span><br><span class="text-danger small">${task.errorMessage || 'خطأ غير معروف'}</span>`;
+            
+            // تحسين عرض الحالات مع رسائل واضحة ومناسبة للموبايل
+            switch (task.status) {
+                case 'pending':
+                    statusDiv.innerHTML = '<span class="status-badge pending">🔄 تحضير...</span>';
+                    break;
+                case 'processing':
+                    statusDiv.innerHTML = '<span class="status-badge processing">⚙️ جاري القص...</span>';
+                    break;
+                case 'completed':
+                    statusDiv.innerHTML = '<span class="status-badge completed">✅ تم بنجاح</span>';
+                    // إضافة تأثير النجاح للبطاقة
+                    card.classList.add('attachment-card');
+                    setTimeout(() => {
+                        card.classList.add('success-flash');
+                    }, 100);
+                    break;
+                case 'failed':
+                    const errorMsg = task.errorMessage || 'خطأ غير معروف';
+                    // تجنب إظهار "timeout" كرسالة خطأ غامضة
+                    const displayMsg = errorMsg.includes('timeout') || errorMsg.includes('انتهى') 
+                        ? 'انتهت المهلة' 
+                        : errorMsg.length > 25 ? errorMsg.substring(0, 25) + '...' : errorMsg;
+                    statusDiv.innerHTML = `<span class="status-badge failed">❌ فشل</span><br><span class="text-danger small" style="font-size: 0.65rem;">${displayMsg}</span>`;
+                    break;
+                default:
+                    statusDiv.innerHTML = '<span class="status-badge">❓ غير معروف</span>';
+                    console.warn('[renderAttachmentTasksUI] حالة مهمة غير معروفة:', task.status, task);
             }
             cardBody.appendChild(statusDiv);
             const delBtn = document.createElement('button');
@@ -436,55 +955,179 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function initUploadZone(zone) {
         const personKey = zone.getAttribute('data-upload-zone');
-        if (!personKey || personKey === 'template') {
+        if (!personKey || personKey === 'template' || personKey.includes('template')) {
             console.warn('[initUploadZone] تجاهل تهيئة منطقة رفع بقيمة template أو فارغة:', {zone, personKey});
             return;
         }
+        
         const fileInput = zone.querySelector('input[type="file"]');
         const docTypeSelect = zone.querySelector('select');
-        if (!fileInput || !docTypeSelect) return;
-        // Log for debugging upload zone initialization
+        if (!fileInput || !docTypeSelect) {
+            console.error('[initUploadZone] عناصر الرفع مفقودة في المنطقة:', personKey, {fileInput, docTypeSelect});
+            return;
+        }
+        
+        // التأكد من أن المنطقة لم يتم تهيئتها مسبقاً
+        if (zone.dataset.initialized === 'true') {
+            console.log('[initUploadZone] المنطقة مهيأة مسبقاً:', personKey);
+            return;
+        }
+        
+        // وضع علامة التهيئة
+        zone.dataset.initialized = 'true';
+        
         console.log(`[initUploadZone] تهيئة منطقة رفع الملفات: personKey=${personKey}`, {zone, fileInput, docTypeSelect});
+        
         // دعم رفع ملفات متعددة
         fileInput.setAttribute('multiple', 'multiple');
-        fileInput.addEventListener('change', function(e) {
-            console.log('🟠 محاولة رفع ملف، قيمة نوع الوثيقة (docTypeSelect.value):', docTypeSelect.value);
-            if (!docTypeSelect.value || docTypeSelect.value === 'undefined') {
-                Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يجب اختيار نوع الوثيقة أولاً قبل رفع الملف.' });
-                fileInput.value = '';
+        
+        // إزالة مستمعي الأحداث السابقين لتجنب التكرار
+        const newFileInput = fileInput.cloneNode(true);
+        fileInput.parentNode.replaceChild(newFileInput, fileInput);
+        
+        newFileInput.addEventListener('change', function(e) {
+            console.log('🟠 محاولة رفع ملف، قيمة نوع الوثيقة:', docTypeSelect.value, 'في المنطقة:', personKey);
+            
+            if (!docTypeSelect.value || docTypeSelect.value === 'undefined' || docTypeSelect.value === '') {
+                Swal.fire({ 
+                    icon: 'warning', 
+                    title: 'تنبيه', 
+                    text: 'يجب اختيار نوع الوثيقة أولاً قبل رفع الملف.',
+                    confirmButtonText: 'حسناً'
+                });
+                newFileInput.value = '';
                 return;
             }
-            let personId = '';
-            if (personKey === 'main') {
-                personId = document.getElementById('data_id_number')?.value || '';
-            } else if (personKey === 'deceased_father') {
-                personId = document.querySelector('input[name="father_id"]')?.value || '';
-            } else if (personKey === 'deceased_mother') {
-                personId = document.querySelector('input[name="mother_id"]')?.value || '';
-            } else if (personKey.startsWith('family_')) {
-                const form = zone.closest('.family-member-form');
-                personId = form ? form.querySelector('input[name$="[person_id]"]')?.value || '' : '';
-                if (!personId) {
-                    Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يرجى إدخال رقم هوية فرد الأسرة أولاً قبل رفع الملف.' });
-                    fileInput.value = '';
-                    return;
-                }
+            
+            // التحقق من وجود أداة القص قبل المعالجة
+            function ensureCropperAvailable() {
+                return new Promise((resolve, reject) => {
+                    if (window.showCropperModal || window.showCropper) {
+                        console.log('✅ أداة القص متوفرة للمنطقة:', personKey);
+                        resolve(true);
+                        return;
+                    }
+                    
+                    console.warn('⚠️ أداة القص غير متوفرة، انتظار التحميل للمنطقة:', personKey);
+                    let attempts = 0;
+                    const maxAttempts = 50; // 10 ثواني
+                    
+                    const checkInterval = setInterval(() => {
+                        attempts++;
+                        if (window.showCropperModal || window.showCropper) {
+                            console.log('✅ تم تحميل أداة القص بنجاح للمنطقة:', personKey);
+                            clearInterval(checkInterval);
+                            resolve(true);
+                        } else if (attempts >= maxAttempts) {
+                            console.error('❌ فشل في تحميل أداة القص للمنطقة:', personKey);
+                            clearInterval(checkInterval);
+                            reject(new Error('فشل في تحميل أداة قص الصور'));
+                        }
+                    }, 200);
+                });
             }
-            if (!personId) {
-                Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يرجى إدخال رقم الهوية أولاً قبل رفع الملف.' });
-                fileInput.value = '';
-                return;
-            }
-            // دعم رفع ملفات متعددة بشكل تراكمي
-            let docsArr = window.allDocs.get(personKey) || [];
-            const docTypeValue = docTypeSelect.value;
-            Array.from(fileInput.files).forEach(file => {
-                // تأكد من تمرير نوع الوثيقة الصحيح
-                console.log('🟢 رفع ملف جديد:', file.name, 'نوع الوثيقة (pref):', docTypeValue);
-                addAttachmentTask(personKey, file, docTypeValue, personId, document.querySelector('input[name="file_id_number"]')?.value || '');
-            });
-            // إعادة تعيين قيمة input بعد معالجة جميع الملفات
-            setTimeout(() => { fileInput.value = ''; }, 10);
+            
+            // التأكد من توفر أداة القص قبل المتابعة
+            ensureCropperAvailable()
+                .then(() => {
+                    let personId = '';
+                    
+                    // استخراج رقم الهوية حسب نوع المنطقة
+                    if (personKey === 'main') {
+                        const idInput = document.getElementById('data_id_number');
+                        personId = idInput ? idInput.value.trim() : '';
+                    } else if (personKey === 'deceased_father') {
+                        const fatherIdInput = document.querySelector('input[name="father_id"]');
+                        personId = fatherIdInput ? fatherIdInput.value.trim() : '';
+                    } else if (personKey === 'deceased_mother') {
+                        const motherIdInput = document.querySelector('input[name="mother_id"]');
+                        personId = motherIdInput ? motherIdInput.value.trim() : '';
+                    } else if (personKey.startsWith('family_')) {
+                        const form = zone.closest('.family-member-form');
+                        if (form) {
+                            const personIdInput = form.querySelector('input[name$="[person_id]"]');
+                            personId = personIdInput ? personIdInput.value.trim() : '';
+                            
+                            if (!personId) {
+                                Swal.fire({ 
+                                    icon: 'warning', 
+                                    title: 'تنبيه', 
+                                    text: 'يرجى إدخال رقم هوية فرد الأسرة أولاً قبل رفع الملف.',
+                                    confirmButtonText: 'حسناً'
+                                });
+                                newFileInput.value = '';
+                                return;
+                            }
+                            
+                            // التحقق من صحة رقم الهوية (9-10 أرقام)
+                            if (!/^[0-9]{9,10}$/.test(personId)) {
+                                Swal.fire({ 
+                                    icon: 'warning', 
+                                    title: 'تنبيه', 
+                                    text: 'رقم الهوية يجب أن يكون مكوناً من 9-10 أرقام فقط.',
+                                    confirmButtonText: 'حسناً'
+                                });
+                                newFileInput.value = '';
+                                return;
+                            }
+                        } else {
+                            console.error('[initUploadZone] لم يتم العثور على نموذج فرد الأسرة للمنطقة:', personKey);
+                            Swal.fire({ 
+                                icon: 'error', 
+                                title: 'خطأ', 
+                                text: 'حدث خطأ في النظام. يرجى تحديث الصفحة والمحاولة مرة أخرى.',
+                                confirmButtonText: 'حسناً'
+                            });
+                            newFileInput.value = '';
+                            return;
+                        }
+                    } else {
+                        // أنواع أخرى من المفاتيح
+                        console.warn('[initUploadZone] نوع personKey غير معروف:', personKey);
+                        Swal.fire({ 
+                            icon: 'warning', 
+                            title: 'تنبيه', 
+                            text: 'نوع منطقة الرفع غير معروف. يرجى التواصل مع الدعم الفني.',
+                            confirmButtonText: 'حسناً'
+                        });
+                        newFileInput.value = '';
+                        return;
+                    }
+                    
+                    // التحقق النهائي من صحة رقم الهوية
+                    if (!personId || personId.trim() === '') {
+                        Swal.fire({ 
+                            icon: 'warning', 
+                            title: 'تنبيه', 
+                            text: 'يرجى إدخال رقم الهوية أولاً قبل رفع الملف.',
+                            confirmButtonText: 'حسناً'
+                        });
+                        newFileInput.value = '';
+                        return;
+                    }
+                    
+                    // دعم رفع ملفات متعددة بشكل تراكمي
+                    const docTypeValue = docTypeSelect.value;
+                    const fileIdNumber = document.querySelector('input[name="file_id_number"]')?.value || '';
+                    
+                    Array.from(newFileInput.files).forEach(file => {
+                        console.log('🟢 رفع ملف جديد:', file.name, 'نوع الوثيقة (pref):', docTypeValue, 'في المنطقة:', personKey);
+                        addAttachmentTask(personKey, file, docTypeValue, personId, fileIdNumber);
+                    });
+                    
+                    // إعادة تعيين قيمة input بعد معالجة جميع الملفات
+                    setTimeout(() => { newFileInput.value = ''; }, 10);
+                })
+                .catch(error => {
+                    console.error('❌ خطأ في التأكد من توفر أداة القص:', error);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'خطأ',
+                        text: 'أداة قص الصور غير متوفرة. يرجى تحديث الصفحة والمحاولة مرة أخرى.',
+                        confirmButtonText: 'حسناً'
+                    });
+                    newFileInput.value = '';
+                });
         });
         // لا تعيد تعيين select إلا بعد رفع الملفات فعليًا (يمكنك التعليق على السطر التالي إذا أردت إبقاء الاختيار)
         // docTypeSelect.value = '';
@@ -500,32 +1143,100 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    document.querySelectorAll('[data-upload-zone]').forEach(initUploadZone);
+    // تهيئة جميع مناطق الرفع الموجودة عند تحميل الصفحة
+    function initializeAllUploadZones() {
+        console.log('[initializeAllUploadZones] بدء تهيئة جميع مناطق الرفع...');
+        
+        // تهيئة المناطق الرئيسية أولاً
+        document.querySelectorAll('[data-upload-zone]:not([data-upload-zone*="family_"])').forEach(zone => {
+            console.log('[initializeAllUploadZones] تهيئة منطقة رئيسية:', zone.getAttribute('data-upload-zone'));
+            initUploadZone(zone);
+        });
+        
+        // ثم تهيئة مناطق أفراد الأسرة
+        document.querySelectorAll('[data-upload-zone*="family_"]').forEach(zone => {
+            const personKey = zone.getAttribute('data-upload-zone');
+            if (personKey && !personKey.includes('template')) {
+                console.log('[initializeAllUploadZones] تهيئة منطقة أفراد الأسرة:', personKey);
+                initUploadZone(zone);
+            }
+        });
+        
+        console.log('[initializeAllUploadZones] تمت تهيئة جميع مناطق الرفع');
+    }
+    
+    // تهيئة فورية
+    initializeAllUploadZones();
+    
+    // تهيئة إضافية بعد تحميل كامل للصفحة للتأكد
+    setTimeout(initializeAllUploadZones, 1000);
 
-    // مراقبة حذف أفراد الأسرة من DOM، وحذف مرفقاتهم تلقائياً
+    // مراقبة محسنة لحذف وإضافة أفراد الأسرة
     const familyContainer = document.getElementById('familyMembersContainer');
     if (familyContainer) {
         const observer = new MutationObserver(function(mutations) {
-            // اجمع جميع personKey الحاليين في الصفحة
-            const currentKeys = Array.from(familyContainer.querySelectorAll('[data-upload-zone]'))
-                .map(zone => zone.getAttribute('data-upload-zone'));
-            // احذف أي مرفقات في allDocs لم يعد لها بوابة في الصفحة
-            if (window.allDocs) {
+            let shouldCleanup = false;
+            let shouldInitialize = false;
+            
+            // جمع جميع personKey الحاليين في الصفحة
+            const currentKeys = Array.from(document.querySelectorAll('[data-upload-zone]'))
+                .map(zone => zone.getAttribute('data-upload-zone'))
+                .filter(key => key && key !== 'template');
+            
+            mutations.forEach(function(mutation) {
+                // التعامل مع العقد المحذوفة
+                mutation.removedNodes.forEach(function(node) {
+                    if (node.nodeType === 1 && node.querySelector) {
+                        const removedZones = node.querySelectorAll('[data-upload-zone]');
+                        if (removedZones.length > 0) {
+                            shouldCleanup = true;
+                        }
+                    }
+                });
+                
+                // التعامل مع العقد المضافة
+                mutation.addedNodes.forEach(function(node) {
+                    if (node.nodeType === 1 && node.querySelector) {
+                        const addedZones = node.querySelectorAll('[data-upload-zone]');
+                        if (addedZones.length > 0) {
+                            shouldInitialize = true;
+                        }
+                    }
+                });
+            });
+            
+            // تنظيف المرفقات للمناطق المحذوفة
+            if (shouldCleanup && window.allDocs) {
                 Array.from(window.allDocs.keys()).forEach(personKey => {
                     if (personKey.startsWith('family_') && !currentKeys.includes(personKey)) {
+                        console.log('[Observer] حذف مرفقات منطقة محذوفة:', personKey);
                         removeAllAttachmentTasksForPersonKey(personKey);
                     }
                 });
             }
-            mutations.forEach(function(mutation) {
-                mutation.addedNodes.forEach(function(node) {
-                    if (node.nodeType === 1 && node.querySelector && node.querySelector('[data-upload-zone]')) {
-                        node.querySelectorAll('[data-upload-zone]').forEach(initUploadZone);
-                    }
-                });
-            });
+            
+            // تهيئة مناطق الرفع الجديدة
+            if (shouldInitialize) {
+                setTimeout(() => {
+                    document.querySelectorAll('[data-upload-zone]').forEach(zone => {
+                        const personKey = zone.getAttribute('data-upload-zone');
+                        if (personKey && !personKey.includes('template') && zone.dataset.initialized !== 'true') {
+                            console.log('[Observer] تهيئة منطقة رفع جديدة:', personKey);
+                            initUploadZone(zone);
+                        }
+                    });
+                }, 100); // تأخير قصير للتأكد من اكتمال إضافة العناصر
+            }
         });
-        observer.observe(familyContainer, { childList: true, subtree: true });
+        
+        observer.observe(familyContainer, { 
+            childList: true, 
+            subtree: true, 
+            attributes: false, 
+            characterData: false 
+        });
+        
+        console.log('[documentUpload] تم تهيئة مراقب أفراد الأسرة');
     }
 
     // ملاحظة مهمة: إذا كان لديك إرسال AJAX (fetch) في ملف آخر مثل manageForm.blade.php،
