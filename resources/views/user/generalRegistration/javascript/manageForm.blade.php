@@ -41,7 +41,6 @@
                 if (deviceInfo.isMobile) {
                     // للجوال: توجيه مباشر إلى معرض الصور
                     fileInput.setAttribute('accept', 'image/*');
-                    fileInput.setAttribute('capture', 'environment');
                     console.log(`✅ [ConfigureInput] تم تكوين الجوال: accept="image/*", capture="environment"`);
 
                 } else if (deviceInfo.isTablet) {
