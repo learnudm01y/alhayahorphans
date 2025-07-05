@@ -27,35 +27,62 @@
             }
 
             // دالة تطبيق إعدادات input file حسب نوع الجهاز
+            // function configureFileInputForDevice(fileInput, deviceInfo) {
+            //     if (!fileInput) return;
+
+            //     console.log(
+            //         `📱 [ConfigureInput] تكوين input file لـ: ${deviceInfo.isMobile ? 'جوال' : deviceInfo.isTablet ? 'تابلت' : 'كمبيوتر'}`
+            //     );
+
+            //     // إزالة الإعدادات السابقة
+            //     fileInput.removeAttribute('capture');
+            //     fileInput.removeAttribute('accept');
+
+            //     if (deviceInfo.isMobile) {
+            //         // للجوال: توجيه مباشر إلى معرض الصور
+            //         fileInput.setAttribute('accept', 'image/*');
+
+            //         console.log(`✅ [ConfigureInput] تم تكوين الجوال: accept="image/*", capture="environment"`);
+
+            //     } else if (deviceInfo.isTablet) {
+            //         // للتابلت: صور مع إمكانية اختيار ملفات أخرى
+            //         fileInput.setAttribute('accept', 'image/*,.pdf');
+            //         fileInput.setAttribute('capture', 'user');
+            //         console.log(`✅ [ConfigureInput] تم تكوين التابلت: accept="image/*,.pdf", capture="user"`);
+
+            //     } else {
+            //         // للكمبيوتر: جميع أنواع الملفات المدعومة
+            //         fileInput.setAttribute('accept', 'image/*,.pdf,.doc,.docx');
+            //         console.log(`✅ [ConfigureInput] تم تكوين الكمبيوتر: accept="image/*,.pdf,.doc,.docx"`);
+            //     }
+
+            //     // إضافة attribut للتتبع
+            //     fileInput.setAttribute('data-device-configured', 'true');
+            //     fileInput.setAttribute('data-device-type', deviceInfo.isMobile ? 'mobile' : deviceInfo.isTablet ?
+            //         'tablet' : 'desktop');
+            // }
+
             function configureFileInputForDevice(fileInput, deviceInfo) {
                 if (!fileInput) return;
-
-                console.log(
-                    `📱 [ConfigureInput] تكوين input file لـ: ${deviceInfo.isMobile ? 'جوال' : deviceInfo.isTablet ? 'تابلت' : 'كمبيوتر'}`
-                    );
 
                 // إزالة الإعدادات السابقة
                 fileInput.removeAttribute('capture');
                 fileInput.removeAttribute('accept');
 
                 if (deviceInfo.isMobile) {
-                    // للجوال: توجيه مباشر إلى معرض الصور
+                    // للجوال: فتح معرض الصور فقط (بدون capture)
                     fileInput.setAttribute('accept', 'image/*');
-                    console.log(`✅ [ConfigureInput] تم تكوين الجوال: accept="image/*", capture="environment"`);
-
+                    // لا تضع fileInput.setAttribute('capture', ...);
+                    console.log(`✅ [ConfigureInput] تم تكوين الجوال: accept="image/*" فقط (بدون capture)`);
                 } else if (deviceInfo.isTablet) {
-                    // للتابلت: صور مع إمكانية اختيار ملفات أخرى
                     fileInput.setAttribute('accept', 'image/*,.pdf');
                     fileInput.setAttribute('capture', 'user');
                     console.log(`✅ [ConfigureInput] تم تكوين التابلت: accept="image/*,.pdf", capture="user"`);
-
                 } else {
-                    // للكمبيوتر: جميع أنواع الملفات المدعومة
                     fileInput.setAttribute('accept', 'image/*,.pdf,.doc,.docx');
                     console.log(`✅ [ConfigureInput] تم تكوين الكمبيوتر: accept="image/*,.pdf,.doc,.docx"`);
                 }
 
-                // إضافة attribut للتتبع
                 fileInput.setAttribute('data-device-configured', 'true');
                 fileInput.setAttribute('data-device-type', deviceInfo.isMobile ? 'mobile' : deviceInfo.isTablet ?
                     'tablet' : 'desktop');
@@ -150,7 +177,7 @@
                     resizeTimeout = setTimeout(function() {
                         console.log(
                             `📐 [Responsive] تغيير حجم الشاشة إلى: ${window.innerWidth}x${window.innerHeight}`
-                            );
+                        );
 
                         document.querySelectorAll('input[type="file"][data-device-configured]')
                             .forEach(input => {
@@ -160,7 +187,7 @@
                         const reConfiguredCount = configureAllFileInputs();
                         console.log(
                             `🔄 [Responsive] تم إعادة تكوين ${reConfiguredCount} input بعد تغيير الحجم`
-                            );
+                        );
                     }, 300);
                 });
             }
@@ -179,7 +206,7 @@
                         const reConfiguredCount = configureAllFileInputs();
                         console.log(
                             `✅ [Orientation] تم إعادة تكوين ${reConfiguredCount} input بعد تدوير الجهاز`
-                            );
+                        );
                     }, 500);
                 });
             }
@@ -199,9 +226,9 @@
                 configureAllFileInputs,
                 reconfigure: function() {
                     document.querySelectorAll('input[type="file"][data-device-configured]').forEach(
-                    input => {
-                        input.removeAttribute('data-device-configured');
-                    });
+                        input => {
+                            input.removeAttribute('data-device-configured');
+                        });
                     return configureAllFileInputs();
                 }
             };
@@ -413,7 +440,7 @@
                                                     personKey);
                                                 // حذف كل العناصر المطابقة لنفس docName وtype وfileId
                                                 for (let i = arr.length -
-                                                    1; i >= 0; i--) {
+                                                        1; i >= 0; i--) {
                                                     if (
                                                         arr[i].docName === doc
                                                         .docName &&
@@ -433,7 +460,7 @@
                                         // تحديث واجهة عرض المعلومات إذا كانت الدالة موجودة
                                         if (typeof window
                                             .renderReviewContent === 'function'
-                                            ) {
+                                        ) {
                                             window.renderReviewContent();
                                         }
                                     }, 700);
@@ -575,7 +602,7 @@
                         });
                         // عرض حي لجميع العمليات بعد كل رفع
                         console.log('🟢 جميع المرفقات الحالية:', Array.from(window.allDocs
-                        .entries()));
+                            .entries()));
                     }
                 });
             });
@@ -1612,7 +1639,7 @@
                                     tab.tabName +
                                     '</b>:<br><ul style="text-align:right;direction:rtl;">' +
                                     tab.requiredDocs.map(m => '<li>' + m + '</li>').join(
-                                    '') + '</ul>'
+                                        '') + '</ul>'
                             });
                         }
                     });

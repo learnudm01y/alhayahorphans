@@ -174,7 +174,7 @@
     <!--end::Theme Mode Script-->
     {{-- @yield('scripts') --}}
     @stack('scriptsCodeUserRegistration')
-    @include('user.generalRegistration.javascript.deviceCapture')
+   
     <!--end::Custom Javascript-->
     <!--end::Javascript-->
 
