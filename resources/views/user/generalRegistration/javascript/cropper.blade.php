@@ -780,9 +780,9 @@ window.showCropperModal = function(file, callback) {
         try {
           cropper = new Cropper(imgEl, {
             aspectRatio: NaN,
-            viewMode: 1, // ⭐ تغيير إلى viewMode 1 لضمان عدم تجاوز الحدود
+            viewMode: 1,
             responsive: true,
-            autoCropArea: 0.9, // ⭐ تقليل منطقة القص قليلاً
+            autoCropArea: 1.0, // ⭐ تغيير إلى 1.0 لتحديد الصورة بالكامل
             movable: true,
             zoomable: true,
             rotatable: true,
@@ -791,19 +791,19 @@ window.showCropperModal = function(file, callback) {
             guides: true,
             center: true,
             dragMode: 'move',
-            minContainerWidth: 300, /* تقليل من 500 */
-            minContainerHeight: 300, /* تقليل من 500 */
+            minContainerWidth: 300,
+            minContainerHeight: 300,
             minCanvasWidth: 0,
             minCanvasHeight: 0,
-            minCropBoxWidth: 100, /* تقليل من 150 */
-            minCropBoxHeight: 100, /* تقليل من 150 */
+            minCropBoxWidth: 100,
+            minCropBoxHeight: 100,
             ready() {
               console.log('[showCropperModal] ✅ تم تهيئة أداة القص بحجم محسن!');
               cropperReady = true;
               enableAllControls();
               enableCropperControls();
 
-              // ⭐ تحسين معتدل لحجم وموقع صندوق القص - بدون إزاحة قوية لليمين
+              // ⭐ تحديد الصورة بالكامل فور الجاهزية
               setTimeout(() => {
                 const containerData = cropper.getContainerData();
                 const canvasData = cropper.getCanvasData();
@@ -811,32 +811,43 @@ window.showCropperModal = function(file, callback) {
                 console.log('[showCropperModal] بيانات الحاوية:', containerData);
                 console.log('[showCropperModal] بيانات Canvas:', canvasData);
 
-                // ⭐ تحسين معتدل لصندوق القص - التركيز على عدم القص من اليسار
-                const optimalWidth = Math.min(containerData.width * 0.85, canvasData.width * 0.9);
-                const optimalHeight = Math.min(containerData.height * 0.75, canvasData.height * 0.9);
-
-                // ⭐ توسيط صندوق القص بدلاً من الإزاحة لليمين
-                const leftPosition = (containerData.width - optimalWidth) / 2;
-                const topPosition = (containerData.height - optimalHeight) / 2;
-
+                // ⭐ تحديد الصورة بالكامل - استخدام حجم Canvas الكامل
                 try {
                   cropper.setCropBoxData({
-                    width: optimalWidth,
-                    height: optimalHeight,
-                    left: Math.max(0, leftPosition),
-                    top: Math.max(0, topPosition)
+                    width: canvasData.width,
+                    height: canvasData.height,
+                    left: canvasData.left,
+                    top: canvasData.top
                   });
 
-                  console.log('[showCropperModal] تم توسيط صندوق القص:', optimalWidth + 'x' + optimalHeight, 'موقع:', leftPosition + ',' + topPosition);
+                  console.log('[showCropperModal] تم تحديد الصورة بالكامل:', canvasData.width + 'x' + canvasData.height);
                 } catch(e) {
-                  console.warn('[showCropperModal] فشل في تحسين صندوق القص:', e);
+                  console.warn('[showCropperModal] فشل في تحديد الصورة بالكامل:', e);
+
+                  // ⭐ طريقة احتياطية - استخدام أبعاد الحاوية
+                  try {
+                    const fallbackWidth = Math.min(containerData.width * 0.95, canvasData.width);
+                    const fallbackHeight = Math.min(containerData.height * 0.95, canvasData.height);
+                    const leftPosition = (containerData.width - fallbackWidth) / 2;
+                    const topPosition = (containerData.height - fallbackHeight) / 2;
+
+                    cropper.setCropBoxData({
+                      width: fallbackWidth,
+                      height: fallbackHeight,
+                      left: Math.max(0, leftPosition),
+                      top: Math.max(0, topPosition)
+                    });
+
+                    console.log('[showCropperModal] تم استخدام الطريقة الاحتياطية لتحديد الصورة');
+                  } catch(e2) {
+                    console.warn('[showCropperModal] فشل في الطريقة الاحتياطية أيضاً:', e2);
+                  }
                 }
 
-                // ⭐ تحسين موقع الصورة - توسيط بدلاً من الإزاحة لليمين
+                // ⭐ توسيط الصورة في الحاوية
                 try {
                   const canvasData = cropper.getCanvasData();
                   if (canvasData.width < containerData.width) {
-                    // توسيط الصورة
                     const imageCenterPosition = (containerData.width - canvasData.width) / 2;
                     cropper.setCanvasData({
                       left: Math.max(0, imageCenterPosition),
@@ -850,32 +861,35 @@ window.showCropperModal = function(file, callback) {
                   console.warn('[showCropperModal] فشل في توسيط الصورة:', e);
                 }
 
-                // ⭐ تحسين الزوم - معتدل
+                // ⭐ تحسين الزوم لعرض الصورة بالكامل
                 try {
-                  const currentZoom = cropper.getData().scaleX || 1;
+                  const currentData = cropper.getData();
 
-                  if (currentZoom < 0.7) {
-                    cropper.zoomTo(0.9); /* زوم معتدل */
-                    console.log('[showCropperModal] تم تطبيق زوم معتدل لتحسين العرض');
+                  // إذا كانت الصورة صغيرة جداً، قم بتكبيرها قليلاً
+                  if (currentData.width < containerData.width * 0.5 || currentData.height < containerData.height * 0.5) {
+                    cropper.zoomTo(1.2);
+                    console.log('[showCropperModal] تم تطبيق زوم لتحسين عرض الصورة الصغيرة');
                   }
                 } catch(e) {
                   console.warn('[showCropperModal] فشل في تحسين الزوم:', e);
                 }
-              }, 200); /* تقليل وقت التأخير */
+              }, 300); // ⭐ زيادة وقت التأخير لضمان استقرار العرض
 
               // معالجة خاصة للأجهزة المحمولة
               if (isMobileChrome() && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
                 try {
-                  const containerData = cropper.getContainerData();
-                  const cropBoxWidth = Math.min(containerData.width * 0.9, imgEl.naturalWidth);
-                  const cropBoxHeight = Math.min(containerData.height * 0.7, imgEl.naturalHeight);
-                  cropper.setCropBoxData({
-                    width: cropBoxWidth,
-                    height: cropBoxHeight,
-                    left: (containerData.width - cropBoxWidth) / 2,
-                    top: (containerData.height - cropBoxHeight) / 2
-                  });
-                  console.log('[showCropperModal] تم تطبيق إعدادات موبايل كروم');
+                  setTimeout(() => {
+                    const mobileCanvasData = cropper.getCanvasData();
+
+                    // تحديد الصورة بالكامل للموبايل
+                    cropper.setCropBoxData({
+                      width: mobileCanvasData.width,
+                      height: mobileCanvasData.height,
+                      left: mobileCanvasData.left,
+                      top: mobileCanvasData.top
+                    });
+                    console.log('[showCropperModal] تم تطبيق تحديد كامل للصورة على موبايل كروم');
+                  }, 400);
                 } catch(e){
                   console.warn('[showCropperModal] فشل في تطبيق إعدادات موبايل كروم:', e);
                 }
@@ -1067,7 +1081,7 @@ window.showCropperModal = function(file, callback) {
           aspectRatio: NaN,
           viewMode: 1,
           responsive: true,
-          autoCropArea: 0.9,
+          autoCropArea: 1.0, // ⭐ تحديد الصورة بالكامل هنا أيضاً
           movable: true,
           zoomable: true,
           rotatable: true,
@@ -1083,57 +1097,59 @@ window.showCropperModal = function(file, callback) {
             enableAllControls();
             enableCropperControls();
 
-            // ⭐ نفس التحسينات المعتدلة مع التوسيع
+            // ⭐ تحديد الصورة بالكامل في المودال أيضاً
             setTimeout(() => {
               const containerData = cropper.getContainerData();
               const canvasData = cropper.getCanvasData();
 
-              const optimalWidth = Math.min(containerData.width * 0.85, canvasData.width * 0.9);
-              const optimalHeight = Math.min(containerData.height * 0.75, canvasData.height * 0.9);
-
-              // توسيط بدلاً من الإزاحة لليمين
-              const leftPosition = (containerData.width - optimalWidth) / 2;
-              const topPosition = (containerData.height - optimalHeight) / 2;
-
+              // تحديد الصورة بالكامل
               try {
                 cropper.setCropBoxData({
-                  width: optimalWidth,
-                  height: optimalHeight,
-                  left: Math.max(0, leftPosition),
-                  top: Math.max(0, topPosition)
+                  width: canvasData.width,
+                  height: canvasData.height,
+                  left: canvasData.left,
+                  top: canvasData.top
                 });
 
-                // توسيط الصورة
-                const canvasData = cropper.getCanvasData();
-                if (canvasData.width < containerData.width) {
-                  const imageCenterPosition = (containerData.width - canvasData.width) / 2;
+                console.log('[showCropperModal] تم تحديد الصورة بالكامل في المودال');
+              } catch(e) {
+                console.warn('[showCropperModal] فشل في تحديد الصورة بالكامل في المودال:', e);
+              }
+
+              // توسيط الصورة
+              if (canvasData.width < containerData.width) {
+                const imageCenterPosition = (containerData.width - canvasData.width) / 2;
+                try {
                   cropper.setCanvasData({
                     left: Math.max(0, imageCenterPosition),
                     top: canvasData.top,
                     width: canvasData.width,
                     height: canvasData.height
                   });
+                  console.log('[showCropperModal] تم توسيط الصورة في المودال');
+                } catch(e) {
+                  console.warn('[showCropperModal] فشل في توسيط الصورة في المودال:', e);
                 }
-              } catch(e) {
-                console.warn('[showCropperModal] فشل في التحسين عند الجاهزية:', e);
               }
-            }, 200);
+            }, 300);
 
             // معالجة خاصة للأجهزة المحمولة
             if (isMobileChrome() && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
               try {
-                const containerData = cropper.getContainerData();
-                const cropBoxWidth = Math.min(containerData.width * 0.9, imgEl.naturalWidth);
-                const cropBoxHeight = Math.min(containerData.height * 0.7, imgEl.naturalHeight);
-                cropper.setCropBoxData({
-                  width: cropBoxWidth,
-                  height: cropBoxHeight,
-                  left: (containerData.width - cropBoxWidth) / 2,
-                  top: (containerData.height - cropBoxHeight) / 2
-                });
-                console.log('[showCropperModal] تم تطبيق إعدادات موبايل كروم');
+                setTimeout(() => {
+                  const mobileCanvasData = cropper.getCanvasData();
+
+                  // تحديد الصورة بالكامل للموبايل
+                  cropper.setCropBoxData({
+                    width: mobileCanvasData.width,
+                    height: mobileCanvasData.height,
+                    left: mobileCanvasData.left,
+                    top: mobileCanvasData.top
+                  });
+                  console.log('[showCropperModal] تم تطبيق تحديد كامل للصورة على موبايل كروم في المودال');
+                }, 400);
               } catch(e){
-                console.warn('[showCropperModal] فشل في تطبيق إعدادات موبايل كروم:', e);
+                console.warn('[showCropperModal] فشل في تطبيق إعدادات موبايل كروم في المودال:', e);
               }
             }
           }
