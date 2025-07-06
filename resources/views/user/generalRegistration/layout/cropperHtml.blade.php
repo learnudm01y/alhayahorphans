@@ -32,7 +32,7 @@
         </div>
 
         <!-- منطقة التحكم -->
-        <div class="controls-panel-container">
+        {{-- <div class="controls-panel-container">
           <!-- أزرار التحكم في الحركة والتكبير - ترتيب محسن -->
           <div class="controls-section">
             <h6 class="controls-title">أدوات التحكم</h6>
@@ -77,17 +77,17 @@
             </div>
           </div>
 
-          <!-- أزرار الحفظ والإلغاء -->
-          <div class="action-buttons" style="display: flex !important; visibility: visible !important;">
-            <button id="cropperCropBtn" class="btn btn-success btn-lg" disabled style="display: flex !important;">
-              <i class="fas fa-check me-2"></i>
-              <span>حفظ التعديلات</span>
-            </button>
-            <button type="button" class="btn btn-danger btn-lg" data-bs-dismiss="modal" style="display: flex !important;">
-              <i class="fas fa-times me-2"></i>
-              <span>إلغاء</span>
-            </button>
-          </div>
+        </div> --}}
+        <!-- أزرار الحفظ والإلغاء -->
+        <div class="action-buttons" style="display: flex !important; visibility: visible !important;">
+          <button id="cropperCropBtn" class="btn btn-success btn-lg" disabled style="display: flex !important;">
+            <i class="fas fa-check me-2"></i>
+            <span>حفظ التعديلات</span>
+          </button>
+          <button type="button" class="btn btn-danger btn-lg" data-bs-dismiss="modal" style="display: flex !important;">
+            <i class="fas fa-times me-2"></i>
+            <span>إلغاء</span>
+          </button>
         </div>
       </div>
     </div>

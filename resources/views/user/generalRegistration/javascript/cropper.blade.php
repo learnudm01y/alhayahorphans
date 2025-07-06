@@ -480,3 +480,67 @@ if (window.dispatchEvent) {
 </script>
 
 
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // معالج لتعديل حجم المودال عند تغيير حجم الشاشة
+    function adjustModalSize() {
+        const modal = document.getElementById('cropperModal');
+        if (!modal) return;
+
+        const modalDialog = modal.querySelector('.modal-dialog');
+        const modalContent = modal.querySelector('.modal-content');
+        const cropArea = modal.querySelector('.crop-area');
+
+        if (window.innerWidth <= 767) {
+            const availableHeight = window.innerHeight;
+            const safeHeight = availableHeight - 20;
+
+            if (modalDialog) {
+                modalDialog.style.height = safeHeight + 'px';
+                modalDialog.style.maxHeight = safeHeight + 'px';
+            }
+
+            if (modalContent) {
+                modalContent.style.height = safeHeight + 'px';
+            }
+
+            if (cropArea) {
+                const headerHeight = modal.querySelector('.modal-header')?.offsetHeight || 50;
+                const buttonsHeight = 80;
+                const imageHeight = safeHeight - headerHeight - buttonsHeight;
+
+                cropArea.style.minHeight = imageHeight + 'px';
+                cropArea.style.maxHeight = imageHeight + 'px';
+            }
+        } else {
+            // إعادة تعيين الأنماط للشاشات الكبيرة
+            if (modalDialog) {
+                modalDialog.style.height = '';
+                modalDialog.style.maxHeight = '';
+            }
+
+            if (modalContent) {
+                modalContent.style.height = '';
+            }
+
+            if (cropArea) {
+                cropArea.style.minHeight = '';
+                cropArea.style.maxHeight = '';
+            }
+        }
+    }
+
+    // تشغيل عند تحميل الصفحة
+    adjustModalSize();
+
+    // تشغيل عند تغيير حجم الشاشة
+    window.addEventListener('resize', adjustModalSize);
+
+    // تشغيل عند عرض المودال
+    const cropperModal = document.getElementById('cropperModal');
+    if (cropperModal) {
+        cropperModal.addEventListener('shown.bs.modal', adjustModalSize);
+    }
+});
+</script>
