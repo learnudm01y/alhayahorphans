@@ -58,44 +58,48 @@
         .modal-dialog {
             max-width: 1600px; /* زيادة أكبر في العرض */
             width: 99vw; /* استخدام تقريباً كامل عرض الشاشة */
-            height: 95vh; /* استخدام معظم ارتفاع الشاشة */
+            height: 85vh; /* تقليل الارتفاع من 95vh إلى 85vh */
         }
         .modal-content {
             height: 100%; /* ملء كامل ارتفاع المودال */
         }
         .cropper-modal-body {
             flex-direction: row;
-            min-height: 900px; /* زيادة كبيرة */
+            min-height: 750px; /* تقليل من 900px إلى 750px */
             min-width: 1200px; /* زيادة كبيرة */
-            height: 100%; /* ملء الارتفاع */
+            height: calc(100% - 60px); /* ترك مساحة للهيدر */
         }
         .crop-area {
             min-width: 1000px; /* زيادة كبيرة جداً */
-            min-height: 900px; /* زيادة كبيرة جداً */
+            min-height: 750px; /* تقليل من 900px إلى 750px للتناسب مع المودال */
             max-width: none;
             max-height: none;
         }
         .crop-area img {
             min-width: 800px; /* زيادة كبيرة جداً */
-            min-height: 700px; /* زيادة كبيرة جداً */
+            min-height: 600px; /* تقليل قليلاً من 700px إلى 600px */
         }
         .controls-panel-container {
             min-width: 160px;
             max-width: 200px;
+            height: 100%; /* ضمان ملء كامل الارتفاع */
         }
     }
 
     /* تحسين خاص للأجهزة المحمولة */
     @media (max-width: 767.98px) {
+        .modal-dialog {
+            height: 90vh; /* تقليل قليلاً للموبايل */
+        }
         .crop-area {
-            min-height: 80vh; /* زيادة كبيرة للموبايل */
+            min-height: 65vh; /* تقليل من 80vh إلى 65vh للموبايل */
             padding: 1px;
         }
         .crop-area img {
             min-width: 350px; /* زيادة للموبايل */
             min-height: 350px; /* زيادة للموبايل */
             max-width: 99.5%;
-            max-height: 75vh; /* زيادة كبيرة */
+            max-height: 60vh; /* تقليل من 75vh إلى 60vh */
         }
     }
 
@@ -112,77 +116,123 @@
         min-height: fit-content;
         min-width: 120px;
         z-index: 2;
+        justify-content: space-between; /* توزيع المحتوى بين الأعلى والأسفل */
     }
 
     @media (min-width: 768px) {
         .controls-panel-container {
-            width: 120px; /* Fixed width on desktop */
-            min-width: 120px; /* Prevent shrinking */
+            width: 160px; /* زيادة قليلة من 120px إلى 160px */
+            min-width: 160px; /* Prevent shrinking */
             flex-direction: column;
             justify-content: space-between; /* Push action buttons to bottom */
+            padding: 1.5rem 1rem; /* زيادة padding العمودي */
         }
     }
 
-    .controls-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr); /* 3 columns for buttons */
-        gap: 0.5rem; /* Spacing between buttons */
-        justify-items: center; /* Center items in grid */
-        align-items: center; /* Center items vertically */
-    }
-
-    /* Adjustments for move buttons in a cross pattern */
-    .controls-grid .move-up { grid-column: 2; grid-row: 1; }
-    .controls-grid .move-left { grid-column: 1; grid-row: 2; }
-    .controls-grid .move-center { grid-column: 2; grid-row: 2; display: none; /* Placeholder or an action button */ }
-    .controls-grid .move-right { grid-column: 3; grid-row: 2; }
-    .controls-grid .move-down { grid-column: 2; grid-row: 3; }
-
-    /* Zoom and Rotate Buttons */
-    .controls-grid .zoom-in { grid-column: 1; grid-row: 4; }
-    .controls-grid .zoom-out { grid-column: 2; grid-row: 4; }
-    .controls-grid .rotate-right { grid-column: 3; grid-row: 4; }
-
-
+    /* تحسين الأزرار للتأكد من ظهورها */
     .controls-panel-container .action-buttons {
         display: flex;
         flex-direction: column;
-        gap: 0.5rem;
+        gap: 0.75rem; /* زيادة المسافة بين الأزرار */
         width: 100%; /* Ensure buttons take full width */
-        margin-top: 1rem; /* Space from controls */
+        margin-top: auto; /* دفع الأزرار للأسفل */
+        flex-shrink: 0; /* منع تقليص الأزرار */
     }
 
-    @media (max-width: 767.98px) { /* Mobile specific styles */
+    .controls-panel-container .action-buttons button {
+        min-height: 40px; /* ضمان حد أدنى لارتفاع الأزرار */
+        font-weight: 600; /* جعل النص أوضح */
+    }
+
+    @media (min-width: 992px) {
+        .modal-dialog {
+            max-width: 1600px; /* زيادة أكبر في العرض */
+            width: 99vw; /* استخدام تقريباً كامل عرض الشاشة */
+            height: 85vh; /* تقليل الارتفاع من 95vh إلى 85vh */
+        }
+        .modal-content {
+            height: 100%; /* ملء كامل ارتفاع المودال */
+        }
         .cropper-modal-body {
-            flex-direction: column;
-            min-width: 0;
-            min-height: 0;
+            flex-direction: row;
+            min-height: 750px; /* تقليل من 900px إلى 750px */
+            min-width: 1200px; /* زيادة كبيرة */
+            height: calc(100% - 60px); /* ترك مساحة للهيدر */
+        }
+        .crop-area {
+            min-width: 1000px; /* زيادة كبيرة جداً */
+            min-height: 750px; /* تقليل من 900px إلى 750px للتناسب مع المودال */
+            max-width: none;
+            max-height: none;
+        }
+        .crop-area img {
+            min-width: 800px; /* زيادة كبيرة جداً */
+            min-height: 600px; /* تقليل قليلاً من 700px إلى 600px */
         }
         .controls-panel-container {
-            flex-direction: row; /* Horizontal on mobile */
-            justify-content: space-around;
-            align-items: center;
-            flex-wrap: wrap; /* Allow buttons to wrap */
-            padding: 0.5rem;
-            border-top: 1px solid #dee2e6; /* Separator from image */
-            min-width: 0;
-            max-width: 100vw;
-        }
-        .controls-grid {
-            grid-template-columns: repeat(auto-fit, minmax(40px, 1fr)); /* More flexible grid for mobile */
-            width: 100%;
-        }
-        .controls-panel-container .action-buttons {
-            flex-direction: row; /* Horizontal buttons on mobile */
-            width: 100%;
-            justify-content: space-around;
-            margin-top: 0.5rem;
-        }
-        .controls-panel-container .action-buttons button {
-            flex: 1; /* Distribute space evenly */
+            min-width: 160px;
+            max-width: 200px;
+            height: 100%; /* ضمان ملء كامل الارتفاع */
         }
     }
 
+    /* تحسين خاص للأجهزة المحمولة */
+    @media (max-width: 767.98px) {
+        .modal-dialog {
+            height: 90vh; /* تقليل قليلاً للموبايل */
+        }
+        .crop-area {
+            min-height: 65vh; /* تقليل من 80vh إلى 65vh للموبايل */
+            padding: 1px;
+        }
+        .crop-area img {
+            min-width: 350px; /* زيادة للموبايل */
+            min-height: 350px; /* زيادة للموبايل */
+            max-width: 99.5%;
+            max-height: 60vh; /* تقليل من 75vh إلى 60vh */
+        }
+    }
+
+    /* Controls Panel Styles */
+    .controls-panel-container {
+        width: 100%; /* Full width on mobile */
+        padding: 1rem;
+        background-color: #fff;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem; /* Spacing between sections */
+        flex-shrink: 0; /* Don't shrink the controls panel */
+        /* Ensure it's never smaller than its content on mobile */
+        min-height: fit-content;
+        min-width: 120px;
+        z-index: 2;
+        justify-content: space-between; /* توزيع المحتوى بين الأعلى والأسفل */
+    }
+
+    @media (min-width: 768px) {
+        .controls-panel-container {
+            width: 160px; /* زيادة قليلة من 120px إلى 160px */
+            min-width: 160px; /* Prevent shrinking */
+            flex-direction: column;
+            justify-content: space-between; /* Push action buttons to bottom */
+            padding: 1.5rem 1rem; /* زيادة padding العمودي */
+        }
+    }
+
+    /* تحسين الأزرار للتأكد من ظهورها */
+    .controls-panel-container .action-buttons {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem; /* زيادة المسافة بين الأزرار */
+        width: 100%; /* Ensure buttons take full width */
+        margin-top: auto; /* دفع الأزرار للأسفل */
+        flex-shrink: 0; /* منع تقليص الأزرار */
+    }
+
+    .controls-panel-container .action-buttons button {
+        min-height: 40px; /* ضمان حد أدنى لارتفاع الأزرار */
+        font-weight: 600; /* جعل النص أوضح */
+    }
 
     /* Ensure Cropper.js points are visible and appropriately sized */
     .cropper-point {
