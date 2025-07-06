@@ -200,26 +200,6 @@
                 validateDeathDate(this);
             });
 
-            // دالة للتحقق من رقم الهوية
-            function validateIdNumber(input) {
-                const idNumber = input.value;
-                if (idNumber.length !== 10) {
-                    input.setCustomValidity('يجب أن يتكون رقم الهوية من 10 أرقام');
-                    return false;
-                }
-                input.setCustomValidity('');
-                return true;
-            }
-
-            // إضافة مستمعي الأحداث لأرقام الهوية
-            document.querySelector('input[name="father_id"]').addEventListener('input', function() {
-                validateIdNumber(this);
-            });
-
-            document.querySelector('input[name="mother_id"]').addEventListener('input', function() {
-                validateIdNumber(this);
-            });
-
             // التحقق من البيانات قبل الإرسال
             document.querySelector('form').addEventListener('submit', function(e) {
                 const section = document.querySelector('select[name="data_section_id"]').value;

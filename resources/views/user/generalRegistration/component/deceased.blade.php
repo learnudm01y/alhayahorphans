@@ -29,6 +29,7 @@
                           </div>
                           <div class="col-md-4">
                               <label class="form-label">رقم الهوية <span class="text-danger">*</span></label>
+                              {{-- 4000000// مليون // 999999--}}
                               <input type="text" name="father_id" class="form-control" inputmode="numeric" minlength="9" maxlength="10" pattern="[0-9]{9,10}" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
                           </div>
                           <div class="col-md-4">
