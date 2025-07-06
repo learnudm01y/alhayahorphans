@@ -3,73 +3,99 @@
     .modal-fullscreen-sm-down .modal-content {
         border-radius: 0;
         margin: 0;
-        height: 100vh; /* Ensure modal content fills screen height on small devices */
+        height: 100vh;
     }
 
     .cropper-cropper-modal-body {
-        /* Use flex to arrange crop area and controls panel */
         display: flex;
-        flex-direction: column; /* Stack on mobile by default */
-        flex-grow: 1; /* Allow body to take available height */
-        padding: 0 !important; /* Remove default padding to maximize space for image */
-        overflow: hidden; /* Hide overflow */
-        min-height: 400px;
-        min-width: 320px;
+        flex-direction: column;
+        flex-grow: 1;
+        padding: 0 !important;
+        overflow: hidden;
+        min-height: 600px; /* زيادة أكبر للحد الأدنى */
+        min-width: 500px;
     }
 
     /* Desktop layout: Side-by-side */
-    @media (min-width: 768px) { /* Bootstrap's md breakpoint */
+    @media (min-width: 768px) {
         .cropper-cropper-modal-body {
-            flex-direction: row; /* Side-by-side on desktop */
+            flex-direction: row;
         }
         .controls-panel-container {
-            order: 2; /* Controls on the left for RTL, so it appears visually on the right */
-            border-right: 1px solid #dee2e6; /* Add border for separation */
-            border-left: none; /* Remove default border-start */
+            order: 2;
+            border-right: 1px solid #dee2e6;
+            border-left: none;
         }
     }
 
     .crop-area {
-        flex-grow: 1; /* Allow crop area to take all available space */
+        flex-grow: 1;
         position: relative;
-        display: flex; /* Use flexbox to center image vertically and horizontally */
-        align-items: center; /* Center vertically */
-        justify-content: center; /* Center horizontally */
-        background-color: #f8f9fa; /* Light background */
-        overflow: hidden; /* Important for Cropper.js */
-        padding: 10px; /* Small padding inside crop area */
-        min-width: 350px;
-        min-height: 350px;
-        /* زيادة الحجم الافتراضي */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #f8f9fa;
+        overflow: hidden;
+        padding: 2px; /* تقليل padding أكثر */
+        min-width: 600px; /* زيادة أكبر */
+        min-height: 600px; /* زيادة أكبر */
+        width: 100%;
+        height: 100%;
     }
 
     .crop-area img {
-        display: block; /* Important for Cropper.js */
-        /* Use max-width/height here, Cropper.js will handle fitting */
-        max-width: 100%;
-        max-height: 100%;
-        object-fit: contain; /* Ensure image fits without distortion */
+        display: block;
+        min-width: 500px; /* زيادة كبيرة في الحد الأدنى */
+        min-height: 500px; /* زيادة كبيرة في الحد الأدنى */
+        max-width: 99%; /* استخدام أقصى مساحة ممكنة */
+        max-height: 99%; /* استخدام أقصى مساحة ممكنة */
+        object-fit: contain;
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
     }
 
     @media (min-width: 992px) {
         .modal-dialog {
-            max-width: 900px;
-            width: 90vw;
+            max-width: 1600px; /* زيادة أكبر في العرض */
+            width: 99vw; /* استخدام تقريباً كامل عرض الشاشة */
+            height: 95vh; /* استخدام معظم ارتفاع الشاشة */
+        }
+        .modal-content {
+            height: 100%; /* ملء كامل ارتفاع المودال */
         }
         .cropper-modal-body {
             flex-direction: row;
-            min-height: 600px;
-            min-width: 700px;
+            min-height: 900px; /* زيادة كبيرة */
+            min-width: 1200px; /* زيادة كبيرة */
+            height: 100%; /* ملء الارتفاع */
         }
         .crop-area {
-            min-width: 600px;
-            min-height: 600px;
-            max-width: 700px;
-            max-height: 700px;
+            min-width: 1000px; /* زيادة كبيرة جداً */
+            min-height: 900px; /* زيادة كبيرة جداً */
+            max-width: none;
+            max-height: none;
+        }
+        .crop-area img {
+            min-width: 800px; /* زيادة كبيرة جداً */
+            min-height: 700px; /* زيادة كبيرة جداً */
         }
         .controls-panel-container {
             min-width: 160px;
             max-width: 200px;
+        }
+    }
+
+    /* تحسين خاص للأجهزة المحمولة */
+    @media (max-width: 767.98px) {
+        .crop-area {
+            min-height: 80vh; /* زيادة كبيرة للموبايل */
+            padding: 1px;
+        }
+        .crop-area img {
+            min-width: 350px; /* زيادة للموبايل */
+            min-height: 350px; /* زيادة للموبايل */
+            max-width: 99.5%;
+            max-height: 75vh; /* زيادة كبيرة */
         }
     }
 
@@ -161,193 +187,60 @@
     /* Ensure Cropper.js points are visible and appropriately sized */
     .cropper-point {
         background-color: #fff !important; /* White background */
-        border: 1px solid #337ab7 !important; /* Blue border */
-        opacity: 0.7 !important; /* Slightly transparent */
-        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2); /* Small shadow for visibility */
+        border: 2px solid #337ab7 !important; /* زيادة سمك الحدود */
+        opacity: 0.9 !important; /* زيادة الوضوح */
+        box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.3) !important; /* تحسين الظل */
+        width: 12px !important; /* تكبير العرض */
+        height: 12px !important; /* تكبير الارتفاع */
+        border-radius: 50% !important; /* جعل النقاط دائرية */
     }
+
+    /* تكبير النقاط أكثر على الأجهزة المحمولة */
+    @media (max-width: 767.98px) {
+        .cropper-point {
+            width: 16px !important; /* حجم أكبر للموبايل */
+            height: 16px !important; /* حجم أكبر للموبايل */
+            border: 3px solid #337ab7 !important; /* حدود أسمك للموبايل */
+        }
+    }
+
+    /* تحسين النقاط على الشاشات الكبيرة */
+    @media (min-width: 992px) {
+        .cropper-point {
+            width: 14px !important; /* حجم متوسط للشاشات الكبيرة */
+            height: 14px !important; /* حجم متوسط للشاشات الكبيرة */
+        }
+    }
+
     .cropper-view-box {
-        outline: 2px solid #337ab7; /* Blue outline for crop box */
-        outline-color: rgba(51, 122, 183, 0.75); /* Semi-transparent blue */
+        outline: 3px solid #337ab7 !important; /* تكبير سمك الحدود */
+        outline-color: rgba(51, 122, 183, 0.85) !important; /* زيادة الوضوح */
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5) !important; /* إضافة ظل أبيض */
     }
     .cropper-line {
         background-color: #337ab7 !important; /* Blue lines */
-        opacity: 0.7 !important;
-    }
-</style>
-<style>
-    /* Custom styles for the cropper modal */
-    .modal-fullscreen-sm-down .modal-content {
-        border-radius: 0;
-        margin: 0;
-        height: 100vh;
+        opacity: 0.8 !important; /* زيادة الوضوح */
     }
 
-    .cropper-cropper-modal-body {
-        display: flex;
-        flex-direction: column;
-        flex-grow: 1;
-        padding: 0 !important;
-        overflow: hidden;
-        min-height: 400px;
-        min-width: 320px;
+    /* تحسين الخطوط الوسطية */
+    .cropper-line.cropper-line-h {
+        height: 2px !important; /* تكبير سمك الخطوط الأفقية */
+    }
+    .cropper-line.cropper-line-v {
+        width: 2px !important; /* تكبير سمك الخطوط العمودية */
     }
 
-    @media (min-width: 768px) {
-        .cropper-cropper-modal-body {
-            flex-direction: row;
-        }
-        .controls-panel-container {
-            order: 2;
-            border-right: 1px solid #dee2e6;
-            border-left: none;
-        }
+    /* تحسين منطقة القص بالكامل */
+    .cropper-crop-box {
+        box-shadow: 0 0 10px rgba(51, 122, 183, 0.3) !important; /* إضافة ظل للمنطقة */
     }
 
-    .crop-area {
-        flex-grow: 1;
-        position: relative;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background-color: #f8f9fa;
-        overflow: hidden;
-        padding: 10px;
-        min-width: 350px;
-        min-height: 350px;
-    }
-
-    .crop-area img {
-        display: block;
-        max-width: 100%;
-        max-height: 100%;
-        object-fit: contain;
-    }
-
-    @media (min-width: 992px) {
-        .modal-dialog {
-            max-width: 900px;
-            width: 90vw;
-        }
-        .cropper-modal-body {
-            flex-direction: row;
-            min-height: 600px;
-            min-width: 700px;
-        }
-        .crop-area {
-            min-width: 600px;
-            min-height: 600px;
-            max-width: 700px;
-            max-height: 700px;
-        }
-        .controls-panel-container {
-            min-width: 160px;
-            max-width: 200px;
-        }
-    }
-
-    .controls-panel-container {
-        width: 100%;
-        padding: 1rem;
-        background-color: #fff;
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-        flex-shrink: 0;
-        min-height: fit-content;
-        min-width: 120px;
-        z-index: 2;
-    }
-
-    @media (min-width: 768px) {
-        .controls-panel-container {
-            width: 120px;
-            min-width: 120px;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-    }
-
-    .controls-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 0.5rem;
-        justify-items: center;
-        align-items: center;
-    }
-
-    .controls-grid .move-up { grid-column: 2; grid-row: 1; }
-    .controls-grid .move-left { grid-column: 1; grid-row: 2; }
-    .controls-grid .move-center { grid-column: 2; grid-row: 2; display: none; }
-    .controls-grid .move-right { grid-column: 3; grid-row: 2; }
-    .controls-grid .move-down { grid-column: 2; grid-row: 3; }
-
-    .controls-grid .zoom-in { grid-column: 1; grid-row: 4; }
-    .controls-grid .zoom-out { grid-column: 2; grid-row: 4; }
-    .controls-grid .rotate-right { grid-column: 3; grid-row: 4; }
-
-    .controls-panel-container .action-buttons {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-        width: 100%;
-        margin-top: 1rem;
-    }
-
-    @media (max-width: 767.98px) {
-        .cropper-modal-body {
-            flex-direction: column;
-            min-width: 0;
-            min-height: 0;
-        }
-        .controls-panel-container {
-            flex-direction: row;
-            justify-content: space-around;
-            align-items: center;
-            flex-wrap: wrap;
-            padding: 0.5rem;
-            border-top: 1px solid #dee2e6;
-            min-width: 0;
-            max-width: 100vw;
-        }
-        .controls-grid {
-            grid-template-columns: repeat(auto-fit, minmax(40px, 1fr));
-            width: 100%;
-        }
-        .controls-panel-container .action-buttons {
-            flex-direction: row;
-            width: 100%;
-            justify-content: space-around;
-            margin-top: 0.5rem;
-        }
-        .controls-panel-container .action-buttons button {
-            flex: 1;
-        }
-    }
-
-    .cropper-point {
-        width: 24px !important;
-        height: 24px !important;
-        background-color: #fff !important;
-        border: 2px solid #337ab7 !important;
-        opacity: 1 !important;
-        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
-        border-radius: 50%;
-    }
-
-    .cropper-line {
+    /* تحسين النقاط عند التمرير عليها */
+    .cropper-point:hover {
         background-color: #337ab7 !important;
-        opacity: 0.8 !important;
-    }
-    .cropper-line.line-e, .cropper-line.line-w {
-        width: 3px !important;
-    }
-    .cropper-line.line-n, .cropper-line.line-s {
-        height: 3px !important;
-    }
-
-    .cropper-view-box {
-        outline: 3px solid #337ab7;
-        outline-color: rgba(51, 122, 183, 0.9);
+        border-color: #fff !important;
+        transform: scale(1.2) !important; /* تكبير عند التمرير */
+        transition: all 0.2s ease !important;
     }
 </style>
 
@@ -492,6 +385,7 @@ window.showCropperModal = function(file, callback) {
       if (btn) btn.disabled = true;
     });
   }
+
   function enableAllControls() {
     cropBtn.disabled = false;
     ['MoveUp','MoveDown','MoveLeft','MoveRight','ZoomIn','ZoomOut','RotateRight'].forEach(action => {
@@ -499,6 +393,55 @@ window.showCropperModal = function(file, callback) {
       if (btn) btn.disabled = false;
     });
   }
+
+  // ⭐ إضافة دالة enableCropperControls المفقودة
+  function enableCropperControls() {
+    console.log('[enableCropperControls] تفعيل أزرار التحكم في أداة القص');
+
+    if (!cropper) {
+      console.warn('[enableCropperControls] أداة القص غير متوفرة');
+      return;
+    }
+
+    // تفعيل أزرار الحركة
+    const moveUpBtn = document.getElementById('cropperMoveUp');
+    const moveDownBtn = document.getElementById('cropperMoveDown');
+    const moveLeftBtn = document.getElementById('cropperMoveLeft');
+    const moveRightBtn = document.getElementById('cropperMoveRight');
+
+    if (moveUpBtn) {
+      moveUpBtn.onclick = () => cropper.move(0, -10);
+    }
+    if (moveDownBtn) {
+      moveDownBtn.onclick = () => cropper.move(0, 10);
+    }
+    if (moveLeftBtn) {
+      moveLeftBtn.onclick = () => cropper.move(-10, 0);
+    }
+    if (moveRightBtn) {
+      moveRightBtn.onclick = () => cropper.move(10, 0);
+    }
+
+    // تفعيل أزرار التكبير والتصغير
+    const zoomInBtn = document.getElementById('cropperZoomIn');
+    const zoomOutBtn = document.getElementById('cropperZoomOut');
+
+    if (zoomInBtn) {
+      zoomInBtn.onclick = () => cropper.zoom(0.1);
+    }
+    if (zoomOutBtn) {
+      zoomOutBtn.onclick = () => cropper.zoom(-0.1);
+    }
+
+    // تفعيل زر الدوران
+    const rotateBtn = document.getElementById('cropperRotateRight');
+    if (rotateBtn) {
+      rotateBtn.onclick = () => cropper.rotate(90);
+    }
+
+    console.log('[enableCropperControls] تم تفعيل جميع أزرار التحكم');
+  }
+
   disableAllControls();
   if (imgEl.cropperInstance) {
     imgEl.cropperInstance.destroy();
@@ -574,24 +517,74 @@ window.showCropperModal = function(file, callback) {
     }
     objectUrl = e.target.result;
 
-    // تعيين مصدر الصورة
+    // تعيين مصدر الصورة مع تحسين العرض الأولي
     imgEl.src = objectUrl;
+
+    // ⭐ تحسين العرض الأولي للصورة
+    imgEl.style.width = 'auto';
+    imgEl.style.height = 'auto';
+    imgEl.style.maxWidth = '100%';
+    imgEl.style.maxHeight = '100%';
+
     cropperReady = false;
     let tryCount = 0;
     const maxTries = 15;
 
     console.log('[showCropperModal] تم تعيين مصدر الصورة، انتظار تحميل الصورة...');
 
-    // مستمع تحميل الصورة
+    // مستمع تحميل الصورة محسن
     imgEl.onload = function() {
       console.log('[showCropperModal] تم تحميل الصورة بنجاح! الأبعاد:', imgEl.naturalWidth + 'x' + imgEl.naturalHeight);
-    };
 
-    imgEl.onerror = function(imgError) {
-      console.error('[showCropperModal] خطأ في تحميل الصورة:', imgError);
-      cleanup();
-      loaderModal.hide();
-      if (callback) callback(null, 'خطأ في تحميل الصورة');
+      // ⭐ تحسين جذري لحجم الصورة عند التحميل - لحل مشكلة صغر الحجم
+      const containerWidth = imgEl.parentElement.clientWidth || 800;
+      const containerHeight = imgEl.parentElement.clientHeight || 600;
+      const imageAspectRatio = imgEl.naturalWidth / imgEl.naturalHeight;
+      const containerAspectRatio = containerWidth / containerHeight;
+
+      let displayWidth, displayHeight;
+
+      // تكبير الصورة لتملأ المساحة المتاحة بنسبة أكبر
+      if (imageAspectRatio > containerAspectRatio) {
+        // الصورة أعرض من الحاوية - استخدم 95% من العرض
+        displayWidth = containerWidth * 0.95;
+        displayHeight = displayWidth / imageAspectRatio;
+
+        // إذا كان الارتفاع أصغر من 80% من الحاوية، زد الحجم
+        if (displayHeight < containerHeight * 0.8) {
+          displayHeight = containerHeight * 0.85;
+          displayWidth = displayHeight * imageAspectRatio;
+        }
+      } else {
+        // الصورة أطول من الحاوية - استخدم 90% من الارتفاع
+        displayHeight = containerHeight * 0.9;
+        displayWidth = displayHeight * imageAspectRatio;
+
+        // إذا كان العرض أصغر من 80% من الحاوية، زد الحجم
+        if (displayWidth < containerWidth * 0.8) {
+          displayWidth = containerWidth * 0.85;
+          displayHeight = displayWidth / imageAspectRatio;
+        }
+      }
+
+      // ⭐ ضمان حد أدنى للحجم حتى للصور الصغيرة
+      const minSize = Math.min(containerWidth, containerHeight) * 0.7;
+      if (displayWidth < minSize || displayHeight < minSize) {
+        if (displayWidth < displayHeight) {
+          displayWidth = minSize;
+          displayHeight = displayWidth / imageAspectRatio;
+        } else {
+          displayHeight = minSize;
+          displayWidth = displayHeight * imageAspectRatio;
+        }
+      }
+
+      // تطبيق الحجم المحسوب
+      imgEl.style.width = displayWidth + 'px';
+      imgEl.style.height = displayHeight + 'px';
+
+      console.log('[showCropperModal] تم تحسين حجم الصورة بقوة:', displayWidth + 'x' + displayHeight);
+      console.log('[showCropperModal] حجم الحاوية:', containerWidth + 'x' + containerHeight);
     };
 
     imgEl.onerror = function(imgError) {
@@ -606,13 +599,28 @@ window.showCropperModal = function(file, callback) {
       console.log('[showCropperModal] أبعاد الصورة الطبيعية:', imgEl.naturalWidth + 'x' + imgEl.naturalHeight);
       console.log('[showCropperModal] أبعاد الصورة المعروضة:', imgEl.width + 'x' + imgEl.height);
 
+      // ⭐ تحسين قوي لحجم الصورة قبل تهيئة Cropper
+      const deviceInfo = detectDeviceType ? detectDeviceType() : {};
+
       if (isMobileChrome() && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
-        imgEl.style.maxHeight = '70vh';
-        imgEl.style.maxWidth = '95vw';
-        console.log('[showCropperModal] تطبيق أسلوب موبايل كروم للصور الطويلة');
+        imgEl.style.maxHeight = '85vh'; /* زيادة أكبر */
+        imgEl.style.maxWidth = '99vw'; /* استخدام كامل العرض */
+        imgEl.style.minWidth = '350px';
+        imgEl.style.minHeight = '400px';
+        console.log('[showCropperModal] تطبيق أسلوب موبايل كروم محسن');
+      } else if (deviceInfo.isMobile || deviceInfo.isTablet) {
+        imgEl.style.maxHeight = '80vh'; /* زيادة كبيرة */
+        imgEl.style.maxWidth = '98vw'; /* زيادة كبيرة */
+        imgEl.style.minWidth = '400px'; /* زيادة الحد الأدنى */
+        imgEl.style.minHeight = '400px'; /* زيادة الحد الأدنى */
+        console.log('[showCropperModal] تطبيق أسلوب الأجهزة المحمولة المحسن');
       } else {
-        imgEl.style.maxHeight = '';
-        imgEl.style.maxWidth = '';
+        // للكمبيوتر - حجم كبير جداً لحل مشكلة الحجم الصغير
+        imgEl.style.maxHeight = '1000px'; /* زيادة جذرية */
+        imgEl.style.maxWidth = '1400px'; /* زيادة جذرية */
+        imgEl.style.minWidth = '800px'; /* زيادة كبيرة جداً */
+        imgEl.style.minHeight = '700px'; /* زيادة كبيرة جداً */
+        console.log('[showCropperModal] تطبيق أسلوب الكمبيوتر بحجم كبير جداً');
       }
 
       if ((imgEl.naturalWidth > 0 && imgEl.naturalHeight > 0) || force) {
@@ -627,9 +635,9 @@ window.showCropperModal = function(file, callback) {
         try {
           cropper = new Cropper(imgEl, {
             aspectRatio: NaN,
-            viewMode: 1,
+            viewMode: 0, // ⭐ تغيير viewMode لإتاحة مرونة أكبر
             responsive: true,
-            autoCropArea: 1,
+            autoCropArea: 0.98, // ⭐ زيادة منطقة القص إلى أقصى حد
             movable: true,
             zoomable: true,
             rotatable: true,
@@ -638,12 +646,98 @@ window.showCropperModal = function(file, callback) {
             guides: true,
             center: true,
             dragMode: 'move',
+            minContainerWidth: 500, /* زيادة كبيرة */
+            minContainerHeight: 500, /* زيادة كبيرة */
+            minCanvasWidth: 0,
+            minCanvasHeight: 0,
+            minCropBoxWidth: 150, /* زيادة الحد الأدنى */
+            minCropBoxHeight: 150, /* زيادة الحد الأدنى */
             ready() {
-              console.log('[showCropperModal] ✅ تم تهيئة أداة القص بنجاح!');
+              console.log('[showCropperModal] ✅ تم تهيئة أداة القص بحجم محسن!');
               cropperReady = true;
               enableAllControls();
               enableCropperControls();
 
+              // ⭐ تحسين قوي لحجم وموقع صندوق القص
+              setTimeout(() => {
+                const containerData = cropper.getContainerData();
+                const canvasData = cropper.getCanvasData();
+
+                console.log('[showCropperModal] بيانات الحاوية:', containerData);
+                console.log('[showCropperModal] بيانات Canvas:', canvasData);
+
+                // ⭐ تكبير صندوق القص ليستغل المساحة المتاحة بالكامل مع إزاحة لليمين
+                const optimalWidth = Math.min(containerData.width * 0.98, canvasData.width * 0.99);
+                const optimalHeight = Math.min(containerData.height * 0.98, canvasData.height * 0.99);
+
+                // ⭐ حساب الموقع لإزاحة صندوق القص إلى أقصى اليمين
+                const rightMargin = 5; // هامش صغير من الجانب الأيمن
+                const leftPosition = containerData.width - optimalWidth - rightMargin;
+                const topPosition = (containerData.height - optimalHeight) / 2;
+
+                try {
+                  cropper.setCropBoxData({
+                    width: optimalWidth,
+                    height: optimalHeight,
+                    left: Math.max(0, leftPosition), // التأكد من عدم الخروج من الحاوية
+                    top: Math.max(0, topPosition)
+                  });
+
+                  console.log('[showCropperModal] تم إزاحة صندوق القص إلى اليمين:', optimalWidth + 'x' + optimalHeight, 'موقع:', leftPosition + ',' + topPosition);
+                } catch(e) {
+                  console.warn('[showCropperModal] فشل في تحسين صندوق القص:', e);
+                }
+
+                // ⭐ تحسين إضافي: إزاحة الصورة نفسها إذا كانت أصغر من الحاوية
+                try {
+                  const canvasData = cropper.getCanvasData();
+                  if (canvasData.width < containerData.width) {
+                    // إزاحة الصورة إلى اليمين إذا كانت أصغر من الحاوية
+                    const imageRightPosition = containerData.width - canvasData.width - 10;
+                    cropper.setCanvasData({
+                      left: Math.max(0, imageRightPosition),
+                      top: canvasData.top,
+                      width: canvasData.width,
+                      height: canvasData.height
+                    });
+                    console.log('[showCropperModal] تم إزاحة الصورة إلى اليمين');
+                  }
+                } catch(e) {
+                  console.warn('[showCropperModal] فشل في إزاحة الصورة:', e);
+                }
+
+                // ⭐ تحسين الزوم لضمان استغلال أفضل للمساحة
+                try {
+                  const currentZoom = cropper.getData().scaleX || 1;
+
+                  // إذا كان الزوم صغيراً جداً، قم بزيادته بقوة
+                  if (currentZoom < 0.8) {
+                    cropper.zoomTo(1.2); /* زوم أكبر بكثير */
+                    console.log('[showCropperModal] تم تطبيق زوم قوي لتحسين العرض');
+                  } else if (currentZoom < 1.0) {
+                    cropper.zoomTo(1.1); /* زوم معتدل */
+                    console.log('[showCropperModal] تم تطبيق زوم معتدل');
+                  }
+                } catch(e) {
+                  console.warn('[showCropperModal] فشل في تحسين الزوم:', e);
+                }
+
+                // ⭐ إضافة تحسين خاص للصور الصغيرة
+                const imageArea = imgEl.naturalWidth * imgEl.naturalHeight;
+                const containerArea = containerData.width * containerData.height;
+
+                if (imageArea < containerArea * 0.3) {
+                  // الصورة صغيرة جداً مقارنة بالحاوية
+                  try {
+                    cropper.zoomTo(1.5); /* زوم كبير للصور الصغيرة */
+                    console.log('[showCropperModal] تم تطبيق زوم كبير للصورة الصغيرة');
+                  } catch(e) {
+                    console.warn('[showCropperModal] فشل في تطبيق زوم الصورة الصغيرة:', e);
+                  }
+                }
+              }, 300); /* زيادة وقت التأخير قليلاً */
+
+              // معالجة خاصة للأجهزة المحمولة
               if (isMobileChrome() && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
                 try {
                   const containerData = cropper.getContainerData();
@@ -819,18 +913,32 @@ window.showCropperModal = function(file, callback) {
           imgEl.cropperInstance.destroy();
           imgEl.cropperInstance = null;
         }
+
+        // ⭐ تحسين العرض عند إظهار المودال - نفس التحسينات القوية
+        const deviceInfo = window.DeviceImageSource ? window.DeviceImageSource.detectDevice() : {};
+
         if (isMobileChrome() && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
-          imgEl.style.maxHeight = '70vh';
-          imgEl.style.maxWidth = '95vw';
+          imgEl.style.maxHeight = '85vh';
+          imgEl.style.maxWidth = '99vw';
+          imgEl.style.minWidth = '350px';
+          imgEl.style.minHeight = '400px';
+        } else if (deviceInfo.isMobile || deviceInfo.isTablet) {
+          imgEl.style.maxHeight = '80vh';
+          imgEl.style.maxWidth = '98vw';
+          imgEl.style.minWidth = '400px';
+          imgEl.style.minHeight = '400px';
         } else {
-          imgEl.style.maxHeight = '';
-          imgEl.style.maxWidth = '';
+          imgEl.style.maxHeight = '1000px';
+          imgEl.style.maxWidth = '1400px';
+          imgEl.style.minWidth = '800px';
+          imgEl.style.minHeight = '700px';
         }
+
         cropper = new Cropper(imgEl, {
           aspectRatio: NaN,
-          viewMode: 1,
+          viewMode: 0,
           responsive: true,
-          autoCropArea: 1,
+          autoCropArea: 0.98,
           movable: true,
           zoomable: true,
           rotatable: true,
@@ -839,10 +947,53 @@ window.showCropperModal = function(file, callback) {
           guides: true,
           center: true,
           dragMode: 'move',
+          minContainerWidth: 500,
+          minContainerHeight: 500,
           ready() {
             cropperReady = true;
             enableAllControls();
             enableCropperControls();
+
+            // ⭐ نفس التحسينات القوية كما في initCropper مع الإزاحة لليمين
+            setTimeout(() => {
+              const containerData = cropper.getContainerData();
+              const canvasData = cropper.getCanvasData();
+
+              const optimalWidth = Math.min(containerData.width * 0.98, canvasData.width * 0.99);
+              const optimalHeight = Math.min(containerData.height * 0.98, canvasData.height * 0.99);
+
+              // ⭐ إزاحة إلى اليمين في modalEl.addEventListener أيضاً
+              const rightMargin = 5;
+              const leftPosition = containerData.width - optimalWidth - rightMargin;
+              const topPosition = (containerData.height - optimalHeight) / 2;
+
+              try {
+                cropper.setCropBoxData({
+                  width: optimalWidth,
+                  height: optimalHeight,
+                  left: Math.max(0, leftPosition),
+                  top: Math.max(0, topPosition)
+                });
+
+                // إزاحة الصورة إلى اليمين أيضاً
+                const canvasData = cropper.getCanvasData();
+                if (canvasData.width < containerData.width) {
+                  const imageRightPosition = containerData.width - canvasData.width - 10;
+                  cropper.setCanvasData({
+                    left: Math.max(0, imageRightPosition),
+                    top: canvasData.top,
+                    width: canvasData.width,
+                    height: canvasData.height
+                  });
+                }
+
+                // ...existing code for zoom...
+              } catch(e) {
+                console.warn('[showCropperModal] فشل في التحسين عند الجاهزية:', e);
+              }
+            }, 300);
+
+            // معالجة خاصة للأجهزة المحمولة
             if (isMobileChrome() && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
               try {
                 const containerData = cropper.getContainerData();
@@ -854,7 +1005,10 @@ window.showCropperModal = function(file, callback) {
                   left: (containerData.width - cropBoxWidth) / 2,
                   top: (containerData.height - cropBoxHeight) / 2
                 });
-              } catch(e){}
+                console.log('[showCropperModal] تم تطبيق إعدادات موبايل كروم');
+              } catch(e){
+                console.warn('[showCropperModal] فشل في تطبيق إعدادات موبايل كروم:', e);
+              }
             }
           }
         });
@@ -868,20 +1022,27 @@ window.showCropperModal = function(file, callback) {
     modalEl.removeEventListener('shown.bs.modal', onShown);
   });
 
-  function enableCropperControls() {
-    const actions = [
-      ['MoveUp',    () => cropper && cropper.move(0, -10)],
-      ['MoveDown',  () => cropper && cropper.move(0, 10)],
-      ['MoveLeft',  () => cropper && cropper.move(-10, 0)],
-      ['MoveRight', () => cropper && cropper.move(10, 0)],
-      ['ZoomIn',    () => cropper && cropper.zoom(0.1)],
-      ['ZoomOut',   () => cropper && cropper.zoom(-0.1)],
-      ['RotateRight', () => cropper && cropper.rotate && cropper.rotate(45)]
-    ];
-    actions.forEach(([id, fn]) => {
-      const btn = document.getElementById('cropper' + id);
-      if (btn) btn.onclick = fn;
-    });
+  // ⭐ إضافة دالة كشف نوع الجهاز إذا لم تكن متوفرة
+  function detectDeviceType() {
+    if (window.DeviceImageSource && window.DeviceImageSource.detectDevice) {
+      return window.DeviceImageSource.detectDevice();
+    }
+
+    const userAgent = navigator.userAgent.toLowerCase();
+    const isMobile = /android|webos|iphone|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
+    const isTablet = /ipad|tablet|(android(?!.*mobile))/i.test(userAgent);
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const isSmallScreen = window.innerWidth <= 768;
+
+    return {
+      isMobile: isMobile || (isTouchDevice && isSmallScreen && !isTablet),
+      isTablet: isTablet,
+      isDesktop: !isMobile && !isTablet,
+      isTouchDevice: isTouchDevice,
+      hasCamera: navigator.mediaDevices && navigator.mediaDevices.getUserMedia,
+      screenWidth: window.innerWidth,
+      userAgent: userAgent
+    };
   }
 };
 
@@ -989,27 +1150,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 });
-</script>
-
-<!-- دالة مختصرة لسهولة الوصول -->
-<script>
-window.showCropper = window.showCropperModal;
-
-// فحص تشخيصي لتأكيد توفر أداة القص
-console.log('[Cropper] ✅ تم تحميل أداة القص بنجاح');
-console.log('[Cropper] window.showCropperModal:', typeof window.showCropperModal);
-console.log('[Cropper] window.showCropper:', typeof window.showCropper);
-
-// إرسال إشارة عالمية بأن أداة القص جاهزة
-window.cropperReady = true;
-if (window.dispatchEvent) {
-  window.dispatchEvent(new CustomEvent('cropperReady', {
-    detail: {
-      showCropperModal: window.showCropperModal,
-      showCropper: window.showCropper
-    }
-  }));
-}
 </script>
 
 <!-- دالة مختصرة لسهولة الوصول -->
