@@ -99,8 +99,13 @@
                                     if (invalidField.focus) invalidField.focus();
                                     return;
                                 }
-                                // ...existing code for tab navigation...
-                                document.getElementById('review-tab')?.click();
+                                // الانتقال إلى تبويب المراجعة
+                                const reviewTab = document.getElementById('review-tab');
+                                if (reviewTab) {
+                                    reviewTab.click();
+                                } else {
+                                    console.log('تبويب المراجعة غير موجود');
+                                }
                             });
                         }
                     });
@@ -305,6 +310,7 @@
 
 @push('scriptsCodeUserRegistration')
     <script>
+    // Cache buster: 2025-01-06-v1.0.1
     document.addEventListener('DOMContentLoaded', function() {
         // تهيئة window.allDocs مع دعم بوابة أفراد الأسرة
         setTimeout(function() {
@@ -333,149 +339,187 @@
             });
         }, 0);
 
-        // دالة إضافة فرد جديد
-        function addFamilyMember() {
-            const container = document.getElementById('familyMembersContainer');
-            let forms = container.querySelectorAll('.family-member-form:not(.d-none)');
-            let template = document.getElementById('familyMemberTemplate');
-            let newIndex = forms.length;
-            let clone = template.cloneNode(true);
-            clone.classList.remove('d-none');
-            clone.removeAttribute('id');
-            clone.setAttribute('data-member-index', newIndex);
+        // دالة إضافة فرد جديد - محدثة مع التحقق من الأخطاء
+        window.addFamilyMember = function addFamilyMember() {
+            try {
+                console.log('🚀 بدء تنفيذ addFamilyMember');
 
-            // تحديث أسماء الحقول والفهارس
-            clone.querySelectorAll('[name]').forEach(function(input) {
-                input.name = input.name.replace(/family_members\[\d+\]/g, `family_members[${newIndex}]`);
-                if (input.name.endsWith('[file_id]')) {
-                    let fileIdInput = template.querySelector('[name$="[file_id]"]');
-                    if (fileIdInput) input.value = fileIdInput.value;
-                } else if (input.name.endsWith('[registration_id]')) {
-                    let regIdInput = template.querySelector('[name$="[registration_id]"]');
-                    if (regIdInput) {
-                        input.value = regIdInput.value;
-                        input.readOnly = true;
-                        input.classList.add('bg-secondary', 'bg-opacity-10');
-                    }
-                } else if (input.type === 'text' || input.type === 'number' || input.type === 'date') {
-                    input.value = '';
-                } else if (input.tagName === 'SELECT') {
-                    input.selectedIndex = 0;
+                const container = document.getElementById('familyMembersContainer');
+                if (!container) {
+                    console.error('❌ لم يتم العثور على familyMembersContainer');
+                    return;
                 }
-            });
 
-            // تحديث data-upload-zone
-            const uploadZone = clone.querySelector('[data-upload-zone]');
-            if (uploadZone) {
-                uploadZone.setAttribute('data-upload-zone', `family_${newIndex}`);
-            }
+                let forms = container.querySelectorAll('.family-member-form:not(.d-none)');
+                let template = document.getElementById('familyMemberTemplate');
 
-            // تحديث معرفات العناصر
-            const docType = clone.querySelector('.mainDocumentTypeSelect');
-            if (docType) docType.id = `mainDocumentTypeSelect_${newIndex}`;
-            const fileInput = clone.querySelector('.mainDocumentFileInput');
-            if (fileInput) fileInput.id = `mainDocumentFileInput_${newIndex}`;
-            const preview = clone.querySelector('.mainDocumentPreview');
-            if (preview) preview.id = `mainDocumentPreview_${newIndex}`;
-            const names = clone.querySelector('.mainDocumentNames');
-            if (names) names.id = `mainDocumentNames_${newIndex}`;
+                if (!template) {
+                    console.error('❌ لم يتم العثور على familyMemberTemplate');
+                    return;
+                }
 
-            // مسح المحتوى السابق
-            clone.querySelectorAll('.mainDocumentPreview, .mainDocumentNames').forEach(div => div.innerHTML = '');
+                let newIndex = forms.length;
+                console.log(`📝 إنشاء نموذج جديد برقم: ${newIndex}`);
 
-            // تهيئة window.allDocs
-            if (window.allDocs && window.allDocs instanceof Map) {
-                window.allDocs.set(`family_${newIndex}`, []);
-            }
+                let clone = template.cloneNode(true);
+                clone.classList.remove('d-none');
+                clone.removeAttribute('id');
+                clone.setAttribute('data-member-index', newIndex);
 
-            // إضافة header وزر حذف
-            let cardHeader = clone.querySelector('.card-header');
-            if (!cardHeader) {
-                cardHeader = document.createElement('div');
-                cardHeader.className = 'card-header bg-gradient-primary text-dark py-3 d-flex justify-content-between align-items-center';
-                cardHeader.innerHTML = `
-                    <h5 class="card-title mb-0 d-flex align-items-center">
-                        <i class="fas fa-user fs-4 me-2"></i>
-                        بيانات فرد الأسرة
-                    </h5>
-                    <button type="button" class="btn btn-danger btn-sm delete-member">
-                        <i class="fas fa-times"></i>
-                    </button>
-                `;
-                clone.insertBefore(cardHeader, clone.firstChild);
-            }
-
-            cardHeader.querySelector('.delete-member').onclick = function(e) {
-                e.preventDefault();
-
-                // الحصول على personKey للفرد المراد حذفه
-                const uploadZone = clone.querySelector('[data-upload-zone]');
-                const personKey = uploadZone ? uploadZone.getAttribute('data-upload-zone') : `family_${newIndex}`;
-
-                console.log(`🗑️ [delete-member] محاولة حذف فرد العائلة:`, {
-                    memberIndex: newIndex,
-                    personKey: personKey,
-                    allDocsKeys: window.allDocs instanceof Map ? Array.from(window.allDocs.keys()) : 'غير صالح'
-                });
-
-                Swal.fire({
-                    title: 'هل أنت متأكد؟',
-                    text: 'سيتم حذف هذا الفرد من القائمة مع جميع وثائقه',
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#dc3545',
-                    cancelButtonColor: '#6c757d',
-                    confirmButtonText: 'نعم، احذف',
-                    cancelButtonText: 'إلغاء'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        console.log(`✅ [delete-member] تأكيد حذف فرد العائلة`);
-
-                        // حذف جميع وثائق هذا الفرد من window.allDocs
-                        if (window.allDocs && window.allDocs instanceof Map) {
-                            if (window.allDocs.has(personKey)) {
-                                const deletedDocs = window.allDocs.get(personKey);
-                                window.allDocs.delete(personKey);
-                                console.log(`🗑️ [delete-member] تم حذف جميع وثائق الفرد من allDocs:`, {
-                                    personKey: personKey,
-                                    deletedDocsCount: deletedDocs ? deletedDocs.length : 0,
-                                    remainingKeys: Array.from(window.allDocs.keys())
-                                });
-                            } else {
-                                console.log(`ℹ️ [delete-member] لم يتم العثور على وثائق للفرد في allDocs:`, {
-                                    personKey: personKey,
-                                    availableKeys: Array.from(window.allDocs.keys())
-                                });
-                            }
+                // تحديث أسماء الحقول والفهارس
+                clone.querySelectorAll('[name]').forEach(function(input) {
+                    input.name = input.name.replace(/family_members\[template\]/g, `family_members[${newIndex}]`);
+                    if (input.name.endsWith('[file_id]')) {
+                        let fileIdInput = template.querySelector('[name$="[file_id]"]');
+                        if (fileIdInput) input.value = fileIdInput.value;
+                    } else if (input.name.endsWith('[registration_id]')) {
+                        let regIdInput = template.querySelector('[name$="[registration_id]"]');
+                        if (regIdInput) {
+                            input.value = regIdInput.value;
+                            input.readOnly = true;
+                            input.classList.add('bg-secondary', 'bg-opacity-10');
                         }
-
-                        // تأثير الحذف البصري
-                        clone.style.opacity = '0';
-                        clone.style.transform = 'scale(0.9)';
-                        setTimeout(() => {
-                            clone.remove();
-                            reindexFamilyMembers();
-
-                            // رسالة نجاح
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'تم الحذف',
-                                text: 'تم حذف فرد العائلة وجميع وثائقه بنجاح',
-                                timer: 2000,
-                                showConfirmButton: false
-                            });
-                        }, 300);
+                    } else if (input.type === 'text' || input.type === 'number' || input.type === 'date') {
+                        input.value = '';
+                    } else if (input.tagName === 'SELECT') {
+                        input.selectedIndex = 0;
                     }
                 });
-            };
 
-            container.appendChild(clone);
-            console.log(`تم توليد نموذج ${newIndex}: data-upload-zone = family_${newIndex}`);
-            reindexFamilyMembers();
-        }
+                // تحديث data-upload-zone
+                const uploadZone = clone.querySelector('[data-upload-zone]');
+                if (uploadZone) {
+                    uploadZone.setAttribute('data-upload-zone', `family_${newIndex}`);
+                }
+
+                // تحديث معرفات العناصر
+                const docType = clone.querySelector('.mainDocumentTypeSelect');
+                if (docType) docType.id = `mainDocumentTypeSelect_${newIndex}`;
+                const fileInput = clone.querySelector('.mainDocumentFileInput');
+                if (fileInput) fileInput.id = `mainDocumentFileInput_${newIndex}`;
+                const preview = clone.querySelector('.mainDocumentPreview');
+                if (preview) preview.id = `mainDocumentPreview_${newIndex}`;
+                const names = clone.querySelector('.mainDocumentNames');
+                if (names) names.id = `mainDocumentNames_${newIndex}`;
+
+                // مسح المحتوى السابق
+                clone.querySelectorAll('.mainDocumentPreview, .mainDocumentNames').forEach(div => div.innerHTML = '');
+
+                // تهيئة window.allDocs
+                if (window.allDocs && window.allDocs instanceof Map) {
+                    window.allDocs.set(`family_${newIndex}`, []);
+                }
+
+                // إضافة header وزر حذف
+                let cardHeader = clone.querySelector('.card-header');
+                if (!cardHeader) {
+                    cardHeader = document.createElement('div');
+                    cardHeader.className = 'card-header bg-gradient-primary text-dark py-3 d-flex justify-content-between align-items-center';
+                    cardHeader.innerHTML = `
+                        <h5 class="card-title mb-0 d-flex align-items-center">
+                            <i class="fas fa-user fs-4 me-2"></i>
+                            بيانات فرد الأسرة
+                        </h5>
+                        <button type="button" class="btn btn-danger btn-sm delete-member">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    `;
+                    clone.insertBefore(cardHeader, clone.firstChild);
+                }
+
+                cardHeader.querySelector('.delete-member').onclick = function(e) {
+                    e.preventDefault();
+
+                    // الحصول على personKey للفرد المراد حذفه
+                    const uploadZone = clone.querySelector('[data-upload-zone]');
+                    const personKey = uploadZone ? uploadZone.getAttribute('data-upload-zone') : `family_${newIndex}`;
+
+                    console.log(`🗑️ [delete-member] محاولة حذف فرد العائلة:`, {
+                        memberIndex: newIndex,
+                        personKey: personKey,
+                        allDocsKeys: window.allDocs instanceof Map ? Array.from(window.allDocs.keys()) : 'غير صالح'
+                    });
+
+                    Swal.fire({
+                        title: 'هل أنت متأكد؟',
+                        text: 'سيتم حذف هذا الفرد من القائمة مع جميع وثائقه',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonColor: '#dc3545',
+                        cancelButtonColor: '#6c757d',
+                        confirmButtonText: 'نعم، احذف',
+                        cancelButtonText: 'إلغاء'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            console.log(`✅ [delete-member] تأكيد حذف فرد العائلة`);
+
+                            // حذف جميع وثائق هذا الفرد من window.allDocs
+                            if (window.allDocs && window.allDocs instanceof Map) {
+                                if (window.allDocs.has(personKey)) {
+                                    const deletedDocs = window.allDocs.get(personKey);
+                                    window.allDocs.delete(personKey);
+                                    console.log(`🗑️ [delete-member] تم حذف جميع وثائق الفرد من allDocs:`, {
+                                        personKey: personKey,
+                                        deletedDocsCount: deletedDocs ? deletedDocs.length : 0,
+                                        remainingKeys: Array.from(window.allDocs.keys())
+                                    });
+                                } else {
+                                    console.log(`ℹ️ [delete-member] لم يتم العثور على وثائق للفرد في allDocs:`, {
+                                        personKey: personKey,
+                                        availableKeys: Array.from(window.allDocs.keys())
+                                    });
+                                }
+                            }
+
+                            // تأثير الحذف البصري
+                            clone.style.opacity = '0';
+                            clone.style.transform = 'scale(0.9)';
+                            setTimeout(() => {
+                                clone.remove();
+                                window.reindexFamilyMembers();
+
+                                // رسالة نجاح
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'تم الحذف',
+                                    text: 'تم حذف فرد العائلة وجميع وثائقه بنجاح',
+                                    timer: 2000,
+                                    showConfirmButton: false
+                                });
+                            }, 300);
+                        }
+                    });
+                };
+
+                container.appendChild(clone);
+                console.log(`✅ تم توليد نموذج ${newIndex}: data-upload-zone = family_${newIndex}`);
+
+                // تأكيد أن النموذج أصبح مرئياً
+                setTimeout(() => {
+                    if (clone.classList.contains('d-none')) {
+                        clone.classList.remove('d-none');
+                        console.log('🔧 إزالة d-none من النموذج المُنشأ');
+                    }
+                }, 100);
+
+                window.reindexFamilyMembers();
+
+                // إعداد معالجات الرفع للنموذج الجديد
+                if (typeof window.setupDocumentUploadHandlersForMember === 'function') {
+                    setTimeout(() => {
+                        window.setupDocumentUploadHandlersForMember(clone, newIndex);
+                    }, 200);
+                }
+
+                return true;
+            } catch (error) {
+                console.error('❌ خطأ في addFamilyMember:', error);
+                return false;
+            }
+        };
 
         // دالة إعادة الفهرسة مع تحديث window.allDocs
-        function reindexFamilyMembers() {
+        window.reindexFamilyMembers = function reindexFamilyMembers() {
             const forms = document.querySelectorAll('#familyMembersContainer .family-member-form:not(.d-none)');
 
             console.log(`🔄 [reindexFamilyMembers] بدء إعادة الفهرسة:`, {
@@ -575,6 +619,20 @@
                         window.setupDocumentUploadHandlersForMember(form, idx);
                     });
                 }
+
+                // 🆕 تطبيق تحسينات DeviceImageSource بعد إعداد المعالجات المخصصة
+                setTimeout(() => {
+                    if (window.DeviceImageSource && window.DeviceImageSource.enhance) {
+                        console.log('🔧 [FamilyMember] إعادة تفعيل DeviceImageSource بعد إعادة الفهرسة');
+                        try {
+                            window.DeviceImageSource.enhance();
+                        } catch (error) {
+                            console.error('❌ [FamilyMember] خطأ في تطبيق DeviceImageSource:', error);
+                        }
+                    } else {
+                        console.log('⚠️ [FamilyMember] DeviceImageSource غير متوفر');
+                    }
+                }, 500);
             }, 150);
         }
 
@@ -590,6 +648,14 @@
             if (form._familyUploadHandlersInitialized) return;
             form._familyUploadHandlersInitialized = true;
 
+            // 🆕 إضافة تشخيص لنظام DeviceImageSource
+            console.log('🔍 [FamilyMember] تفحص DeviceImageSource:', {
+                deviceSourceAvailable: !!window.DeviceImageSource,
+                enhanced: fileInput.dataset.deviceEnhanced,
+                inputId: fileInput.id,
+                formIndex: idx
+            });
+
             let documents = [];
             let fileDialogOpen = false;
 
@@ -604,7 +670,11 @@
                     documents: documents.map(doc => ({
                         docName: doc.docName,
                         type: doc.type,
-                        typeText: doc.typeText
+                        typeText: doc.typeText,
+                        hasFile: !!doc.file,
+                        hasProcessedFile: !!doc.processedFile,
+                        fileName: doc.file?.name,
+                        processedFileName: doc.processedFile?.name
                     }))
                 });
 
@@ -640,10 +710,22 @@
 
             // دالة كشف نوع الجهاز
             function isMobileDevice() {
-                return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-                    window.innerWidth <= 768 ||
-                    ('ontouchstart' in window) ||
-                    (navigator.maxTouchPoints > 0);
+                const isMobileUserAgent = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                const isMobileScreen = window.innerWidth <= 768;
+                const hasTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
+                const isMobile = isMobileUserAgent || isMobileScreen || hasTouch;
+
+                console.log(`📱 [isMobileDevice] تحليل الجهاز:`, {
+                    userAgent: isMobileUserAgent,
+                    screenSize: isMobileScreen,
+                    touchSupport: hasTouch,
+                    finalResult: isMobile,
+                    screenWidth: window.innerWidth,
+                    screenHeight: window.innerHeight
+                });
+
+                return isMobile;
             }
 
             // دالة إعادة تهيئة حالة الرفع - محدثة مع نظام كشف الجهاز
@@ -781,7 +863,10 @@
             function renderDocuments() {
                 console.log(`🔍 [renderDocuments] بدء عرض المرفقات للمنطقة: ${idx}`, {
                     documentsCount: documents.length,
-                    allDocsContent: window.allDocs instanceof Map ? Array.from(window.allDocs.entries()) : 'غير صالح'
+                    allDocsContent: window.allDocs instanceof Map ? Array.from(window.allDocs.entries()) : 'غير صالح',
+                    isMobile: window.innerWidth <= 768,
+                    screenWidth: window.innerWidth,
+                    screenHeight: window.innerHeight
                 });
 
                 preview.innerHTML = '';
@@ -792,9 +877,46 @@
                     return;
                 }
 
+                // إعداد الحاوية بشكل متجاوب
+                const isMobile = isMobileDevice(); // استخدام الدالة المحسنة
+                console.log(`📱 [renderDocuments] حالة الجهاز: ${isMobile ? 'جوال' : 'شاشة كبيرة'}`);
+
+                preview.style.display = 'block';
+                preview.style.width = '100%';
+                preview.style.overflow = 'visible';
+
+                // تطبيق تحسينات الجوال فوراً
+                if (isMobile) {
+                    preview.style.padding = '10px';
+                    preview.style.margin = '10px 0';
+                    preview.classList.add('mobile-optimized');
+                    console.log('📱 تم تطبيق تحسينات الجوال على منطقة العرض');
+                }
+
                 const cardsWrapper = document.createElement('div');
-                cardsWrapper.className = 'd-flex flex-wrap gap-3 justify-content-start';
-                cardsWrapper.style.marginTop = '15px';
+
+                if (isMobile) {
+                    cardsWrapper.className = 'd-flex flex-column gap-3';
+                    cardsWrapper.style.cssText = `
+                        margin-top: 15px;
+                        width: 100%;
+                        overflow-x: visible;
+                        -webkit-overflow-scrolling: touch;
+                        flex-direction: column;
+                        gap: 15px;
+                        padding: 0;
+                    `;
+                    console.log('📱 تم إعداد الحاوية للجوال - عمودي');
+                } else {
+                    cardsWrapper.className = 'd-flex flex-wrap gap-3 justify-content-start';
+                    cardsWrapper.style.cssText = `
+                        margin-top: 15px;
+                        width: 100%;
+                        overflow-x: auto;
+                        -webkit-overflow-scrolling: touch;
+                    `;
+                    console.log('💻 تم إعداد الحاوية للشاشة الكبيرة - أفقي');
+                }
 
                 documents.forEach((doc, docIdx) => {
                     console.log(`🎨 [renderDocuments] عرض المرفق ${docIdx + 1}/${documents.length}:`, {
@@ -802,19 +924,49 @@
                         typeText: doc.typeText,
                         personId: doc.personId,
                         fileId: doc.fileId,
-                        personKey: doc.personKey
+                        personKey: doc.personKey,
+                        hasFile: !!doc.file,
+                        hasProcessedFile: !!doc.processedFile,
+                        fileType: doc.file?.type,
+                        processedFileType: doc.processedFile?.type,
+                        fileName: doc.file?.name,
+                        processedFileName: doc.processedFile?.name
                     });
 
                     const card = document.createElement('div');
                     card.className = 'attachment-card card border-0 shadow-sm';
-                    card.style.cssText = `
-                        width: 180px;
-                        border-radius: 12px;
-                        overflow: hidden;
-                        transition: all 0.3s ease;
-                        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-                        border: 1px solid #e3e6f0 !important;
-                    `;
+
+                    // تطبيق تصميم متجاوب للجوال
+                    if (isMobile) {
+                        card.style.cssText = `
+                            width: 100%;
+                            max-width: 100%;
+                            border-radius: 12px;
+                            overflow: hidden;
+                            transition: all 0.3s ease;
+                            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+                            border: 1px solid #e3e6f0 !important;
+                            margin-bottom: 15px;
+                            display: block;
+                            visibility: visible;
+                            opacity: 1;
+                            flex-shrink: 0;
+                        `;
+                        console.log(`📱 بطاقة ${docIdx + 1}: تم تطبيق تصميم الجوال`);
+                    } else {
+                        card.style.cssText = `
+                            width: 180px;
+                            max-width: 180px;
+                            min-width: 180px;
+                            border-radius: 12px;
+                            overflow: hidden;
+                            transition: all 0.3s ease;
+                            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+                            border: 1px solid #e3e6f0 !important;
+                            flex-shrink: 0;
+                        `;
+                        console.log(`💻 بطاقة ${docIdx + 1}: تم تطبيق تصميم الشاشة الكبيرة`);
+                    }
 
                     // تأثير hover
                     card.addEventListener('mouseenter', function() {
@@ -839,7 +991,7 @@
                     cardHeader.innerHTML = `
                         <div class="d-flex align-items-center justify-content-between">
                             <i class="fas fa-file-image me-1"></i>
-                            <span class="text-truncate">${doc.typeText}</span>
+                            <span class="text-truncate">${doc.typeText || 'وثيقة'}</span>
                             <i class="fas fa-check-circle text-success"></i>
                         </div>
                     `;
@@ -859,7 +1011,29 @@
                         `;
 
                         const img = document.createElement('img');
-                        img.src = URL.createObjectURL(doc.file);
+
+                        // التحقق من نوع الملف - إما processedFile أو file العادي
+                        const fileToDisplay = doc.processedFile || doc.file;
+
+                        try {
+                            // إنشاء URL للصورة
+                            if (fileToDisplay instanceof File || fileToDisplay instanceof Blob) {
+                                img.src = URL.createObjectURL(fileToDisplay);
+                                console.log(`🖼️ [renderDocuments] تم إنشاء URL للصورة:`, {
+                                    fileName: fileToDisplay.name,
+                                    size: fileToDisplay.size,
+                                    type: fileToDisplay.type
+                                });
+                            } else {
+                                console.warn(`⚠️ [renderDocuments] نوع ملف غير مدعوم للعرض:`, typeof fileToDisplay);
+                                // استخدام أيقونة افتراضية في حالة عدم القدرة على عرض الصورة
+                                img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEyMCIgdmlld0JveD0iMCAwIDIwMCAxMjAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTIwIiBmaWxsPSIjZjhmOWZhIi8+Cjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNmM3NTdkIj7YtdmI2LHYqTwvdGV4dD4KPC9zdmc+';
+                            }
+                        } catch (error) {
+                            console.error(`❌ [renderDocuments] خطأ في إنشاء URL للصورة:`, error);
+                            img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEyMCIgdmlld0JveD0iMCAwIDIwMCAxMjAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTIwIiBmaWxsPSIjZjhmOWZhIi8+Cjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNmM3NTdkIj7YrtmC2KMg2YHZiiDYp9mE2LXZiNix2Kk8L3RleHQ+Cjwvc3ZnPg==';
+                        }
+
                         img.style.cssText = `
                             width: 100%;
                             height: 120px;
@@ -878,8 +1052,19 @@
                             this.style.transform = 'scale(1)';
                         });
 
+                        // تنظيف URL بعد التحميل
                         img.onload = function() {
-                            URL.revokeObjectURL(img.src);
+                            if (img.src.startsWith('blob:')) {
+                                setTimeout(() => {
+                                    URL.revokeObjectURL(img.src);
+                                }, 1000); // تأخير قصير لضمان عرض الصورة
+                            }
+                        };
+
+                        // معالجة خطأ التحميل
+                        img.onerror = function() {
+                            console.error(`❌ [renderDocuments] فشل في تحميل الصورة`);
+                            this.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjEyMCIgdmlld0JveD0iMCAwIDIwMCAxMjAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTIwIiBmaWxsPSIjZjhmOWZhIi8+Cjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjZGM5NTQ1Ij7YrtmC2KMg2YHZiiDYp9mE2LnYsdmCPC90ZXh0Pgo8L3N2Zz4=';
                         };
 
                         // شارة "معالج" على الصورة
@@ -918,14 +1103,16 @@
                     const fileName = document.createElement('div');
                     fileName.className = 'file-name text-muted small mb-2 text-truncate';
                     fileName.style.fontWeight = '500';
-                    fileName.textContent = doc.file.name || doc.docName;
-                    fileName.title = doc.file.name || doc.docName; // tooltip
+                    const fileForDisplay = doc.processedFile || doc.file;
+                    const displayName = fileForDisplay?.name || doc.docName || 'ملف غير معروف';
+                    fileName.textContent = displayName;
+                    fileName.title = displayName; // tooltip
                     cardBody.appendChild(fileName);
 
                     // معلومات إضافية
                     const fileInfo = document.createElement('div');
                     fileInfo.className = 'file-info small text-muted mb-3';
-                    const fileSize = doc.file.size ? (doc.file.size / 1024).toFixed(1) + ' KB' : 'غير معروف';
+                    const fileSize = fileForDisplay?.size ? (fileForDisplay.size / 1024).toFixed(1) + ' KB' : 'غير معروف';
                     fileInfo.innerHTML = `
                         <div class="d-flex justify-content-between">
                             <span><i class="fas fa-weight-hanging me-1"></i>${fileSize}</span>
@@ -1177,6 +1364,24 @@
                 preview.appendChild(cardsWrapper);
                 preview.style.display = 'block';
 
+                // تحسينات إضافية للجوال
+                if (isMobile) {
+                    preview.style.padding = '10px';
+                    preview.style.margin = '10px 0';
+                    cardsWrapper.style.width = '100%';
+                    cardsWrapper.style.padding = '0';
+
+                    // التأكد من أن البطاقات مرئية
+                    const cards = cardsWrapper.querySelectorAll('.attachment-card');
+                    cards.forEach(card => {
+                        card.style.display = 'block';
+                        card.style.visibility = 'visible';
+                        card.style.opacity = '1';
+                    });
+
+                    console.log(`📱 [renderDocuments] تم تطبيق تحسينات الجوال - عدد البطاقات: ${cards.length}`);
+                }
+
                 console.log(`✅ [renderDocuments] اكتمل عرض ${documents.length} مرفق للمنطقة: ${idx}`);
             }
 
@@ -1193,6 +1398,9 @@
                     resetUploadState(); // إعادة تهيئة إذا كان الحوار مفتوحاً
                     return false;
                 }
+
+                // 🆕 حفظ دالة التحقق للاستخدام مع deviceTypeOpenButton
+                form._familyCanUploadFunction = canUploadDocument;
             });
 
             // معالج تغيير نوع الوثيقة مع إعادة التهيئة المحسنة
@@ -1221,18 +1429,6 @@
                     console.log(`🔧 [docTypeSelect] تم تطبيق تكوين الجهاز قبل فتح الحوار`);
                 }
 
-                // // تحديد نوع الملفات المقبولة حسب الجهاز
-                // if (isMobileDevice()) {
-                //     // للجوال: توجيه إلى معرض الصور فقط
-                //     fileInput.accept = 'image/*';
-                //     fileInput.capture = 'environment'; // استخدام الكاميرا الخلفية
-                //     console.log(`📱 [docTypeSelect] تم تفعيل وضع الجوال - معرض الصور والكاميرا`);
-                // } else {
-                //     // للكمبيوتر: الصور والـ PDF
-                //     fileInput.accept = 'image/*,.pdf';
-                //     fileInput.removeAttribute('capture');
-                //     console.log(`💻 [docTypeSelect] تم تفعيل وضع الكمبيوتر - الصور والـ PDF`);
-                // }
 
                 // مستمع مؤقت لإعادة التهيئة عند إلغاء اختيار الملف
                 const resetOnCancel = () => {
@@ -1251,7 +1447,25 @@
 
                 // فتح حوار اختيار الملف
                 try {
-                    fileInput.click();
+                    // 🆕 التحقق من وجود نظام DeviceImageSource ونوع الجهاز
+                    if (window.DeviceImageSource && typeof window.DeviceImageSource.detectDeviceType === 'function') {
+                        const deviceInfo = window.DeviceImageSource.detectDeviceType();
+                        console.log('📱 [docTypeSelect] نوع الجهاز المكتشف:', deviceInfo);
+
+                        // للأجهزة المحمولة: التحقق من تفعيل المودال
+                        if ((deviceInfo.isMobile || deviceInfo.isTablet) && window.showImageSourceModal) {
+                            console.log('🎯 [docTypeSelect] جهاز محمول مكتشف، سيتم استخدام مودال الاختيار');
+                            // السماح للنظام المحسن بالعمل
+                            fileInput.click();
+                        } else {
+                            // للشاشات الكبيرة: استخدام النظام التقليدي
+                            fileInput.click();
+                        }
+                    } else {
+                        // إذا لم يكن النظام المحسن متوفراً
+                        console.log('🔧 [docTypeSelect] استخدام النظام التقليدي لفتح حوار الملف');
+                        fileInput.click();
+                    }
                     console.log(`🎯 [docTypeSelect] تم فتح حوار اختيار الملف`);
                 } catch (error) {
                     console.error(`❌ [docTypeSelect] خطأ في فتح حوار الملف:`, error);
@@ -1324,7 +1538,14 @@
 
                             // فتح المقص بعد تأخير
                             setTimeout(() => {
+                                // التحقق من وجود دالة المقص
                                 if (typeof window.showCropperModal === 'function') {
+                                    console.log('🔍 [fileInput] دالة المقص متوفرة، بدء عملية القص...');
+
+                                    // إصلاح مشكلة modal backdrop المتعددة
+                                    const existingBackdrops = document.querySelectorAll('.modal-backdrop');
+                                    existingBackdrops.forEach(backdrop => backdrop.remove());
+
                                     window.showCropperModal(file, function(croppedFile) {
                                         if (!croppedFile || !fileId || !personId) {
                                             console.log(`❌ [fileInput] فشل القص أو الإلغاء`);
@@ -1334,26 +1555,43 @@
                                             return;
                                         }
 
+                                        console.log(`🔍 [fileInput] تفاصيل الملف المقصوص:`, {
+                                            fileName: croppedFile.name,
+                                            fileSize: croppedFile.size,
+                                            fileType: croppedFile.type,
+                                            isValidName: croppedFile.name && croppedFile.name.includes('_cropped'),
+                                            isNotUndefined: croppedFile.name !== 'undefined'
+                                        });
+
                                         if (croppedFile.name && croppedFile.name.includes('_cropped') && croppedFile.name !== 'undefined') {
                                             const docObj = {
                                                 type: typeVal,
                                                 typeText: typeText,
-                                                file: croppedFile,
-                                                processedFile: croppedFile,
+                                                file: file, // الملف الأصلي
+                                                processedFile: croppedFile, // الملف المعالج
                                                 docName: docName,
                                                 personId: personId,
                                                 fileId: fileId,
                                                 personKey: personKey
                                             };
 
-                                            console.log(`✅ [fileInput] نجح القص وإنشاء كائن الوثيقة:`, docObj);
+                                            console.log(`✅ [fileInput] نجح القص وإنشاء كائن الوثيقة:`, {
+                                                docName: docObj.docName,
+                                                hasOriginalFile: !!docObj.file,
+                                                hasProcessedFile: !!docObj.processedFile,
+                                                processedFileName: docObj.processedFile?.name,
+                                                processedFileSize: docObj.processedFile?.size
+                                            });
 
                                             // إضافة إلى window.allDocs
                                             if (window.allDocs && window.allDocs instanceof Map) {
                                                 let docsArr = window.allDocs.get(personKey) || [];
                                                 docsArr.push(docObj);
                                                 window.allDocs.set(personKey, docsArr);
-                                                console.log(`📋 [fileInput] تم إضافة الوثيقة إلى allDocs`);
+                                                console.log(`📋 [fileInput] تم إضافة الوثيقة إلى allDocs:`, {
+                                                    personKey: personKey,
+                                                    totalDocs: docsArr.length
+                                                });
                                             }
 
                                             // إضافة إلى documents المحلية
@@ -1397,11 +1635,56 @@
                                                 // إعادة تهيئة بعد النجاح
                                                 docTypeSelect.value = '';
                                                 resetUploadState();
+
+                                                // تنظيف modal backdrop إضافي
+                                                setTimeout(() => {
+                                                    const remainingBackdrops = document.querySelectorAll('.modal-backdrop');
+                                                    remainingBackdrops.forEach(backdrop => backdrop.remove());
+                                                }, 500);
                                             }, 1500);
+                                        } else {
+                                            console.error(`❌ [fileInput] اسم الملف المقصوص غير صالح:`, {
+                                                fileName: croppedFile.name,
+                                                expectedPattern: '_cropped'
+                                            });
+                                            preview.innerHTML = '';
+                                            docTypeSelect.value = '';
+                                            resetUploadState();
                                         }
                                     });
                                 } else {
-                                    console.error(`❌ [fileInput] دالة المقص غير متوفرة`);
+                                    console.error(`❌ [fileInput] دالة المقص غير متوفرة - window.showCropperModal`);
+                                    console.log('🔧 [fileInput] محاولة المتابعة بدون قص...');
+
+                                    // المتابعة بدون قص إذا لم تكن دالة المقص متوفرة
+                                    const docObj = {
+                                        type: typeVal,
+                                        typeText: typeText,
+                                        file: file,
+                                        processedFile: file, // استخدام نفس الملف
+                                        docName: docName,
+                                        personId: personId,
+                                        fileId: fileId,
+                                        personKey: personKey
+                                    };
+
+                                    // إضافة إلى window.allDocs
+                                    if (window.allDocs && window.allDocs instanceof Map) {
+                                        let docsArr = window.allDocs.get(personKey) || [];
+                                        docsArr.push(docObj);
+                                        window.allDocs.set(personKey, docsArr);
+                                    }
+
+                                    // إضافة إلى documents المحلية
+                                    documents.push(docObj);
+
+                                    // مزامنة مع window.allDocs
+                                    syncWithAllDocs();
+
+                                    renderDocuments();
+
+                                    // إعادة تهيئة بعد النجاح
+                                    docTypeSelect.value = '';
                                     resetUploadState();
                                 }
                             }, 800);
@@ -1465,45 +1748,347 @@
 
             // إعداد معالج الملف الأولي
             setupFileInputHandler(fileInput);
-        };
 
-        // ربط زر إضافة فرد
+            // مستمع تغيير حجم الشاشة لإعادة ترتيب العرض
+            const resizeHandler = function() {
+                console.log(`📐 [resizeHandler] تغيير حجم الشاشة: ${window.innerWidth}x${window.innerHeight}`);
+                if (documents.length > 0) {
+                    setTimeout(() => {
+                        renderDocuments();
+                    }, 300);
+                }
+            };
+
+            window.addEventListener('resize', resizeHandler);
+            window.addEventListener('orientationchange', function() {
+                setTimeout(resizeHandler, 500);
+            });
+
+            // التحقق من تطبيق التحسينات بعد إعداد المعالجات المخصصة
+            setTimeout(() => {
+                if (window.DeviceImageSource && !fileInput.dataset.deviceEnhanced) {
+                    console.log('🔧 [FamilyMember] تطبيق تحسينات DeviceImageSource يدوياً على الفرد:', idx);
+                    try {
+                        window.DeviceImageSource.enhance();
+                        // تأكيد التطبيق
+                        if (fileInput && !fileInput.dataset.deviceEnhanced) {
+                            fileInput.dataset.deviceEnhanced = 'true';
+                        }
+                    } catch (error) {
+                        console.error('❌ [FamilyMember] خطأ في تطبيق DeviceImageSource على الفرد:', error);
+                    }
+                } else if (window.DeviceImageSource) {
+                    console.log('ℹ️ [FamilyMember] DeviceImageSource مطبق مسبقاً على الفرد:', idx);
+                } else {
+                    console.log('⚠️ [FamilyMember] DeviceImageSource غير متوفر');
+                }
+            }, 1000);
+
+        }; // إغلاق دالة window.setupDocumentUploadHandlersForMember
+
+        // ربط زر إضافة فرد - تأكيد العمل
         const addFamilyMemberBtn = document.getElementById('addFamilyMember');
         if (addFamilyMemberBtn) {
-            addFamilyMemberBtn.addEventListener('click', function(e) {
+            // إزالة أي مستمعات سابقة لتجنب التكرار
+            addFamilyMemberBtn.replaceWith(addFamilyMemberBtn.cloneNode(true));
+            const newBtn = document.getElementById('addFamilyMember');
+
+            newBtn.addEventListener('click', function(e) {
                 e.preventDefault();
-                addFamilyMember();
+                console.log('🖱️ تم الضغط على زر إضافة فرد');
+
+                if (typeof window.addFamilyMember === 'function') {
+                    const result = window.addFamilyMember();
+                    if (result) {
+                        console.log('✅ تم إضافة فرد الأسرة بنجاح');
+                    } else {
+                        console.error('❌ فشل في إضافة فرد الأسرة');
+                    }
+                } else {
+                    console.error('❌ دالة addFamilyMember غير متوفرة');
+                }
             });
+
+            console.log('✅ تم ربط زر إضافة فرد بنجاح');
+        } else {
+            console.error('❌ لم يتم العثور على زر إضافة فرد');
         }
 
-        // جعل الدوال متاحة عالمياً
-        window.addFamilyMember = addFamilyMember;
-    });
+        // تحديث: 2025-01-07 - تم إصلاح جميع مشاكل الـ Syntax وعرض الصور
+        console.log('✅ [familyMember] تم تحميل جميع المعالجات بنجاح');
 
-    // تم حذف تعريف الدالة هنا لتجنب التعارض مع ملف ageCalculating.blade.php
-    // window.calculateAge = function(inputElement) {
-    //     const birthDate = new Date(inputElement.value);
-    //     if (isNaN(birthDate.getTime())) return;
+        // إضافة cache buster للتأكد من تحديث CSS على الخادم
+        const cacheBuster = Date.now();
+        console.log(`🔄 [familyMember] Cache Buster: ${cacheBuster}`);
 
-    //     const today = new Date();
-    //     let age = today.getFullYear() - birthDate.getFullYear();
-    //     const monthDiff = today.getMonth() - birthDate.getMonth();
+        // إضافة CSS للتأكد من العرض الصحيح على الجوال
+        const mobileStyles = document.createElement('style');
+        mobileStyles.id = `family-member-mobile-styles-${cacheBuster}`;
+        mobileStyles.setAttribute('data-version', '2025-01-07-v2');
+        mobileStyles.textContent = `
+            /* تحسينات عرض الملفات على الجوال - قسري - إصدار ${cacheBuster} */
+            .mainDocumentPreview {
+                width: 100% !important;
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                clear: both !important;
+                position: relative !important;
+                min-height: auto !important;
+                box-sizing: border-box !important;
+            }
 
-    //     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-    //         age--;
-    //     }
+            .attachment-card {
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                position: relative !important;
+                clear: both !important;
+                margin-bottom: 15px !important;
+                box-sizing: border-box !important;
+                float: none !important;
+                transform: none !important;
+                clip: none !important;
+                z-index: auto !important;
+            }
 
-    //     const match = inputElement.name.match(/family_members\[(\d+)\]/);
-    //     if (!match) return;
+            /* خاص بالجوال - إجباري */
+            @media screen and (max-width: 768px) {
+                .mainDocumentPreview {
+                    padding: 10px !important;
+                    margin: 10px 0 !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                }
 
-    //     const formIndex = match[1];
-    //     const form = inputElement.closest('.family-member-form');
-    //     if (!form) return;
+                .attachment-card {
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    min-width: 100% !important;
+                    margin-bottom: 15px !important;
+                    display: block !important;
+                    visibility: visible !important;
+                    opacity: 1 !important;
+                    float: none !important;
+                    position: static !important;
+                    left: auto !important;
+                    right: auto !important;
+                    top: auto !important;
+                    bottom: auto !important;
+                }
 
-    //     const ageInput = form.querySelector(`input[name="family_members[${formIndex}][person_age]"]`);
-    //     if (ageInput) {
-    //         ageInput.value = age;
-    //     }
-    // };
-    </script>
+                .d-flex.flex-wrap,
+                .d-flex.flex-column {
+                    flex-direction: column !important;
+                    gap: 15px !important;
+                    width: 100% !important;
+                    display: block !important;
+                }
+
+                .card-body {
+                    padding: 15px !important;
+                }
+
+                .document-image {
+                    width: 100% !important;
+                    height: auto !important;
+                    max-height: 200px !important;
+                    object-fit: cover !important;
+                }
+            }
+
+            /* تحسينات إضافية للشاشات الصغيرة جداً */
+            @media screen and (max-width: 480px) {
+                .attachment-card {
+                    margin-bottom: 20px !important;
+                    padding: 0 !important;
+                }
+
+                .card-header {
+                    padding: 8px 12px !important;
+                    font-size: 0.8rem !important;
+                }
+
+                .card-body {
+                    padding: 12px !important;
+                }
+
+                .document-image {
+                    height: 150px !important;
+                }
+            }
+
+            /* تحسينات مودال الـ Cropper للجوال */
+            @media screen and (max-width: 768px) {
+                #cropperModal .modal-dialog {
+                    margin: 10px !important;
+                    width: calc(100vw - 20px) !important;
+                    max-width: calc(100vw - 20px) !important;
+                }
+
+                #cropperModal .crop-area {
+                    min-height: 250px !important;
+                    max-height: 50vh !important;
+                }
+
+                #cropperModal .action-buttons {
+                    position: sticky !important;
+                    bottom: 0 !important;
+                    background: white !important;
+                    padding: 1rem 0 0 0 !important;
+                    margin: 1rem -1rem -1rem -1rem !important;
+                    border-top: 1px solid #dee2e6 !important;
+                }
+            }
+
+            /* إجبار ظهور العناصر - أولوية قصوى */
+            .family-member-form .attachment-card,
+            .family-member-form .mainDocumentPreview .attachment-card {
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                transform: none !important;
+                position: relative !important;
+                overflow: visible !important;
+                clip: auto !important;
+                clip-path: none !important;
+                mask: none !important;
+                filter: none !important;
+            }
+
+            /* إصلاح مشكلة الـ modal backdrop المتعددة */
+            .modal-backdrop.fade.show {
+                z-index: 1055 !important;
+            }
+
+            #cropperModal.fade.show {
+                z-index: 1065 !important;
+                display: block !important;
+                opacity: 1 !important;
+            }
+
+            /* إجبار التحديث على الخادم */
+            body {
+                --cache-buster: ${cacheBuster};
+            }
+
+            /* تحسينات خاصة للخوادم */
+            @media screen {
+                .mainDocumentPreview,
+                .attachment-card {
+                    will-change: auto !important;
+                    backface-visibility: visible !important;
+                    perspective: none !important;
+                }
+            }
+        `;
+
+        // إزالة الأنماط القديمة إذا كانت موجودة
+        const oldStyles = document.querySelectorAll('[id^="family-member-mobile-styles"]');
+        oldStyles.forEach(style => style.remove());
+
+        document.head.appendChild(mobileStyles);
+        console.log(`📱 تم إضافة تحسينات CSS للجوال - إصدار محسن ${cacheBuster}`);
+
+        // تشخيص إضافي لضمان عمل النظام
+        setTimeout(() => {
+            console.log('🔍 [familyMember] تشخيص النظام:', {
+                allDocsAvailable: !!(window.allDocs && window.allDocs instanceof Map),
+                allDocsSize: window.allDocs instanceof Map ? window.allDocs.size : 'غير متوفر',
+                showCropperModalAvailable: typeof window.showCropperModal === 'function',
+                deviceImageSourceAvailable: !!window.DeviceImageSource,
+                deviceImageCaptureAvailable: !!window.DeviceImageCapture,
+                showImageSourceModalAvailable: typeof window.showImageSourceModal === 'function',
+                currentTimestamp: Date.now(),
+                isMobileDevice: window.innerWidth <= 768 || /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+            });
+
+            // إجراء تشخيص إضافي للخادم الحقيقي
+            const serverDiagnostics = function() {
+                console.log('🏥 [تشخيص الخادم] بدء التشخيص المتقدم...');
+
+                // فحص منطقة العرض
+                const previews = document.querySelectorAll('.mainDocumentPreview');
+                console.log(`📋 مناطق العرض الموجودة: ${previews.length}`);
+
+                previews.forEach((preview, index) => {
+                    const style = window.getComputedStyle(preview);
+                    console.log(`منطقة ${index + 1}:`, {
+                        display: style.display,
+                        visibility: style.visibility,
+                        opacity: style.opacity,
+                        width: style.width,
+                        height: style.height
+                    });
+
+                    // تطبيق إصلاح فوري إذا لزم الأمر
+                    if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity) < 0.1) {
+                        console.log('🔧 تطبيق إصلاح فوري للمنطقة...');
+                        preview.style.cssText = `
+                            display: block !important;
+                            visibility: visible !important;
+                            opacity: 1 !important;
+                            width: 100% !important;
+                            position: relative !important;
+                            margin: 10px 0 !important;
+                            padding: 10px !important;
+                            background: #f8f9fa !important;
+                            border: 1px solid #28a745 !important;
+                            border-radius: 8px !important;
+                        `;
+                    }
+                });
+
+                // فحص البطاقات
+                const cards = document.querySelectorAll('.attachment-card');
+                console.log(`🎴 البطاقات الموجودة: ${cards.length}`);
+
+                cards.forEach((card, index) => {
+                    const style = window.getComputedStyle(card);
+                    const isVisible = style.display !== 'none' &&
+                                     style.visibility !== 'hidden' &&
+                                     parseFloat(style.opacity) > 0;
+
+                    console.log(`بطاقة ${index + 1}:`, {
+                        visible: isVisible,
+                        width: style.width,
+                        display: style.display
+                    });
+
+                    // إصلاح فوري للبطاقات المخفية
+                    if (!isVisible) {
+                        console.log('🔧 إصلاح البطاقة المخفية...');
+                        card.style.cssText = `
+                            display: block !important;
+                            visibility: visible !important;
+                            opacity: 1 !important;
+                            width: 100% !important;
+                            margin-bottom: 15px !important;
+                            position: relative !important;
+                        `;
+                    }
+                });
+
+                // تنظيف modal backdrops
+                const backdrops = document.querySelectorAll('.modal-backdrop');
+                if (backdrops.length > 1) {
+                    console.log(`🧹 تنظيف ${backdrops.length} backdrop زائد...`);
+                    backdrops.forEach((backdrop, index) => {
+                        if (index > 0) backdrop.remove();
+                    });
+                }
+
+                console.log('✅ [تشخيص الخادم] اكتمل التشخيص المتقدم');
+            };
+
+            // تشغيل التشخيص
+            serverDiagnostics();
+
+            // إعادة التشغيل كل 10 ثوانٍ للتأكد
+            setInterval(serverDiagnostics, 10000);
+        }, 2000);
+
+    }); // نهاية DOMContentLoaded
+        </script>
 @endpush
+

@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>اختبار أفراد الأسرة - الجوال والـ Cropper</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px 10px;
+        }
+
+        .test-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .test-header {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .test-section {
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .test-section:last-child {
+            border-bottom: none;
+        }
+
+        .status-indicator {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-left: 10px;
+        }
+
+        .status-success { background: #28a745; }
+        .status-warning { background: #ffc107; }
+        .status-danger { background: #dc3545; }
+
+        .device-info {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+
+        .test-result {
+            background: #e9ecef;
+            border-radius: 8px;
+            padding: 10px;
+            margin: 5px 0;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        /* محاكاة أنماط أفراد الأسرة */
+        .mainDocumentPreview {
+            width: 100% !important;
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            padding: 10px !important;
+            margin: 10px 0 !important;
+            background: #f8f9fa !important;
+            border: 1px solid #dee2e6 !important;
+            border-radius: 8px !important;
+        }
+
+        .attachment-card {
+            width: 100% !important;
+            max-width: 100% !important;
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            margin-bottom: 15px !important;
+            background: white !important;
+            border: 1px solid #e3e6f0 !important;
+            border-radius: 12px !important;
+            overflow: hidden !important;
+            position: relative !important;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1) !important;
+        }
+
+        .document-image {
+            width: 100% !important;
+            height: 120px !important;
+            object-fit: cover !important;
+            border-radius: 8px !important;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px 5px;
+            }
+
+            .test-header {
+                padding: 15px 10px;
+            }
+
+            .test-section {
+                padding: 15px 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="test-container">
+            <!-- Header -->
+            <div class="test-header">
+                <h1 class="mb-3">
+                    <i class="fas fa-mobile-alt me-2"></i>
+                    اختبار أفراد الأسرة
+                </h1>
+                <p class="mb-0">اختبار عرض الملفات على الجوال ومودال الـ Cropper</p>
+            </div>
+
+            <!-- معلومات الجهاز -->
+            <div class="test-section">
+                <h5><i class="fas fa-info-circle me-2"></i>معلومات الجهاز</h5>
+                <div class="device-info" id="deviceInfo">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>نوع الجهاز:</strong> <span id="deviceType">جاري التحقق...</span>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>حجم الشاشة:</strong> <span id="screenSize">جاري التحقق...</span>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>دعم اللمس:</strong> <span id="touchSupport">جاري التحقق...</span>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>User Agent:</strong> <span id="userAgent">جاري التحقق...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- اختبار عرض الملفات -->
+            <div class="test-section">
+                <h5>
+                    <i class="fas fa-file-image me-2"></i>
+                    اختبار عرض الملفات
+                    <span class="status-indicator status-warning" id="fileDisplayStatus"></span>
+                </h5>
+
+                <button class="btn btn-primary me-2" onclick="testFileDisplay()">
+                    <i class="fas fa-play me-1"></i>تشغيل الاختبار
+                </button>
+                <button class="btn btn-success me-2" onclick="addTestFile()">
+                    <i class="fas fa-plus me-1"></i>إضافة ملف تجريبي
+                </button>
+                <button class="btn btn-danger" onclick="clearTestFiles()">
+                    <i class="fas fa-trash me-1"></i>مسح الملفات
+                </button>
+
+                <div class="test-result" id="fileDisplayResult">انتظار تشغيل الاختبار...</div>
+
+                <!-- منطقة عرض الملفات -->
+                <div class="mainDocumentPreview" id="testPreview">
+                    <div class="text-center text-muted">
+                        <i class="fas fa-upload fa-2x mb-2"></i><br>
+                        لا توجد ملفات للعرض
+                    </div>
+                </div>
+            </div>
+
+            <!-- اختبار الـ Cropper -->
+            <div class="test-section">
+                <h5>
+                    <i class="fas fa-crop me-2"></i>
+                    اختبار مودال الـ Cropper
+                    <span class="status-indicator status-warning" id="cropperStatus"></span>
+                </h5>
+
+                <button class="btn btn-primary me-2" onclick="testCropper()">
+                    <i class="fas fa-play me-1"></i>اختبار الـ Cropper
+                </button>
+                <button class="btn btn-info me-2" onclick="checkCropperElements()">
+                    <i class="fas fa-search me-1"></i>فحص العناصر
+                </button>
+                <button class="btn btn-warning" onclick="cleanupModals()">
+                    <i class="fas fa-broom me-1"></i>تنظيف المودالات
+                </button>
+
+                <div class="test-result" id="cropperResult">انتظار تشغيل الاختبار...</div>
+            </div>
+
+            <!-- اختبار Modal Backdrop -->
+            <div class="test-section">
+                <h5>
+                    <i class="fas fa-layer-group me-2"></i>
+                    اختبار Modal Backdrop
+                    <span class="status-indicator status-warning" id="backdropStatus"></span>
+                </h5>
+
+                <button class="btn btn-primary" onclick="testModalBackdrop()">
+                    <i class="fas fa-play me-1"></i>اختبار الـ Backdrop
+                </button>
+
+                <div class="test-result" id="backdropResult">انتظار تشغيل الاختبار...</div>
+            </div>
+
+            <!-- النتائج النهائية -->
+            <div class="test-section">
+                <h5><i class="fas fa-chart-bar me-2"></i>النتائج النهائية</h5>
+                <div id="finalResults" class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    قم بتشغيل الاختبارات للحصول على النتائج
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let testResults = {
+            deviceDetection: false,
+            fileDisplay: false,
+            cropper: false,
+            modalBackdrop: false
+        };
+
+        // تحديث معلومات الجهاز
+        function updateDeviceInfo() {
+            const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            const isMobileScreen = window.innerWidth <= 768;
+            const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+            const isMobile = isMobileUA || isMobileScreen || hasTouch;
+
+            document.getElementById('deviceType').textContent = isMobile ? 'جهاز محمول' : 'شاشة كبيرة';
+            document.getElementById('screenSize').textContent = `${window.innerWidth} x ${window.innerHeight}`;
+            document.getElementById('touchSupport').textContent = hasTouch ? 'مدعوم' : 'غير مدعوم';
+            document.getElementById('userAgent').textContent = navigator.userAgent.substring(0, 50) + '...';
+
+            testResults.deviceDetection = true;
+            return isMobile;
+        }
+
+        // اختبار عرض الملفات
+        function testFileDisplay() {
+            const result = document.getElementById('fileDisplayResult');
+            const status = document.getElementById('fileDisplayStatus');
+
+            result.innerHTML = 'جاري تشغيل الاختبار...<br>';
+
+            const preview = document.getElementById('testPreview');
+            const cards = preview.querySelectorAll('.attachment-card');
+
+            result.innerHTML += `عدد البطاقات الموجودة: ${cards.length}<br>`;
+
+            let visibleCards = 0;
+            cards.forEach((card, index) => {
+                const style = window.getComputedStyle(card);
+                const isVisible = style.display !== 'none' &&
+                                 style.visibility !== 'hidden' &&
+                                 parseFloat(style.opacity) > 0;
+
+                result.innerHTML += `البطاقة ${index + 1}: العرض=${style.width}, مرئية=${isVisible}<br>`;
+                if (isVisible) visibleCards++;
+            });
+
+            const success = visibleCards > 0;
+            testResults.fileDisplay = success;
+
+            status.className = `status-indicator ${success ? 'status-success' : 'status-danger'}`;
+            result.innerHTML += `<strong>النتيجة: ${success ? 'نجح' : 'فشل'} - ${visibleCards} بطاقة مرئية</strong>`;
+
+            updateFinalResults();
+        }
+
+        // إضافة ملف تجريبي
+        function addTestFile() {
+            const preview = document.getElementById('testPreview');
+
+            const card = document.createElement('div');
+            card.className = 'attachment-card card border-0 shadow-sm';
+
+            card.innerHTML = `
+                <div class="card-header text-white p-2" style="background: linear-gradient(135deg, #007bff 0%, #6610f2 100%);">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <i class="fas fa-file-image me-1"></i>
+                        <span class="text-truncate">ملف تجريبي ${Date.now()}</span>
+                        <i class="fas fa-check-circle text-success"></i>
+                    </div>
+                </div>
+                <div class="card-body p-3 text-center">
+                    <div class="image-container position-relative mb-3">
+                        <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjE4MCIgdmlld0JveD0iMCAwIDMwMCAxODAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIzMDAiIGhlaWdodD0iMTgwIiBmaWxsPSIjMDA3YmZmIi8+Cjx0ZXh0IHg9IjE1MCIgeT0iOTAiIGRvbWluYW50LWJhc2VsaW5lPSJtaWRkbGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IndoaXRlIiBmb250LXNpemU9IjE2Ij7YtdmI2LHYqSDYqtin2KzYsdmK2KjZitipPC90ZXh0Pgo8L3N2Zz4="
+                             class="document-image" />
+                    </div>
+                    <div class="file-name text-muted small mb-2">test-mobile-${Date.now()}.jpg</div>
+                    <div class="file-info small text-muted mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span><i class="fas fa-weight-hanging me-1"></i>12.8 KB</span>
+                            <span><i class="fas fa-clock me-1"></i>الآن</span>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-outline-danger btn-sm w-100" onclick="this.closest('.attachment-card').remove(); testFileDisplay();">
+                        <i class="fas fa-trash-alt me-1"></i>حذف
+                    </button>
+                </div>
+            `;
+
+            if (preview.children.length === 1 && preview.children[0].textContent.includes('لا توجد ملفات')) {
+                preview.innerHTML = '';
+            }
+
+            preview.appendChild(card);
+
+            setTimeout(testFileDisplay, 300);
+        }
+
+        // مسح الملفات التجريبية
+        function clearTestFiles() {
+            const preview = document.getElementById('testPreview');
+            preview.innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="fas fa-upload fa-2x mb-2"></i><br>
+                    لا توجد ملفات للعرض
+                </div>
+            `;
+            testFileDisplay();
+        }
+
+        // اختبار الـ Cropper
+        function testCropper() {
+            const result = document.getElementById('cropperResult');
+            const status = document.getElementById('cropperStatus');
+
+            result.innerHTML = 'جاري فحص الـ Cropper...<br>';
+
+            // فحص وجود دالة showCropperModal
+            const hasCropperFunction = typeof window.showCropperModal === 'function';
+            result.innerHTML += `دالة showCropperModal: ${hasCropperFunction ? 'موجودة' : 'مفقودة'}<br>`;
+
+            // فحص عناصر المودال
+            const elements = {
+                modal: document.getElementById('cropperModal'),
+                image: document.getElementById('cropperImage'),
+                cropBtn: document.getElementById('cropperCropBtn')
+            };
+
+            let elementsFound = 0;
+            Object.entries(elements).forEach(([key, element]) => {
+                const found = !!element;
+                result.innerHTML += `عنصر ${key}: ${found ? 'موجود' : 'مفقود'}<br>`;
+                if (found) elementsFound++;
+            });
+
+            const success = hasCropperFunction && elementsFound >= 2;
+            testResults.cropper = success;
+
+            status.className = `status-indicator ${success ? 'status-success' : 'status-danger'}`;
+            result.innerHTML += `<strong>النتيجة: ${success ? 'نجح' : 'فشل'}</strong>`;
+
+            updateFinalResults();
+        }
+
+        // فحص عناصر الـ Cropper
+        function checkCropperElements() {
+            const result = document.getElementById('cropperResult');
+
+            result.innerHTML = 'فحص تفصيلي للعناصر...<br>';
+
+            const elements = ['cropperModal', 'cropperImage', 'cropperCropBtn', 'compressLoaderModal'];
+
+            elements.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    const style = window.getComputedStyle(element);
+                    result.innerHTML += `${id}: موجود - Display: ${style.display}<br>`;
+                } else {
+                    result.innerHTML += `${id}: مفقود<br>`;
+                }
+            });
+        }
+
+        // تنظيف المودالات
+        function cleanupModals() {
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            backdrops.forEach(backdrop => backdrop.remove());
+
+            const result = document.getElementById('cropperResult');
+            result.innerHTML += `تم تنظيف ${backdrops.length} backdrop<br>`;
+        }
+
+        // اختبار Modal Backdrop
+        function testModalBackdrop() {
+            const result = document.getElementById('backdropResult');
+            const status = document.getElementById('backdropStatus');
+
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            result.innerHTML = `عدد الـ backdrops الموجودة: ${backdrops.length}<br>`;
+
+            backdrops.forEach((backdrop, index) => {
+                const style = window.getComputedStyle(backdrop);
+                result.innerHTML += `Backdrop ${index + 1}: zIndex=${style.zIndex}, display=${style.display}<br>`;
+            });
+
+            const success = backdrops.length === 0;
+            testResults.modalBackdrop = success;
+
+            status.className = `status-indicator ${success ? 'status-success' : 'status-warning'}`;
+            result.innerHTML += `<strong>النتيجة: ${success ? 'نظيف' : 'يحتاج تنظيف'}</strong>`;
+
+            updateFinalResults();
+        }
+
+        // تحديث النتائج النهائية
+        function updateFinalResults() {
+            const container = document.getElementById('finalResults');
+            const passed = Object.values(testResults).filter(r => r).length;
+            const total = Object.keys(testResults).length;
+
+            let html = `<h6>النتيجة العامة: ${passed}/${total}</h6><ul>`;
+
+            Object.entries(testResults).forEach(([test, result]) => {
+                const icon = result ? 'fa-check text-success' : 'fa-times text-danger';
+                html += `<li><i class="fas ${icon} me-2"></i>${test}: ${result ? 'نجح' : 'فشل'}</li>`;
+            });
+
+            html += '</ul>';
+
+            if (passed >= 3) {
+                container.className = 'alert alert-success';
+                html += '<i class="fas fa-check-circle me-2"></i>النظام يعمل بشكل جيد!';
+            } else {
+                container.className = 'alert alert-warning';
+                html += '<i class="fas fa-exclamation-triangle me-2"></i>يحتاج إلى مزيد من الإصلاحات';
+            }
+
+            container.innerHTML = html;
+        }
+
+        // تشغيل تلقائي عند التحميل
+        document.addEventListener('DOMContentLoaded', function() {
+            updateDeviceInfo();
+
+            // تشغيل تلقائي بعد ثانيتين
+            setTimeout(() => {
+                testFileDisplay();
+                testCropper();
+                testModalBackdrop();
+            }, 2000);
+        });
+
+        // تحديث عند تغيير حجم الشاشة
+        window.addEventListener('resize', updateDeviceInfo);
+    </script>
+</body>
+</html>

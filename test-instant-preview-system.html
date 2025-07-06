@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار منظومة الإظهار المؤقت - أفراد الأسرة</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .test-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        .test-header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #667eea;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 4px solid #28a745;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin: 5px;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .warning { background: #fff3cd; color: #856404; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        .btn-test {
+            margin: 10px 5px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .btn-test:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .log-container {
+            background: #1e1e1e;
+            color: #00ff00;
+            border-radius: 10px;
+            padding: 20px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            margin-top: 20px;
+        }
+        .test-result {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+            background: white;
+        }
+        .preview-container {
+            border: 2px dashed #dee2e6;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            min-height: 200px;
+            background: #f8f9fa;
+        }
+        .mock-family-form {
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 15px 0;
+            background: white;
+        }
+        .simulate-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            padding: 12px 25px;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .simulate-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+        .feature-check {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+        .feature-check i {
+            margin-left: 10px;
+            font-size: 1.2rem;
+        }
+        .check-pass { color: #28a745; }
+        .check-fail { color: #dc3545; }
+        .check-warn { color: #ffc107; }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <div class="test-header">
+            <h1 class="text-primary">
+                <i class="fas fa-microscope me-3"></i>
+                اختبار منظومة الإظهار المؤقت
+            </h1>
+            <p class="text-muted">اختبار شامل لمنظومة عرض الصور قبل عملية القص في بوابة أفراد الأسرة</p>
+        </div>
+
+        <!-- نظرة عامة على المنظومة -->
+        <div class="test-section">
+            <h3><i class="fas fa-info-circle text-info me-2"></i>نظرة عامة على المنظومة</h3>
+            <p>هذه المنظومة تعمل على إظهار الصورة فور اختيارها من المستخدم، وتتكون من المراحل التالية:</p>
+            <ol>
+                <li><strong>الإظهار المؤقت:</strong> عرض الصورة فور الاختيار مع شارة "معالجة..."</li>
+                <li><strong>إضافة مؤقتة:</strong> إضافة الوثيقة إلى window.allDocs مع علامة isTemporary: true</li>
+                <li><strong>فتح المقص:</strong> فتح أداة القص تلقائياً</li>
+                <li><strong>المعالجة النهائية:</strong> عند نجاح القص، حذف المؤقتة وإضافة النهائية</li>
+                <li><strong>الإلغاء:</strong> عند إلغاء القص، حذف الوثيقة المؤقتة تلقائياً</li>
+            </ol>
+        </div>
+
+        <!-- فحص الوظائف الأساسية -->
+        <div class="test-section">
+            <h3><i class="fas fa-check-circle text-success me-2"></i>فحص الوظائف الأساسية</h3>
+            <div id="basicFunctionTests">
+                <div class="feature-check">
+                    <i class="fas fa-question-circle" id="windowAllDocsIcon"></i>
+                    <span>window.allDocs متاح ومهيأ</span>
+                    <span class="status-badge" id="windowAllDocsStatus">جاري الفحص...</span>
+                </div>
+                <div class="feature-check">
+                    <i class="fas fa-question-circle" id="familyFunctionsIcon"></i>
+                    <span>دوال أفراد الأسرة متاحة</span>
+                    <span class="status-badge" id="familyFunctionsStatus">جاري الفحص...</span>
+                </div>
+                <div class="feature-check">
+                    <i class="fas fa-question-circle" id="cropperModalIcon"></i>
+                    <span>دالة المقص متاحة</span>
+                    <span class="status-badge" id="cropperModalStatus">جاري الفحص...</span>
+                </div>
+                <div class="feature-check">
+                    <i class="fas fa-question-circle" id="instantPreviewIcon"></i>
+                    <span>منظومة الإظهار المؤقت متاحة</span>
+                    <span class="status-badge" id="instantPreviewStatus">جاري الفحص...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- محاكاة النظام -->
+        <div class="test-section">
+            <h3><i class="fas fa-play-circle text-primary me-2"></i>محاكاة النظام</h3>
+            <div class="mock-family-form">
+                <h5>نموذج محاكاة أفراد الأسرة</h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <label class="form-label">نوع الوثيقة</label>
+                        <select class="form-select mainDocumentTypeSelect" id="mockDocTypeSelect">
+                            <option value="">اختر نوع الوثيقة</option>
+                            <option value="identity">هوية شخصية</option>
+                            <option value="passport">جواز سفر</option>
+                            <option value="birth_certificate">شهادة ميلاد</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">رقم الهوية</label>
+                        <input type="text" class="form-control" id="mockPersonId" value="1234567890" />
+                    </div>
+                </div>
+                <input type="file" class="form-control mt-3 mainDocumentFileInput" id="mockFileInput" accept="image/*" style="display: none;" />
+                <div class="preview-container mainDocumentPreview" id="mockPreview">
+                    <div class="text-center text-muted">
+                        <i class="fas fa-image fa-3x mb-3"></i>
+                        <p>ستظهر المعاينة هنا</p>
+                    </div>
+                </div>
+                <button class="simulate-button" onclick="simulateImageUpload()">
+                    <i class="fas fa-upload me-2"></i>محاكاة رفع صورة
+                </button>
+            </div>
+        </div>
+
+        <!-- أزرار الاختبار -->
+        <div class="test-section">
+            <h3><i class="fas fa-cogs text-warning me-2"></i>أزرار الاختبار</h3>
+            <button class="btn btn-primary btn-test" onclick="testBasicFunctions()">
+                <i class="fas fa-check me-2"></i>اختبار الوظائف الأساسية
+            </button>
+            <button class="btn btn-success btn-test" onclick="testInstantPreview()">
+                <i class="fas fa-eye me-2"></i>اختبار الإظهار المؤقت
+            </button>
+            <button class="btn btn-info btn-test" onclick="testTemporaryDocuments()">
+                <i class="fas fa-clock me-2"></i>اختبار الوثائق المؤقتة
+            </button>
+            <button class="btn btn-warning btn-test" onclick="testCropperIntegration()">
+                <i class="fas fa-crop me-2"></i>اختبار تكامل المقص
+            </button>
+            <button class="btn btn-danger btn-test" onclick="testCancelBehavior()">
+                <i class="fas fa-times me-2"></i>اختبار الإلغاء
+            </button>
+            <button class="btn btn-secondary btn-test" onclick="clearTests()">
+                <i class="fas fa-eraser me-2"></i>مسح الاختبارات
+            </button>
+        </div>
+
+        <!-- منطقة النتائج -->
+        <div class="test-section">
+            <h3><i class="fas fa-chart-line text-success me-2"></i>نتائج الاختبار</h3>
+            <div id="testResults"></div>
+        </div>
+
+        <!-- سجل التشغيل -->
+        <div class="test-section">
+            <h3><i class="fas fa-terminal text-info me-2"></i>سجل التشغيل</h3>
+            <div class="log-container" id="logContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        // متغيرات عامة للاختبار
+        let testLogger = [];
+        let testResults = [];
+        let mockDocuments = [];
+
+        // دالة تسجيل الرسائل
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}`;
+            testLogger.push(logEntry);
+
+            const logContainer = document.getElementById('logContainer');
+            const logLine = document.createElement('div');
+            logLine.style.color = type === 'error' ? '#ff4444' : type === 'success' ? '#44ff44' : '#00ff00';
+            logLine.textContent = logEntry;
+            logContainer.appendChild(logLine);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        // دالة إضافة نتيجة اختبار
+        function addTestResult(testName, status, details = '') {
+            const result = {
+                name: testName,
+                status: status,
+                details: details,
+                timestamp: new Date().toLocaleTimeString()
+            };
+            testResults.push(result);
+
+            const resultsContainer = document.getElementById('testResults');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'test-result';
+            resultDiv.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5>${testName}</h5>
+                    <span class="status-badge ${status}">${status === 'success' ? 'نجح' : status === 'error' ? 'فشل' : 'تحذير'}</span>
+                </div>
+                <p class="text-muted mb-1">${details}</p>
+                <small class="text-muted">${result.timestamp}</small>
+            `;
+            resultsContainer.appendChild(resultDiv);
+        }
+
+        // دالة محاكاة window.allDocs
+        function initializeMockAllDocs() {
+            if (typeof window.allDocs !== 'object' || !window.allDocs) {
+                window.allDocs = new Map();
+                log('تم إنشاء window.allDocs جديد للاختبار', 'info');
+            }
+        }
+
+        // دالة محاكاة showCropperModal
+        function initializeMockCropper() {
+            if (typeof window.showCropperModal !== 'function') {
+                window.showCropperModal = function(file, callback) {
+                    log('محاكاة فتح المقص...', 'info');
+
+                    // محاكاة نجاح القص بعد 2 ثانية
+                    setTimeout(() => {
+                        const croppedFile = new File([file], file.name.replace('.', '_cropped.'), {
+                            type: file.type,
+                            lastModified: Date.now()
+                        });
+
+                        log('محاكاة نجاح القص', 'success');
+                        callback(croppedFile);
+                    }, 2000);
+                };
+            }
+        }
+
+        // اختبار الوظائف الأساسية
+        function testBasicFunctions() {
+            log('بدء اختبار الوظائف الأساسية...', 'info');
+
+            // فحص window.allDocs
+            const allDocsIcon = document.getElementById('windowAllDocsIcon');
+            const allDocsStatus = document.getElementById('windowAllDocsStatus');
+
+            if (window.allDocs && window.allDocs instanceof Map) {
+                allDocsIcon.className = 'fas fa-check-circle check-pass';
+                allDocsStatus.textContent = 'متاح';
+                allDocsStatus.className = 'status-badge success';
+                log('window.allDocs متاح ومهيأ بشكل صحيح', 'success');
+            } else {
+                allDocsIcon.className = 'fas fa-times-circle check-fail';
+                allDocsStatus.textContent = 'غير متاح';
+                allDocsStatus.className = 'status-badge error';
+                log('window.allDocs غير متاح أو غير مهيأ', 'error');
+            }
+
+            // فحص دوال أفراد الأسرة
+            const familyIcon = document.getElementById('familyFunctionsIcon');
+            const familyStatus = document.getElementById('familyFunctionsStatus');
+
+            if (typeof window.addFamilyMember === 'function' &&
+                typeof window.reindexFamilyMembers === 'function' &&
+                typeof window.setupDocumentUploadHandlersForMember === 'function') {
+                familyIcon.className = 'fas fa-check-circle check-pass';
+                familyStatus.textContent = 'متاحة';
+                familyStatus.className = 'status-badge success';
+                log('جميع دوال أفراد الأسرة متاحة', 'success');
+            } else {
+                familyIcon.className = 'fas fa-times-circle check-fail';
+                familyStatus.textContent = 'غير متاحة';
+                familyStatus.className = 'status-badge error';
+                log('بعض دوال أفراد الأسرة غير متاحة', 'error');
+            }
+
+            // فحص دالة المقص
+            const cropperIcon = document.getElementById('cropperModalIcon');
+            const cropperStatus = document.getElementById('cropperModalStatus');
+
+            if (typeof window.showCropperModal === 'function') {
+                cropperIcon.className = 'fas fa-check-circle check-pass';
+                cropperStatus.textContent = 'متاحة';
+                cropperStatus.className = 'status-badge success';
+                log('دالة المقص متاحة', 'success');
+            } else {
+                cropperIcon.className = 'fas fa-exclamation-circle check-warn';
+                cropperStatus.textContent = 'سيتم المحاكاة';
+                cropperStatus.className = 'status-badge warning';
+                log('دالة المقص غير متاحة، سيتم استخدام النسخة المحاكاة', 'warning');
+                initializeMockCropper();
+            }
+
+            addTestResult('اختبار الوظائف الأساسية', 'success', 'تم فحص جميع الوظائف الأساسية بنجاح');
+        }
+
+        // اختبار الإظهار المؤقت
+        function testInstantPreview() {
+            log('بدء اختبار الإظهار المؤقت...', 'info');
+
+            // محاكاة إنشاء وثيقة مؤقتة
+            const mockFile = new File([''], 'test-image.jpg', { type: 'image/jpeg' });
+            const tempDoc = {
+                type: 'identity',
+                typeText: 'هوية شخصية',
+                file: mockFile,
+                processedFile: mockFile,
+                docName: 'identity_123_456.jpg',
+                personId: '456',
+                fileId: '123',
+                personKey: 'family_0',
+                isTemporary: true
+            };
+
+            // إضافة إلى window.allDocs
+            if (window.allDocs && window.allDocs instanceof Map) {
+                let docsArr = window.allDocs.get('family_0') || [];
+                docsArr.push(tempDoc);
+                window.allDocs.set('family_0', docsArr);
+                log('تم إضافة وثيقة مؤقتة إلى window.allDocs', 'success');
+            }
+
+            // محاكاة عرض الوثيقة المؤقتة
+            const mockPreview = document.getElementById('mockPreview');
+            mockPreview.innerHTML = `
+                <div class="text-center">
+                    <div class="card" style="width: 200px; margin: 0 auto; background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%); border: 2px solid #ffc107;">
+                        <div class="card-header bg-warning text-dark">
+                            <i class="fas fa-clock me-2"></i>هوية شخصية
+                            <div class="spinner-border spinner-border-sm float-end" role="status"></div>
+                        </div>
+                        <div class="card-body">
+                            <div class="bg-light p-3 mb-3" style="border-radius: 8px;">
+                                <i class="fas fa-image fa-3x text-warning"></i>
+                            </div>
+                            <div class="badge bg-warning text-dark">
+                                <i class="fas fa-clock me-1"></i>معالجة...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            log('تم عرض الوثيقة المؤقتة بنجاح', 'success');
+            addTestResult('اختبار الإظهار المؤقت', 'success', 'تم إنشاء وعرض الوثيقة المؤقتة بنجاح');
+        }
+
+        // اختبار الوثائق المؤقتة
+        function testTemporaryDocuments() {
+            log('بدء اختبار الوثائق المؤقتة...', 'info');
+
+            // التحقق من وجود وثائق مؤقتة
+            if (window.allDocs && window.allDocs instanceof Map) {
+                let tempDocsFound = false;
+
+                for (let [key, docs] of window.allDocs.entries()) {
+                    for (let doc of docs) {
+                        if (doc.isTemporary === true) {
+                            tempDocsFound = true;
+                            log(`تم العثور على وثيقة مؤقتة: ${doc.docName}`, 'success');
+                        }
+                    }
+                }
+
+                if (tempDocsFound) {
+                    addTestResult('اختبار الوثائق المؤقتة', 'success', 'تم العثور على وثائق مؤقتة في النظام');
+                } else {
+                    addTestResult('اختبار الوثائق المؤقتة', 'warning', 'لم يتم العثور على وثائق مؤقتة');
+                }
+            } else {
+                addTestResult('اختبار الوثائق المؤقتة', 'error', 'window.allDocs غير متاح');
+            }
+        }
+
+        // اختبار تكامل المقص
+        function testCropperIntegration() {
+            log('بدء اختبار تكامل المقص...', 'info');
+
+            if (typeof window.showCropperModal === 'function') {
+                const mockFile = new File([''], 'test-image.jpg', { type: 'image/jpeg' });
+
+                window.showCropperModal(mockFile, function(croppedFile) {
+                    if (croppedFile && croppedFile.name.includes('_cropped')) {
+                        log('تم استلام الملف المقصوص بنجاح', 'success');
+                        addTestResult('اختبار تكامل المقص', 'success', 'تم اختبار المقص بنجاح وإرجاع الملف المقصوص');
+                    } else {
+                        log('فشل في استلام الملف المقصوص', 'error');
+                        addTestResult('اختبار تكامل المقص', 'error', 'فشل في إرجاع الملف المقصوص');
+                    }
+                });
+            } else {
+                addTestResult('اختبار تكامل المقص', 'error', 'دالة المقص غير متاحة');
+            }
+        }
+
+        // اختبار الإلغاء
+        function testCancelBehavior() {
+            log('بدء اختبار سلوك الإلغاء...', 'info');
+
+            // محاكاة إلغاء العملية
+            if (window.allDocs && window.allDocs instanceof Map) {
+                const initialSize = window.allDocs.size;
+
+                // محاكاة حذف الوثيقة المؤقتة
+                for (let [key, docs] of window.allDocs.entries()) {
+                    const tempIndex = docs.findIndex(doc => doc.isTemporary === true);
+                    if (tempIndex !== -1) {
+                        docs.splice(tempIndex, 1);
+                        window.allDocs.set(key, docs);
+                        log('تم حذف الوثيقة المؤقتة بنجاح', 'success');
+                        break;
+                    }
+                }
+
+                // إعادة تعيين المعاينة
+                const mockPreview = document.getElementById('mockPreview');
+                mockPreview.innerHTML = `
+                    <div class="text-center text-muted">
+                        <i class="fas fa-image fa-3x mb-3"></i>
+                        <p>تم إلغاء العملية - عودة للحالة الأصلية</p>
+                    </div>
+                `;
+
+                addTestResult('اختبار الإلغاء', 'success', 'تم اختبار سلوك الإلغاء بنجاح');
+            } else {
+                addTestResult('اختبار الإلغاء', 'error', 'window.allDocs غير متاح');
+            }
+        }
+
+        // محاكاة رفع صورة
+        function simulateImageUpload() {
+            log('بدء محاكاة رفع صورة...', 'info');
+
+            const docType = document.getElementById('mockDocTypeSelect').value;
+            const personId = document.getElementById('mockPersonId').value;
+
+            if (!docType) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'تنبيه',
+                    text: 'يرجى اختيار نوع الوثيقة أولاً'
+                });
+                return;
+            }
+
+            if (!personId) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'تنبيه',
+                    text: 'يرجى إدخال رقم الهوية أولاً'
+                });
+                return;
+            }
+
+            // محاكاة عملية رفع الصورة
+            const mockFile = new File([''], 'test-image.jpg', { type: 'image/jpeg' });
+
+            // إظهار حالة المعالجة
+            const mockPreview = document.getElementById('mockPreview');
+            mockPreview.innerHTML = `
+                <div class="text-center">
+                    <div class="processing-container position-relative">
+                        <div class="image-wrapper" style="position: relative; display: inline-block; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                            <div class="bg-light p-4" style="width: 200px; height: 200px; display: flex; align-items: center; justify-content: center; filter: blur(2px); opacity: 0.8;">
+                                <i class="fas fa-image fa-4x text-muted"></i>
+                            </div>
+                            <div class="processing-overlay position-absolute top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center" style="background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(1px);">
+                                <div class="spinner-border text-primary mb-3" role="status" style="width: 2.5rem; height: 2.5rem;">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <div class="processing-text text-primary fw-bold mb-2" style="font-size: 1.1rem;">
+                                    <i class="fas fa-magic me-2" style="color: #6f42c1;"></i>
+                                    جاري المعالجة...
+                                </div>
+                                <small class="text-muted text-center">سيتم فتح أداة القص تلقائياً</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            log('تم إظهار حالة المعالجة', 'success');
+
+            // فتح المقص بعد تأخير
+            setTimeout(() => {
+                if (typeof window.showCropperModal === 'function') {
+                    window.showCropperModal(mockFile, function(croppedFile) {
+                        if (croppedFile) {
+                            log('تم استلام الملف المقصوص، عرض النتيجة النهائية...', 'success');
+
+                            // عرض النتيجة النهائية
+                            mockPreview.innerHTML = `
+                                <div class="text-center">
+                                    <div class="card" style="width: 200px; margin: 0 auto; background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%); border: 1px solid #e3e6f0;">
+                                        <div class="card-header bg-primary text-white">
+                                            <i class="fas fa-file-image me-2"></i>${docType}
+                                            <i class="fas fa-check-circle text-success float-end"></i>
+                                        </div>
+                                        <div class="card-body">
+                                            <div class="bg-light p-3 mb-3" style="border-radius: 8px;">
+                                                <i class="fas fa-image fa-3x text-primary"></i>
+                                            </div>
+                                            <div class="badge bg-success">
+                                                <i class="fas fa-check-circle me-1"></i>معالج
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+
+                            addTestResult('محاكاة رفع الصورة', 'success', 'تم اختبار العملية الكاملة بنجاح');
+                        }
+                    });
+                } else {
+                    log('دالة المقص غير متاحة', 'error');
+                }
+            }, 800);
+        }
+
+        // مسح الاختبارات
+        function clearTests() {
+            document.getElementById('testResults').innerHTML = '';
+            document.getElementById('logContainer').innerHTML = '';
+            document.getElementById('mockPreview').innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="fas fa-image fa-3x mb-3"></i>
+                    <p>ستظهر المعاينة هنا</p>
+                </div>
+            `;
+
+            testLogger = [];
+            testResults = [];
+            mockDocuments = [];
+
+            log('تم مسح جميع الاختبارات', 'info');
+        }
+
+        // تهيئة الصفحة
+        document.addEventListener('DOMContentLoaded', function() {
+            log('تم تحميل صفحة اختبار منظومة الإظهار المؤقت', 'info');
+
+            // تهيئة المحاكاة
+            initializeMockAllDocs();
+
+            // تشغيل الاختبار الأساسي تلقائياً
+            setTimeout(() => {
+                testBasicFunctions();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

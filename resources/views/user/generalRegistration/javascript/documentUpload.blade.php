@@ -1230,7 +1230,14 @@ document.addEventListener('DOMContentLoaded', function() {
         // تهيئة المناطق الرئيسية أولاً
         document.querySelectorAll('[data-upload-zone]:not([data-upload-zone*="family_"])').forEach(zone => {
             console.log('[initializeAllUploadZones] تهيئة منطقة رئيسية:', zone.getAttribute('data-upload-zone'));
-            initUploadZone(zone);
+            // التحقق من توفر الدالة قبل الاستدعاء
+            if (typeof window.initUploadZone === 'function') {
+                window.initUploadZone(zone);
+            } else if (typeof initUploadZone === 'function') {
+                initUploadZone(zone);
+            } else {
+                console.warn('[initializeAllUploadZones] ⚠️ initUploadZone غير متوفرة للمنطقة الرئيسية');
+            }
         });
 
         // ثم تهيئة مناطق أفراد الأسرة
@@ -1238,7 +1245,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const personKey = zone.getAttribute('data-upload-zone');
             if (personKey && !personKey.includes('template')) {
                 console.log('[initializeAllUploadZones] تهيئة منطقة أفراد الأسرة:', personKey);
-                initUploadZone(zone);
+                // التحقق من توفر الدالة قبل الاستدعاء
+                if (typeof window.initUploadZone === 'function') {
+                    window.initUploadZone(zone);
+                } else if (typeof initUploadZone === 'function') {
+                    initUploadZone(zone);
+                } else {
+                    console.warn('[initializeAllUploadZones] ⚠️ initUploadZone غير متوفرة لأفراد الأسرة:', personKey);
+                }
             }
         });
 
@@ -1305,7 +1319,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         const personKey = zone.getAttribute('data-upload-zone');
                         if (personKey && !personKey.includes('template') && zone.dataset.initialized !== 'true') {
                             console.log('[Observer] تهيئة منطقة رفع جديدة:', personKey);
-                            initUploadZone(zone);
+                            // التحقق من توفر الدالة قبل الاستدعاء
+                            if (typeof window.initUploadZone === 'function') {
+                                window.initUploadZone(zone);
+                            } else if (typeof initUploadZone === 'function') {
+                                initUploadZone(zone);
+                            } else {
+                                console.warn('[Observer] ⚠️ initUploadZone غير متوفرة، تأجيل التهيئة:', personKey);
+                            }
                         }
                     });
 
@@ -1666,80 +1687,14 @@ if (familyContainer) {
                     const personKey = zone.getAttribute('data-upload-zone');
                     if (personKey && !personKey.includes('template') && zone.dataset.initialized !== 'true') {
                         console.log('[Observer] تهيئة منطقة رفع جديدة:', personKey);
-                        initUploadZone(zone);
-                    }
-                });
-
-                // استعادة المرفقات المحمية بعد التحديثات
-                setTimeout(() => {
-                    window.restoreMainAndDeceasedAttachments();
-                }, 100);
-            }, 100);
-        }
-    });
-
-    observer.observe(familyContainer, {
-        childList: true,
-        subtree: true,
-        attributes: false,
-        characterData: false
-    });
-
-    console.log('[documentUpload] تم تهيئة مراقب أفراد الأسرة مع حماية المرفقات');
-}
-if (familyContainer) {
-    const observer = new MutationObserver(function(mutations) {
-        let shouldCleanup = false;
-        let shouldInitialize = false;
-
-        // حفظ مرفقات البوابات الأساسية والمتوفين قبل أي تغييرات
-        preserveMainAndDeceasedAttachments();
-
-        // جمع جميع personKey الحاليين في الصفحة
-        const currentKeys = Array.from(document.querySelectorAll('[data-upload-zone]'))
-            .map(zone => zone.getAttribute('data-upload-zone'))
-            .filter(key => key && key !== 'template');
-
-        mutations.forEach(function(mutation) {
-            // التعامل مع العقد المحذوفة
-            mutation.removedNodes.forEach(function(node) {
-                if (node.nodeType === 1 && node.querySelector) {
-                    const removedZones = node.querySelectorAll('[data-upload-zone]');
-                    if (removedZones.length > 0) {
-                        shouldCleanup = true;
-                    }
-                }
-            });
-
-            // التعامل مع العقد المضافة
-            mutation.addedNodes.forEach(function(node) {
-                if (node.nodeType === 1 && node.querySelector) {
-                    const addedZones = node.querySelectorAll('[data-upload-zone]');
-                    if (addedZones.length > 0) {
-                        shouldInitialize = true;
-                    }
-                }
-            });
-        });
-
-        // تنظيف المرفقات للمناطق المحذوفة
-        if (shouldCleanup && window.allDocs) {
-            Array.from(window.allDocs.keys()).forEach(personKey => {
-                if (personKey.startsWith('family_') && !currentKeys.includes(personKey)) {
-                    console.log('[Observer] حذف مرفقات منطقة محذوفة:', personKey);
-                    removeAllAttachmentTasksForPersonKey(personKey);
-                }
-            });
-        }
-
-        // تهيئة مناطق الرفع الجديدة
-        if (shouldInitialize) {
-            setTimeout(() => {
-                document.querySelectorAll('[data-upload-zone]').forEach(zone => {
-                    const personKey = zone.getAttribute('data-upload-zone');
-                    if (personKey && !personKey.includes('template') && zone.dataset.initialized !== 'true') {
-                        console.log('[Observer] تهيئة منطقة رفع جديدة:', personKey);
-                        initUploadZone(zone);
+                        // التحقق من توفر الدالة قبل الاستدعاء
+                        if (typeof window.initUploadZone === 'function') {
+                            window.initUploadZone(zone);
+                        } else if (typeof initUploadZone === 'function') {
+                            initUploadZone(zone);
+                        } else {
+                            console.warn('[Observer] ⚠️ initUploadZone غير متوفرة، تأجيل التهيئة:', personKey);
+                        }
                     }
                 });
 

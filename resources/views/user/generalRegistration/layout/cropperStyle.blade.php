@@ -1,103 +1,149 @@
 <style>
-    /* إعدادات المودال الأساسية */
-        /* إعدادات المودال الأساسية */
+    /* إعدادات المودال الأساسية - محسنة للجوال */
     #cropperModal {
         z-index: 1060;
     }
 
     #cropperModal .modal-dialog {
-        margin: 0;
-        width: 100vw;
-        height: 100vh;
-        max-width: 100vw;
-        max-height: 100vh;
+        margin: 20px auto;
+        width: calc(100% - 40px);
+        max-width: 800px;
     }
 
     #cropperModal .modal-content {
-        height: 100vh;
-        border-radius: 0;
+        border-radius: 12px;
         border: none;
-        display: flex;
-        flex-direction: column;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
     }
 
     /* Header المودال */
     #cropperModal .modal-header {
-        flex-shrink: 0;
-        padding: 0.5rem 1rem;
         border-bottom: 2px solid #dee2e6;
-        background-color: #f8f9fa;
-        min-height: 50px;
+        padding: 1rem 1.5rem;
     }
 
-    /* تحسينات خاصة للأجهزة المحمولة - تصغير المودال */
-    @media (max-width: 767.98px) {
+    /* منطقة القص */
+    .crop-area {
+        width: 100%;
+        min-height: 400px;
+        background: #f8f9fa;
+        border: 2px dashed #dee2e6;
+        border-radius: 8px;
+        overflow: hidden;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    #cropperImage {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        display: block;
+    }
+
+    /* تحسينات خاصة للأجهزة المحمولة */
+    @media (max-width: 768px) {
         #cropperModal .modal-dialog {
             margin: 10px;
             width: calc(100vw - 20px);
-            height: calc(100vh - 20px);
             max-width: calc(100vw - 20px);
-            max-height: calc(100vh - 20px);
         }
 
         #cropperModal .modal-content {
-            height: calc(100vh - 20px);
-            border-radius: 10px;
-            border: 2px solid #007bff;
+            border-radius: 8px;
         }
 
-        /* تصغير الهيدر */
         #cropperModal .modal-header {
-            padding: 0.3rem 0.8rem;
-            min-height: 40px;
+            padding: 0.75rem 1rem;
         }
 
         #cropperModal .modal-title {
-            font-size: 0.9rem;
+            font-size: 1rem;
         }
 
-        /* تعديل منطقة الصورة */
         .crop-area {
-            min-height: calc(100vh - 160px) !important;
-            max-height: calc(100vh - 160px) !important;
-            margin: 3px !important;
-            padding: 5px !important;
+            min-height: 300px;
+            max-height: 50vh;
         }
 
-        /* تعديل جسم المودال */
         .cropper-modal-body {
-            height: calc(100vh - 60px);
-            padding-bottom: 70px !important;
+            padding: 1rem !important;
         }
 
-        /* تحسين الأزرار */
         .action-buttons {
-            position: fixed !important;
-            bottom: 10px !important;
-            left: 10px !important;
-            right: 10px !important;
-            background-color: #ffffff !important;
-            padding: 10px !important;
-            box-shadow: 0 -3px 10px rgba(0,0,0,0.2) !important;
-            z-index: 9999 !important;
-            border-radius: 8px !important;
-            border: 1px solid #dee2e6 !important;
+            position: sticky;
+            bottom: 0;
+            background: white;
+            padding: 1rem 0 0 0;
+            margin: 1rem -1rem -1rem -1rem;
+            border-top: 1px solid #dee2e6;
         }
 
         .action-buttons button {
-            height: 40px !important;
-            font-size: 13px !important;
-            min-width: 100px !important;
-        }
-
-        /* إخفاء النص الزائد في الهيدر */
-        .crop-area::before {
-            font-size: 10px;
-            padding: 2px 8px;
+            min-height: 48px;
+            font-size: 0.9rem;
         }
     }
 
     /* تحسينات إضافية للشاشات الصغيرة جداً */
+    @media (max-width: 480px) {
+        #cropperModal .modal-dialog {
+            margin: 5px;
+            width: calc(100vw - 10px);
+            max-width: calc(100vw - 10px);
+        }
+
+        .crop-area {
+            min-height: 250px;
+            max-height: 40vh;
+        }
+
+        .action-buttons button {
+            font-size: 0.8rem;
+            padding: 0.5rem 1rem;
+        }
+    }
+
+    /* إصلاح مشكلة modal backdrop */
+    .modal-backdrop {
+        z-index: 1055;
+    }
+
+    #cropperModal.show {
+        z-index: 1065;
+    }
+
+    /* تحسينات إضافية للتأكد من ظهور المودال */
+    #cropperModal.fade.show {
+        display: block !important;
+        opacity: 1 !important;
+    }
+
+    /* تحسينات Cropper.js للجوال */
+    .cropper-container {
+        direction: ltr;
+        line-height: 0;
+        position: relative;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+    }
+
+    .cropper-container img {
+        display: block;
+        min-width: 0 !important;
+        max-width: none !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        width: 100%;
+        height: 100%;
+        image-orientation: 0deg;
+    }
     @media (max-width: 480px) {
         #cropperModal .modal-dialog {
             margin: 5px;
