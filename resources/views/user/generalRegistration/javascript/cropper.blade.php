@@ -1,24 +1,37 @@
 <style>
+    /* إزاحة المودال للأعلى لإظهار جميع التفاصيل */
+    #cropperModal {
+        transform: translateY(-10%) !important; /* إزاحة للأعلى */
+    }
+
+    /* تحسين إضافي للموبايل */
+    @media (max-width: 767.98px) {
+        #cropperModal {
+            transform: translateY(-15%) !important; /* إزاحة أكبر للأعلى في الموبايل */
+        }
+    }
+
     /* Custom styles for the cropper modal */
     .modal-fullscreen-sm-down .modal-content {
         border-radius: 0;
         margin: 0;
-        height: 100vh;
+        height: 85vh; /* تقليل الارتفاع للموبايل */
     }
 
-    .cropper-cropper-modal-body {
+    /* إصلاح الكلاس الصحيح لجسم المودال */
+    .cropper-modal-body {
         display: flex;
         flex-direction: column;
         flex-grow: 1;
         padding: 0 !important;
         overflow: hidden;
-        min-height: 600px; /* زيادة أكبر للحد الأدنى */
-        min-width: 500px;
+        min-height: 400px;
+        min-width: 300px;
     }
 
     /* Desktop layout: Side-by-side */
     @media (min-width: 768px) {
-        .cropper-cropper-modal-body {
+        .cropper-modal-body {
             flex-direction: row;
         }
         .controls-panel-container {
@@ -36,19 +49,19 @@
         justify-content: center;
         background-color: #f8f9fa;
         overflow: hidden;
-        padding: 2px; /* تقليل padding أكثر */
-        min-width: 600px; /* زيادة أكبر */
-        min-height: 600px; /* زيادة أكبر */
+        padding: 5px;
+        min-width: 300px;
+        min-height: 300px;
         width: 100%;
         height: 100%;
     }
 
     .crop-area img {
         display: block;
-        min-width: 500px; /* زيادة كبيرة في الحد الأدنى */
-        min-height: 500px; /* زيادة كبيرة في الحد الأدنى */
-        max-width: 99%; /* استخدام أقصى مساحة ممكنة */
-        max-height: 99%; /* استخدام أقصى مساحة ممكنة */
+        min-width: 250px;
+        min-height: 250px;
+        max-width: 95%;
+        max-height: 95%;
         object-fit: contain;
         image-rendering: -webkit-optimize-contrast;
         image-rendering: crisp-edges;
@@ -56,182 +69,261 @@
 
     @media (min-width: 992px) {
         .modal-dialog {
-            max-width: 1600px; /* زيادة أكبر في العرض */
-            width: 99vw; /* استخدام تقريباً كامل عرض الشاشة */
-            height: 85vh; /* تقليل الارتفاع من 95vh إلى 85vh */
+            max-width: 1200px;
+            width: 90vw;
+            height: 80vh;
         }
         .modal-content {
-            height: 100%; /* ملء كامل ارتفاع المودال */
+            height: 100%;
         }
         .cropper-modal-body {
             flex-direction: row;
-            min-height: 750px; /* تقليل من 900px إلى 750px */
-            min-width: 1200px; /* زيادة كبيرة */
-            height: calc(100% - 60px); /* ترك مساحة للهيدر */
+            min-height: 600px;
+            min-width: 800px;
+            height: 100%;
         }
         .crop-area {
-            min-width: 1000px; /* زيادة كبيرة جداً */
-            min-height: 750px; /* تقليل من 900px إلى 750px للتناسب مع المودال */
+            min-width: 600px;
+            min-height: 500px;
             max-width: none;
             max-height: none;
         }
         .crop-area img {
-            min-width: 800px; /* زيادة كبيرة جداً */
-            min-height: 600px; /* تقليل قليلاً من 700px إلى 600px */
+            min-width: 400px;
+            min-height: 300px;
         }
         .controls-panel-container {
             min-width: 160px;
             max-width: 200px;
-            height: 100%; /* ضمان ملء كامل الارتفاع */
         }
     }
 
     /* تحسين خاص للأجهزة المحمولة */
     @media (max-width: 767.98px) {
-        .modal-dialog {
-            height: 90vh; /* تقليل قليلاً للموبايل */
+        #cropperModal {
+            transform: translateY(-15%) !important; /* إزاحة أكبر للأعلى في الموبايل */
         }
+
+        .modal-fullscreen-sm-down .modal-content {
+            height: 75vh !important;
+        }
+
         .crop-area {
-            min-height: 65vh; /* تقليل من 80vh إلى 65vh للموبايل */
-            padding: 1px;
+            min-height: 50vh;
+            padding: 8px;
+            justify-content: center;
+            align-items: center;
         }
         .crop-area img {
-            min-width: 350px; /* زيادة للموبايل */
-            min-height: 350px; /* زيادة للموبايل */
-            max-width: 99.5%;
-            max-height: 60vh; /* تقليل من 75vh إلى 60vh */
+            min-width: 280px;
+            min-height: 280px;
+            max-width: 98%;
+            max-height: 45vh;
+            margin: 0;
+            object-position: center center;
         }
     }
 
-    /* Controls Panel Styles */
+    /* Controls Panel Styles - تحسين أزرار التحكم */
     .controls-panel-container {
-        width: 100%; /* Full width on mobile */
+        width: 100%;
         padding: 1rem;
         background-color: #fff;
         display: flex;
         flex-direction: column;
-        gap: 1rem; /* Spacing between sections */
-        flex-shrink: 0; /* Don't shrink the controls panel */
-        /* Ensure it's never smaller than its content on mobile */
+        gap: 1rem;
+        flex-shrink: 0;
         min-height: fit-content;
         min-width: 120px;
         z-index: 2;
-        justify-content: space-between; /* توزيع المحتوى بين الأعلى والأسفل */
+        border-top: 2px solid #dee2e6;
     }
 
     @media (min-width: 768px) {
         .controls-panel-container {
-            width: 160px; /* زيادة قليلة من 120px إلى 160px */
-            min-width: 160px; /* Prevent shrinking */
+            width: 120px;
+            min-width: 120px;
             flex-direction: column;
-            justify-content: space-between; /* Push action buttons to bottom */
-            padding: 1.5rem 1rem; /* زيادة padding العمودي */
+            justify-content: space-between;
+            border-top: none;
+            border-right: 2px solid #dee2e6;
         }
     }
 
-    /* تحسين الأزرار للتأكد من ظهورها */
+    .controls-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.5rem;
+        justify-items: center;
+        align-items: center;
+    }
+
+    .controls-grid button {
+        padding: 8px 10px !important;
+        min-width: 40px !important;
+        min-height: 40px !important;
+        font-size: 14px !important;
+        border-width: 2px !important;
+    }
+
+    /* Adjustments for move buttons in a cross pattern */
+    .controls-grid .move-up { grid-column: 2; grid-row: 1; }
+    .controls-grid .move-left { grid-column: 1; grid-row: 2; }
+    .controls-grid .move-center { grid-column: 2; grid-row: 2; display: none; }
+    .controls-grid .move-right { grid-column: 3; grid-row: 2; }
+    .controls-grid .move-down { grid-column: 2; grid-row: 3; }
+
+    /* Zoom and Rotate Buttons */
+    .controls-grid .zoom-in { grid-column: 1; grid-row: 4; }
+    .controls-grid .zoom-out { grid-column: 2; grid-row: 4; }
+    .controls-grid .rotate-right { grid-column: 3; grid-row: 4; }
+
+    /* تحسين أزرار الحفظ والإلغاء - الأهم */
     .controls-panel-container .action-buttons {
         display: flex;
-        flex-direction: column;
-        gap: 0.75rem; /* زيادة المسافة بين الأزرار */
-        width: 100%; /* Ensure buttons take full width */
-        margin-top: auto; /* دفع الأزرار للأسفل */
-        flex-shrink: 0; /* منع تقليص الأزرار */
+        flex-direction: row !important; /* جانب بعض بدلاً من عمودي */
+        gap: 0.5rem !important; /* تقليل المسافة */
+        width: 100%;
+        margin-top: 1rem;
+        padding: 0.5rem 0; /* تقليل padding */
+        border-top: 2px solid #f0f0f0; /* خط فاصل */
+        flex-shrink: 0; /* منع الانكماش */
+        min-height: 60px; /* تقليل الارتفاع */
+        justify-content: space-between; /* توزيع متساوي */
     }
 
-    .controls-panel-container .action-buttons button {
-        min-height: 40px; /* ضمان حد أدنى لارتفاع الأزرار */
-        font-weight: 600; /* جعل النص أوضح */
+    .action-buttons button {
+        padding: 8px 12px !important; /* تقليل كبير في padding */
+        font-size: 14px !important; /* تقليل حجم الخط */
+        font-weight: bold !important;
+        border-radius: 6px !important; /* تقليل الحواف */
+        min-height: 38px !important; /* تقليل الارتفاع */
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important; /* تقليل الظل */
+        transition: all 0.3s ease !important;
+        border: 2px solid transparent !important;
+        white-space: nowrap !important; /* منع التفاف النص */
+        overflow: visible !important; /* ضمان الرؤية */
+        display: block !important; /* عرض كامل */
+        width: 48% !important; /* عرض 48% لكل زر */
+        flex: 1 !important; /* نمو متساوي */
     }
 
-    @media (min-width: 992px) {
-        .modal-dialog {
-            max-width: 1600px; /* زيادة أكبر في العرض */
-            width: 99vw; /* استخدام تقريباً كامل عرض الشاشة */
-            height: 85vh; /* تقليل الارتفاع من 95vh إلى 85vh */
-        }
-        .modal-content {
-            height: 100%; /* ملء كامل ارتفاع المودال */
-        }
-        .cropper-modal-body {
-            flex-direction: row;
-            min-height: 750px; /* تقليل من 900px إلى 750px */
-            min-width: 1200px; /* زيادة كبيرة */
-            height: calc(100% - 60px); /* ترك مساحة للهيدر */
-        }
-        .crop-area {
-            min-width: 1000px; /* زيادة كبيرة جداً */
-            min-height: 750px; /* تقليل من 900px إلى 750px للتناسب مع المودال */
-            max-width: none;
-            max-height: none;
-        }
-        .crop-area img {
-            min-width: 800px; /* زيادة كبيرة جداً */
-            min-height: 600px; /* تقليل قليلاً من 700px إلى 600px */
-        }
-        .controls-panel-container {
-            min-width: 160px;
-            max-width: 200px;
-            height: 100%; /* ضمان ملء كامل الارتفاع */
-        }
+    /* تحسين زر الحفظ */
+    #cropperCropBtn {
+        background-color: #28a745 !important;
+        color: white !important;
+        border-color: #28a745 !important;
     }
 
-    /* تحسين خاص للأجهزة المحمولة */
+    #cropperCropBtn:hover {
+        background-color: #218838 !important;
+        border-color: #1e7e34 !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 12px rgba(40,167,69,0.3) !important;
+    }
+
+    /* تحسين زر الإلغاء */
+    .btn-danger {
+        background-color: #dc3545 !important;
+        color: white !important;
+        border-color: #dc3545 !important;
+    }
+
+    .btn-danger:hover {
+        background-color: #c82333 !important;
+        border-color: #bd2130 !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 12px rgba(220,53,69,0.3) !important;
+    }
+
     @media (max-width: 767.98px) {
-        .modal-dialog {
-            height: 90vh; /* تقليل قليلاً للموبايل */
-        }
-        .crop-area {
-            min-height: 65vh; /* تقليل من 80vh إلى 65vh للموبايل */
-            padding: 1px;
-        }
-        .crop-area img {
-            min-width: 350px; /* زيادة للموبايل */
-            min-height: 350px; /* زيادة للموبايل */
-            max-width: 99.5%;
-            max-height: 60vh; /* تقليل من 75vh إلى 60vh */
-        }
-    }
-
-    /* Controls Panel Styles */
-    .controls-panel-container {
-        width: 100%; /* Full width on mobile */
-        padding: 1rem;
-        background-color: #fff;
-        display: flex;
-        flex-direction: column;
-        gap: 1rem; /* Spacing between sections */
-        flex-shrink: 0; /* Don't shrink the controls panel */
-        /* Ensure it's never smaller than its content on mobile */
-        min-height: fit-content;
-        min-width: 120px;
-        z-index: 2;
-        justify-content: space-between; /* توزيع المحتوى بين الأعلى والأسفل */
-    }
-
-    @media (min-width: 768px) {
-        .controls-panel-container {
-            width: 160px; /* زيادة قليلة من 120px إلى 160px */
-            min-width: 160px; /* Prevent shrinking */
+        .cropper-modal-body {
             flex-direction: column;
-            justify-content: space-between; /* Push action buttons to bottom */
-            padding: 1.5rem 1rem; /* زيادة padding العمودي */
+            min-width: 0;
+            min-height: 0;
+            height: 100%; /* ضمان الارتفاع الكامل */
         }
-    }
 
-    /* تحسين الأزرار للتأكد من ظهورها */
-    .controls-panel-container .action-buttons {
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem; /* زيادة المسافة بين الأزرار */
-        width: 100%; /* Ensure buttons take full width */
-        margin-top: auto; /* دفع الأزرار للأسفل */
-        flex-shrink: 0; /* منع تقليص الأزرار */
-    }
+        .controls-panel-container {
+            flex-direction: column !important; /* تغيير إلى عمودي */
+            justify-content: flex-start !important; /* بداية من الأعلى */
+            align-items: stretch !important; /* امتداد كامل */
+            flex-wrap: nowrap !important; /* منع التفاف */
+            padding: 1rem !important;
+            border-top: 3px solid #dee2e6;
+            min-width: 0;
+            max-width: 100vw;
+            background-color: #f8f9fa;
+            min-height: 25vh !important; /* تقليل الارتفاع */
+            max-height: 30vh !important; /* تقليل الحد الأقصى */
+            overflow-y: auto !important; /* إضافة scroll عند الحاجة */
+            position: relative !important; /* تموضع نسبي */
+        }
 
-    .controls-panel-container .action-buttons button {
-        min-height: 40px; /* ضمان حد أدنى لارتفاع الأزرار */
-        font-weight: 600; /* جعل النص أوضح */
+        .controls-grid {
+            grid-template-columns: repeat(auto-fit, minmax(45px, 1fr));
+            width: 100% !important; /* عرض كامل */
+            gap: 0.5rem;
+            margin-bottom: 0.5rem !important; /* تقليل المسافة */
+            flex-shrink: 0; /* منع الانكماش */
+        }
+
+        .controls-grid button {
+            padding: 8px 6px !important; /* تقليل أكثر */
+            min-width: 40px !important; /* تقليل العرض */
+            min-height: 40px !important; /* تقليل الارتفاع */
+            font-size: 14px !important;
+        }
+
+        .controls-panel-container .action-buttons {
+            flex-direction: row !important; /* أفقي حتى للموبايل */
+            width: 100% !important; /* عرض كامل */
+            justify-content: space-between !important;
+            margin-top: 0.5rem !important; /* تقليل المسافة */
+            gap: 0.5rem !important; /* تقليل الفجوة */
+            padding: 0.5rem 0 !important; /* تقليل padding */
+            border-top: 2px solid #dee2e6 !important;
+            border-left: none !important; /* إزالة الحد الأيسر */
+            min-height: 50px !important; /* تقليل الارتفاع */
+            flex-shrink: 0 !important; /* منع الانكماش */
+        }
+
+        .controls-panel-container .action-buttons button {
+            width: 48% !important; /* عرض 48% لكل زر */
+            padding: 10px 8px !important; /* تقليل padding */
+            font-size: 14px !important; /* تقليل الخط */
+            min-height: 40px !important; /* تقليل الارتفاع */
+            font-weight: bold !important;
+            border-radius: 6px !important;
+            display: block !important;
+            position: relative !important;
+            z-index: 10 !important; /* ضمان الظهور */
+            flex: 1 !important; /* نمو متساوي */
+        }
+
+        /* تقليل مساحة منطقة الصورة أكثر */
+        .crop-area {
+            min-height: 50vh !important; /* زيادة ارتفاع الصورة */
+            max-height: 55vh !important; /* زيادة الحد الأقصى */
+            padding: 8px;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 1; /* السماح بالانكماش */
+        }
+
+        /* التأكد من أن المودال يأخذ الارتفاع الكامل */
+        .modal-fullscreen-sm-down .modal-content {
+            height: 85vh !important; /* زيادة الارتفاع */
+            display: flex !important;
+            flex-direction: column !important;
+        }
+
+        .modal-fullscreen-sm-down .cropper-modal-body {
+            flex: 1 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+        }
     }
 
     /* Ensure Cropper.js points are visible and appropriately sized */
@@ -649,28 +741,31 @@ window.showCropperModal = function(file, callback) {
       console.log('[showCropperModal] أبعاد الصورة الطبيعية:', imgEl.naturalWidth + 'x' + imgEl.naturalHeight);
       console.log('[showCropperModal] أبعاد الصورة المعروضة:', imgEl.width + 'x' + imgEl.height);
 
-      // ⭐ تحسين قوي لحجم الصورة قبل تهيئة Cropper
+      // ⭐ تحسين محدود للحجم - التركيز على عدم القص من اليسار
       const deviceInfo = detectDeviceType ? detectDeviceType() : {};
 
       if (isMobileChrome() && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
-        imgEl.style.maxHeight = '85vh'; /* زيادة أكبر */
-        imgEl.style.maxWidth = '99vw'; /* استخدام كامل العرض */
-        imgEl.style.minWidth = '350px';
-        imgEl.style.minHeight = '400px';
-        console.log('[showCropperModal] تطبيق أسلوب موبايل كروم محسن');
+        imgEl.style.maxHeight = '50vh'; /* تقليل كبير */
+        imgEl.style.maxWidth = '95vw'; /* تقليل قليل */
+        imgEl.style.minWidth = '280px'; /* تقليل */
+        imgEl.style.minHeight = '250px'; /* تقليل */
+        imgEl.style.objectPosition = 'left center'; /* تموضع يسار - وسط */
+        console.log('[showCropperModal] تطبيق أسلوب موبايل كروم محسن ومقلل');
       } else if (deviceInfo.isMobile || deviceInfo.isTablet) {
-        imgEl.style.maxHeight = '80vh'; /* زيادة كبيرة */
-        imgEl.style.maxWidth = '98vw'; /* زيادة كبيرة */
-        imgEl.style.minWidth = '400px'; /* زيادة الحد الأدنى */
-        imgEl.style.minHeight = '400px'; /* زيادة الحد الأدنى */
-        console.log('[showCropperModal] تطبيق أسلوب الأجهزة المحمولة المحسن');
+        imgEl.style.maxHeight = '50vh'; /* تقليل كبير للموبايل */
+        imgEl.style.maxWidth = '95vw'; /* تقليل قليل */
+        imgEl.style.minWidth = '280px'; /* تقليل */
+        imgEl.style.minHeight = '250px'; /* تقليل */
+        imgEl.style.objectPosition = 'left center'; /* تموضع يسار - وسط */
+        console.log('[showCropperModal] تطبيق أسلوب الأجهزة المحمولة المحسن والمقلل');
       } else {
-        // للكمبيوتر - حجم كبير جداً لحل مشكلة الحجم الصغير
-        imgEl.style.maxHeight = '1000px'; /* زيادة جذرية */
-        imgEl.style.maxWidth = '1400px'; /* زيادة جذرية */
-        imgEl.style.minWidth = '800px'; /* زيادة كبيرة جداً */
-        imgEl.style.minHeight = '700px'; /* زيادة كبيرة جداً */
-        console.log('[showCropperModal] تطبيق أسلوب الكمبيوتر بحجم كبير جداً');
+        // للكمبيوتر - حجم معتدل
+        imgEl.style.maxHeight = '600px'; /* تقليل من 1000px */
+        imgEl.style.maxWidth = '800px'; /* تقليل من 1400px */
+        imgEl.style.minWidth = '400px'; /* تقليل من 800px */
+        imgEl.style.minHeight = '300px'; /* تقليل من 700px */
+        imgEl.style.objectPosition = 'center center'; /* وسط للكمبيوتر */
+        console.log('[showCropperModal] تطبيق أسلوب الكمبيوتر بحجم معتدل');
       }
 
       if ((imgEl.naturalWidth > 0 && imgEl.naturalHeight > 0) || force) {
@@ -685,9 +780,9 @@ window.showCropperModal = function(file, callback) {
         try {
           cropper = new Cropper(imgEl, {
             aspectRatio: NaN,
-            viewMode: 0, // ⭐ تغيير viewMode لإتاحة مرونة أكبر
+            viewMode: 1, // ⭐ تغيير إلى viewMode 1 لضمان عدم تجاوز الحدود
             responsive: true,
-            autoCropArea: 0.98, // ⭐ زيادة منطقة القص إلى أقصى حد
+            autoCropArea: 0.9, // ⭐ تقليل منطقة القص قليلاً
             movable: true,
             zoomable: true,
             rotatable: true,
@@ -696,19 +791,19 @@ window.showCropperModal = function(file, callback) {
             guides: true,
             center: true,
             dragMode: 'move',
-            minContainerWidth: 500, /* زيادة كبيرة */
-            minContainerHeight: 500, /* زيادة كبيرة */
+            minContainerWidth: 300, /* تقليل من 500 */
+            minContainerHeight: 300, /* تقليل من 500 */
             minCanvasWidth: 0,
             minCanvasHeight: 0,
-            minCropBoxWidth: 150, /* زيادة الحد الأدنى */
-            minCropBoxHeight: 150, /* زيادة الحد الأدنى */
+            minCropBoxWidth: 100, /* تقليل من 150 */
+            minCropBoxHeight: 100, /* تقليل من 150 */
             ready() {
               console.log('[showCropperModal] ✅ تم تهيئة أداة القص بحجم محسن!');
               cropperReady = true;
               enableAllControls();
               enableCropperControls();
 
-              // ⭐ تحسين قوي لحجم وموقع صندوق القص
+              // ⭐ تحسين معتدل لحجم وموقع صندوق القص - بدون إزاحة قوية لليمين
               setTimeout(() => {
                 const containerData = cropper.getContainerData();
                 const canvasData = cropper.getCanvasData();
@@ -716,76 +811,57 @@ window.showCropperModal = function(file, callback) {
                 console.log('[showCropperModal] بيانات الحاوية:', containerData);
                 console.log('[showCropperModal] بيانات Canvas:', canvasData);
 
-                // ⭐ تكبير صندوق القص ليستغل المساحة المتاحة بالكامل مع إزاحة لليمين
-                const optimalWidth = Math.min(containerData.width * 0.98, canvasData.width * 0.99);
-                const optimalHeight = Math.min(containerData.height * 0.98, canvasData.height * 0.99);
+                // ⭐ تحسين معتدل لصندوق القص - التركيز على عدم القص من اليسار
+                const optimalWidth = Math.min(containerData.width * 0.85, canvasData.width * 0.9);
+                const optimalHeight = Math.min(containerData.height * 0.75, canvasData.height * 0.9);
 
-                // ⭐ حساب الموقع لإزاحة صندوق القص إلى أقصى اليمين
-                const rightMargin = 5; // هامش صغير من الجانب الأيمن
-                const leftPosition = containerData.width - optimalWidth - rightMargin;
+                // ⭐ توسيط صندوق القص بدلاً من الإزاحة لليمين
+                const leftPosition = (containerData.width - optimalWidth) / 2;
                 const topPosition = (containerData.height - optimalHeight) / 2;
 
                 try {
                   cropper.setCropBoxData({
                     width: optimalWidth,
                     height: optimalHeight,
-                    left: Math.max(0, leftPosition), // التأكد من عدم الخروج من الحاوية
+                    left: Math.max(0, leftPosition),
                     top: Math.max(0, topPosition)
                   });
 
-                  console.log('[showCropperModal] تم إزاحة صندوق القص إلى اليمين:', optimalWidth + 'x' + optimalHeight, 'موقع:', leftPosition + ',' + topPosition);
+                  console.log('[showCropperModal] تم توسيط صندوق القص:', optimalWidth + 'x' + optimalHeight, 'موقع:', leftPosition + ',' + topPosition);
                 } catch(e) {
                   console.warn('[showCropperModal] فشل في تحسين صندوق القص:', e);
                 }
 
-                // ⭐ تحسين إضافي: إزاحة الصورة نفسها إذا كانت أصغر من الحاوية
+                // ⭐ تحسين موقع الصورة - توسيط بدلاً من الإزاحة لليمين
                 try {
                   const canvasData = cropper.getCanvasData();
                   if (canvasData.width < containerData.width) {
-                    // إزاحة الصورة إلى اليمين إذا كانت أصغر من الحاوية
-                    const imageRightPosition = containerData.width - canvasData.width - 10;
+                    // توسيط الصورة
+                    const imageCenterPosition = (containerData.width - canvasData.width) / 2;
                     cropper.setCanvasData({
-                      left: Math.max(0, imageRightPosition),
+                      left: Math.max(0, imageCenterPosition),
                       top: canvasData.top,
                       width: canvasData.width,
                       height: canvasData.height
                     });
-                    console.log('[showCropperModal] تم إزاحة الصورة إلى اليمين');
+                    console.log('[showCropperModal] تم توسيط الصورة');
                   }
                 } catch(e) {
-                  console.warn('[showCropperModal] فشل في إزاحة الصورة:', e);
+                  console.warn('[showCropperModal] فشل في توسيط الصورة:', e);
                 }
 
-                // ⭐ تحسين الزوم لضمان استغلال أفضل للمساحة
+                // ⭐ تحسين الزوم - معتدل
                 try {
                   const currentZoom = cropper.getData().scaleX || 1;
 
-                  // إذا كان الزوم صغيراً جداً، قم بزيادته بقوة
-                  if (currentZoom < 0.8) {
-                    cropper.zoomTo(1.2); /* زوم أكبر بكثير */
-                    console.log('[showCropperModal] تم تطبيق زوم قوي لتحسين العرض');
-                  } else if (currentZoom < 1.0) {
-                    cropper.zoomTo(1.1); /* زوم معتدل */
-                    console.log('[showCropperModal] تم تطبيق زوم معتدل');
+                  if (currentZoom < 0.7) {
+                    cropper.zoomTo(0.9); /* زوم معتدل */
+                    console.log('[showCropperModal] تم تطبيق زوم معتدل لتحسين العرض');
                   }
                 } catch(e) {
                   console.warn('[showCropperModal] فشل في تحسين الزوم:', e);
                 }
-
-                // ⭐ إضافة تحسين خاص للصور الصغيرة
-                const imageArea = imgEl.naturalWidth * imgEl.naturalHeight;
-                const containerArea = containerData.width * containerData.height;
-
-                if (imageArea < containerArea * 0.3) {
-                  // الصورة صغيرة جداً مقارنة بالحاوية
-                  try {
-                    cropper.zoomTo(1.5); /* زوم كبير للصور الصغيرة */
-                    console.log('[showCropperModal] تم تطبيق زوم كبير للصورة الصغيرة');
-                  } catch(e) {
-                    console.warn('[showCropperModal] فشل في تطبيق زوم الصورة الصغيرة:', e);
-                  }
-                }
-              }, 300); /* زيادة وقت التأخير قليلاً */
+              }, 200); /* تقليل وقت التأخير */
 
               // معالجة خاصة للأجهزة المحمولة
               if (isMobileChrome() && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
@@ -964,31 +1040,34 @@ window.showCropperModal = function(file, callback) {
           imgEl.cropperInstance = null;
         }
 
-        // ⭐ تحسين العرض عند إظهار المودال - نفس التحسينات القوية
+        // ⭐ نفس التحسينات المعتدلة عند إظهار المودال
         const deviceInfo = window.DeviceImageSource ? window.DeviceImageSource.detectDevice() : {};
 
         if (isMobileChrome() && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
-          imgEl.style.maxHeight = '85vh';
-          imgEl.style.maxWidth = '99vw';
-          imgEl.style.minWidth = '350px';
-          imgEl.style.minHeight = '400px';
+          imgEl.style.maxHeight = '50vh';
+          imgEl.style.maxWidth = '95vw';
+          imgEl.style.minWidth = '280px';
+          imgEl.style.minHeight = '250px';
+          imgEl.style.objectPosition = 'left center';
         } else if (deviceInfo.isMobile || deviceInfo.isTablet) {
-          imgEl.style.maxHeight = '80vh';
-          imgEl.style.maxWidth = '98vw';
-          imgEl.style.minWidth = '400px';
-          imgEl.style.minHeight = '400px';
+          imgEl.style.maxHeight = '50vh';
+          imgEl.style.maxWidth = '95vw';
+          imgEl.style.minWidth = '280px';
+          imgEl.style.minHeight = '250px';
+          imgEl.style.objectPosition = 'left center';
         } else {
-          imgEl.style.maxHeight = '1000px';
-          imgEl.style.maxWidth = '1400px';
-          imgEl.style.minWidth = '800px';
-          imgEl.style.minHeight = '700px';
+          imgEl.style.maxHeight = '600px';
+          imgEl.style.maxWidth = '800px';
+          imgEl.style.minWidth = '400px';
+          imgEl.style.minHeight = '300px';
+          imgEl.style.objectPosition = 'center center';
         }
 
         cropper = new Cropper(imgEl, {
           aspectRatio: NaN,
-          viewMode: 0,
+          viewMode: 1,
           responsive: true,
-          autoCropArea: 0.98,
+          autoCropArea: 0.9,
           movable: true,
           zoomable: true,
           rotatable: true,
@@ -997,24 +1076,23 @@ window.showCropperModal = function(file, callback) {
           guides: true,
           center: true,
           dragMode: 'move',
-          minContainerWidth: 500,
-          minContainerHeight: 500,
+          minContainerWidth: 300,
+          minContainerHeight: 300,
           ready() {
             cropperReady = true;
             enableAllControls();
             enableCropperControls();
 
-            // ⭐ نفس التحسينات القوية كما في initCropper مع الإزاحة لليمين
+            // ⭐ نفس التحسينات المعتدلة مع التوسيع
             setTimeout(() => {
               const containerData = cropper.getContainerData();
               const canvasData = cropper.getCanvasData();
 
-              const optimalWidth = Math.min(containerData.width * 0.98, canvasData.width * 0.99);
-              const optimalHeight = Math.min(containerData.height * 0.98, canvasData.height * 0.99);
+              const optimalWidth = Math.min(containerData.width * 0.85, canvasData.width * 0.9);
+              const optimalHeight = Math.min(containerData.height * 0.75, canvasData.height * 0.9);
 
-              // ⭐ إزاحة إلى اليمين في modalEl.addEventListener أيضاً
-              const rightMargin = 5;
-              const leftPosition = containerData.width - optimalWidth - rightMargin;
+              // توسيط بدلاً من الإزاحة لليمين
+              const leftPosition = (containerData.width - optimalWidth) / 2;
               const topPosition = (containerData.height - optimalHeight) / 2;
 
               try {
@@ -1025,23 +1103,21 @@ window.showCropperModal = function(file, callback) {
                   top: Math.max(0, topPosition)
                 });
 
-                // إزاحة الصورة إلى اليمين أيضاً
+                // توسيط الصورة
                 const canvasData = cropper.getCanvasData();
                 if (canvasData.width < containerData.width) {
-                  const imageRightPosition = containerData.width - canvasData.width - 10;
+                  const imageCenterPosition = (containerData.width - canvasData.width) / 2;
                   cropper.setCanvasData({
-                    left: Math.max(0, imageRightPosition),
+                    left: Math.max(0, imageCenterPosition),
                     top: canvasData.top,
                     width: canvasData.width,
                     height: canvasData.height
                   });
                 }
-
-                // ...existing code for zoom...
               } catch(e) {
                 console.warn('[showCropperModal] فشل في التحسين عند الجاهزية:', e);
               }
-            }, 300);
+            }, 200);
 
             // معالجة خاصة للأجهزة المحمولة
             if (isMobileChrome() && imgEl.naturalHeight > imgEl.naturalWidth * 2) {
