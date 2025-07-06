@@ -40,9 +40,9 @@
     </div>
 </div>
 
-<!-- Hidden File Inputs -->
-<input type="file" id="cameraInput" accept="image/*" style="display: none;">
-<input type="file" id="galleryInput" accept="image/*" style="display: none;">
+<!-- Hidden File Inputs للتكامل مع النظام الموجود -->
+<input type="file" id="deviceCameraInput" accept="image/*" style="display: none;">
+<input type="file" id="deviceGalleryInput" accept="image/*" style="display: none;">
 
 <style>
 /* تصميم Modal متجاوب وجميل */
@@ -417,568 +417,393 @@
 </style>
 
 <script>
-        /**
-         * نظام الكشف عن الجهاز وتوجيه مستعرض الصور - عام لجميع البوابات
-         */
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 [DeviceDetection] تم بدء تشغيل نظام كشف الجهاز وتوجيه مستعرض الصور');
+/**
+ * نظام تحسين اختيار مصدر الصورة - يتكامل مع النظام الموجود
+ */
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 [DeviceImageSource] تم بدء تشغيل نظام تحسين اختيار مصدر الصورة');
 
-            // متغيرات Modal
-            let currentFileInput = null;
-            let currentCallback = null;
+    // متغيرات لتتبع التفاعل
+    let isModalActive = false;
+    let originalFileInput = null;
+    let pendingCallback = null;
 
-            // دالة كشف نوع الجهاز المحسنة
-            function detectDeviceType() {
-                const userAgent = navigator.userAgent.toLowerCase();
-                const isMobile = /android|webos|iphone|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
-                const isTablet = /ipad|tablet|(android(?!.*mobile))/i.test(userAgent);
-                const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-                const isSmallScreen = window.innerWidth <= 768;
-                const hasCamera = navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+    // دالة كشف نوع الجهاز
+    function detectDeviceType() {
+        const userAgent = navigator.userAgent.toLowerCase();
+        const isMobile = /android|webos|iphone|ipod|blackberry|iemobile|opera mini/i.test(userAgent);
+        const isTablet = /ipad|tablet|(android(?!.*mobile))/i.test(userAgent);
+        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+        const isSmallScreen = window.innerWidth <= 768;
 
-                return {
-                    isMobile: isMobile || (isTouchDevice && isSmallScreen && !isTablet),
-                    isTablet: isTablet,
-                    isDesktop: !isMobile && !isTablet,
-                    isTouchDevice: isTouchDevice,
-                    hasCamera: hasCamera,
-                    screenWidth: window.innerWidth,
-                    userAgent: userAgent
-                };
-            }
+        return {
+            isMobile: isMobile || (isTouchDevice && isSmallScreen && !isTablet),
+            isTablet: isTablet,
+            isDesktop: !isMobile && !isTablet,
+            isTouchDevice: isTouchDevice,
+            hasCamera: navigator.mediaDevices && navigator.mediaDevices.getUserMedia,
+            screenWidth: window.innerWidth,
+            userAgent: userAgent
+        };
+    }
 
-            // دالة تكوين input الكاميرا حسب نوع الجهاز
-            function configureCameraInput(deviceInfo) {
-                const cameraInput = document.getElementById('cameraInput');
+    // دالة تكوين input الكاميرا حسب نوع الجهاز
+    function configureCameraInput(deviceInfo) {
+        const cameraInput = document.getElementById('deviceCameraInput');
 
-                // إزالة الإعدادات السابقة
-                cameraInput.removeAttribute('capture');
+        cameraInput.removeAttribute('capture');
 
-                if (deviceInfo.isMobile) {
-                    // للجوال: إعطاء خيارات متعددة للكاميرا
-                    cameraInput.setAttribute('capture', 'environment');
-                    console.log('📱 [CameraConfig] تم تكوين الكاميرا للجوال: environment camera');
-                } else if (deviceInfo.isTablet) {
-                    // للتابلت: كاميرا أمامية أو خلفية
-                    cameraInput.setAttribute('capture', 'user');
-                    console.log('📱 [CameraConfig] تم تكوين الكاميرا للتابلت: user camera');
-                } else {
-                    // للكمبيوتر: إضافة capture للوصول للكاميرا
-                    cameraInput.setAttribute('capture', 'user');
-                    console.log('💻 [CameraConfig] تم تكوين الكاميرا للكمبيوتر: user camera');
-                }
-            }
+        if (deviceInfo.isMobile) {
+            cameraInput.setAttribute('capture', 'environment');
+            console.log('📱 [CameraConfig] تم تكوين الكاميرا للجوال');
+        } else if (deviceInfo.isTablet) {
+            cameraInput.setAttribute('capture', 'user');
+            console.log('📱 [CameraConfig] تم تكوين الكاميرا للتابلت');
+        } else {
+            cameraInput.setAttribute('capture', 'user');
+            console.log('💻 [CameraConfig] تم تكوين الكاميرا للكمبيوتر');
+        }
+    }
 
-            // دالة فحص توفر الكاميرا
-            async function checkCameraAvailability() {
-                try {
-                    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                        console.warn('⚠️ [Camera] getUserMedia غير مدعوم في هذا المتصفح');
-                        return false;
-                    }
+    // دالة تحسين زر الكاميرا حسب الجهاز
+    function enhanceCameraButton(deviceInfo) {
+        const cameraTitle = document.querySelector('#openCamera .btn-title');
+        const cameraSubtitle = document.querySelector('#openCamera .btn-subtitle');
 
-                    // فحص الأجهزة المتاحة
-                    const devices = await navigator.mediaDevices.enumerateDevices();
-                    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        if (deviceInfo.isMobile) {
+            cameraTitle.textContent = 'التقاط صورة';
+            cameraSubtitle.textContent = 'فتح كاميرا الجوال';
+        } else if (deviceInfo.isTablet) {
+            cameraTitle.textContent = 'التقاط صورة';
+            cameraSubtitle.textContent = 'فتح كاميرا التابلت';
+        } else {
+            cameraTitle.textContent = 'التقاط صورة';
+            cameraSubtitle.textContent = 'فتح كاميرا الكمبيوتر';
+        }
+    }
 
-                    console.log(`📹 [Camera] تم العثور على ${videoDevices.length} كاميرا متاحة`);
+    // دالة إظهار Modal
+    function showImageSourceModal(callback) {
+        pendingCallback = callback;
+        isModalActive = true;
 
-                    if (videoDevices.length > 0) {
-                        videoDevices.forEach((device, index) => {
-                            console.log(`📹 [Camera${index + 1}] ${device.label || `كاميرا ${index + 1}`}`);
-                        });
-                        return true;
-                    }
+        const modal = document.getElementById('imageSourceModal');
+        const deviceInfo = detectDeviceType();
 
-                    return false;
-                } catch (error) {
-                    console.warn('⚠️ [Camera] خطأ في فحص الكاميرات:', error);
-                    return false;
-                }
-            }
+        enhanceCameraButton(deviceInfo);
+        configureCameraInput(deviceInfo);
 
-            // دالة تحسين زر الكاميرا حسب الجهاز
-            function enhanceCameraButton(deviceInfo) {
-                const cameraBtn = document.getElementById('openCamera');
-                const cameraTitle = cameraBtn.querySelector('.btn-title');
-                const cameraSubtitle = cameraBtn.querySelector('.btn-subtitle');
+        modal.style.display = 'block';
 
-                if (deviceInfo.isMobile) {
-                    cameraTitle.textContent = 'التقاط صورة';
-                    cameraSubtitle.textContent = 'فتح كاميرا الجوال';
-                } else if (deviceInfo.isTablet) {
-                    cameraTitle.textContent = 'التقاط صورة';
-                    cameraSubtitle.textContent = 'فتح كاميرا التابلت';
-                } else {
-                    cameraTitle.textContent = 'التقاط صورة';
-                    cameraSubtitle.textContent = 'فتح كاميرا الكمبيوتر';
-                }
-            }
+        setTimeout(() => {
+            modal.classList.add('show');
+        }, 10);
 
-            // دالة إظهار Modal
-            function showImageSourceModal(fileInput, callback) {
-                currentFileInput = fileInput;
-                currentCallback = callback;
+        console.log(`📱 [Modal] تم إظهار مودال اختيار مصدر الصورة للجهاز: ${deviceInfo.isMobile ? 'جوال' : deviceInfo.isTablet ? 'تابلت' : 'كمبيوتر'}`);
+    }
 
-                const modal = document.getElementById('imageSourceModal');
-                const deviceInfo = detectDeviceType();
+    // دالة إخفاء Modal
+    function hideImageSourceModal() {
+        const modal = document.getElementById('imageSourceModal');
+        const modalContent = modal.querySelector('.modal-content');
 
-                // تحسين واجهة الأزرار حسب نوع الجهاز
-                enhanceCameraButton(deviceInfo);
+        modalContent.style.animation = 'slideDown 0.3s ease-out forwards';
 
-                modal.style.display = 'block';
+        setTimeout(() => {
+            modal.style.display = 'none';
+            modalContent.style.animation = '';
+            modal.classList.remove('show');
+            isModalActive = false;
+            originalFileInput = null;
+            pendingCallback = null;
+        }, 300);
 
-                // تأثير الظهور
+        console.log('❌ [Modal] تم إخفاء مودال اختيار مصدر الصورة');
+    }
+
+    // دالة نقل الملف للنظام الموجود مع التكامل الصحيح
+    function transferFileToSystem(file, source) {
+        console.log(`🔄 [Transfer] نقل ملف من ${source}: ${file.name}`);
+
+        // أولاً: إخفاء مودال اختيار المصدر
+        hideImageSourceModal();
+
+        // ثانياً: إذا كان هناك callback (من نظام documentUpload)، استخدمه
+        if (pendingCallback && typeof pendingCallback === 'function') {
+            console.log('✅ [Transfer] استدعاء callback للنظام الموجود (documentUpload)');
+            // تأخير قصير للتأكد من إخفاء المودال قبل فتح القص
+            setTimeout(() => {
+                pendingCallback(file);
+            }, 100);
+        }
+        // ثالثاً: إذا كان هناك input أصلي، انقل الملف إليه
+        else if (originalFileInput) {
+            console.log('✅ [Transfer] نقل إلى input الأصلي');
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            originalFileInput.files = dataTransfer.files;
+
+            // إطلاق حدث change
+            const changeEvent = new Event('change', { bubbles: true });
+            originalFileInput.dispatchEvent(changeEvent);
+        }
+        // رابعاً: إذا لم يكن هناك callback ولا input، فتح القص مباشرة
+        else {
+            console.log('🔄 [Transfer] فتح القص مباشرة');
+            if (typeof window.showCropperModal === 'function') {
                 setTimeout(() => {
-                    modal.classList.add('show');
-                }, 10);
-
-                console.log(`📱 [Modal] تم إظهار نافذة اختيار مصدر الصورة للجهاز: ${deviceInfo.isMobile ? 'جوال' : deviceInfo.isTablet ? 'تابلت' : 'كمبيوتر'}`);
-            }
-
-            // دالة إخفاء Modal
-            function hideImageSourceModal() {
-                const modal = document.getElementById('imageSourceModal');
-                const modalContent = modal.querySelector('.modal-content');
-
-                modalContent.style.animation = 'slideDown 0.3s ease-out forwards';
-
-                setTimeout(() => {
-                    modal.style.display = 'none';
-                    modalContent.style.animation = '';
-                    modal.classList.remove('show');
-                }, 300);
-
-                console.log('❌ [Modal] تم إخفاء نافذة اختيار مصدر الصورة');
-            }
-
-            // دالة نقل الملف إلى input الأصلي مع دعم المقص
-            function transferFileToOriginalInput(file, sourceType) {
-                if (!file || !currentFileInput) {
-                    console.error('❌ [FileTransfer] لا يوجد ملف أو input أصلي');
-                    return false;
-                }
-
-                try {
-                    console.log(`🔄 [FileTransfer] بدء معالجة ملف ${sourceType}: ${file.name}`);
-
-                    // التحقق من أن الملف صورة وفتح المقص
-                    if (file.type.startsWith('image/')) {
-                        console.log('🖼️ [FileTransfer] الملف صورة، فتح أداة المقص...');
-
-                        // فحص توفر أداة المقص
-                        if (typeof window.showCropperModal === 'function') {
-                            window.showCropperModal(file, function(croppedFile) {
-                                if (croppedFile) {
-                                    console.log('✅ [FileTransfer] تم قص الصورة بنجاح:', croppedFile.name);
-                                    // نقل الملف المقصوص إلى input الأصلي
-                                    const dataTransfer = new DataTransfer();
-                                    dataTransfer.items.add(croppedFile);
-                                    currentFileInput.files = dataTransfer.files;
-
-                                    // تشغيل callback إذا كان موجود
-                                    if (typeof currentCallback === 'function') {
-                                        currentCallback(croppedFile);
-                                    }
-
-                                    // إطلاق حدث change على input الأصلي
-                                    const changeEvent = new Event('change', { bubbles: true });
-                                    currentFileInput.dispatchEvent(changeEvent);
-
-                                    // إطلاق حدث input للتأكد من تحديث UI
-                                    const inputEvent = new Event('input', { bubbles: true });
-                                    currentFileInput.dispatchEvent(inputEvent);
-
-                                    console.log(`✅ [FileTransfer] تم نقل ملف ${sourceType} مقصوص: ${croppedFile.name}`);
-                                } else {
-                                    console.log('❌ [FileTransfer] تم إلغاء قص الصورة');
-                                }
-                            });
-                        } else {
-                            console.warn('⚠️ [FileTransfer] أداة المقص غير متوفرة، نقل الصورة مباشرة');
-                            // نقل الملف مباشرة بدون قص
-                            const dataTransfer = new DataTransfer();
-                            dataTransfer.items.add(file);
-                            currentFileInput.files = dataTransfer.files;
-
-                            if (typeof currentCallback === 'function') {
-                                currentCallback(file);
-                            }
-
-                            const changeEvent = new Event('change', { bubbles: true });
-                            currentFileInput.dispatchEvent(changeEvent);
-
-                            const inputEvent = new Event('input', { bubbles: true });
-                            currentFileInput.dispatchEvent(inputEvent);
-
-                            console.log(`✅ [FileTransfer] تم نقل ملف ${sourceType}: ${file.name}`);
+                    window.showCropperModal(file, function(croppedFile) {
+                        if (croppedFile) {
+                            console.log('✅ [Transfer] تم قص الصورة:', croppedFile.name);
+                            // يمكن إضافة معالجة إضافية هنا حسب الحاجة
                         }
-                    } else {
-                        // ملف غير صورة، نقل مباشر
-                        console.log('📄 [FileTransfer] الملف ليس صورة، نقل مباشر');
-                        const dataTransfer = new DataTransfer();
-                        dataTransfer.items.add(file);
-                        currentFileInput.files = dataTransfer.files;
+                    });
+                }, 100);
+            } else {
+                console.warn('⚠️ [Transfer] أداة القص غير متوفرة');
+            }
+        }
+    }
 
-                        if (typeof currentCallback === 'function') {
-                            currentCallback(file);
-                        }
+    // إعداد أحداث Modal
+    function setupModalEvents() {
+        const modal = document.getElementById('imageSourceModal');
+        const closeBtn = document.getElementById('closeModal');
+        const cameraBtn = document.getElementById('openCamera');
+        const galleryBtn = document.getElementById('openGallery');
+        const cameraInput = document.getElementById('deviceCameraInput');
+        const galleryInput = document.getElementById('deviceGalleryInput');
+        const overlay = modal.querySelector('.modal-overlay');
 
-                        const changeEvent = new Event('change', { bubbles: true });
-                        currentFileInput.dispatchEvent(changeEvent);
+        // إغلاق Modal
+        [closeBtn, overlay].forEach(element => {
+            element.addEventListener('click', hideImageSourceModal);
+        });
 
-                        const inputEvent = new Event('input', { bubbles: true });
-                        currentFileInput.dispatchEvent(inputEvent);
+        // زر الكاميرا
+        cameraBtn.addEventListener('click', function() {
+            console.log('📸 [Camera] تم النقر على زر الكاميرا');
+            cameraBtn.classList.add('loading');
 
-                        console.log(`✅ [FileTransfer] تم نقل ملف ${sourceType}: ${file.name}`);
-                    }
+            setTimeout(() => {
+                cameraInput.click();
+                cameraBtn.classList.remove('loading');
+            }, 100);
+        });
 
-                    return true;
-                } catch (error) {
-                    console.error('❌ [FileTransfer] خطأ في نقل الملف:', error);
-                    return false;
+        // زر معرض الصور
+        galleryBtn.addEventListener('click', function() {
+            console.log('🖼️ [Gallery] تم النقر على زر معرض الصور');
+            galleryBtn.classList.add('loading');
+
+            setTimeout(() => {
+                galleryInput.click();
+                galleryBtn.classList.remove('loading');
+            }, 100);
+        });
+
+        // معالجة اختيار الملف من الكاميرا
+        cameraInput.addEventListener('change', function(e) {
+            if (e.target.files && e.target.files.length > 0) {
+                const file = e.target.files[0];
+                console.log(`📸 [CameraInput] تم اختيار ملف: ${file.name}`);
+
+                if (file.type.startsWith('image/')) {
+                    transferFileToSystem(file, 'كاميرا');
+                } else {
+                    console.error('❌ [CameraInput] الملف ليس صورة');
+                    alert('يرجى اختيار ملف صورة صحيح');
                 }
             }
+            e.target.value = '';
+        });
 
-            // تحديث دالة تكوين input file
-            function configureFileInputForDevice(fileInput, deviceInfo) {
-                if (!fileInput) return;
+        // معالجة اختيار الملف من معرض الصور
+        galleryInput.addEventListener('change', function(e) {
+            if (e.target.files && e.target.files.length > 0) {
+                const file = e.target.files[0];
+                console.log(`🖼️ [GalleryInput] تم اختيار ملف: ${file.name}`);
 
-                // التحقق من أن input لم يتم تكوينه مسبقاً
-                if (fileInput.getAttribute('data-device-configured') === 'true') {
-                    return;
+                if (file.type.startsWith('image/')) {
+                    transferFileToSystem(file, 'معرض الصور');
+                } else {
+                    console.error('❌ [GalleryInput] الملف ليس صورة');
+                    alert('يرجى اختيار ملف صورة صحيح');
                 }
+            }
+            e.target.value = '';
+        });
 
-                // إزالة الإعدادات السابقة
-                fileInput.removeAttribute('capture');
-                fileInput.removeAttribute('accept');
+        // إغلاق بمفتاح Escape
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && isModalActive) {
+                hideImageSourceModal();
+            }
+        });
 
-                // تطبيق إعدادات الصور فقط لجميع الأجهزة
-                fileInput.setAttribute('accept', 'image/*');
+        console.log('🎛️ [ModalEvents] تم إعداد جميع أحداث Modal');
+    }
 
-                // إزالة event listeners السابقة إذا كانت موجودة
-                const newInput = fileInput.cloneNode(true);
-                fileInput.parentNode.replaceChild(newInput, fileInput);
+    // دالة تحسين تجربة رفع الملفات - فقط للأجهزة المحمولة
+    function enhanceFileInputs() {
+        const deviceInfo = detectDeviceType();
 
-                // إضافة حدث النقر لإظهار Modal
-                newInput.addEventListener('click', function(e) {
+        // فقط للأجهزة المحمولة والتابلت
+        if (!deviceInfo.isMobile && !deviceInfo.isTablet) {
+            console.log('💻 [Enhancement] جهاز كمبيوتر - لا حاجة لتحسين رفع الملفات');
+            return;
+        }
+
+        console.log('📱 [Enhancement] جهاز محمول/لوحي - تطبيق تحسينات رفع الملفات');
+
+        // البحث عن جميع inputs الخاصة بالصور في النظام الموجود
+        const selectors = [
+            'input[type="file"][accept*="image"]',
+            'input[type="file"].mainDocumentFileInput',
+            'input[type="file"]#mainDocumentFileInput_main',
+            'input[type="file"]#mainDocumentFileInput_father',
+            'input[type="file"]#mainDocumentFileInput_mother',
+            'input[type="file"][id^="mainDocumentFileInput_"]'
+        ];
+
+        const imageFileInputs = document.querySelectorAll(selectors.join(','));
+
+        imageFileInputs.forEach((input, index) => {
+            // تجنب معالجة inputs المودال الخاص بنا
+            if (input.id === 'deviceCameraInput' || input.id === 'deviceGalleryInput') {
+                return;
+            }
+
+            // إزالة المعالجات السابقة إذا كانت موجودة
+            if (input.dataset.deviceEnhanced === 'true') {
+                return;
+            }
+
+            console.log(`🔧 [Enhancement] تحسين input رقم ${index + 1}:`, input.id || input.className);
+
+            // استبدال معالج النقر للأجهزة المحمولة فقط
+            const originalClick = input.onclick;
+
+            input.addEventListener('click', function(e) {
+                // للأجهزة المحمولة: إظهار مودال الاختيار
+                if (deviceInfo.isMobile || deviceInfo.isTablet) {
                     e.preventDefault();
                     e.stopPropagation();
 
-                    console.log(`🔄 [InputClick] تم النقر على input: ${this.id || this.className}`);
-                    showImageSourceModal(this);
-                });
+                    console.log('🎯 [Enhancement] تم النقر على input محسن (جهاز محمول)، إظهار مودال الاختيار');
 
-                newInput.setAttribute('data-device-configured', 'true');
-                newInput.setAttribute('data-device-type', deviceInfo.isMobile ? 'mobile' :
-                    deviceInfo.isTablet ? 'tablet' : 'desktop');
+                    originalFileInput = input;
+                    showImageSourceModal(function(selectedFile) {
+                        console.log('📋 [Enhancement] استلام ملف من المودال:', selectedFile.name);
 
-                console.log(`✅ [ConfigureInput] تم تكوين input مع Modal للصور فقط: ${newInput.id || newInput.className}`);
+                        // نقل الملف إلى input الأصلي
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(selectedFile);
+                        input.files = dataTransfer.files;
 
-                return newInput;
-            }
-
-            // دالة تطبيق التكوين على جميع inputs في الصفحة
-            function configureAllFileInputs() {
-                const deviceInfo = detectDeviceType();
-                console.log(`🔍 [ConfigureAll] معلومات الجهاز:`, deviceInfo);
-
-                const fileInputSelectors = [
-                    '#mainDocumentFileInput_main',
-                    '.mainDocumentFileInput',
-                    '#mainDocumentFileInput_father',
-                    '#mainDocumentFileInput_mother',
-                    '[id^="mainDocumentFileInput_"]',
-                    'input[type="file"]:not(#cameraInput):not(#galleryInput)'
-                ];
-
-                let configuredCount = 0;
-
-                fileInputSelectors.forEach(selector => {
-                    const inputs = document.querySelectorAll(selector);
-                    inputs.forEach(input => {
-                        if (!input.getAttribute('data-device-configured')) {
-                            configureFileInputForDevice(input, deviceInfo);
-                            configuredCount++;
+                        // تشغيل المعالج الأصلي إذا كان موجوداً
+                        if (originalClick) {
+                            try {
+                                originalClick.call(input, e);
+                            } catch (err) {
+                                console.warn('تحذير: خطأ في تشغيل المعالج الأصلي:', err);
+                            }
                         }
+
+                        // إطلاق حدث change
+                        const changeEvent = new Event('change', { bubbles: true });
+                        input.dispatchEvent(changeEvent);
+
+                        // إطلاق حدث input للتأكد من تحديث UI
+                        const inputEvent = new Event('input', { bubbles: true });
+                        input.dispatchEvent(inputEvent);
                     });
-                });
-
-                console.log(`✅ [ConfigureAll] تم تكوين ${configuredCount} input file`);
-                return configuredCount;
-            }
-
-            // إعداد أحداث Modal محسنة
-            function setupModalEvents() {
-                const modal = document.getElementById('imageSourceModal');
-                const closeBtn = document.getElementById('closeModal');
-                const cameraBtn = document.getElementById('openCamera');
-                const galleryBtn = document.getElementById('openGallery');
-                const cameraInput = document.getElementById('cameraInput');
-                const galleryInput = document.getElementById('galleryInput');
-                const overlay = modal.querySelector('.modal-overlay');
-
-                // إغلاق Modal
-                [closeBtn, overlay].forEach(element => {
-                    element.addEventListener('click', hideImageSourceModal);
-                });
-
-                // زر الكاميرا محسن
-                cameraBtn.addEventListener('click', async function() {
-                    console.log('📸 [Camera] تم النقر على زر الكاميرا');
-                    cameraBtn.classList.add('loading');
-
-                    try {
-                        const deviceInfo = detectDeviceType();
-
-                        // تكوين الكاميرا حسب نوع الجهاز
-                        configureCameraInput(deviceInfo);
-
-                        // إغلاق Modal فوراً قبل فتح الكاميرا
-                        hideImageSourceModal();
-
-                        // فحص توفر الكاميرا
-                        const cameraAvailable = await checkCameraAvailability();
-
-                        if (!cameraAvailable && deviceInfo.isDesktop) {
-                            console.warn('⚠️ [Camera] لم يتم العثور على كاميرا، سيتم فتح منتقي الملفات');
-                        }
-
-                        setTimeout(() => {
-                            cameraInput.click();
-                            cameraBtn.classList.remove('loading');
-                        }, 100);
-
-                    } catch (error) {
-                        console.error('❌ [Camera] خطأ في تفعيل الكاميرا:', error);
-                        cameraBtn.classList.remove('loading');
-
-                        // في حالة الخطأ، افتح منتقي الملفات العادي
-                        setTimeout(() => {
-                            cameraInput.click();
-                        }, 100);
-                    }
-                });
-
-                // زر معرض الصور
-                galleryBtn.addEventListener('click', function() {
-                    console.log('🖼️ [Gallery] تم النقر على زر معرض الصور');
-                    galleryBtn.classList.add('loading');
-
-                    // إغلاق Modal فوراً قبل فتح معرض الصور
-                    hideImageSourceModal();
-
-                    setTimeout(() => {
-                        galleryInput.click();
-                        galleryBtn.classList.remove('loading');
-                    }, 100);
-                });
-
-                // معالجة اختيار الملف من الكاميرا
-                cameraInput.addEventListener('change', function(e) {
-                    console.log('📸 [CameraInput] تم تغيير ملف الكاميرا');
-
-                    if (e.target.files && e.target.files.length > 0) {
-                        const file = e.target.files[0];
-                        const deviceInfo = detectDeviceType();
-
-                        console.log(`📸 [CameraInput] تم اختيار ملف من ${deviceInfo.isMobile ? 'الجوال' : deviceInfo.isTablet ? 'التابلت' : 'الكمبيوتر'}: ${file.name}, الحجم: ${file.size} bytes`);
-
-                        // التحقق من أن الملف صورة
-                        if (file.type.startsWith('image/')) {
-                            // استدعاء transferFileToOriginalInput التي ستفتح المقص تلقائياً
-                            transferFileToOriginalInput(file, 'كاميرا');
-                        } else {
-                            console.error('❌ [CameraInput] الملف المختار ليس صورة');
-                            alert('يرجى اختيار ملف صورة صحيح');
-                        }
-                    }
-
-                    // تنظيف input
-                    e.target.value = '';
-                });
-
-                // معالجة اختيار الملف من معرض الصور
-                galleryInput.addEventListener('change', function(e) {
-                    console.log('🖼️ [GalleryInput] تم تغيير ملف المعرض');
-
-                    if (e.target.files && e.target.files.length > 0) {
-                        const file = e.target.files[0];
-                        console.log(`🖼️ [GalleryInput] تم اختيار ملف: ${file.name}, الحجم: ${file.size} bytes`);
-
-                        // التحقق من أن الملف صورة
-                        if (file.type.startsWith('image/')) {
-                            // استدعاء transferFileToOriginalInput التي ستفتح المقص تلقائياً
-                            transferFileToOriginalInput(file, 'معرض الصور');
-                        } else {
-                            console.error('❌ [GalleryInput] الملف المختار ليس صورة');
-                            alert('يرجى اختيار ملف صورة صحيح');
-                        }
-                    }
-
-                    // تنظيف input
-                    e.target.value = '';
-                });
-
-                // إغلاق بمفتاح Escape
-                document.addEventListener('keydown', function(e) {
-                    if (e.key === 'Escape' && modal.style.display === 'block') {
-                        hideImageSourceModal();
-                    }
-                });
-
-                console.log('🎛️ [ModalEvents] تم إعداد جميع أحداث Modal مع دعم الكاميرا والمقص');
-            }
-
-            // مراقبة إضافة عناصر جديدة (للبوابات الديناميكية)
-            function setupDynamicFileInputMonitoring() {
-                const observer = new MutationObserver(function(mutations) {
-                    let newInputsFound = false;
-
-                    mutations.forEach(function(mutation) {
-                        if (mutation.type === 'childList') {
-                            mutation.addedNodes.forEach(function(node) {
-                                if (node.nodeType === Node.ELEMENT_NODE) {
-                                    const newFileInputs = node.querySelectorAll(
-                                        'input[type="file"]:not(#cameraInput):not(#galleryInput)');
-
-                                    if (newFileInputs.length > 0) {
-                                        newInputsFound = true;
-                                        const deviceInfo = detectDeviceType();
-
-                                        newFileInputs.forEach(input => {
-                                            if (!input.getAttribute('data-device-configured')) {
-                                                configureFileInputForDevice(input, deviceInfo);
-                                                console.log(
-                                                    `🆕 [DynamicMonitor] تم تكوين input جديد:`,
-                                                    input.id || input.className);
-                                            }
-                                        });
-                                    }
-                                }
-                            });
-                        }
-                    });
-                });
-
-                const containersToWatch = [
-                    document.getElementById('familyMembersContainer'),
-                    document.getElementById('main_form'),
-                    document.body
-                ].filter(container => container !== null);
-
-                containersToWatch.forEach(container => {
-                    observer.observe(container, {
-                        childList: true,
-                        subtree: true
-                    });
-                });
-
-                console.log(`👁️ [DynamicMonitor] تم تفعيل مراقبة العناصر الديناميكية`);
-                return observer;
-            }
-
-            // إعادة التكوين عند تغيير حجم الشاشة
-            function setupResponsiveReconfiguration() {
-                let resizeTimeout;
-
-                window.addEventListener('resize', function() {
-                    clearTimeout(resizeTimeout);
-                    resizeTimeout = setTimeout(function() {
-                        console.log(
-                            `📐 [Responsive] تغيير حجم الشاشة إلى: ${window.innerWidth}x${window.innerHeight}`
-                        );
-
-                        document.querySelectorAll('input[type="file"][data-device-configured]:not(#cameraInput):not(#galleryInput)')
-                            .forEach(input => {
-                                input.removeAttribute('data-device-configured');
-                            });
-
-                        const reConfiguredCount = configureAllFileInputs();
-                        console.log(
-                            `🔄 [Responsive] تم إعادة تكوين ${reConfiguredCount} input بعد تغيير الحجم`
-                        );
-                    }, 300);
-                });
-            }
-
-            // إعادة التكوين عند تدوير الجهاز
-            function setupOrientationChangeHandling() {
-                window.addEventListener('orientationchange', function() {
-                    setTimeout(function() {
-                        console.log(`🔄 [Orientation] تغيير اتجاه الجهاز`);
-
-                        document.querySelectorAll('input[type="file"][data-device-configured]:not(#cameraInput):not(#galleryInput)')
-                            .forEach(input => {
-                                input.removeAttribute('data-device-configured');
-                            });
-
-                        const reConfiguredCount = configureAllFileInputs();
-                        console.log(
-                            `✅ [Orientation] تم إعادة تكوين ${reConfiguredCount} input بعد تدوير الجهاز`
-                        );
-                    }, 500);
-                });
-            }
-
-            // دالة تنظيف المتغيرات
-            function resetModalState() {
-                currentFileInput = null;
-                currentCallback = null;
-                console.log('🧹 [Reset] تم تنظيف حالة Modal');
-            }
-
-            // تشغيل النظام
-            console.log('🎯 [Init] بدء تهيئة نظام كشف الجهاز...');
-
-            // انتظار تحميل أداة المقص
-            function waitForCropper() {
-                if (typeof window.showCropperModal === 'function') {
-                    console.log('✅ [Init] أداة المقص متوفرة ومتصلة');
-                } else {
-                    console.warn('⚠️ [Init] أداة المقص غير متوفرة، سيتم المحاولة مرة أخرى...');
-                    setTimeout(waitForCropper, 500);
                 }
-            }
-            waitForCropper();
-
-            // فحص توفر الكاميرا عند التحميل
-            checkCameraAvailability().then(available => {
-                if (available) {
-                    console.log('✅ [Init] الكاميرا متاحة ومدعومة');
-                } else {
-                    console.log('⚠️ [Init] الكاميرا غير متاحة أو غير مدعومة');
-                }
+                // للكمبيوتر: العمل العادي (لا تدخل)
             });
 
-            setupModalEvents();
-            const initialConfiguredCount = configureAllFileInputs();
-            setupDynamicFileInputMonitoring();
-            setupResponsiveReconfiguration();
-            setupOrientationChangeHandling();
-
-            // جعل الدوال متاحة عالمياً
-            window.DeviceImageCapture = {
-                detectDeviceType,
-                configureFileInputForDevice,
-                configureAllFileInputs,
-                showImageSourceModal,
-                hideImageSourceModal,
-                transferFileToOriginalInput,
-                resetModalState,
-                checkCameraAvailability,
-                configureCameraInput,
-                enhanceCameraButton,
-                reconfigure: function() {
-                    document.querySelectorAll('input[type="file"][data-device-configured]:not(#cameraInput):not(#galleryInput)').forEach(
-                        input => {
-                            input.removeAttribute('data-device-configured');
-                        });
-                    resetModalState();
-                    return configureAllFileInputs();
-                }
-            };
-
-            console.log(`🎉 [SystemReport] تم تشغيل النظام بنجاح! تم تكوين ${initialConfiguredCount} input file مع دعم كاميرا محسن`);
+            // وضع علامة أن هذا input تم تحسينه
+            input.dataset.deviceEnhanced = 'true';
         });
+
+        // مراقبة إضافة inputs جديدة
+        const observer = new MutationObserver(function(mutations) {
+            let needsUpdate = false;
+
+            mutations.forEach(function(mutation) {
+                mutation.addedNodes.forEach(function(node) {
+                    if (node.nodeType === 1 && node.querySelectorAll) {
+                        const newInputs = node.querySelectorAll(selectors.join(','));
+                        if (newInputs.length > 0) {
+                            needsUpdate = true;
+                        }
+                    }
+                });
+            });
+
+            if (needsUpdate) {
+                console.log('🆕 [Enhancement] inputs جديدة تمت إضافتها، تطبيق التحسينات');
+                setTimeout(() => enhanceFileInputs(), 100);
+            }
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    }
+
+    // تهيئة النظام
+    function initializeSystem() {
+        console.log('🎯 [Init] بدء تهيئة نظام تحسين اختيار مصدر الصورة');
+
+        setupModalEvents();
+
+        // انتظار تحميل أداة القص
+        let cropperCheckCount = 0;
+        const maxCropperChecks = 50;
+
+        function waitForCropper() {
+            if (window.showCropperModal || window.showCropper) {
+                console.log('✅ [Init] أداة القص متوفرة');
+                // بدء تحسين inputs بعد التأكد من توفر أداة القص
+                setTimeout(() => {
+                    enhanceFileInputs();
+                }, 500);
+                return true;
+            }
+
+            if (cropperCheckCount < maxCropperChecks) {
+                cropperCheckCount++;
+                setTimeout(waitForCropper, 100);
+                return false;
+            }
+
+            console.warn('⚠️ [Init] أداة القص غير متوفرة بعد انتظار 5 ثوان، سيتم المتابعة بدونها');
+            // المتابعة حتى لو لم تكن أداة القص متوفرة
+            setTimeout(() => {
+                enhanceFileInputs();
+            }, 500);
+            return false;
+        }
+
+        waitForCropper();
+
+        console.log('✅ [Init] تم تهيئة النظام بنجاح');
+    }
+
+    // بدء التشغيل
+    initializeSystem();
+
+    // جعل الدوال متاحة عالمياً للاستخدام المباشر إذا لزم الأمر
+    window.DeviceImageSource = {
+        showModal: showImageSourceModal,
+        hideModal: hideImageSourceModal,
+        detectDevice: detectDeviceType,
+        isActive: () => isModalActive,
+        enhance: enhanceFileInputs
+    };
+
+    console.log('🎉 [DeviceImageSource] تم تشغيل النظام بنجاح');
+});
 </script>

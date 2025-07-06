@@ -1058,7 +1058,38 @@ document.addEventListener('DOMContentLoaded', function() {
         const newFileInput = fileInput.cloneNode(true);
         fileInput.parentNode.replaceChild(newFileInput, fileInput);
 
-        newFileInput.addEventListener('change', function(e) {
+        // ⭐ التكامل المحسن مع مودال اختيار مصدر الصورة
+        newFileInput.addEventListener('click', function(e) {
+            // فحص نوع الجهاز
+            const deviceInfo = window.DeviceImageSource ? window.DeviceImageSource.detectDevice() : null;
+
+            // إذا كان جهاز محمول أو لوحي وكان مودال اختيار المصدر متوفراً
+            if (deviceInfo && (deviceInfo.isMobile || deviceInfo.isTablet) && window.DeviceImageSource) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                console.log('📱 [DeviceIntegration] جهاز محمول، إظهار مودال اختيار المصدر');
+
+                // إظهار مودال اختيار مصدر الصورة مع callback صحيح
+                window.DeviceImageSource.showModal(function(selectedFile) {
+                    if (selectedFile) {
+                        console.log('📱 [DeviceIntegration] تم استلام ملف من مودال اختيار المصدر:', selectedFile.name);
+
+                        // ⭐ هنا المفتاح: نقل الملف مباشرة إلى نظام المعالجة
+                        // بدلاً من محاكاة اختيار الملف في input
+                        handleFileSelection(selectedFile, personKey, docTypeSelect, newFileInput);
+                    }
+                });
+
+                return false;
+            }
+
+            // للكمبيوتر أو إذا لم يكن مودال اختيار المصدر متوفراً، المتابعة بالطريقة العادية
+            console.log('💻 [DeviceIntegration] كمبيوتر أو مودال غير متوفر، استخدام الطريقة العادية');
+        });
+
+        // دالة معالجة اختيار الملف (منفصلة للاستخدام المشترك)
+        function handleFileSelection(file, personKey, docTypeSelect, fileInput) {
             console.log('🟠 محاولة رفع ملف، قيمة نوع الوثيقة:', docTypeSelect.value, 'في المنطقة:', personKey);
 
             // منع المستخدم من الرفع إذا كانت هناك معالجة جارية
@@ -1069,7 +1100,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     text: 'الرجاء الانتظار حتى تنتهي معالجة الملف الحالي قبل رفع ملف جديد.',
                     confirmButtonText: 'حسناً'
                 });
-                newFileInput.value = '';
                 return;
             }
 
@@ -1080,157 +1110,89 @@ document.addEventListener('DOMContentLoaded', function() {
                     text: 'يجب اختيار نوع الوثيقة أولاً قبل رفع الملف.',
                     confirmButtonText: 'حسناً'
                 });
-                newFileInput.value = '';
                 return;
             }
 
-            // التحقق من وجود أداة القص قبل المعالجة
-            function ensureCropperAvailable() {
-                return new Promise((resolve, reject) => {
-                    if (window.showCropperModal || window.showCropper) {
-                        console.log('✅ أداة القص متوفرة للمنطقة:', personKey);
-                        resolve(true);
-                        return;
-                    }
+            // استخراج رقم الهوية والبيانات الأخرى
+            let personId = '';
 
-                    console.warn('⚠️ أداة القص غير متوفرة، انتظار التحميل للمنطقة:', personKey);
-                    let attempts = 0;
-                    const maxAttempts = 50; // 10 ثواني
+            if (personKey === 'main') {
+                const idInput = document.getElementById('data_id_number');
+                personId = idInput ? idInput.value.trim() : '';
+                if (!personId) {
+                    personId = 'default_main';
+                    console.log('[handleFileSelection] استخدام قيمة افتراضية للبيانات الأساسية:', personId);
+                }
+            } else if (personKey === 'deceased_father') {
+                const fatherIdInput = document.querySelector('input[name="father_id"]');
+                personId = fatherIdInput ? fatherIdInput.value.trim() : '';
+                if (!personId) {
+                    personId = 'default_father';
+                    console.log('[handleFileSelection] استخدام قيمة افتراضية للأب المتوفى:', personId);
+                }
+            } else if (personKey === 'deceased_mother') {
+                const motherIdInput = document.querySelector('input[name="mother_id"]');
+                personId = motherIdInput ? motherIdInput.value.trim() : '';
+                if (!personId) {
+                    personId = 'default_mother';
+                    console.log('[handleFileSelection] استخدام قيمة افتراضية للأم المتوفية:', personId);
+                }
+            } else if (personKey.startsWith('family_')) {
+                const form = zone.closest('.family-member-form');
+                if (form) {
+                    const personIdInput = form.querySelector('input[name$="[person_id]"]');
+                    personId = personIdInput ? personIdInput.value.trim() : '';
 
-                    const checkInterval = setInterval(() => {
-                        attempts++;
-                        if (window.showCropperModal || window.showCropper) {
-                            console.log('✅ تم تحميل أداة القص بنجاح للمنطقة:', personKey);
-                            clearInterval(checkInterval);
-                            resolve(true);
-                        } else if (attempts >= maxAttempts) {
-                            console.error('❌ فشل في تحميل أداة القص للمنطقة:', personKey);
-                            clearInterval(checkInterval);
-                            reject(new Error('فشل في تحميل أداة قص الصور'));
-                        }
-                    }, 200);
-                });
-            }
-
-            // التأكد من توفر أداة القص قبل المتابعة
-            ensureCropperAvailable()
-                .then(() => {
-                    let personId = '';
-
-                    // استخراج رقم الهوية حسب نوع المنطقة
-                    if (personKey === 'main') {
-                        // البيانات الأساسية
-                        const idInput = document.getElementById('data_id_number');
-                        personId = idInput ? idInput.value.trim() : '';
-                        // لا تمنع الرفع إذا كان personId فارغاً هنا
-                        // استخدم قيمة افتراضية إذا كان فارغًا
-                        if (!personId) {
-                            personId = 'default_main';
-                            console.log('[initUploadZone] استخدام قيمة افتراضية للبيانات الأساسية:', personId);
-                        }
-                    } else if (personKey === 'deceased_father') {
-                        const fatherIdInput = document.querySelector('input[name="father_id"]');
-                        personId = fatherIdInput ? fatherIdInput.value.trim() : '';
-                        // استخدم قيمة افتراضية إذا كان فارغًا
-                        if (!personId) {
-                            personId = 'default_father';
-                            console.log('[initUploadZone] استخدام قيمة افتراضية للأب المتوفى:', personId);
-                        }
-                    } else if (personKey === 'deceased_mother') {
-                        const motherIdInput = document.querySelector('input[name="mother_id"]');
-                        personId = motherIdInput ? motherIdInput.value.trim() : '';
-                        // استخدم قيمة افتراضية إذا كان فارغًا
-                        if (!personId) {
-                            personId = 'default_mother';
-                            console.log('[initUploadZone] استخدام قيمة افتراضية للأم المتوفية:', personId);
-                        }
-                    } else if (personKey.startsWith('family_')) {
-                        // أفراد الأسرة: يجب وجود رقم هوية
-                        const form = zone.closest('.family-member-form');
-                        if (form) {
-                            const personIdInput = form.querySelector('input[name$="[person_id]"]');
-                            personId = personIdInput ? personIdInput.value.trim() : '';
-
-                            if (!personId) {
-                                Swal.fire({
-                                    icon: 'warning',
-                                    title: 'تنبيه',
-                                    text: 'يرجى إدخال رقم هوية فرد الأسرة أولاً قبل رفع الملف.',
-                                    confirmButtonText: 'حسناً'
-                                });
-                                newFileInput.value = '';
-                                return;
-                            }
-
-                            // التحقق من صحة رقم الهوية (9-10 أرقام)
-                            if (!/^[0-9]{9,10}$/.test(personId)) {
-                                Swal.fire({
-                                    icon: 'warning',
-                                    title: 'تنبيه',
-                                    text: 'رقم الهوية يجب أن يكون مكوناً من 9-10 أرقام فقط.',
-                                    confirmButtonText: 'حسناً'
-                                });
-                                newFileInput.value = '';
-                                return;
-                            }
-                        } else {
-                            console.error('[initUploadZone] لم يتم العثور على نموذج فرد الأسرة للمنطقة:', personKey);
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'خطأ',
-                                text: 'حدث خطأ في النظام. يرجى تحديث الصفحة والمحاولة مرة أخرى.',
-                                confirmButtonText: 'حسناً'
-                            });
-                            newFileInput.value = '';
-                            return;
-                        }
-                    } else {
-                        // أنواع أخرى من المفاتيح
-                        console.warn('[initUploadZone] نوع personKey غير معروف:', personKey);
+                    if (!personId) {
                         Swal.fire({
                             icon: 'warning',
                             title: 'تنبيه',
-                            text: 'نوع منطقة الرفع غير معروف. يرجى التواصل مع الدعم الفني.',
+                            text: 'يرجى إدخال رقم هوية فرد الأسرة أولاً قبل رفع الملف.',
                             confirmButtonText: 'حسناً'
                         });
-                        newFileInput.value = '';
                         return;
                     }
-                    // لا تمنع الرفع للبوابات الرئيسية والمتوفين حتى لو كان personId فارغاً
-                    // دعم رفع ملفات متعددة بشكل تراكمي
-                    const docTypeValue = docTypeSelect.value;
-                    const fileIdNumber = document.querySelector('input[name="file_id_number"]')?.value || '';
 
-                    // طباعة تفاصيل كاملة للمساعدة في التشخيص
-                    console.log('📋 تفاصيل الرفع:', {
-                        personKey: personKey,
-                        personId: personId,
-                        docTypeValue: docTypeValue,
-                        fileIdNumber: fileIdNumber,
-                        filesCount: newFileInput.files.length
-                    });
+                    if (!/^[0-9]{9,10}$/.test(personId)) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'تنبيه',
+                            text: 'رقم الهوية يجب أن يكون مكوناً من 9-10 أرقام فقط.',
+                            confirmButtonText: 'حسناً'
+                        });
+                        return;
+                    }
+                }
+            }
 
-                    Array.from(newFileInput.files).forEach(file => {
-                        console.log('🟢 رفع ملف جديد:', file.name, 'نوع الوثيقة (pref):', docTypeValue, 'في المنطقة:', personKey);
-                        addAttachmentTask(personKey, file, docTypeValue, personId, fileIdNumber);
-                    });
+            const docTypeValue = docTypeSelect.value;
+            const fileIdNumber = document.querySelector('input[name="file_id_number"]')?.value || '';
 
-                    // طباعة محتويات allDocs للتأكد من إضافة المرفقات
-                    console.log('📊 محتويات allDocs بعد الإضافة:', Array.from(window.allDocs.entries()));
+            console.log('📋 تفاصيل الرفع:', {
+                personKey: personKey,
+                personId: personId,
+                docTypeValue: docTypeValue,
+                fileIdNumber: fileIdNumber,
+                fileName: file.name
+            });
 
-                    setTimeout(() => { newFileInput.value = ''; }, 10);
-                })
-                .catch(error => {
-                    console.error('❌ خطأ في التأكد من توفر أداة القص:', error);
-                    hideProcessingAlert(); // تأكد من إخفاء التنبيه في حالة الخطأ
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'خطأ',
-                        text: 'أداة قص الصور غير متوفرة. يرجى تحديث الصفحة والمحاولة مرة أخرى.',
-                        confirmButtonText: 'حسناً'
-                    });
-                    newFileInput.value = '';
+            // إضافة المهمة إلى النظام
+            console.log('🟢 رفع ملف جديد:', file.name, 'نوع الوثيقة:', docTypeValue, 'في المنطقة:', personKey);
+            addAttachmentTask(personKey, file, docTypeValue, personId, fileIdNumber);
+
+            // تنظيف input إذا كان من النوع العادي
+            if (fileInput && fileInput.value) {
+                setTimeout(() => { fileInput.value = ''; }, 10);
+            }
+        }
+
+        newFileInput.addEventListener('change', function(e) {
+            if (e.target.files && e.target.files.length > 0) {
+                // معالجة كل ملف منفصل
+                Array.from(e.target.files).forEach(file => {
+                    handleFileSelection(file, personKey, docTypeSelect, newFileInput);
                 });
+            }
         });
 
         // تعطيل القائمة المنسدلة أثناء المعالجة
@@ -1652,6 +1614,79 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // تعزيز مراقبة أفراد الأسرة - استبدال الكود الموجود
 const familyContainer = document.getElementById('familyMembersContainer');
+if (familyContainer) {
+    const observer = new MutationObserver(function(mutations) {
+        let shouldCleanup = false;
+        let shouldInitialize = false;
+
+        // حفظ مرفقات البوابات الأساسية والمتوفين قبل أي تغييرات
+        preserveMainAndDeceasedAttachments();
+
+        // جمع جميع personKey الحاليين في الصفحة
+        const currentKeys = Array.from(document.querySelectorAll('[data-upload-zone]'))
+            .map(zone => zone.getAttribute('data-upload-zone'))
+            .filter(key => key && key !== 'template');
+
+        mutations.forEach(function(mutation) {
+            // التعامل مع العقد المحذوفة
+            mutation.removedNodes.forEach(function(node) {
+                if (node.nodeType === 1 && node.querySelector) {
+                    const removedZones = node.querySelectorAll('[data-upload-zone]');
+                    if (removedZones.length > 0) {
+                        shouldCleanup = true;
+                    }
+                }
+            });
+
+            // التعامل مع العقد المضافة
+            mutation.addedNodes.forEach(function(node) {
+                if (node.nodeType === 1 && node.querySelector) {
+                    const addedZones = node.querySelectorAll('[data-upload-zone]');
+                    if (addedZones.length > 0) {
+                        shouldInitialize = true;
+                    }
+                }
+            });
+        });
+
+        // تنظيف المرفقات للمناطق المحذوفة
+        if (shouldCleanup && window.allDocs) {
+            Array.from(window.allDocs.keys()).forEach(personKey => {
+                if (personKey.startsWith('family_') && !currentKeys.includes(personKey)) {
+                    console.log('[Observer] حذف مرفقات منطقة محذوفة:', personKey);
+                    removeAllAttachmentTasksForPersonKey(personKey);
+                }
+            });
+        }
+
+        // تهيئة مناطق الرفع الجديدة
+        if (shouldInitialize) {
+            setTimeout(() => {
+                document.querySelectorAll('[data-upload-zone]').forEach(zone => {
+                    const personKey = zone.getAttribute('data-upload-zone');
+                    if (personKey && !personKey.includes('template') && zone.dataset.initialized !== 'true') {
+                        console.log('[Observer] تهيئة منطقة رفع جديدة:', personKey);
+                        initUploadZone(zone);
+                    }
+                });
+
+                // استعادة المرفقات المحمية بعد التحديثات
+                setTimeout(() => {
+                    window.restoreMainAndDeceasedAttachments();
+                }, 100);
+            }, 100);
+        }
+    });
+
+    observer.observe(familyContainer, {
+        childList: true,
+        subtree: true,
+        attributes: false,
+        characterData: false
+    });
+
+    console.log('[documentUpload] تم تهيئة مراقب أفراد الأسرة مع حماية المرفقات');
+}
 if (familyContainer) {
     const observer = new MutationObserver(function(mutations) {
         let shouldCleanup = false;
