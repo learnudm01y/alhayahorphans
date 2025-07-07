@@ -666,6 +666,8 @@ document.addEventListener('shown.bs.modal', function(e) {
     setTimeout(fixCropperAreaHeight, 100);
   }
 });
+// إضافة هذا السطر لضمان الضبط عند أول تحميل للصفحة
+document.addEventListener('DOMContentLoaded', fixCropperAreaHeight);
 
 // FileUploadHandler للمناطق المتعددة
 document.addEventListener('DOMContentLoaded', function() {

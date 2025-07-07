@@ -11,48 +11,20 @@
             window.ErrorTracker = {
                 logs: [],
                 startTime: new Date(),
-
-                // log: function(level, step, error, context = {}) {
-                //     const errorInfo = {
-                //         timestamp: new Date().toISOString(),
-                //         level: level,
-                //         step: step,
-                //         message: error?.message || error,
-                //         stack: error?.stack,
-                //         context: {
-                //             ...context,
-                //             url: window.location.href,
-                //             userAgent: navigator.userAgent,
-                //             timeFromStart: (new Date() - this.startTime) + 'ms'
-                //         }
-                //     };
-
-                //     this.logs.push(errorInfo);
-                //     console[level](`[${level.toUpperCase()}] ${step}:`, errorInfo);
-
-                //     if (level === 'error') {
-                //         Swal.fire({
-                //             icon: 'error',
-                //             title: 'خطأ في العملية',
-                //             text: error.message || 'حدث خطأ غير متوقع',
-                //             footer: `<a href="#" onclick="ErrorTracker.showDetails('${this.logs.length - 1}')">عرض التفاصيل</a>`
-                //         });
-                //     }
-                // },
                 log: function(level, step, error, context = {}) {
-    const errorInfo = {
-        timestamp: new Date().toISOString(),
-        level: level,
-        step: step,
-        message: error?.message || error,
-        stack: error?.stack,
-        context: {
-            ...context,
-            url: window.location.href,
-            userAgent: navigator.userAgent,
-            timeFromStart: (new Date() - this.startTime) + 'ms'
-        }
-    };
+                const errorInfo = {
+                    timestamp: new Date().toISOString(),
+                    level: level,
+                    step: step,
+                    message: error?.message || error,
+                    stack: error?.stack,
+                    context: {
+                        ...context,
+                        url: window.location.href,
+                        userAgent: navigator.userAgent,
+                        timeFromStart: (new Date() - this.startTime) + 'ms'
+                    }
+                };
 
             this.logs.push(errorInfo);
             console[level](`[${level.toUpperCase()}] ${step}:`, errorInfo);
@@ -404,7 +376,7 @@
                     'data_relationship', 'data_birth_date', 'data_gender', 'data_phone_number',
                     'data_marital_status', 'data_displacement_status', 'data_current_address',
                     'data_city', 'data_province', 'data_health_status', 'data_employment_status_breadwinner',
-                    'data_housing_status', 'data_current_housing_type'
+                    'data_housing_status', 'data_current_housing_type','data_number_of_individuals'
                 ];
                 let missingFields = [];
                 for (const name of requiredFields) {

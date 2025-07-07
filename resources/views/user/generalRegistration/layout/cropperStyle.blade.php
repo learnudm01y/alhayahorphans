@@ -1,6 +1,5 @@
 <style>
     /* إعدادات المودال الأساسية */
-        /* إعدادات المودال الأساسية */
     #cropperModal {
         z-index: 1060;
     }
@@ -11,17 +10,24 @@
         height: 100vh;
         max-width: 100vw;
         max-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     #cropperModal .modal-content {
-        height: 100vh;
-        border-radius: 0;
-        border: none;
+        height: 95vh;
+        max-height: 95vh;
         display: flex;
         flex-direction: column;
+        padding: 0;
+        border-radius: 12px;
+        border: none;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+        background: #fff;
+        overflow: hidden;
     }
 
-    /* Header المودال */
     #cropperModal .modal-header {
         flex-shrink: 0;
         padding: 0.5rem 1rem;
@@ -30,141 +36,36 @@
         min-height: 50px;
     }
 
-    /* تحسينات خاصة للأجهزة المحمولة - تصغير المودال */
-    @media (max-width: 767.98px) {
-        #cropperModal .modal-dialog {
-            margin: 10px;
-            width: calc(100vw - 20px);
-            height: calc(100vh - 20px);
-            max-width: calc(100vw - 20px);
-            max-height: calc(100vh - 20px);
-        }
-
-        #cropperModal .modal-content {
-            height: calc(100vh - 20px);
-            border-radius: 10px;
-            border: 2px solid #007bff;
-        }
-
-        /* تصغير الهيدر */
-        #cropperModal .modal-header {
-            padding: 0.3rem 0.8rem;
-            min-height: 40px;
-        }
-
-        #cropperModal .modal-title {
-            font-size: 0.9rem;
-        }
-
-        /* تعديل منطقة الصورة */
-        .crop-area {
-            min-height: calc(100vh - 160px) !important;
-            max-height: calc(100vh - 160px) !important;
-            margin: 3px !important;
-            padding: 5px !important;
-        }
-
-        /* تعديل جسم المودال */
-        .cropper-modal-body {
-            height: calc(100vh - 60px);
-            padding-bottom: 70px !important;
-        }
-
-        /* تحسين الأزرار */
-        .action-buttons {
-            position: fixed !important;
-            bottom: 10px !important;
-            left: 10px !important;
-            right: 10px !important;
-            background-color: #ffffff !important;
-            padding: 10px !important;
-            box-shadow: 0 -3px 10px rgba(0,0,0,0.2) !important;
-            z-index: 9999 !important;
-            border-radius: 8px !important;
-            border: 1px solid #dee2e6 !important;
-        }
-
-        .action-buttons button {
-            height: 40px !important;
-            font-size: 13px !important;
-            min-width: 100px !important;
-        }
-
-        /* إخفاء النص الزائد في الهيدر */
-        .crop-area::before {
-            font-size: 10px;
-            padding: 2px 8px;
-        }
+    /* الجسم الرئيسي للمودال */
+    .cropper-modal-body {
+        flex: 1 1 0;
+        display: flex;
+        flex-direction: row;
+        gap: 0;
+        padding: 0;
+        height: 100%;
+        min-height: 0;
+        align-items: stretch;
     }
 
-    /* تحسينات إضافية للشاشات الصغيرة جداً */
-    @media (max-width: 480px) {
-        #cropperModal .modal-dialog {
-            margin: 5px;
-            width: calc(100vw - 10px);
-            height: calc(100vh - 10px);
-            max-width: calc(100vw - 10px);
-            max-height: calc(100vh - 10px);
-        }
-
-        #cropperModal .modal-content {
-            height: calc(100vh - 10px);
-        }
-
-        .crop-area {
-            min-height: calc(100vh - 140px) !important;
-            max-height: calc(100vh - 140px) !important;
-        }
-
-        .cropper-modal-body {
-            height: calc(100vh - 50px);
-        }
-
-        .action-buttons {
-            bottom: 5px !important;
-            left: 5px !important;
-            right: 5px !important;
-            padding: 8px !important;
-        }
-
-        .action-buttons button {
-            height: 35px !important;
-            font-size: 12px !important;
-            min-width: 80px !important;
-        }
-    }
-
-    /* منطقة الصورة */
+    /* منطقة القص */
     .crop-area {
-        flex: 1;
+        flex: 1 1 0;
         display: flex;
         justify-content: center;
         align-items: center;
-        background-color: #ffffff;
+        background-color: #fff;
         border: 3px solid #007bff;
         border-radius: 10px;
-        margin: 8px;
-        padding: 10px;
+        margin: 0;
+        padding: 0;
         position: relative;
         overflow: hidden;
-        min-height: 300px;
-        max-height: calc(100vh - 280px);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    }
-
-    .crop-area::before {
-        content: "منطقة قص الصورة";
-        position: absolute;
-        top: 5px;
-        left: 50%;
-        transform: translateX(-50%);
-        background-color: #007bff;
-        color: white;
-        padding: 4px 12px;
-        border-radius: 15px;
-        font-size: 12px;
-        font-weight: bold;
-        z-index: 10;
+        min-width: 0;
+        min-height: 0;
+        height: 100%;
+        max-height: 100%;
+        align-self: stretch;
     }
 
     .crop-area img {
@@ -175,145 +76,30 @@
         height: auto;
         object-fit: contain;
         border-radius: 5px;
+        margin: auto;
+        /* ضمان التوسيط الكامل */
+        position: relative;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
     }
 
-    /* منطقة الأزرار */
+    /* منطقة التحكم الجانبية */
     .controls-panel-container {
+        width: 260px;
         flex-shrink: 0;
-        background-color: #ffffff;
-        border-top: 3px solid #dee2e6;
-        padding: 15px;
+        background-color: #fff;
+        border-left: 3px solid #dee2e6;
+        padding: 18px 10px 10px 10px;
         display: flex;
         flex-direction: column;
         gap: 15px;
-        min-height: 220px;
-        max-height: 250px;
-        box-shadow: 0 -4px 12px rgba(0,0,0,0.1);
+        min-height: 100%;
+        max-height: 100%;
+        box-shadow: none;
         position: relative;
         z-index: 50;
-    }
-
-    /* قسم التحكم */
-    .controls-section {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-    }
-
-    .controls-title {
-        font-size: 14px;
-        font-weight: bold;
-        color: #333;
-        margin: 0 0 10px 0;
-        text-align: center;
-        border-bottom: 1px solid #dee2e6;
-        padding-bottom: 5px;
-    }
-
-    /* أزرار الحركة */
-    .movement-controls {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 5px;
-        margin-bottom: 10px;
-    }
-
-    .movement-row {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        gap: 10px;
-        width: 100%;
-    }
-
-    .movement-center {
-        width: 40px;
-        height: 40px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    /* أزرار التكبير والدوران */
-    .action-controls {
-        display: flex;
-        justify-content: space-around;
-        gap: 8px;
-        flex-wrap: wrap;
-    }
-
-    /* أنماط الأزرار الموحدة */
-    .control-btn {
-        border: 2px solid #6c757d;
-        background-color: #f8f9fa;
-        color: #495057;
-        border-radius: 8px;
-        transition: all 0.3s ease;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 14px;
-    }
-
-    .control-btn:not(:disabled):hover {
-        background-color: #007bff;
-        color: white;
-        border-color: #007bff;
-        transform: scale(1.05);
-    }
-
-    .control-btn:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-
-    /* أزرار الحركة */
-    .movement-btn {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        font-size: 16px;
-    }
-
-    /* أزرار التكبير */
-    .zoom-btn {
-        min-width: 80px;
-        height: 35px;
-        padding: 5px 10px;
-        font-size: 12px;
-        gap: 5px;
-        flex-direction: column;
-    }
-
-    .zoom-btn i {
-        font-size: 14px;
-    }
-
-    .zoom-btn span {
-        font-size: 10px;
-        font-weight: bold;
-    }
-
-    /* زر الدوران */
-    .rotate-btn {
-        min-width: 80px;
-        height: 35px;
-        padding: 5px 10px;
-        font-size: 12px;
-        gap: 5px;
-        flex-direction: column;
-    }
-
-    .rotate-btn i {
-        font-size: 14px;
-    }
-
-    .rotate-btn span {
-        font-size: 10px;
-        font-weight: bold;
     }
 
     /* أزرار الحفظ والإلغاء */
@@ -321,9 +107,9 @@
         display: flex !important;
         justify-content: space-between;
         gap: 12px;
-        padding: 10px 0;
+        padding: 10px 0 0 0;
         border-top: 2px solid #e9ecef;
-        background-color: #ffffff;
+        background-color: #fff;
         position: relative;
         z-index: 100;
         min-height: 60px;
@@ -332,7 +118,7 @@
 
     .action-buttons button {
         flex: 1;
-        height: 50px;
+        height: 48px;
         font-size: 15px;
         font-weight: bold;
         border-radius: 8px;
@@ -343,7 +129,7 @@
         justify-content: center;
         gap: 6px;
         cursor: pointer;
-        min-width: 140px;
+        min-width: 120px;
     }
 
     #cropperCropBtn {
@@ -374,322 +160,186 @@
 
     /* تحسينات للشاشات الكبيرة */
     @media (min-width: 992px) {
+        #cropperModal .modal-dialog {
+            margin-top: 200px !important; /* زيادة الازاحة من الأعلى */
+            margin-bottom: 0px !important;
+        }
+        #cropperModal .modal-content {
+            height: 95vh;
+            max-height: 95vh;
+            display: flex;
+            flex-direction: column;
+            padding: 0;
+        }
         .cropper-modal-body {
+            flex: 1 1 0;
+            display: flex;
             flex-direction: row;
-            gap: 15px;
-            padding: 15px;
+            gap: 0;
+            padding: 0;
+            height: 100%;
+            min-height: 0;
+            align-items: stretch;
         }
-
         .crop-area {
-            flex: 1;
+            flex: 1 1 0;
             margin: 0;
-            min-width: 600px;
-            min-height: 500px;
-            max-height: none;
+            padding: 0;
+            min-width: 0;
+            min-height: 0;
+            height: 100%;
+            max-height: 100%;
+            align-self: stretch;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            /* إزالة min-width/min-height/max-height من الشاشات الكبيرة */
         }
-
+        .crop-area img {
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            margin: auto;
+        }
         .controls-panel-container {
             width: 280px;
             flex-shrink: 0;
             border-top: none;
             border-left: 3px solid #dee2e6;
-            min-height: auto;
-            max-height: none;
+            min-height: 100%;
+            max-height: 100%;
             justify-content: space-between;
+            padding: 18px 10px 10px 10px;
         }
-
-        .movement-controls {
-            margin-bottom: 20px;
-        }
-
-        .movement-btn {
-            width: 50px;
-            height: 50px;
-            font-size: 18px;
-        }
-
-        .zoom-btn,
-        .rotate-btn {
-            min-width: 90px;
-            height: 40px;
-            font-size: 14px;
-        }
-
         .action-buttons {
-            flex-direction: column;
+            flex-direction: row;
             border-top: 2px solid #e9ecef;
-            padding-top: 15px;
-            min-height: auto;
+            padding: 15px 0 0 0;
+            min-height: 60px;
+            position: relative;
+            background: #fff;
+            justify-content: center;
+            align-items: center;
         }
-
         .action-buttons button {
-            flex: none;
-            height: 55px;
-            font-size: 16px;
-            min-width: auto;
-            margin-bottom: 10px;
+            flex: 1;
+            height: 48px;
+            font-size: 15px;
+            min-width: 120px;
+            margin: 0 8px;
         }
     }
-
-    /* تحسينات للأجهزة المحمولة */
-    /* @media (max-width: 991.98px) {
-        .crop-area {
-            min-height: calc(100vh - 320px);
-            max-height: calc(100vh - 320px);
-            margin: 5px;
-            padding: 8px;
-        }
-
-        .controls-panel-container {
-            min-height: 240px;
-            max-height: 260px;
-            padding: 10px 15px;
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background-color: #ffffff;
-            border-top: 3px solid #007bff;
-            z-index: 1000;
-        }
-
-        .controls-title {
-            font-size: 12px;
-            margin-bottom: 8px;
-        }
-
-        .movement-controls {
-            margin-bottom: 8px;
-        }
-
-        .movement-btn {
-            width: 35px;
-            height: 35px;
-            font-size: 14px;
-        }
-
-        .action-controls {
-            gap: 5px;
-            margin-bottom: 10px;
-        }
-
-        .zoom-btn,
-        .rotate-btn {
-            min-width: 70px;
-            height: 30px;
-            font-size: 10px;
-        }
-
-        .zoom-btn i,
-        .rotate-btn i {
-            font-size: 12px;
-        }
-
-        .zoom-btn span,
-        .rotate-btn span {
-            font-size: 9px;
-        }
-
-        .action-buttons {
-            padding: 8px 0;
-            border-top: 2px solid #e9ecef;
-            background-color: #ffffff;
-            min-height: 60px;
-        }
-
-        .action-buttons button {
-            height: 45px;
-            font-size: 14px;
-            font-weight: bold;
-            border-radius: 8px;
-            min-width: 120px;
-        }
-
-        .cropper-modal-body {
-            padding-bottom: 260px;
-        }
-    } */
 
     /* تحسينات للأجهزة المحمولة */
     @media (max-width: 991.98px) {
-        .crop-area {
-            min-height: calc(100vh - 320px);
-            max-height: calc(100vh - 320px);
-            margin: 5px;
-            padding: 8px;
-        }
-
-        .controls-panel-container {
-            min-height: 240px;
-            max-height: 260px;
-            padding: 10px 15px;
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background-color: #ffffff;
-            border-top: 3px solid #007bff;
-            z-index: 1000;
-        }
-
-        .controls-title {
-            font-size: 12px;
-            margin-bottom: 8px;
-        }
-
-        .movement-controls {
-            margin-bottom: 8px;
-        }
-
-        .movement-btn {
-            width: 35px;
-            height: 35px;
-            font-size: 14px;
-        }
-
-        .action-controls {
-            gap: 5px;
-            margin-bottom: 10px;
-        }
-
-        .zoom-btn,
-        .rotate-btn {
-            min-width: 70px;
-            height: 30px;
-            font-size: 10px;
-        }
-
-        .zoom-btn i,
-        .rotate-btn i {
-            font-size: 12px;
-        }
-
-        .zoom-btn span,
-        .rotate-btn span {
-            font-size: 9px;
-        }
-
-        .action-buttons {
-            padding: 8px 0;
-            border-top: 2px solid #e9ecef;
-            background-color: #ffffff;
-            min-height: 60px;
-        }
-
-        .action-buttons button {
-            height: 45px;
-            font-size: 14px;
-            font-weight: bold;
+        #cropperModal .modal-content {
+            height: 98vh;
             border-radius: 8px;
-            min-width: 120px;
         }
-
         .cropper-modal-body {
-            /* إزالة أو تقليل padding-bottom الذي يسبب المساحة البيضاء */
-            padding-bottom: 80px; /* كان 260px - قلل هذا الرقم أو احذفه تماماً */
+            flex-direction: column;
+            gap: 0;
+            padding: 0;
+            height: 100%;
+            align-items: stretch;
         }
-    }
-
-    @media (max-width: 767.98px) {
-        .cropper-point {
-            width: 20px !important;
-            height: 20px !important;
-            border: 4px solid #007bff !important;
+        .crop-area {
+            min-height: 0 !important;
+            max-height: none !important;
+            height: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            align-self: stretch;
         }
-
-        .cropper-line.cropper-line-h {
-            height: 3px !important;
+        .crop-area img {
+            max-height: 100% !important;
         }
-
-        .cropper-line.cropper-line-v {
-            width: 3px !important;
+        .controls-panel-container {
+            width: 100%;
+            min-height: 90px;
+            max-height: 140px;
+            border-left: none;
+            border-top: 3px solid #dee2e6;
+            box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
+            padding: 8px 4px 4px 4px;
+            flex-direction: row;
+            gap: 10px;
         }
-
-        .cropper-view-box {
-            outline: 3px solid #007bff !important;
-        }
-
         .action-buttons {
             position: fixed !important;
             bottom: 0 !important;
             left: 0 !important;
             right: 0 !important;
-            background-color: #ffffff !important;
-            padding: 15px !important;
-            box-shadow: 0 -5px 15px rgba(0,0,0,0.2) !important;
+            background-color: #fff !important;
+            padding: 10px 4px !important;
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.13) !important;
             z-index: 9999 !important;
+            border-radius: 0 !important;
+            min-height: 50px;
         }
-
-        /* تعديل منطقة القص لتستغل المساحة بشكل أفضل */
-        .crop-area {
-            min-height: calc(100vh - 180px) !important;
-            max-height: calc(100vh - 180px) !important;
+        .action-buttons button {
+            height: 38px;
+            font-size: 13px;
+            min-width: 80px;
         }
-
-        /* إزالة padding-bottom تماماً للشاشات الصغيرة */
         .cropper-modal-body {
-            padding-bottom: 80px !important;
+            padding-bottom: 60px !important;
         }
     }
 
-    /* تحسين نقاط Cropper.js */
-    .cropper-point {
-        width: 15px !important;
-        height: 15px !important;
-        background-color: #fff !important;
-        border: 3px solid #007bff !important;
-        border-radius: 50% !important;
-        opacity: 1 !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
-    }
-
-    .cropper-line {
-        background-color: #007bff !important;
-        opacity: 0.8 !important;
-    }
-
-    .cropper-line.cropper-line-h {
-        height: 2px !important;
-    }
-
-    .cropper-line.cropper-line-v {
-        width: 2px !important;
-    }
-
-    .cropper-view-box {
-        outline: 2px solid #007bff !important;
-        outline-offset: -2px !important;
-    }
-
-    .cropper-crop-box {
-        box-shadow: 0 0 20px rgba(0,123,255,0.3) !important;
-    }
-
-    @media (max-width: 767.98px) {
-        .cropper-point {
-            width: 20px !important;
-            height: 20px !important;
-            border: 4px solid #007bff !important;
+    /* شاشات الجوال الصغيرة جداً */
+    @media (max-width: 575.98px) {
+        #cropperModal .modal-content {
+            height: 99vh;
+            border-radius: 0;
         }
-
-        .cropper-line.cropper-line-h {
-            height: 3px !important;
+        .crop-area {
+            margin: 0 !important;
+            padding: 0 !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            height: 100% !important;
         }
-
-        .cropper-line.cropper-line-v {
-            width: 3px !important;
+        .controls-panel-container {
+            min-height: 60px;
+            max-height: 90px;
+            padding: 4px 1px 1px 1px;
         }
-
-        .cropper-view-box {
-            outline: 3px solid #007bff !important;
+        .action-buttons {
+            padding: 6px 2px !important;
+            min-height: 40px;
+        }
+        .action-buttons button {
+            height: 32px;
+            font-size: 11px;
+            min-width: 60px;
+        }
+        .crop-area::before {
+            font-size: 9px;
+            padding: 1px 6px;
         }
     }
 
-    /* إخفاء العناصر غير الضرورية */
-    .cropper-bg {
-        background-image: none !important;
+    /* شاشات الكمبيوتر الكبيرة */
+    @media (min-width: 1200px) {
+        #cropperModal .modal-content {
+            height: 90vh;
+            max-width: 1100px;
+            margin: auto;
+        }
+        .crop-area {
+            min-width: 400px;
+            min-height: 350px;
+            max-height: 70vh;
+        }
+        .controls-panel-container {
+            width: 300px;
+            min-width: 220px;
+            max-width: 350px;
+        }
     }
-
     /* تحسين عام للخطوط */
     body {
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -718,6 +368,94 @@
             padding: 15px !important;
             box-shadow: 0 -5px 15px rgba(0,0,0,0.2) !important;
             z-index: 9999 !important;
+        }
+    }
+
+    @media (min-width: 768px) and (max-width: 991.98px) {
+        #cropperModal .modal-dialog {
+            margin-top: 220px !important; /* إزاحة من الأعلى للتابلت/آيباد */
+            margin-bottom: 0px !important;
+            align-items: flex-start !important;
+        }
+        #cropperModal .modal-content {
+            height: 85vh !important;
+            max-height: 85vh !important;
+            border-radius: 16px !important;
+        }
+        .cropper-modal-body {
+            flex-direction: column !important;
+            height: 100% !important;
+            min-height: 0 !important;
+            align-items: stretch !important;
+            padding: 0 !important;
+            gap: 0 !important;
+        }
+        .crop-area {
+            flex: 1 1 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            min-width: 0 !important;
+            min-height: 0 !important;
+            height: 100% !important;
+            max-height: 100% !important;
+            align-self: stretch !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+        .crop-area img {
+            max-width: 100% !important;
+            max-height: 100% !important;
+            width: auto !important;
+            height: auto !important;
+            object-fit: contain !important;
+            margin: auto !important;
+        }
+        .action-buttons {
+            position: static !important;
+            padding: 10px 0 0 0 !important;
+            min-height: 50px !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+        }
+    }
+
+    /* خطوط الشبكة (Cropper grid lines) */
+    .cropper-line {
+        background-color: #007bff !important;
+        opacity: 0.9 !important;
+        /* زيادة عرض الخطوط */
+    }
+    .cropper-line.cropper-line-h {
+        height: 5px !important; /* عريض جداً */
+    }
+    .cropper-line.cropper-line-v {
+        width: 5px !important; /* عريض جداً */
+    }
+
+    /* نقاط الشبكة (Cropper points) */
+    .cropper-point {
+        width: 28px !important;
+        height: 28px !important;
+        background-color: #fff !important;
+        border: 6px solid #007bff !important;
+        border-radius: 50% !important;
+        opacity: 1 !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+    }
+
+    /* تكبير النقاط أكثر على الشاشات الصغيرة */
+    @media (max-width: 991.98px) {
+        .cropper-point {
+            width: 36px !important;
+            height: 36px !important;
+            border-width: 7px !important;
+        }
+        .cropper-line.cropper-line-h {
+            height: 7px !important;
+        }
+        .cropper-line.cropper-line-v {
+            width: 7px !important;
         }
     }
 </style>

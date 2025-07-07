@@ -114,8 +114,8 @@
             <small class="text-muted">أدخل رقم الجوال بهذا الشكل: 0599905588</small>
         </div>
         <div class="col-md-4">
-            <label class="form-label">عدد افراد الاسرة <span class="text-primary">(اختياري)</span></label>
-            <input type="number" name="data_number_of_individuals" class="form-control" min="0" max="9999" maxlength="4" oninput="if(this.value.length>4)this.value=this.value.slice(0,4);">
+            <label class="form-label">عدد افراد الاسرة</label>
+            <input type="number" name="data_number_of_individuals" class="form-control" min="0" max="9999" maxlength="4" oninput="if(this.value.length>4)this.value=this.value.slice(0,4);" required>
         </div>
         <div class="col-md-4">
             <label class="form-label">الحالة الاجتماعية<span class="text-danger">*</span></label>
@@ -384,6 +384,10 @@
                         name: 'data_current_housing_type',
                         label: 'نوع السكن الحالي'
                     },
+                    {
+                        name: 'data_number_of_individuals',
+                        label: 'عدد افراد الاسرة'
+                    },
                 ];
                 let firstInvalid = null;
                 for (const field of requiredFields) {
@@ -445,6 +449,13 @@
                  data-index="${index}"
                  style="border:2px dashed #000 !important;">
                 <button type="button" class="btn-close position-absolute top-0 end-0 m-2 remove-bank-account-btn" title="حذف الحساب"></button>
+                  <div class="mb-2">
+                    <label class="form-label">اسم البنك <span class="text-primary">(اختياري)</span></label>
+                    <select name="bank_accounts[${index}][bank_name]" class="form-select">
+                        <option value="">اختر البنك</option>
+                        ${bankNames.map(bank => `<option value="${bank.id}">${bank.description}</option>`).join('')}
+                    </select>
+                </div>
                 <div class="mb-2">
                     <label class="form-label">اسم صاحب حساب البنك <span class="text-primary">(اختياري)</span></label>
                     <input type="text" name="bank_accounts[${index}][re_guardian_name]" class="form-control" maxlength="100">
@@ -465,13 +476,7 @@
                     <label class="form-label">رقم حساب البنك الشيكل (IBAN) <span class="text-primary">(اختياري)</span></label>
                     <input type="text" name="bank_accounts[${index}][iban_shekel]" class="form-control" maxlength="34">
                 </div>
-                <div class="mb-2">
-                    <label class="form-label">اسم البنك <span class="text-primary">(اختياري)</span></label>
-                    <select name="bank_accounts[${index}][bank_name]" class="form-select">
-                        <option value="">اختر البنك</option>
-                        ${bankNames.map(bank => `<option value="${bank.id}">${bank.description}</option>`).join('')}
-                    </select>
-                </div>
+
             </div>
             `;
         }
