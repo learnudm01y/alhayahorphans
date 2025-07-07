@@ -213,21 +213,50 @@ window.showCropperModal = function(file, callback) {
     });
   }
 
-  function cleanup() {
-    if (cropper) {
-      cropper.destroy();
-      cropper = null;
-    }
-    elements.cropBtn.onclick = null;
-    if (objectUrl) {
-      URL.revokeObjectURL(objectUrl);
-      objectUrl = null;
-    }
-    if (timeoutTimer) {
-      clearTimeout(timeoutTimer);
-      timeoutTimer = null;
-    }
-  }
+        //   function cleanup() {
+        //     if (cropper) {
+        //       cropper.destroy();
+        //       cropper = null;
+        //     }
+        //     elements.cropBtn.onclick = null;
+        //     if (objectUrl) {
+        //       URL.revokeObjectURL(objectUrl);
+        //       objectUrl = null;
+        //     }
+        //     if (timeoutTimer) {
+        //       clearTimeout(timeoutTimer);
+        //       timeoutTimer = null;
+        //     }
+        //   }
+        function cleanup() {
+        if (cropper) {
+            cropper.destroy();
+            cropper = null;
+        }
+        elements.cropBtn.onclick = null;
+        if (objectUrl) {
+            URL.revokeObjectURL(objectUrl);
+            objectUrl = null;
+        }
+        if (timeoutTimer) {
+            clearTimeout(timeoutTimer);
+            timeoutTimer = null;
+        }
+        }
+
+        // أضف هذا بعد تعريف cleanup مباشرة
+        const cancelBtn = document.getElementById('cropperCancelBtn');
+        if (cancelBtn) {
+        cancelBtn.onclick = function() {
+            cleanup();
+            handleAttachmentCancelAndCleanup(file);
+            callback(null);
+            // إغلاق المودال إذا لم يكن مغلقاً تلقائياً
+            bootstrap.Modal.getInstance(elements.modal)?.hide();
+        };
+        }
+
+
 
   // تنظيف عند إغلاق المودال
   elements.modal.addEventListener('hidden.bs.modal', cleanup, { once: true });
@@ -241,6 +270,7 @@ window.showCropperModal = function(file, callback) {
       title: 'انتهى الوقت',
       text: 'لم يتم استكمال قص الصورة خلال الوقت المحدد'
     });
+     handleAttachmentCancelAndCleanup(file);
     callback(null);
   }, 300000);
 
@@ -250,6 +280,7 @@ window.showCropperModal = function(file, callback) {
   reader.onerror = () => {
     console.error('[showCropperModal] خطأ في قراءة الملف');
     cleanup();
+    handleAttachmentCancelAndCleanup(file);
     callback(null, 'خطأ في قراءة الملف');
   };
 
@@ -281,6 +312,7 @@ window.showCropperModal = function(file, callback) {
     elements.image.onerror = () => {
       console.error('[showCropperModal] خطأ في تحميل الصورة');
       cleanup();
+       handleAttachmentCancelAndCleanup(file);
       callback(null, 'خطأ في تحميل الصورة');
     };
   };
@@ -547,24 +579,13 @@ window.showCropperModal = function(file, callback) {
         text: 'فشل في معالجة الصورة: ' + error.message
       });
       cleanup();
+      handleAttachmentCancelAndCleanup(file);
       callback(null);
     }
   };
 
   // تنظيف عند إغلاق المودال
   elements.modal.addEventListener('hidden.bs.modal', cleanup, { once: true });
-
-  // مهلة زمنية (5 دقائق)
-  timeoutTimer = setTimeout(() => {
-    cleanup();
-    bootstrap.Modal.getInstance(elements.loaderModal)?.hide();
-    Swal.fire({
-      icon: 'error',
-      title: 'انتهى الوقت',
-      text: 'لم يتم استكمال قص الصورة خلال الوقت المحدد'
-    });
-    callback(null);
-  }, 300000);
 
   // قراءة الملف
   reader.readAsDataURL(file);

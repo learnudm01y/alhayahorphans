@@ -6,12 +6,12 @@
     <div class="modal-overlay"></div>
     <div class="modal-content">
         <div class="modal-header">
-            <h3 class="modal-title">
+            <h3 class="modal-title text-white">
                 <i class="fas fa-camera-retro modal-title-icon"></i>
                 اختر مصدر الصورة
             </h3>
             <button class="modal-close" id="closeModal">
-                <i class="fas fa-times close-icon"></i>
+                <i class="fas fa-times close-icon" style="color: black; font-size: 1.4rem;"></i>
             </button>
         </div>
         <div class="modal-body">

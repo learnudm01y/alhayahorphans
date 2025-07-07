@@ -12,32 +12,71 @@
                 logs: [],
                 startTime: new Date(),
 
-                log: function(level, step, error, context = {}) {
-                    const errorInfo = {
-                        timestamp: new Date().toISOString(),
-                        level: level,
-                        step: step,
-                        message: error?.message || error,
-                        stack: error?.stack,
-                        context: {
-                            ...context,
-                            url: window.location.href,
-                            userAgent: navigator.userAgent,
-                            timeFromStart: (new Date() - this.startTime) + 'ms'
-                        }
-                    };
+                // log: function(level, step, error, context = {}) {
+                //     const errorInfo = {
+                //         timestamp: new Date().toISOString(),
+                //         level: level,
+                //         step: step,
+                //         message: error?.message || error,
+                //         stack: error?.stack,
+                //         context: {
+                //             ...context,
+                //             url: window.location.href,
+                //             userAgent: navigator.userAgent,
+                //             timeFromStart: (new Date() - this.startTime) + 'ms'
+                //         }
+                //     };
 
-                    this.logs.push(errorInfo);
-                    console[level](`[${level.toUpperCase()}] ${step}:`, errorInfo);
+                //     this.logs.push(errorInfo);
+                //     console[level](`[${level.toUpperCase()}] ${step}:`, errorInfo);
+
+                //     if (level === 'error') {
+                //         Swal.fire({
+                //             icon: 'error',
+                //             title: 'خطأ في العملية',
+                //             text: error.message || 'حدث خطأ غير متوقع',
+                //             footer: `<a href="#" onclick="ErrorTracker.showDetails('${this.logs.length - 1}')">عرض التفاصيل</a>`
+                //         });
+                //     }
+                // },
+                log: function(level, step, error, context = {}) {
+    const errorInfo = {
+        timestamp: new Date().toISOString(),
+        level: level,
+        step: step,
+        message: error?.message || error,
+        stack: error?.stack,
+        context: {
+            ...context,
+            url: window.location.href,
+            userAgent: navigator.userAgent,
+            timeFromStart: (new Date() - this.startTime) + 'ms'
+        }
+    };
+
+            this.logs.push(errorInfo);
+            console[level](`[${level.toUpperCase()}] ${step}:`, errorInfo);
 
                     if (level === 'error') {
+                    // إذا كان الخطأ بسبب إلغاء القص أو عدم حفظ الصورة
+                    if (errorInfo.message === 'لم يتم قص الصورة أو تم إلغاء العملية') {
+                      if (typeof window.hideProcessingAlert === 'function') window.hideProcessingAlert();
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'لم يتم حفظ الصورة',
+                            text: 'لم يتم حفظ الصورة لأنك لم تضغط على زر "حفظ التعديلات".',
+                            confirmButtonText: 'نعم'
+                        });
+                    } else {
+
                         Swal.fire({
                             icon: 'error',
                             title: 'خطأ في العملية',
                             text: error.message || 'حدث خطأ غير متوقع',
-                            footer: `<a href="#" onclick="ErrorTracker.showDetails('${this.logs.length - 1}')">عرض التفاصيل</a>`
+                            confirmButtonText: 'نعم'
                         });
                     }
+                }
                 },
 
                 showDetails: function(logIndex) {
