@@ -358,66 +358,38 @@
         display: flex !important;
     }
 
+    /* ضمان ظهور أزرار الحفظ والإلغاء دائماً فوق كل شيء في الجوال */
     @media (max-width: 767.98px) {
         .action-buttons {
             position: fixed !important;
             bottom: 0 !important;
             left: 0 !important;
             right: 0 !important;
-            background-color: #ffffff !important;
-            padding: 15px !important;
+            background-color: #fff !important;
+            padding: 10px 4px !important;
             box-shadow: 0 -5px 15px rgba(0,0,0,0.2) !important;
-            z-index: 9999 !important;
+            z-index: 99999 !important;
+            border-radius: 0 !important;
+            min-height: 50px !important;
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+        .cropper-modal-body {
+            padding-bottom: 70px !important;
+        }
+        #cropperModal .modal-content {
+            height: 88vh !important; /* تصغير الطول من الأسفل للجوال */
+            max-height: 88vh !important;
         }
     }
 
-    @media (min-width: 768px) and (max-width: 991.98px) {
-        #cropperModal .modal-dialog {
-            margin-top: 220px !important; /* إزاحة من الأعلى للتابلت/آيباد */
-            margin-bottom: 0px !important;
-            align-items: flex-start !important;
-        }
-        #cropperModal .modal-content {
-            height: 85vh !important;
-            max-height: 85vh !important;
-            border-radius: 16px !important;
-        }
-        .cropper-modal-body {
-            flex-direction: column !important;
-            height: 100% !important;
-            min-height: 0 !important;
-            align-items: stretch !important;
-            padding: 0 !important;
-            gap: 0 !important;
-        }
-        .crop-area {
-            flex: 1 1 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            min-width: 0 !important;
-            min-height: 0 !important;
-            height: 100% !important;
-            max-height: 100% !important;
-            align-self: stretch !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-        }
-        .crop-area img {
-            max-width: 100% !important;
-            max-height: 100% !important;
-            width: auto !important;
-            height: auto !important;
-            object-fit: contain !important;
-            margin: auto !important;
-        }
-        .action-buttons {
-            position: static !important;
-            padding: 10px 0 0 0 !important;
-            min-height: 50px !important;
-            border-radius: 0 !important;
-            box-shadow: none !important;
-        }
+    /* إصلاح إضافي: ضمان أن الأزرار لا تُغطى بأي عنصر آخر */
+    .action-buttons button {
+        visibility: visible !important;
+        opacity: 1 !important;
+        display: flex !important;
+        z-index: 100000 !important;
     }
 
     /* خطوط الشبكة (Cropper grid lines) */
@@ -456,6 +428,61 @@
         }
         .cropper-line.cropper-line-v {
             width: 7px !important;
+        }
+    }
+
+    /* تحسين خاص للآيباد/تابلت فقط (دون التأثير على الجوال أو الكمبيوتر) */
+    @media (min-width: 768px) and (max-width: 991.98px) {
+        #cropperModal .modal-dialog {
+            margin-top: 300px !important; /* إزاحة معتدلة من الأعلى */
+            margin-bottom: 20px !important;
+            align-items: flex-start !important;
+        }
+        #cropperModal .modal-content {
+            height: 90vh !important;
+            max-height: 90vh !important;
+            border-radius: 16px !important;
+        }
+        .cropper-modal-body {
+            flex-direction: column !important;
+            height: 100% !important;
+            min-height: 0 !important;
+            align-items: stretch !important;
+            padding: 0 !important;
+            gap: 0 !important;
+        }
+        .crop-area {
+            flex: 1 1 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            min-width: 0 !important;
+            min-height: 0 !important;
+            height: 100% !important;
+            max-height: 100% !important;
+            align-self: stretch !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+        .crop-area img {
+            max-width: 100% !important;
+            max-height: 100% !important;
+            width: auto !important;
+            height: auto !important;
+            object-fit: contain !important;
+            margin: auto !important;
+        }
+        .action-buttons {
+            position: static !important;
+            padding: 10px 0 0 0 !important;
+            min-height: 50px !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            z-index: 100 !important;
+            background: #fff !important;
+        }
+        .cropper-modal-body {
+            padding-bottom: 0 !important;
         }
     }
 </style>
