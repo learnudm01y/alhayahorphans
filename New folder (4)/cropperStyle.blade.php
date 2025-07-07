@@ -586,7 +586,7 @@
 
         .cropper-modal-body {
             /* إزالة أو تقليل padding-bottom الذي يسبب المساحة البيضاء */
-            padding-bottom: 00px; /* كان 260px - قلل هذا الرقم أو احذفه تماماً */
+            padding-bottom: 80px; /* كان 260px - قلل هذا الرقم أو احذفه تماماً */
         }
     }
 
@@ -628,7 +628,7 @@
 
         /* إزالة padding-bottom تماماً للشاشات الصغيرة */
         .cropper-modal-body {
-            padding-bottom: 0px !important;
+            padding-bottom: 80px !important;
         }
     }
 

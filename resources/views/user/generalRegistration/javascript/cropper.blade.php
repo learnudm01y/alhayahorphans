@@ -4,6 +4,136 @@
 <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
 
 <script>
+// دالة ضغط الصورة مع شريط التقدم
+async function compressImageWithProgress(file) {
+  const targetSizeKB = 100;
+  const targetSizeBytes = targetSizeKB * 1024;
+  const maxSizeMB = 50;
+
+  console.log('[compressImage] بدء ضغط الصورة:', {
+    name: file.name,
+    size: file.size,
+    type: file.type
+  });
+
+  // التحقق من حجم الملف
+  if (file.size > maxSizeMB * 1024 * 1024) {
+    throw new Error(`حجم الملف يتجاوز ${maxSizeMB} ميجابايت`);
+  }
+
+  // تجاهل الملفات الصغيرة بالفعل
+  if (file.size <= targetSizeBytes) {
+    console.log('[compressImage] الملف صغير بالفعل، لا حاجة للضغط');
+    return file;
+  }
+
+  // عرض شريط التقدم
+  Swal.fire({
+    title: 'جاري ضغط الصورة...',
+    html: `
+      <div class="progress mb-3" style="height: 20px;">
+        <div class="progress-bar progress-bar-striped progress-bar-animated"
+             role="progressbar"
+             style="width: 0%"
+             id="compressionProgress">0%</div>
+      </div>
+      <div class="text-muted">
+        <small>الحجم الأصلي: ${(file.size / 1024 / 1024).toFixed(2)} MB</small><br>
+        <small>الهدف: ${targetSizeKB} KB</small>
+      </div>
+    `,
+    allowOutsideClick: false,
+    showConfirmButton: false,
+    didOpen: () => {
+      // تحريك شريط التقدم
+      let progress = 0;
+      const progressBar = document.getElementById('compressionProgress');
+      const interval = setInterval(() => {
+        progress += Math.random() * 15;
+        if (progress > 90) progress = 90;
+
+        progressBar.style.width = progress + '%';
+        progressBar.textContent = Math.round(progress) + '%';
+      }, 200);
+
+      // حفظ المؤقت لتنظيفه لاحقاً
+      Swal.getPopup().progressInterval = interval;
+    }
+  });
+
+  try {
+    // خيارات الضغط
+    const options = {
+      maxSizeMB: targetSizeKB / 1024, // تحويل KB إلى MB
+      maxWidthOrHeight: 1920,
+      useWebWorker: true,
+      fileType: file.type,
+      initialQuality: 0.8,
+      alwaysKeepResolution: false,
+      onProgress: (progress) => {
+        const progressBar = document.getElementById('compressionProgress');
+        if (progressBar) {
+          const realProgress = Math.min(90 + (progress * 10), 100);
+          progressBar.style.width = realProgress + '%';
+          progressBar.textContent = Math.round(realProgress) + '%';
+        }
+      }
+    };
+
+    console.log('[compressImage] بدء الضغط بالخيارات:', options);
+
+    const compressedFile = await imageCompression(file, options);
+
+    // تنظيف المؤقت
+    const popup = Swal.getPopup();
+    if (popup && popup.progressInterval) {
+      clearInterval(popup.progressInterval);
+    }
+
+    console.log('[compressImage] تم الضغط بنجاح:', {
+      originalSize: file.size,
+      compressedSize: compressedFile.size,
+      compressionRatio: ((1 - compressedFile.size / file.size) * 100).toFixed(1) + '%'
+    });
+
+    // إخفاء شريط التقدم
+    Swal.close();
+
+    // عرض نتيجة الضغط
+    const compressionRatio = ((1 - compressedFile.size / file.size) * 100).toFixed(1);
+    Swal.fire({
+      icon: 'success',
+      title: 'تم ضغط الصورة بنجاح',
+      html: `
+        <div class="text-center">
+          <p class="mb-2">الحجم الأصلي: <strong>${(file.size / 1024 / 1024).toFixed(2)} MB</strong></p>
+          <p class="mb-2">الحجم الجديد: <strong>${(compressedFile.size / 1024).toFixed(2)} KB</strong></p>
+          <p class="text-success">تم توفير ${compressionRatio}% من المساحة</p>
+        </div>
+      `,
+      timer: 3000,
+      showConfirmButton: false
+    });
+
+    return compressedFile;
+
+  } catch (error) {
+    // تنظيف المؤقت في حالة الخطأ
+    const popup = Swal.getPopup();
+    if (popup && popup.progressInterval) {
+      clearInterval(popup.progressInterval);
+    }
+
+    console.error('[compressImage] خطأ في الضغط:', error);
+    Swal.fire({
+      icon: 'error',
+      title: 'خطأ في ضغط الصورة',
+      text: error.message || 'حدث خطأ غير متوقع'
+    });
+    throw error;
+  }
+}
+
 window.showCropperModal = function(file, callback) {
   console.log('[showCropperModal] بدء فحص الملف:', file);
 
@@ -250,7 +380,7 @@ window.showCropperModal = function(file, callback) {
     }
   }
 
-  // معالج زر القص
+  // معالج زر القص - النسخة المصححة
   elements.cropBtn.onclick = async function() {
     if (!cropperReady || !cropper) {
       Swal.fire({
@@ -261,10 +391,22 @@ window.showCropperModal = function(file, callback) {
       return;
     }
 
-    // عرض شريط التقدم
+    console.log('[CropButton] بدء عملية القص والمعالجة للملف:', file.name);
+
+    // عرض شريط التقدم المحدث
     Swal.fire({
       title: 'جاري معالجة الصورة...',
-      html: '<div class="progress"><div class="progress-bar" style="width: 0%">0%</div></div>',
+      html: `
+        <div class="progress mb-3" style="height: 20px;">
+          <div class="progress-bar progress-bar-striped progress-bar-animated"
+               role="progressbar"
+               style="width: 10%"
+               id="processingProgress">10%</div>
+        </div>
+        <div class="text-muted" id="statusText">
+          <small>بدء عملية القص...</small>
+        </div>
+      `,
       allowOutsideClick: false,
       showConfirmButton: false
     });
@@ -272,34 +414,157 @@ window.showCropperModal = function(file, callback) {
     bootstrap.Modal.getInstance(elements.modal).hide();
 
     try {
+      // تحديث شريط التقدم - بدء القص
+      const progressBar = document.getElementById('processingProgress');
+      const statusText = document.getElementById('statusText');
+
+      if (progressBar && statusText) {
+        progressBar.style.width = '30%';
+        progressBar.textContent = '30%';
+        statusText.innerHTML = '<small>جاري قص الصورة...</small>';
+      }
+
       const canvas = cropper.getCroppedCanvas({
-        imageSmoothingQuality: 'high'
+        imageSmoothingQuality: 'high',
+        fillColor: '#ffffff'
       });
 
       if (!canvas) {
         throw new Error('فشل في قص الصورة');
       }
 
-      // ضغط الصورة
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, file.type, 0.8));
-      const fileName = file.name.replace(/\.[^/.]+$/, '') + '_cropped' + file.name.match(/\.[^/.]+$/)[0];
-      const croppedFile = new File([blob], fileName, { type: file.type });
+      console.log('[CropButton] تم إنشاء canvas مقصوص بنجاح');
 
-      Swal.close();
-      cleanup();
-      callback(croppedFile);
+      // تحديث شريط التقدم - تحويل إلى blob
+      if (progressBar && statusText) {
+        progressBar.style.width = '50%';
+        progressBar.textContent = '50%';
+        statusText.innerHTML = '<small>جاري تحويل الصورة...</small>';
+      }
+
+      // تحويل canvas إلى blob
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error('فشل في تحويل الصورة'));
+          }
+        }, file.type, 0.9);
+      });
+
+      console.log('[CropButton] تم تحويل canvas إلى blob:', blob.size, 'bytes');
+
+      // إنشاء اسم ملف جديد مع إشارة أنه مقصوص
+      const originalName = file.name.replace(/\.[^/.]+$/, '');
+      const extension = file.name.match(/\.[^/.]+$/)?.[0] || '.jpg';
+      const croppedFileName = `${originalName}_cropped${extension}`;
+
+      // إنشاء ملف جديد
+      const croppedFile = new File([blob], croppedFileName, {
+        type: file.type,
+        lastModified: Date.now()
+      });
+
+      console.log('[CropButton] تم إنشاء ملف مقصوص:', {
+        name: croppedFile.name,
+        size: croppedFile.size,
+        type: croppedFile.type
+      });
+
+      // تحديث شريط التقدم - فحص الحاجة للضغط
+      if (progressBar && statusText) {
+        progressBar.style.width = '70%';
+        progressBar.textContent = '70%';
+        statusText.innerHTML = '<small>فحص الحاجة للضغط...</small>';
+      }
+
+      let finalFile = croppedFile;
+
+      // ضغط الملف المقصوص فقط إذا كان أكبر من 100KB
+      if (croppedFile.size > 100 * 1024) {
+        console.log('[CropButton] الملف يحتاج للضغط:', croppedFile.size, 'bytes');
+
+        if (statusText) {
+          statusText.innerHTML = '<small>جاري ضغط الصورة...</small>';
+        }
+
+        try {
+          // ضغط بدون عرض واجهة إضافية
+          const options = {
+            maxSizeMB: 0.1, // 100KB
+            maxWidthOrHeight: 1920,
+            useWebWorker: true,
+            fileType: croppedFile.type,
+            initialQuality: 0.8,
+            alwaysKeepResolution: false
+          };
+
+          finalFile = await imageCompression(croppedFile, options);
+          console.log('[CropButton] تم ضغط الملف بنجاح:', finalFile.size, 'bytes');
+
+          // تحديث اسم الملف ليتضمن أنه مضغوط أيضاً
+          const compressedName = finalFile.name.replace('_cropped', '_cropped_compressed');
+          finalFile = new File([finalFile], compressedName, {
+            type: finalFile.type,
+            lastModified: Date.now()
+          });
+
+        } catch (compressionError) {
+          console.warn('[CropButton] فشل في ضغط الملف، سيتم استخدام النسخة المقصوصة:', compressionError);
+          // استخدم الملف المقصوص بدون ضغط في حالة فشل الضغط
+        }
+      } else {
+        console.log('[CropButton] الملف صغير بما فيه الكفاية، لا حاجة للضغط');
+      }
+
+      // تحديث شريط التقدم - انتهاء المعالجة
+      if (progressBar && statusText) {
+        progressBar.style.width = '100%';
+        progressBar.textContent = '100%';
+        statusText.innerHTML = '<small>تمت المعالجة بنجاح!</small>';
+      }
+
+      console.log('[CropButton] الملف النهائي:', {
+        name: finalFile.name,
+        size: finalFile.size,
+        type: finalFile.type
+      });
+
+      // إخفاء شريط التقدم بعد فترة قصيرة
+      setTimeout(() => {
+        Swal.close();
+        cleanup();
+        console.log('[CropButton] تم إنجاز المعالجة بنجاح، استدعاء callback');
+        callback(finalFile);
+      }, 800);
 
     } catch (error) {
-      console.error('[showCropperModal] خطأ في المعالجة:', error);
+      console.error('[CropButton] خطأ في المعالجة:', error);
       Swal.fire({
         icon: 'error',
-        title: 'خطأ',
-        text: 'فشل في معالجة الصورة'
+        title: 'خطأ في المعالجة',
+        text: 'فشل في معالجة الصورة: ' + error.message
       });
       cleanup();
       callback(null);
     }
   };
+
+  // تنظيف عند إغلاق المودال
+  elements.modal.addEventListener('hidden.bs.modal', cleanup, { once: true });
+
+  // مهلة زمنية (5 دقائق)
+  timeoutTimer = setTimeout(() => {
+    cleanup();
+    bootstrap.Modal.getInstance(elements.loaderModal)?.hide();
+    Swal.fire({
+      icon: 'error',
+      title: 'انتهى الوقت',
+      text: 'لم يتم استكمال قص الصورة خلال الوقت المحدد'
+    });
+    callback(null);
+  }, 300000);
 
   // قراءة الملف
   reader.readAsDataURL(file);
@@ -339,6 +604,48 @@ window.showCropperModal = function(file, callback) {
   modal.show();
 };
 
+// معالجة المسافة البيضاء أسفل الأزرار في الجوال
+function fixCropperAreaHeight() {
+  const modal = document.getElementById('cropperModal');
+  const cropperBody = document.querySelector('.cropper-modal-body');
+  const cropArea = document.querySelector('.crop-area');
+  const actionBtns = document.querySelector('.action-buttons');
+  const header = modal ? modal.querySelector('.modal-header') : null;
+
+  if (
+    window.innerWidth <= 767.98 &&
+    modal && cropperBody && cropArea && actionBtns && header
+  ) {
+    // حساب المساحة المتاحة
+    const headerHeight = header.offsetHeight;
+    const actionBtnsHeight = actionBtns.offsetHeight;
+    const total = window.innerHeight;
+    const available = total - headerHeight - actionBtnsHeight;
+
+    cropperBody.style.height = (total - headerHeight) + 'px';
+    cropArea.style.height = available + 'px';
+    cropArea.style.minHeight = '0';
+    cropArea.style.maxHeight = 'none';
+    cropArea.style.margin = '0';
+    cropArea.style.padding = '0';
+  } else if (cropArea) {
+    // إعادة تعيين في الشاشات الكبيرة
+    cropArea.style.height = '';
+    cropArea.style.minHeight = '';
+    cropArea.style.maxHeight = '';
+    cropArea.style.margin = '';
+    cropArea.style.padding = '';
+  }
+}
+
+// استدعاء عند فتح المودال وعند تغيير الحجم
+window.addEventListener('resize', fixCropperAreaHeight);
+document.addEventListener('shown.bs.modal', function(e) {
+  if (e.target && e.target.id === 'cropperModal') {
+    setTimeout(fixCropperAreaHeight, 100);
+  }
+});
+
 // FileUploadHandler للمناطق المتعددة
 document.addEventListener('DOMContentLoaded', function() {
   const uploadZones = document.querySelectorAll('[data-upload-role="zone"]');
@@ -359,49 +666,141 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (fileInput) {
-      fileInput.addEventListener('change', (e) => {
+      fileInput.addEventListener('change', async (e) => {
         const file = fileInput.files[0];
         if (!file) return;
 
-        if (file.type.startsWith('image/')) {
-          window.showCropperModal(file, (croppedFile) => {
-            if (croppedFile) {
-              uploadFileAJAX(croppedFile, zone, preview, hiddenFileId, hiddenTempName, hiddenDocType);
-            } else {
-              fileInput.value = '';
-            }
+        console.log('[FileInput] تم اختيار ملف:', {
+          name: file.name,
+          size: file.size,
+          type: file.type
+        });
+
+        try {
+          if (file.type.startsWith('image/')) {
+            console.log('[FileInput] بدء عرض أداة القص للملف:', file.name);
+
+            // عرض أداة القص مباشرة بدون ضغط مسبق
+            window.showCropperModal(file, (processedFile) => {
+              if (processedFile) {
+                console.log('[FileInput] تم استلام الملف المعالج:', {
+                  name: processedFile.name,
+                  size: processedFile.size,
+                  isCropped: processedFile.name.includes('_cropped')
+                });
+                uploadFileAJAX(processedFile, zone, preview, hiddenFileId, hiddenTempName, hiddenDocType);
+              } else {
+                console.error('[FileInput] لم يتم استلام ملف معالج');
+                fileInput.value = '';
+                Swal.fire({
+                  icon: 'warning',
+                  title: 'تم الإلغاء',
+                  text: 'تم إلغاء عملية معالجة الصورة'
+                });
+              }
+            });
+          } else {
+            // للملفات غير الصور، رفع مباشر
+            console.log('[FileInput] ملف غير صورة، رفع مباشر');
+            uploadFileAJAX(file, zone, preview, hiddenFileId, hiddenTempName, hiddenDocType);
+          }
+        } catch (error) {
+          console.error('[FileInput] خطأ في معالجة الملف:', error);
+          Swal.fire({
+            icon: 'error',
+            title: 'خطأ',
+            text: 'حدث خطأ أثناء معالجة الملف'
           });
-        } else {
-          uploadFileAJAX(file, zone, preview, hiddenFileId, hiddenTempName, hiddenDocType);
+          fileInput.value = '';
         }
       });
     }
   });
 
   function uploadFileAJAX(file, zone, preview, hiddenFileId, hiddenTempName, hiddenDocType) {
+    console.log('[uploadFileAJAX] بدء رفع الملف:', {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      docType: hiddenDocType?.value,
+      isCropped: file.name.includes('_cropped'),
+      isCompressed: file.name.includes('_compressed')
+    });
+
+    // التحقق من أن الملف صالح
+    if (!file || !(file instanceof File)) {
+      console.error('[uploadFileAJAX] الملف غير صالح:', file);
+      Swal.fire({
+        icon: 'error',
+        title: 'خطأ',
+        text: 'الملف غير صالح'
+      });
+      return;
+    }
+
     const loaderModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('compressLoaderModal'));
     loaderModal?.show();
 
+    // إنشاء FormData جديد مع التحقق من البيانات
     const formData = new FormData();
-    formData.append('file', file);
 
+    // إضافة الملف مع التأكد من الاسم الصحيح
+    formData.append('file', file, file.name);
+
+    // إضافة معرف CSRF
     const csrf = document.querySelector('meta[name="csrf-token"]');
-    if (csrf) formData.append('_token', csrf.getAttribute('content'));
+    if (csrf) {
+      formData.append('_token', csrf.getAttribute('content'));
+    }
 
+    // إضافة نوع المستند
     if (hiddenDocType?.value) {
       formData.append('document_type_value', hiddenDocType.value);
+      console.log('[uploadFileAJAX] نوع المستند:', hiddenDocType.value);
+    }
+
+    // إضافة معلومات إضافية للتتبع
+    formData.append('is_cropped', file.name.includes('_cropped') ? '1' : '0');
+    formData.append('is_compressed', file.name.includes('_compressed') ? '1' : '0');
+    formData.append('original_size', file.size.toString());
+    formData.append('file_type', file.type);
+
+    // عرض محتويات FormData للتأكد
+    console.log('[uploadFileAJAX] محتويات FormData:');
+    for (let [key, value] of formData.entries()) {
+      if (value instanceof File) {
+        console.log(`${key}: [File] ${value.name} (${value.size} bytes, ${value.type})`);
+      } else {
+        console.log(`${key}: ${value}`);
+      }
     }
 
     fetch('/ajax/file-upload', {
       method: 'POST',
       body: formData,
-      headers: { 'Accept': 'application/json' }
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      }
     })
-    .then(response => response.json())
+    .then(response => {
+      console.log('[uploadFileAJAX] استجابة الخادم - الحالة:', response.status);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      return response.json();
+    })
     .then(data => {
       loaderModal?.hide();
+      console.log('[uploadFileAJAX] بيانات الاستجابة:', data);
 
       if (data.success && data.file_id && data.temp_file_name) {
+        console.log('[uploadFileAJAX] تم رفع الملف بنجاح:', {
+          fileId: data.file_id,
+          tempFileName: data.temp_file_name,
+          originalFileName: file.name
+        });
+
         if (hiddenFileId) hiddenFileId.value = data.file_id;
         if (hiddenTempName) hiddenTempName.value = data.temp_file_name;
 
@@ -410,16 +809,29 @@ document.addEventListener('DOMContentLoaded', function() {
           reader.onload = (e) => {
             preview.src = e.target.result;
             preview.style.display = '';
+            console.log('[uploadFileAJAX] تم عرض معاينة الصورة');
           };
           reader.readAsDataURL(file);
         } else if (preview) {
           preview.textContent = file.name;
           preview.style.display = '';
+          console.log('[uploadFileAJAX] تم عرض اسم الملف');
         }
+
+        // إظهار رسالة نجاح
+        Swal.fire({
+          icon: 'success',
+          title: 'تم الرفع بنجاح',
+          text: `تم رفع ومعالجة الملف بنجاح`,
+          timer: 2000,
+          showConfirmButton: false
+        });
+
       } else {
+        console.error('[uploadFileAJAX] فشل رفع الملف:', data);
         Swal.fire({
           icon: 'error',
-          title: 'خطأ',
+          title: 'خطأ في الرفع',
           text: data.message || 'فشل رفع الملف'
         });
         resetFields();
@@ -427,10 +839,11 @@ document.addEventListener('DOMContentLoaded', function() {
     })
     .catch(err => {
       loaderModal?.hide();
+      console.error('[uploadFileAJAX] خطأ في الشبكة:', err);
       Swal.fire({
         icon: 'error',
-        title: 'خطأ',
-        text: 'حدث خطأ أثناء رفع الملف'
+        title: 'خطأ في الشبكة',
+        text: 'حدث خطأ أثناء رفع الملف. يرجى المحاولة مرة أخرى.'
       });
       resetFields();
     });
@@ -439,108 +852,12 @@ document.addEventListener('DOMContentLoaded', function() {
       if (hiddenFileId) hiddenFileId.value = '';
       if (hiddenTempName) hiddenTempName.value = '';
       if (preview) preview.style.display = 'none';
+      console.log('[uploadFileAJAX] تم إعادة تعيين الحقول');
     }
   }
+
+  // ...existing code...
 });
-
-// دالة مختصرة
-window.showCropper = window.showCropperModal;
-
-// إشارة الجاهزية
-window.cropperReady = true;
-console.log('[Cropper] ✅ تم تحميل أداة القص بنجاح');
-
-if (window.dispatchEvent) {
-  window.dispatchEvent(new CustomEvent('cropperReady', {
-    detail: { showCropperModal: window.showCropperModal }
-  }));
-}
 </script>
 
-
-<!-- دالة مختصرة لسهولة الوصول -->
-<script>
-window.showCropper = window.showCropperModal;
-
-// فحص تشخيصي لتأكيد توفر أداة القص
-console.log('[Cropper] ✅ تم تحميل أداة القص بنجاح');
-console.log('[Cropper] window.showCropperModal:', typeof window.showCropperModal);
-console.log('[Cropper] window.showCropper:', typeof window.showCropper);
-
-// إرسال إشارة عالمية بأن أداة القص جاهزة
-window.cropperReady = true;
-if (window.dispatchEvent) {
-  window.dispatchEvent(new CustomEvent('cropperReady', {
-    detail: {
-      showCropperModal: window.showCropperModal,
-      showCropper: window.showCropper
-    }
-  }));
-}
-</script>
-
-
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // معالج لتعديل حجم المودال عند تغيير حجم الشاشة
-    function adjustModalSize() {
-        const modal = document.getElementById('cropperModal');
-        if (!modal) return;
-
-        const modalDialog = modal.querySelector('.modal-dialog');
-        const modalContent = modal.querySelector('.modal-content');
-        const cropArea = modal.querySelector('.crop-area');
-
-        if (window.innerWidth <= 767) {
-            const availableHeight = window.innerHeight;
-            const safeHeight = availableHeight - 20;
-
-            if (modalDialog) {
-                modalDialog.style.height = safeHeight + 'px';
-                modalDialog.style.maxHeight = safeHeight + 'px';
-            }
-
-            if (modalContent) {
-                modalContent.style.height = safeHeight + 'px';
-            }
-
-            if (cropArea) {
-                const headerHeight = modal.querySelector('.modal-header')?.offsetHeight || 50;
-                const buttonsHeight = 80;
-                const imageHeight = safeHeight - headerHeight - buttonsHeight;
-
-                cropArea.style.minHeight = imageHeight + 'px';
-                cropArea.style.maxHeight = imageHeight + 'px';
-            }
-        } else {
-            // إعادة تعيين الأنماط للشاشات الكبيرة
-            if (modalDialog) {
-                modalDialog.style.height = '';
-                modalDialog.style.maxHeight = '';
-            }
-
-            if (modalContent) {
-                modalContent.style.height = '';
-            }
-
-            if (cropArea) {
-                cropArea.style.minHeight = '';
-                cropArea.style.maxHeight = '';
-            }
-        }
-    }
-
-    // تشغيل عند تحميل الصفحة
-    adjustModalSize();
-
-    // تشغيل عند تغيير حجم الشاشة
-    window.addEventListener('resize', adjustModalSize);
-
-    // تشغيل عند عرض المودال
-    const cropperModal = document.getElementById('cropperModal');
-    if (cropperModal) {
-        cropperModal.addEventListener('shown.bs.modal', adjustModalSize);
-    }
-});
 </script>

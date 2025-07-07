@@ -12,48 +12,33 @@
   </div>
 </div>
 
-<!-- Cropper Modal - محسن للجوال -->
+<!-- Cropper Modal -->
 <div class="modal fade" id="cropperModal" tabindex="-1" aria-labelledby="cropperModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-  <div class="modal-dialog modal-lg modal-dialog-centered">
+  <div class="modal-dialog">
     <div class="modal-content">
       <!-- Header -->
-      <div class="modal-header bg-primary text-white">
+      <div class="modal-header">
         <h5 class="modal-title" id="cropperModalLabel">
           <i class="fas fa-crop me-2"></i>قص وتعديل الصورة
         </h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
       </div>
 
       <!-- Body -->
-      <div class="cropper-modal-body p-3">
+      <div class="cropper-modal-body">
         <!-- منطقة الصورة مع حاوية محددة -->
-        <div class="crop-area mb-3" style="
-          width: 100%;
-          height: 400px;
-          background: #f8f9fa;
-          border: 2px dashed #dee2e6;
-          border-radius: 8px;
-          overflow: hidden;
-          position: relative;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        ">
-          <img id="cropperImage" src="" alt="الصورة المراد قصها" style="
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-            display: block;
-          " />
+        <div class="crop-area">
+          <img id="cropperImage" src="" alt="الصورة المراد قصها" />
         </div>
 
+        <!-- منطقة التحكم -->
         <!-- أزرار الحفظ والإلغاء -->
-        <div class="action-buttons d-flex gap-3 justify-content-center">
-          <button id="cropperCropBtn" class="btn btn-success btn-lg flex-fill" disabled>
+        <div class="action-buttons" style="display: flex !important; visibility: visible !important;">
+          <button id="cropperCropBtn" class="btn btn-success btn-lg" disabled style="display: flex !important;">
             <i class="fas fa-check me-2"></i>
             <span>حفظ التعديلات</span>
           </button>
-          <button type="button" class="btn btn-secondary btn-lg flex-fill" data-bs-dismiss="modal">
+          <button type="button" class="btn btn-danger btn-lg" data-bs-dismiss="modal" style="display: flex !important;">
             <i class="fas fa-times me-2"></i>
             <span>إلغاء</span>
           </button>
