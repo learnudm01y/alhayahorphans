@@ -382,6 +382,10 @@
             height: 88vh !important; /* تصغير الطول من الأسفل للجوال */
             max-height: 88vh !important;
         }
+        #cropperModal .modal-dialog {
+            margin-top: 0px !important; /* تقليل الهامش من الأعلى للجوال */
+            margin-bottom: 5px !important; /* تقليل الهامش من الأعلى للجوال */
+        }
     }
 
     /* إصلاح إضافي: ضمان أن الأزرار لا تُغطى بأي عنصر آخر */
@@ -483,6 +487,62 @@
         }
         .cropper-modal-body {
             padding-bottom: 0 !important;
+        }
+    }
+
+    @media (max-width: 767.98px) {
+        #cropperModal .modal-dialog {
+            margin-top: 0px !important;
+            margin-bottom: 32px !important; /* زيادة التباعد من الأسفل للمودال */
+            height: 100vh !important;
+            max-height: 100vh !important;
+            align-items: flex-start !important;
+        }
+        #cropperModal .modal-content {
+            height: 80vh !important;   /* تصغير الطول أكثر */
+            max-height: 80vh !important;
+            border-radius: 10px !important;
+            margin: 0 auto !important;
+        }
+        .cropper-modal-body {
+            padding-bottom: 100px !important; /* زيادة التباعد من الأسفل */
+            height: 100% !important;
+            min-height: 0 !important;
+        }
+        .action-buttons {
+            position: fixed !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            background-color: #fff !important;
+            padding: 10px 4px 32px 4px !important; /* تباعد واضح من الأسفل */
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.2) !important;
+            z-index: 99999 !important;
+            border-radius: 0 !important;
+            min-height: 50px !important;
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+    }
+</style>
+            object-fit: contain !important;
+            margin: auto !important;
+        }
+        .action-buttons {
+            position: fixed !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            background-color: #fff !important;
+            padding: 10px 4px 18px 4px !important; /* تباعد من الأسفل */
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.2) !important;
+            z-index: 99999 !important;
+            border-radius: 0 !important;
+            min-height: 50px !important;
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
         }
     }
 </style>
