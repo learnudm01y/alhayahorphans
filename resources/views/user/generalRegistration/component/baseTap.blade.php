@@ -276,8 +276,14 @@
                         <option value="{{ $documentType->pref }}">{{ $documentType->description }}</option>
                     @endforeach
                 </select>
-                {{-- <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_main" style="display:none;"> --}}<input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_main" tabindex="-1" aria-hidden="true"
-    style="position: absolute !important; left: -99999px !important; width:1px !important; height:1px !important; opacity:0 !important; pointer-events:none !important; z-index:-9999 !important;">
+                <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_main" tabindex="-1" aria-hidden="true"
+                style="
+                position: absolute !important;
+                width:1px !important;
+                height:1px !important;
+                opacity:0 !important;
+                pointer-events:none !important;
+                      ">
                 <div class="mainDocumentPreview" id="mainDocumentPreview_main"></div>
                 <div class="mainDocumentNames" id="mainDocumentNames_main"></div>
             </div>

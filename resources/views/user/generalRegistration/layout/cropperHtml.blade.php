@@ -21,7 +21,6 @@
         <h5 class="modal-title" id="cropperModalLabel">
           <i class="fas fa-crop me-2"></i>قص وتعديل الصورة
         </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق" id="cropperCancelBtn"></button>
       </div>
 
       <!-- Body -->
