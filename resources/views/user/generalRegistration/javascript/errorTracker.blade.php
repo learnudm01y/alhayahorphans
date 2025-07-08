@@ -44,7 +44,7 @@
                         Swal.fire({
                             icon: 'error',
                             title: 'خطأ في العملية',
-                            text: error.message || 'حدث خطأ غير متوقع',
+                            text: error.message || ' انتهى الوقت المحدد لتنفيذ عملية قص الصورة ',
                             confirmButtonText: 'نعم'
                         });
                     }
@@ -370,6 +370,23 @@
             // تعريف دوال التحقق في النطاق الأعلى حتى تكون متاحة للجميع
             function validateBasicTab() {
                 // ...existing code for validateBasicTab...
+                function validateBasicTab() {
+                    const password = document.querySelector('[name="user_password"]')?.value || '';
+                    const passwordConfirm = document.querySelector('[name="user_password_confirmation"]')?.value || '';
+                    if (
+                        password.length === 4 &&
+                        passwordConfirm.length === 4 &&
+                        password !== passwordConfirm
+                    ) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'تنبيه',
+                            text: 'كلمة المرور وتأكيد كلمة المرور غير متطابقتين!'
+                        });
+                        return false;
+                    }
+                    // ...rest of the code...
+                }
                 const requiredFields = [
                     'data_section_id', 'data_id_number', 'user_password', 'user_password_confirmation',
                     'data_first_name', 'data_father_name', 'data_grand_father_name', 'data_family_name',
@@ -698,6 +715,22 @@
                     const target = $(e.target).attr('data-bs-target');
                     const currentActive = document.querySelector('#formTabs .nav-link.active');
                     const currentTarget = currentActive ? currentActive.getAttribute('data-bs-target') : null;
+
+                    const password = document.querySelector('[name="user_password"]')?.value || '';
+                    const passwordConfirm = document.querySelector('[name="user_password_confirmation"]')?.value || '';
+                    if (
+                        password.length === 4 &&
+                        passwordConfirm.length === 4 &&
+                        password !== passwordConfirm
+                    ) {
+                        e.preventDefault && e.preventDefault();
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'تنبيه',
+                            text: 'كلمة المرور وتأكيد كلمة المرور غير متطابقتين!'
+                        });
+                        return false;
+                    }
 
                     function validateBasicTab() {
                         const requiredFields = [

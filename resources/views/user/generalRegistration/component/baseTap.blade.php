@@ -276,7 +276,8 @@
                         <option value="{{ $documentType->pref }}">{{ $documentType->description }}</option>
                     @endforeach
                 </select>
-                <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_main" style="display:none;">
+                {{-- <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_main" style="display:none;"> --}}<input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_main" tabindex="-1" aria-hidden="true"
+    style="position: absolute !important; left: -99999px !important; width:1px !important; height:1px !important; opacity:0 !important; pointer-events:none !important; z-index:-9999 !important;">
                 <div class="mainDocumentPreview" id="mainDocumentPreview_main"></div>
                 <div class="mainDocumentNames" id="mainDocumentNames_main"></div>
             </div>
@@ -299,6 +300,18 @@
         if (nextBtn) {
             nextBtn.addEventListener('click', function(e) {
                 // جميع الحقول المطلوبة (input/select/textarea) التي عليها نجمة
+                // تحقق من تطابق كلمة المرور
+                        const password = document.querySelector('[name="user_password"]')?.value || '';
+                        const passwordConfirm = document.querySelector('[name="user_password_confirmation"]')?.value || '';
+                        if (password && passwordConfirm && password !== passwordConfirm) {
+                            e.preventDefault();
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'تنبيه',
+                                text: 'كلمة المرور وتأكيد كلمة المرور غير متطابقتين!'
+                            });
+                            return;
+                        }
                 const requiredFields = [
                     {
                         name: 'data_section_id',

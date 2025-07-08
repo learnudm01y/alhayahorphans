@@ -389,11 +389,10 @@
                                     <!--end::Menu item-->
                                     <!--begin::Menu item-->
                                     <div class="menu-item px-5">
-                                        <form method="POST" action="{{ route('logout') }}">
+                                        <form method="POST" action="{{ route('user.logout.custom') }}">
                                             @csrf
-                                            <a href="route('logout')"
-                                                onclick="event.preventDefault();
-                                                            this.closest('form').submit();"
+                                            <a href="#"
+                                                onclick="event.preventDefault(); this.closest('form').submit();"
                                                 class="menu-link px-5"> تسجيل الخروج </a>
                                         </form>
                                     </div>

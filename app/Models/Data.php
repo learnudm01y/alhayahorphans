@@ -57,7 +57,8 @@ class Data extends Model
 
     public function guardianBankAccount()
     {
-        return $this->belongsTo(GuardianBankAccount::class, 'file_id_number', 'file_id');
+        // العلاقة الصحيحة: كل سجل بيانات له حساب بنكي واحد عبر file_id_number <-> guardian_registration
+        return $this->hasOne(GuardianBankAccount::class, 'guardian_registration', 'file_id_number');
     }
 
     public function requestStatus()

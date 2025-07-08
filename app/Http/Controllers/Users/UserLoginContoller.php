@@ -35,11 +35,19 @@ class UserLoginContoller extends Controller
 
         if (Auth::attempt($credentials)) {
             $request->session()->regenerate();
-            return redirect()->route('user.dashboard')->with('success', 'تم تسجيل الدخول بنجاح.');
+            return redirect()->route('user.generalRegistration.index')->with('success', 'تم تسجيل الدخول بنجاح.');
         }
 
         return back()->withErrors([
             'login_email' => 'بيانات الدخول غير صحيحة أو الحساب غير مفعل.',
         ])->withInput();
+    }
+
+    public function logout(Request $request)
+    {
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+        return redirect()->route('user.login.page.index');
     }
 }

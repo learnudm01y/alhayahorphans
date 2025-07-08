@@ -5,6 +5,7 @@ use App\Http\Controllers\Roles\RoleController;
 use App\Http\Controllers\Users\UserController;
 use App\Http\Controllers\Users\CreateRecordsController;
 use App\Http\Controllers\Users\GeneralRegistrationController;
+use App\Http\Controllers\Users\ShowGeneralRegisrationController;
 use App\Http\Controllers\Users\UserLoginContoller;
 use App\Http\Controllers\Users\UserProfileController;
 use Illuminate\Support\Facades\Route;
@@ -30,7 +31,7 @@ Route::get('/', function () {
 // حماية جميع مسارات المستخدمين بميدل وير auth و verified
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::group(['prefix' => 'user', 'as' => 'user.'], function () {
-        Route::get('/dashboard', [CreateRecordsController::class, 'index'])->name('dashboard');
+        Route::get('/dashboard', [ShowGeneralRegisrationController::class, 'index'])->name('generalRegistration.index');
         // profifle management
         Route::get('profile', [UserProfileController::class, 'profile'])->name('index.profile');
         Route::get('settings', [UserProfileController::class, 'settings'])->name('settings');
@@ -52,6 +53,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
 });
 
 Route::post('/login/user', [UserLoginContoller::class, 'login'])->name('user.login');
+Route::post('/logout-user', [\App\Http\Controllers\Users\UserLoginContoller::class, 'logout'])->name('user.logout.custom');
+Route::get('/users/generalRegistration/login', function() {
+    return view('user.generalRegistration.login');
+})->name('user.login.page.index');
 Route::post('admin/general-category/toggle-status', [\App\Http\Controllers\Admin\GeneralCategoryCotroller::class, 'toggleStatus'])->name('admin.general-category.toggle-status');
 
 
