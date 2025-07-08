@@ -411,10 +411,10 @@
 
     /* نقاط الشبكة (Cropper points) */
     .cropper-point {
-        width: 28px !important;
-        height: 28px !important;
+        width: 16px !important;
+        height: 16px !important;
         background-color: #fff !important;
-        border: 6px solid #007bff !important;
+        border: 3px solid #007bff !important;
         border-radius: 50% !important;
         opacity: 1 !important;
         box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
@@ -423,9 +423,9 @@
     /* تكبير النقاط أكثر على الشاشات الصغيرة */
     @media (max-width: 991.98px) {
         .cropper-point {
-            width: 36px !important;
-            height: 36px !important;
-            border-width: 7px !important;
+            width: 20px !important;
+            height: 20px !important;
+            border-width: 4px !important;
         }
         .cropper-line.cropper-line-h {
             height: 7px !important;
