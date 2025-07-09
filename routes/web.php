@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\GeneralCategoryCotroller;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Roles\RoleController;
 use App\Http\Controllers\Users\UserController;
@@ -52,13 +53,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('users', UserController::class);
 });
 
-Route::post('/login/user', [UserLoginContoller::class, 'login'])->name('user.login');
-Route::post('/logout-user', [\App\Http\Controllers\Users\UserLoginContoller::class, 'logout'])->name('user.logout.custom');
-Route::get('/users/generalRegistration/login', function() {
-    return view('user.generalRegistration.login');
-})->name('user.login.page.index');
-Route::post('admin/general-category/toggle-status', [\App\Http\Controllers\Admin\GeneralCategoryCotroller::class, 'toggleStatus'])->name('admin.general-category.toggle-status');
+    Route::post('/login/user', [UserLoginContoller::class, 'login'])->name('user.login');
+    Route::post('/logout-user', [\App\Http\Controllers\Users\UserLoginContoller::class, 'logout'])->name('user.logout.custom');
+    Route::get('/users/generalRegistration/login', function() {
+        return view('user.generalRegistration.login');
+    })->name('user.login.page.index');
+    Route::post('admin/general-category/toggle-status', [GeneralCategoryCotroller::class, 'toggleStatus'])->name('admin.general-category.toggle-status');
 
+    Route::post('/check-id-number', [GeneralRegistrationController::class, 'check'])->name('check.id');
 
 
 

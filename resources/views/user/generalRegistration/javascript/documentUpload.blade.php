@@ -892,6 +892,12 @@
 
             // تحسين renderAttachmentTasksUI للعرض الفوري المحسن
             function renderAttachmentTasksUI(personKey) {
+                // تعطيل أفراد الأسرة نهائياً داخل هذه الدالة
+                // if (personKey && personKey.startsWith('family_')) {
+                //     // فقط سجل في الكونسول وتوقف
+                //     console.log(`[renderAttachmentTasksUI] تم تجاهل أفراد الأسرة (${personKey})`);
+                //     return;
+                // }
                 console.log(`[renderAttachmentTasksUI] 🎨 تحديث واجهة البوابة: ${personKey}`);
 
                 // تحقق أن البوابة موجودة فعلياً في الصفحة

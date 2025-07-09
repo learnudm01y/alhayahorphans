@@ -401,5 +401,24 @@ class GeneralRegistrationController extends Controller
                 ->with('error', 'حدث خطأ أثناء حفظ السجل: ' . $e->getMessage());
         }
     }
+    // فحص وجود رقم الهوية في الجداول المختلفة
+    public function check(Request $request)
+    {
+        $id = $request->input('id_number');
+        $exists = false;
+
+        // تحقق في جدول البيانات الأساسية
+        if (Data::where('data_id_number', $id)->exists()) $exists = true;
+
+        // تحقق في جدول الأفراد المتوفين (الأب أو الأم)
+        if (
+            DeadPepole::where('father_id', $id)->orWhere('mother_id', $id)->exists()
+        ) $exists = true;
+
+        // تحقق في جدول أفراد الأسرة
+        if (RePeople::where('person_id', $id)->exists()) $exists = true;
+
+        return response()->json(['exists' => $exists]);
+    }
 }
 

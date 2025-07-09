@@ -304,7 +304,7 @@
     document.addEventListener('DOMContentLoaded', function() {
         const nextBtn = document.getElementById('goToNextTabBtn');
         if (nextBtn) {
-            nextBtn.addEventListener('click', function(e) {
+            nextBtn.addEventListener('click', async function(e) {
                 // جميع الحقول المطلوبة (input/select/textarea) التي عليها نجمة
                 // تحقق من تطابق كلمة المرور
                         const password = document.querySelector('[name="user_password"]')?.value || '';
@@ -432,6 +432,10 @@
                     });
                     return;
                 }
+
+                // تحقق من أرقام الهوية (تكرار وقاعدة بيانات) قبل أي انتقال
+                const valid = await validateAllIds(e);
+                if (!valid) return;
                 // منطق الانتقال حسب القسم
                 const sectionSelect = document.querySelector('select[name="data_section_id"]');
                 const selectedValue = sectionSelect ? sectionSelect.value : '';

@@ -99,6 +99,8 @@
                                     if (invalidField.focus) invalidField.focus();
                                     return;
                                 }
+                                const valid = await validateAllIds(e);
+                                if (!valid) return; // إذا كان هناك خطأ لا تنتقل
                                 // الانتقال إلى تبويب المراجعة
                                 const reviewTab = document.getElementById('review-tab');
                                 if (reviewTab) {
@@ -1825,7 +1827,7 @@
         const mobileStyles = document.createElement('style');
         mobileStyles.id = `family-member-mobile-styles-${cacheBuster}`;
         mobileStyles.setAttribute('data-version', '2025-01-07-v2');
-        
+
 
         // إزالة الأنماط القديمة إذا كانت موجودة
         const oldStyles = document.querySelectorAll('[id^="family-member-mobile-styles"]');

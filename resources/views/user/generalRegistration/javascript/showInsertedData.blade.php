@@ -265,5 +265,37 @@ let attachmentsHtml = '';
                 // سيتم إرسال النموذج بشكل طبيعي (لا تمنع الإرسال هنا)
             });
         });
+        // ربط زر الحفظ النهائي بالتحقق من أرقام الهوية
+        document.addEventListener('DOMContentLoaded', function() {
+            const finalSaveBtn = document.getElementById('finalSaveBtn');
+            if (finalSaveBtn) {
+                finalSaveBtn.addEventListener('click', async function(e) {
+                    e.preventDefault();
+                    // استدعاء دالة التحقق الموحدة
+                    const valid = await validateAllIds(e);
+                    if (!valid) return; // لا ترسل النموذج إذا كان هناك خطأ
+                    // إذا كان كل شيء صحيح أرسل النموذج
+                    document.getElementById('main_form').requestSubmit();
+                });
+            }
+        });
+        
+        // === ضع الكود الجديد هنا ===
+        async function validateAllIds(e) {
+            // تحقق من التكرار في النموذج
+            const isUnique = checkDuplicateIdsInForm();
+            if (!isUnique) {
+                if (e) e.preventDefault();
+                return false;
+            }
+            // تحقق من قاعدة البيانات
+            const dbOk = await checkIdNumbersInDatabase();
+            if (!dbOk) {
+                if (e) e.preventDefault();
+                return false;
+            }
+            return true;
+        }
+
     </script>
 @endpush

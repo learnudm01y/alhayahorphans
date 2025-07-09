@@ -133,6 +133,12 @@ async function compressImageWithProgress(file) {
     throw error;
   }
 }
+// // إزالة أي cropper modal سابق
+// document.querySelectorAll('.cropper-modal, .modal[data-cropper-modal]').forEach(m => m.remove());
+// // أو إذا كان لديك ID ثابت:
+// const oldModal = document.getElementById('cropperModal');
+// if (oldModal) oldModal.remove();
+// // دالة لإغلاق المودال وإزالة cropper
 
 window.showCropperModal = function(file, callback) {
   console.log('[showCropperModal] بدء فحص الملف:', file);
@@ -883,4 +889,4 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-</script>
+

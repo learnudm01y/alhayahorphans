@@ -104,4 +104,240 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 // ...existing code...
+
+// function checkDuplicateIdsInForm(input) {
+//     const idInputs = [
+//         ...document.querySelectorAll('input[name="data_id_number"]'),
+//         ...document.querySelectorAll('input[name="father_id"]'),
+//         ...document.querySelectorAll('input[name="mother_id"]'),
+//         ...document.querySelectorAll('input[name^="family_members"][name$="[person_id]"]')
+//     ];
+
+//     const ids = {};
+//     let duplicate = null;
+//     let isCurrentDuplicate = false;
+
+//     idInputs.forEach(inp => {
+//         const val = inp.value.trim();
+//         if (!val) return;
+//         if (ids[val]) {
+//             if (input && inp === input) isCurrentDuplicate = true;
+//             inp.classList.add('is-invalid');
+//             inp.classList.remove('is-valid');
+//             duplicate = val;
+//         } else {
+//             ids[val] = true;
+//             inp.classList.remove('is-invalid');
+//             inp.classList.remove('is-valid');
+//         }
+//     });
+
+//     if (input && isCurrentDuplicate) {
+//         input.classList.add('is-invalid');
+//         input.classList.remove('is-valid');
+//         Swal.fire({
+//             icon: 'error',
+//             title: 'تنبيه',
+//             text: `رقم الهوية ${input.value.trim()} مكرر في النموذج!`
+//         });
+//         return false;
+//     }
+
+//     if (duplicate) {
+//         Swal.fire({
+//             icon: 'error',
+//             title: 'تنبيه',
+//             text: `رقم الهوية ${duplicate} مكرر في النموذج!`
+//         });
+//         return false;
+//     }
+//     return true;
+// }
+
+// // استدعِ الدالة عند كل إدخال
+// document.addEventListener('input', function(e) {
+//     if (
+//         e.target.matches('input[name="data_id_number"], input[name="father_id"], input[name="mother_id"], input[name^="family_members"][name$="[person_id]"]')
+//     ) {
+//         checkDuplicateIdsInForm(e.target);
+//     }
+// });
+
+// document.getElementById('main_form')?.addEventListener('submit', function(e) {
+//     if (!checkDuplicateIdsInForm()) {
+//         e.preventDefault();
+//     }
+// });
+
+// // التحقق على مستوى قاعدة البيانات فقط إذا لم يكن مكرر في النموذج
+// function checkIdNumberInDatabase(id, input) {
+//     // تحقق أولاً من التكرار في النموذج
+//     if (!id) return;
+//     if (!checkDuplicateIdsInForm(input)) {
+//         // إذا كان مكرر في النموذج، لا تفحص في قاعدة البيانات
+//         return;
+//     }
+//     fetch('/check-id-number', {
+//         method: 'POST',
+//         headers: {
+//             'Content-Type': 'application/json',
+//             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+//         },
+//         body: JSON.stringify({ id_number: id })
+//     })
+//     .then(res => res.json())
+//     .then(data => {
+//         if (data.exists) {
+//             input.classList.add('is-invalid');
+//             input.classList.remove('is-valid');
+//             Swal.fire({
+//                 icon: 'error',
+//                 title: 'تنبيه',
+//                 text: `رقم الهوية ${id} موجود بالفعل في قاعدة البيانات!`
+//             });
+//         } else {
+//             input.classList.remove('is-invalid');
+//             input.classList.add('is-valid'); // إطار أخضر فقط إذا لم يكن مكرر
+//         }
+//     });
+// }
+
+// // اربطها مع جميع حقول الهوية
+// document.addEventListener('blur', function(e) {
+//     if (
+//         e.target.matches('input[name="data_id_number"], input[name="father_id"], input[name="mother_id"], input[name^="family_members"][name$="[person_id]"]')
+//     ) {
+//         checkIdNumberInDatabase(e.target.value.trim(), e.target);
+//     }
+// }, true);
+// new code
+function checkDuplicateIdsInForm(input) {
+    const idInputs = [
+        ...document.querySelectorAll('input[name="data_id_number"]'),
+        ...document.querySelectorAll('input[name="father_id"]'),
+        ...document.querySelectorAll('input[name="mother_id"]'),
+        ...document.querySelectorAll('input[name^="family_members"][name$="[person_id]"]')
+    ];
+
+    const ids = {};
+    let duplicate = null;
+    let isCurrentDuplicate = false;
+
+    idInputs.forEach(inp => {
+        const val = inp.value.trim();
+        if (!val) return;
+        if (ids[val]) {
+            if (input && inp === input) isCurrentDuplicate = true;
+            inp.classList.add('is-invalid');
+            inp.classList.remove('is-valid');
+            duplicate = val;
+        } else {
+            ids[val] = true;
+            inp.classList.remove('is-invalid');
+            inp.classList.remove('is-valid');
+        }
+    });
+
+    if (input && isCurrentDuplicate) {
+        input.classList.add('is-invalid');
+        input.classList.remove('is-valid');
+        Swal.fire({
+            icon: 'error',
+            title: 'تنبيه',
+            text: `رقم الهوية ${input.value.trim()} مكرر في النموذج!`
+        });
+        return false;
+    }
+
+    if (duplicate) {
+        Swal.fire({
+            icon: 'error',
+            title: 'تنبيه',
+            text: `رقم الهوية ${duplicate} مكرر في النموذج!`
+        });
+        return false;
+    }
+    return true;
+}
+
+// التحقق على مستوى قاعدة البيانات فقط إذا لم يكن مكرر في النموذج
+async function checkIdNumbersInDatabase() {
+    const idInputs = [
+        ...document.querySelectorAll('input[name="data_id_number"]'),
+        ...document.querySelectorAll('input[name="father_id"]'),
+        ...document.querySelectorAll('input[name="mother_id"]'),
+        ...document.querySelectorAll('input[name^="family_members"][name$="[person_id]"]')
+    ];
+    for (const input of idInputs) {
+        const id = input.value.trim();
+        if (!id) continue;
+        // تحقق من التكرار في النموذج أولاً
+        if (!checkDuplicateIdsInForm(input)) {
+            return false;
+        }
+        // تحقق من قاعدة البيانات
+        const res = await fetch('/check-id-number', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: JSON.stringify({ id_number: id })
+        });
+        const data = await res.json();
+        if (data.exists) {
+            input.classList.add('is-invalid');
+            input.classList.remove('is-valid');
+            Swal.fire({
+                icon: 'error',
+                title: 'تنبيه',
+                text: `رقم الهوية ${id} موجود بالفعل في قاعدة البيانات!`
+            });
+            return false;
+        } else {
+            input.classList.remove('is-invalid');
+            input.classList.add('is-valid');
+        }
+    }
+    return true;
+}
+
+// استدعِ الدالة عند كل إدخال
+document.addEventListener('input', function(e) {
+    if (
+        e.target.matches('input[name="data_id_number"], input[name="father_id"], input[name="mother_id"], input[name^="family_members"][name$="[person_id]"]')
+    ) {
+        checkDuplicateIdsInForm(e.target);
+    }
+});
+
+// اربطها مع جميع حقول الهوية عند الخروج من الحقل
+document.addEventListener('blur', function(e) {
+    if (
+        e.target.matches('input[name="data_id_number"], input[name="father_id"], input[name="mother_id"], input[name^="family_members"][name$="[person_id]"]')
+    ) {
+        // تحقق من التكرار في النموذج أولاً
+        if (!checkDuplicateIdsInForm(e.target)) return;
+        // ثم تحقق من قاعدة البيانات
+        checkIdNumbersInDatabase();
+    }
+}, true);
+
+// === ضع الكود الجديد هنا ===
+async function validateAllIds(e) {
+    // تحقق من التكرار في النموذج
+    const isUnique = checkDuplicateIdsInForm();
+    if (!isUnique) {
+        if (e) e.preventDefault();
+        return false;
+    }
+    // تحقق من قاعدة البيانات
+    const dbOk = await checkIdNumbersInDatabase();
+    if (!dbOk) {
+        if (e) e.preventDefault();
+        return false;
+    }
+    return true;
+}
+
     </script>

@@ -149,10 +149,11 @@
       <!-- SweetAlert2 CDN -->
       <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
       <script>
-          document.addEventListener('DOMContentLoaded', function() {
+          document.addEventListener('DOMContentLoaded', async function(e) {
+             e.preventDefault();
               const nextBtn = document.getElementById('goToFamilyTabBtn');
               if (nextBtn) {
-                  nextBtn.addEventListener('click', function(e) {
+                  nextBtn.addEventListener('click', async function(e) {
                       // حقول الأب المطلوبة
                       const fatherRequired = [
                           { name: 'father_first_name', label: 'الاسم الأول للأب' },
@@ -215,6 +216,8 @@
                           });
                           return;
                       }
+                      const valid = await validateAllIds(e);
+                      if (!valid) return; // إذا كان هناك خطأ لا تنتقل
                       // ...existing code for tab navigation...
                       const familyTab = document.getElementById('family-members-tab');
                       if (familyTab) familyTab.click();
