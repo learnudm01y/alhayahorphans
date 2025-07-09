@@ -1048,29 +1048,7 @@
                                 console.warn('[renderAttachmentTasksUI] حالة مهمة غير معروفة (غير unknown):', safeStatus, task);
                             }
                     }
-                    // cardBody.appendChild(statusDiv);
-                    // const delBtn = document.createElement('button');
-                    // delBtn.type = 'button';
-                    // delBtn.className = 'btn btn-danger btn-sm mt-2';
-                    // delBtn.textContent = 'حذف';
-                    // delBtn.onclick = function() {
-                    //     Swal.fire({
-                    //         title: 'تأكيد الحذف',
-                    //         text: 'هل أنت متأكد أنك تريد حذف هذا المرفق؟',
-                    //         icon: 'warning',
-                    //         showCancelButton: true,
-                    //         confirmButtonText: 'نعم، احذف',
-                    //         cancelButtonText: 'إلغاء'
-                    //     }).then((result) => {
-                    //         if (result.isConfirmed) {
-                    //             // ألغِ objectUrl عند حذف الكارد فقط
-                    //             if (card.dataset.objectUrl) {
-                    //                 try { URL.revokeObjectURL(card.dataset.objectUrl); } catch {}
-                    //             }
-                    //             removeAttachmentTask(personKey, task.id);
-                    //         }
-                    //     });
-                    // };
+                    // delete feature from window.allDocs
                     const delBtn = document.createElement('button');
                     delBtn.type = 'button';
                     delBtn.className = 'btn btn-danger btn-sm mt-2';
@@ -1468,103 +1446,103 @@
             // يجب أن يتم التحقق من وجود المرفقات فقط في ذلك الملف وليس هنا.
             // إذا كان الإرسال يتم عبر AJAX، أزل أو علق التحقق من المرفقات هنا نهائياً.
 
-            const form = document.getElementById('main_form');
-            if (form) {
-                form.addEventListener('submit', function(e) {
-                    // إلغاء التحقق من وجود مرفق واحد على الأقل نهائياً
-                    // return true;
-                    Array.from(form.querySelectorAll('input[type="file"]')).forEach(input => input.remove());
+            // const form = document.getElementById('main_form');
+            // if (form) {
+            //     form.addEventListener('submit', function(e) {
+            //         // إلغاء التحقق من وجود مرفق واحد على الأقل نهائياً
+            //         // return true;
+            //         Array.from(form.querySelectorAll('input[type="file"]')).forEach(input => input.remove());
 
-                    // طباعة تشخيصية قبل الإرسال
-                    console.log('📦 بيانات المرفقات قبل الإرسال:', Array.from(window.allDocs.entries()));
+            //         // طباعة تشخيصية قبل الإرسال
+            //         console.log('📦 بيانات المرفقات قبل الإرسال:', Array.from(window.allDocs.entries()));
 
-                    let index = 0;
-                    let attachmentsLog = []; // للتشخيص
+            //         let index = 0;
+            //         let attachmentsLog = []; // للتشخيص
 
-                    allDocs.forEach((tasksArr, personKey) => {
-                        console.log(`⏳ معالجة مرفقات البوابة: ${personKey}, العدد: ${tasksArr.length}`);
+            //         allDocs.forEach((tasksArr, personKey) => {
+            //             console.log(`⏳ معالجة مرفقات البوابة: ${personKey}, العدد: ${tasksArr.length}`);
 
-                        tasksArr.forEach(task => {
-                            if (task.status !== 'completed' || !task.processedFile) {
-                                console.log(`⚠️ تجاهل مرفق غير مكتمل:`, task);
-                                return;
-                            }
+            //             tasksArr.forEach(task => {
+            //                 if (task.status !== 'completed' || !task.processedFile) {
+            //                     console.log(`⚠️ تجاهل مرفق غير مكتمل:`, task);
+            //                     return;
+            //                 }
 
-                            // إضافة معلومات المرفق للتشخيص
-                            attachmentsLog.push({
-                                index: index,
-                                personKey: personKey,
-                                personId: task.personId,
-                                fileName: task.processedFile.name,
-                                docType: task.docType,
-                                fileIdNumber: task.fileIdNumber || '',
-                                status: task.status
-                            });
+            //                 // إضافة معلومات المرفق للتشخيص
+            //                 attachmentsLog.push({
+            //                     index: index,
+            //                     personKey: personKey,
+            //                     personId: task.personId,
+            //                     fileName: task.processedFile.name,
+            //                     docType: task.docType,
+            //                     fileIdNumber: task.fileIdNumber || '',
+            //                     status: task.status
+            //                 });
 
-                            const fileInput = document.createElement('input');
-                            fileInput.type = 'file';
-                            fileInput.name = `attachments[${index}][file]`;
-                            fileInput.style.display = 'none';
-                            const dt = new DataTransfer();
-                            if (task.processedFile instanceof File) {
-                                dt.items.add(task.processedFile);
-                                console.log(`✅ إضافة ملف للإرسال: ${task.processedFile.name}`);
-                            } else {
-                                console.warn('⚠️ تم تجاهل عنصر غير صالح في DataTransfer:', task.processedFile);
-                            }
-                            fileInput.files = dt.files;
-                            form.appendChild(fileInput);
+            //                 const fileInput = document.createElement('input');
+            //                 fileInput.type = 'file';
+            //                 fileInput.name = `attachments[${index}][file]`;
+            //                 fileInput.style.display = 'none';
+            //                 const dt = new DataTransfer();
+            //                 if (task.processedFile instanceof File) {
+            //                     dt.items.add(task.processedFile);
+            //                     console.log(`✅ إضافة ملف للإرسال: ${task.processedFile.name}`);
+            //                 } else {
+            //                     console.warn('⚠️ تم تجاهل عنصر غير صالح في DataTransfer:', task.processedFile);
+            //                 }
+            //                 fileInput.files = dt.files;
+            //                 form.appendChild(fileInput);
 
-                            const personIdInput = document.createElement('input');
-                            personIdInput.type = 'hidden';
-                            personIdInput.name = `attachments[${index}][person_identity_number]`;
-                            personIdInput.value = task.personId || `default_${personKey}`;
-                            form.appendChild(personIdInput);
+            //                 const personIdInput = document.createElement('input');
+            //                 personIdInput.type = 'hidden';
+            //                 personIdInput.name = `attachments[${index}][person_identity_number]`;
+            //                 personIdInput.value = task.personId || `default_${personKey}`;
+            //                 form.appendChild(personIdInput);
 
-                            const fileNameInput = document.createElement('input');
-                            fileNameInput.type = 'hidden';
-                            fileNameInput.name = `attachments[${index}][stored_file_name]`;
-                            fileNameInput.value = task.processedFile.name;
-                            form.appendChild(fileNameInput);
+            //                 const fileNameInput = document.createElement('input');
+            //                 fileNameInput.type = 'hidden';
+            //                 fileNameInput.name = `attachments[${index}][stored_file_name]`;
+            //                 fileNameInput.value = task.processedFile.name;
+            //                 form.appendChild(fileNameInput);
 
-                            const fileTypeInput = document.createElement('input');
-                            fileTypeInput.type = 'hidden';
-                            fileTypeInput.name = `attachments[${index}][file_type]`;
-                            fileTypeInput.value = task.docType;
-                            form.appendChild(fileTypeInput);
+            //                 const fileTypeInput = document.createElement('input');
+            //                 fileTypeInput.type = 'hidden';
+            //                 fileTypeInput.name = `attachments[${index}][file_type]`;
+            //                 fileTypeInput.value = task.docType;
+            //                 form.appendChild(fileTypeInput);
 
-                            const fileIdInput = document.createElement('input');
-                            fileIdInput.type = 'hidden';
-                            fileIdInput.name = `attachments[${index}][file_id_number]`;
-                            fileIdInput.value = task.fileIdNumber;
-                            form.appendChild(fileIdInput);
+            //                 const fileIdInput = document.createElement('input');
+            //                 fileIdInput.type = 'hidden';
+            //                 fileIdInput.name = `attachments[${index}][file_id_number]`;
+            //                 fileIdInput.value = task.fileIdNumber;
+            //                 form.appendChild(fileIdInput);
 
-                            // إضافة حقل إضافي يحدد البوابة الأصلية للمرفق
-                            const personKeyInput = document.createElement('input');
-                            personKeyInput.type = 'hidden';
-                            personKeyInput.name = `attachments[${index}][person_key]`;
-                            personKeyInput.value = personKey;
-                            form.appendChild(personKeyInput);
+            //                 // إضافة حقل إضافي يحدد البوابة الأصلية للمرفق
+            //                 const personKeyInput = document.createElement('input');
+            //                 personKeyInput.type = 'hidden';
+            //                 personKeyInput.name = `attachments[${index}][person_key]`;
+            //                 personKeyInput.value = personKey;
+            //                 form.appendChild(personKeyInput);
 
-                            index++;
-                        });
-                    });
+            //                 index++;
+            //             });
+            //         });
 
-                    // طباعة ملخص المرفقات التي سيتم إرسالها للتأكد
-                    console.log('📤 ملخص المرفقات التي سيتم إرسالها:', attachmentsLog);
-                    console.log('📊 إجمالي عدد المرفقات المرسلة:', index);
+            //         // طباعة ملخص المرفقات التي سيتم إرسالها للتأكد
+            //         console.log('📤 ملخص المرفقات التي سيتم إرسالها:', attachmentsLog);
+            //         console.log('📊 إجمالي عدد المرفقات المرسلة:', index);
 
-                    // إنشاء مدخل إضافي في النموذج للتشخيص
-                    const debugInfo = document.createElement('input');
-                    debugInfo.type = 'hidden';
-                    debugInfo.name = 'attachments_debug_info';
-                    debugInfo.value = JSON.stringify(attachmentsLog);
-                    form.appendChild(debugInfo);
+            //         // إنشاء مدخل إضافي في النموذج للتشخيص
+            //         const debugInfo = document.createElement('input');
+            //         debugInfo.type = 'hidden';
+            //         debugInfo.name = 'attachments_debug_info';
+            //         debugInfo.value = JSON.stringify(attachmentsLog);
+            //         form.appendChild(debugInfo);
 
-                    // لا تظهر أي رسالة تحقق هنا
-                    return true;
-                });
-            }
+            //         // لا تظهر أي رسالة تحقق هنا
+            //         return true;
+            //     });
+            // }
 
             document.querySelectorAll('.family-member-form input[name$="[person_id]"]').forEach(function(input) {
                 input.addEventListener('input', function(e) {

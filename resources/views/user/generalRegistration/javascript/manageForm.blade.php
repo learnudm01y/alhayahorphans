@@ -1251,18 +1251,31 @@
                             status: response.status
                         };
                     })
-                    .then(({
-                        data,
-                        status
-                    }) => {
+                    .then(({ data, status }) => {
                         // إذا كانت الاستجابة JSON وبها success=true
                         if (typeof data === 'object' && data && data.success) {
+                            // إذا كان هناك توجيه من السيرفر
+                            // if (data.redirect) {
+                            //     // window.location.href = data.redirect;
+                            //     // return;
+                            // }
+                            if (data && data.success && data.redirect) {
+                                // معالجة الرابط إذا كان يبدأ بـ http أو https أو //
+                                let redirectUrl = data.redirect;
+                                if (redirectUrl.startsWith('http://') || redirectUrl.startsWith('https://') || redirectUrl.startsWith('//')) {
+                                    window.location.href = redirectUrl;
+                                } else {
+                                    // إذا كان الرابط نسبي، أضفه إلى أصل الموقع
+                                    window.location.href = window.location.origin + (redirectUrl.startsWith('/') ? redirectUrl : '/' + redirectUrl);
+                                }
+                                return;
+                            }
                             Swal.fire({
                                 icon: 'success',
                                 title: 'تم الحفظ',
                                 text: 'تم حفظ السجل بنجاح'
                             });
-                            setTimeout(() => window.location.reload(), 1500);
+                            // setTimeout(() => window.location.reload(), 1500);
                         }
                         // إذا كانت الاستجابة نصية والكود 200، اعتبرها نجاح (حل مشكلة Laravel redirect)
                         else if (status === 200 && typeof data === 'string') {

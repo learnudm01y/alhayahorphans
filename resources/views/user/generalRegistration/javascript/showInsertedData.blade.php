@@ -57,12 +57,7 @@
             // (تم حذف زر الحفظ من المرفقات في ملف create.blade.php)
             // زر الحفظ الجديد هو الزر داخل بوابة المراجعة فقط
 
-            // عند الضغط على زر الحفظ النهائي، أرسل النموذج
-            document.getElementById('finalSaveBtn').addEventListener('click', function(e) {
-                e.preventDefault();
-                // إرسال النموذج الرئيسي
-                document.getElementById('main_form').requestSubmit();
-            });
+            // لا تضف أي event listener هنا لزر الحفظ النهائي، سيتم ربطه في الأسفل مع حماية isSubmitting فقط
 
             // عند الانتقال إلى بوابة المراجعة، اعرض البيانات
             document.getElementById(reviewTabId).addEventListener('click', function() {
@@ -187,7 +182,7 @@
                 }
 
                 // --- المرفقات (من Map البرمجية) ---
-let attachmentsHtml = '';
+                let attachmentsHtml = '';
                 if (window.allDocs && typeof window.allDocs.keys === 'function') {
                     // عرض جميع المرفقات لكل بوابة (main, deceased_father, deceased_mother, family_X, وأخرى)
                     const labelMap = {
@@ -265,37 +260,121 @@ let attachmentsHtml = '';
                 // سيتم إرسال النموذج بشكل طبيعي (لا تمنع الإرسال هنا)
             });
         });
-        // ربط زر الحفظ النهائي بالتحقق من أرقام الهوية
-        document.addEventListener('DOMContentLoaded', function() {
-            const finalSaveBtn = document.getElementById('finalSaveBtn');
-            if (finalSaveBtn) {
-                finalSaveBtn.addEventListener('click', async function(e) {
-                    e.preventDefault();
-                    // استدعاء دالة التحقق الموحدة
-                    const valid = await validateAllIds(e);
-                    if (!valid) return; // لا ترسل النموذج إذا كان هناك خطأ
-                    // إذا كان كل شيء صحيح أرسل النموذج
-                    document.getElementById('main_form').requestSubmit();
-                });
-            }
-        });
-        
-        // === ضع الكود الجديد هنا ===
-        async function validateAllIds(e) {
-            // تحقق من التكرار في النموذج
-            const isUnique = checkDuplicateIdsInForm();
-            if (!isUnique) {
-                if (e) e.preventDefault();
-                return false;
-            }
-            // تحقق من قاعدة البيانات
-            const dbOk = await checkIdNumbersInDatabase();
-            if (!dbOk) {
-                if (e) e.preventDefault();
-                return false;
-            }
-            return true;
+// معالجة تكرار الإرسال: إزالة جميع event listeners السابقة من زر الحفظ النهائي وربط مستمع واحد فقط مع حماية isSubmitting
+document.addEventListener('DOMContentLoaded', function() {
+    let isSubmitting = false;
+    // استبدال الزر بنسخة جديدة لإزالة أي event listeners سابقة
+    const oldFinalSaveBtn = document.getElementById('finalSaveBtn');
+    if (oldFinalSaveBtn) {
+        // لا تستبدل الزر، فقط أزل جميع event listeners السابقة (بإعادة تعيين الزر)
+        oldFinalSaveBtn.replaceWith(oldFinalSaveBtn.cloneNode(true));
+        const finalSaveBtn = document.getElementById('finalSaveBtn');
+        if (finalSaveBtn) {
+            finalSaveBtn.addEventListener('click', async function(e) {
+                e.preventDefault();
+                if (isSubmitting) return;
+                isSubmitting = true;
+                const valid = await validateAllIds(e);
+                if (!valid) {
+                    isSubmitting = false;
+                    // إزالة تمييز الخطأ من جميع حقول الهوية أولاً
+                    document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+
+                    // محاولة إيجاد الحقل الذي فيه المشكلة تلقائياً
+                    let errorInput = document.querySelector('.duplicate-id-input');
+                    // إذا لم يوجد، ابحث عن أول حقل رقم هوية غير صحيح أو مكرر حسب رسالة الخطأ من الدوال
+                    if (!errorInput) {
+                        // ابحث عن جميع حقول الهوية
+                        let allIdInputs = Array.from(document.querySelectorAll('[name="data_id_number"], [name$="[person_id]"]'));
+                        // fallback: أول حقل يحمل كلاس is-invalid
+                        errorInput = allIdInputs.find(input => input.classList.contains('is-invalid'));
+                        // fallback: أول حقل
+                        if (!errorInput) errorInput = allIdInputs[0];
+                    }
+                    if (errorInput) {
+                        // حدد البوابة (التبويب) التي يوجد فيها الحقل
+                        let tabPane = errorInput.closest('.tab-pane');
+                        if (tabPane && !tabPane.classList.contains('active')) {
+                            // فعّل التبويب الخاص بالحقل
+                            let tabId = tabPane.id;
+                            let tabBtn = document.querySelector(`[data-bs-target="#${tabId}"]`);
+                            if (tabBtn) {
+                                tabBtn.click();
+                            }
+                        }
+                        // تمييز الحقل والتركيز عليه
+                        errorInput.classList.add('is-invalid');
+                        setTimeout(() => { errorInput.focus(); }, 300); // بعد تفعيل التبويب
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'خطأ في رقم الهوية',
+                            text: 'رقم الهوية مكرر أو غير صحيح. يرجى تصحيح الحقل المميز.'
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'خطأ في البيانات',
+                            text: 'يرجى التأكد من صحة جميع الحقول وعدم تكرار أرقام الهوية.'
+                        });
+                    }
+                    return;
+                }
+                // أرسل النموذج عبر requestSubmit (سيتم التقاطه من كود AJAX في manageForm.blade.php)
+                const mainForm = document.getElementById('main_form');
+                if (mainForm) {
+                    console.log('[DEBUG] سيتم تنفيذ requestSubmit على main_form');
+                    // إزالة التركيز من زر الحفظ حتى تظهر رسالة Swal فوقه
+                    finalSaveBtn && finalSaveBtn.blur && finalSaveBtn.blur();
+                    mainForm.requestSubmit();
+                    // إظهار رسالة انتظار ثم رسالة نجاح مباشرة (مع ضمان إغلاق الرسالة السابقة)
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'جاري الحفظ',
+                        text: 'يرجى الانتظار حتى يتم حفظ السجل...',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        showConfirmButton: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                            setTimeout(() => {
+                                Swal.close();
+                                setTimeout(() => {
+                                    Swal.fire({
+                                        icon: 'success',
+                                        title: 'تم الحفظ بنجاح',
+                                        text: 'تم حفظ السجل بنجاح.',
+                                        timer: 1800,
+                                        showConfirmButton: false
+                                    });
+                                }, 100);
+                            }, 1200);
+                        }
+                    });
+                } else {
+                    console.error('[DEBUG] لم يتم العثور على النموذج main_form');
+                }
+                // لا تعيد isSubmitting إلى false إلا بعد إعادة تحميل الصفحة أو ظهور رسالة نجاح
+            });
         }
+    }
+});
+
+// دالة التحقق الموحدة
+async function validateAllIds(e) {
+    // تحقق من التكرار في النموذج
+    const isUnique = checkDuplicateIdsInForm();
+    if (!isUnique) {
+        if (e) e.preventDefault();
+        return false;
+    }
+    // تحقق من قاعدة البيانات
+    const dbOk = await checkIdNumbersInDatabase();
+    if (!dbOk) {
+        if (e) e.preventDefault();
+        return false;
+    }
+    return true;
+}
 
     </script>
 @endpush

@@ -2,6 +2,8 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
+    <!-- Toastr CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تسجيل الدخول للبوابة</title>
@@ -179,6 +181,38 @@
     </style>
 </head>
 <body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <script>
+        // عرض رسالة نجاح إذا تم التحويل من صفحة الحفظ
+        document.addEventListener('DOMContentLoaded', function() {
+            // ابحث عن باراميتر success في الرابط
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('success') === '1') {
+                setTimeout(function() {
+                    toastr.options = {
+                        "closeButton": true,
+                        "progressBar": true,
+                        "positionClass": "toast-top-center",
+                        "timeOut": "3500",
+                        "toastClass": "custom-toastr-success toast-success"
+                    };
+                    toastr.success('تم حفظ السجل بنجاح! يمكنك الآن تسجيل الدخول.');
+                }, 400);
+            }
+        });
+    </script>
+    <style>
+    /* تخصيص لون خلفية Toastr للرسائل الناجحة */
+    .custom-toastr-success {
+        background-color: #388e3c !important; /* أخضر غامق واضح */
+        color: #fff !important;
+        border-radius: 10px !important;
+        font-size: 0.65rem !important;
+        box-shadow: 0 4px 18px #388e3c33;
+        margin-top: 5rem !important;
+    }
+    </style>
     <div class="bubbles">
         <div class="bubble" style="left: 10vw; width: 60px; height: 60px; background: #1976d2; animation-duration: 13s;"></div>
         <div class="bubble" style="left: 30vw; width: 38px; height: 38px; background: #42a5f5; animation-duration: 11s; animation-delay: 2s;"></div>

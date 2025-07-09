@@ -542,48 +542,48 @@
     }); // نهاية document.addEventListener('DOMContentLoaded', ...)
 
     // إذا كان الإرسال AJAX، أضف الكود التالي لجمع الحقول البنكية قبل الإرسال:
-    document.addEventListener('DOMContentLoaded', function() {
-        const mainForm = document.getElementById('main_form');
-        if (!mainForm) return;
-        mainForm.addEventListener('submit', function(e) {
-            // ...existing code لجمع بيانات أفراد الأسرة والمرفقات...
+    // document.addEventListener('DOMContentLoaded', function() {
+    //     const mainForm = document.getElementById('main_form');
+    //     if (!mainForm) return;
+    //     mainForm.addEventListener('submit', function(e) {
+    //         // ...existing code لجمع بيانات أفراد الأسرة والمرفقات...
 
-            // حذف أي بيانات حسابات بنكية قديمة من FormData
-            const formData = new FormData(mainForm);
-            Array.from(formData.keys()).forEach(key => {
-                if (key.startsWith('bank_accounts')) {
-                    formData.delete(key);
-                }
-            });
+    //         // حذف أي بيانات حسابات بنكية قديمة من FormData
+    //         const formData = new FormData(mainForm);
+    //         Array.from(formData.keys()).forEach(key => {
+    //             if (key.startsWith('bank_accounts')) {
+    //                 formData.delete(key);
+    //             }
+    //         });
 
-            // جمع بيانات الحسابات البنكية الديناميكية
-            document.querySelectorAll('.bank-account-form').forEach(function(form, idx) {
-                form.querySelectorAll('[name]').forEach(function(input) {
-                    const name = input.name;
-                    const value = input.value;
-                    if (name.startsWith('bank_accounts[')) {
-                        formData.append(name, value);
-                    }
-                });
-            });
+    //         // جمع بيانات الحسابات البنكية الديناميكية
+    //         document.querySelectorAll('.bank-account-form').forEach(function(form, idx) {
+    //             form.querySelectorAll('[name]').forEach(function(input) {
+    //                 const name = input.name;
+    //                 const value = input.value;
+    //                 if (name.startsWith('bank_accounts[')) {
+    //                     formData.append(name, value);
+    //                 }
+    //             });
+    //         });
 
-            // طباعة بيانات الحسابات البنكية في الواجهة قبل الإرسال
-            let bankAccountsDebug = [];
-            document.querySelectorAll('.bank-account-form').forEach(function(form, idx) {
-                let obj = {};
-                form.querySelectorAll('[name]').forEach(function(input) {
-                    obj[input.name] = input.value;
-                });
-                bankAccountsDebug.push(obj);
-            });
-            console.log('🚀 بيانات الحسابات البنكية المرسلة:', bankAccountsDebug);
+    //         // طباعة بيانات الحسابات البنكية في الواجهة قبل الإرسال
+    //         let bankAccountsDebug = [];
+    //         document.querySelectorAll('.bank-account-form').forEach(function(form, idx) {
+    //             let obj = {};
+    //             form.querySelectorAll('[name]').forEach(function(input) {
+    //                 obj[input.name] = input.value;
+    //             });
+    //             bankAccountsDebug.push(obj);
+    //         });
+    //         console.log('🚀 بيانات الحسابات البنكية المرسلة:', bankAccountsDebug);
 
-            // لا ترسل النموذج هنا إذا كان هناك إرسال AJAX في manageForm.blade.php
-            // فقط أضف البيانات إلى FormData، ودع الإرسال يتم من مكان واحد فقط
-            // e.preventDefault(); // احذف أو علق هذا السطر إذا كان الإرسال سيتم من manageForm.blade.php
+    //         // لا ترسل النموذج هنا إذا كان هناك إرسال AJAX في manageForm.blade.php
+    //         // فقط أضف البيانات إلى FormData، ودع الإرسال يتم من مكان واحد فقط
+    //         // e.preventDefault(); // احذف أو علق هذا السطر إذا كان الإرسال سيتم من manageForm.blade.php
 
-        });
-    });
+    //     });
+    // });
     // عند الإرسال AJAX، أو عند الإرسال العادي، عالج مشكلة required مع الحقول المخفية أو غير القابلة للتركيز
     // الحل: إزالة required مؤقتاً من الحقول غير الظاهرة قبل الإرسال ثم إرجاعها بعد الإرسال
     document.addEventListener('DOMContentLoaded', function() {

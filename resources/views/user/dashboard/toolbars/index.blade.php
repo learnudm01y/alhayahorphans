@@ -155,7 +155,7 @@
                     <!--end::Sidebar mobile toggle-->
                     <!--begin::Mobile logo-->
                     <div class="d-flex align-items-center flex-grow-1 flex-lg-grow-0">
-                        <a href="../../demo1/dist/index.html" class="d-lg-none">
+                        <a href="{{ route('generalRegistration.index') }}" class="d-lg-none">
                             <img alt="Logo" src="{{ asset('uploads/small-logo.png') }}" class="h-30px" />
                         </a>
                     </div>
@@ -176,7 +176,7 @@
                             <ul class="breadcrumb breadcrumb-separatorless fw-semibold fs-7 my-0 pt-1">
                                 <!--begin::Item-->
                                 <li class="breadcrumb-item text-muted">
-                                    <a href="../../demo1/dist/index.html" class="text-muted text-hover-primary">Home</a>
+                                    <a href="{{ route('generalRegistration.index') }}" class="text-muted text-hover-primary">Home</a>
                                 </li>
                                 <!--end::Item-->
                                 <!--begin::Item-->
@@ -424,7 +424,7 @@
                     <!--begin::Logo-->
                     <div class="app-sidebar-logo px-6" id="kt_app_sidebar_logo">
                         <!--begin::Logo image-->
-                        <a href="../../demo1/dist/index.html">
+                        <a href="{{ route('generalRegistration.index') }}">
                             <img alt="Logo" src="{{ asset('uploads/logo.png') }}"
                                 class="h-35px app-sidebar-logo-default" />
                             <img alt="Logo" src="{{ asset('uploads/small-logo.png') }}"

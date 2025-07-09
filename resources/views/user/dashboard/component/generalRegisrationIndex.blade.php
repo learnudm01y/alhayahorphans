@@ -9,182 +9,375 @@
     .info-label { color: #888; font-size: 1rem; margin-bottom: 2px; }
     .info-value { font-size: 1.1rem; font-weight: bold; color: #222; margin-bottom: 8px; }
     .main-header-row .d-flex span, .main-header-row .d-flex { font-size: 1.3rem; }
+    .attachment-thumb { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; border: 1px solid #ddd; margin-left: 8px; margin-bottom: 4px; }
+    .modal-img-preview { display: block; margin: 0 auto; border-radius: 10px; box-sizing: border-box; object-fit: contain; background: #fff; max-width: 95vw; max-height: 70vh; width: auto; height: auto; }
 </style>
 <div class="container">
     <h2 class="mb-4 text-center" style="font-family: 'Cairo', Arial, Tahoma, sans-serif;">عرض تفاصيل السجل</h2>
-    @if($data)
-    <div class="card card-custom p-3 mb-4">
-        <div class="d-flex flex-wrap align-items-center justify-content-between mb-2 main-header-row"
-             style="background: rgba(180,180,180,0.18); border-radius: 16px 16px 0 0; padding: 14px 24px; font-weight: bold; font-size: 1.3rem; font-family: 'Cairo', Arial, Tahoma, sans-serif; width: 100%;">
-            <div class="d-flex align-items-center flex-wrap" style="gap: 16px;">
-                <span>رقم الملف: {{ $data->file_id_number }}</span>
-                <span style="border-right: 2px solid #bbb; height: 22px; margin: 0 12px;"></span>
-                <span>القسم: {{ optional($data->section)->description }}</span>
-            </div>
-        </div>
-        <div class="row mt-3">
-            <div class="col-12 mb-3">
-                <div class="d-flex flex-column align-items-start" style="direction: rtl;">
-                    <div>
-                        <span class="info-label" style="font-size:1.1rem;"> رقم الهوية :</span>
-                        <span class="info-value" style="display:inline-block; font-size:1.25rem;">{{ $data->data_id_number }}</span>
-                    </div>
-                    <div>
-                        <span class="info-label" style="font-size:1.1rem;">الاسم الكامل :</span>
-                        <span class="info-value" style="display:inline-block; font-size:1.25rem;">{{ $data->data_first_name }} {{ $data->data_father_name }} {{ $data->data_grand_father_name }} {{ $data->data_family_name }}</span>
-                    </div>
-                    <hr style="border-top: 3px solid #ffc107; width: 220px; margin: 8px 0 0 0; border-radius: 2px;">
+    @if(isset($data) && $data)
+        <div class="card card-custom p-3 mb-4">
+            <div class="d-flex flex-wrap align-items-center justify-content-between mb-2 main-header-row" style="background: rgba(180,180,180,0.18); border-radius: 16px 16px 0 0; padding: 14px 24px; font-weight: bold; font-size: 1.3rem; font-family: 'Cairo', Arial, Tahoma, sans-serif; width: 100%;">
+                <div class="d-flex align-items-center flex-wrap" style="gap: 16px;">
+                    <span>رقم الملف: {{ $data->file_id_number }}</span>
+                    <span style="border-right: 2px solid #bbb; height: 22px; margin: 0 12px;"></span>
+                    <span>القسم: {{ optional($data->section)->description }}</span>
                 </div>
             </div>
-            <div class="col-md-4 col-6 mb-2">
-                <div class="info-label">تاريخ الميلاد</div>
-                <div class="info-value">{{ $data->data_birth_date }}</div>
-            </div>
-            <div class="col-md-4 col-6 mb-2">
-                <div class="info-label">حالة الطلب</div>
-                <div class="info-value">{{ optional($data->requestStatus)->description }}</div>
-            </div>
-            <div class="col-md-4 col-6 mb-2">
-                <div class="info-label">صلة القرابة</div>
-                <div class="info-value">{{ optional($data->categoryOfRelation)->attribute }}</div>
-            </div>
-            <div class="col-md-4 col-6 mb-2">
-                <div class="info-label">الحالة الصحية</div>
-                <div class="info-value">{{ optional($data->healthStatus)->description }}</div>
-            </div>
-            <div class="col-md-4 col-6 mb-2">
-                <div class="info-label">رقم الجوال</div>
-                <div class="info-value">{{ $data->data_phone_number }}</div>
-            </div>
-            <div class="col-md-4 col-6 mb-2">
-                <div class="info-label">رقم جوال إضافي</div>
-                <div class="info-value">{{ $data->data_alt_phone_number }}</div>
-            </div>
-            <div class="col-md-4 col-6 mb-2">
-                <div class="info-label">الحالة الاجتماعية</div>
-                <div class="info-value">{{ optional($data->maritalStatus)->description }}</div>
-            </div>
-            <div class="col-md-4 col-6 mb-2">
-                <div class="info-label">المؤهل العلمي</div>
-                <div class="info-value">{{ optional($data->academicQualification)->description }}</div>
-            </div>
-            <div class="col-md-4 col-6 mb-2">
-                <div class="info-label">المدينة</div>
-                <div class="info-value">{{ optional($data->city)->city }}</div>
-            </div>
-            <div class="col-md-4 col-6 mb-2">
-                <div class="info-label">المحافظة</div>
-                <div class="info-value">{{ optional($data->province)->description }}</div>
-            </div>
-            <div class="col-md-4 col-6 mb-2">
-                <div class="info-label">حالة عمل العائل</div>
-                <div class="info-value">{{ optional($data->employmentStatusBreadwinner)->description }}</div>
-            </div>
-            <div class="col-md-4 col-6 mb-2">
-                <div class="info-label">الحالة السكنية</div>
-                <div class="info-value">{{ optional($data->housingStatus)->description }}</div>
-            </div>
-            <div class="col-md-4 col-6 mb-2">
-                <div class="info-label">نوع السكن الحالي</div>
-                <div class="info-value">{{ optional($data->currentHousingType)->description }}</div>
-            </div>
-            <div class="col-12 mb-2">
-                <div class="info-label">وصف الاحتياج</div>
-                <div class="info-value">{{ $data->data_description_needs }}</div>
-            </div>
-        </div>
-        <div class="mt-3 w-100">
-            <div class="info-label mb-1">المعلومات البنكية:</div>
-            @if($data->guardianBankAccount)
-                <div class="row mb-2">
-                    <div class="col-md-6">
-                        <strong>اسم البنك:</strong> {{ optional($data->guardianBankAccount->bank)->name ?? $data->guardianBankAccount->bank_name }}
-                    </div>
-                    <div class="col-md-6">
-                        <strong>رقم الآيبان (شيكل):</strong> {{ $data->guardianBankAccount->iban_shekel }}
+            <div class="row mt-3">
+                <div class="col-12 mb-3">
+                    <div class="d-flex flex-column align-items-start" style="direction: rtl;">
+                        <div>
+                            <span class="info-label" style="font-size:1.1rem;"> رقم الهوية :</span>
+                            <span class="info-value" style="display:inline-block; font-size:1.25rem;">{{ $data->data_id_number }}</span>
+                        </div>
+                        <div>
+                            <span class="info-label" style="font-size:1.1rem;">الاسم الكامل :</span>
+                            <span class="info-value" style="display:inline-block; font-size:1.25rem;">{{ $data->data_first_name }} {{ $data->data_father_name }} {{ $data->data_grand_father_name }} {{ $data->data_family_name }}</span>
+                        </div>
+                        <hr style="border-top: 3px solid #ffc107; width: 220px; margin: 8px 0 0 0; border-radius: 2px;">
                     </div>
                 </div>
-                <div class="row mb-2">
-                    <div class="col-md-6">
-                        <strong>رقم الآيبان (دولار):</strong> {{ $data->guardianBankAccount->iban_usd }}
+                <div class="col-md-4 col-6 mb-2"><div class="info-label">تاريخ الميلاد</div><div class="info-value">{{ $data->data_birth_date }}</div></div>
+                <div class="col-md-4 col-6 mb-2"><div class="info-label">حالة الطلب</div><div class="info-value">{{ optional($data->requestStatus)->description }}</div></div>
+                <div class="col-md-4 col-6 mb-2"><div class="info-label">صلة القرابة</div><div class="info-value">{{ optional($data->categoryOfRelation)->attribute }}</div></div>
+                <div class="col-md-4 col-6 mb-2"><div class="info-label">الحالة الصحية</div><div class="info-value">{{ optional($data->healthStatus)->description }}</div></div>
+                <div class="col-md-4 col-6 mb-2"><div class="info-label">رقم الجوال</div><div class="info-value">{{ $data->data_phone_number }}</div></div>
+                <div class="col-md-4 col-6 mb-2"><div class="info-label">رقم جوال إضافي</div><div class="info-value">{{ $data->data_alt_phone_number }}</div></div>
+                <div class="col-md-4 col-6 mb-2"><div class="info-label">الحالة الاجتماعية</div><div class="info-value">{{ optional($data->maritalStatus)->description }}</div></div>
+                <div class="col-md-4 col-6 mb-2"><div class="info-label">المؤهل العلمي</div><div class="info-value">{{ optional($data->academicQualification)->description }}</div></div>
+                <div class="col-md-4 col-6 mb-2"><div class="info-label">المدينة</div><div class="info-value">{{ optional($data->city)->city }}</div></div>
+                <div class="col-md-4 col-6 mb-2"><div class="info-label">المحافظة</div><div class="info-value">{{ optional($data->province)->description }}</div></div>
+                <div class="col-md-4 col-6 mb-2"><div class="info-label">حالة عمل العائل</div><div class="info-value">{{ optional($data->employmentStatusBreadwinner)->description }}</div></div>
+                <div class="col-md-4 col-6 mb-2"><div class="info-label">الحالة السكنية</div><div class="info-value">{{ optional($data->housingStatus)->description }}</div></div>
+                <div class="col-md-4 col-6 mb-2"><div class="info-label">نوع السكن الحالي</div><div class="info-value">{{ optional($data->currentHousingType)->description }}</div></div>
+                <div class="col-12 mb-2"><div class="info-label">وصف الاحتياج</div><div class="info-value">{{ $data->data_description_needs }}</div></div>
+            </div>
+            <div class="mt-3 w-100">
+                <div class="info-label mb-1">المعلومات البنكية:</div>
+                @php
+                    // جلب جميع الحسابات البنكية المرتبطة بنفس رقم السجل العام (file_id_number)
+                    $bankAccounts = \App\Models\GuardianBankAccount::where('guardian_registration', $data->file_id_number)->get();
+                @endphp
+                @if($bankAccounts->count())
+                    <div class="row mb-2">
+                        <div class="col-12">
+                            <table class="table table-bordered table-sm" style="background:#fff;">
+                                <thead>
+                                    <tr>
+                                        <th>اسم البنك</th>
+                                        <th>رقم الآيبان (شيكل)</th>
+                                        <th>رقم الآيبان (دولار)</th>
+                                        <th>اسم صاحب الحساب</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($bankAccounts as $account)
+                                        <tr>
+                                            <td>
+                                                @php
+                                                    // إذا كان bank_name رقم (id) فاعرض الوصف من جدول bank_names
+                                                    $bankName = $account->bank_name;
+                                                    if(is_numeric($bankName)) {
+                                                        $bankModel = \App\Models\BankName::find($bankName);
+                                                        $bankName = $bankModel ? $bankModel->description : $account->bank_name;
+                                                    }
+                                                @endphp
+                                                {{ $bankName }}
+                                            </td>
+                                            <td>{{ $account->iban_shekel }}</td>
+                                            <td>{{ $account->iban_usd }}</td>
+                                            <td>{{ $account->re_guardian_name }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                    <div class="col-md-6">
-                        <strong>اسم صاحب الحساب:</strong> {{ $data->guardianBankAccount->re_guardian_name }}
+                @else
+                    <span class="text-muted">لا توجد بيانات بنكية مسجلة.</span>
+                @endif
+                <div class="info-label mb-1 mt-3">المرفقات:</div>
+                @php $mainAttachments = $data->attachments ?? collect(); @endphp
+                @if(isset($mainAttachments) && $mainAttachments->count())
+                    <div class="d-flex flex-wrap">
+                        @foreach($mainAttachments as $att)
+                            @php $isImage = Str::endsWith(strtolower($att->stored_file_name), ['jpg','jpeg','png','gif']); @endphp
+                            <a href="javascript:void(0);" class="open-attachments-modal"
+                                data-attachments='@json($mainAttachments->map(function($a){return ["file_path" => asset($a->file_path), "stored_file_name" => $a->stored_file_name ];}))'
+                                data-index="{{ $loop->index }}">
+                                @if($isImage)
+                                    <img src="{{ asset($att->file_path) }}" class="attachment-thumb" alt="مرفق">
+                                @else
+                                    <span class="attachment-thumb d-flex align-items-center justify-content-center bg-light">
+                                        <i class="bi bi-file-earmark-pdf" style="font-size: 1.5rem; color: #d9534f;"></i>
+                                    </span>
+                                @endif
+                            </a>
+                        @endforeach
                     </div>
-                </div>
-            @else
-                <span class="text-muted">لا توجد بيانات بنكية مسجلة.</span>
-            @endif
+                @else
+                    <span class="text-muted">لا يوجد مرفقات.</span>
+                @endif
+            </div>
         </div>
-        <div class="mt-3 w-100">
-            <div class="info-label mb-1">المرفقات:</div>
-            @if($data->attachments && count($data->attachments))
-                <ul>
-                    @foreach($data->attachments as $att)
-                        <li>
-                            <a href="{{ asset($att->file_path) }}" target="_blank">{{ $att->original_file_name }}</a>
-                        </li>
+        <div class="card card-custom p-3 mb-4">
+            <h5 class="mb-3">أفراد الأسرة</h5>
+            @if(isset($data->rePeople) && count($data->rePeople))
+                <div class="row family-scroll-row">
+                    @foreach($data->rePeople as $member)
+                        <div class="col-md-6 col-lg-4 col-12 mb-4 family-member-card">
+                            <div class="card h-100 shadow-sm border-0">
+                                <div class="card-body">
+                                    <div><strong>الاسم:</strong> {{ $member->person_name }}</div>
+                                    <div><strong>صلة القرابة:</strong> {{ $member->person_relationship }}</div>
+                                    <div><strong>تاريخ الميلاد:</strong> {{ $member->person_birth_date }}</div>
+                                    <div><strong>الحالة الصحية:</strong> {{ $member->person_health_status }}</div>
+                                    <div class="mt-2">
+                                        <div class="info-label mb-1">مرفقات هذا الفرد:</div>
+                                        @php $memberAttachments = $member->attachments ?? collect(); @endphp
+                                        @if(isset($memberAttachments) && $memberAttachments->count())
+                                            <div class="d-flex flex-wrap">
+                                                @foreach($memberAttachments as $att)
+                                                    @php $isImage = Str::endsWith(strtolower($att->stored_file_name), ['jpg','jpeg','png','gif']); @endphp
+                                                    <a href="javascript:void(0);" class="open-attachments-modal"
+                                                        data-attachments='@json($memberAttachments->map(function($a){return ["file_path" => asset($a->file_path), "stored_file_name" => $a->stored_file_name ];}))'
+                                                        data-index="{{ $loop->index }}">
+                                                        @if($isImage)
+                                                            <img src="{{ asset($att->file_path) }}" class="attachment-thumb" alt="مرفق">
+                                                        @else
+                                                            <span class="attachment-thumb d-flex align-items-center justify-content-center bg-light">
+                                                                <i class="bi bi-file-earmark-pdf" style="font-size: 1.5rem; color: #d9534f;"></i>
+                                                            </span>
+                                                        @endif
+                                                    </a>
+                                                @endforeach
+                                            </div>
+                                        @else
+                                            <span class="text-muted">لا يوجد مرفقات لهذا الفرد.</span>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     @endforeach
-                </ul>
+                </div>
             @else
-                <span class="text-muted">لا يوجد مرفقات.</span>
+                <p class="text-muted">لا يوجد أفراد أسرة.</p>
             @endif
         </div>
-    </div>
-
-    <div class="card card-custom p-3 mb-4">
-        <h5 class="mb-3">أفراد الأسرة</h5>
-        @if($data->rePeople && count($data->rePeople))
-            <div class="row family-scroll-row">
-                @foreach($data->rePeople as $member)
-                    <div class="col-md-6 col-lg-4 col-12 mb-4 family-member-card">
-                        <div class="card h-100 shadow-sm border-0">
-                            <div class="card-body">
-                                <div><strong>الاسم:</strong> {{ $member->person_name }}</div>
-                                <div><strong>صلة القرابة:</strong> {{ $member->person_relationship }}</div>
-                                <div><strong>تاريخ الميلاد:</strong> {{ $member->person_birth_date }}</div>
-                                <div><strong>الحالة الصحية:</strong> {{ $member->person_health_status }}</div>
+        <div class="card card-custom p-3 mb-4">
+            <h5 class="mb-3">بيانات المتوفين</h5>
+            @if(isset($data->deadPepole) && $data->deadPepole)
+                <div class="row">
+                    @php
+                        // جلب مرفقات الأب والأم من علاقة قاعدة البيانات وليس من خاصية غير موجودة
+                        $fatherAttachments = collect();
+                        $motherAttachments = collect();
+                        if(isset($data->deadPepole->father_id) && $data->deadPepole->father_id) {
+                            $fatherAttachments = \App\Models\Attachment::where('person_identity_number', $data->deadPepole->father_id)->get();
+                        }
+                        if(isset($data->deadPepole->mother_id) && $data->deadPepole->mother_id) {
+                            $motherAttachments = \App\Models\Attachment::where('person_identity_number', $data->deadPepole->mother_id)->get();
+                        }
+                    @endphp
+                    @if((isset($data->deadPepole->father_first_name) && $data->deadPepole->father_first_name) || (isset($data->deadPepole->father_last_name) && $data->deadPepole->father_last_name) || (isset($data->deadPepole->father_id) && $data->deadPepole->father_id))
+                        <div class="col-md-6 col-12 mb-3">
+                            <div class="card h-100 shadow-sm border-0">
+                                <div class="card-body">
+                                    <div><strong>اسم الأب:</strong> {{ $data->deadPepole->father_first_name }} {{ $data->deadPepole->father_last_name }}</div>
+                                    <div><strong>رقم هوية الأب:</strong> {{ $data->deadPepole->father_id }}</div>
+                                    <div class="mt-2">
+                                        <div class="info-label mb-1">مرفقات الأب:</div>
+                                        @if($fatherAttachments->count())
+                                            <div class="d-flex flex-wrap">
+                                                @foreach($fatherAttachments as $att)
+                                                    @php $isImage = Str::endsWith(strtolower($att->stored_file_name), ['jpg','jpeg','png','gif']); @endphp
+                                                    <a href="javascript:void(0);" class="open-attachments-modal"
+                                                        data-attachments='@json($fatherAttachments->map(function($a){return ["file_path" => asset($a->file_path), "stored_file_name" => $a->stored_file_name ];}))'
+                                                        data-index="{{ $loop->index }}">
+                                                        @if($isImage)
+                                                            <img src="{{ asset($att->file_path) }}" class="attachment-thumb" alt="مرفق">
+                                                        @else
+                                                            <span class="attachment-thumb d-flex align-items-center justify-content-center bg-light">
+                                                                <i class="bi bi-file-earmark-pdf" style="font-size: 1.5rem; color: #d9534f;"></i>
+                                                            </span>
+                                                        @endif
+                                                    </a>
+                                                @endforeach
+                                            </div>
+                                        @else
+                                            <span class="text-muted">لا يوجد مرفقات للأب.</span>
+                                        @endif
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                @endforeach
-            </div>
-        @else
-            <p class="text-muted">لا يوجد أفراد أسرة.</p>
-        @endif
-    </div>
-
-    <div class="card card-custom p-3 mb-4">
-        <h5 class="mb-3">بيانات المتوفين</h5>
-        @if($data->deadPepole)
-            <div class="row">
-                @if($data->deadPepole->father_first_name || $data->deadPepole->father_last_name || $data->deadPepole->father_id)
-                    <div class="col-md-6 col-12 mb-3">
-                        <div class="card h-100 shadow-sm border-0">
-                            <div class="card-body">
-                                <div><strong>اسم الأب:</strong> {{ $data->deadPepole->father_first_name }} {{ $data->deadPepole->father_last_name }}</div>
-                                <div><strong>رقم هوية الأب:</strong> {{ $data->deadPepole->father_id }}</div>
+                    @endif
+                    @if((isset($data->deadPepole->mother_first_name) && $data->deadPepole->mother_first_name) || (isset($data->deadPepole->mother_last_name) && $data->deadPepole->mother_last_name) || (isset($data->deadPepole->mother_id) && $data->deadPepole->mother_id))
+                        <div class="col-md-6 col-12 mb-3">
+                            <div class="card h-100 shadow-sm border-0">
+                                <div class="card-body">
+                                    <div><strong>اسم الأم:</strong> {{ $data->deadPepole->mother_first_name }} {{ $data->deadPepole->mother_last_name }}</div>
+                                    <div><strong>رقم هوية الأم:</strong> {{ $data->deadPepole->mother_id }}</div>
+                                    <div class="mt-2">
+                                        <div class="info-label mb-1">مرفقات الأم:</div>
+                                        @if($motherAttachments->count())
+                                            <div class="d-flex flex-wrap">
+                                                @foreach($motherAttachments as $att)
+                                                    @php $isImage = Str::endsWith(strtolower($att->stored_file_name), ['jpg','jpeg','png','gif']); @endphp
+                                                    <a href="javascript:void(0);" class="open-attachments-modal"
+                                                        data-attachments='@json($motherAttachments->map(function($a){return ["file_path" => asset($a->file_path), "stored_file_name" => $a->stored_file_name ];}))'
+                                                        data-index="{{ $loop->index }}">
+                                                        @if($isImage)
+                                                            <img src="{{ asset($att->file_path) }}" class="attachment-thumb" alt="مرفق">
+                                                        @else
+                                                            <span class="attachment-thumb d-flex align-items-center justify-content-center bg-light">
+                                                                <i class="bi bi-file-earmark-pdf" style="font-size: 1.5rem; color: #d9534f;"></i>
+                                                            </span>
+                                                        @endif
+                                                    </a>
+                                                @endforeach
+                                            </div>
+                                        @else
+                                            <span class="text-muted">لا يوجد مرفقات للأم.</span>
+                                        @endif
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                @endif
-                @if($data->deadPepole->mother_first_name || $data->deadPepole->mother_last_name || $data->deadPepole->mother_id)
-                    <div class="col-md-6 col-12 mb-3">
-                        <div class="card h-100 shadow-sm border-0">
-                            <div class="card-body">
-                                <div><strong>اسم الأم:</strong> {{ $data->deadPepole->mother_first_name }} {{ $data->deadPepole->mother_last_name }}</div>
-                                <div><strong>رقم هوية الأم:</strong> {{ $data->deadPepole->mother_id }}</div>
-                            </div>
-                        </div>
-                    </div>
-                @endif
-            </div>
-        @else
-            <p class="text-muted">لا توجد بيانات متوفين.</p>
-        @endif
-    </div>
+                    @endif
+                </div>
+            @else
+                <span class="text-muted">لا توجد بيانات متوفين.</span>
+            @endif
+        </div>
     @else
         <div class="alert alert-warning text-center">لا توجد بيانات لعرضها.</div>
     @endif
 </div>
 @endsection
+<!-- Modal HTML (مشترك للجميع) -->
+<div class="modal fade" id="attachmentsModal" tabindex="-1" aria-labelledby="attachmentsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content" style="direction: rtl;">
+      <div class="modal-header">
+        <h5 class="modal-title" id="attachmentsModalLabel">عرض المرفقات</h5>
+        <button type="button" class="btn-close ms-0" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+      </div>
+      <div class="modal-body">
+        <div id="attachmentsModalContent" class="d-flex flex-wrap justify-content-center align-items-center" style="gap: 16px;"></div>
+        <div id="attachmentPreview" class="mt-4 text-center"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    function fixModalImageSizing() {
+        var modal = document.getElementById('attachmentsModal');
+        if (!modal) return;
+        var preview = document.getElementById('attachmentPreview');
+        if (!preview) return;
+        var img = preview.querySelector('img.modal-img-preview');
+        if (img) {
+            var modalDialog = modal.querySelector('.modal-dialog');
+            if (modalDialog) {
+                var maxW = modalDialog.clientWidth || 700;
+                var maxH = window.innerHeight * 0.7;
+                img.style.maxWidth = Math.round(maxW - 40) + 'px';
+                img.style.maxHeight = Math.round(maxH) + 'px';
+                img.style.width = 'auto';
+                img.style.height = 'auto';
+                img.style.display = 'block';
+                img.style.margin = '0 auto';
+                img.style.objectFit = 'contain';
+                img.style.background = '#fff';
+            }
+        }
+    }
+    document.querySelectorAll('.open-attachments-modal').forEach(function(el) {
+        el.addEventListener('click', function(e) {
+            e.preventDefault();
+            let attachments = [];
+            try {
+                attachments = JSON.parse(this.getAttribute('data-attachments'));
+            } catch {}
+            let index = parseInt(this.getAttribute('data-index')) || 0;
+            showAttachmentsModal(attachments, index);
+        });
+    });
+
+    function removeModalBackdrops() {
+        document.querySelectorAll('.modal-backdrop').forEach(function(el){
+            el.parentNode && el.parentNode.removeChild(el);
+        });
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+    }
+
+    function showAttachmentsModal(attachments, activeIndex) {
+        const modalContent = document.getElementById('attachmentsModalContent');
+        const preview = document.getElementById('attachmentPreview');
+        modalContent.innerHTML = '';
+        preview.innerHTML = '';
+
+        attachments.forEach(function(att, idx) {
+            let isImage = /\.(jpg|jpeg|png|gif)$/i.test(att.stored_file_name);
+            let thumb = '';
+            if(isImage) {
+                thumb = `<img src="${att.file_path}" class="attachment-thumb" style="cursor:pointer;" data-preview-index="${idx}" alt="مرفق">`;
+            } else {
+                thumb = `<span class="attachment-thumb d-flex align-items-center justify-content-center bg-light" style="cursor:pointer;" data-preview-index="${idx}">
+                    <i class="bi bi-file-earmark-pdf" style="font-size: 1.5rem; color: #d9534f;"></i>
+                </span>`;
+            }
+            modalContent.innerHTML += `<a href="javascript:void(0);" data-preview-index="${idx}" class="me-2">${thumb}</a>`;
+        });
+
+        function renderPreview(idx) {
+            let att = attachments[idx];
+            let isImage = /\.(jpg|jpeg|png|gif)$/i.test(att.stored_file_name);
+            if(isImage) {
+                preview.innerHTML = `<img src="${att.file_path}" class="modal-img-preview" alt="مرفق">`;
+                setTimeout(fixModalImageSizing, 50);
+            } else {
+                preview.innerHTML = `<a href="${att.file_path}" target="_blank" class="modal-file-link"><i class="bi bi-file-earmark-pdf"></i> عرض الملف</a>`;
+            }
+        }
+        renderPreview(activeIndex);
+
+        modalContent.querySelectorAll('[data-preview-index]').forEach(function(el) {
+            el.addEventListener('click', function() {
+                renderPreview(parseInt(this.getAttribute('data-preview-index')));
+            });
+        });
+
+        var ModalClass = (window.bootstrap && window.bootstrap.Modal) ? window.bootstrap.Modal : (typeof bootstrap !== 'undefined' ? bootstrap.Modal : null);
+        var modalEl = document.getElementById('attachmentsModal');
+        if (ModalClass) {
+            var modal = new ModalClass(modalEl);
+            modalEl.addEventListener('hidden.bs.modal', function() {
+                modalContent.innerHTML = '';
+                preview.innerHTML = '';
+                window.removeEventListener('resize', fixModalImageSizing);
+                removeModalBackdrops();
+            }, { once: true });
+            modal.show();
+        } else {
+            if (window.$ && $('#attachmentsModal').modal) {
+                $('#attachmentsModal').modal('show');
+                $('#attachmentsModal').on('hidden.bs.modal', function() {
+                    modalContent.innerHTML = '';
+                    preview.innerHTML = '';
+                    window.removeEventListener('resize', fixModalImageSizing);
+                    removeModalBackdrops();
+                });
+            }
+        }
+        setTimeout(fixModalImageSizing, 100);
+        window.addEventListener('resize', fixModalImageSizing);
+    }
+});
+</script>
+
+

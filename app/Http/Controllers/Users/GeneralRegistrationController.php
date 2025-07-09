@@ -386,7 +386,7 @@ class GeneralRegistrationController extends Controller
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json(['success' => true]);
             }
-            return redirect()->back()->with('success', 'تم حفظ السجل بنجاح');
+            return response()->json(['success' => true, 'redirect' => route('user.login.page.index', ['success' => 1])]);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('خطأ في تخزين السجل: ' . $e->getMessage());

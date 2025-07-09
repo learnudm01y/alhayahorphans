@@ -1,4 +1,4 @@
-@push('scriptsCodeUserRegistration')
+{{-- @push('scriptsCodeUserRegistration')
     <script>
         // إرسال النموذج باستخدام Ajax
         document.addEventListener('DOMContentLoaded', function() {
@@ -9,7 +9,7 @@
 
                     // تجهيز الحقول الديناميكية (المرفقات)
                     let index = 0;
-                    
+
                     // التحقق من وجود window.allDocs وتحويلها إلى تنسيق مناسب للإرسال
                     if (window.allDocs && window.allDocs instanceof Map) {
                         const allAttachments = [];
@@ -25,7 +25,7 @@
                                 }
                             });
                         });
-                        
+
                         // معالجة كل مرفق وإضافته للنموذج
                         allAttachments.forEach((doc) => {
                             // التحقق من صحة الملف
@@ -33,7 +33,7 @@
                                 console.error('[formSubmission] عنصر مرفق غير صالح (سيتم تجاهله):', doc, doc.file);
                                 return; // تخطى هذا العنصر
                             }
-                            
+
                             // إنشاء input للملف
                             const fileInput = document.createElement('input');
                             fileInput.type = 'file';
@@ -43,7 +43,7 @@
                             dt.items.add(doc.file);
                             fileInput.files = dt.files;
                             form.appendChild(fileInput);
-                            
+
                             // سجل تشخيصي لكل مرفق صالح
                             console.log('[formSubmission] إضافة مرفق صالح:', {
                                 name: doc.name,
@@ -164,7 +164,7 @@
                                 } else if (typeof data === 'string' && data.length > 0) {
                                     errorMessage = data;
                                 }
-                                
+
                                 Swal.fire({
                                     icon: 'error',
                                     title: 'خطأ',
@@ -185,4 +185,4 @@
             }
         });
     </script>
-@endpush
+@endpush --}}
