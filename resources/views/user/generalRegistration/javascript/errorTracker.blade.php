@@ -711,39 +711,7 @@
 
                 // منع الخروج من أي بوابة دون تعبئة البيانات والوثائق الإجبارية باستخدام حدث show.bs.tab (الأكثر أمانًا)
                 $('#formTabs button[data-bs-toggle="tab"]').on('show.bs.tab', function(e) {
-                    // لا تجعل الدالة async حتى لا يتجاهل Bootstrap المنع
                     updateTabStates(); // تحديث حالة التبويبات عند محاولة الانتقال
-                    // تحقق من تكرار رقم الهوية في النموذج أو قاعدة البيانات
-                    if (typeof validateAllIds === 'function') {
-                        // السماح دائماً بالانتقال إلى البوابة الرئيسية بدون تحقق
-                        const target = $(e.target).attr('data-bs-target');
-                        if (target === '#basic') {
-                            return true;
-                        }
-                        // استخدم then/catch بدلاً من await
-                        // فقط أوقف الانتقال إذا كان هناك خطأ فعلي
-                        if (e.target._pendingValidation) return false;
-                        e.target._pendingValidation = true;
-                        validateAllIds().then(function(valid) {
-                            e.target._pendingValidation = false;
-                            if (!valid) {
-                                e.preventDefault && e.preventDefault();
-                                Swal.fire({
-                                    icon: 'error',
-                                    title: 'تنبيه',
-                                    text: 'لا يمكنك المتابعة بسبب تكرار رقم الهوية في النموذج أو وجوده في قاعدة البيانات.'
-                                });
-                            } else {
-                                // فعّل التبويب يدوياً فقط إذا كان التحقق ناجحاً
-                                var tab = new bootstrap.Tab(e.target);
-                                tab.show();
-                            }
-                        }).catch(function() {
-                            e.target._pendingValidation = false;
-                        });
-                        // لا تمنع الانتقال إلا إذا كان هناك خطأ فعلي (سيتم منعه داخل then)
-                        // return false;
-                    }
                     const target = $(e.target).attr('data-bs-target');
                     const currentActive = document.querySelector('#formTabs .nav-link.active');
                     const currentTarget = currentActive ? currentActive.getAttribute('data-bs-target') : null;
