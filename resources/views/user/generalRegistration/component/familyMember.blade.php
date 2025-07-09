@@ -30,7 +30,7 @@
                     document.addEventListener('DOMContentLoaded', function() {
                         const reviewBtn = document.getElementById('goToReviewTabBtn');
                         if (reviewBtn) {
-                            reviewBtn.addEventListener('click', function(e) {
+                            reviewBtn.addEventListener('click', async function(e) {
                                 let invalidField = null;
                                 let invalidLabel = '';
                                 // تحقق فقط من النماذج الظاهرة
@@ -716,27 +716,39 @@
                 const isMobileScreen = window.innerWidth <= 768;
                 const hasTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 
+                // كشف اللابتوب: شائع أن يكون جهاز ويندوز أو ماك مع شاشة بين 768 و 1400 بكسل وليس تابلت
+                const isLaptopUserAgent = /Windows NT|Macintosh|Linux/i.test(navigator.userAgent) && !isMobileUserAgent;
+                const isLaptopScreen = window.innerWidth > 768 && window.innerWidth <= 1400;
+                const isLaptop = isLaptopUserAgent && isLaptopScreen && !hasTouch;
+
                 const isMobile = isMobileUserAgent || isMobileScreen || hasTouch;
+
+                let deviceType = 'desktop';
+                if (isMobile) deviceType = 'mobile';
+                else if (isLaptop) deviceType = 'laptop';
 
                 console.log(`📱 [isMobileDevice] تحليل الجهاز:`, {
                     userAgent: isMobileUserAgent,
                     screenSize: isMobileScreen,
                     touchSupport: hasTouch,
-                    finalResult: isMobile,
+                    isLaptopUserAgent,
+                    isLaptopScreen,
+                    isLaptop,
+                    finalResult: deviceType,
                     screenWidth: window.innerWidth,
                     screenHeight: window.innerHeight
                 });
 
-                return isMobile;
+                return deviceType;
             }
 
             // دالة إعادة تهيئة حالة الرفع - محدثة مع نظام كشف الجهاز
             function resetUploadState() {
                 fileDialogOpen = false;
 
-                // التحقق من وجود fileInput والعقدة الأب قبل المحاولة
+                // حماية إضافية: إذا لم يوجد fileInput أو parentNode، فقط أعد تعيين المتغيرات واخرج
                 if (!fileInput || !fileInput.parentNode) {
-                    console.log(`⚠️ [resetUploadState] fileInput أو parentNode غير موجود، إنهاء العملية`);
+                    console.warn(`⚠️ [resetUploadState] fileInput أو parentNode غير موجود، سيتم فقط إعادة تعيين المتغيرات`);
                     return;
                 }
 
@@ -768,7 +780,7 @@
 
                     // إعادة تهيئة بديلة - فقط مسح القيمة وإعادة ربط المستمعات
                     try {
-                        fileInput.value = '';
+                        if (fileInput) fileInput.value = '';
 
                         if (window.DeviceImageCapture && typeof window.DeviceImageCapture.configureFileInputForDevice === 'function') {
                             const deviceInfo = window.DeviceImageCapture.detectDeviceType();
@@ -880,19 +892,20 @@
                 }
 
                 // إعداد الحاوية بشكل متجاوب
-                const isMobile = isMobileDevice(); // استخدام الدالة المحسنة
-                console.log(`📱 [renderDocuments] حالة الجهاز: ${isMobile ? 'جوال' : 'شاشة كبيرة'}`);
+                const deviceType = isMobileDevice(); // 'mobile' | 'laptop' | 'desktop'
+                const isMobile = deviceType === 'mobile' || deviceType === 'laptop';
+                console.log(`📱 [renderDocuments] حالة الجهاز: ${deviceType}`);
 
                 preview.style.display = 'block';
                 preview.style.width = '100%';
                 preview.style.overflow = 'visible';
 
-                // تطبيق تحسينات الجوال فوراً
+                // تطبيق تحسينات الجوال أو اللابتوب
                 if (isMobile) {
                     preview.style.padding = '10px';
                     preview.style.margin = '10px 0';
                     preview.classList.add('mobile-optimized');
-                    console.log('📱 تم تطبيق تحسينات الجوال على منطقة العرض');
+                    console.log('📱 تم تطبيق تحسينات الجوال/اللابتوب على منطقة العرض');
                 }
 
                 const cardsWrapper = document.createElement('div');
@@ -908,7 +921,7 @@
                         gap: 15px;
                         padding: 0;
                     `;
-                    console.log('📱 تم إعداد الحاوية للجوال - عمودي');
+                    console.log('📱 تم إعداد الحاوية للجوال/اللابتوب - عمودي');
                 } else {
                     cardsWrapper.className = 'd-flex flex-wrap gap-3 justify-content-start';
                     cardsWrapper.style.cssText = `
@@ -921,6 +934,14 @@
                 }
 
                 documents.forEach((doc, docIdx) => {
+                    // حماية: تجاهل أي بطاقة ناقصة البيانات الأساسية
+                    let _fileForDisplay = doc.processedFile || doc.file;
+                    const validFileName = _fileForDisplay && typeof _fileForDisplay.name === 'string' && _fileForDisplay.name.trim() !== '';
+                    const validTypeText = doc.typeText && typeof doc.typeText === 'string' && doc.typeText.trim() !== '';
+                    if (!validFileName || !validTypeText) {
+                        console.warn(`⚠️ [renderDocuments] تجاهل بطاقة ناقصة:`, {doc, docIdx});
+                        return; // لا تعرض البطاقة
+                    }
                     console.log(`🎨 [renderDocuments] عرض المرفق ${docIdx + 1}/${documents.length}:`, {
                         docName: doc.docName,
                         typeText: doc.typeText,
@@ -937,8 +958,14 @@
 
                     const card = document.createElement('div');
                     card.className = 'attachment-card card border-0 shadow-sm';
-
-                    // تطبيق تصميم متجاوب للجوال
+                    if (doc.isSuccess) {
+                        const successBadge = document.createElement('div');
+                        successBadge.className = 'text-success fw-bold mb-2';
+                        successBadge.style.fontSize = '1.1rem';
+                        successBadge.innerHTML = '<i class="fas fa-check-circle me-1"></i> تمت المعالجة بنجاح';
+                        card.appendChild(successBadge);
+                    }
+                    // تطبيق تصميم متجاوب للجوال/اللابتوب
                     if (isMobile) {
                         card.style.cssText = `
                             width: 100%;
@@ -954,7 +981,7 @@
                             opacity: 1;
                             flex-shrink: 0;
                         `;
-                        console.log(`📱 بطاقة ${docIdx + 1}: تم تطبيق تصميم الجوال`);
+                        console.log(`📱 بطاقة ${docIdx + 1}: تم تطبيق تصميم الجوال/اللابتوب`);
                     } else {
                         card.style.cssText = `
                             width: 180px;
@@ -1101,20 +1128,39 @@
                         cardBody.appendChild(fileIcon);
                     }
 
-                    // اسم الملف
+
+                    // اسم الملف مع حماية ضد القيم غير المعروفة
                     const fileName = document.createElement('div');
                     fileName.className = 'file-name text-muted small mb-2 text-truncate';
                     fileName.style.fontWeight = '500';
                     const fileForDisplay = doc.processedFile || doc.file;
-                    const displayName = fileForDisplay?.name || doc.docName || 'ملف غير معروف';
-                    fileName.textContent = displayName;
-                    fileName.title = displayName; // tooltip
+                    let displayName = '';
+                    if (fileForDisplay && fileForDisplay.name) {
+                        displayName = fileForDisplay.name;
+                    } else if (doc.docName && typeof doc.docName === 'string' && doc.docName.trim() !== '') {
+                        displayName = doc.docName;
+                    } else {
+                        displayName = '';
+                    }
+                    fileName.textContent = displayName !== '' ? displayName : '—';
+                    fileName.title = displayName !== '' ? displayName : 'لا يوجد اسم ملف';
                     cardBody.appendChild(fileName);
+
+                    // نوع الوثيقة بشكل واضح
+                    if (doc.typeText && typeof doc.typeText === 'string' && doc.typeText.trim() !== '') {
+                        const typeTextDiv = document.createElement('div');
+                        typeTextDiv.className = 'doc-type-text text-primary small mb-2';
+                        typeTextDiv.textContent = doc.typeText;
+                        cardBody.appendChild(typeTextDiv);
+                    }
 
                     // معلومات إضافية
                     const fileInfo = document.createElement('div');
                     fileInfo.className = 'file-info small text-muted mb-3';
-                    const fileSize = fileForDisplay?.size ? (fileForDisplay.size / 1024).toFixed(1) + ' KB' : 'غير معروف';
+                    let fileSize = '—';
+                    if (fileForDisplay && typeof fileForDisplay.size === 'number') {
+                        fileSize = (fileForDisplay.size / 1024).toFixed(1) + ' KB';
+                    }
                     fileInfo.innerHTML = `
                         <div class="d-flex justify-content-between">
                             <span><i class="fas fa-weight-hanging me-1"></i>${fileSize}</span>
@@ -1366,8 +1412,8 @@
                 preview.appendChild(cardsWrapper);
                 preview.style.display = 'block';
 
-                // تحسينات إضافية للجوال
-                if (isMobile) {
+                // تحسينات إضافية للجوال/اللابتوب
+                if (deviceType === 'mobile' || deviceType === 'laptop') {
                     preview.style.padding = '10px';
                     preview.style.margin = '10px 0';
                     cardsWrapper.style.width = '100%';
@@ -1381,7 +1427,7 @@
                         card.style.opacity = '1';
                     });
 
-                    console.log(`📱 [renderDocuments] تم تطبيق تحسينات الجوال - عدد البطاقات: ${cards.length}`);
+                    console.log(`📱 [renderDocuments] تم تطبيق تحسينات الجوال/اللابتوب - عدد البطاقات: ${cards.length}`);
                 }
 
                 console.log(`✅ [renderDocuments] اكتمل عرض ${documents.length} مرفق للمنطقة: ${idx}`);
@@ -1477,6 +1523,22 @@
 
             // دالة إعداد معالج الملف مع إعادة التهيئة
             function setupFileInputHandler(input) {
+            // دالة إغلاق جميع المودالات/الكروبر/الباك دروب عند الفشل أو التداخل
+            function forceCloseAllModals() {
+                // إغلاق جميع المودالات المفتوحة والـ backdrop
+                document.querySelectorAll('.modal.show, .modal-backdrop').forEach(el => {
+                    el.classList.remove('show');
+                    el.classList.add('fade');
+                    el.style.display = 'none';
+                    el.remove();
+                });
+                // إغلاق cropper modal إذا كان متاحًا
+                if (window.closeCropperModal && typeof window.closeCropperModal === 'function') {
+                    try { window.closeCropperModal(); } catch(e) {}
+                }
+                // إعادة تهيئة متغيرات الحالة
+                fileDialogOpen = false;
+            }
                 // التحقق من صحة العنصر
                 if (!input || !input.parentNode) {
                     console.warn(`⚠️ [setupFileInputHandler] عنصر الإدخال غير صالح، إنهاء العملية`);
@@ -1535,168 +1597,130 @@
                     if (file.type.startsWith('image/')) {
                         const reader = new FileReader();
                         reader.onload = function(e) {
-                            // إظهار حالة المعالجة
                             showProcessingState(e.target.result);
-
-                            // فتح المقص بعد تأخير
                             setTimeout(() => {
-                                // التحقق من وجود دالة المقص
                                 if (typeof window.showCropperModal === 'function') {
+                                    // حماية: منع تكرار فتح cropper modal إذا كان هناك واحد مفتوح
+                                    if (document.querySelector('.modal.show')) {
+                                        console.warn('يوجد مودال مفتوح بالفعل، لن يتم فتح مودال جديد');
+                                        return;
+                                    }
                                     console.log('🔍 [fileInput] دالة المقص متوفرة، بدء عملية القص...');
-
-                                    // إصلاح مشكلة modal backdrop المتعددة
                                     const existingBackdrops = document.querySelectorAll('.modal-backdrop');
                                     existingBackdrops.forEach(backdrop => backdrop.remove());
-
-                                    window.showCropperModal(file, function(croppedFile) {
-                                        if (!croppedFile || !fileId || !personId) {
-                                            console.log(`❌ [fileInput] فشل القص أو الإلغاء`);
+                                    // تعديل: الكولباك يأخذ croppedFile و cropperError
+                                    window.showCropperModal(file, function(croppedFile, cropperError) {
+                                        // حماية من undefined أو حالة غير معروفة
+                                        if (!croppedFile || cropperError || typeof croppedFile !== 'object' || !croppedFile.size) {
+                                            forceCloseAllModals();
                                             preview.innerHTML = '';
                                             docTypeSelect.value = '';
                                             resetUploadState();
-                                            return;
-                                        }
-
-                                        console.log(`🔍 [fileInput] تفاصيل الملف المقصوص:`, {
-                                            fileName: croppedFile.name,
-                                            fileSize: croppedFile.size,
-                                            fileType: croppedFile.type,
-                                            isValidName: croppedFile.name && croppedFile.name.includes('_cropped'),
-                                            isNotUndefined: croppedFile.name !== 'undefined'
-                                        });
-
-                                        if (croppedFile.name && croppedFile.name.includes('_cropped') && croppedFile.name !== 'undefined') {
-                                            const docObj = {
-                                                type: typeVal,
-                                                typeText: typeText,
-                                                file: file, // الملف الأصلي
-                                                processedFile: croppedFile, // الملف المعالج
-                                                docName: docName,
-                                                personId: personId,
-                                                fileId: fileId,
-                                                personKey: personKey
-                                            };
-
-                                            console.log(`✅ [fileInput] نجح القص وإنشاء كائن الوثيقة:`, {
-                                                docName: docObj.docName,
-                                                hasOriginalFile: !!docObj.file,
-                                                hasProcessedFile: !!docObj.processedFile,
-                                                processedFileName: docObj.processedFile?.name,
-                                                processedFileSize: docObj.processedFile?.size
-                                            });
-
-                                            // إضافة إلى window.allDocs
-                                            if (window.allDocs && window.allDocs instanceof Map) {
-                                                let docsArr = window.allDocs.get(personKey) || [];
-                                                docsArr.push(docObj);
-                                                window.allDocs.set(personKey, docsArr);
-                                                console.log(`📋 [fileInput] تم إضافة الوثيقة إلى allDocs:`, {
-                                                    personKey: personKey,
-                                                    totalDocs: docsArr.length
+                                            if (typeof Swal !== 'undefined') {
+                                                Swal.fire({
+                                                    icon: 'error',
+                                                    title: 'فشل معالجة الصورة',
+                                                    text: (cropperError && cropperError.message) ? cropperError.message : 'حدث خطأ أثناء قص الصورة أو تم الإلغاء. لم يتم إضافة الوثيقة.',
+                                                    timer: 3500,
+                                                    showConfirmButton: true
                                                 });
                                             }
-
-                                            // إضافة إلى documents المحلية
-                                            documents.push(docObj);
-
-                                            // مزامنة مع window.allDocs
-                                            syncWithAllDocs();
-
-                                            // إظهار رسالة النجاح
-                                            preview.innerHTML = `
-                                                <div class="success-container text-center p-4" style="
-                                                    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-                                                    border-radius: 15px;
-                                                    border: 2px solid #28a745;
-                                                    animation: successPulse 0.6s ease-in-out;
-                                                ">
-                                                    <div class="success-icon mb-3">
-                                                        <i class="fas fa-check-circle text-success" style="font-size: 3rem; animation: bounceIn 0.8s ease;"></i>
-                                                    </div>
-                                                    <div class="text-success fw-bold mb-2" style="font-size: 1.2rem;">تمت المعالجة بنجاح!</div>
-                                                    <small class="text-muted">جاري عرض النتيجة النهائية...</small>
-                                                </div>
-                                                <style>
-                                                    @keyframes successPulse {
-                                                        0% { transform: scale(0.8); opacity: 0; }
-                                                        50% { transform: scale(1.05); }
-                                                        100% { transform: scale(1); opacity: 1; }
+                                            return;
+                                        }
+                                        // تعيين اسم للملف المقصوص إذا لم يكن موجودًا أو غير صالح
+                                        if (!croppedFile.name || croppedFile.name === 'blob' || croppedFile.name === 'undefined') {
+                                            const ext = file.name.substring(file.name.lastIndexOf('.'));
+                                            croppedFile.name = `${typeVal}_${fileId}_${personId}_cropped${ext}`;
+                                        }
+                                        // تحقق من نجاح القص: يجب أن يكون croppedFile صالحًا ولا يوجد cropperError
+                                        if (croppedFile && !cropperError && fileId && personId && croppedFile.name && croppedFile.name.includes('_cropped') && croppedFile.name !== 'undefined') {
+                                            const croppedDocName = `${typeVal}_${fileId}_${personId}${croppedFile.name.substring(croppedFile.name.lastIndexOf('.'))}`;
+                                            // تحقق من عدم وجود تكرار لنفس docName
+                                            if (!documents.some(d => d.docName === croppedDocName)) {
+                                                const docObj = {
+                                                    type: typeVal,
+                                                    typeText: docTypeSelect.options[docTypeSelect.selectedIndex]?.text || 'وثيقة',
+                                                    file: file,
+                                                    processedFile: croppedFile,
+                                                    docName: croppedDocName,
+                                                    personId: personId,
+                                                    fileId: fileId,
+                                                    personKey: personKey,
+                                                    isSuccess: true
+                                                };
+                                                documents.push(docObj);
+                                                if (window.allDocs && window.allDocs instanceof Map) {
+                                                    let docsArr = window.allDocs.get(personKey) || [];
+                                                    if (!docsArr.some(d => d.docName === croppedDocName)) {
+                                                        docsArr.push(docObj);
+                                                        window.allDocs.set(personKey, docsArr);
                                                     }
-                                                    @keyframes bounceIn {
-                                                        0% { transform: scale(0.3); opacity: 0; }
-                                                        50% { transform: scale(1.05); }
-                                                        70% { transform: scale(0.9); }
-                                                        100% { transform: scale(1); opacity: 1; }
-                                                    }
-                                                </style>
-                                            `;
-
-                                            // عرض النتيجة النهائية
-                                            setTimeout(() => {
+                                                }
+                                                syncWithAllDocs();
                                                 renderDocuments();
-                                                // إعادة تهيئة بعد النجاح
-                                                docTypeSelect.value = '';
-                                                resetUploadState();
-
-                                                // تنظيف modal backdrop إضافي
-                                                setTimeout(() => {
-                                                    const remainingBackdrops = document.querySelectorAll('.modal-backdrop');
-                                                    remainingBackdrops.forEach(backdrop => backdrop.remove());
-                                                }, 500);
-                                            }, 1500);
+                                            } else {
+                                                console.warn('⚠️ [fileInput] محاولة إضافة وثيقة مكررة، تم الإلغاء');
+                                            }
+                                            docTypeSelect.value = '';
+                                            resetUploadState();
+                                            forceCloseAllModals();
+                                            console.log(`✅ [fileInput] نجح القص وإنشاء كائن الوثيقة:`);
                                         } else {
-                                            console.error(`❌ [fileInput] اسم الملف المقصوص غير صالح:`, {
-                                                fileName: croppedFile.name,
-                                                expectedPattern: '_cropped'
-                                            });
+                                            // فشل القص أو خطأ أو اسم غير صالح
+                                            forceCloseAllModals();
                                             preview.innerHTML = '';
                                             docTypeSelect.value = '';
                                             resetUploadState();
+                                            // رسالة فشل واضحة
+                                            if (typeof Swal !== 'undefined') {
+                                                Swal.fire({
+                                                    icon: 'error',
+                                                    title: 'فشل معالجة الصورة',
+                                                    text: (cropperError && cropperError.message) ? cropperError.message : 'حدث خطأ أثناء قص الصورة أو تم الإلغاء. لم يتم إضافة الوثيقة.',
+                                                    timer: 3500,
+                                                    showConfirmButton: true
+                                                });
+                                            }
                                         }
                                     });
                                 } else {
                                     console.error(`❌ [fileInput] دالة المقص غير متوفرة - window.showCropperModal`);
+                                    forceCloseAllModals();
                                     console.log('🔧 [fileInput] محاولة المتابعة بدون قص...');
-
-                                    // المتابعة بدون قص إذا لم تكن دالة المقص متوفرة
-                                    const docObj = {
-                                        type: typeVal,
-                                        typeText: typeText,
-                                        file: file,
-                                        processedFile: file, // استخدام نفس الملف
-                                        docName: docName,
-                                        personId: personId,
-                                        fileId: fileId,
-                                        personKey: personKey
-                                    };
-
-                                    // إضافة إلى window.allDocs
-                                    if (window.allDocs && window.allDocs instanceof Map) {
-                                        let docsArr = window.allDocs.get(personKey) || [];
-                                        docsArr.push(docObj);
-                                        window.allDocs.set(personKey, docsArr);
+                                    // تحقق من عدم وجود تكرار لنفس docName
+                                    if (!documents.some(d => d.docName === docName)) {
+                                        const docObj = {
+                                            type: typeVal,
+                                            typeText: typeText,
+                                            file: file,
+                                            processedFile: file,
+                                            docName: docName,
+                                            personId: personId,
+                                            fileId: fileId,
+                                            personKey: personKey
+                                        };
+                                        documents.push(docObj);
+                                        if (window.allDocs && window.allDocs instanceof Map) {
+                                            let docsArr = window.allDocs.get(personKey) || [];
+                                            if (!docsArr.some(d => d.docName === docName)) {
+                                                docsArr.push(docObj);
+                                                window.allDocs.set(personKey, docsArr);
+                                            }
+                                        }
+                                        syncWithAllDocs();
+                                        renderDocuments();
+                                    } else {
+                                        console.warn('⚠️ [fileInput] محاولة إضافة وثيقة مكررة بدون قص، تم الإلغاء');
                                     }
-
-                                    // إضافة إلى documents المحلية
-                                    documents.push(docObj);
-
-                                    // مزامنة مع window.allDocs
-                                    syncWithAllDocs();
-
-                                    renderDocuments();
-
-                                    // إعادة تهيئة بعد النجاح
                                     docTypeSelect.value = '';
                                     resetUploadState();
                                 }
                             }, 800);
                         };
-
                         reader.onerror = function() {
                             console.error(`❌ [fileInput] خطأ في قراءة الملف`);
                             resetUploadState();
                         };
-
                         reader.readAsDataURL(file);
                     } else {
                         // معالجة الملفات غير الصور

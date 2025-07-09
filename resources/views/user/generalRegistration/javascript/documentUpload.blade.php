@@ -920,9 +920,14 @@
                 console.log(`[renderAttachmentTasksUI] عدد المهام للعرض: ${arr.length}`);
 
                 arr.forEach((task, index) => {
+                    // حماية ضد undefined/null في status
+                    let safeStatus = (typeof task.status === 'string' && task.status.trim() !== '') ? task.status : 'unknown';
+                    if (safeStatus === 'unknown') {
+                        console.warn('[renderAttachmentTasksUI] حالة مهمة غير معروفة: undefined أو غير معرفة', task);
+                    }
                     console.log(`[renderAttachmentTasksUI] معالجة مهمة ${index + 1}/${arr.length}:`, {
                         id: task.id,
-                        status: task.status,
+                        status: safeStatus,
                         fileName: task.originalFile ? task.originalFile.name : 'مجهول',
                         isImage: task.originalFile ? task.originalFile.type.startsWith('image/') : false
                     });
@@ -959,7 +964,7 @@
                         console.log(`[renderAttachmentTasksUI] ✅ استخدام الملف الأصلي للعرض الفوري: ${task.originalFile.name}`);
 
                         // استبدال بالملف المعالج إذا اكتمل القص فعلياً
-                        if (task.status === 'completed' &&
+                        if (safeStatus === 'completed' &&
                             task.isProcessed &&
                             task.processedFile &&
                             task.processedFile !== task.originalFile &&
@@ -970,9 +975,9 @@
                         }
 
                         // إظهار overlay المعالجة أثناء pending/processing فقط
-                        if (task.status === 'pending' || task.status === 'processing') {
+                        if (safeStatus === 'pending' || safeStatus === 'processing') {
                             showProcessingOverlay = true;
-                            console.log(`[renderAttachmentTasksUI] 🔄 إظهار overlay للحالة: ${task.status}`);
+                            console.log(`[renderAttachmentTasksUI] 🔄 إظهار overlay للحالة: ${safeStatus}`);
                         }
                     }
 
@@ -1008,7 +1013,7 @@
                             const processingText = document.createElement('div');
                             processingText.className = 'small text-light mt-1 text-center';
                             processingText.style.fontSize = '0.7rem';
-                            processingText.textContent = task.status === 'pending' ? 'انتظار...' : 'معالجة...';
+                            processingText.textContent = safeStatus === 'pending' ? 'انتظار...' : 'معالجة...';
 
                             overlay.appendChild(spinner);
                             overlay.appendChild(processingText);
@@ -1026,7 +1031,7 @@
                     statusDiv.className = 'mt-1';
 
                     // تحسين عرض الحالات مع رسائل واضحة ومناسبة للموبايل
-                    switch (task.status) {
+                    switch (safeStatus) {
                         case 'pending':
                             statusDiv.innerHTML = '<span class="status-badge pending">🔄 تحضير...</span>';
                             break;
@@ -1051,7 +1056,12 @@
                             break;
                         default:
                             statusDiv.innerHTML = '<span class="status-badge">❓ غير معروف</span>';
-                            console.warn('[renderAttachmentTasksUI] حالة مهمة غير معروفة:', task.status, task);
+                            // سجل تحذير فقط أول مرة لكل حالة غير معروفة
+                            if (safeStatus === 'unknown') {
+                                // تم تسجيل التحذير أعلاه
+                            } else {
+                                console.warn('[renderAttachmentTasksUI] حالة مهمة غير معروفة (غير unknown):', safeStatus, task);
+                            }
                     }
                     cardBody.appendChild(statusDiv);
                     const delBtn = document.createElement('button');

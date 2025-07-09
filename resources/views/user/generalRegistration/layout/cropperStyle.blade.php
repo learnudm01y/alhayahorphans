@@ -525,13 +525,13 @@
             opacity: 1 !important;
         }
     }
-    /* تحسينات إضافية */
+    /* تحسينات إضافية
     #cropperModal {
     z-index: 1050 !important;
     overflow: visible !important;
     }
     .modal-backdrop {
         z-index: 1040 !important;
-    }
+    } */
 </style>
 
