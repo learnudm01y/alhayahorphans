@@ -340,4 +340,55 @@ async function validateAllIds(e) {
     return true;
 }
 
+// تحديث رقم الهوية المرتبط بالصور او المرفقات بشكل عام
+// ...existing code...
+
+// تحديث رقم الهوية في جميع المرفقات عند تغيير رقم الهوية لأي شخص
+document.addEventListener('input', function(e) {
+    // تحديث رقم الهوية للبيانات الأساسية
+    if (e.target.name === 'data_id_number') {
+        const newId = e.target.value.trim();
+        if (window.allDocs && window.allDocs.has('main')) {
+            window.allDocs.get('main').forEach(doc => {
+                doc.personId = newId;
+            });
+        }
+    }
+    // تحديث رقم هوية الأب المتوفى
+    if (e.target.name === 'father_id') {
+        const newId = e.target.value.trim();
+        if (window.allDocs && window.allDocs.has('deceased_father')) {
+            window.allDocs.get('deceased_father').forEach(doc => {
+                doc.personId = newId;
+            });
+        }
+    }
+    // تحديث رقم هوية الأم المتوفاة
+    if (e.target.name === 'mother_id') {
+        const newId = e.target.value.trim();
+        if (window.allDocs && window.allDocs.has('deceased_mother')) {
+            window.allDocs.get('deceased_mother').forEach(doc => {
+                doc.personId = newId;
+            });
+        }
+    }
+    // تحديث رقم هوية أفراد الأسرة
+    if (
+        e.target.name &&
+        e.target.name.startsWith('family_members[') &&
+        e.target.name.endsWith('[person_id]')
+    ) {
+        const match = e.target.name.match(/family_members\[(\d+)\]\[person_id\]/);
+        if (match) {
+            const idx = match[1];
+            const newId = e.target.value.trim();
+            const personKey = `family_${idx}`;
+            if (window.allDocs && window.allDocs.has(personKey)) {
+                window.allDocs.get(personKey).forEach(doc => {
+                    doc.personId = newId;
+                });
+            }
+        }
+    }
+});
     </script>

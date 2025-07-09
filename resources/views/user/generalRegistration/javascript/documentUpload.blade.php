@@ -880,24 +880,9 @@
                 console.warn('[handleAttachmentCancelAndCleanup] لم يتم العثور على المهمة للحذف!');
             }
         }
-        //   // معالجة عملية حذف الصورة عند الالغاء
-        //     const cancelBtn = document.getElementById('cropperCancelBtn'); // عدل المعرف حسب كودك الفعلي
-        //     if (cancelBtn) {
-        //         cancelBtn.addEventListener('click', function() {
-        //             cleanup();
-        //             handleAttachmentCancelAndCleanup(file); // ← حذف المهمة فور الإلغاء
-        //             callback(null);
-        //         });
-        //     }
 
             // تحسين renderAttachmentTasksUI للعرض الفوري المحسن
             function renderAttachmentTasksUI(personKey) {
-                // تعطيل أفراد الأسرة نهائياً داخل هذه الدالة
-                // if (personKey && personKey.startsWith('family_')) {
-                //     // فقط سجل في الكونسول وتوقف
-                //     console.log(`[renderAttachmentTasksUI] تم تجاهل أفراد الأسرة (${personKey})`);
-                //     return;
-                // }
                 console.log(`[renderAttachmentTasksUI] 🎨 تحديث واجهة البوابة: ${personKey}`);
 
                 // تحقق أن البوابة موجودة فعلياً في الصفحة
@@ -1063,7 +1048,29 @@
                                 console.warn('[renderAttachmentTasksUI] حالة مهمة غير معروفة (غير unknown):', safeStatus, task);
                             }
                     }
-                    cardBody.appendChild(statusDiv);
+                    // cardBody.appendChild(statusDiv);
+                    // const delBtn = document.createElement('button');
+                    // delBtn.type = 'button';
+                    // delBtn.className = 'btn btn-danger btn-sm mt-2';
+                    // delBtn.textContent = 'حذف';
+                    // delBtn.onclick = function() {
+                    //     Swal.fire({
+                    //         title: 'تأكيد الحذف',
+                    //         text: 'هل أنت متأكد أنك تريد حذف هذا المرفق؟',
+                    //         icon: 'warning',
+                    //         showCancelButton: true,
+                    //         confirmButtonText: 'نعم، احذف',
+                    //         cancelButtonText: 'إلغاء'
+                    //     }).then((result) => {
+                    //         if (result.isConfirmed) {
+                    //             // ألغِ objectUrl عند حذف الكارد فقط
+                    //             if (card.dataset.objectUrl) {
+                    //                 try { URL.revokeObjectURL(card.dataset.objectUrl); } catch {}
+                    //             }
+                    //             removeAttachmentTask(personKey, task.id);
+                    //         }
+                    //     });
+                    // };
                     const delBtn = document.createElement('button');
                     delBtn.type = 'button';
                     delBtn.className = 'btn btn-danger btn-sm mt-2';
@@ -1078,11 +1085,42 @@
                             cancelButtonText: 'إلغاء'
                         }).then((result) => {
                             if (result.isConfirmed) {
-                                // ألغِ objectUrl عند حذف الكارد فقط
-                                if (card.dataset.objectUrl) {
-                                    try { URL.revokeObjectURL(card.dataset.objectUrl); } catch {}
+                                // اجمع كل البوابات التي سيتم تحديثها
+                                const updatedKeys = [];
+                                if (window.allDocs && window.allDocs instanceof Map) {
+                                    for (let [key, arr] of window.allDocs.entries()) {
+                                        const idx = arr.findIndex(t => t.id === task.id);
+                                        if (idx !== -1) {
+                                            // تنظيف objectUrl إذا كان موجوداً
+                                            if (arr[idx].processedFile && arr[idx].processedFile.previewUrl) {
+                                                try { URL.revokeObjectURL(arr[idx].processedFile.previewUrl); } catch {}
+                                            }
+                                            arr.splice(idx, 1);
+                                            if (arr.length === 0) window.allDocs.delete(key);
+                                            updatedKeys.push(key);
+                                        }
+                                    }
+                                    if (window._preservedAttachments) {
+                                    for (let [key, arr] of Object.entries(window._preservedAttachments)) {
+                                        const idx = arr.findIndex(t => t.id === task.id);
+                                        if (idx !== -1) {
+                                            arr.splice(idx, 1);
+                                            // إذا أصبحت المصفوفة فارغة، احذف المفتاح
+                                            if (arr.length === 0) delete window._preservedAttachments[key];
+                                        }
+                                    }
                                 }
-                                removeAttachmentTask(personKey, task.id);
+                                }
+                                // تحديث الواجهة بعد الحذف دفعة واحدة
+                                if (typeof renderAttachmentTasksUI === 'function') {
+                                    updatedKeys.forEach(key => renderAttachmentTasksUI(key));
+                                }
+                                // حذف الكارد من الواجهة مباشرة (احتياطي)
+                                const card = document.getElementById('preview_att_' + task.id);
+                                if (card && card.parentNode) {
+                                    card.parentNode.removeChild(card);
+                                }
+                                console.log('[حذف المرفق] تم حذف المرفق من جميع البوابات:', task.id);
                             }
                         });
                     };
