@@ -91,7 +91,11 @@ class RecordsManagementeDataTable extends DataTable
      */
     public function query(Data $model): QueryBuilder
     {
-        return $model->newQuery();
+        // عرض فقط السجلات التي حالة الطلب لها "مقبول"
+        return $model->newQuery()
+            ->whereHas('requestStatus', function($q) {
+                $q->where('description', 'مقبول');
+            });
     }
 
     /**

@@ -28,6 +28,53 @@ use Illuminate\Support\Facades\Log;
 
 class RecordsManagementEditController extends Controller
 {
+    /**
+     * عرض تقرير نشاط الموظفين (admins) مع كروت إحصائية
+     */
+    public function adminActivityReport()
+    {
+        // جلب جميع المستخدمين من نوع admin
+        $admins = \App\Models\User::where('role', 'admin')->get();
+
+        // جلب جميع السجلات من جدول Data لمطابقة الإدخالات
+        $allData = Data::select('id', 'data_user_insert_data', 'created_at')
+            ->get();
+
+        // اليوم الحالي
+        $today = now()->format('Y-m-d');
+        $month = now()->format('Y-m');
+        $year = now()->format('Y');
+
+        $adminsStats = $admins->map(function($admin) use ($allData, $today, $month, $year) {
+            $userName = $admin->name;
+            // جميع السجلات التي أدخلها هذا المستخدم
+            $userData = $allData->where('data_user_insert_data', $userName);
+
+            // عدد السجلات اليوم
+            $countToday = $userData->filter(function($row) use ($today) {
+                return optional($row->created_at)->format('Y-m-d') === $today;
+            })->count();
+            // عدد السجلات هذا الشهر
+            $countMonth = $userData->filter(function($row) use ($month) {
+                return optional($row->created_at)->format('Y-m') === $month;
+            })->count();
+            // عدد السجلات هذه السنة
+            $countYear = $userData->filter(function($row) use ($year) {
+                return optional($row->created_at)->format('Y') === $year;
+            })->count();
+
+            return [
+                'user' => $admin,
+                'count_today' => $countToday,
+                'count_month' => $countMonth,
+                'count_year' => $countYear,
+            ];
+        });
+
+        return view('admin.dashboard.admin_activity_report', [
+            'adminsStats' => $adminsStats
+        ]);
+    }
     public function edit($id)
     {
         $data = Data::findOrFail($id);
@@ -595,6 +642,28 @@ class RecordsManagementEditController extends Controller
         return redirect()->route('admin.records.management')->with('success', 'تم حذف السجل وجميع البيانات المرتبطة به بنجاح');
     }
 
+    /**
+     * AJAX: جلب سجلات موظف مع pagination
+     */
+    public function ajaxAdminRecords($adminId)
+    {
+        $admin = \App\Models\User::findOrFail($adminId);
+        $perPage = 15;
+        $page = request('page', 1);
+        $records = \App\Models\Data::where('data_user_insert_data', $admin->name)
+            ->orderByDesc('created_at')
+            ->paginate($perPage, ['*'], 'page', $page);
 
+        // بناء جدول HTML
+        if ($records->count()) {
+            $html = view('admin.dashboard.component._admin_records_table', [
+                'records' => $records,
+                'admin' => $admin
+            ])->render();
+            return response()->json(['success' => true, 'html' => $html]);
+        } else {
+            return response()->json(['success' => false, 'message' => 'لا توجد سجلات مدخلة لهذا الموظف.']);
+        }
+    }
 }
 

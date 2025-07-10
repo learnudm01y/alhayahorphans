@@ -44,6 +44,18 @@
                 <!--begin:Menu item-->
                 <div class="menu-item">
                     <!--begin:Menu link-->
+                    <a class="menu-link" href="{{ route('admin.manage.user.requests.index') }}">
+                        <span class="menu-bullet">
+                            <span class="bullet bullet-dot"></span>
+                        </span>
+                        <span class="menu-title"> إدارة طلبات المستخدمين  </span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                <!--end:Menu item-->
+                <!--begin:Menu item-->
+                <div class="menu-item">
+                    <!--begin:Menu link-->
                     <a class="menu-link" href="{{ route('admin.records.management.create') }}">
                         <span class="menu-bullet">
                             <span class="bullet bullet-dot"></span>

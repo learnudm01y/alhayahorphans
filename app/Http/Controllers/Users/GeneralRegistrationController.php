@@ -176,8 +176,8 @@ class GeneralRegistrationController extends Controller
                 'data_employment_status_breadwinner' => $request->input('data_employment_status_breadwinner'),
                 'data_housing_status' => $request->input('data_housing_status'),
                 'data_current_housing_type' => $request->input('data_current_housing_type'),
-                'data_user_insert_data' => $request->input('data_user_insert_data'),
-                'data_request_status' => 2, // تأكد من وجود هذا السطر دائماً
+                'data_user_insert_data' => "N_user" ,
+                'data_request_status' => 1, // تأكد من وجود هذا السطر دائماً
             ]);
 
             // تحديث حالة الرقم في جدول reserved_codes ليصبح مستخدم فعلياً

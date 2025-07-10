@@ -16,7 +16,7 @@ class AdminController extends Controller
 {
     public function index(): View
     {
-        return view('admin.dashboard.toolbars.index');
+        return view('admin.dashboard.component.indexPageForStatistics');
     }
 
     public function profile(): View

@@ -25,8 +25,12 @@ use App\Http\Controllers\Admin\TypeOfAccommodationController;
 use App\Http\Controllers\Admin\TypeOfGuaranteeController;
 use App\Http\Controllers\Users\UserController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Admin\ManageTheUserRequestController;
 
 Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
+    // إدارة طلبات المستخدمين (عرض وتغيير حالة الطلب)
+    Route::get('manage-user-requests', [ManageTheUserRequestController::class, 'index'])->name('manage.user.requests.index');
+    Route::post('manage-user-requests/change-status', [ManageTheUserRequestController::class, 'changeStatus'])->name('manage.user.requests.changeStatus');
     Route::get('dashboard', [AdminController::class, 'index'])->name('dashboard');
     // profile management
     Route::get('profile', [AdminController::class, 'profile'])->name('index.profile');
@@ -120,4 +124,6 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     //   Type Of Guarantee Management
     Route::resource('TypeOfGuarantee_name', TypeOfGuaranteeController::class);
     Route::get('records-management/{id}/show', [RecordsManagementEditController::class, 'show'])->name('records.management.show');
+     // AJAX: جلب سجلات موظف مع pagination
+    Route::get('ajax/admin-records/{admin}', [RecordsManagementEditController::class, 'ajaxAdminRecords'])->name('ajax.admin-records');
 });
