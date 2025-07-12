@@ -1743,8 +1743,11 @@ class UnifiedFileManagementController extends Controller
                 ->where('file_type', 'excel')
                 ->first();
 
+            // توليد رقم مرفق فريد بالبادئة exc_
+            $attachmentRecordNumber = generateUniqueAttachmentRecordNumber();
+
             $fileData = [
-                'record_number' => '0000000000', // placeholder - can be updated later
+                'record_number' => $attachmentRecordNumber,
                 'person_identity_number' => null,
                 'stored_file_name' => basename($filePath),
                 'original_file_name' => $file->getClientOriginalName(),
@@ -2103,8 +2106,11 @@ class UnifiedFileManagementController extends Controller
         try {
             $fileHash = md5_file($file->getPathname());
 
+            // توليد رقم مرفق فريد بالبادئة exc_
+            $attachmentRecordNumber = generateUniqueAttachmentRecordNumber();
+
             $fileData = [
-                'record_number' => $recordNumber,
+                'record_number' => $attachmentRecordNumber,
                 'person_identity_number' => $personId,
                 'stored_file_name' => basename($filePath),
                 'original_file_name' => $file->getClientOriginalName(),
@@ -2157,8 +2163,11 @@ class UnifiedFileManagementController extends Controller
             $fileSize = ($filePathname && file_exists($filePathname)) ? $file->getSize() : null;
             $fileHash = ($filePathname && file_exists($filePathname)) ? md5_file($filePathname) : md5($customName . time());
 
+            // توليد رقم مرفق فريد بالبادئة exc_
+            $attachmentRecordNumber = generateUniqueAttachmentRecordNumber();
+
             $imageData = [
-                'record_number' => $folderId,
+                'record_number' => $attachmentRecordNumber,
                 'person_identity_number' => $identityNumber,
                 'stored_file_name' => $customName,
                 'original_file_name' => method_exists($file, 'getClientOriginalName') ? $file->getClientOriginalName() : $customName,

@@ -23,6 +23,7 @@ if (!function_exists('generateFiveDigitCode')) {
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 if (!function_exists('generateUniqueReservedCode')) {
     /**
@@ -281,6 +282,86 @@ if (!function_exists('bulkValidateIdentityNumbers')) {
         }
 
         return $results;
+    }
+}
+
+if (!function_exists('generateUniqueAttachmentRecordNumber')) {
+    /**
+     * توليد رقم مرفق فريد بالبادئة exc_ للاستخدام في جدول enhanced_attachments
+     * يضمن التفرد مع استخدام جدول reserved_codes للحماية من التضارب
+     *
+     * @param string $sessionId معرف الجلسة الفريد
+     * @return string الرقم المولد بصيغة exc_XXXXXX
+     */
+    function generateUniqueAttachmentRecordNumber(string $sessionId = null): string
+    {
+        $sessionId = $sessionId ?: 'attachment_' . session()->getId() . '_' . time();
+
+        return DB::transaction(function () use ($sessionId) {
+            $maxAttempts = 50;
+
+            for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+                // الحصول على أكبر رقم من enhanced_attachments (إزالة البادئة للمقارنة)
+                $maxAttachment = DB::table('enhanced_attachments')
+                    ->where('record_number', 'LIKE', 'exc_%')
+                    ->selectRaw('MAX(CAST(SUBSTRING(record_number, 5) AS UNSIGNED)) as max_num')
+                    ->lockForUpdate()
+                    ->value('max_num');
+
+                // الحصول على أكبر رقم من reserved_codes للرموز التي تبدأ بـ exc_
+                $maxReserved = DB::table('reserved_codes')
+                    ->where('code', 'LIKE', 'exc_%')
+                    ->selectRaw('MAX(CAST(SUBSTRING(code, 5) AS UNSIGNED)) as max_num')
+                    ->lockForUpdate()
+                    ->value('max_num');
+
+                // حساب الرقم التالي
+                $nextNumber = max((int)$maxAttachment, (int)$maxReserved) + 1;
+                $newRecordNumber = 'exc_' . str_pad($nextNumber, 6, '0', STR_PAD_LEFT);
+
+                // التحقق من عدم وجود الرقم في reserved_codes
+                $existsInReserved = DB::table('reserved_codes')
+                    ->where('code', $newRecordNumber)
+                    ->lockForUpdate()
+                    ->exists();
+
+                // التحقق من عدم وجود الرقم في enhanced_attachments
+                $existsInAttachments = DB::table('enhanced_attachments')
+                    ->where('record_number', $newRecordNumber)
+                    ->exists();
+
+                if (!$existsInReserved && !$existsInAttachments) {
+                    // حجز الرقم في reserved_codes
+                    DB::table('reserved_codes')->insert([
+                        'code' => $newRecordNumber,
+                        'session_id' => $sessionId,
+                        'reserved_at' => now(),
+                        'used' => false,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+
+                    Log::info('Generated unique attachment record number', [
+                        'record_number' => $newRecordNumber,
+                        'session_id' => $sessionId,
+                        'attempt' => $attempt,
+                        'max_attachment' => $maxAttachment,
+                        'max_reserved' => $maxReserved
+                    ]);
+
+                    return $newRecordNumber;
+                }
+            }
+
+            // إذا فشل في التوليد، استخدم نظام طوارئ
+            $emergencyNumber = 'exc_' . substr(time(), -6) . rand(10, 99);
+            Log::warning('Using emergency attachment record number', [
+                'emergency_number' => $emergencyNumber,
+                'session_id' => $sessionId
+            ]);
+
+            return $emergencyNumber;
+        });
     }
 }
 

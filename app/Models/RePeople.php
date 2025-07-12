@@ -50,4 +50,13 @@ class RePeople extends Model
         // إذا كان جدول attachments لا يحتوي على أعمدة polymorphic، استخدم علاقة hasMany بدلاً من morphMany
         return $this->hasMany(Attachment::class, 'person_identity_number', 'person_id');
     }
+
+    /**
+     * علاقة مع جدول Data للربط التلقائي
+     * يربط registration_id مع file_id_number
+     */
+    public function dataRecord()
+    {
+        return $this->belongsTo(Data::class, 'registration_id', 'file_id_number');
+    }
 }

@@ -183,7 +183,7 @@ class ExcelImportService
         // إعادة تعيين إحصائيات استبدال أرقام الملفات
         $this->fileIdReplacements = [];
         $this->localFileIdCounter = 0; // إعادة تعيين العداد المحلي
-        
+
         $results = [
             'imported_rows' => 0,
             'errors' => [],
@@ -238,7 +238,7 @@ class ExcelImportService
             foreach ($rows as $rowIndex => $row) {
                 try {
                     $rowData = $this->processRow($row, $headers, $columnMapping, $modelKey, $options);
-                    
+
                     if (empty($rowData)) {
                         $results['skipped_rows']++;
                         continue;
@@ -262,7 +262,7 @@ class ExcelImportService
             if (!empty($processedData) && !($options['preview_only'] ?? false)) {
                 $savedCount = $this->saveToDatabase($processedData, $modelClass, $options);
                 $results['imported_rows'] = $savedCount;
-                
+
                 // تسجيل ملخص العملية
                 if ($modelKey === 'data' && !empty($this->fileIdReplacements)) {
                     Log::info('Excel import completed with file ID replacements', [
@@ -291,7 +291,7 @@ class ExcelImportService
     private function readExcelFile(string $filePath): array
     {
         $fullPath = storage_path('app/public/' . $filePath);
-        
+
         if (!file_exists($fullPath)) {
             return ['error' => 'الملف غير موجود: ' . $filePath];
         }
@@ -299,7 +299,7 @@ class ExcelImportService
         try {
             // تحديد نوع القارئ حسب امتداد الملف
             $extension = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
-            
+
             if ($extension === 'csv') {
                 return $this->readCsvFile($fullPath);
             }
@@ -365,7 +365,7 @@ class ExcelImportService
 
         foreach ($headers as $index => $header) {
             $cleanHeader = trim($header);
-            
+
             // البحث في خريطة التحويل
             if (isset($modelMappings[$cleanHeader])) {
                 $dbField = $modelMappings[$cleanHeader];
@@ -424,8 +424,8 @@ class ExcelImportService
         // معالجة خاصة حسب نوع الموديل
         $data = $this->applyModelSpecificProcessing($data, $modelKey, $options);
 
-        // إضافة الحقول المطلوبة (timestamps, user_id, etc.)
-        $data = $this->addSystemFields($data, $options);
+        // إضافة الحقول النظامية حسب نوع الموديل
+        $data = $this->addSystemFields($data, $modelKey, $options);
 
         return $data;
     }
@@ -440,7 +440,7 @@ class ExcelImportService
         }
 
         $value = trim($value);
-        
+
         // تحويل التواريخ
         if ($this->isDate($value)) {
             return $this->parseDate($value);
@@ -455,7 +455,7 @@ class ExcelImportService
     private function isDate($value): bool
     {
         if (!is_string($value)) return false;
-        return preg_match('/^\d{4}-\d{2}-\d{2}/', $value) || 
+        return preg_match('/^\d{4}-\d{2}-\d{2}/', $value) ||
                preg_match('/^\d{2}\/\d{2}\/\d{4}/', $value) ||
                preg_match('/^\d{2}-\d{2}-\d{4}/', $value);
     }
@@ -488,16 +488,16 @@ class ExcelImportService
             case 'data':
                 // حفظ file_id_number الأصلي كمرجع إذا كان موجوداً
                 $originalFileId = $data['file_id_number'] ?? null;
-                
+
                 // توليد file_id_number جديد دائماً باستخدام خوارزمية توليد الأرقام العامة
                 // always generate new file_id_number using global number generation algorithms
                 $newFileId = $this->generateNewFileId();
                 $data['file_id_number'] = $newFileId;
-                
+
                 // حفظ الرقم الأصلي في حقل منفصل للمرجعية
                 if ($originalFileId) {
                     $data['original_file_id_from_excel'] = $originalFileId;
-                    
+
                     // تسجيل الاستبدال في الإحصائيات
                     $this->fileIdReplacements[] = [
                         'original_file_id_from_excel' => $originalFileId,
@@ -506,23 +506,46 @@ class ExcelImportService
                         'replacement_method' => $this->lastUsedMethod ?? 'unknown'
                     ];
                 }
-                
+
                 Log::info('File ID replacement in Excel import', [
                     'original_file_id' => $originalFileId,
                     'new_file_id' => $newFileId,
                     'identity_number' => $data['data_id_number'] ?? 'Unknown'
                 ]);
-                break;
-
-            case 'dead_people':
+                break;            case 'dead_people':
                 // التأكد من أن re_file_id موجود
                 if (empty($data['re_file_id'])) {
                     throw new \Exception('رقم الملف (re_file_id) مطلوب');
                 }
-                
-                // إنشاء file_id جديد للمتوفى إذا لم يكن موجوداً
-                if (empty($data['file_id_number'])) {
-                    $data['file_id_number'] = $this->generateNewFileId();
+
+                // حفظ re_file_id الأصلي للمرجعية
+                $originalReFileId = $data['re_file_id'];
+
+                // البحث عن file_id_number المطابق في جدول Data
+                $matchingFileId = $this->findMatchingFileIdFromData($originalReFileId);
+
+                if ($matchingFileId) {
+                    // استبدال re_file_id بـ file_id_number المطابق من جدول Data
+                    $data['re_file_id'] = $matchingFileId;
+
+                    // تسجيل عملية الاستبدال
+                    $this->fileIdReplacements[] = [
+                        'original_re_file_id' => $originalReFileId,
+                        'new_re_file_id' => $matchingFileId,
+                        'father_id' => $data['father_id'] ?? 'غير محدد',
+                        'mother_id' => $data['mother_id'] ?? 'غير محدد',
+                        'replacement_method' => 'data_table_lookup'
+                    ];
+
+                    Log::info('Dead people re_file_id replacement', [
+                        'original_re_file_id' => $originalReFileId,
+                        'new_re_file_id' => $matchingFileId,
+                        'father_id' => $data['father_id'] ?? null,
+                        'mother_id' => $data['mother_id'] ?? null
+                    ]);
+                } else {
+                    // إذا لم يتم العثور على تطابق، رمي خطأ أو تحذير
+                    throw new \Exception("لم يتم العثور على رقم ملف مطابق في جدول Data لرقم الهوية: {$originalReFileId}");
                 }
                 break;
 
@@ -531,10 +554,35 @@ class ExcelImportService
                 if (empty($data['registration_id'])) {
                     throw new \Exception('رقم التسجيل (registration_id) مطلوب');
                 }
-                
-                // إنشاء file_id جديد إذا لم يكن موجوداً
-                if (empty($data['file_id_number'])) {
-                    $data['file_id_number'] = $this->generateNewFileId();
+
+                // حفظ registration_id الأصلي للمرجعية
+                $originalRegistrationId = $data['registration_id'];
+
+                // البحث عن file_id_number المطابق في جدول Data
+                $matchingFileId = $this->findMatchingFileIdFromData($originalRegistrationId);
+
+                if ($matchingFileId) {
+                    // استبدال registration_id بـ file_id_number المطابق من جدول Data
+                    $data['registration_id'] = $matchingFileId;
+
+                    // تسجيل عملية الاستبدال
+                    $this->fileIdReplacements[] = [
+                        'original_registration_id' => $originalRegistrationId,
+                        'new_registration_id' => $matchingFileId,
+                        'person_id' => $data['person_id'] ?? 'غير محدد',
+                        'person_name' => trim(($data['first_name'] ?? '') . ' ' . ($data['last_name'] ?? '')),
+                        'replacement_method' => 'data_table_lookup'
+                    ];
+
+                    Log::info('RePeople registration_id replacement', [
+                        'original_registration_id' => $originalRegistrationId,
+                        'new_registration_id' => $matchingFileId,
+                        'person_id' => $data['person_id'] ?? null,
+                        'person_name' => trim(($data['first_name'] ?? '') . ' ' . ($data['last_name'] ?? ''))
+                    ]);
+                } else {
+                    // إذا لم يتم العثور على تطابق، رمي خطأ أو تحذير
+                    throw new \Exception("لم يتم العثور على رقم ملف مطابق في جدول Data لرقم الهوية: {$originalRegistrationId}");
                 }
                 break;
         }
@@ -543,15 +591,31 @@ class ExcelImportService
     }
 
     /**
-     * إضافة الحقول النظامية
+     * إضافة الحقول النظامية حسب نوع الموديل
      */
-    private function addSystemFields(array $data, array $options): array
+    private function addSystemFields(array $data, string $modelKey, array $options): array
     {
         $data['created_at'] = now();
         $data['updated_at'] = now();
-        
+
+        // إضافة user_id حسب نوع الموديل
         if (auth()->check()) {
-            $data['data_user_insert_data'] = auth()->id();
+            switch ($modelKey) {
+                case 'data':
+                    // جدول data يستخدم data_user_insert_data
+                    $data['data_user_insert_data'] = auth()->id();
+                    break;
+
+                case 'dead_people':
+                    // جدول dead_people لا يحتوي على حقل المستخدم حالياً
+                    // يمكن إضافة حقل user_id إذا لزم الأمر
+                    break;
+
+                case 're_people':
+                    // جدول re_people لا يحتوي على حقل المستخدم حالياً
+                    // يمكن إضافة حقل user_id إذا لزم الأمر
+                    break;
+            }
         }
 
         return $data;
@@ -570,7 +634,7 @@ class ExcelImportService
 
             // حفظ البيانات في دفعات
             $chunks = array_chunk($data, $batchSize);
-            
+
             foreach ($chunks as $chunk) {
                 if ($options['update_existing'] ?? false) {
                     // حفظ مع إمكانية التحديث
@@ -611,7 +675,7 @@ class ExcelImportService
 
         $fields = $uniqueFields[$modelClass] ?? ['id'];
         $result = [];
-        
+
         foreach ($fields as $field) {
             if (isset($record[$field])) {
                 $result[$field] = $record[$field];
@@ -642,9 +706,9 @@ class ExcelImportService
     {
         try {
             // استخدام generateUniqueReservedCode للحصول على رقم محجوز وآمن
-            $sessionId = 'excel_import_' . session()->getId() . '_' . time();
+            $sessionId = 'excel_import_' . uniqid() . '_' . time();
             $reservedCode = generateUniqueReservedCode('data', 'file_id_number', $sessionId);
-            
+
             if ($reservedCode) {
                 $this->lastUsedMethod = 'generateUniqueReservedCode';
                 Log::info('Generated new file_id using generateUniqueReservedCode', [
@@ -702,8 +766,8 @@ class ExcelImportService
     {
         return DB::transaction(function () {
             $maxAttempts = 10;
-            $sessionId = 'excel_fallback_' . session()->getId() . '_' . time();
-            
+            $sessionId = 'excel_fallback_' . uniqid() . '_' . time();
+
             for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
                 // الحصول على أكبر رقم من data و reserved_codes
                 $maxData = DB::table('data')
@@ -758,7 +822,7 @@ class ExcelImportService
     }
 
     /**
-     * خوارزمية طوارئ لتوليد file_id_number 
+     * خوارزمية طوارئ لتوليد file_id_number
      */
     private function generateEmergencyFileId(): string
     {
@@ -766,13 +830,13 @@ class ExcelImportService
         $timestamp = time();
         $random = rand(100, 999);
         $emergencyId = substr($timestamp, -3) . $random;
-        
+
         Log::warning('Using emergency file_id generation', [
             'emergency_id' => $emergencyId,
             'timestamp' => $timestamp,
             'random' => $random
         ]);
-        
+
         return $emergencyId;
     }
 
@@ -818,7 +882,7 @@ class ExcelImportService
         $modelClass = $this->supportedModels[$modelKey];
         $model = new $modelClass;
         $fillable = $model->getFillable();
-        
+
         $columnMapping = $this->mapColumns($headers, $modelKey, $fillable);
         $requiredFields = $this->getRequiredFields($modelKey);
         $missingFields = array_diff($requiredFields, array_values($columnMapping));
@@ -834,14 +898,14 @@ class ExcelImportService
             'total_columns' => count($headers),
             'mapped_columns' => count($columnMapping),
             'required_fields_found' => count($requiredFields) - count($missingFields),
-            'file_size' => file_exists(storage_path('app/public/' . $filePath)) 
-                ? filesize(storage_path('app/public/' . $filePath)) 
+            'file_size' => file_exists(storage_path('app/public/' . $filePath))
+                ? filesize(storage_path('app/public/' . $filePath))
                 : 0
         ];
 
         return $validation;
     }
-    
+
     /**
      * الحصول على إحصائيات استبدال أرقام الملفات
      */
@@ -849,7 +913,7 @@ class ExcelImportService
     {
         return $this->fileIdReplacements;
     }
-    
+
     /**
      * تنسيق إحصائيات استبدال أرقام الملفات للعرض
      */
@@ -862,7 +926,7 @@ class ExcelImportService
                 'replacements' => []
             ];
         }
-        
+
         return [
             'total_replacements' => count($this->fileIdReplacements),
             'message' => 'تم استبدال ' . count($this->fileIdReplacements) . ' رقم ملف بنجاح',
@@ -876,7 +940,7 @@ class ExcelImportService
             }, $this->fileIdReplacements)
         ];
     }
-    
+
     /**
      * إعادة تعيين إحصائيات استبدال أرقام الملفات
      */
@@ -884,7 +948,7 @@ class ExcelImportService
     {
         $this->fileIdReplacements = [];
     }
-    
+
     /**
      * إحصائيات مفصلة لعملية الاستيراد
      */
@@ -904,16 +968,16 @@ class ExcelImportService
                 'replacement_methods_used' => $this->getReplacementMethodsUsed()
             ],
             'data_quality' => [
-                'success_rate' => $results['total_rows'] > 0 ? 
+                'success_rate' => $results['total_rows'] > 0 ?
                     round(($results['imported_rows'] / $results['total_rows']) * 100, 2) . '%' : '0%',
                 'column_mapping_success' => !empty($results['column_mapping']),
                 'required_fields_present' => empty($results['errors'])
             ]
         ];
-        
+
         return $stats;
     }
-    
+
     /**
      * الحصول على طرق الاستبدال المستخدمة
      */
@@ -924,7 +988,46 @@ class ExcelImportService
             $method = $replacement['replacement_method'] ?? 'fallback';
             $methods[$method] = ($methods[$method] ?? 0) + 1;
         }
-        
+
         return $methods;
+    }
+
+    /**
+     * البحث عن file_id_number المطابق في جدول Data بناءً على data_id_number
+     * يستخدم للربط بين جدول DeadPepole وجدول Data
+     */
+    private function findMatchingFileIdFromData(string $identityNumber): ?string
+    {
+        try {
+            // البحث في جدول Data عن السجل الذي يحتوي على data_id_number مطابق
+            $matchingRecord = DB::table('data')
+                ->select('file_id_number', 'data_id_number', 'data_first_name', 'data_family_name')
+                ->where('data_id_number', $identityNumber)
+                ->first();
+
+            if ($matchingRecord) {
+                Log::info('Found matching record in Data table', [
+                    'search_identity' => $identityNumber,
+                    'found_file_id' => $matchingRecord->file_id_number,
+                    'found_name' => $matchingRecord->data_first_name . ' ' . $matchingRecord->data_family_name
+                ]);
+
+                return $matchingRecord->file_id_number;
+            }
+
+            Log::warning('No matching record found in Data table', [
+                'search_identity' => $identityNumber
+            ]);
+
+            return null;
+
+        } catch (\Exception $e) {
+            Log::error('Error searching for matching file_id in Data table', [
+                'search_identity' => $identityNumber,
+                'error' => $e->getMessage()
+            ]);
+
+            return null;
+        }
     }
 }
