@@ -8,7 +8,7 @@
             </div>
             <div class="card-toolbar">
                 <div class="d-flex justify-content-end">
-                    <a href="{{ route('users.index') }}" class="btn btn-light-primary me-3">
+                    <a href="{{ route('admin.role.management101') }}" class="btn btn-light-primary me-3">
                         <i class="ki-duotone ki-arrow-left fs-2">
                             <span class="path1"></span>
                             <span class="path2"></span>
@@ -155,7 +155,7 @@
                             <span class="path2"></span>
                         </i>
                     </span>
-                    <span class="ms-2">إلغاء</span>
+                    <span class="ms-2">تنظييف الحقول</span>
                 </button>
                 <button type="submit" class="btn btn-primary d-inline-flex align-items-center">
                     <span class="svg-icon svg-icon-2 me-0">
@@ -198,9 +198,10 @@
 
 @push('scriptsCode')
     <script>
-        // تهيئة Select2 مع الترجمة العربية
+        // تهيئة Select2 مع الترجمة العربية مع استثناء الأدوار
         $(document).ready(function() {
-            $('.form-select').select2({
+            // تهيئة عامة لجميع select باستثناء الأدوار
+            $('.form-select:not(.select2-roles)').select2({
                 language: {
                     noResults: () => "لا توجد نتائج متاحة",
                     searching: () => "جاري البحث ...",
@@ -233,7 +234,7 @@
                     search: () => "ابحث عن دور",
                     inputTooShort: () => "الرجاء إدخال حرفين على الأقل للبحث"
                 },
-                minimumInputLength: 1,
+                minimumInputLength: 0,
                 maximumSelectionLength: 5,
                 selectOnClose: true,
                 width: '100%',

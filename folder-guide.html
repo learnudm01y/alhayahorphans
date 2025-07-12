@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📁 دليل استخدام نظام إدارة الملفات والمجلدات</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .main-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            margin: 2rem 0;
+            overflow: hidden;
+        }
+
+        .header-section {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 3rem 2rem;
+            text-align: center;
+        }
+
+        .feature-card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            margin-bottom: 2rem;
+            overflow: hidden;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+        }
+
+        .step-number {
+            background: linear-gradient(45deg, #ff6b6b, #ffd93d);
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-left: 15px;
+        }
+
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            border-radius: 10px;
+            padding: 1.5rem;
+            font-family: 'Monaco', 'Consolas', monospace;
+            margin: 1rem 0;
+        }
+
+        .highlight {
+            background: linear-gradient(45deg, #ffd89b 0%, #19547b 100%);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: bold;
+        }
+
+        .demo-button {
+            position: relative;
+            overflow: hidden;
+            border: none;
+            border-radius: 10px;
+            padding: 12px 25px;
+            font-weight: bold;
+            text-transform: uppercase;
+            transition: all 0.3s ease;
+        }
+
+        .demo-button:before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+            transition: left 0.5s;
+        }
+
+        .demo-button:hover:before {
+            left: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="main-container">
+            <!-- Header -->
+            <div class="header-section">
+                <h1 class="display-4 fw-bold mb-4">
+                    <i class="fas fa-folder-open"></i> دليل المجلدات والصور
+                </h1>
+                <p class="lead">
+                    تعلم كيفية إدراج المجلدات مع الصور والملفات بطريقة احترافية
+                </p>
+                <div class="d-flex justify-content-center gap-3 mt-4">
+                    <span class="badge bg-success px-3 py-2">
+                        <i class="fas fa-check"></i> إخفاء حقل رقم الملف
+                    </span>
+                    <span class="badge bg-info px-3 py-2">
+                        <i class="fas fa-code"></i> Console.log للأرقام
+                    </span>
+                    <span class="badge bg-warning px-3 py-2">
+                        <i class="fas fa-folder-plus"></i> دعم المجلدات
+                    </span>
+                </div>
+            </div>
+
+            <div class="p-4">
+                <!-- الجزء الأول: رقم الملف -->
+                <div class="feature-card">
+                    <div class="card-header bg-success text-white">
+                        <h4 class="mb-0">
+                            <i class="fas fa-eye-slash"></i> 1. إخفاء حقل رقم الملف
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h5 class="text-success">✅ تم التطبيق</h5>
+                                <p>حقل رقم الملف أصبح مخفياً، ولكن يعمل في الخلفية</p>
+
+                                <div class="alert alert-info">
+                                    <h6><i class="fas fa-terminal"></i> رؤية الأرقام في Console</h6>
+                                    <p class="mb-2">افتح Developer Tools (F12) وانظر إلى Console لرؤية:</p>
+                                    <ul class="mb-0">
+                                        <li>🔢 رقم الملف المولد من قاعدة البيانات</li>
+                                        <li>🔄 رقم الملف التلقائي المؤقت</li>
+                                        <li>📊 تفاصيل إضافية عن كل رقم</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="code-block">
+console.log('🔢 رقم الملف:', '001430');
+console.log('📄 التفاصيل:', {
+  recordNumber: '001430',
+  source: 'database'
+});
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- الجزء الثاني: المجلدات -->
+                <div class="feature-card">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">
+                            <i class="fas fa-folder-plus"></i> 2. إدراج المجلدات
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h5><i class="fas fa-folder"></i> اختيار مجلد كامل</h5>
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="step-number">1</div>
+                                    <div>
+                                        <strong>انقر على "اختيار مجلد"</strong>
+                                        <br><small class="text-muted">الزر الأزرق الجديد</small>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="step-number">2</div>
+                                    <div>
+                                        <strong>اختر أي مجلد من جهازك</strong>
+                                        <br><small class="text-muted">سيتم رفع جميع الملفات بداخله</small>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="step-number">3</div>
+                                    <div>
+                                        <strong>سيحافظ على البنية الأصلية</strong>
+                                        <br><small class="text-muted">مع عرض مسار كل ملف</small>
+                                    </div>
+                                </div>
+
+                                <button class="btn demo-button bg-primary text-white w-100">
+                                    <i class="fas fa-folder-plus"></i> اختيار مجلد
+                                </button>
+                            </div>
+
+                            <div class="col-md-6">
+                                <h5><i class="fas fa-images"></i> مجلد الصور المخصص</h5>
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="step-number">1</div>
+                                    <div>
+                                        <strong>انقر على "مجلد + صور متعددة"</strong>
+                                        <br><small class="text-muted">الزر الأصفر المخصص للصور</small>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="step-number">2</div>
+                                    <div>
+                                        <strong>اختر مجلد يحتوي على صور</strong>
+                                        <br><small class="text-muted">يقبل JPG, PNG, GIF, WebP</small>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="step-number">3</div>
+                                    <div>
+                                        <strong>معالجة مطورة للصور</strong>
+                                        <br><small class="text-muted">ضغط تلقائي وتحسين الجودة</small>
+                                    </div>
+                                </div>
+
+                                <button class="btn demo-button bg-warning text-dark w-100">
+                                    <i class="fas fa-images"></i> مجلد + صور متعددة
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- الجزء الثالث: الميزات التقنية -->
+                <div class="feature-card">
+                    <div class="card-header bg-info text-white">
+                        <h4 class="mb-0">
+                            <i class="fas fa-cogs"></i> 3. الميزات التقنية المضافة
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="text-center p-3">
+                                    <i class="fas fa-sitemap fa-3x text-primary mb-3"></i>
+                                    <h5>حفظ البنية</h5>
+                                    <p class="text-muted">
+                                        يحافظ على ترتيب المجلدات والملفات كما هي في جهازك
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="text-center p-3">
+                                    <i class="fas fa-route fa-3x text-success mb-3"></i>
+                                    <h5>المسارات النسبية</h5>
+                                    <p class="text-muted">
+                                        يعرض مسار كل ملف داخل المجلد المختار
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="text-center p-3">
+                                    <i class="fas fa-layer-group fa-3x text-warning mb-3"></i>
+                                    <h5>معالجة متقدمة</h5>
+                                    <p class="text-muted">
+                                        ضغط تلقائي للصور ومعالجة مخصصة لكل نوع ملف
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- الجزء الرابع: أمثلة عملية -->
+                <div class="feature-card">
+                    <div class="card-header bg-dark text-white">
+                        <h4 class="mb-0">
+                            <i class="fas fa-laptop-code"></i> 4. أمثلة عملية من Console
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-folder"></i> مثال: رفع مجلد مستندات</h6>
+                                <div class="code-block">
+📁 تم اختيار مجلد يحتوي على: 15 ملف
+📄 قائمة الملفات:
+[
+  {
+    name: "report.pdf",
+    path: "documents/reports/report.pdf",
+    size: 2048576,
+    type: "application/pdf"
+  },
+  {
+    name: "invoice.xlsx",
+    path: "documents/invoices/invoice.xlsx",
+    size: 1024000,
+    type: "application/vnd.openxml..."
+  }
+]
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <h6><i class="fas fa-images"></i> مثال: رفع مجلد صور</h6>
+                                <div class="code-block">
+🖼️ تم اختيار مجلد صور يحتوي على: 8 صورة
+🎨 قائمة الصور:
+[
+  {
+    name: "photo1.jpg",
+    path: "photos/vacation/photo1.jpg",
+    size: 3145728,
+    type: "image/jpeg"
+  },
+  {
+    name: "logo.png",
+    path: "photos/assets/logo.png",
+    size: 512000,
+    type: "image/png"
+  }
+]
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-success mt-3">
+                            <h6><i class="fas fa-chart-line"></i> حالة النظام الشاملة</h6>
+                            <div class="code-block">
+✅ تمت معالجة 23 ملف من المجلد
+📊 حالة النظام: {
+  totalFiles: 23,
+  folderStructure: {
+    "documents/reports": ["report1.pdf", "report2.pdf"],
+    "documents/invoices": ["inv001.xlsx", "inv002.xlsx"],
+    "photos/vacation": ["photo1.jpg", "photo2.jpg"],
+    "photos/assets": ["logo.png", "icon.svg"]
+  }
+}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- الجزء الخامس: نصائح الاستخدام -->
+                <div class="feature-card">
+                    <div class="card-header bg-gradient text-white" style="background: linear-gradient(45deg, #fa709a 0%, #fee140 100%) !important;">
+                        <h4 class="mb-0">
+                            <i class="fas fa-lightbulb"></i> 5. نصائح مهمة للاستخدام
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="alert alert-warning">
+                                    <h6><i class="fas fa-exclamation-triangle"></i> تنبيهات</h6>
+                                    <ul class="mb-0">
+                                        <li>استخدم Chrome أو Edge للحصول على أفضل دعم للمجلدات</li>
+                                        <li>تأكد من أن المجلد لا يحتوي على ملفات كبيرة جداً</li>
+                                        <li>راقب Console لرؤية تقدم المعالجة</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="alert alert-info">
+                                    <h6><i class="fas fa-rocket"></i> للحصول على أفضل أداء</h6>
+                                    <ul class="mb-0">
+                                        <li>ابدأ بمجلدات صغيرة للتجربة</li>
+                                        <li>استخدم خيار "ضغط الصور" للصور الكبيرة</li>
+                                        <li>راجع معاينة الملفات قبل الرفع النهائي</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- أزرار التجربة -->
+                <div class="text-center mt-4">
+                    <h4 class="mb-4">🎯 جرب الآن</h4>
+                    <div class="d-flex justify-content-center gap-3 flex-wrap">
+                        <a href="http://127.0.0.1:8000" target="_blank" class="btn btn-lg demo-button bg-primary text-white">
+                            <i class="fas fa-external-link-alt"></i> فتح النظام
+                        </a>
+                        <button class="btn btn-lg demo-button bg-success text-white" onclick="openConsoleGuide()">
+                            <i class="fas fa-terminal"></i> دليل Console
+                        </button>
+                        <button class="btn btn-lg demo-button bg-warning text-dark" onclick="showFolderDemo()">
+                            <i class="fas fa-play"></i> عرض توضيحي
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function openConsoleGuide() {
+            alert(`🔧 فتح Console في المتصفح:
+
+Chrome/Edge: اضغط F12 أو Ctrl+Shift+I
+Firefox: اضغط F12 أو Ctrl+Shift+K
+Safari: اضغط Cmd+Option+I
+
+ثم انقر على تبويب "Console" لرؤية رسائل رقم الملف.`);
+        }
+
+        function showFolderDemo() {
+            const demoContent = `
+🎬 العرض التوضيحي:
+
+1. 📁 انقر "اختيار مجلد" → اختر أي مجلد من جهازك
+2. 🖼️ انقر "مجلد + صور متعددة" → اختر مجلد صور
+3. 👀 افتح Console (F12) لرؤية التفاصيل
+4. ✅ شاهد معاينة الملفات مع مساراتها
+5. 🚀 ابدأ الرفع لحفظ كل شيء
+
+الآن افتح النظام وجرب بنفسك! 🎉`;
+
+            alert(demoContent);
+        }
+
+        // تحديث تلقائي لحالة النظام
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(() => {
+                console.log('📋 دليل النظام محمل بنجاح');
+                console.log('🔧 الميزات المتاحة:', {
+                    hiddenRecordField: true,
+                    consoleLogging: true,
+                    folderSupport: true,
+                    imageProcessing: true,
+                    structurePreservation: true
+                });
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

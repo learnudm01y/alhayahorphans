@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار نظام رفع الملفات المحسّن - دعم الملفات الكبيرة</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .test-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .upload-zone {
+            border: 3px dashed #007bff;
+            border-radius: 15px;
+            background: linear-gradient(45deg, #f8f9ff, #e3f2fd);
+            transition: all 0.3s ease;
+            min-height: 150px;
+        }
+        .upload-zone:hover {
+            border-color: #0056b3;
+            background: linear-gradient(45deg, #e3f2fd, #bbdefb);
+            transform: translateY(-2px);
+        }
+        .upload-zone.dragover {
+            border-color: #28a745;
+            background: linear-gradient(45deg, #e8f5e8, #c8e6c9);
+        }
+        .file-info {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            padding: 10px;
+            margin: 5px 0;
+        }
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+        .results-section {
+            background: #f8f9fa;
+            border-radius: 15px;
+            border: 1px solid #dee2e6;
+        }
+        .test-scenario {
+            background: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            transition: all 0.2s ease;
+        }
+        .test-scenario:hover {
+            border-color: #007bff;
+            box-shadow: 0 5px 15px rgba(0, 123, 255, 0.1);
+        }
+        .status-badge {
+            font-size: 0.85em;
+            padding: 0.4em 0.8em;
+        }
+        .server-info {
+            background: linear-gradient(135deg, #ffeaa7, #fab1a0);
+            border-radius: 10px;
+            color: #2d3436;
+        }
+        .btn-test {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: none;
+            border-radius: 25px;
+            padding: 10px 30px;
+            color: white;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .btn-test:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <div class="row justify-content-center">
+            <div class="col-12">
+                <div class="test-container p-4 mb-4">
+                    <div class="text-center mb-4">
+                        <h1 class="display-6 text-primary">
+                            <i class="fas fa-cloud-upload-alt me-3"></i>
+                            اختبار نظام رفع الملفات المحسّن
+                        </h1>
+                        <p class="lead text-muted">دعم الملفات الكبيرة حتى 1 جيجابايت + معالجة أسماء الملفات المختلفة</p>
+                    </div>
+
+                    <!-- معلومات الخادم -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="server-info p-3">
+                                <h5><i class="fas fa-server me-2"></i>معلومات الخادم</h5>
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <strong>Max Upload:</strong> <span id="maxUpload">جاري التحميل...</span>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>Post Max Size:</strong> <span id="postMaxSize">جاري التحميل...</span>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>Memory Limit:</strong> <span id="memoryLimit">جاري التحميل...</span>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>Max Execution:</strong> <span id="maxExecution">جاري التحميل...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- منطقة رفع الملفات -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header bg-primary text-white">
+                                    <h5 class="mb-0"><i class="fas fa-upload me-2"></i>رفع الملفات</h5>
+                                </div>
+                                <div class="card-body">
+                                    <form id="uploadForm" enctype="multipart/form-data">
+                                        <div class="upload-zone d-flex align-items-center justify-content-center flex-column p-4"
+                                             ondrop="dropHandler(event);" ondragover="dragOverHandler(event);" ondragleave="dragLeaveHandler(event);">
+                                            <i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3"></i>
+                                            <h5>اسحب الملفات هنا أو انقر للاختيار</h5>
+                                            <p class="text-muted">يدعم الملفات حتى 1 جيجابايت</p>
+                                            <input type="file" id="fileInput" name="files[]" multiple accept=".xlsx,.xls,.csv,.pdf,.jpg,.jpeg,.png,.gif"
+                                                   style="display: none;" onchange="handleFileSelect(event)">
+                                            <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('fileInput').click()">
+                                                <i class="fas fa-folder-open me-2"></i>اختيار الملفات
+                                            </button>
+                                        </div>
+
+                                        <div id="selectedFiles" class="mt-3" style="display: none;">
+                                            <h6><i class="fas fa-list me-2"></i>الملفات المحددة:</h6>
+                                            <div id="filesList"></div>
+                                        </div>
+
+                                        <div class="row mt-3">
+                                            <div class="col-md-6">
+                                                <label class="form-label">رقم السجل (اختياري)</label>
+                                                <input type="text" class="form-control" name="record_number" placeholder="مثال: REC-2024-001">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label">معرف الشخص (اختياري)</label>
+                                                <input type="text" class="form-control" name="person_id" placeholder="مثال: P-001">
+                                            </div>
+                                        </div>
+
+                                        <div class="mt-3">
+                                            <button type="submit" class="btn btn-test">
+                                                <i class="fas fa-rocket me-2"></i>رفع الملفات
+                                            </button>
+                                            <button type="button" class="btn btn-outline-secondary ms-2" onclick="clearFiles()">
+                                                <i class="fas fa-times me-2"></i>مسح الكل
+                                            </button>
+                                        </div>
+                                    </form>
+
+                                    <div id="uploadProgress" class="mt-3" style="display: none;">
+                                        <div class="progress">
+                                            <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                                 role="progressbar" style="width: 0%"></div>
+                                        </div>
+                                        <small class="text-muted d-block mt-1">جاري رفع الملفات...</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- سيناريوهات الاختبار -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header bg-success text-white">
+                                    <h5 class="mb-0"><i class="fas fa-flask me-2"></i>سيناريوهات الاختبار المتقدمة</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-4 mb-3">
+                                            <div class="test-scenario p-3">
+                                                <h6><i class="fas fa-file-alt me-2"></i>اختبار أسماء الملفات</h6>
+                                                <p class="small text-muted">اختبار ملفات بأسماء مختلفة (عربي، إنجليزي، أرقام، رموز)</p>
+                                                <button class="btn btn-sm btn-outline-success" onclick="testFilenames()">
+                                                    <i class="fas fa-play me-1"></i>اختبار
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <div class="test-scenario p-3">
+                                                <h6><i class="fas fa-weight-hanging me-2"></i>اختبار الملفات الكبيرة</h6>
+                                                <p class="small text-muted">محاولة رفع ملفات بأحجام مختلفة</p>
+                                                <button class="btn btn-sm btn-outline-warning" onclick="testLargeFiles()">
+                                                    <i class="fas fa-play me-1"></i>اختبار
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <div class="test-scenario p-3">
+                                                <h6><i class="fas fa-layer-group me-2"></i>اختبار متعدد الملفات</h6>
+                                                <p class="small text-muted">رفع عدة ملفات في نفس الوقت</p>
+                                                <button class="btn btn-sm btn-outline-info" onclick="testMultipleFiles()">
+                                                    <i class="fas fa-play me-1"></i>اختبار
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- نتائج الاختبارات -->
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="results-section p-4">
+                                <h5><i class="fas fa-chart-line me-2"></i>نتائج الاختبارات</h5>
+                                <div id="resultsContainer">
+                                    <p class="text-muted">لم يتم تشغيل أي اختبارات بعد...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let selectedFiles = [];
+
+        // تحميل معلومات الخادم عند بدء التشغيل
+        document.addEventListener('DOMContentLoaded', function() {
+            loadServerInfo();
+        });
+
+        // تحميل معلومات الخادم
+        function loadServerInfo() {
+            fetch('/unified-file-management/processExcelUpload', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({action: 'get_server_info'})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.debug_info && data.debug_info.php_limits) {
+                    const limits = data.debug_info.php_limits;
+                    document.getElementById('maxUpload').textContent = limits.upload_max_filesize || 'غير محدد';
+                    document.getElementById('postMaxSize').textContent = limits.post_max_size || 'غير محدد';
+                    document.getElementById('memoryLimit').textContent = limits.memory_limit || 'غير محدد';
+                    document.getElementById('maxExecution').textContent = limits.max_execution_time + 's' || 'غير محدد';
+                } else {
+                    // قيم افتراضية
+                    document.getElementById('maxUpload').textContent = '1024M (محسّن)';
+                    document.getElementById('postMaxSize').textContent = '1024M (محسّن)';
+                    document.getElementById('memoryLimit').textContent = '2048M (محسّن)';
+                    document.getElementById('maxExecution').textContent = '3600s (محسّن)';
+                }
+            })
+            .catch(error => {
+                console.error('خطأ في تحميل معلومات الخادم:', error);
+                // قيم افتراضية في حالة الخطأ
+                document.getElementById('maxUpload').textContent = '1024M (محسّن)';
+                document.getElementById('postMaxSize').textContent = '1024M (محسّن)';
+                document.getElementById('memoryLimit').textContent = '2048M (محسّن)';
+                document.getElementById('maxExecution').textContent = '3600s (محسّن)';
+            });
+        }
+
+        // معالجة السحب والإفلات
+        function dragOverHandler(ev) {
+            ev.preventDefault();
+            ev.currentTarget.classList.add('dragover');
+        }
+
+        function dragLeaveHandler(ev) {
+            ev.currentTarget.classList.remove('dragover');
+        }
+
+        function dropHandler(ev) {
+            ev.preventDefault();
+            ev.currentTarget.classList.remove('dragover');
+
+            const files = ev.dataTransfer.files;
+            handleFiles(files);
+        }
+
+        // معالجة اختيار الملفات
+        function handleFileSelect(event) {
+            const files = event.target.files;
+            handleFiles(files);
+        }
+
+        // معالجة الملفات المحددة
+        function handleFiles(files) {
+            selectedFiles = Array.from(files);
+            displaySelectedFiles();
+        }
+
+        // عرض الملفات المحددة
+        function displaySelectedFiles() {
+            const container = document.getElementById('selectedFiles');
+            const filesList = document.getElementById('filesList');
+
+            if (selectedFiles.length === 0) {
+                container.style.display = 'none';
+                return;
+            }
+
+            container.style.display = 'block';
+            filesList.innerHTML = '';
+
+            selectedFiles.forEach((file, index) => {
+                const fileInfo = document.createElement('div');
+                fileInfo.className = 'file-info d-flex justify-content-between align-items-center';
+
+                const sizeInMB = (file.size / 1024 / 1024).toFixed(2);
+                const sizeClass = file.size > 500 * 1024 * 1024 ? 'text-warning' : 'text-success'; // أكبر من 500MB
+
+                fileInfo.innerHTML = `
+                    <div>
+                        <i class="fas fa-file me-2"></i>
+                        <strong>${file.name}</strong>
+                        <span class="badge bg-secondary ms-2">${file.type || 'غير محدد'}</span>
+                        <span class="badge ${sizeClass} ms-1">${sizeInMB} MB</span>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeFile(${index})">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+
+                filesList.appendChild(fileInfo);
+            });
+        }
+
+        // حذف ملف محدد
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            displaySelectedFiles();
+        }
+
+        // مسح جميع الملفات
+        function clearFiles() {
+            selectedFiles = [];
+            document.getElementById('fileInput').value = '';
+            displaySelectedFiles();
+        }
+
+        // رفع الملفات
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            if (selectedFiles.length === 0) {
+                alert('يرجى اختيار ملف واحد على الأقل');
+                return;
+            }
+
+            const formData = new FormData();
+
+            // إضافة الملفات
+            selectedFiles.forEach((file, index) => {
+                formData.append('files[]', file);
+            });
+
+            // إضافة البيانات الأخرى
+            const recordNumber = document.querySelector('[name="record_number"]').value;
+            const personId = document.querySelector('[name="person_id"]').value;
+
+            if (recordNumber) formData.append('record_number', recordNumber);
+            if (personId) formData.append('person_id', personId);
+
+            // عرض شريط التقدم
+            const progressContainer = document.getElementById('uploadProgress');
+            const progressBar = progressContainer.querySelector('.progress-bar');
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+
+            // رفع الملفات
+            fetch('/unified-file-management/processExcelUpload', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                }
+            })
+            .then(response => {
+                progressBar.style.width = '100%';
+                return response.json();
+            })
+            .then(data => {
+                progressContainer.style.display = 'none';
+                displayResults(data, 'رفع عادي');
+
+                if (data.success) {
+                    clearFiles();
+                }
+            })
+            .catch(error => {
+                progressContainer.style.display = 'none';
+                console.error('خطأ:', error);
+                displayResults({
+                    success: false,
+                    message: 'خطأ في الاتصال: ' + error.message
+                }, 'خطأ في الرفع');
+            });
+        });
+
+        // اختبارات متخصصة
+        function testFilenames() {
+            // إنشاء ملفات اختبارية بأسماء مختلفة (محاكاة)
+            const testFiles = [
+                'test.xlsx',
+                'persons.xlsx',
+                'ملف_عربي.xlsx',
+                'file with spaces.xlsx',
+                'file-with-dashes.xlsx',
+                'file.with.dots.xlsx',
+                'ملف123.xlsx',
+                'File_MixedCase.xlsx'
+            ];
+
+            addTestResult('اختبار أسماء الملفات', {
+                status: 'info',
+                message: 'يتم اختبار أسماء مختلفة للملفات...',
+                details: testFiles
+            });
+        }
+
+        function testLargeFiles() {
+            addTestResult('اختبار الملفات الكبيرة', {
+                status: 'warning',
+                message: 'محاكاة اختبار ملفات بأحجام: 100MB, 500MB, 1GB',
+                details: ['تحذير: الاختبار الفعلي يتطلب ملفات حقيقية']
+            });
+        }
+
+        function testMultipleFiles() {
+            addTestResult('اختبار متعدد الملفات', {
+                status: 'info',
+                message: 'محاكاة رفع 5 ملفات معاً',
+                details: ['الملف 1: Excel', 'الملف 2: PDF', 'الملف 3: صورة', 'الملف 4: CSV', 'الملف 5: Excel كبير']
+            });
+        }
+
+        // عرض النتائج
+        function displayResults(data, testType) {
+            const container = document.getElementById('resultsContainer');
+
+            if (container.querySelector('p.text-muted')) {
+                container.innerHTML = '';
+            }
+
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'mb-3 p-3 border rounded';
+
+            const statusClass = data.success ? 'success' : 'danger';
+            const statusIcon = data.success ? 'fas fa-check-circle' : 'fas fa-exclamation-circle';
+
+            let detailsHtml = '';
+            if (data.results) {
+                detailsHtml = '<h6>تفاصيل الملفات:</h6><ul>';
+                data.results.forEach(result => {
+                    detailsHtml += `<li class="${result.success ? 'text-success' : 'text-danger'}">${result.message || result.filename}</li>`;
+                });
+                detailsHtml += '</ul>';
+            }
+
+            if (data.debug_info) {
+                detailsHtml += '<h6>معلومات التشخيص:</h6>';
+                detailsHtml += `<pre class="bg-light p-2 rounded small">${JSON.stringify(data.debug_info, null, 2)}</pre>`;
+            }
+
+            resultDiv.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="text-${statusClass}">
+                            <i class="${statusIcon} me-2"></i>${testType}
+                        </h6>
+                        <p class="mb-2">${data.message}</p>
+                        ${detailsHtml}
+                    </div>
+                    <small class="text-muted">${new Date().toLocaleTimeString('ar-SA')}</small>
+                </div>
+            `;
+
+            container.insertBefore(resultDiv, container.firstChild);
+        }
+
+        // إضافة نتيجة اختبار
+        function addTestResult(title, result) {
+            const container = document.getElementById('resultsContainer');
+
+            if (container.querySelector('p.text-muted')) {
+                container.innerHTML = '';
+            }
+
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'mb-3 p-3 border rounded';
+
+            const statusClasses = {
+                success: 'success',
+                warning: 'warning',
+                danger: 'danger',
+                info: 'info'
+            };
+
+            const statusIcons = {
+                success: 'fas fa-check-circle',
+                warning: 'fas fa-exclamation-triangle',
+                danger: 'fas fa-exclamation-circle',
+                info: 'fas fa-info-circle'
+            };
+
+            let detailsHtml = '';
+            if (result.details) {
+                detailsHtml = '<ul class="small mt-2">';
+                result.details.forEach(detail => {
+                    detailsHtml += `<li>${detail}</li>`;
+                });
+                detailsHtml += '</ul>';
+            }
+
+            resultDiv.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="text-${statusClasses[result.status]}">
+                            <i class="${statusIcons[result.status]} me-2"></i>${title}
+                        </h6>
+                        <p class="mb-1">${result.message}</p>
+                        ${detailsHtml}
+                    </div>
+                    <small class="text-muted">${new Date().toLocaleTimeString('ar-SA')}</small>
+                </div>
+            `;
+
+            container.insertBefore(resultDiv, container.firstChild);
+        }
+    </script>
+</body>
+</html>

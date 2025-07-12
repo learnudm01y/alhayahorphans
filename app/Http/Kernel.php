@@ -67,5 +67,6 @@ class Kernel extends HttpKernel
         'rolebreeze' => \App\Http\Middleware\RoleMiddleware::class,
         'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
         'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
+        'large.upload' => \App\Http\Middleware\LargeFileUploadMiddleware::class,
     ];
 }

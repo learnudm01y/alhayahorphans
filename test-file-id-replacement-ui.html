@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار نظام استبدال أرقام الملفات - File ID Replacement Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            text-align: center;
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #fafafa;
+        }
+        .upload-area {
+            border: 2px dashed #3498db;
+            padding: 40px;
+            text-align: center;
+            border-radius: 10px;
+            background-color: #ecf0f1;
+            margin-bottom: 20px;
+        }
+        .upload-area.dragover {
+            background-color: #d5dbdb;
+            border-color: #2980b9;
+        }
+        .btn {
+            background-color: #3498db;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        .btn:hover {
+            background-color: #2980b9;
+        }
+        .btn-success {
+            background-color: #27ae60;
+        }
+        .btn-success:hover {
+            background-color: #229954;
+        }
+        .btn-warning {
+            background-color: #f39c12;
+        }
+        .btn-warning:hover {
+            background-color: #e67e22;
+        }
+        .results {
+            background-color: white;
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 6px;
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .status.success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .status.info {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        .replacement-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        .replacement-table th,
+        .replacement-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+        .replacement-table th {
+            background-color: #3498db;
+            color: white;
+        }
+        .replacement-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group select,
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        pre {
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #ecf0f1;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress {
+            height: 100%;
+            background-color: #3498db;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔄 اختبار نظام استبدال أرقام الملفات</h1>
+            <h2>File ID Replacement System Test</h2>
+            <p>اختبار شامل لنظام استبدال أرقام الملفات أثناء استيراد Excel</p>
+        </div>
+
+        <!-- قسم رفع الملف -->
+        <div class="test-section">
+            <h3>📁 رفع ملف Excel للاختبار</h3>
+
+            <div class="upload-area" id="uploadArea">
+                <p>🎯 قم بسحب وإفلات ملف Excel هنا أو انقر للاختيار</p>
+                <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display: none;">
+                <button class="btn" onclick="document.getElementById('fileInput').click()">
+                    📂 اختيار ملف
+                </button>
+            </div>
+
+            <div class="form-group">
+                <label for="targetTable">الجدول المستهدف:</label>
+                <select id="targetTable">
+                    <option value="data">data (بيانات عامة)</option>
+                    <option value="dead_people">dead_people (المتوفين)</option>
+                    <option value="re_people">re_people (إعادة التسجيل)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="previewOnly"> معاينة فقط (بدون حفظ)
+                </label>
+            </div>
+
+            <button class="btn btn-success" onclick="startImport()">
+                🚀 بدء عملية الاستيراد
+            </button>
+
+            <button class="btn btn-warning" onclick="generateTestFile()">
+                📋 إنشاء ملف اختبار
+            </button>
+
+            <div class="progress-bar" id="progressContainer" style="display: none;">
+                <div class="progress" id="progressBar"></div>
+            </div>
+        </div>
+
+        <!-- قسم النتائج -->
+        <div class="test-section">
+            <h3>📊 نتائج الاختبار</h3>
+            <div class="results" id="results">
+                <p class="status info">انتظار رفع ملف للبدء...</p>
+            </div>
+        </div>
+
+        <!-- قسم إحصائيات استبدال أرقام الملفات -->
+        <div class="test-section">
+            <h3>🔢 إحصائيات استبدال أرقام الملفات</h3>
+            <div id="fileIdStats">
+                <p class="status info">سيتم عرض الإحصائيات بعد الاستيراد...</p>
+            </div>
+        </div>
+
+        <!-- قسم الاستبدالات التفصيلية -->
+        <div class="test-section">
+            <h3>📋 تفاصيل الاستبدالات</h3>
+            <div id="replacementDetails">
+                <p class="status info">سيتم عرض تفاصيل الاستبدالات بعد الاستيراد...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedFile = null;
+
+        // إعداد drag and drop
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                selectedFile = files[0];
+                updateFileDisplay();
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                selectedFile = e.target.files[0];
+                updateFileDisplay();
+            }
+        });
+
+        function updateFileDisplay() {
+            if (selectedFile) {
+                uploadArea.innerHTML = `
+                    <p>✅ تم اختيار الملف: ${selectedFile.name}</p>
+                    <p>📏 الحجم: ${(selectedFile.size / 1024).toFixed(2)} KB</p>
+                    <button class="btn" onclick="document.getElementById('fileInput').click()">
+                        🔄 تغيير الملف
+                    </button>
+                `;
+            }
+        }
+
+        function generateTestFile() {
+            // إنشاء محتوى CSV للاختبار
+            const csvContent = `identity_number,name,file_id_number,status,birth_date
+1234567890,أحمد محمد علي,OLD001,active,1990-01-01
+2345678901,فاطمة علي حسن,OLD002,active,1985-05-15
+3456789012,محمد حسن أحمد,OLD003,inactive,1992-03-20
+4567890123,سارة أحمد محمود,OLD004,active,1988-11-10
+5678901234,خالد محمود سعد,OLD005,active,1993-07-25
+6789012345,نور الهدى محمد,OLD006,active,1991-09-12
+7890123456,عمر عبدالله,OLD007,inactive,1987-12-05
+8901234567,هدى سالم,OLD008,active,1994-04-18
+9012345678,يوسف إبراهيم,OLD009,active,1989-08-22
+0123456789,ليلى عثمان,OLD010,active,1996-02-14`;
+
+            // إنشاء وتحميل الملف
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'test-file-id-replacement.csv';
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            showStatus('success', '✅ تم إنشاء ملف الاختبار وتحميله بنجاح!<br>الملف يحتوي على 10 سجلات مع أرقام ملفات قديمة (OLD001-OLD010)');
+        }
+
+        async function startImport() {
+            if (!selectedFile) {
+                showStatus('error', '❌ يرجى اختيار ملف أولاً');
+                return;
+            }
+
+            const targetTable = document.getElementById('targetTable').value;
+            const previewOnly = document.getElementById('previewOnly').checked;
+
+            showProgress(true);
+            updateProgress(10);
+
+            const formData = new FormData();
+            formData.append('excel_file', selectedFile);
+            formData.append('target_model', targetTable);
+            formData.append('preview_only', previewOnly);
+            formData.append('skip_duplicates', true);
+            formData.append('batch_size', 1000);
+
+            try {
+                updateProgress(30);
+                showStatus('info', '📤 جاري رفع الملف...');
+
+                // محاكاة API call - يجب استبدالها بـ URL الحقيقي
+                const response = await simulateImport(formData, targetTable, previewOnly);
+
+                updateProgress(100);
+                displayResults(response);
+
+            } catch (error) {
+                updateProgress(0);
+                showStatus('error', '❌ خطأ في عملية الاستيراد: ' + error.message);
+            } finally {
+                showProgress(false);
+            }
+        }
+
+        // محاكاة استجابة API للاختبار
+        async function simulateImport(formData, targetTable, previewOnly) {
+            // محاكاة تأخير الشبكة
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            updateProgress(60);
+            showStatus('info', '🔄 جاري معالجة البيانات واستبدال أرقام الملفات...');
+
+            await new Promise(resolve => setTimeout(resolve, 1500));
+
+            updateProgress(80);
+            showStatus('info', '💾 جاري حفظ البيانات...');
+
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            // استجابة محاكاة
+            return {
+                success: true,
+                message: previewOnly ?
+                    'معاينة البيانات: 10 صف، 10 صف صالح للاستيراد، سيتم استبدال 10 رقم ملف' :
+                    'تم الاستيراد بنجاح: 10 صف من أصل 10، تم استبدال 10 رقم ملف بأرقام جديدة',
+                data: {
+                    imported_rows: previewOnly ? 0 : 10,
+                    total_rows: 10,
+                    skipped_rows: 0,
+                    errors: [],
+                    warnings: [],
+                    file_id_replacements: generateMockReplacements(),
+                    file_id_report: {
+                        total_replacements: 10,
+                        message: 'تم استبدال 10 رقم ملف بنجاح',
+                        replacements: generateMockReplacements()
+                    },
+                    detailed_stats: {
+                        import_summary: {
+                            total_rows: 10,
+                            imported_rows: previewOnly ? 0 : 10,
+                            skipped_rows: 0,
+                            error_count: 0,
+                            warning_count: 0
+                        },
+                        file_id_management: {
+                            total_file_id_replacements: 10,
+                            replacement_success_rate: '100%',
+                            replacement_methods_used: {
+                                'generateFileIdFromDataTable': 7,
+                                'generateUniqueReservedCode': 2,
+                                'fallback': 1
+                            }
+                        },
+                        data_quality: {
+                            success_rate: '100%',
+                            column_mapping_success: true,
+                            required_fields_present: true
+                        }
+                    }
+                }
+            };
+        }
+
+        function generateMockReplacements() {
+            const replacements = [];
+            for (let i = 1; i <= 10; i++) {
+                const oldId = `OLD${String(i).padStart(3, '0')}`;
+                const newId = `FID${Date.now()}${String(i).padStart(3, '0')}`;
+                const method = i <= 7 ? 'generateFileIdFromDataTable' :
+                             i <= 9 ? 'generateUniqueReservedCode' : 'fallback';
+
+                replacements.push({
+                    original_file_id: oldId,
+                    new_file_id: newId,
+                    identity_number: `${1234567890 + i - 1}`,
+                    replacement_method: method
+                });
+            }
+            return replacements;
+        }
+
+        function displayResults(response) {
+            const resultsDiv = document.getElementById('results');
+            const fileIdStatsDiv = document.getElementById('fileIdStats');
+            const replacementDetailsDiv = document.getElementById('replacementDetails');
+
+            if (response.success) {
+                const data = response.data;
+
+                // عرض النتائج العامة
+                resultsDiv.innerHTML = `
+                    <div class="status success">
+                        <h4>✅ ${response.message}</h4>
+                        <ul>
+                            <li>📊 إجمالي الصفوف: ${data.total_rows}</li>
+                            <li>✅ الصفوف المستوردة: ${data.imported_rows}</li>
+                            <li>⏭️ الصفوف المتجاهلة: ${data.skipped_rows}</li>
+                            <li>❌ الأخطاء: ${data.errors.length}</li>
+                            <li>⚠️ التحذيرات: ${data.warnings?.length || 0}</li>
+                        </ul>
+                    </div>
+                `;
+
+                // عرض إحصائيات استبدال أرقام الملفات
+                if (data.file_id_report) {
+                    const stats = data.detailed_stats?.file_id_management;
+                    fileIdStatsDiv.innerHTML = `
+                        <div class="status success">
+                            <h4>🔢 ${data.file_id_report.message}</h4>
+                            <ul>
+                                <li>🔄 إجمالي الاستبدالات: ${data.file_id_report.total_replacements}</li>
+                                <li>📈 معدل النجاح: ${stats?.replacement_success_rate || '100%'}</li>
+                            </ul>
+
+                            <h5>📋 طرق الاستبدال المستخدمة:</h5>
+                            <ul>
+                                ${Object.entries(stats?.replacement_methods_used || {}).map(([method, count]) =>
+                                    `<li>${method}: ${count} مرة</li>`
+                                ).join('')}
+                            </ul>
+                        </div>
+                    `;
+                }
+
+                // عرض تفاصيل الاستبدالات
+                if (data.file_id_report?.replacements) {
+                    replacementDetailsDiv.innerHTML = `
+                        <table class="replacement-table">
+                            <thead>
+                                <tr>
+                                    <th>رقم الهوية</th>
+                                    <th>رقم الملف الأصلي</th>
+                                    <th>رقم الملف الجديد</th>
+                                    <th>طريقة الاستبدال</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.file_id_report.replacements.map(replacement => `
+                                    <tr>
+                                        <td>${replacement.identity_number}</td>
+                                        <td style="color: #e74c3c; font-weight: bold;">${replacement.original_file_id}</td>
+                                        <td style="color: #27ae60; font-weight: bold;">${replacement.new_file_id}</td>
+                                        <td>${replacement.replacement_method}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                }
+
+                // عرض JSON للمطورين
+                resultsDiv.innerHTML += `
+                    <h4>📋 استجابة JSON (للمطورين):</h4>
+                    <pre>${JSON.stringify(response, null, 2)}</pre>
+                `;
+
+            } else {
+                resultsDiv.innerHTML = `
+                    <div class="status error">
+                        <h4>❌ فشل في الاستيراد</h4>
+                        <p>${response.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function showStatus(type, message) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function showProgress(show) {
+            const progressContainer = document.getElementById('progressContainer');
+            progressContainer.style.display = show ? 'block' : 'none';
+            if (!show) updateProgress(0);
+        }
+
+        function updateProgress(percent) {
+            const progressBar = document.getElementById('progressBar');
+            progressBar.style.width = percent + '%';
+        }
+
+        // تحميل الصفحة
+        document.addEventListener('DOMContentLoaded', function() {
+            showStatus('info', '🚀 نظام اختبار استبدال أرقام الملفات جاهز للاستخدام!<br>قم برفع ملف Excel أو إنشاء ملف اختبار للبدء.');
+        });
+    </script>
+</body>
+</html>

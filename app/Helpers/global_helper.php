@@ -106,3 +106,181 @@ if (!function_exists('cleanupOldReservedCodes')) {
     }
 }
 
+if (!function_exists('generateFileIdFromDataTable')) {
+    /**
+     * Generate file_id_number using the data table sequence (same algorithm as existing system)
+     *
+     * @return string
+     */
+    function generateFileIdFromDataTable(): string
+    {
+        return DB::transaction(function () {
+            // جلب آخر file_id_number من جدول data
+            $lastFileId = DB::table('data')
+                ->select('file_id_number')
+                ->whereNotNull('file_id_number')
+                ->whereRaw("file_id_number REGEXP '^[0-9]+$'")
+                ->orderByRaw('CAST(file_id_number as UNSIGNED) DESC')
+                ->value('file_id_number');
+
+            // حساب الرقم التالي
+            $nextNumber = $lastFileId ? ((int)$lastFileId + 1) : 1;
+
+            // إرجاع الرقم مع 6 خانات
+            return str_pad($nextNumber, 6, '0', STR_PAD_LEFT);
+        });
+    }
+}
+
+if (!function_exists('getFileIdByIdentityNumber')) {
+    /**
+     * Get file_id_number for a given identity number from data table
+     * If not found, create a new one using the standard algorithm
+     *
+     * @param string $identityNumber
+     * @return string|null
+     */
+    function getFileIdByIdentityNumber(string $identityNumber): ?string
+    {
+        // البحث عن رقم الهوية في جدول data
+        $record = DB::table('data')
+            ->select('file_id_number')
+            ->where('person_id', $identityNumber)
+            ->orWhere('guardian_id', $identityNumber)
+            ->first();
+
+        if ($record && $record->file_id_number) {
+            return $record->file_id_number;
+        }
+
+        // إذا لم يوجد، إنشاء رقم جديد باستخدام الخوارزمية المعتمدة
+        return generateFileIdFromDataTable();
+    }
+}
+
+if (!function_exists('mapFolderNamesToFileIds')) {
+    /**
+     * Map folder names (identity numbers) to their corresponding file_id_numbers
+     * Used for bulk folder uploads where folder names are identity numbers
+     *
+     * @param array $identityNumbers Array of identity numbers (folder names)
+     * @return array Associative array [identity_number => file_id_number]
+     */
+    function mapFolderNamesToFileIds(array $identityNumbers): array
+    {
+        $mapping = [];
+
+        foreach ($identityNumbers as $identityNumber) {
+            $fileId = getFileIdByIdentityNumber($identityNumber);
+            if ($fileId) {
+                $mapping[$identityNumber] = $fileId;
+            }
+        }
+
+        return $mapping;
+    }
+}
+
+if (!function_exists('validateIdentityNumber')) {
+    /**
+     * Validate Saudi Identity Number (10 digits)
+     *
+     * @param string $identityNumber
+     * @return bool
+     */
+    function validateIdentityNumber(string $identityNumber): bool
+    {
+        // تنظيف الرقم من أي مسافات أو رموز
+        $identityNumber = preg_replace('/\D/', '', $identityNumber);
+
+        // التحقق من أن الرقم بين 8-10 خانات
+        $length = strlen($identityNumber);
+        if ($length < 8 || $length > 10) {
+            return false;
+        }
+
+        // للأرقام أقل من 10 خانات، نعتبرها صالحة مباشرة
+        if ($length < 10) {
+            return true;
+        }
+
+        // التحقق من صحة رقم الهوية السعودي (للأرقام 10 خانات)
+        $sum = 0;
+        for ($i = 0; $i < 9; $i++) {
+            if ($i % 2 == 0) {
+                $doubled = (int)$identityNumber[$i] * 2;
+                $sum += $doubled > 9 ? $doubled - 9 : $doubled;
+            } else {
+                $sum += (int)$identityNumber[$i];
+            }
+        }
+
+        $checkDigit = (10 - ($sum % 10)) % 10;
+        return $checkDigit == (int)$identityNumber[9];
+    }
+}
+
+if (!function_exists('sanitizeIdentityNumber')) {
+    /**
+     * Clean and sanitize identity number
+     *
+     * @param string $identityNumber
+     * @return string|null
+     */
+    function sanitizeIdentityNumber(string $identityNumber): ?string
+    {
+        $cleaned = preg_replace('/\D/', '', $identityNumber);
+
+        if (validateIdentityNumber($cleaned)) {
+            return $cleaned;
+        }
+
+        return null;
+    }
+}
+
+if (!function_exists('bulkValidateIdentityNumbers')) {
+    /**
+     * Validate multiple identity numbers and return validation results
+     *
+     * @param array $identityNumbers
+     * @return array
+     */
+    function bulkValidateIdentityNumbers(array $identityNumbers): array
+    {
+        $results = [
+            'valid' => [],
+            'invalid' => [],
+            'duplicates' => [],
+            'statistics' => [
+                'total' => count($identityNumbers),
+                'valid_count' => 0,
+                'invalid_count' => 0,
+                'duplicate_count' => 0
+            ]
+        ];
+
+        $seen = [];
+
+        foreach ($identityNumbers as $identity) {
+            $sanitized = sanitizeIdentityNumber($identity);
+
+            if ($sanitized) {
+                if (isset($seen[$sanitized])) {
+                    $results['duplicates'][] = $sanitized;
+                    $results['statistics']['duplicate_count']++;
+                } else {
+                    $results['valid'][] = $sanitized;
+                    $seen[$sanitized] = true;
+                    $results['statistics']['valid_count']++;
+                }
+            } else {
+                $results['invalid'][] = $identity;
+                $results['statistics']['invalid_count']++;
+            }
+        }
+
+        return $results;
+    }
+}
+

@@ -13,6 +13,7 @@ class Data extends Model
 
     protected $fillable = [
         'file_id_number',
+        'original_file_id_from_excel', // رقم الملف الأصلي من Excel
         'data_section_id',
         'data_id_number',
         'data_first_name',

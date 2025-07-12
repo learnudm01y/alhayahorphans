@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel Upload System - نظام رفع ملفات Excel</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.8em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            margin-bottom: 10px;
+        }
+        .header p {
+            margin: 0;
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        .content {
+            padding: 40px;
+        }
+        .status-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 30px;
+            margin: 20px 0;
+            border-left: 5px solid #28a745;
+        }
+        .status-header {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #495057;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .php-settings {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .setting-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            text-align: center;
+        }
+        .setting-label {
+            font-size: 0.9em;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+        .setting-value {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .upload-area {
+            background: #e3f2fd;
+            border: 3px dashed #2196f3;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            margin: 30px 0;
+            transition: all 0.3s ease;
+        }
+        .upload-area:hover {
+            background: #bbdefb;
+            border-color: #1976d2;
+        }
+        .upload-area.dragover {
+            background: #90caf9;
+            border-color: #0d47a1;
+            transform: scale(1.02);
+        }
+        .file-input {
+            display: none;
+        }
+        .upload-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 10px;
+        }
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        .progress-container {
+            display: none;
+            margin: 20px 0;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        .file-list {
+            margin: 20px 0;
+        }
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            margin: 5px 0;
+        }
+        .results-section {
+            display: none;
+            background: #e8f5e8;
+            border: 1px solid #c3e6c3;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .error-section {
+            display: none;
+            background: #ffebee;
+            border: 1px solid #ffcdd2;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .option-card {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            padding: 20px;
+        }
+        .option-card h4 {
+            margin: 0 0 15px 0;
+            color: #495057;
+        }
+        .checkbox-group {
+            margin: 10px 0;
+        }
+        .checkbox-group label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 5px 0;
+            cursor: pointer;
+        }
+        .nav-buttons {
+            text-align: center;
+            margin: 30px 0;
+        }
+        .nav-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 20px;
+            font-size: 1em;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin: 5px 10px;
+            transition: all 0.3s ease;
+        }
+        .nav-btn:hover {
+            background: #5a6268;
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Excel Upload System</h1>
+            <p>نظام رفع ملفات Excel المتقدم - دعم ملفات حتى 1GB</p>
+        </div>
+
+        <div class="content">
+            <!-- System Status -->
+            <div class="status-section">
+                <div class="status-header">
+                    <span>⚙️</span>
+                    <span>حالة النظام - إعدادات PHP</span>
+                </div>
+                <div class="php-settings" id="phpSettings">
+                    <div class="setting-item">
+                        <div class="setting-label">upload_max_filesize</div>
+                        <div class="setting-value" id="uploadMaxSize">جاري التحقق...</div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">post_max_size</div>
+                        <div class="setting-value" id="postMaxSize">جاري التحقق...</div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">max_execution_time</div>
+                        <div class="setting-value" id="maxExecTime">جاري التحقق...</div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">memory_limit</div>
+                        <div class="setting-value" id="memoryLimit">جاري التحقق...</div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">max_file_uploads</div>
+                        <div class="setting-value" id="maxFileUploads">جاري التحقق...</div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-label">System Status</div>
+                        <div class="setting-value" id="systemStatus">🟢 نشط</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Upload Options -->
+            <div class="options-grid">
+                <div class="option-card">
+                    <h4>📁 نوع المعالجة</h4>
+                    <div class="checkbox-group">
+                        <label>
+                            <input type="radio" name="processing_mode" value="file-only" checked>
+                            <span>حفظ الملف فقط</span>
+                        </label>
+                        <label>
+                            <input type="radio" name="processing_mode" value="import-data">
+                            <span>حفظ الملف + استيراد البيانات</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="option-card">
+                    <h4>📊 خيارات الاستيراد</h4>
+                    <div class="checkbox-group">
+                        <label>
+                            <input type="checkbox" name="enable_excel_import" id="enableImport">
+                            <span>تفعيل استيراد البيانات</span>
+                        </label>
+                        <label>
+                            <input type="checkbox" name="header_row" checked>
+                            <span>الصف الأول يحتوي على عناوين</span>
+                        </label>
+                        <label>
+                            <input type="checkbox" name="skip_empty_rows" checked>
+                            <span>تجاهل الصفوف الفارغة</span>
+                        </label>
+                    </div>
+                    <select name="target_table" style="width: 100%; padding: 8px; margin-top: 10px; border-radius: 5px; border: 1px solid #ccc;">
+                        <option value="data">جدول البيانات الرئيسي</option>
+                        <option value="dead_people">جدول المتوفين</option>
+                        <option value="re_people">جدول إعادة التسجيل</option>
+                        <option value="guardian_bank_accounts">جدول حسابات الأوصياء</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Upload Area -->
+            <div class="upload-area" id="uploadArea">
+                <div style="font-size: 4em; margin-bottom: 20px;">📁</div>
+                <h3>اسحب وأفلت ملفات Excel هنا</h3>
+                <p>أو اضغط لاختيار الملفات</p>
+                <p style="font-size: 0.9em; color: #6c757d;">الصيغ المدعومة: .xlsx, .xls, .csv | الحد الأقصى: 1GB لكل ملف</p>
+                <input type="file" id="fileInput" class="file-input" multiple accept=".xlsx,.xls,.csv">
+                <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                    📂 اختيار الملفات
+                </button>
+            </div>
+
+            <!-- File List -->
+            <div class="file-list" id="fileList"></div>
+
+            <!-- Progress Bar -->
+            <div class="progress-container" id="progressContainer">
+                <h4>جاري الرفع...</h4>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div id="progressText">0%</div>
+            </div>
+
+            <!-- Upload Button -->
+            <div style="text-align: center; margin: 30px 0;">
+                <button id="uploadButton" class="upload-btn" style="font-size: 1.2em; padding: 20px 40px;" disabled>
+                    🚀 رفع الملفات المحددة
+                </button>
+            </div>
+
+            <!-- Results Section -->
+            <div class="results-section" id="resultsSection">
+                <h3>✅ نتائج الرفع</h3>
+                <div id="resultsContent"></div>
+            </div>
+
+            <!-- Error Section -->
+            <div class="error-section" id="errorSection">
+                <h3>❌ أخطاء الرفع</h3>
+                <div id="errorContent"></div>
+            </div>
+
+            <!-- Navigation -->
+            <div class="nav-buttons">
+                <a href="php-diagnostic.html" class="nav-btn">🔧 تشخيص النظام</a>
+                <a href="/admin/dashboard" class="nav-btn">🏠 لوحة التحكم</a>
+                <button onclick="location.reload()" class="nav-btn">🔄 إعادة تحميل</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedFiles = [];
+
+        // Load PHP settings
+        function loadPHPSettings() {
+            // Simulate loading PHP settings
+            document.getElementById('uploadMaxSize').textContent = '1024M';
+            document.getElementById('postMaxSize').textContent = '1024M';
+            document.getElementById('maxExecTime').textContent = '3600';
+            document.getElementById('memoryLimit').textContent = '2048M';
+            document.getElementById('maxFileUploads').textContent = '100';
+        }
+
+        // File input handling
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            handleFiles(e.target.files);
+        });
+
+        // Drag and drop handling
+        const uploadArea = document.getElementById('uploadArea');
+
+        uploadArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        uploadArea.addEventListener('click', function() {
+            document.getElementById('fileInput').click();
+        });
+
+        function handleFiles(files) {
+            selectedFiles = Array.from(files);
+            displayFileList();
+            document.getElementById('uploadButton').disabled = selectedFiles.length === 0;
+        }
+
+        function displayFileList() {
+            const fileList = document.getElementById('fileList');
+            if (selectedFiles.length === 0) {
+                fileList.innerHTML = '';
+                return;
+            }
+
+            let html = '<h4>الملفات المحددة:</h4>';
+            selectedFiles.forEach((file, index) => {
+                const size = (file.size / 1024 / 1024).toFixed(2);
+                html += `
+                    <div class="file-item">
+                        <span>📄 ${file.name} (${size} MB)</span>
+                        <button onclick="removeFile(${index})" style="background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">✗</button>
+                    </div>
+                `;
+            });
+            fileList.innerHTML = html;
+        }
+
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            displayFileList();
+            document.getElementById('uploadButton').disabled = selectedFiles.length === 0;
+        }
+
+        // Processing mode handling
+        document.querySelectorAll('input[name="processing_mode"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const enableImport = document.getElementById('enableImport');
+                if (this.value === 'import-data') {
+                    enableImport.checked = true;
+                } else {
+                    enableImport.checked = false;
+                }
+            });
+        });
+
+        // Upload handling
+        document.getElementById('uploadButton').addEventListener('click', function() {
+            if (selectedFiles.length === 0) {
+                alert('يرجى اختيار ملف واحد على الأقل');
+                return;
+            }
+
+            uploadFiles();
+        });
+
+        function uploadFiles() {
+            const formData = new FormData();
+
+            // Add files
+            selectedFiles.forEach(file => {
+                formData.append('files[]', file);
+            });
+
+            // Add form options
+            const processingMode = document.querySelector('input[name="processing_mode"]:checked').value;
+            formData.append('processing_mode', processingMode);
+
+            formData.append('enable_excel_import', document.querySelector('input[name="enable_excel_import"]').checked ? '1' : '0');
+            formData.append('header_row', document.querySelector('input[name="header_row"]').checked ? '1' : '0');
+            formData.append('skip_empty_rows', document.querySelector('input[name="skip_empty_rows"]').checked ? '1' : '0');
+            formData.append('target_table', document.querySelector('select[name="target_table"]').value);
+
+            // Show progress
+            document.getElementById('progressContainer').style.display = 'block';
+            document.getElementById('uploadButton').disabled = true;
+            document.getElementById('uploadButton').textContent = '⏳ جاري الرفع...';
+
+            // Simulate upload progress
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += Math.random() * 10;
+                if (progress > 95) progress = 95;
+
+                document.getElementById('progressFill').style.width = progress + '%';
+                document.getElementById('progressText').textContent = Math.round(progress) + '%';
+            }, 200);
+
+            // Actual upload
+            fetch('/admin/file/process-excel', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                clearInterval(progressInterval);
+                document.getElementById('progressFill').style.width = '100%';
+                document.getElementById('progressText').textContent = '100%';
+
+                setTimeout(() => {
+                    document.getElementById('progressContainer').style.display = 'none';
+                    handleUploadResponse(data);
+                }, 1000);
+            })
+            .catch(error => {
+                clearInterval(progressInterval);
+                document.getElementById('progressContainer').style.display = 'none';
+                handleUploadError(error);
+            })
+            .finally(() => {
+                document.getElementById('uploadButton').disabled = false;
+                document.getElementById('uploadButton').textContent = '🚀 رفع الملفات المحددة';
+            });
+        }
+
+        function handleUploadResponse(data) {
+            if (data.success) {
+                document.getElementById('resultsSection').style.display = 'block';
+                document.getElementById('errorSection').style.display = 'none';
+
+                let html = `<p><strong>تم رفع ${data.total_files} ملف بنجاح!</strong></p>`;
+
+                if (data.files && data.files.length > 0) {
+                    html += '<ul>';
+                    data.files.forEach(file => {
+                        html += `<li>✅ ${file.original_name} - ${(file.file_size / 1024 / 1024).toFixed(2)} MB</li>`;
+                    });
+                    html += '</ul>';
+                }
+
+                if (data.import_summary) {
+                    html += `<p><strong>تم استيراد ${data.import_summary.imported_rows} صف من البيانات</strong></p>`;
+                }
+
+                document.getElementById('resultsContent').innerHTML = html;
+            } else {
+                handleUploadError({message: data.message || 'حدث خطأ غير معروف'});
+            }
+        }
+
+        function handleUploadError(error) {
+            document.getElementById('errorSection').style.display = 'block';
+            document.getElementById('resultsSection').style.display = 'none';
+
+            document.getElementById('errorContent').innerHTML = `
+                <p><strong>فشل في رفع الملفات:</strong></p>
+                <p>${error.message || 'حدث خطأ في الاتصال بالخادم'}</p>
+            `;
+        }
+
+        // Initialize
+        loadPHPSettings();
+    </script>
+</body>
+</html>

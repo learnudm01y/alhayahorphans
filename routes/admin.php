@@ -18,6 +18,7 @@ use App\Http\Controllers\Admin\MaritalStatusController;
 use App\Http\Controllers\Admin\PersonsController;
 use App\Http\Controllers\Admin\ProvinceController;
 use App\Http\Controllers\Admin\RecordsManagementController;
+use App\Http\Controllers\UnifiedFileManagementController;
 use App\Http\Controllers\Admin\RecordsManagementEditController;
 use App\Http\Controllers\Admin\RequestStatusController;
 use App\Http\Controllers\Admin\SponsorshipStatusController;
@@ -126,4 +127,33 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::get('records-management/{id}/show', [RecordsManagementEditController::class, 'show'])->name('records.management.show');
      // AJAX: جلب سجلات موظف مع pagination
     Route::get('ajax/admin-records/{admin}', [RecordsManagementEditController::class, 'ajaxAdminRecords'])->name('ajax.admin-records');
+
+    // File Manager Route
+    Route::get('file-manager', function () {
+        return view('file-management.advanced-interface');
+    })->name('file.manager');
+
+    // File Management Routes
+    Route::prefix('file')->group(function () {
+        Route::get('duplicate-summary', [UnifiedFileManagementController::class, 'getDuplicateSummary'])->name('file.duplicate.summary');
+        Route::delete('delete-duplicates', [UnifiedFileManagementController::class, 'deleteDuplicates'])->name('file.delete.duplicates');
+        Route::get('download-duplicates', [UnifiedFileManagementController::class, 'downloadDuplicateFiles'])->name('file.download.duplicates');
+        Route::get('download-duplicate', [UnifiedFileManagementController::class, 'downloadSingleDuplicate'])->name('file.download.duplicate.single');
+        Route::post('create-test-duplicates', [UnifiedFileManagementController::class, 'createTestDuplicates'])->name('file.create.test.duplicates');
+
+        // Excel Gateway Routes
+        Route::get('excel-gateway', [UnifiedFileManagementController::class, 'showExcelGateway'])->name('file.excel.gateway');
+        Route::post('excel-upload', [UnifiedFileManagementController::class, 'processExcelUpload'])
+            ->middleware('large.upload')
+            ->name('file.excel.upload');
+        Route::post('process-excel', [UnifiedFileManagementController::class, 'processExcelUpload'])
+            ->middleware('large.upload')
+            ->name('file.process.excel');
+        Route::get('php-diagnostic', [UnifiedFileManagementController::class, 'showPhpDiagnostic'])->name('file.php.diagnostic');
+    });
+
+    // Files Processing Routes
+    Route::prefix('files')->group(function () {
+        Route::post('process-folder-upload', [UnifiedFileManagementController::class, 'processFolderUpload'])->name('files.process.folder.upload');
+    });
 });

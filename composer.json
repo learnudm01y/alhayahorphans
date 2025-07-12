@@ -7,12 +7,14 @@
     "require": {
         "php": "^8.1",
         "guzzlehttp/guzzle": "^7.2",
+        "intervention/image": "^3.11",
         "laravel-lang/lang": "^15.2",
         "laravel/breeze": "^1.29",
         "laravel/framework": "^10.10",
         "laravel/sanctum": "^3.3",
         "laravel/tinker": "^2.8",
         "laravelcollective/html": "6.4",
+        "phpoffice/phpspreadsheet": "^1.29",
         "spatie/laravel-permission": "^6.17",
         "yajra/laravel-datatables": "^10.1"
     },

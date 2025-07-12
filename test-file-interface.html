@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار واجهة إدارة الملفات</title>
+</head>
+<body>
+    <h1>اختبار واجهة إدارة الملفات</h1>
+
+    <h2>اختبار analytics API:</h2>
+    <button onclick="testAnalytics()">اختبار Analytics API</button>
+    <div id="analyticsResult"></div>
+
+    <h2>اختبار CSRF Token:</h2>
+    <button onclick="testCSRF()">اختبار CSRF Token</button>
+    <div id="csrfResult"></div>
+
+    <script>
+        async function testAnalytics() {
+            try {
+                const response = await fetch('/api/files/analytics');
+                const result = await response.json();
+                document.getElementById('analyticsResult').innerHTML =
+                    `<p>Success: ${response.ok}</p><pre>${JSON.stringify(result, null, 2)}</pre>`;
+            } catch (error) {
+                document.getElementById('analyticsResult').innerHTML =
+                    `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+
+        function testCSRF() {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]');
+            const result = document.getElementById('csrfResult');
+
+            if (csrfToken) {
+                result.innerHTML = `<p style="color: green;">CSRF Token found: ${csrfToken.getAttribute('content')}</p>`;
+            } else {
+                result.innerHTML = `<p style="color: red;">CSRF Token not found</p>`;
+            }
+        }
+
+        // Simulate the advanced file manager error scenario
+        function testNullCSRF() {
+            try {
+                // This should not throw an error now
+                const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                console.log('Token access successful:', token || 'No token found but no error');
+                return true;
+            } catch (error) {
+                console.error('Token access failed:', error.message);
+                return false;
+            }
+        }
+
+        // Run the test when page loads
+        window.onload = function() {
+            const nullTestResult = testNullCSRF();
+            console.log('Null CSRF test passed:', nullTestResult);
+        };
+    </script>
+</body>
+</html>

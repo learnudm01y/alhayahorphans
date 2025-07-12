@@ -1,0 +1,6 @@
+identity_number,name,file_id_number,status,birth_date
+1234567890,أحمد محمد,OLD001,active,1990-01-01
+2345678901,فاطمة علي,OLD002,active,1985-05-15
+3456789012,محمد حسن,OLD003,inactive,1992-03-20
+4567890123,سارة أحمد,OLD004,active,1988-11-10
+5678901234,خالد محمود,OLD005,active,1993-07-25

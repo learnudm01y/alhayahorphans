@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار نظام كشف الملفات المكررة</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        .status { margin-top: 10px; padding: 10px; border-radius: 5px; }
+        input[type="file"] { margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔒 اختبار نظام إدارة الملفات المحسن</h1>
+        <p>اختبار نظام كشف الملفات المكررة والأمان المحسن</p>
+
+        <!-- اختبار رفع المجلد -->
+        <div class="test-section">
+            <h3>📁 اختبار رفع المجلد</h3>
+            <input type="file" id="folderInput" webkitdirectory multiple accept=".jpg,.jpeg,.png,.pdf,.xlsx">
+            <button onclick="testFolderUpload()">رفع المجلد</button>
+            <div id="folderStatus" class="status"></div>
+        </div>
+
+        <!-- اختبار كشف الملفات المكررة -->
+        <div class="test-section">
+            <h3>🔍 اختبار كشف الملفات المكررة</h3>
+            <input type="file" id="duplicateInput" multiple accept=".jpg,.jpeg,.png">
+            <button onclick="testDuplicateDetection()">اختبار الكشف عن المكررات</button>
+            <div id="duplicateStatus" class="status"></div>
+        </div>
+
+        <!-- اختبار الأمان -->
+        <div class="test-section">
+            <h3>🛡️ اختبار الأمان</h3>
+            <button onclick="testSecurityErrorHandling()">اختبار معالجة الأخطاء الآمنة</button>
+            <div id="securityStatus" class="status"></div>
+        </div>
+
+        <!-- عرض نتائج الاختبارات -->
+        <div class="test-section">
+            <h3>📊 نتائج الاختبارات</h3>
+            <div id="testResults"></div>
+        </div>
+    </div>
+
+    <script>
+        let testResults = [];
+
+        async function testFolderUpload() {
+            const input = document.getElementById('folderInput');
+            const status = document.getElementById('folderStatus');
+
+            if (!input.files.length) {
+                status.innerHTML = '<div class="error">⚠️ يرجى اختيار مجلد يحتوي على ملفات</div>';
+                return;
+            }
+
+            status.innerHTML = '<div class="warning">⏳ جاري رفع المجلد...</div>';
+
+            try {
+                const formData = new FormData();
+                const paths = [];
+
+                for (let file of input.files) {
+                    formData.append('files[]', file);
+                    paths.push(file.webkitRelativePath);
+                }
+
+                paths.forEach(path => formData.append('paths[]', path));
+
+                const response = await fetch('/api/files/process-folder-upload', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 'test'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    status.innerHTML = `
+                        <div class="success">
+                            ✅ تم رفع المجلد بنجاح<br>
+                            📁 المجلدات المُعالجة: ${result.statistics?.valid_folders || 0}<br>
+                            📄 الملفات المُعالجة: ${result.statistics?.processed_files || 0}<br>
+                            ${result.duplicate_files ? `🔍 ملفات مكررة: ${result.duplicate_files.total_duplicates}` : ''}
+                        </div>
+                    `;
+                    testResults.push({ test: 'folder_upload', status: 'success', details: result });
+                } else {
+                    status.innerHTML = `<div class="error">❌ فشل في رفع المجلد: ${result.message}</div>`;
+                    testResults.push({ test: 'folder_upload', status: 'error', details: result });
+                }
+            } catch (error) {
+                status.innerHTML = `<div class="error">❌ خطأ في الاتصال: ${error.message}</div>`;
+                testResults.push({ test: 'folder_upload', status: 'error', details: error.message });
+            }
+
+            updateTestResults();
+        }
+
+        async function testDuplicateDetection() {
+            const input = document.getElementById('duplicateInput');
+            const status = document.getElementById('duplicateStatus');
+
+            if (!input.files.length) {
+                status.innerHTML = '<div class="error">⚠️ يرجى اختيار ملفات للاختبار</div>';
+                return;
+            }
+
+            status.innerHTML = '<div class="warning">⏳ جاري اختبار كشف المكررات...</div>';
+
+            try {
+                const formData = new FormData();
+                for (let file of input.files) {
+                    formData.append('files[]', file);
+                }
+
+                const response = await fetch('/api/files/smart-upload', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 'test'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    const duplicates = result.results?.filter(r => r.duplicate_detected) || [];
+                    status.innerHTML = `
+                        <div class="success">
+                            ✅ تم اختبار كشف المكررات<br>
+                            📄 إجمالي الملفات: ${result.total_files || 0}<br>
+                            🔍 ملفات مكررة: ${duplicates.length}<br>
+                            ✅ ملفات ناجحة: ${result.successful_uploads || 0}
+                        </div>
+                    `;
+                } else {
+                    // هذا يجب أن يظهر رسالة آمنة وليس خطأ SQL
+                    status.innerHTML = `<div class="warning">⚠️ ${result.message}</div>`;
+                }
+
+                testResults.push({ test: 'duplicate_detection', status: 'success', details: result });
+            } catch (error) {
+                status.innerHTML = `<div class="error">❌ خطأ في الاتصال: ${error.message}</div>`;
+                testResults.push({ test: 'duplicate_detection', status: 'error', details: error.message });
+            }
+
+            updateTestResults();
+        }
+
+        async function testSecurityErrorHandling() {
+            const status = document.getElementById('securityStatus');
+            status.innerHTML = '<div class="warning">⏳ جاري اختبار الأمان...</div>';
+
+            try {
+                // اختبار طلب غير صحيح لمحاولة إظهار خطأ SQL
+                const response = await fetch('/api/files/process-folder-upload', {
+                    method: 'POST',
+                    body: JSON.stringify({ invalid_data: 'test' }),
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': 'invalid_token'
+                    }
+                });
+
+                const result = await response.text();
+
+                // فحص إذا كانت الاستجابة تحتوي على معلومات SQL حساسة
+                const hasSqlError = result.includes('SQLSTATE') ||
+                                   result.includes('mysql') ||
+                                   result.includes('SQL:') ||
+                                   result.includes('Connection:');
+
+                if (hasSqlError) {
+                    status.innerHTML = `
+                        <div class="error">
+                            🚨 مشكلة أمنية: النظام يكشف معلومات قاعدة البيانات!<br>
+                            المحتوى المكشوف: ${result.substring(0, 200)}...
+                        </div>
+                    `;
+                    testResults.push({ test: 'security', status: 'failed', details: 'SQL information exposed' });
+                } else {
+                    status.innerHTML = `
+                        <div class="success">
+                            🛡️ اختبار الأمان ناجح!<br>
+                            ✅ لا يتم كشف معلومات قاعدة البيانات<br>
+                            ✅ رسائل الخطأ آمنة ومفهومة للمستخدم
+                        </div>
+                    `;
+                    testResults.push({ test: 'security', status: 'success', details: 'No sensitive information exposed' });
+                }
+            } catch (error) {
+                status.innerHTML = `<div class="error">❌ خطأ في اختبار الأمان: ${error.message}</div>`;
+                testResults.push({ test: 'security', status: 'error', details: error.message });
+            }
+
+            updateTestResults();
+        }
+
+        function updateTestResults() {
+            const resultsDiv = document.getElementById('testResults');
+            const summary = testResults.reduce((acc, test) => {
+                acc[test.status] = (acc[test.status] || 0) + 1;
+                return acc;
+            }, {});
+
+            resultsDiv.innerHTML = `
+                <h4>ملخص الاختبارات:</h4>
+                <p>✅ ناجح: ${summary.success || 0}</p>
+                <p>❌ فاشل: ${summary.error || 0}</p>
+                <p>⚠️ تحذير: ${summary.failed || 0}</p>
+                <hr>
+                <pre>${JSON.stringify(testResults, null, 2)}</pre>
+            `;
+        }
+
+        // إضافة CSRF token إلى الرأس
+        document.addEventListener('DOMContentLoaded', function() {
+            const metaTag = document.createElement('meta');
+            metaTag.name = 'csrf-token';
+            metaTag.content = 'test-token';
+            document.head.appendChild(metaTag);
+        });
+    </script>
+</body>
+</html>

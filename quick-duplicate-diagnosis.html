@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تشخيص سريع لنظام الملفات المكررة</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            direction: rtl;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover { background-color: #0056b3; }
+        .endpoint {
+            margin: 10px 0;
+            padding: 5px;
+            border-left: 3px solid #007bff;
+            padding-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>تشخيص سريع لنظام الملفات المكررة</h1>
+
+    <button onclick="runQuickDiagnosis()">تشغيل التشخيص السريع</button>
+
+    <div id="results"></div>
+
+    <script>
+        async function runQuickDiagnosis() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div class="info">🔄 جاري التشخيص...</div>';
+
+            const endpoints = [
+                {
+                    name: 'عرض ملخص الملفات المكررة',
+                    url: '/admin/file/duplicate-summary?session_id=test',
+                    method: 'GET'
+                },
+                {
+                    name: 'إنشاء ملفات للاختبار',
+                    url: '/admin/file/create-test-duplicates',
+                    method: 'POST',
+                    body: { session_id: 'quick_test' }
+                },
+                {
+                    name: 'تحميل الملفات المكررة',
+                    url: '/admin/file/download-duplicates?session_id=test',
+                    method: 'GET'
+                },
+                {
+                    name: 'حذف الملفات المكررة',
+                    url: '/admin/file/delete-duplicates?session_id=test',
+                    method: 'DELETE'
+                }
+            ];
+
+            let results = '<h2>نتائج التشخيص:</h2>';
+
+            for (const endpoint of endpoints) {
+                try {
+                    const options = {
+                        method: endpoint.method,
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    };
+
+                    if (endpoint.method === 'POST' || endpoint.method === 'DELETE') {
+                        options.headers['X-CSRF-TOKEN'] = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                    }
+
+                    if (endpoint.body) {
+                        options.body = JSON.stringify(endpoint.body);
+                    }
+
+                    const response = await fetch(endpoint.url, options);
+
+                    if (response.ok) {
+                        results += `<div class="status success">✅ ${endpoint.name}: يعمل بشكل صحيح (${response.status})</div>`;
+                    } else {
+                        const errorText = await response.text();
+                        results += `<div class="status error">❌ ${endpoint.name}: خطأ ${response.status} - ${errorText.substring(0, 100)}...</div>`;
+                    }
+                } catch (error) {
+                    results += `<div class="status error">❌ ${endpoint.name}: خطأ في الاتصال - ${error.message}</div>`;
+                }
+            }
+
+            results += `
+                <h3>الروابط المتاحة:</h3>
+                <div class="endpoint">GET /admin/file/duplicate-summary - عرض ملخص الملفات المكررة</div>
+                <div class="endpoint">POST /admin/file/create-test-duplicates - إنشاء ملفات للاختبار</div>
+                <div class="endpoint">GET /admin/file/download-duplicates - تحميل الملفات المكررة</div>
+                <div class="endpoint">DELETE /admin/file/delete-duplicates - حذف الملفات المكررة</div>
+                <div class="endpoint">GET /admin/file/download-duplicate - تحميل ملف مكرر واحد</div>
+
+                <div class="status info">
+                    💡 لاختبار شامل، استخدم: test-complete-duplicate-system.html
+                </div>
+            `;
+
+            resultsDiv.innerHTML = results;
+        }
+    </script>
+</body>
+</html>

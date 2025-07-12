@@ -9,7 +9,7 @@
                     <div class="mb-2">
                         <i class="bi bi-people-fill fs-1 text-primary"></i>
                     </div>
-@include('admin.dashboard.component.sliderScript')
+            @include('admin.dashboard.component.sliderScript')
                     <h5 class="card-title">عدد الأفراد</h5>
                     <p class="card-text fs-3 fw-bold"><span class="animated-counter-en"
                             data-target="{{ \App\Models\RePeople::count() }}">0</span></p>
@@ -452,13 +452,15 @@
             ->reverse()
             ->values();
 
-        function getMonthlyCounts($table, $dateCol)
-        {
-            return DB::table($table)
-                ->selectRaw("DATE_FORMAT($dateCol, '%Y-%m') as month, COUNT(*) as count")
-                ->where($dateCol, '>=', now()->subMonths(11)->startOfMonth())
-                ->groupBy('month')
-                ->pluck('count', 'month');
+        if (!function_exists('getMonthlyCounts')) {
+            function getMonthlyCounts($table, $dateCol)
+            {
+                return DB::table($table)
+                    ->selectRaw("DATE_FORMAT($dateCol, '%Y-%m') as month, COUNT(*) as count")
+                    ->where($dateCol, '>=', now()->subMonths(11)->startOfMonth())
+                    ->groupBy('month')
+                    ->pluck('count', 'month');
+            }
         }
 
         $rePeopleCounts = getMonthlyCounts('re_people', 'created_at');

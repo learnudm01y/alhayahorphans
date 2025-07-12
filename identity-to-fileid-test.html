@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔄 اختبار تحويل رقم الهوية إلى file_id_number</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .main-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            margin: 2rem 0;
+        }
+
+        .header-section {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 20px 20px 0 0;
+            text-align: center;
+        }
+
+        .feature-card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            margin-bottom: 2rem;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+        }
+
+        .code-example {
+            background: #2d3748;
+            color: #e2e8f0;
+            border-radius: 10px;
+            padding: 1.5rem;
+            font-family: 'Monaco', 'Consolas', monospace;
+            margin: 1rem 0;
+            overflow-x: auto;
+        }
+
+        .test-result {
+            border-radius: 15px;
+            margin-bottom: 1rem;
+            border: none;
+        }
+
+        .step-badge {
+            background: linear-gradient(45deg, #ff6b6b, #ffd93d);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="main-container">
+            <!-- Header -->
+            <div class="header-section">
+                <h1 class="display-5 fw-bold mb-3">
+                    <i class="fas fa-exchange-alt"></i> تحويل رقم الهوية إلى file_id_number
+                </h1>
+                <p class="lead">
+                    نظام تحويل أسماء المجلدات (أرقام الهوايا) إلى أرقام الملفات باستخدام الخوارزمية المعتمدة
+                </p>
+                <div class="d-flex justify-content-center gap-3 mt-4">
+                    <span class="badge bg-success px-3 py-2">
+                        <i class="fas fa-check"></i> الخوارزمية المحدثة
+                    </span>
+                    <span class="badge bg-info px-3 py-2">
+                        <i class="fas fa-database"></i> تكامل قاعدة البيانات
+                    </span>
+                    <span class="badge bg-warning px-3 py-2">
+                        <i class="fas fa-folder-open"></i> دعم المجلدات المتعددة
+                    </span>
+                </div>
+            </div>
+
+            <div class="p-4">
+                <!-- كيفية العمل -->
+                <div class="feature-card">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">
+                            <i class="fas fa-cogs"></i> كيفية عمل النظام الجديد
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <span class="step-badge">الخطوة 1</span>
+                                <h6>رفع المجلد الرئيسي</h6>
+                                <p>اختار مجلد يحتوي على مجلدات فرعية أسماؤها أرقام هوايا</p>
+
+                                <span class="step-badge">الخطوة 2</span>
+                                <h6>استخراج أرقام الهوايا</h6>
+                                <p>النظام يقرأ أسماء المجلدات الفرعية كأرقام هوايا</p>
+
+                                <span class="step-badge">الخطوة 3</span>
+                                <h6>البحث في قاعدة البيانات</h6>
+                                <p>يبحث عن file_id_number المقابل لكل رقم هوية</p>
+                            </div>
+
+                            <div class="col-md-6">
+                                <span class="step-badge">الخطوة 4</span>
+                                <h6>إنشاء file_id_number جديد</h6>
+                                <p>إذا لم يوجد، ينشئ رقم جديد بالخوارزمية المعتمدة</p>
+
+                                <span class="step-badge">الخطوة 5</span>
+                                <h6>تحويل المسارات</h6>
+                                <p>يستبدل أسماء المجلدات بأرقام الملفات الجديدة</p>
+
+                                <span class="step-badge">الخطوة 6</span>
+                                <h6>حفظ النتائج</h6>
+                                <p>يحفظ الصور مع المسارات المحدثة</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- مثال عملي -->
+                <div class="feature-card">
+                    <div class="card-header bg-success text-white">
+                        <h4 class="mb-0">
+                            <i class="fas fa-folder-tree"></i> مثال عملي
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="text-primary">📁 قبل التحويل (بنية المجلد الأصلية)</h6>
+                                <div class="code-example">
+الصور_العائلية/
+├── 1234567890/
+│   ├── صورة_شخصية.jpg
+│   ├── صورة_الهوية.png
+│   └── وثائق_إضافية.pdf
+├── 9876543210/
+│   ├── photo1.jpg
+│   └── document.pdf
+└── 5555555555/
+    ├── family_photo.jpg
+    └── certificate.jpg
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <h6 class="text-success">📁 بعد التحويل (بنية قاعدة البيانات)</h6>
+                                <div class="code-example">
+الصور_العائلية/
+├── 000001/  ← من 1234567890
+│   ├── صورة_شخصية.jpg
+│   ├── صورة_الهوية.png
+│   └── وثائق_إضافية.pdf
+├── 000002/  ← من 9876543210
+│   ├── photo1.jpg
+│   └── document.pdf
+└── 000003/  ← من 5555555555
+    ├── family_photo.jpg
+    └── certificate.jpg
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- الخوارزمية المستخدمة -->
+                <div class="feature-card">
+                    <div class="card-header bg-info text-white">
+                        <h4 class="mb-0">
+                            <i class="fas fa-code"></i> الخوارزمية المطبقة
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>🔍 دالة البحث عن file_id_number</h6>
+                                <div class="code-example">
+function getFileIdByIdentityNumber($identityNumber) {
+    // البحث في جدول data
+    $record = DB::table('data')
+        ->where('person_id', $identityNumber)
+        ->orWhere('guardian_id', $identityNumber)
+        ->first();
+
+    if ($record && $record->file_id_number) {
+        return $record->file_id_number;
+    }
+
+    // إنشاء رقم جديد بالخوارزمية المعتمدة
+    return generateFileIdFromDataTable();
+}
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <h6>⚙️ دالة إنشاء رقم جديد</h6>
+                                <div class="code-example">
+function generateFileIdFromDataTable() {
+    return DB::transaction(function () {
+        // جلب آخر file_id_number
+        $lastFileId = DB::table('data')
+            ->whereNotNull('file_id_number')
+            ->orderByRaw('CAST(file_id_number as UNSIGNED) DESC')
+            ->value('file_id_number');
+
+        // حساب الرقم التالي
+        $nextNumber = $lastFileId ? ((int)$lastFileId + 1) : 1;
+
+        // إرجاع الرقم مع 6 خانات
+        return str_pad($nextNumber, 6, '0', STR_PAD_LEFT);
+    });
+}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- اختبار النظام -->
+                <div class="feature-card">
+                    <div class="card-header bg-warning text-dark">
+                        <h4 class="mb-0">
+                            <i class="fas fa-vial"></i> اختبار النظام
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h6>خطوات الاختبار:</h6>
+                                <ol>
+                                    <li>إنشاء مجلد رئيسي على جهازك</li>
+                                    <li>إنشاء مجلدات فرعية بأسماء أرقام هوايا (مثل: 1234567890، 9876543210)</li>
+                                    <li>وضع صور داخل كل مجلد فرعي</li>
+                                    <li>فتح النظام واختيار "مجلد + صور متعددة"</li>
+                                    <li>اختيار المجلد الرئيسي</li>
+                                    <li>مراقبة Console للنتائج</li>
+                                </ol>
+
+                                <div class="alert alert-info">
+                                    <h6><i class="fas fa-terminal"></i> ما ستراه في Console:</h6>
+                                    <ul class="mb-0">
+                                        <li>🔄 تحويل رقم الهوية إلى رقم الملف</li>
+                                        <li>📊 خريطة التحويل الكاملة</li>
+                                        <li>✅ حالة كل ملف تم معالجته</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div class="col-md-4">
+                                <div class="d-grid gap-2">
+                                    <a href="http://127.0.0.1:8000" target="_blank" class="btn btn-primary btn-lg">
+                                        <i class="fas fa-external-link-alt"></i> فتح النظام
+                                    </a>
+                                    <button class="btn btn-success btn-lg" onclick="testMapping()">
+                                        <i class="fas fa-play"></i> اختبار التحويل
+                                    </button>
+                                    <button class="btn btn-info btn-lg" onclick="showConsoleGuide()">
+                                        <i class="fas fa-terminal"></i> دليل Console
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- نتائج الاختبار -->
+                <div class="feature-card">
+                    <div class="card-header bg-dark text-white">
+                        <h4 class="mb-0">
+                            <i class="fas fa-chart-line"></i> نتائج الاختبار
+                        </h4>
+                    </div>
+                    <div class="card-body">
+                        <div id="testResults">
+                            <div class="text-center text-muted">
+                                <i class="fas fa-play-circle fa-3x mb-3"></i>
+                                <p>انقر على "اختبار التحويل" لبدء الاختبار</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function testMapping() {
+            const resultsDiv = document.getElementById('testResults');
+
+            // محاكاة عملية التحويل
+            const sampleMapping = {
+                '1234567890': '000001',
+                '9876543210': '000002',
+                '5555555555': '000003',
+                '1111111111': '000004'
+            };
+
+            const sampleFiles = [
+                { identity: '1234567890', path: '1234567890/صورة_شخصية.jpg', newPath: '000001/صورة_شخصية.jpg' },
+                { identity: '1234567890', path: '1234567890/صورة_الهوية.png', newPath: '000001/صورة_الهوية.png' },
+                { identity: '9876543210', path: '9876543210/photo1.jpg', newPath: '000002/photo1.jpg' },
+                { identity: '5555555555', path: '5555555555/family_photo.jpg', newPath: '000003/family_photo.jpg' }
+            ];
+
+            let html = '<h5 class="text-success mb-3"><i class="fas fa-check-circle"></i> نتائج الاختبار</h5>';
+
+            // عرض خريطة التحويل
+            html += '<div class="alert alert-info"><h6>خريطة التحويل:</h6>';
+            for (const [identity, fileId] of Object.entries(sampleMapping)) {
+                html += `<div><code>${identity}</code> → <code>${fileId}</code></div>`;
+            }
+            html += '</div>';
+
+            // عرض نتائج الملفات
+            html += '<div class="alert alert-success"><h6>الملفات المعالجة:</h6>';
+            sampleFiles.forEach(file => {
+                html += `
+                    <div class="row mb-2">
+                        <div class="col-6"><small>أصلي: <code>${file.path}</code></small></div>
+                        <div class="col-6"><small>جديد: <code>${file.newPath}</code></small></div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+
+            // إحصائيات
+            html += `
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="text-center p-3 bg-primary text-white rounded">
+                            <h3>${Object.keys(sampleMapping).length}</h3>
+                            <small>مجلدات مُحوّلة</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center p-3 bg-success text-white rounded">
+                            <h3>${sampleFiles.length}</h3>
+                            <small>ملفات معالجة</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="text-center p-3 bg-info text-white rounded">
+                            <h3>100%</h3>
+                            <small>معدل النجاح</small>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            resultsDiv.innerHTML = html;
+
+            // محاكاة console logs
+            console.log('🔄 تحويل رقم الهوية إلى رقم الملف:', sampleMapping);
+            console.log('📊 تفاصيل الملفات المعالجة:', sampleFiles);
+        }
+
+        function showConsoleGuide() {
+            alert(`🖥️ دليل استخدام Console:
+
+1. افتح Developer Tools (F12)
+2. انتقل إلى تبويب Console
+3. ارفع مجلد بالطريقة الجديدة
+4. ستظهر رسائل مثل:
+
+🔄 تحويل رقم الهوية إلى رقم الملف: {...}
+📊 خريطة التحويل الكاملة: {...}
+✅ تمت معالجة الملف: {...}
+
+هذا يساعدك في متابعة عملية التحويل خطوة بخطوة!`);
+        }
+
+        // رسائل ترحيبية
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🎯 صفحة اختبار تحويل رقم الهوية محملة');
+            console.log('🔧 الميزات الجديدة:', {
+                identityToFileIdMapping: true,
+                standardizedAlgorithm: true,
+                excelIntegration: true,
+                folderStructurePreservation: true
+            });
+        });
+    </script>
+</body>
+</html>

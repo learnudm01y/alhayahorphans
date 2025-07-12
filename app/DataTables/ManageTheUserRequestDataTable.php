@@ -113,22 +113,48 @@ class ManageTheUserRequestDataTable extends DataTable
     public function html(): HtmlBuilder
     {
         return $this->builder()
-                    ->setTableId('managetheuserrequest-table')
-                    ->columns($this->getColumns())
-                    ->minifiedAjax()
-                    //->dom('Bfrtip')
-                    ->orderBy(0 , 'desc')
-                    ->selectStyleSingle()
-                    ->buttons([
-                        Button::make('excel'),
-                        Button::make('csv'),
-                        Button::make('pdf'),
-                        Button::make('print'),
-                        // Button::make('reload')
-                    ])
-                     ->parameters([
-                        'select' => false, // منع التحديد/التفاعل
-                    ]);
+            ->setTableId('managetheuserrequest-table')
+            ->columns($this->getColumns())
+            ->minifiedAjax()
+            //->dom('Bfrtip')
+            ->orderBy(0 , 'desc')
+            ->selectStyleSingle()
+            ->buttons([
+                Button::make('excel'),
+                Button::make('csv'),
+                Button::make('pdf'),
+                Button::make('print'),
+                // Button::make('reload')
+            ])
+            ->parameters([
+                'select' => false, // منع التحديد/التفاعل
+                // اجعل رؤوس الأعمدة (header) تظهر على اليمين
+                'language' => [
+                    'sEmptyTable' => 'لا توجد بيانات متاحة في الجدول',
+                    'sInfo' => 'إظهار _START_ إلى _END_ من أصل _TOTAL_ مدخل',
+                    'sInfoEmpty' => 'يعرض 0 إلى 0 من أصل 0 سجل',
+                    'sInfoFiltered' => '(منتقاة من مجموع _MAX_ مُدخل)',
+                    'sInfoPostFix' => '',
+                    'sInfoThousands' => ',',
+                    'sLengthMenu' => 'أظهر _MENU_ مدخلات',
+                    'sLoadingRecords' => 'جارٍ التحميل...',
+                    'sProcessing' => 'جارٍ المعالجة...',
+                    'sSearch' => 'بحث:',
+                    'sZeroRecords' => 'لم يعثر على أية سجلات',
+                    'oPaginate' => [
+                        'sFirst' => 'الأول',
+                        'sLast' => 'الأخير',
+                        'sNext' => 'التالي',
+                        'sPrevious' => 'السابق',
+                    ],
+                    'oAria' => [
+                        'sSortAscending' => ': تفعيل لترتيب العمود تصاعدياً',
+                        'sSortDescending' => ': تفعيل لترتيب العمود تنازلياً',
+                    ],
+                ],
+                // اجعل رؤوس الأعمدة ومحاذاة الجدول لليمين
+                'initComplete' => "function(settings, json) { $('table.dataTable').attr('dir','rtl').addClass('text-right'); $('table.dataTable thead').addClass('text-right'); }",
+            ]);
     }
 
     /**

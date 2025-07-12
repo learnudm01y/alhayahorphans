@@ -7,7 +7,12 @@
                 <h5 class="mb-0 text-white"><i class="fas fa-users-cog me-2 text-white"></i> إدارة طلبات المستخدمين</h5>
             </div>
             <div class="card-body bg-light p-4">
-                {!! $dataTable->table(['class' => 'table table-bordered table-hover table-striped align-middle mb-0', 'id' => 'managetheuserrequest-table', 'style' => 'width:100%']) !!}
+                {!! $dataTable->table([
+                    'class' => 'table table-bordered table-hover table-striped align-middle mb-0 text-right',
+                    'id' => 'managetheuserrequest-table',
+                    'style' => 'width:100%',
+                    'dir' => 'rtl',
+                ]) !!}
             </div>
         </div>
     </div>
@@ -35,6 +40,11 @@
             color: #1a237e;
             font-weight: 600;
             border-bottom: 2px solid #e3e6f0;
+            text-align: right !important;
+            direction: rtl;
+        }
+        .table {
+            direction: rtl;
         }
         .table-striped > tbody > tr:nth-of-type(odd) {
             background-color: #f4f7fa;

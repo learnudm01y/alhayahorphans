@@ -9,6 +9,7 @@ use App\Http\Controllers\Users\GeneralRegistrationController;
 use App\Http\Controllers\Users\ShowGeneralRegisrationController;
 use App\Http\Controllers\Users\UserLoginContoller;
 use App\Http\Controllers\Users\UserProfileController;
+use App\Http\Controllers\UnifiedFileManagementController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -28,6 +29,11 @@ Route::post('users/generalRegistration/store',[GeneralRegistrationController::cl
 Route::get('/', function () {
     return view('auth/login');
 });
+
+// Route for testing the advanced file manager
+Route::get('/file-manager', function () {
+    return view('file-management.advanced-interface');
+})->name('file-manager');
 
 // حماية جميع مسارات المستخدمين بميدل وير auth و verified
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -64,5 +70,32 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 
 
+
+// File Management Routes
+Route::get('/file-management/advanced-interface', function () {
+    return view('file-management.advanced-interface');
+})->name('file-management.advanced-interface');
+
+// API Routes for File Management
+Route::prefix('api/files')->group(function () {
+    Route::post('/generate-record-number', [App\Http\Controllers\UnifiedFileManagementController::class, 'generateRecordNumber'])
+        ->name('api.files.generate-record-number');
+
+    Route::post('/process-folder-upload', [App\Http\Controllers\UnifiedFileManagementController::class, 'processFolderUpload'])
+        ->name('api.files.process-folder-upload');
+
+    Route::get('/analytics', [App\Http\Controllers\UnifiedFileManagementController::class, 'getAnalytics'])
+        ->name('api.files.analytics');
+});
+
+// Routes للمعالجة الملفات المكررة
+Route::group(['prefix' => 'file-management'], function() {
+    Route::get('/download-duplicates', [UnifiedFileManagementController::class, 'downloadDuplicateFiles'])
+        ->name('file.download-duplicates');
+    Route::get('/duplicate-summary', [UnifiedFileManagementController::class, 'getDuplicateFilesSummary'])
+        ->name('file.duplicate-summary');
+    Route::post('/cleanup-expired', [UnifiedFileManagementController::class, 'cleanupExpiredDuplicates'])
+        ->name('file.cleanup-expired');
+});
 
 require __DIR__ . '/auth.php';
