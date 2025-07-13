@@ -8,7 +8,9 @@ use App\Services\ImageProcessingService;
 use App\Services\ExcelManagementService;
 use App\Services\PdfManagementService;
 use App\Services\ExcelImportService;
+use App\Models\Attachment;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
@@ -216,8 +218,8 @@ class UnifiedFileManagementController extends Controller
             }
             $finalFile = $compressedFile ?? $file;
 
-            // Store in images/{folderId}/
-            $folderName = "images/{$folderId}";
+            // Store in uploads/{folderId}/
+            $folderName = "uploads/{$folderId}";
             $fullPath = storage_path("app/public/{$folderName}");
             if (!is_dir($fullPath)) {
                 mkdir($fullPath, 0755, true);
@@ -1781,7 +1783,6 @@ class UnifiedFileManagementController extends Controller
             ];
 
             if ($existingFile) {
-                // إنشاء إصدار جديد من نفس الملف
                 // تحديث الإصدار السابق ليكون غير latest
                 DB::table('enhanced_attachments')
                     ->where('id', $existingFile->id)
@@ -1862,7 +1863,7 @@ class UnifiedFileManagementController extends Controller
             return [
                 'imported_rows' => 0,
                 'errors' => [$e->getMessage()],
-                'skipped_rows' => 0,
+                'skipped_rows'=>0,
                 'total_rows' => 0,
                 'file_id_report' => [
                     'total_replacements' => 0,
@@ -2262,69 +2263,52 @@ class UnifiedFileManagementController extends Controller
         }
     }
 
-    // Add missing helper methods that might be referenced elsewhere
-    private function determineFileType($file): string
-    {
-        return $this->detectFileType($file);
-    }
-
-    private function checkStorageFolderExists(string $folderName): bool
-    {
-        $folderPath = storage_path('app/public/images/' . $folderName);
-        return is_dir($folderPath);
-    }
-
-    private function determineFinalFolderName(string $originalFolder, string $fileIdNumber): string
-    {
-        // Use file_id_number as the final folder name for consistency
-        return $fileIdNumber;
-    }
-
-    private function processValidatedFolderFile($file, string $targetFileId, string $originalFolderName, string $path, array $folderInfo): array
+    /**
+     * Get analytics data for the file management system
+     */
+    public function getAnalytics(Request $request)
     {
         try {
-            $fileType = $this->determineFileType($file);
+            Log::info('Analytics request started', ['user_id' => auth()->id()]);
 
-            // Process based on file type
-            switch ($fileType) {
-                case 'image':
-                    return $this->processImageFile($file, $targetFileId, null, []);
+            $data = [
+                'total_files' => $this->getTotalFilesCount(),
+                'file_types' => $this->getFileTypeStats(),
+                'processing_status' => $this->getProcessingStatusStats(),
+                'upload_trends' => $this->getUploadTrends(),
+                'storage_usage' => $this->getStorageUsage(),
+                'error_rates' => $this->getErrorRates(),
+                'recent_uploads' => $this->getRecentUploads(),
+                'cloud_sync_stats' => $this->getCloudSyncStats()
+            ];
 
-                case 'pdf':
-                case 'excel':
-                    return $this->processDocumentFile($file, $targetFileId, null, [], $fileType);
-
-                default:
-                    throw new \Exception('Unsupported file type: ' . $fileType);
-            }
-
-        } catch (\Exception $e) {
-            Log::error('Validated folder file processing error: ' . $e->getMessage(), [
-                'file_name' => $file->getClientOriginalName(),
-                'target_file_id' => $targetFileId,
-                'original_folder' => $originalFolderName
+            return response()->json([
+                'success' => true,
+                'data' => $data
             ]);
 
-            return [
+        } catch (\Exception $e) {
+            Log::error('Analytics error', [
+                'error' => $e->getMessage(),
+                'user_id' => auth()->id()
+            ]);
+
+            return response()->json([
                 'success' => false,
-                'error' => 'فشل في معالجة الملف: ' . $e->getMessage(),
-                'original_name' => $file->getClientOriginalName()
-            ];
+                'error' => 'Failed to load analytics data'
+            ], 500);
         }
     }
 
-    // Add missing analytics methods with basic implementations
-    private function getOverviewStats(): array
+    private function getTotalFilesCount(): int
     {
         try {
-            return [
-                'total_files' => DB::table('enhanced_attachments')->count(),
-                'total_size' => DB::table('enhanced_attachments')->sum('file_size'),
-                'files_today' => DB::table('enhanced_attachments')->whereDate('created_at', today())->count(),
-                'processing_pending' => DB::table('enhanced_attachments')->where('processing_status', 'pending')->count()
-            ];
+            $enhancedCount = DB::table('enhanced_attachments')->count();
+            $attachmentsCount = DB::table('attachments')->count();
+            return $enhancedCount + $attachmentsCount;
         } catch (\Exception $e) {
-            return ['error' => $e->getMessage()];
+            Log::warning('Failed to get total files count', ['error' => $e->getMessage()]);
+            return 0;
         }
     }
 
@@ -2337,11 +2321,12 @@ class UnifiedFileManagementController extends Controller
                 ->pluck('count', 'file_type')
                 ->toArray();
         } catch (\Exception $e) {
-            return ['error' => $e->getMessage()];
+            Log::warning('Failed to get file type stats', ['error' => $e->getMessage()]);
+            return [];
         }
     }
 
-    private function getProcessingStats(): array
+    private function getProcessingStatusStats(): array
     {
         try {
             return DB::table('enhanced_attachments')
@@ -2350,53 +2335,99 @@ class UnifiedFileManagementController extends Controller
                 ->pluck('count', 'processing_status')
                 ->toArray();
         } catch (\Exception $e) {
-            return ['error' => $e->getMessage()];
+            Log::warning('Failed to get processing status stats', ['error' => $e->getMessage()]);
+            return [];
         }
     }
 
-    private function getStorageStats(): array
+    private function getUploadTrends(): array
     {
         try {
-            return [
-                'total_size_mb' => round(DB::table('enhanced_attachments')->sum('file_size') / 1024 / 1024, 2),
-                'average_file_size_mb' => round(DB::table('enhanced_attachments')->avg('file_size') / 1024 / 1024, 2),
-                'largest_file_mb' => round(DB::table('enhanced_attachments')->max('file_size') / 1024 / 1024, 2)
-            ];
-        } catch (\Exception $e) {
-            return ['error' => $e->getMessage()];
-        }
-    }
-
-    private function getUploadTrends(string $period): array
-    {
-        try {
-            $days = (int) $period;
             return DB::table('enhanced_attachments')
-                ->select(DB::raw('DATE(created_at) as date'), DB::raw('count(*) as uploads'))
-                ->where('created_at', '>=', now()->subDays($days))
-                ->groupBy('date')
+                ->select(DB::raw('DATE(created_at) as date'), DB::raw('count(*) as count'))
+                ->where('created_at', '>=', now()->subDays(30))
+                ->groupBy(DB::raw('DATE(created_at)'))
                 ->orderBy('date')
                 ->get()
+                ->pluck('count', 'date')
                 ->toArray();
         } catch (\Exception $e) {
-            return ['error' => $e->getMessage()];
+            Log::warning('Failed to get upload trends', ['error' => $e->getMessage()]);
+            return [];
         }
     }
 
-    private function getTopUploaders(): array
+    private function getStorageUsage(): array
+    {
+        try {
+            $totalSize = DB::table('enhanced_attachments')->sum('file_size');
+            $avgSize = DB::table('enhanced_attachments')->avg('file_size');
+
+            return [
+                'total_size' => $totalSize ?: 0,
+                'average_size' => round($avgSize ?: 0, 2),
+                'total_size_formatted' => $this->formatBytes($totalSize ?: 0)
+            ];
+        } catch (\Exception $e) {
+            Log::warning('Failed to get storage usage', ['error' => $e->getMessage()]);
+            return ['total_size' => 0, 'average_size' => 0, 'total_size_formatted' => '0 B'];
+        }
+    }
+
+    private function getErrorRates(): array
+    {
+        try {
+            $total = DB::table('enhanced_attachments')->count();
+            $failed = DB::table('enhanced_attachments')
+                ->where('processing_status', 'failed')
+                ->count();
+
+            $errorRate = $total > 0 ? round(($failed / $total) * 100, 2) : 0;
+
+            return [
+                'total_files' => $total,
+                'failed_files' => $failed,
+                'error_rate_percentage' => $errorRate
+            ];
+        } catch (\Exception $e) {
+            Log::warning('Failed to get error rates', ['error' => $e->getMessage()]);
+            return ['total_files' => 0, 'failed_files' => 0, 'error_rate_percentage' => 0];
+        }
+    }
+
+    private function getRecentUploads(): array
     {
         try {
             return DB::table('enhanced_attachments')
-                ->select('uploaded_by_user_id', DB::raw('count(*) as uploads'))
-                ->whereNotNull('uploaded_by_user_id')
-                ->groupBy('uploaded_by_user_id')
-                ->orderByDesc('uploads')
+                ->select('original_file_name', 'file_type', 'file_size', 'processing_status', 'created_at')
+                ->orderBy('created_at', 'desc')
                 ->limit(10)
                 ->get()
+                ->map(function ($file) {
+                    return [
+                        'name' => $file->original_file_name,
+                        'type' => $file->file_type,
+                        'size' => $this->formatBytes($file->file_size ?: 0),
+                        'status' => $file->processing_status,
+                        'uploaded_at' => $file->created_at
+                    ];
+                })
                 ->toArray();
         } catch (\Exception $e) {
-            return ['error' => $e->getMessage()];
+            Log::warning('Failed to get recent uploads', ['error' => $e->getMessage()]);
+            return [];
         }
+    }
+
+    private function formatBytes($bytes, $precision = 2): string
+    {
+        $units = array('B', 'KB', 'MB', 'GB', 'TB');
+
+        for ($i = 0; $bytes > 1024 && $i < count($units) - 1; $i++) {
+            $bytes /= 1024;
+        }
+
+        return round($bytes, $precision) . ' ' . $units[$i];
     }
 
     private function getCloudSyncStats(): array
@@ -2408,37 +2439,383 @@ class UnifiedFileManagementController extends Controller
                 ->pluck('count', 'cloud_sync_status')
                 ->toArray();
         } catch (\Exception $e) {
-            return ['error' => $e->getMessage()];
+            Log::warning('Failed to get cloud sync stats', ['error' => $e->getMessage()]);
+            return ['not_synced' => 0, 'synced' => 0, 'failed' => 0];
         }
     }
 
-    private function downloadFromCloud(string $recordNumber, array $providers): array
+    /**
+     * Determine the final folder name for storage based on folder validation
+     */
+    private function determineFinalFolderName(string $originalFolderName, string $fileIdNumber): string
     {
-        // Placeholder implementation
-        return ['status' => 'not_implemented', 'message' => 'Cloud download not implemented yet'];
+        try {
+            // استخدام file_id_number كاسم المجلد النهائي
+            // إزالة الأصفار من البداية إذا لزم الأمر
+            $cleanFileId = ltrim($fileIdNumber, '0');
+
+            // إذا كان الرقم فارغاً بعد إزالة الأصفار، استخدم الرقم الأصلي
+            if (empty($cleanFileId)) {
+                return $fileIdNumber;
+            }
+
+            return $cleanFileId;
+        } catch (\Exception $e) {
+            Log::warning('Error determining final folder name', [
+                'original_folder' => $originalFolderName,
+                'file_id_number' => $fileIdNumber,
+                'error' => $e->getMessage()
+            ]);
+
+            // في حالة الخطأ، استخدم file_id_number كما هو
+            return $fileIdNumber;
+        }
     }
 
-    private function bidirectionalSync(string $recordNumber, array $providers): array
+    /**
+     * Check if a storage folder exists in the file system
+     */
+    private function checkStorageFolderExists(string $folderName): bool
     {
-        // Placeholder implementation
-        return ['status' => 'not_implemented', 'message' => 'Bidirectional sync not implemented yet'];
+        try {
+            $storagePath = storage_path('app/public/uploads/' . $folderName);
+            $publicPath = public_path('uploads/' . $folderName);
+
+            // تحقق من وجود المجلد في أي من المسارين
+            return is_dir($storagePath) || is_dir($publicPath);
+        } catch (\Exception $e) {
+            Log::warning('Error checking storage folder existence', [
+                'folder_name' => $folderName,
+                'error' => $e->getMessage()
+            ]);
+
+            return false;
+        }
     }
 
-    private function processExcelForImport(string $excelPath): array
+    /**
+     * Process a single validated file inside a validated folder
+     *
+     * @param \Illuminate\Http\UploadedFile $file
+     * @param string $targetFileId
+     * @param string $originalFolderName
+     * @param string $filePath
+     * @param array $folderInfo
+     * @return array
+     */
+    public function processValidatedFolderFile($file, string $targetFileId, string $originalFolderName, string $filePath, array $folderInfo)
     {
-        // Placeholder implementation
-        return ['data' => [], 'headers' => []];
+        try {
+            // Get file information
+            $fileName = $file->getClientOriginalName();
+            $fileSize = $file->getSize();
+            $mimeType = $file->getMimeType();
+            $extension = strtolower($file->getClientOriginalExtension());
+
+            // Define allowed extensions
+            $allowedExtensions = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx', 'xlsx', 'xls'];
+
+            if (!in_array($extension, $allowedExtensions)) {
+                Log::warning('File extension not allowed', [
+                    'file' => $fileName,
+                    'ext' => $extension,
+                    'folder' => $originalFolderName
+                ]);
+                return [
+                    'success' => false,
+                    'error' => 'صيغة الملف غير مدعومة: ' . $extension,
+                    'file' => $fileName
+                ];
+            }
+
+            // Check file size (max 10MB)
+            if ($fileSize > 10 * 1024 * 1024) {
+                Log::warning('File too large', [
+                    'file' => $fileName,
+                    'size' => $fileSize,
+                    'folder' => $originalFolderName
+                ]);
+                return [
+                    'success' => false,
+                    'error' => 'حجم الملف كبير جداً (أكثر من 10MB)',
+                    'file' => $fileName
+                ];
+            }
+
+            // Create storage directory if it doesn't exist
+            $storageDir = storage_path('app/public/uploads/' . $targetFileId);
+            if (!is_dir($storageDir)) {
+                mkdir($storageDir, 0755, true);
+            }
+
+            // Generate processed filename using business rules
+            $newFileName = $this->processImageFileName($fileName, $targetFileId);
+
+            // Store the file
+            $storedPath = $file->storeAs('public/uploads/' . $targetFileId, $newFileName);
+
+            // Determine file type for further processing
+            $fileType = $this->determineFileTypeFromExtension($extension);
+
+            // Extract identity number from processed filename for database storage
+            $identityNumber = $this->extractIdentityNumberFromFilename($fileName);
+
+            // Save to attachments table
+            $this->saveToAttachmentsTable(
+                $identityNumber,
+                $newFileName,
+                $storedPath,
+                $fileType,
+                $fileSize
+            );
+
+            // Log successful processing
+            Log::info('Folder file processed successfully', [
+                'original_folder' => $originalFolderName,
+                'target_file_id' => $targetFileId,
+                'file_name' => $fileName,
+                'file_type' => $fileType,
+                'success' => true
+            ]);
+
+            return [
+                'success' => true,
+                'file' => $fileName,
+                'stored_path' => $storedPath,
+                'stored_name' => $newFileName,
+                'file_type' => $fileType,
+                'file_size' => $fileSize
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Validated folder file processing error', [
+                'error' => $e->getMessage(),
+                'file_name' => $file->getClientOriginalName() ?? 'unknown',
+                'target_file_id' => $targetFileId,
+                'original_folder' => $originalFolderName
+            ]);
+
+            return [
+                'success' => false,
+                'error' => 'فشل في معالجة الصورة. يرجى التأكد من صيغة اسم الملف والحجم.',
+                'file' => $file->getClientOriginalName() ?? 'unknown'
+            ];
+        }
     }
 
-    private function extractImageFolders(array $folders): array
+    /**
+     * Determine file type from UploadedFile object
+     */
+    private function determineFileType(UploadedFile $file): string
     {
-        // Placeholder implementation
-        return ['extracted_folders' => []];
+        $extension = strtolower($file->getClientOriginalExtension());
+        return $this->determineFileTypeFromExtension($extension);
     }
 
-    private function importExcelDataToDatabase(array $excelData, array $extractedFolders): array
+    /**
+     * Determine file type from extension
+     */
+    private function determineFileTypeFromExtension(string $extension): string
     {
-        // Placeholder implementation
-        return ['imported_records' => 0, 'errors' => []];
+        return match(strtolower($extension)) {
+            'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp' => 'image',
+            'pdf' => 'pdf',
+            'doc', 'docx' => 'document',
+            'xls', 'xlsx', 'csv' => 'excel',
+            default => 'unknown'
+        };
+    }
+
+    /**
+     * Process image filename according to business rules
+     * Converts: A_566557550_4 -> NewPrefix_001460_566557550
+     *
+     * @param string $originalFileName Original filename like "A_566557550_4.jpg"
+     * @param string $folderName The folder name like "001460"
+     * @return string Processed filename
+     */
+    private function processImageFileName(string $originalFileName, string $folderName): string
+    {
+        try {
+            // Extract filename without extension
+            $nameWithoutExt = pathinfo($originalFileName, PATHINFO_FILENAME);
+            $extension = pathinfo($originalFileName, PATHINFO_EXTENSION);
+
+            Log::info('Processing image filename', [
+                'original' => $originalFileName,
+                'name_without_ext' => $nameWithoutExt,
+                'folder_name' => $folderName
+            ]);
+
+            // Split filename by underscore
+            $parts = explode('_', $nameWithoutExt);
+
+            // Check if filename matches expected pattern (at least 3 parts)
+            if (count($parts) >= 3) {
+                $firstPart = $parts[0]; // A
+                $identityNumber = $parts[1]; // 566557550
+                $documentTypeId = (int)$parts[2]; // 4
+
+                Log::info('Parsed filename parts', [
+                    'first_part' => $firstPart,
+                    'identity_number' => $identityNumber,
+                    'document_type_id' => $documentTypeId
+                ]);
+
+                try {
+                    // Primary processing: Get prefix from DocumentType table
+                    $documentType = DB::table('document_types')
+                        ->where('id', $documentTypeId)
+                        ->first();
+
+                    if ($documentType && !empty($documentType->pref)) {
+                        // Success case: Use prefix from database
+                        $newPrefix = $documentType->pref;
+                        $newFileName = $newPrefix . '_' . $folderName . '_' . $identityNumber;
+
+                        Log::info('Primary processing successful', [
+                            'document_type_id' => $documentTypeId,
+                            'found_prefix' => $newPrefix,
+                            'new_filename' => $newFileName
+                        ]);
+
+                        return $newFileName . '.' . $extension;
+                    } else {
+                        throw new \Exception('DocumentType not found or empty prefix');
+                    }
+
+                } catch (\Exception $e) {
+                    // Fallback case: Keep A_ prefix
+                    Log::warning('Primary processing failed, using fallback', [
+                        'error' => $e->getMessage(),
+                        'document_type_id' => $documentTypeId
+                    ]);
+
+                    $fallbackFileName = $firstPart . '_' . $folderName . '_' . $identityNumber;
+
+                    Log::info('Fallback processing applied', [
+                        'fallback_filename' => $fallbackFileName
+                    ]);
+
+                    return $fallbackFileName . '.' . $extension;
+                }
+
+            } else {
+                // If filename doesn't match expected pattern, return as is with timestamp
+                Log::warning('Filename does not match expected pattern', [
+                    'parts_count' => count($parts),
+                    'parts' => $parts
+                ]);
+
+                return time() . '_' . $originalFileName;
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Error processing image filename', [
+                'error' => $e->getMessage(),
+                'original_filename' => $originalFileName
+            ]);
+
+            // Ultimate fallback: timestamp + original name
+            return time() . '_' . $originalFileName;
+        }
+    }
+
+    /**
+     * Extract identity number from original filename
+     * From: A_566557550_4.jpg -> Returns: 566557550
+     */
+    private function extractIdentityNumberFromFilename(string $originalFileName): ?string
+    {
+        try {
+            $nameWithoutExt = pathinfo($originalFileName, PATHINFO_FILENAME);
+            $parts = explode('_', $nameWithoutExt);
+
+            // Expected pattern: A_566557550_4
+            if (count($parts) >= 3) {
+                return $parts[1]; // Identity number is in the second part
+            }
+
+            return null;
+        } catch (\Exception $e) {
+            Log::warning('Failed to extract identity number from filename', [
+                'filename' => $originalFileName,
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Save image information to attachments table
+     */
+    private function saveToAttachmentsTable(
+        ?string $identityNumber,
+        string $storedFileName,
+        string $filePath,
+        string $fileType,
+        int $fileSize
+    ): void {
+        try {
+            // Log the input parameters for debugging
+            Log::info('saveToAttachmentsTable - Input Parameters', [
+                'person_identity_number' => $identityNumber,
+                'stored_file_name' => $storedFileName,
+                'file_path' => $filePath,
+                'file_type' => $fileType,
+                'file_size' => $fileSize
+            ]);
+
+            // Create attachment record
+            $attachmentData = [
+                'person_identity_number' => $identityNumber,
+                'stored_file_name' => $storedFileName,
+                'file_path' => $filePath,
+                'file_type' => $fileType,
+                'file_size' => $fileSize,
+                'created_at' => now(),
+                'updated_at' => now()
+            ];
+
+            // Log the data being inserted
+            Log::info('saveToAttachmentsTable - Data to Insert', $attachmentData);
+
+            // Insert into attachments table
+            $insertResult = DB::table('attachments')->insert($attachmentData);
+
+            // Log the result
+            Log::info('saveToAttachmentsTable - Insert Result', [
+                'success' => $insertResult,
+                'data_inserted' => $attachmentData
+            ]);
+
+            // Verify insertion by querying the last inserted record
+            $lastRecord = DB::table('attachments')
+                ->where('person_identity_number', $identityNumber)
+                ->where('stored_file_name', $storedFileName)
+                ->latest('created_at')
+                ->first();
+
+            Log::info('saveToAttachmentsTable - Verification Query', [
+                'found_record' => $lastRecord
+            ]);
+
+            Log::info('Image saved to attachments table', [
+                'identity_number' => $identityNumber,
+                'stored_file_name' => $storedFileName,
+                'file_path' => $filePath,
+                'file_type' => $fileType
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to save to attachments table', [
+                'error' => $e->getMessage(),
+                'identity_number' => $identityNumber,
+                'stored_file_name' => $storedFileName
+            ]);
+
+            // Don't throw exception to avoid breaking file upload process
+            // Just log the error for investigation
+        }
     }
 }
