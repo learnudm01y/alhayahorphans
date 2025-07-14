@@ -27,6 +27,7 @@ use App\Http\Controllers\Admin\TypeOfGuaranteeController;
 use App\Http\Controllers\Users\UserController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Admin\ManageTheUserRequestController;
+use App\Http\Controllers\DuplicateFileController;
 
 Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     // إدارة طلبات المستخدمين (عرض وتغيير حالة الطلب)
@@ -133,15 +134,8 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
         return view('file-management.advanced-interface');
     })->name('file.manager');
 
-    // File Management Routes
+    // Excel Gateway Routes
     Route::prefix('file')->group(function () {
-        Route::get('duplicate-summary', [UnifiedFileManagementController::class, 'getDuplicateSummary'])->name('file.duplicate.summary');
-        Route::delete('delete-duplicates', [UnifiedFileManagementController::class, 'deleteDuplicates'])->name('file.delete.duplicates');
-        Route::get('download-duplicates', [UnifiedFileManagementController::class, 'downloadDuplicateFiles'])->name('file.download.duplicates');
-        Route::get('download-duplicate', [UnifiedFileManagementController::class, 'downloadSingleDuplicate'])->name('file.download.duplicate.single');
-        Route::post('create-test-duplicates', [UnifiedFileManagementController::class, 'createTestDuplicates'])->name('file.create.test.duplicates');
-
-        // Excel Gateway Routes
         Route::get('excel-gateway', [UnifiedFileManagementController::class, 'showExcelGateway'])->name('file.excel.gateway');
         Route::post('excel-upload', [UnifiedFileManagementController::class, 'processExcelUpload'])
             ->middleware('large.upload')
@@ -156,4 +150,21 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::prefix('files')->group(function () {
         Route::post('process-folder-upload', [UnifiedFileManagementController::class, 'processFolderUpload'])->name('files.process.folder.upload');
     });
+});
+
+// File Management Routes للملفات المكررة - خارج admin group للاختبار
+Route::prefix('admin/file')->withoutMiddleware(['web'])->group(function () {
+    Route::get('duplicate-summary', [DuplicateFileController::class, 'getDuplicateFilesSummary'])->name('admin.file.duplicate.summary');
+    Route::delete('delete-duplicates', [DuplicateFileController::class, 'deleteDuplicateFiles'])->name('admin.file.delete.duplicates');
+    Route::get('download-duplicates', [DuplicateFileController::class, 'downloadDuplicateFiles'])->name('admin.file.download.duplicates');
+    Route::get('download-duplicate/{session_id}/{file_id}', [DuplicateFileController::class, 'downloadDuplicateFile'])->name('admin.file.download.duplicate');
+    Route::post('process-folder-duplicates', [DuplicateFileController::class, 'processFolderForDuplicates'])->name('admin.file.process.folder.duplicates');
+});
+
+// Test API Routes - بدون أي middleware
+Route::prefix('test/api/file')->group(function () {
+    Route::get('duplicate-summary', [DuplicateFileController::class, 'getDuplicateFilesSummary'])->name('test.api.file.duplicate.summary');
+    Route::delete('delete-duplicates', [DuplicateFileController::class, 'deleteDuplicateFiles'])->name('test.api.file.delete.duplicates');
+    Route::get('download-duplicates', [DuplicateFileController::class, 'downloadDuplicateFiles'])->name('test.api.file.download.duplicates');
+    Route::post('process-folder-duplicates', [DuplicateFileController::class, 'processFolderForDuplicates'])->name('test.api.file.process.folder.duplicates');
 });

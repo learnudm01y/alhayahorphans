@@ -10,6 +10,7 @@ use App\Http\Controllers\Users\ShowGeneralRegisrationController;
 use App\Http\Controllers\Users\UserLoginContoller;
 use App\Http\Controllers\Users\UserProfileController;
 use App\Http\Controllers\UnifiedFileManagementController;
+use App\Http\Controllers\DuplicateFileController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -34,6 +35,21 @@ Route::get('/', function () {
 Route::get('/file-manager', function () {
     return view('file-management.advanced-interface');
 })->name('file-manager');
+
+// Admin file manager route
+Route::get('/admin/file-manager', function () {
+    return view('file-management.advanced-interface');
+})->name('admin.file-manager');
+
+// Test JavaScript syntax route
+Route::get('/test-js', function () {
+    return view('test-js');
+})->name('test-js');
+
+// Test file upload route
+Route::get('/test-upload', function () {
+    return view('test-upload');
+})->name('test-upload');
 
 // حماية جميع مسارات المستخدمين بميدل وير auth و verified
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -88,14 +104,47 @@ Route::prefix('api/files')->group(function () {
         ->name('api.files.analytics');
 });
 
-// Routes للمعالجة الملفات المكررة
-Route::group(['prefix' => 'file-management'], function() {
-    Route::get('/download-duplicates', [UnifiedFileManagementController::class, 'downloadDuplicateFiles'])
-        ->name('file.download-duplicates');
-    Route::get('/duplicate-summary', [UnifiedFileManagementController::class, 'getDuplicateFilesSummary'])
-        ->name('file.duplicate-summary');
-    Route::post('/cleanup-expired', [UnifiedFileManagementController::class, 'cleanupExpiredDuplicates'])
-        ->name('file.cleanup-expired');
+// Routes للمعالجة الملفات المكررة - تم نقلها إلى admin.php
+
+// API Routes for Duplicate File Management - TEST WITHOUT MIDDLEWARE
+Route::prefix('api/files')->withoutMiddleware(['auth', 'verified'])->group(function () {
+    Route::post('/generate-record-number', [App\Http\Controllers\UnifiedFileManagementController::class, 'generateRecordNumber'])
+        ->name('api.files.generate-record-number');
+
+    Route::post('/process-folder-upload', [App\Http\Controllers\UnifiedFileManagementController::class, 'processFolderUpload'])
+        ->name('api.files.process-folder-upload');
+
+    Route::post('/process-folder-upload-with-duplicates', [App\Http\Controllers\UnifiedFileManagementController::class, 'processFolderUploadWithDuplicateDetection'])
+        ->name('api.files.process-folder-upload-with-duplicates');
+
+    // Route for duplicate file detection service
+    Route::post('/process-folder-duplicates', [App\Http\Controllers\DuplicateFileController::class, 'processFolderForDuplicates'])
+        ->name('api.files.process-folder-duplicates');
+
+    Route::get('/analytics', [App\Http\Controllers\UnifiedFileManagementController::class, 'getAnalytics'])
+        ->name('api.files.analytics');
+
+    // Duplicate file management endpoints
+    Route::post('/check-single-duplicate', [App\Http\Controllers\DuplicateFileController::class, 'checkSingleFile'])
+        ->name('api.files.check-single-duplicate');
+
+    Route::post('/process-folder-duplicates', [App\Http\Controllers\DuplicateFileController::class, 'processFolderForDuplicates'])
+        ->name('api.files.process-folder-duplicates');
+
+    Route::get('/duplicate-session-stats/{session_id}', [App\Http\Controllers\DuplicateFileController::class, 'getSessionStatistics'])
+        ->name('api.files.duplicate-session-stats');
+
+    Route::post('/clean-expired-duplicates', [App\Http\Controllers\DuplicateFileController::class, 'cleanExpiredFiles'])
+        ->name('api.files.clean-expired-duplicates');
+});
+
+// Excel Gateway Routes
+Route::group(['prefix' => 'admin/file'], function() {
+    Route::get('/excel-gateway', [UnifiedFileManagementController::class, 'showExcelGateway'])
+        ->name('admin.file.excel.gateway');
+
+    Route::get('/php-diagnostic', [UnifiedFileManagementController::class, 'showPhpDiagnostic'])
+        ->name('admin.file.php.diagnostic');
 });
 
 require __DIR__ . '/auth.php';

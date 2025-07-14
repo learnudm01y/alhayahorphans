@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="test-token">
+    <title>اختبار Modal تحميل الملفات المكررة</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .test-container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .btn-test {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            border: none;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            margin: 10px;
+        }
+        .btn-test:hover {
+            transform: scale(1.05);
+            box-shadow: 0 8px 20px rgba(40, 167, 69, 0.4);
+            color: white;
+        }
+        .instruction-card {
+            background: #f8f9fa;
+            border: 2px solid #dee2e6;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 15px 0;
+        }
+        .highlight {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="test-container">
+            <h1 class="text-center mb-4">
+                <i class="fas fa-download text-primary me-3"></i>
+                اختبار Modal تحميل الملفات المكررة
+            </h1>
+
+            <div class="instruction-card">
+                <h4><i class="fas fa-info-circle text-info me-2"></i>تعليمات الاختبار</h4>
+                <ol class="mt-3">
+                    <li><strong>اضغط على زر "فتح Modal الملفات المكررة"</strong></li>
+                    <li><strong>في Modal، ابحث عن زر "تحميل جميع الملفات المكررة" (أصفر)</strong></li>
+                    <li><strong>يجب أن يظهر الزر بجانب زر "حذف جميع الملفات المكررة" (أحمر)</strong></li>
+                    <li><strong>اضغط على زر التحميل لتنزيل ملف ZIP</strong></li>
+                </ol>
+            </div>
+
+            <div class="highlight">
+                <h5><i class="fas fa-star text-warning me-2"></i>ملاحظة هامة:</h5>
+                <p class="mb-0">تم تعديل الكود ليظهر زر التحميل <strong>دائماً</strong> حتى لو لم توجد ملفات مكررة، وذلك لأغراض الاختبار.</p>
+            </div>
+
+            <div class="text-center my-4">
+                <button class="btn-test" onclick="openDuplicateModal()">
+                    <i class="fas fa-eye me-2"></i>
+                    فتح Modal الملفات المكررة
+                </button>
+
+                <button class="btn-test" onclick="testDirectDownload()">
+                    <i class="fas fa-download me-2"></i>
+                    تنزيل مباشر (بدون Modal)
+                </button>
+            </div>
+
+            <div class="instruction-card">
+                <h5><i class="fas fa-search text-primary me-2"></i>ما يجب أن تراه في Modal:</h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 class="text-success">✅ أزرار يجب أن تظهر:</h6>
+                        <ul>
+                            <li><span class="badge bg-secondary">إغلاق</span> - زر رمادي</li>
+                            <li><span class="badge bg-danger">حذف جميع الملفات المكررة</span> - زر أحمر</li>
+                            <li><span class="badge bg-warning text-dark">تحميل جميع الملفات المكررة</span> - زر أصفر</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 class="text-info">📝 الرسالة المتوقعة:</h6>
+                        <p class="small">"لا توجد ملفات مكررة حالياً" + رسالة للاختبار تشرح أن الزر متاح للتجربة</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="testResults" class="instruction-card" style="display: none;">
+                <h5><i class="fas fa-clipboard-check text-success me-2"></i>نتائج الاختبار:</h5>
+                <div id="testOutput"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Include the Modal HTML from modalDublicateFiles.blade.php -->
+    <div class="modal fade" id="duplicateFilesModal" tabindex="-1" aria-labelledby="duplicateFilesModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-warning-subtle">
+                    <h5 class="modal-title" id="duplicateFilesModalLabel">
+                        <i class="fas fa-clone text-warning me-2"></i>
+                        الملفات/المجلدات المكررة المكتشفة أثناء الرفع
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="duplicateFilesList">
+                        <div class="text-center text-muted">جاري تحميل قائمة الملفات المكررة...</div>
+                    </div>
+                    <div class="alert alert-info mt-3" id="duplicateFilesNote" style="display:none;">
+                        يمكنك تحميل جميع الملفات المكررة كملف مضغوط أو مراجعتها بشكل فردي.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+                    <button type="button" id="deleteDuplicatesBtn" class="btn btn-danger" style="display:none;">
+                        <i class="fas fa-trash-alt me-1"></i> حذف جميع الملفات المكررة
+                    </button>
+                    <a href="#" id="downloadDuplicatesBtn" class="btn btn-warning" style="display:none;">
+                        <i class="fas fa-download me-1"></i> تحميل جميع الملفات المكررة
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Modal functionality from modalDublicateFiles.blade.php
+        let duplicateSessionId = null;
+
+        function showDuplicateFilesModal(sessionId) {
+            duplicateSessionId = sessionId;
+            const listDiv = document.getElementById('duplicateFilesList');
+            const downloadBtn = document.getElementById('downloadDuplicatesBtn');
+            const deleteBtn = document.getElementById('deleteDuplicatesBtn');
+            const note = document.getElementById('duplicateFilesNote');
+
+            listDiv.innerHTML = '<div class="text-center text-muted">جاري تحميل قائمة الملفات المكررة...</div>';
+            downloadBtn.style.display = 'none';
+            deleteBtn.style.display = 'none';
+            note.style.display = 'none';
+
+            fetch(`/api/duplicate-files/summary?session_id=${sessionId}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                console.log('Duplicate files response:', data);
+
+                if (data.success && data.data) {
+                    if (data.data.files && data.data.files.length > 0) {
+                        // Code for when files exist (same as original)
+                        const files = data.data.files;
+                        let html = `<div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            تم العثور على ${data.data.total_duplicates} ملف مكرر وحفظها في التخزين المؤقت
+                        </div>`;
+                        // ... rest of the table code would go here
+                        listDiv.innerHTML = html;
+                        downloadBtn.href = `/api/duplicate-files/download?session_id=${sessionId}`;
+                        downloadBtn.style.display = 'inline-block';
+                        deleteBtn.style.display = 'inline-block';
+                        note.style.display = 'block';
+                    } else {
+                        // Show message for no duplicates but still show buttons
+                        const message = data.message || 'لا توجد ملفات مكررة حالياً.';
+                        listDiv.innerHTML = `<div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            ${message}
+                            <br><br>
+                            <div class="alert alert-success mt-2">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>للاختبار:</strong> يمكنك تجربة زر التحميل أدناه - سيتم تنزيل ملف ZIP يحتوي على معلومات توضيحية
+                            </div>
+                        </div>`;
+
+                        // Show buttons even without duplicate files (for testing)
+                        downloadBtn.href = `/api/duplicate-files/download?session_id=${sessionId}`;
+                        downloadBtn.style.display = 'inline-block';
+                        deleteBtn.style.display = 'inline-block';
+                        note.style.display = 'block';
+
+                        // Log for testing
+                        showTestResult('✅ تم إظهار أزرار التحميل والحذف حتى بدون ملفات مكررة!');
+                    }
+                } else {
+                    listDiv.innerHTML = `<div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        تعذر تحميل الملفات المكررة. يرجى المحاولة مرة أخرى.
+                    </div>`;
+                    showTestResult('❌ خطأ في استجابة API');
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching duplicate files:', error);
+                listDiv.innerHTML = `<div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    تعذر تحميل الملفات المكررة. يرجى المحاولة مرة أخرى.
+                </div>`;
+                showTestResult('❌ خطأ في الشبكة: ' + error.message);
+            });
+        }
+
+        function openDuplicateModal() {
+            const modal = new bootstrap.Modal(document.getElementById('duplicateFilesModal'));
+            showDuplicateFilesModal('test123');
+            modal.show();
+
+            showTestResult('🔍 تم فتح Modal - ابحث عن زر التحميل الأصفر بجانب زر الحذف الأحمر');
+        }
+
+        function testDirectDownload() {
+            const sessionId = 'test123';
+            const downloadUrl = `/api/duplicate-files/download?session_id=${sessionId}`;
+
+            // Create and trigger download
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = `duplicate_files_${sessionId}.zip`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            showTestResult('⬇️ تم بدء التنزيل المباشر - تحقق من مجلد التنزيلات');
+        }
+
+        function showTestResult(message) {
+            const resultsDiv = document.getElementById('testResults');
+            const outputDiv = document.getElementById('testOutput');
+
+            resultsDiv.style.display = 'block';
+            outputDiv.innerHTML += `<div class="alert alert-info">
+                <i class="fas fa-clock me-2"></i>
+                ${new Date().toLocaleTimeString('ar-SA')}: ${message}
+            </div>`;
+
+            // Scroll to results
+            resultsDiv.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Auto test on page load
+        window.addEventListener('load', function() {
+            setTimeout(() => {
+                showTestResult('📄 صفحة الاختبار جاهزة - اضغط على "فتح Modal" لرؤية أزرار التحميل');
+            }, 500);
+        });
+    </script>
+</body>
+</html>

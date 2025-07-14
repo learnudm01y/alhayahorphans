@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="test-token">
+    <title>🎯 اختبار Modal مباشر</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 50px 20px;
+        }
+        .main-card {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            max-width: 600px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        .open-modal-btn {
+            background: linear-gradient(45deg, #007bff, #6610f2);
+            border: none;
+            color: white;
+            padding: 20px 40px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: bold;
+            margin: 20px;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+        }
+        .open-modal-btn:hover {
+            transform: translateY(-3px) scale(1.05);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-card">
+        <h1 class="display-4 mb-4">
+            <i class="fas fa-window-restore text-primary me-3"></i>
+            اختبار Modal التنزيل
+        </h1>
+
+        <p class="lead text-muted mb-4">
+            اختبار مباشر لزر تنزيل الملفات المكررة في Modal
+        </p>
+
+        <button class="open-modal-btn" onclick="openTestModal()">
+            <i class="fas fa-external-link-alt me-2"></i>
+            فتح Modal واختبار التنزيل
+        </button>
+
+        <div class="alert alert-info mt-4">
+            <h5><i class="fas fa-info-circle me-2"></i>معلومات الاختبار:</h5>
+            <ul class="text-start">
+                <li>سيتم فتح Modal الملفات المكررة</li>
+                <li>زر التنزيل مفعل ومبسط</li>
+                <li>سيتم إنشاء session ID تلقائياً</li>
+                <li>الملف سيتم تنزيله مباشرة</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Modal الملفات المكررة -->
+    <div class="modal fade" id="duplicateFilesModal" tabindex="-1" aria-labelledby="duplicateFilesModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-warning-subtle">
+                    <h5 class="modal-title" id="duplicateFilesModalLabel">
+                        <i class="fas fa-clone text-warning me-2"></i>
+                        الملفات/المجلدات المكررة المكتشفة أثناء الرفع
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="duplicateFilesList">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>جاهز للاختبار!</strong>
+                            <br>تم تحضير Modal للاختبار مع زر تنزيل مبسط وفعال.
+                            <br>اضغط زر "تحميل جميع الملفات المكررة" أدناه.
+                        </div>
+                    </div>
+                    <div class="alert alert-info mt-3" id="duplicateFilesNote">
+                        يمكنك تحميل جميع الملفات المكررة كملف مضغوط أو مراجعتها بشكل فردي.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+                    <button type="button" id="deleteDuplicatesBtn" class="btn btn-danger">
+                        <i class="fas fa-trash-alt me-1"></i> حذف جميع الملفات المكررة
+                    </button>
+                    <button type="button" id="downloadDuplicatesBtn" class="btn btn-warning">
+                        <i class="fas fa-download me-1"></i> تحميل جميع الملفات المكررة
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // متغير الجلسة
+        let duplicateSessionId = 'modal_test_' + Date.now();
+
+        function openTestModal() {
+            // تحديث معرف الجلسة
+            duplicateSessionId = 'modal_test_' + Date.now();
+            console.log('🎯 فتح Modal مع Session ID:', duplicateSessionId);
+
+            // فتح Modal
+            const modal = new bootstrap.Modal(document.getElementById('duplicateFilesModal'));
+            modal.show();
+
+            // تحديث محتوى Modal
+            const listDiv = document.getElementById('duplicateFilesList');
+            listDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <strong>Modal جاهز للاختبار!</strong>
+                    <br>Session ID: <code>${duplicateSessionId}</code>
+                    <br>زر التنزيل مفعل ومبسط.
+                    <br><br>
+                    <div class="text-start">
+                        <strong>ما سيحدث عند الضغط على زر التنزيل:</strong>
+                        <ol>
+                            <li>إنشاء رابط تنزيل مباشر</li>
+                            <li>تفعيل التنزيل تلقائياً</li>
+                            <li>حفظ ملف ZIP في مجلد التنزيلات</li>
+                        </ol>
+                    </div>
+                </div>
+            `;
+        }
+
+        // تفعيل زر التنزيل - كود مبسط
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 تحميل صفحة الاختبار');
+
+            const downloadBtn = document.getElementById('downloadDuplicatesBtn');
+            if (downloadBtn) {
+                downloadBtn.onclick = function() {
+                    console.log('🔥 تم الضغط على زر التنزيل');
+
+                    // استخدام session ID افتراضي إذا لم يكن موجود
+                    const sessionId = duplicateSessionId || 'default_session_' + Date.now();
+                    console.log('📋 Session ID:', sessionId);
+
+                    // إظهار حالة التحميل
+                    const originalText = downloadBtn.innerHTML;
+                    downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> جاري التحميل...';
+                    downloadBtn.disabled = true;
+
+                    // URL التنزيل
+                    const downloadUrl = `http://127.0.0.1:8000/api/duplicate-files/download?session_id=${sessionId}`;
+                    console.log('🌐 رابط التنزيل:', downloadUrl);
+
+                    // طريقة بسيطة للتنزيل
+                    const link = document.createElement('a');
+                    link.href = downloadUrl;
+                    link.download = `duplicate_files_${sessionId}.zip`;
+                    link.target = '_blank';
+                    link.style.display = 'none';
+
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
+                    // استعادة حالة الزر بعد ثانية
+                    setTimeout(() => {
+                        downloadBtn.innerHTML = originalText;
+                        downloadBtn.disabled = false;
+
+                        // عرض رسالة نجاح
+                        const alertDiv = document.createElement('div');
+                        alertDiv.className = 'alert alert-success mt-3';
+                        alertDiv.innerHTML = `
+                            <i class="fas fa-check-circle me-2"></i>
+                            تم بدء التنزيل! تحقق من مجلد التنزيلات.
+                            <br><small>اسم الملف: duplicate_files_${sessionId}.zip</small>
+                        `;
+
+                        const listDiv = document.getElementById('duplicateFilesList');
+                        if (listDiv) {
+                            listDiv.insertBefore(alertDiv, listDiv.firstChild);
+
+                            // إزالة الرسالة بعد 5 ثوان
+                            setTimeout(() => {
+                                if (alertDiv.parentNode) {
+                                    alertDiv.parentNode.removeChild(alertDiv);
+                                }
+                            }, 5000);
+                        }
+                    }, 1000);
+
+                    console.log('✅ تم تفعيل رابط التنزيل');
+                };
+
+                console.log('✅ تم ربط زر التنزيل بالحدث');
+            } else {
+                console.error('❌ لم يتم العثور على زر التنزيل');
+            }
+        });
+    </script>
+</body>
+</html>

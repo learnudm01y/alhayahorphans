@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UnifiedFileManagementController;
+use App\Http\Controllers\DuplicateFileController;
 
 /*
 |--------------------------------------------------------------------------
@@ -24,8 +25,8 @@ Route::prefix('api/files')->middleware(['auth'])->group(function () {
     // Cloud integration
     Route::post('/sync-cloud', [UnifiedFileManagementController::class, 'syncWithCloud'])->name('files.sync-cloud');
 
-    // Duplicate files management
-    Route::get('/duplicate-summary', [UnifiedFileManagementController::class, 'getDuplicateSummary'])->name('files.duplicate.summary');
+    // Duplicate files management - تم نقله إلى admin.php
+    // Route::get('/duplicate-summary', [DuplicateFileController::class, 'getDuplicateFilesSummary'])->name('files.duplicate.summary');
 });
 
 // File management interface routes

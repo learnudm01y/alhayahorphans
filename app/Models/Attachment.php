@@ -12,9 +12,13 @@ class Attachment extends Model
     protected $fillable = [
         'person_identity_number',
         'stored_file_name',
+        'file_name',
         'file_path',
         'file_type',
-        'file_size'
+        'file_size',
+        'description',
+        'uploaded_at',
+        'upload_source'
     ];
     protected $table = 'attachments';
 }

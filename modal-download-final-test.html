@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="test-token">
+    <title>اختبار Modal الأصلي المُحدّث</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { padding: 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .container { background: white; border-radius: 15px; padding: 30px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); }
+        .test-header { background: linear-gradient(45deg, #28a745, #20c997); color: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+        .status-indicator { width: 15px; height: 15px; border-radius: 50%; display: inline-block; margin-left: 8px; }
+        .status-success { background-color: #28a745; }
+        .status-error { background-color: #dc3545; }
+        .status-warning { background-color: #ffc107; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="test-header text-center">
+        <h2><i class="fas fa-copy"></i> اختبار Modal الملفات المكررة المُحدّث</h2>
+        <p class="mb-0">اختبار زر التنزيل الجديد والمحسن</p>
+    </div>
+
+    <!-- معلومات الحالة -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <h6><span class="status-indicator status-success"></span>Session ID</h6>
+                    <small class="text-muted" id="sessionDisplay"></small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <h6><span class="status-indicator" id="serverIndicator"></span>خادم Laravel</h6>
+                    <small class="text-muted" id="serverStatus">جاري الفحص...</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <h6><span class="status-indicator" id="apiIndicator"></span>API التنزيل</h6>
+                    <small class="text-muted" id="apiStatus">جاري الفحص...</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- زر فتح Modal -->
+    <div class="text-center mb-4">
+        <button class="btn btn-primary btn-lg" data-bs-toggle="modal" data-bs-target="#modalDublicateFiles">
+            <i class="fas fa-copy me-2"></i>
+            فتح Modal الملفات المكررة
+        </button>
+    </div>
+
+    <!-- معلومات التحديثات -->
+    <div class="alert alert-info">
+        <h6><i class="fas fa-info-circle"></i> التحديثات المطبقة:</h6>
+        <ul class="mb-0">
+            <li>✅ إزالة التعارضات في كود JavaScript</li>
+            <li>✅ تطبيق دالة triggerDownload محسنة مع طريقتين للتنزيل</li>
+            <li>✅ استخدام window.open كطريقة أولى ورابط مخفي كطريقة احتياطية</li>
+            <li>✅ إضافة رابط تنزيل مباشر في رسالة النجاح</li>
+            <li>✅ تحسين error handling ورسائل المستخدم</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Modal الملفات المكررة -->
+<div class="modal fade" id="modalDublicateFiles" tabindex="-1" aria-labelledby="modalDublicateFilesLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title" id="modalDublicateFilesLabel">
+                    <i class="fas fa-copy me-2"></i>
+                    الملفات المكررة المؤقتة
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+            </div>
+            <div class="modal-body">
+                <!-- منطقة قائمة الملفات -->
+                <div id="duplicateFilesList">
+                    <div class="text-center">
+                        <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
+                        <p class="mt-2">جاري تحميل قائمة الملفات المكررة...</p>
+                    </div>
+                </div>
+
+                <!-- ملاحظة هامة -->
+                <div id="duplicateFilesNote" class="alert alert-info mt-3">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>ملاحظة:</strong> هذه الملفات محفوظة مؤقتاً لمدة 7 أيام فقط. يُنصح بتحميلها قبل انتهاء المدة.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i> إغلاق
+                </button>
+                <button type="button" class="btn btn-success" id="downloadDuplicatesBtn">
+                    <i class="fas fa-download me-1"></i> تحميل جميع الملفات (ZIP)
+                </button>
+                <button type="button" class="btn btn-danger" id="deleteDuplicatesBtn">
+                    <i class="fas fa-trash me-1"></i> حذف جميع الملفات
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// متغيرات عامة
+let duplicateSessionId = 'modal_test_' + Date.now();
+
+// عرض Session ID
+document.getElementById('sessionDisplay').textContent = duplicateSessionId;
+
+// فحص الخادم
+function checkServer() {
+    fetch('http://127.0.0.1:8000/')
+    .then(response => {
+        if (response.ok) {
+            document.getElementById('serverIndicator').className = 'status-indicator status-success';
+            document.getElementById('serverStatus').textContent = 'متصل ويعمل';
+        } else {
+            throw new Error('HTTP ' + response.status);
+        }
+    })
+    .catch(error => {
+        document.getElementById('serverIndicator').className = 'status-indicator status-error';
+        document.getElementById('serverStatus').textContent = 'غير متصل';
+    });
+}
+
+// فحص API
+function checkAPI() {
+    const apiUrl = `http://127.0.0.1:8000/api/duplicate-files/download?session_id=${duplicateSessionId}`;
+
+    fetch(apiUrl, { method: 'HEAD' })
+    .then(response => {
+        if (response.ok) {
+            document.getElementById('apiIndicator').className = 'status-indicator status-success';
+            document.getElementById('apiStatus').textContent = 'متاح ويعمل';
+        } else {
+            document.getElementById('apiIndicator').className = 'status-indicator status-warning';
+            document.getElementById('apiStatus').textContent = 'استجابة غير متوقعة';
+        }
+    })
+    .catch(error => {
+        document.getElementById('apiIndicator').className = 'status-indicator status-error';
+        document.getElementById('apiStatus').textContent = 'غير متاح';
+    });
+}
+
+// تشغيل الفحوصات
+setTimeout(checkServer, 1000);
+setTimeout(checkAPI, 2000);
+
+// كود Modal المُحدّث (نسخة من الملف الأصلي)
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🚀 تحميل Modal الملفات المكررة - النسخة النهائية');
+
+    // دالة التنزيل المبسطة والمضمونة
+    function triggerDownload(sessionId) {
+        console.log('🔥 بدء عملية التنزيل');
+        console.log('📋 Session ID:', sessionId);
+
+        // إنشاء رابط التنزيل
+        const baseUrl = window.location.protocol + '//' + window.location.host;
+        const downloadUrl = `${baseUrl}/api/duplicate-files/download?session_id=${sessionId}`;
+        console.log('🌐 رابط التنزيل:', downloadUrl);
+
+        // الطريقة الأولى: window.open (الأكثر موثوقية)
+        try {
+            window.open(downloadUrl, '_blank');
+            console.log('✅ تم فتح رابط التنزيل في نافذة جديدة');
+        } catch (error) {
+            console.log('⚠️ فشلت الطريقة الأولى، تجربة الطريقة الثانية...');
+
+            // الطريقة الثانية: إنشاء رابط مخفي
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = `duplicate_files_${sessionId}.zip`;
+            link.target = '_blank';
+            link.style.display = 'none';
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            console.log('✅ تم استخدام الطريقة الثانية');
+        }
+
+        return downloadUrl;
+    }
+
+    // ربط زر التنزيل
+    const downloadBtn = document.getElementById('downloadDuplicatesBtn');
+    if (downloadBtn) {
+        // إزالة أي event listeners سابقة
+        downloadBtn.onclick = null;
+
+        // إضافة event listener جديد
+        downloadBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('🔥 تم الضغط على زر التنزيل');
+
+            // الحصول على session ID
+            let sessionId = window.duplicateSessionId || duplicateSessionId;
+            if (!sessionId) {
+                sessionId = 'modal_session_' + Date.now();
+                console.log('⚠️ تم إنشاء session ID جديد:', sessionId);
+            }
+
+            // إظهار حالة التحميل
+            const originalText = downloadBtn.innerHTML;
+            downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> جاري التحميل...';
+            downloadBtn.disabled = true;
+
+            // تنفيذ التنزيل
+            const downloadUrl = triggerDownload(sessionId);
+
+            // عرض رسالة فورية
+            const listDiv = document.getElementById('duplicateFilesList');
+            if (listDiv) {
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-info mt-3';
+                alertDiv.innerHTML = `
+                    <i class="fas fa-download me-2"></i>
+                    تم تشغيل التنزيل! إذا لم يبدأ التنزيل تلقائياً،
+                    <a href="${downloadUrl}" target="_blank" class="alert-link">اضغط هنا للتنزيل المباشر</a>
+                    <br><small>ملف: duplicate_files_${sessionId}.zip</small>
+                `;
+                listDiv.innerHTML = '';
+                listDiv.appendChild(alertDiv);
+            }
+
+            // استعادة حالة الزر
+            setTimeout(() => {
+                downloadBtn.innerHTML = originalText;
+                downloadBtn.disabled = false;
+                console.log('🔄 تم استعادة حالة الزر');
+            }, 2000);
+        });
+
+        console.log('✅ تم ربط زر التنزيل بنجاح');
+    } else {
+        console.error('❌ لم يتم العثور على زر التنزيل');
+    }
+
+    // محاكاة تحميل بيانات الملفات عند فتح Modal
+    const modal = document.getElementById('modalDublicateFiles');
+    modal.addEventListener('shown.bs.modal', function() {
+        setTimeout(() => {
+            const listDiv = document.getElementById('duplicateFilesList');
+            listDiv.innerHTML = `
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    تم العثور على 3 ملفات مكررة وحفظها في التخزين المؤقت
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead class="table-warning">
+                            <tr>
+                                <th>اسم الملف</th>
+                                <th>المجلد</th>
+                                <th>الحجم</th>
+                                <th>التاريخ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><i class="fas fa-file text-success me-2"></i>duplicate_image_1.jpg</td>
+                                <td><span class="badge bg-secondary">uploads/images</span></td>
+                                <td>256 KB</td>
+                                <td>${new Date().toLocaleString('ar-SA')}</td>
+                            </tr>
+                            <tr>
+                                <td><i class="fas fa-file text-success me-2"></i>duplicate_doc_2.pdf</td>
+                                <td><span class="badge bg-secondary">uploads/documents</span></td>
+                                <td>1.2 MB</td>
+                                <td>${new Date().toLocaleString('ar-SA')}</td>
+                            </tr>
+                            <tr>
+                                <td><i class="fas fa-file text-success me-2"></i>duplicate_video_3.mp4</td>
+                                <td><span class="badge bg-secondary">uploads/videos</span></td>
+                                <td>5.8 MB</td>
+                                <td>${new Date().toLocaleString('ar-SA')}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            console.log('📂 تم تحميل قائمة الملفات المكررة');
+        }, 1500);
+    });
+});
+</script>
+
+</body>
+</html>

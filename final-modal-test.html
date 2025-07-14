@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="dummy-token">
+    <title>اختبار Modal الملفات المكررة - النسخة النهائية</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .test-section { margin: 20px 0; padding: 20px; border: 2px solid #dee2e6; border-radius: 10px; }
+        .success { border-color: #198754; background-color: #f8fff9; }
+        .danger { border-color: #dc3545; background-color: #fff8f8; }
+        .warning { border-color: #fd7e14; background-color: #fffaf6; }
+        .info { border-color: #0dcaf0; background-color: #f6fdff; }
+        .btn-test { margin: 5px; }
+        pre { background: #f8f9fa; padding: 15px; border-radius: 5px; font-size: 12px; }
+        .status-badge { display: inline-block; padding: 5px 10px; border-radius: 15px; font-size: 12px; margin: 2px; }
+        .modal-backdrop { z-index: 1040; }
+        .modal { z-index: 1050; }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="text-center mb-4">
+                <i class="fas fa-copy text-primary"></i>
+                اختبار Modal الملفات المكررة - النسخة النهائية
+            </h1>
+
+            <!-- أزرار التحكم -->
+            <div class="test-section info">
+                <h3><i class="fas fa-play-circle text-info"></i> أزرار التحكم</h3>
+                <button class="btn btn-primary btn-test" onclick="openModal()">
+                    <i class="fas fa-external-link-alt"></i> فتح Modal
+                </button>
+                <button class="btn btn-warning btn-test" onclick="testDownload()">
+                    <i class="fas fa-download"></i> اختبار التنزيل مباشرة
+                </button>
+                <button class="btn btn-danger btn-test" onclick="testDelete()">
+                    <i class="fas fa-trash"></i> اختبار الحذف مباشرة
+                </button>
+                <button class="btn btn-secondary btn-test" onclick="checkAPI()">
+                    <i class="fas fa-search"></i> فحص API
+                </button>
+                <button class="btn btn-info btn-test" onclick="clearLogs()">
+                    <i class="fas fa-eraser"></i> مسح السجلات
+                </button>
+            </div>
+
+            <!-- حالة النظام -->
+            <div class="test-section">
+                <h3><i class="fas fa-chart-line"></i> حالة النظام</h3>
+                <div class="row">
+                    <div class="col-md-3">
+                        <span class="status-badge" id="modalStatus" style="background-color: #6c757d; color: white;">Modal: غير محمل</span>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="status-badge" id="downloadStatus" style="background-color: #6c757d; color: white;">تنزيل: غير مختبر</span>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="status-badge" id="deleteStatus" style="background-color: #6c757d; color: white;">حذف: غير مختبر</span>
+                    </div>
+                    <div class="col-md-3">
+                        <span class="status-badge" id="apiStatus" style="background-color: #6c757d; color: white;">API: غير مختبر</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- سجل الأحداث -->
+            <div class="test-section">
+                <h3><i class="fas fa-terminal"></i> سجل الأحداث المباشر</h3>
+                <pre id="console" style="height: 300px; overflow-y: auto;"></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal الملفات المكررة -->
+<div class="modal fade" id="modalDublicateFiles" tabindex="-1" aria-labelledby="modalDublicateFilesLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title" id="modalDublicateFilesLabel">
+                    <i class="fas fa-copy me-2"></i>
+                    الملفات المكررة المؤقتة
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+            </div>
+            <div class="modal-body">
+                <!-- منطقة قائمة الملفات -->
+                <div id="duplicateFilesList">
+                    <div class="text-center">
+                        <i class="fas fa-spinner fa-spin fa-2x text-primary"></i>
+                        <p class="mt-2">جاري تحميل قائمة الملفات المكررة...</p>
+                    </div>
+                </div>
+
+                <!-- ملاحظة هامة -->
+                <div id="duplicateFilesNote" class="alert alert-info mt-3" style="display: none;">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>ملاحظة:</strong> هذه الملفات محفوظة مؤقتاً لمدة 7 أيام فقط. يُنصح بتحميلها قبل انتهاء المدة.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i> إغلاق
+                </button>
+                <button type="button" class="btn btn-success" id="downloadDuplicatesBtn" style="display: none;">
+                    <i class="fas fa-download me-1"></i> تحميل جميع الملفات (ZIP)
+                </button>
+                <button type="button" class="btn btn-danger" id="deleteDuplicatesBtn" style="display: none;">
+                    <i class="fas fa-trash me-1"></i> حذف جميع الملفات
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// متغيرات عامة
+let duplicateSessionId = 'test_session_' + Date.now();
+let consoleElement = document.getElementById('console');
+
+// دالة تسجيل الأحداث
+function log(message, type = 'info') {
+    const timestamp = new Date().toLocaleTimeString('ar-SA');
+    const colors = {
+        'info': '#007bff',
+        'success': '#28a745',
+        'error': '#dc3545',
+        'warning': '#ffc107'
+    };
+
+    const logEntry = `[${timestamp}] ${message}\n`;
+    consoleElement.innerHTML += `<span style="color: ${colors[type]}">${logEntry}</span>`;
+    consoleElement.scrollTop = consoleElement.scrollHeight;
+
+    console.log(message);
+}
+
+// دالة تحديث حالة النظام
+function updateStatus(element, status, success = true) {
+    const statusEl = document.getElementById(element);
+    statusEl.textContent = status;
+    statusEl.style.backgroundColor = success ? '#28a745' : '#dc3545';
+    statusEl.style.color = 'white';
+}
+
+// مسح السجلات
+function clearLogs() {
+    consoleElement.innerHTML = '';
+    log('تم مسح السجلات', 'info');
+}
+
+// فتح Modal
+function openModal() {
+    log('🚀 فتح Modal الملفات المكررة...', 'info');
+    const modal = new bootstrap.Modal(document.getElementById('modalDublicateFiles'));
+    modal.show();
+    updateStatus('modalStatus', 'Modal: مفتوح', true);
+
+    // محاكاة تحميل البيانات
+    setTimeout(() => {
+        showDuplicateFiles();
+    }, 1000);
+}
+
+// عرض الملفات المكررة (محاكاة)
+function showDuplicateFiles() {
+    log('📂 عرض قائمة الملفات المكررة...', 'info');
+
+    const listDiv = document.getElementById('duplicateFilesList');
+    const note = document.getElementById('duplicateFilesNote');
+    const downloadBtn = document.getElementById('downloadDuplicatesBtn');
+    const deleteBtn = document.getElementById('deleteDuplicatesBtn');
+
+    // عرض بيانات وهمية
+    listDiv.innerHTML = `
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle me-2"></i>
+            تم العثور على 5 ملفات مكررة وحفظها في التخزين المؤقت
+        </div>
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead class="table-warning">
+                    <tr>
+                        <th>اسم الملف</th>
+                        <th>المجلد</th>
+                        <th>الحجم</th>
+                        <th>التاريخ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><i class="fas fa-file text-success me-2"></i>duplicate_image_1.jpg</td>
+                        <td><span class="badge bg-secondary">uploads/images</span></td>
+                        <td>256 KB</td>
+                        <td>${new Date().toLocaleString('ar-SA')}</td>
+                    </tr>
+                    <tr>
+                        <td><i class="fas fa-file text-success me-2"></i>duplicate_doc_2.pdf</td>
+                        <td><span class="badge bg-secondary">uploads/documents</span></td>
+                        <td>1.2 MB</td>
+                        <td>${new Date().toLocaleString('ar-SA')}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    `;
+
+    // إظهار العناصر
+    note.style.display = 'block';
+    downloadBtn.style.display = 'inline-block';
+    deleteBtn.style.display = 'inline-block';
+
+    log('✅ تم تحميل قائمة الملفات بنجاح', 'success');
+}
+
+// اختبار التنزيل المباشر
+function testDownload() {
+    log('🔥 اختبار وظيفة التنزيل...', 'warning');
+
+    const sessionId = duplicateSessionId;
+    const downloadUrl = `http://127.0.0.1:8000/api/duplicate-files/download?session_id=${sessionId}`;
+
+    log(`📋 Session ID: ${sessionId}`, 'info');
+    log(`🌐 رابط التنزيل: ${downloadUrl}`, 'info');
+
+    // إنشاء رابط تنزيل
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = `duplicate_files_${sessionId}.zip`;
+    link.target = '_blank';
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    log('✅ تم تشغيل رابط التنزيل', 'success');
+    updateStatus('downloadStatus', 'تنزيل: تم التشغيل', true);
+
+    // محاكاة استجابة
+    setTimeout(() => {
+        log('📦 تحقق من مجلد التنزيلات للملف المضغوط', 'info');
+    }, 1000);
+}
+
+// اختبار الحذف المباشر
+function testDelete() {
+    if (!confirm('هل تريد اختبار وظيفة الحذف؟')) {
+        return;
+    }
+
+    log('🗑️ اختبار وظيفة الحذف...', 'warning');
+
+    const sessionId = duplicateSessionId;
+
+    fetch(`http://127.0.0.1:8000/api/duplicate-files/delete?session_id=${sessionId}`, {
+        method: 'DELETE',
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 'dummy-token'
+        }
+    })
+    .then(response => {
+        log(`📡 استجابة API: ${response.status}`, response.ok ? 'success' : 'error');
+        return response.json();
+    })
+    .then(data => {
+        log('📋 بيانات الاستجابة:', 'info');
+        log(JSON.stringify(data, null, 2), 'info');
+
+        if (data.success && data.data) {
+            const deletedFiles = data.data.deleted_files || 0;
+            const deletedRecords = data.data.deleted_records || 0;
+            log(`✅ نجح الحذف: ${deletedFiles} ملف، ${deletedRecords} سجل`, 'success');
+            updateStatus('deleteStatus', 'حذف: نجح', true);
+        } else {
+            log('❌ فشل الحذف', 'error');
+            updateStatus('deleteStatus', 'حذف: فشل', false);
+        }
+    })
+    .catch(error => {
+        log(`❌ خطأ في الحذف: ${error.message}`, 'error');
+        updateStatus('deleteStatus', 'حذف: خطأ', false);
+    });
+}
+
+// فحص API
+function checkAPI() {
+    log('🔍 فحص API...', 'info');
+
+    const endpoints = [
+        'http://127.0.0.1:8000/api/duplicate-files/summary',
+        'http://127.0.0.1:8000/api/duplicate-files/download',
+        'http://127.0.0.1:8000/api/duplicate-files/delete'
+    ];
+
+    endpoints.forEach(endpoint => {
+        fetch(`${endpoint}?session_id=${duplicateSessionId}`, {
+            method: endpoint.includes('delete') ? 'DELETE' : 'GET',
+            headers: {
+                'Accept': 'application/json'
+            }
+        })
+        .then(response => {
+            log(`✅ ${endpoint}: ${response.status}`, response.ok ? 'success' : 'warning');
+        })
+        .catch(error => {
+            log(`❌ ${endpoint}: ${error.message}`, 'error');
+        });
+    });
+
+    updateStatus('apiStatus', 'API: تم الفحص', true);
+}
+
+// تحميل JavaScript الخاص بـ Modal
+document.addEventListener('DOMContentLoaded', function() {
+    log('🚀 تحميل Modal الملفات المكررة');
+
+    // تفعيل زر التنزيل - نسخة نهائية مبسطة
+    const downloadBtn = document.getElementById('downloadDuplicatesBtn');
+    if (downloadBtn) {
+        downloadBtn.onclick = function() {
+            log('🔥 تم الضغط على زر التنزيل');
+
+            // استخدام session ID أو إنشاء واحد جديد
+            const sessionId = duplicateSessionId || 'auto_session_' + Date.now();
+            log('📋 Session ID: ' + sessionId);
+
+            // إظهار حالة التحميل
+            const originalText = downloadBtn.innerHTML;
+            downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> جاري التحميل...';
+            downloadBtn.disabled = true;
+
+            // رابط التنزيل المطلق
+            const downloadUrl = `http://127.0.0.1:8000/api/duplicate-files/download?session_id=${sessionId}`;
+            log('🌐 رابط التنزيل: ' + downloadUrl);
+
+            // تنزيل مباشر بدون تعقيد
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = `duplicate_files_${sessionId}.zip`;
+            link.target = '_blank';
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            // استعادة حالة الزر
+            setTimeout(() => {
+                downloadBtn.innerHTML = originalText;
+                downloadBtn.disabled = false;
+                log('✅ تم تفعيل التنزيل');
+            }, 500);
+        };
+        log('✅ تم ربط زر التنزيل');
+    } else {
+        log('❌ لم يتم العثور على زر التنزيل', 'error');
+    }
+
+    // تفعيل زر الحذف
+    const deleteBtn = document.getElementById('deleteDuplicatesBtn');
+    if (deleteBtn) {
+        deleteBtn.onclick = function() {
+            log('🗑️ تم الضغط على زر الحذف');
+
+            if (!confirm('هل أنت متأكد من حذف جميع الملفات المكررة؟')) {
+                return;
+            }
+
+            const sessionId = duplicateSessionId || 'auto_session_' + Date.now();
+
+            // إظهار حالة التحميل
+            const originalText = deleteBtn.innerHTML;
+            deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> جاري الحذف...';
+            deleteBtn.disabled = true;
+
+            // استدعاء API الحذف
+            fetch(`http://127.0.0.1:8000/api/duplicate-files/delete?session_id=${sessionId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+                }
+            })
+            .then(response => {
+                log('📡 استجابة API: ' + response.status);
+                if (!response.ok) {
+                    throw new Error(`خطأ HTTP: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                log('✅ بيانات النجاح: ' + JSON.stringify(data));
+
+                // التحقق من البيانات المُحدّثة
+                if (data.success && data.data) {
+                    const deletedFiles = data.data.deleted_files || 0;
+                    const deletedRecords = data.data.deleted_records || 0;
+
+                    // عرض رسالة نجاح
+                    const successAlert = document.createElement('div');
+                    successAlert.className = 'alert alert-success mt-3';
+                    successAlert.innerHTML = `
+                        <i class="fas fa-check-circle me-2"></i>
+                        تم حذف الملفات المكررة بنجاح!
+                        <br><small>الملفات المحذوفة: ${deletedFiles} | السجلات المحذوفة: ${deletedRecords}</small>
+                    `;
+
+                    // إضافة الرسالة
+                    const listDiv = document.getElementById('duplicateFilesList');
+                    if (listDiv) {
+                        listDiv.innerHTML = '';
+                        listDiv.appendChild(successAlert);
+                    }
+
+                    log('✅ تم حذف الملفات بنجاح', 'success');
+                } else {
+                    throw new Error('استجابة غير صحيحة من الخادم');
+                }
+            })
+            .catch(error => {
+                log('❌ خطأ في الحذف: ' + error.message, 'error');
+            })
+            .finally(() => {
+                // استعادة حالة الزر
+                deleteBtn.innerHTML = originalText;
+                deleteBtn.disabled = false;
+            });
+        };
+        log('✅ تم ربط زر الحذف');
+    } else {
+        log('❌ لم يتم العثور على زر الحذف', 'error');
+    }
+
+    log('🎉 تم تحميل جميع وظائف Modal بنجاح', 'success');
+});
+
+// رسالة ترحيب
+log('🎯 مرحباً بك في اختبار Modal الملفات المكررة', 'info');
+log('💡 استخدم الأزرار أعلاه لاختبار جميع الوظائف', 'info');
+</script>
+
+</body>
+</html>

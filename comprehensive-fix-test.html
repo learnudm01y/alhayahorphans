@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="test-token">
+    <title>🛠️ إصلاح شامل للتنزيل والحذف</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: white;
+        }
+        .fix-container {
+            background: rgba(255,255,255,0.95);
+            border-radius: 20px;
+            padding: 40px;
+            color: #333;
+            max-width: 1000px;
+            margin: 0 auto;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        .test-section {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            margin: 20px 0;
+            border-left: 5px solid #007bff;
+        }
+        .fix-btn {
+            padding: 15px 30px;
+            margin: 10px;
+            border-radius: 25px;
+            font-weight: bold;
+            border: none;
+            transition: all 0.3s ease;
+        }
+        .fix-btn:hover {
+            transform: translateY(-2px);
+        }
+        .result-area {
+            background: #343a40;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            min-height: 150px;
+            margin: 20px 0;
+        }
+        .modal-body {
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="fix-container">
+        <h1 class="text-center mb-4">
+            <i class="fas fa-tools text-primary me-3"></i>
+            إصلاح شامل للتنزيل والحذف
+        </h1>
+
+        <div class="row">
+            <div class="col-md-6">
+                <div class="test-section">
+                    <h5><i class="fas fa-download text-success me-2"></i>اختبار التنزيل</h5>
+                    <button class="btn btn-success fix-btn" onclick="testDownloadFunction()">
+                        اختبار تنزيل مباشر
+                    </button>
+                    <button class="btn btn-outline-success fix-btn" onclick="openDownloadModal()">
+                        اختبار Modal التنزيل
+                    </button>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="test-section">
+                    <h5><i class="fas fa-trash text-danger me-2"></i>اختبار الحذف</h5>
+                    <button class="btn btn-danger fix-btn" onclick="testDeleteFunction()">
+                        اختبار حذف مباشر
+                    </button>
+                    <button class="btn btn-outline-danger fix-btn" onclick="openDeleteModal()">
+                        اختبار Modal الحذف
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h5><i class="fas fa-bug text-warning me-2"></i>تشخيص شامل</h5>
+            <button class="btn btn-warning fix-btn" onclick="runFullDiagnostic()">
+                تشخيص شامل للمشاكل
+            </button>
+            <button class="btn btn-info fix-btn" onclick="testAPIEndpoints()">
+                اختبار جميع APIs
+            </button>
+        </div>
+
+        <div class="result-area" id="resultArea">
+            🚀 جاهز للاختبار - اختر إحدى الوظائف أعلاه
+        </div>
+
+        <div class="alert alert-info">
+            <h6><i class="fas fa-info-circle me-2"></i>معلومات الإصلاحات:</h6>
+            <ul class="mb-0">
+                <li>✅ تم إصلاح خطأ <code>deleted_files</code> في Controller</li>
+                <li>✅ تحسين دالة التنزيل مع fallback ZIP</li>
+                <li>✅ إضافة تشخيص شامل للمشاكل</li>
+                <li>✅ اختبار مباشر لجميع الوظائف</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Modal للاختبار -->
+    <div class="modal fade" id="testModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="modalTitle">اختبار Modal</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="modalContent">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            جاري تحضير الاختبار...
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+                    <button type="button" id="downloadDuplicatesBtn" class="btn btn-warning" style="display: none;">
+                        <i class="fas fa-download me-1"></i> تحميل جميع الملفات المكررة
+                    </button>
+                    <button type="button" id="deleteDuplicatesBtn" class="btn btn-danger" style="display: none;">
+                        <i class="fas fa-trash-alt me-1"></i> حذف جميع الملفات المكررة
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let duplicateSessionId = 'test_fix_' + Date.now();
+        let currentModal = null;
+
+        function updateResult(message, type = 'info') {
+            const area = document.getElementById('resultArea');
+            const icons = {
+                'success': '✅',
+                'error': '❌',
+                'warning': '⚠️',
+                'info': 'ℹ️'
+            };
+
+            area.innerHTML = `
+                ${icons[type] || 'ℹ️'} <strong>النتيجة:</strong><br>
+                ${message}<br>
+                <small>⏰ ${new Date().toLocaleString('ar-SA')}</small>
+            `;
+        }
+
+        // اختبار التنزيل المباشر
+        async function testDownloadFunction() {
+            updateResult('🔄 اختبار التنزيل المباشر...', 'info');
+
+            try {
+                const sessionId = 'test_download_' + Date.now();
+                const url = `http://127.0.0.1:8000/api/duplicate-files/download?session_id=${sessionId}`;
+
+                const response = await fetch(url);
+
+                if (response.ok) {
+                    const blob = await response.blob();
+
+                    // إنشاء رابط التنزيل
+                    const downloadUrl = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = downloadUrl;
+                    link.download = `test_download_${sessionId}.zip`;
+                    link.click();
+
+                    URL.revokeObjectURL(downloadUrl);
+
+                    updateResult(`✅ التنزيل نجح!
+                        <br>📁 حجم الملف: ${blob.size} bytes
+                        <br>📥 تم حفظ الملف: test_download_${sessionId}.zip`, 'success');
+                } else {
+                    updateResult(`❌ فشل التنزيل: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                updateResult(`❌ خطأ في التنزيل: ${error.message}`, 'error');
+            }
+        }
+
+        // اختبار الحذف المباشر
+        async function testDeleteFunction() {
+            updateResult('🔄 اختبار الحذف المباشر...', 'info');
+
+            try {
+                const sessionId = 'test_delete_' + Date.now();
+                const url = `http://127.0.0.1:8000/api/duplicate-files/delete?session_id=${sessionId}`;
+
+                const response = await fetch(url, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    updateResult(`✅ الحذف نجح!
+                        <br>📊 الرسالة: ${data.message}
+                        <br>🗑️ الملفات المحذوفة: ${data.data?.deleted_files || 0}
+                        <br>📋 السجلات المحذوفة: ${data.data?.deleted_records || 0}`, 'success');
+                } else {
+                    updateResult(`⚠️ رد الخادم: ${data.message}`, 'warning');
+                }
+            } catch (error) {
+                updateResult(`❌ خطأ في الحذف: ${error.message}`, 'error');
+            }
+        }
+
+        // فتح Modal للتنزيل
+        function openDownloadModal() {
+            updateResult('📱 فتح Modal للاختبار...', 'info');
+
+            document.getElementById('modalTitle').textContent = 'اختبار تنزيل الملفات المكررة';
+            document.getElementById('modalContent').innerHTML = `
+                <div class="alert alert-success">
+                    <i class="fas fa-download me-2"></i>
+                    <strong>جاهز لاختبار التنزيل!</strong>
+                    <br>Session ID: <code>${duplicateSessionId}</code>
+                    <br>سيتم إنشاء ملف ZIP وتنزيله تلقائياً.
+                </div>
+            `;
+
+            // إظهار زر التنزيل
+            const downloadBtn = document.getElementById('downloadDuplicatesBtn');
+            downloadBtn.style.display = 'inline-block';
+            downloadBtn.onclick = function() {
+                executeDownloadInModal();
+            };
+
+            // إخفاء زر الحذف
+            document.getElementById('deleteDuplicatesBtn').style.display = 'none';
+
+            currentModal = new bootstrap.Modal(document.getElementById('testModal'));
+            currentModal.show();
+        }
+
+        // فتح Modal للحذف
+        function openDeleteModal() {
+            updateResult('📱 فتح Modal للحذف...', 'info');
+
+            document.getElementById('modalTitle').textContent = 'اختبار حذف الملفات المكررة';
+            document.getElementById('modalContent').innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="fas fa-trash me-2"></i>
+                    <strong>جاهز لاختبار الحذف!</strong>
+                    <br>Session ID: <code>${duplicateSessionId}</code>
+                    <br>سيتم اختبار API الحذف مع الهيكل المحسن.
+                </div>
+            `;
+
+            // إظهار زر الحذف
+            const deleteBtn = document.getElementById('deleteDuplicatesBtn');
+            deleteBtn.style.display = 'inline-block';
+            deleteBtn.onclick = function() {
+                executeDeleteInModal();
+            };
+
+            // إخفاء زر التنزيل
+            document.getElementById('downloadDuplicatesBtn').style.display = 'none';
+
+            currentModal = new bootstrap.Modal(document.getElementById('testModal'));
+            currentModal.show();
+        }
+
+        // تنفيذ التنزيل في Modal
+        async function executeDownloadInModal() {
+            const downloadBtn = document.getElementById('downloadDuplicatesBtn');
+            const originalText = downloadBtn.innerHTML;
+
+            downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> جاري التحميل...';
+            downloadBtn.disabled = true;
+
+            try {
+                const url = `http://127.0.0.1:8000/api/duplicate-files/download?session_id=${duplicateSessionId}`;
+                const response = await fetch(url);
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const downloadUrl = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = downloadUrl;
+                    link.download = `modal_test_${duplicateSessionId}.zip`;
+                    link.click();
+                    URL.revokeObjectURL(downloadUrl);
+
+                    document.getElementById('modalContent').innerHTML = `
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle me-2"></i>
+                            <strong>تم التنزيل بنجاح!</strong>
+                            <br>📁 حجم الملف: ${blob.size} bytes
+                            <br>📥 اسم الملف: modal_test_${duplicateSessionId}.zip
+                            <br>📂 تحقق من مجلد التنزيلات
+                        </div>
+                    `;
+
+                    updateResult('✅ تم التنزيل من Modal بنجاح!', 'success');
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (error) {
+                document.getElementById('modalContent').innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-times-circle me-2"></i>
+                        <strong>فشل التنزيل!</strong>
+                        <br>خطأ: ${error.message}
+                    </div>
+                `;
+                updateResult('❌ فشل التنزيل من Modal', 'error');
+            }
+
+            downloadBtn.innerHTML = originalText;
+            downloadBtn.disabled = false;
+        }
+
+        // تنفيذ الحذف في Modal
+        async function executeDeleteInModal() {
+            const deleteBtn = document.getElementById('deleteDuplicatesBtn');
+            const originalText = deleteBtn.innerHTML;
+
+            deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> جاري الحذف...';
+            deleteBtn.disabled = true;
+
+            try {
+                const url = `http://127.0.0.1:8000/api/duplicate-files/delete?session_id=${duplicateSessionId}`;
+                const response = await fetch(url, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('modalContent').innerHTML = `
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle me-2"></i>
+                            <strong>تم الحذف بنجاح!</strong>
+                            <br>📊 الرسالة: ${data.message}
+                            <br>🗑️ الملفات المحذوفة: ${data.data?.deleted_files || 0}
+                            <br>📋 السجلات المحذوفة: ${data.data?.deleted_records || 0}
+                        </div>
+                    `;
+                    updateResult('✅ تم الحذف من Modal بنجاح!', 'success');
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (error) {
+                document.getElementById('modalContent').innerHTML = `
+                    <div class="alert alert-danger">
+                        <i class="fas fa-times-circle me-2"></i>
+                        <strong>فشل الحذف!</strong>
+                        <br>خطأ: ${error.message}
+                    </div>
+                `;
+                updateResult('❌ فشل الحذف من Modal', 'error');
+            }
+
+            deleteBtn.innerHTML = originalText;
+            deleteBtn.disabled = false;
+        }
+
+        // تشخيص شامل
+        async function runFullDiagnostic() {
+            updateResult('🔍 تشغيل التشخيص الشامل...', 'info');
+
+            const tests = [];
+
+            // اختبار 1: حالة الخادم
+            try {
+                const response = await fetch('http://127.0.0.1:8000');
+                tests.push(response.ok ? '✅ الخادم يعمل' : '❌ مشكلة في الخادم');
+            } catch (error) {
+                tests.push('❌ الخادم لا يستجيب');
+            }
+
+            // اختبار 2: API التنزيل
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/duplicate-files/download?session_id=diagnostic_test', { method: 'HEAD' });
+                tests.push(response.ok ? '✅ API التنزيل يعمل' : '❌ مشكلة في API التنزيل');
+            } catch (error) {
+                tests.push('❌ API التنزيل لا يستجيب');
+            }
+
+            // اختبار 3: دعم المتصفح
+            tests.push(typeof fetch !== 'undefined' ? '✅ Fetch API مدعوم' : '❌ Fetch API غير مدعوم');
+            tests.push(typeof Blob !== 'undefined' ? '✅ Blob API مدعوم' : '❌ Blob API غير مدعوم');
+            tests.push(typeof URL.createObjectURL !== 'undefined' ? '✅ URL API مدعوم' : '❌ URL API غير مدعوم');
+
+            updateResult(`🔍 نتائج التشخيص الشامل:
+                <br>${tests.join('<br>')}
+                <br><br>📋 معلومات إضافية:
+                <br>🌐 المتصفح: ${navigator.userAgent.split(' ').pop()}
+                <br>🔗 الرابط: ${window.location.href}`, 'info');
+        }
+
+        // اختبار جميع APIs
+        async function testAPIEndpoints() {
+            updateResult('🧪 اختبار جميع APIs...', 'info');
+
+            const endpoints = [
+                { name: 'تنزيل الملفات', url: '/api/duplicate-files/download?session_id=api_test', method: 'GET' },
+                { name: 'حذف الملفات', url: '/api/duplicate-files/delete?session_id=api_test', method: 'DELETE' },
+                { name: 'ملخص الملفات', url: '/api/duplicate-files/summary?session_id=api_test', method: 'GET' }
+            ];
+
+            const results = [];
+
+            for (const endpoint of endpoints) {
+                try {
+                    const response = await fetch(`http://127.0.0.1:8000${endpoint.url}`, {
+                        method: endpoint.method === 'DELETE' ? 'DELETE' : 'HEAD'
+                    });
+                    results.push(`${response.ok ? '✅' : '❌'} ${endpoint.name}: ${response.status}`);
+                } catch (error) {
+                    results.push(`❌ ${endpoint.name}: خطأ في الاتصال`);
+                }
+            }
+
+            updateResult(`🧪 نتائج اختبار APIs:
+                <br>${results.join('<br>')}`, 'info');
+        }
+
+        // تشغيل تلقائي عند تحميل الصفحة
+        window.addEventListener('load', function() {
+            updateResult('🛠️ أدوات الإصلاح جاهزة - جرب الوظائف أعلاه', 'info');
+        });
+    </script>
+</body>
+</html>

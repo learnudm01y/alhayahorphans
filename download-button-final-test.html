@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="test-token">
+    <title>اختبار زر التنزيل النهائي</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { padding: 30px; background-color: #f8f9fa; }
+        .test-container { max-width: 800px; margin: 0 auto; }
+        .status-box { padding: 15px; border-radius: 8px; margin: 10px 0; }
+        .status-success { background-color: #d1edff; border: 2px solid #0dcaf0; }
+        .status-warning { background-color: #fff3cd; border: 2px solid #ffc107; }
+        .status-error { background-color: #f8d7da; border: 2px solid #dc3545; }
+        .download-btn-test {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            border: none;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        .download-btn-test:hover {
+            transform: translateY(-2px);
+            color: white;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+        }
+        .log-area {
+            background: #000;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 5px;
+            height: 250px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+
+<div class="test-container">
+    <h1 class="text-center mb-4">
+        <i class="fas fa-download text-success"></i>
+        اختبار زر التنزيل النهائي
+    </h1>
+
+    <!-- حالة النظام -->
+    <div class="status-box status-warning">
+        <h5><i class="fas fa-info-circle"></i> حالة النظام</h5>
+        <div class="row">
+            <div class="col-md-6">
+                <strong>خادم Laravel:</strong> <span id="serverStatus">جاري الفحص...</span>
+            </div>
+            <div class="col-md-6">
+                <strong>API التنزيل:</strong> <span id="apiStatus">جاري الفحص...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- أزرار الاختبار -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5><i class="fas fa-test-tube"></i> اختبارات التنزيل</h5>
+        </div>
+        <div class="card-body text-center">
+            <p class="mb-3">اختبر الطرق المختلفة لتنزيل الملفات المكررة:</p>
+
+            <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                <button class="btn btn-success download-btn-test" onclick="testMethodOne()">
+                    <i class="fas fa-download"></i> الطريقة الأولى: window.open
+                </button>
+                <button class="btn btn-info" onclick="testMethodTwo()">
+                    <i class="fas fa-link"></i> الطريقة الثانية: رابط مخفي
+                </button>
+                <button class="btn btn-warning" onclick="testMethodThree()">
+                    <i class="fas fa-code"></i> الطريقة الثالثة: fetch + blob
+                </button>
+            </div>
+
+            <hr>
+
+            <button class="btn btn-danger btn-lg" onclick="testAllMethods()">
+                <i class="fas fa-rocket"></i> اختبار جميع الطرق
+            </button>
+        </div>
+    </div>
+
+    <!-- سجل الأحداث -->
+    <div class="card">
+        <div class="card-header bg-dark text-white d-flex justify-content-between">
+            <h5><i class="fas fa-terminal"></i> سجل الأحداث</h5>
+            <button class="btn btn-sm btn-outline-light" onclick="clearLog()">
+                <i class="fas fa-eraser"></i> مسح
+            </button>
+        </div>
+        <div class="card-body p-0">
+            <div class="log-area" id="logArea"></div>
+        </div>
+    </div>
+
+    <!-- معلومات تقنية -->
+    <div class="mt-3">
+        <small class="text-muted">
+            <strong>Session ID:</strong> <span id="sessionInfo"></span><br>
+            <strong>رابط API:</strong> <span id="apiUrl"></span><br>
+            <strong>طريقة النجاح:</strong> <span id="successMethod">لم يتم الاختبار بعد</span>
+        </small>
+    </div>
+</div>
+
+<script>
+// المتغيرات العامة
+const sessionId = 'final_test_' + Date.now();
+const baseUrl = window.location.protocol + '//' + window.location.hostname + ':8000';
+const apiUrl = `${baseUrl}/api/duplicate-files/download?session_id=${sessionId}`;
+
+// عرض المعلومات
+document.getElementById('sessionInfo').textContent = sessionId;
+document.getElementById('apiUrl').textContent = apiUrl;
+
+// دالة التسجيل
+function log(message, type = 'info') {
+    const logArea = document.getElementById('logArea');
+    const timestamp = new Date().toLocaleTimeString('ar-SA');
+    const colors = {
+        'info': '#00ff00',
+        'success': '#00ff88',
+        'error': '#ff4444',
+        'warning': '#ffaa00'
+    };
+
+    const coloredMessage = `[${timestamp}] ${message}\n`;
+    logArea.innerHTML += `<span style="color: ${colors[type]}">${coloredMessage}</span>`;
+    logArea.scrollTop = logArea.scrollHeight;
+    console.log(message);
+}
+
+// مسح السجل
+function clearLog() {
+    document.getElementById('logArea').innerHTML = '';
+    log('تم مسح سجل الأحداث', 'info');
+}
+
+// فحص الخادم
+function checkServer() {
+    log('🔍 فحص حالة خادم Laravel...', 'info');
+
+    fetch(`${baseUrl}/`)
+    .then(response => {
+        if (response.ok) {
+            log('✅ الخادم يعمل بشكل صحيح', 'success');
+            document.getElementById('serverStatus').innerHTML = '<span class="text-success">✅ يعمل</span>';
+            return true;
+        } else {
+            throw new Error(`HTTP ${response.status}`);
+        }
+    })
+    .catch(error => {
+        log(`❌ خطأ في الخادم: ${error.message}`, 'error');
+        document.getElementById('serverStatus').innerHTML = '<span class="text-danger">❌ خطأ</span>';
+        return false;
+    });
+}
+
+// فحص API
+function checkAPI() {
+    log('🧪 فحص API التنزيل...', 'info');
+
+    fetch(apiUrl, { method: 'HEAD' })
+    .then(response => {
+        if (response.ok) {
+            log('✅ API التنزيل متاح', 'success');
+            document.getElementById('apiStatus').innerHTML = '<span class="text-success">✅ متاح</span>';
+        } else {
+            log(`⚠️ API قد لا يعمل: HTTP ${response.status}`, 'warning');
+            document.getElementById('apiStatus').innerHTML = '<span class="text-warning">⚠️ غير مؤكد</span>';
+        }
+    })
+    .catch(error => {
+        log(`❌ API غير متاح: ${error.message}`, 'error');
+        document.getElementById('apiStatus').innerHTML = '<span class="text-danger">❌ غير متاح</span>';
+    });
+}
+
+// الطريقة الأولى: window.open
+function testMethodOne() {
+    log('🚀 اختبار الطريقة الأولى: window.open', 'info');
+
+    try {
+        window.open(apiUrl, '_blank');
+        log('✅ تم فتح نافذة التنزيل بنجاح', 'success');
+        document.getElementById('successMethod').textContent = 'الطريقة الأولى: window.open';
+        return true;
+    } catch (error) {
+        log(`❌ فشلت الطريقة الأولى: ${error.message}`, 'error');
+        return false;
+    }
+}
+
+// الطريقة الثانية: رابط مخفي
+function testMethodTwo() {
+    log('🔗 اختبار الطريقة الثانية: رابط مخفي', 'info');
+
+    try {
+        const link = document.createElement('a');
+        link.href = apiUrl;
+        link.download = `duplicate_files_${sessionId}.zip`;
+        link.target = '_blank';
+        link.style.display = 'none';
+
+        document.body.appendChild(link);
+        log('➕ تم إضافة الرابط إلى DOM', 'info');
+
+        link.click();
+        log('👆 تم تفعيل الرابط', 'info');
+
+        document.body.removeChild(link);
+        log('➖ تم إزالة الرابط من DOM', 'info');
+
+        log('✅ انتهت الطريقة الثانية بنجاح', 'success');
+        document.getElementById('successMethod').textContent = 'الطريقة الثانية: رابط مخفي';
+        return true;
+    } catch (error) {
+        log(`❌ فشلت الطريقة الثانية: ${error.message}`, 'error');
+        return false;
+    }
+}
+
+// الطريقة الثالثة: fetch + blob
+function testMethodThree() {
+    log('📦 اختبار الطريقة الثالثة: fetch + blob', 'info');
+
+    fetch(apiUrl)
+    .then(response => {
+        log(`📡 استجابة الخادم: ${response.status}`, response.ok ? 'success' : 'error');
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        return response.blob();
+    })
+    .then(blob => {
+        log(`📄 تم استلام blob بحجم: ${blob.size} bytes`, 'success');
+
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `duplicate_files_fetch_${sessionId}.zip`;
+        link.style.display = 'none';
+
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        window.URL.revokeObjectURL(url);
+        log('✅ انتهت الطريقة الثالثة بنجاح', 'success');
+        document.getElementById('successMethod').textContent = 'الطريقة الثالثة: fetch + blob';
+    })
+    .catch(error => {
+        log(`❌ فشلت الطريقة الثالثة: ${error.message}`, 'error');
+    });
+}
+
+// اختبار جميع الطرق
+function testAllMethods() {
+    log('🎯 بدء اختبار جميع الطرق...', 'warning');
+
+    // الطريقة الأولى
+    setTimeout(() => {
+        if (testMethodOne()) {
+            log('💡 الطريقة الأولى نجحت - تم تخطي الباقي', 'success');
+            return;
+        }
+
+        // الطريقة الثانية بعد 2 ثانية
+        setTimeout(() => {
+            if (testMethodTwo()) {
+                log('💡 الطريقة الثانية نجحت', 'success');
+            } else {
+                // الطريقة الثالثة بعد 2 ثانية أخرى
+                setTimeout(testMethodThree, 2000);
+            }
+        }, 2000);
+    }, 500);
+
+    log('📥 تحقق من مجلد التنزيلات للملفات المحملة', 'info');
+}
+
+// تشغيل الفحوصات التلقائية
+document.addEventListener('DOMContentLoaded', function() {
+    log('🎬 تم تحميل الصفحة بنجاح', 'success');
+    log(`🆔 Session ID: ${sessionId}`, 'info');
+    log(`🌐 API URL: ${apiUrl}`, 'info');
+
+    // فحص تلقائي
+    setTimeout(checkServer, 1000);
+    setTimeout(checkAPI, 2000);
+
+    log('💡 اضغط على الأزرار أعلاه لاختبار طرق التنزيل المختلفة', 'info');
+});
+</script>
+
+</body>
+</html>

@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UnifiedFileManagementController;
 use App\Http\Controllers\SimpleFileUploadController;
+use App\Http\Controllers\DuplicateFileController;
 
 /*
 |--------------------------------------------------------------------------
@@ -41,4 +42,12 @@ Route::prefix('files')->group(function () {
     Route::get('/analytics/overview', [UnifiedFileManagementController::class, 'getAnalyticsOverview']);
     Route::get('/analytics/storage', [UnifiedFileManagementController::class, 'getStorageAnalytics']);
     Route::get('/analytics/activity', [UnifiedFileManagementController::class, 'getActivityAnalytics']);
+});
+
+// Duplicate Files API Routes - بدون authentication
+Route::prefix('duplicate-files')->group(function () {
+    Route::get('/summary', [DuplicateFileController::class, 'getDuplicateFilesSummary']);
+    Route::delete('/delete', [DuplicateFileController::class, 'deleteDuplicateFiles']);
+    Route::get('/download', [DuplicateFileController::class, 'downloadDuplicateFiles']);
+    Route::post('/process', [DuplicateFileController::class, 'processFolderForDuplicates']);
 });

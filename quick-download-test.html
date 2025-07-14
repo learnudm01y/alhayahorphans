@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔥 اختبار سريع لتنزيل الملفات</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: #343a40;
+            color: white;
+            padding: 50px;
+            font-family: Arial;
+        }
+        .btn-download {
+            padding: 20px 40px;
+            font-size: 18px;
+            margin: 10px;
+            border-radius: 10px;
+        }
+        .result {
+            background: #495057;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-5">🔥 اختبار سريع لتنزيل الملفات</h1>
+
+        <div class="text-center">
+            <button class="btn btn-success btn-download" onclick="testSimpleDownload()">
+                تنزيل بسيط جداً
+            </button>
+
+            <button class="btn btn-primary btn-download" onclick="testDirectURL()">
+                فتح URL مباشر
+            </button>
+
+            <button class="btn btn-warning btn-download" onclick="testAPI()">
+                اختبار API
+            </button>
+        </div>
+
+        <div id="result" class="result">
+            جاهز للاختبار...
+        </div>
+
+        <div class="alert alert-info">
+            <strong>معلومات الاختبار:</strong><br>
+            Laravel Server: http://127.0.0.1:8000<br>
+            API Endpoint: /api/duplicate-files/download<br>
+            Session ID: test_simple_123
+        </div>
+    </div>
+
+    <script>
+        function updateResult(message) {
+            document.getElementById('result').innerHTML = `
+                <strong>النتيجة:</strong><br>
+                ${message}<br>
+                <small>الوقت: ${new Date().toLocaleString('ar-SA')}</small>
+            `;
+        }
+
+        // اختبار بسيط جداً
+        function testSimpleDownload() {
+            updateResult('🔄 بدء اختبار بسيط...');
+
+            try {
+                const url = 'http://127.0.0.1:8000/api/duplicate-files/download?session_id=test_simple_123';
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'test_file.zip';
+                link.click();
+
+                updateResult('✅ تم إنشاء رابط التنزيل - تحقق من مجلد التنزيلات');
+            } catch (error) {
+                updateResult('❌ خطأ: ' + error.message);
+            }
+        }
+
+        // فتح URL مباشر
+        function testDirectURL() {
+            updateResult('🌐 فتح URL مباشر...');
+
+            const url = 'http://127.0.0.1:8000/api/duplicate-files/download?session_id=test_simple_123';
+            window.open(url, '_blank');
+
+            updateResult('🔗 تم فتح URL في تبويب جديد');
+        }
+
+        // اختبار API
+        async function testAPI() {
+            updateResult('🧪 اختبار API...');
+
+            try {
+                const url = 'http://127.0.0.1:8000/api/duplicate-files/download?session_id=test_simple_123';
+
+                const response = await fetch(url);
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const downloadUrl = window.URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = downloadUrl;
+                    link.download = 'api_test.zip';
+                    link.click();
+                    window.URL.revokeObjectURL(downloadUrl);
+
+                    updateResult(`✅ API يعمل! تم التنزيل
+                        <br>حجم الملف: ${blob.size} bytes
+                        <br>نوع الملف: ${blob.type}`);
+                } else {
+                    updateResult(`❌ API خطأ: ${response.status} ${response.statusText}`);
+                }
+            } catch (error) {
+                updateResult('❌ خطأ في API: ' + error.message);
+            }
+        }
+
+        // اختبار تلقائي عند تحميل الصفحة
+        window.addEventListener('load', function() {
+            updateResult('🎯 الصفحة جاهزة - اختبر الأزرار أعلاه');
+        });
+    </script>
+</body>
+</html>
