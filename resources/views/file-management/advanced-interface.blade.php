@@ -499,6 +499,10 @@
                 this.maxConcurrentUploads = 3;
                 this.activeUploads = 0;
 
+                // متغيرات للتعامل مع ملفات المجلدات
+                this.processedFiles = null;
+                this.currentUploadType = null;
+
                 this.initializeEventListeners();
                 this.loadAnalytics();
                 this.checkForExistingDuplicates();
@@ -911,7 +915,7 @@
                 console.log(`📊 فلترة الملفات: ${files.length} إجمالي → ${validFiles.length} صالح`);
 
                 if (validFiles.length === 0) {
-                    this.showAlert('لا توجد ملفات صالحة للرفع. تأكد من وجود مجلدات بأسماء أرقام هوية صحيحة (8-10 أرقام).', 'warning');
+                    console.log('⚠️ لا توجد ملفات صالحة للرفع. تأكد من وجود مجلدات بأسماء أرقام هوية صحيحة (8-10 أرقام).');
                     return;
                 }
 
@@ -959,12 +963,11 @@
                 // إظهار زر الرفع
                 document.getElementById('startUploadBtn').style.display = 'inline-block';
 
-                // رفع الملفات الصالحة تلقائياً مع معالجة الهويات
-                this.uploadFolderFile(validFiles, type).then(result => {
-                    console.log('🎉 اكتملت عملية الرفع والتحويل بنجاح!', result);
-                }).catch(error => {
-                    console.error('❌ فشلت عملية الرفع:', error);
-                });
+                // حفظ الملفات المعالجة للرفع اللاحق
+                this.processedFiles = validFiles;
+                this.currentUploadType = type;
+
+                console.log(`✨ تم تحضير ${validFiles.length} ملف للرفع. اضغط على زر "بدء الرفع" لتنفيذ العملية.`);
             }
 
             getFolderStructure() {
@@ -1267,6 +1270,25 @@
             }
 
             async startUploads() {
+                // التحقق من وجود ملفات معالجة للرفع (من المجلدات)
+                if (this.processedFiles && this.processedFiles.length > 0) {
+                    console.log('🚀 بدء رفع الملفات المعالجة من المجلد...');
+                    try {
+                        const result = await this.uploadFolderFile(this.processedFiles, this.currentUploadType);
+                        console.log('🎉 اكتملت عملية الرفع والتحويل بنجاح!', result);
+                        this.showAlert('تم رفع ملفات المجلد بنجاح!', 'success');
+
+                        // مسح الملفات المعالجة بعد الرفع
+                        this.processedFiles = null;
+                        this.currentUploadType = null;
+                    } catch (error) {
+                        console.error('❌ فشلت عملية الرفع:', error);
+                        this.showAlert('فشلت عملية رفع ملفات المجلد: ' + error.message, 'error');
+                    }
+                    return;
+                }
+
+                // معالجة الملفات العادية (غير المجلدات)
                 if (this.activeUploads >= this.maxConcurrentUploads) {
                     this.showAlert('يوجد عمليات رفع نشطة. يرجى الانتظار حتى تكتمل.', 'warning');
                     return;
