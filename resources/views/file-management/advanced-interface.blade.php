@@ -689,6 +689,17 @@
                 const folderAnalysis = this.analyzeFolderStructure(files);
                 console.log('📊 تحليل المجلد:', folderAnalysis);
 
+                // عرض هيكل المجلدات
+                console.log('🏗️ هيكل المجلدات:', folderAnalysis.folderHierarchy);
+
+                // عرض تفاصيل المجلدات الأب
+                if (folderAnalysis.parentFolders.length > 0) {
+                    console.log('📂 المجلدات الأب المكتشفة:', folderAnalysis.parentFolders);
+                    folderAnalysis.parentFolders.forEach(parent => {
+                        console.log(`📁 مجلد أب: ${parent} - سيتم تجاهله وتحليل محتوياته`);
+                    });
+                }
+
                 // عرض تفاصيل إضافية حول مجلدات الهوية
                 if (folderAnalysis.identityFolders.length > 0) {
                     console.log('🆔 مجلدات الهوية المكتشفة:', folderAnalysis.identityFolders);
@@ -698,7 +709,12 @@
                 } else {
                     console.log('⚠️ لم يتم العثور على مجلدات بأسماء أرقام هوية');
                     console.log('💡 المجلدات الموجودة:', folderAnalysis.folders);
-                    console.log('💡 تنبيه: جميع أسماء المجلدات يجب أن تطابق رقم هوية أو رقم ملف موجود في النظام');
+                    console.log('💡 تنبيه: يجب أن تحتوي على مجلدات فرعية بأسماء أرقام هوية صحيحة');
+                }
+
+                // عرض المجلدات غير الصالحة
+                if (folderAnalysis.invalidFolders.length > 0) {
+                    console.log('❌ مجلدات غير صالحة (ستُتجاهل):', folderAnalysis.invalidFolders);
                 }
 
                 this.processFolderFiles(files, 'folder');
@@ -713,6 +729,17 @@
                 const folderAnalysis = this.analyzeFolderStructure(files);
                 console.log('📊 تحليل مجلد الصور:', folderAnalysis);
 
+                // عرض هيكل المجلدات
+                console.log('🏗️ هيكل مجلدات الصور:', folderAnalysis.folderHierarchy);
+
+                // عرض تفاصيل المجلدات الأب
+                if (folderAnalysis.parentFolders.length > 0) {
+                    console.log('📂 المجلدات الأب المكتشفة:', folderAnalysis.parentFolders);
+                    folderAnalysis.parentFolders.forEach(parent => {
+                        console.log(`📁 مجلد أب: ${parent} - سيتم تجاهله وتحليل محتوياته`);
+                    });
+                }
+
                 // عرض تفاصيل إضافية حول مجلدات الهوية
                 if (folderAnalysis.identityFolders.length > 0) {
                     console.log('🆔 مجلدات الهوية المكتشفة:', folderAnalysis.identityFolders);
@@ -720,9 +747,14 @@
                         console.log(`📋 ${identity}: سيتم التحقق من وجوده في النظام`);
                     });
                 } else {
-                    console.log('⚠️ لم يتم العثور على مجلدات بأسماء هوية');
+                    console.log('⚠️ لم يتم العثور على مجلدات بأسماء أرقام هوية');
                     console.log('💡 المجلدات الموجودة:', folderAnalysis.folders);
-                    console.log('💡 تنبيه: جميع أسماء المجلدات يجب أن تطابق رقم هوية أو رقم ملف موجود في النظام');
+                    console.log('💡 تنبيه: يجب أن تحتوي على مجلدات فرعية بأسماء أرقام هوية صحيحة');
+                }
+
+                // عرض المجلدات غير الصالحة
+                if (folderAnalysis.invalidFolders.length > 0) {
+                    console.log('❌ مجلدات غير صالحة (ستُتجاهل):', folderAnalysis.invalidFolders);
                 }
 
                 this.processFolderFiles(files, 'images');
@@ -734,37 +766,93 @@
                     totalFiles: files.length,
                     folders: new Set(),
                     identityFolders: new Set(),
+                    parentFolders: new Set(),
+                    invalidFolders: new Set(),
                     fileTypes: {},
-                    structure: {}
+                    structure: {},
+                    folderHierarchy: {}
                 };
 
                 files.forEach(file => {
-                    // تحليل المسار
-                    const pathParts = file.webkitRelativePath.split('/');
-                    const folderName = pathParts.length > 1 ? pathParts[pathParts.length - 2] : 'root';
+                    // تحليل المسار الكامل
+                    const pathParts = file.webkitRelativePath.split('/').filter(part => part.trim() !== '');
 
-                    analysis.folders.add(folderName);                        // فحص إذا كان اسم المجلد يشبه رقم هوية (8-10 أرقام)
+                    if (pathParts.length === 0) return;
+
+                    // المجلد المباشر للملف (المجلد الأخير في المسار)
+                    const directFolder = pathParts[pathParts.length - 2] || 'root';
+
+                    // جميع المجلدات في المسار
+                    pathParts.slice(0, -1).forEach((folderName, index) => {
+                        analysis.folders.add(folderName);
+
+                        // تحديد نوع المجلد
                         if (/^\d{8,10}$/.test(folderName)) {
                             analysis.identityFolders.add(folderName);
+                        } else if (index === 0) {
+                            // المجلد الأول في المسار (المجلد الأب)
+                            analysis.parentFolders.add(folderName);
+                        } else {
+                            // مجلد متوسط أو غير صالح
+                            analysis.invalidFolders.add(folderName);
                         }
+                    });
+
+                    // بناء هيكل التسلسل الهرمي للمجلدات
+                    let currentLevel = analysis.folderHierarchy;
+                    pathParts.slice(0, -1).forEach(folderName => {
+                        if (!currentLevel[folderName]) {
+                            currentLevel[folderName] = {
+                                files: [],
+                                subfolders: {},
+                                isIdentityFolder: /^\d{8,10}$/.test(folderName),
+                                isParentFolder: false
+                            };
+                        }
+                        currentLevel = currentLevel[folderName].subfolders;
+                    });
+
+                    // إضافة الملف إلى المجلد المناسب
+                    let targetLevel = analysis.folderHierarchy;
+                    pathParts.slice(0, -1).forEach(folderName => {
+                        targetLevel = targetLevel[folderName];
+                        if (pathParts.slice(0, -1)[pathParts.slice(0, -1).length - 1] === folderName) {
+                            targetLevel.files.push({
+                                name: file.name,
+                                size: file.size,
+                                type: file.type,
+                                fullPath: file.webkitRelativePath
+                            });
+                        }
+                        targetLevel = targetLevel.subfolders;
+                    });
 
                     // تحليل نوع الملف
                     const ext = file.name.split('.').pop().toLowerCase();
                     analysis.fileTypes[ext] = (analysis.fileTypes[ext] || 0) + 1;
 
-                    // بناء هيكل المجلد
-                    if (!analysis.structure[folderName]) {
-                        analysis.structure[folderName] = [];
+                    // بناء هيكل المجلد التقليدي (للتوافق مع الكود الموجود)
+                    if (!analysis.structure[directFolder]) {
+                        analysis.structure[directFolder] = [];
                     }
-                    analysis.structure[folderName].push({
+                    analysis.structure[directFolder].push({
                         name: file.name,
                         size: file.size,
-                        type: file.type
+                        type: file.type,
+                        fullPath: file.webkitRelativePath
                     });
                 });
 
+                // تحويل Sets إلى Arrays
                 analysis.folders = Array.from(analysis.folders);
                 analysis.identityFolders = Array.from(analysis.identityFolders);
+                analysis.parentFolders = Array.from(analysis.parentFolders);
+                analysis.invalidFolders = Array.from(analysis.invalidFolders);
+
+                // تحديد المجلدات الأب
+                Object.keys(analysis.folderHierarchy).forEach(rootFolder => {
+                    analysis.folderHierarchy[rootFolder].isParentFolder = true;
+                });
 
                 return analysis;
             }
@@ -801,9 +889,40 @@
 
                 console.log(`🔄 بدء معالجة ${type === 'folder' ? 'المجلد' : 'مجلد الصور'}...`);
 
-                // معالجة الملفات محلياً أولاً للمعاينة
-                files.forEach(file => {
+                // تحليل هيكل المجلدات لتحديد الملفات الصالحة
+                const folderAnalysis = this.analyzeFolderStructure(files);
+
+                // فلترة الملفات للاحتفاظ فقط بالملفات في مجلدات الهوية الصحيحة
+                const validFiles = files.filter(file => {
+                    const pathParts = file.webkitRelativePath.split('/').filter(part => part.trim() !== '');
+
+                    // البحث عن مجلد هوية في المسار
+                    const hasIdentityFolder = pathParts.some(part => /^\d{8,10}$/.test(part));
+
+                    if (hasIdentityFolder) {
+                        return true;
+                    }
+
+                    // إذا لم نجد مجلد هوية، سجل تحذير
+                    console.log(`⚠️ تجاهل الملف: ${file.webkitRelativePath} - لا يوجد في مجلد هوية صحيح`);
+                    return false;
+                });
+
+                console.log(`📊 فلترة الملفات: ${files.length} إجمالي → ${validFiles.length} صالح`);
+
+                if (validFiles.length === 0) {
+                    this.showAlert('لا توجد ملفات صالحة للرفع. تأكد من وجود مجلدات بأسماء أرقام هوية صحيحة (8-10 أرقام).', 'warning');
+                    return;
+                }
+
+                // معالجة الملفات الصالحة محلياً أولاً للمعاينة
+                validFiles.forEach(file => {
                     const fileId = this.generateFileId();
+                    const pathParts = file.webkitRelativePath.split('/').filter(part => part.trim() !== '');
+
+                    // العثور على مجلد الهوية في المسار
+                    const identityFolder = pathParts.find(part => /^\d{8,10}$/.test(part));
+
                     const fileData = {
                         id: fileId,
                         file: file,
@@ -813,6 +932,7 @@
                         preview: null,
                         folderPath: file.webkitRelativePath.split('/').slice(0, -1).join('/'),
                         relativePath: file.webkitRelativePath,
+                        identityFolder: identityFolder,
                         source: type === 'folder' ? 'folder-upload' : 'images-folder',
                         processing: {
                             compression: document.getElementById('compressImages').checked,
@@ -828,17 +948,19 @@
                 this.updateFileCounts();
                 this.toggleExcelOptions();
 
-                console.log(`✅ تمت معالجة ${files.length} ملف من ${type === 'folder' ? 'المجلد' : 'مجلد الصور'}`);
+                console.log(`✅ تمت معالجة ${validFiles.length} ملف صالح من ${type === 'folder' ? 'المجلد' : 'مجلد الصور'}`);
                 console.log('📊 حالة النظام:', {
                     totalFiles: this.files.size,
+                    identityFolders: folderAnalysis.identityFolders,
+                    parentFolders: folderAnalysis.parentFolders,
                     folderStructure: this.getFolderStructure()
                 });
 
                 // إظهار زر الرفع
                 document.getElementById('startUploadBtn').style.display = 'inline-block';
 
-                // رفع الملفات تلقائياً مع معالجة الهويات
-                this.uploadFolderFile(files, type).then(result => {
+                // رفع الملفات الصالحة تلقائياً مع معالجة الهويات
+                this.uploadFolderFile(validFiles, type).then(result => {
                     console.log('🎉 اكتملت عملية الرفع والتحويل بنجاح!', result);
                 }).catch(error => {
                     console.error('❌ فشلت عملية الرفع:', error);
@@ -1073,23 +1195,36 @@
                             });
                         }
 
-                        // عرض المجلدات المعتمدة والمرفوضة
+                        // عرض المجلدات المعتمدة والمرفوضة والمتجاهلة
                         if (result.validated_folders && Object.keys(result.validated_folders).length > 0) {
-                            console.log('✅ المجلدات المعتمدة:');
+                            console.log('✅ مجلدات الهوية المعتمدة:');
                             Object.entries(result.validated_folders).forEach(([folderName, data]) => {
                                 console.log(`📁 ${folderName} → file_id: ${data.file_id_number} (${data.matched_by})`);
                             });
                         }
 
+                        if (result.ignored_parent_folders && result.ignored_parent_folders.length > 0) {
+                            console.log('🏷️ المجلدات الأب المتجاهلة (غير مجلدات هوية):', result.ignored_parent_folders);
+                            result.ignored_parent_folders.forEach(folder => {
+                                console.log(`📂 ${folder} - تم تجاهله لأنه ليس مجلد هوية صحيح`);
+                            });
+                        }
+
                         if (result.rejected_folders && result.rejected_folders.length > 0) {
-                            console.log('❌ المجلدات المرفوضة:', result.rejected_folders);
+                            console.log('❌ مجلدات الهوية المرفوضة:', result.rejected_folders);
+                            result.rejected_folders.forEach(folder => {
+                                console.log(`📁 ${folder} - غير موجود في النظام`);
+                            });
                         }
 
                         // عرض إحصائيات عملية الرفع
                         if (result.statistics) {
-                            console.log('� إحصائيات العملية:', {
+                            console.log('📊 إحصائيات العملية:', {
                                 total_folders: result.statistics.total_folders,
+                                identity_folders: result.statistics.identity_folders,
                                 valid_folders: result.statistics.valid_folders,
+                                rejected_identity_folders: result.statistics.rejected_identity_folders,
+                                ignored_parent_folders: result.statistics.ignored_parent_folders,
                                 processed_files: result.statistics.processed_files,
                                 duplicate_files: result.statistics.duplicate_files_count || 0,
                                 files_with_errors: result.statistics.files_with_errors,
@@ -1106,9 +1241,20 @@
                         return result;
                     } else {
                         // معالجة أخطاء التحقق من صحة المجلدات
-                        if (response.status === 422 && result.rejected_folders) {
-                            console.error('❌ مجلدات مرفوضة:', result.rejected_folders);
-                            this.showAlert(`${result.message}: ${result.rejected_folders.join(', ')}`, 'danger');
+                        if (response.status === 422) {
+                            let errorMessage = result.message;
+
+                            if (result.rejected_folders && result.rejected_folders.length > 0) {
+                                console.error('❌ مجلدات هوية مرفوضة:', result.rejected_folders);
+                                errorMessage += `: ${result.rejected_folders.join(', ')}`;
+                            }
+
+                            if (result.ignored_parent_folders && result.ignored_parent_folders.length > 0) {
+                                console.log('ℹ️ مجلدات أب تم تجاهلها (عادي):', result.ignored_parent_folders);
+                                errorMessage += `\nملاحظة: تم تجاهل المجلدات الأب التالية بشكل طبيعي: ${result.ignored_parent_folders.join(', ')}`;
+                            }
+
+                            this.showAlert(errorMessage, 'danger');
                         } else {
                             throw new Error(result.message || 'فشل في رفع المجلد');
                         }
@@ -1272,4 +1418,10 @@
             </div>
         </div>
     </div>
+</div>
+
+<!-- نصيحة حول رفع المجلدات -->
+<div class="alert alert-info mt-2" style="font-size: 0.95em;">
+    <i class="fas fa-info-circle"></i>
+    عند رفع مجلد رئيسي يحتوي على عدة مجلدات فرعية، سيتم تجاهل المجلد الأب تلقائياً وسيتم معالجة المجلدات الفرعية التي تحمل أرقام هوية فقط. تأكد أن أسماء المجلدات الفرعية تطابق أرقام الهوية أو أرقام الملفات في النظام.
 </div>

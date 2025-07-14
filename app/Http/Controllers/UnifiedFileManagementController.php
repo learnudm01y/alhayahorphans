@@ -658,22 +658,53 @@ class UnifiedFileManagementController extends Controller
             $validatedFolders = [];
             $rejectedFolders = [];
 
-            // استخراج أسماء المجلدات من المسارات
+            // استخراج أسماء المجلدات من المسارات مع البحث عن مجلدات الهوية في جميع المستويات
             $folderNames = [];
-            foreach ($paths as $path) {
+            $identityFolders = [];
+            $pathToFolderMapping = [];
+
+            foreach ($paths as $index => $path) {
                 if ($path) {
                     $parts = explode('/', $path);
-                    $folderName = $parts[0]; // اسم المجلد الرئيسي
-                    if (!in_array($folderName, $folderNames)) {
-                        $folderNames[] = $folderName;
+                    array_pop($parts); // إزالة اسم الملف للحصول على مسار المجلد فقط
+
+                    // البحث عن مجلدات الهوية في جميع أجزاء المسار
+                    foreach ($parts as $part) {
+                        if (!in_array($part, $folderNames)) {
+                            $folderNames[] = $part;
+                        }
+
+                        // فحص إذا كان الجزء يشبه رقم هوية (8-10 أرقام)
+                        if (preg_match('/^\d{8,10}$/', $part)) {
+                            if (!in_array($part, $identityFolders)) {
+                                $identityFolders[] = $part;
+                            }
+                            // ربط المسار بمجلد الهوية المكتشف
+                            $pathToFolderMapping[$index] = $part;
+                        }
+                    }
+
+                    // إذا لم نجد مجلد هوية في هذا المسار، استخدم الطريقة القديمة كـ fallback
+                    if (!isset($pathToFolderMapping[$index])) {
+                        $possibleFolder = $parts[0]; // المجلد الأول في المسار
+                        if (preg_match('/^\d{8,10}$/', $possibleFolder)) {
+                            $pathToFolderMapping[$index] = $possibleFolder;
+                            if (!in_array($possibleFolder, $identityFolders)) {
+                                $identityFolders[] = $possibleFolder;
+                            }
+                        }
                     }
                 }
             }
 
-            Log::info('Extracted folder names for validation', ['folders' => $folderNames]);
+            Log::info('Extracted folder names for validation', [
+                'all_folders' => $folderNames,
+                'identity_folders' => $identityFolders,
+                'path_mappings' => $pathToFolderMapping
+            ]);
 
-            // التحقق من وجود المجلدات في جدول data وتحديد المجلد النهائي للتخزين
-            foreach ($folderNames as $folderName) {
+            // التحقق من وجود مجلدات الهوية في جدول data وتحديد المجلد النهائي للتخزين
+            foreach ($identityFolders as $folderName) {
                 // البحث عن data_id_number في جدول data
                 $dataRecord = DB::table('data')
                     ->where('data_id_number', $folderName)
@@ -724,7 +755,7 @@ class UnifiedFileManagementController extends Controller
                         ]);
                     } else {
                         $rejectedFolders[] = $folderName;
-                        Log::warning("Folder rejected - not found in data table", [
+                        Log::warning("Identity folder rejected - not found in data table", [
                             'folder_name' => $folderName,
                             'checked_columns' => ['data_id_number', 'file_id_number']
                         ]);
@@ -732,13 +763,23 @@ class UnifiedFileManagementController extends Controller
                 }
             }
 
-            // رفض العملية إذا كان هناك مجلدات غير صحيحة
-            if (!empty($rejectedFolders)) {
+            // تسجيل المجلدات الأب التي تم تجاهلها (المجلدات غير الهوية)
+            $ignoredParentFolders = array_diff($folderNames, $identityFolders);
+            if (!empty($ignoredParentFolders)) {
+                Log::info("Parent folders ignored (not identity folders)", [
+                    'ignored_folders' => $ignoredParentFolders,
+                    'reason' => 'Not matching identity pattern (8-10 digits)'
+                ]);
+            }
+
+            // لا نرفض العملية إذا كانت هناك مجلدات هوية صالحة، حتى لو كانت هناك مجلدات أب غير صالحة
+            if (empty($validatedFolders) && !empty($rejectedFolders)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'تحتوي المجلدات التالية على أسماء غير صحيحة',
+                    'message' => 'لا توجد مجلدات هوية صحيحة للمعالجة',
                     'rejected_folders' => $rejectedFolders,
-                    'error_details' => 'أسماء المجلدات يجب أن تطابق رقم الهوية أو رقم الملف الموجود في النظام'
+                    'ignored_parent_folders' => $ignoredParentFolders,
+                    'error_details' => 'يجب أن تحتوي المجلدات على أسماء تطابق أرقام الهوية الموجودة في النظام (8-10 أرقام)'
                 ], 422);
             }
 
@@ -751,18 +792,27 @@ class UnifiedFileManagementController extends Controller
                 $originalFolderName = '';
                 $targetFileId = '';
 
-                if ($path) {
-                    $parts = explode('/', $path);
-                    $originalFolderName = $parts[0];
+                // استخدام خريطة المسار إلى المجلد للعثور على مجلد الهوية الصحيح
+                if (isset($pathToFolderMapping[$index])) {
+                    $originalFolderName = $pathToFolderMapping[$index];
 
                     if (isset($validatedFolders[$originalFolderName])) {
                         $targetFileId = $validatedFolders[$originalFolderName]['file_id_number'];
                     } else {
-                        // تخطي الملف إذا كان المجلد غير صحيح
+                        // تخطي الملف إذا كان مجلد الهوية غير صحيح
+                        Log::warning("Skipping file - identity folder not validated", [
+                            'file_name' => $file->getClientOriginalName(),
+                            'path' => $path,
+                            'identity_folder' => $originalFolderName
+                        ]);
                         continue;
                     }
                 } else {
-                    // تخطي الملفات بدون مسار مجلد صحيح
+                    // تخطي الملفات التي لا تحتوي على مجلد هوية صحيح
+                    Log::warning("Skipping file - no identity folder found in path", [
+                        'file_name' => $file->getClientOriginalName(),
+                        'path' => $path
+                    ]);
                     continue;
                 }
 
@@ -861,6 +911,7 @@ class UnifiedFileManagementController extends Controller
                 }, $validatedFolders),
                 'validated_folders' => $validatedFolders,
                 'rejected_folders' => $rejectedFolders,
+                'ignored_parent_folders' => $ignoredParentFolders ?? [],
                 'excel_results' => $excelResults,
                 'files' => $processedFiles,
                 'errors' => $errors,
@@ -868,7 +919,10 @@ class UnifiedFileManagementController extends Controller
                 'duplicate_files' => $duplicateFilesInfo,
                 'statistics' => [
                     'total_folders' => count($folderNames),
+                    'identity_folders' => count($identityFolders),
                     'valid_folders' => count($validatedFolders),
+                    'rejected_identity_folders' => count($rejectedFolders),
+                    'ignored_parent_folders' => count($ignoredParentFolders ?? []),
                     'rejected_folders' => count($rejectedFolders),
                     'processed_files' => count($processedFiles),
                     'files_with_errors' => count($errors),
