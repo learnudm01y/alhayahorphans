@@ -8,7 +8,6 @@ use App\Services\ImageProcessingService;
 use App\Services\ExcelManagementService;
 use App\Services\PdfManagementService;
 use App\Services\ExcelImportService;
-use App\Services\DuplicateFileDetectionService;
 use App\Models\Attachment;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -25,7 +24,6 @@ class UnifiedFileManagementController extends Controller
     protected $excelManager;
     protected $pdfManager;
     protected $excelImportService;
-    protected $duplicateFileDetector;
 
     public function __construct(
         ?FileOrganizationService $fileOrganizer = null,
@@ -33,8 +31,7 @@ class UnifiedFileManagementController extends Controller
         ?ImageProcessingService $imageProcessor = null,
         ?ExcelManagementService $excelManager = null,
         ?PdfManagementService $pdfManager = null,
-        ?ExcelImportService $excelImportService = null,
-        ?DuplicateFileDetectionService $duplicateFileDetector = null
+        ?ExcelImportService $excelImportService = null
     ) {
         $this->fileOrganizer = $fileOrganizer;
         $this->cloudIntegration = $cloudIntegration;
@@ -42,7 +39,6 @@ class UnifiedFileManagementController extends Controller
         $this->excelManager = $excelManager;
         $this->pdfManager = $pdfManager;
         $this->excelImportService = $excelImportService ?: new ExcelImportService();
-        $this->duplicateFileDetector = $duplicateFileDetector ?: new DuplicateFileDetectionService();
     }
 
     /**
@@ -502,7 +498,7 @@ class UnifiedFileManagementController extends Controller
             return response()->json([
                 'success' => true,
                 'analytics' => $analytics,
-                'generated_at' => now()->toDateTimeString()
+                'generated_at' => now()->toISOString()
             ]);
 
         } catch (\Exception $e) {
@@ -946,419 +942,555 @@ class UnifiedFileManagementController extends Controller
     }
 
     /**
-     * Process folder upload with duplicate detection and handling
+     * Process individual file with identity to file_id mapping
      */
-    public function processFolderUploadWithDuplicateDetection(Request $request)
+    private function processFileWithMapping($file, $fileIdNumber, $newPath, $originalIdentity)
+    {
+        // تحديد نوع الملف
+        $fileType = $this->determineFileType($file);
+
+        // إنشاء اسم ملف فريد
+        $fileName = $fileIdNumber . '_' . time() . '_' . $file->getClientOriginalName();
+
+        // تحديد مجلد الحفظ
+        $destinationPath = storage_path('app/public/uploads/' . $fileIdNumber);
+        if (!file_exists($destinationPath)) {
+            mkdir($destinationPath, 0755, true);
+        }
+
+        // حفظ الملف
+        $savedPath = $file->move($destinationPath, $fileName);
+
+        // معالجة خاصة حسب نوع الملف
+        $processingResults = [];
+        if ($fileType === 'image') {
+            $processingResults['image'] = $this->imageProcessor->processImage($savedPath);
+        }
+
+        // Check file existence before accessing size
+        $filePathname = method_exists($file, 'getPathname') ? $file->getPathname() : null;
+        $fileSize = ($filePathname && file_exists($filePathname)) ? $file->getSize() : null;
+
+        return [
+            'original_identity' => $originalIdentity,
+            'file_id_number' => $fileIdNumber,
+            'original_name' => $file->getClientOriginalName(),
+            'saved_name' => $fileName,
+            'path' => $savedPath,
+            'new_folder_path' => $newPath,
+            'type' => $fileType,
+            'size' => $fileSize,
+            'processing' => $processingResults
+        ];
+    }
+
+    /**
+     * Process Excel file with identity to file_id mapping
+     */
+    private function processExcelWithMapping($excelFile, $targetTable, $identityMapping)
     {
         try {
-            $request->validate([
-                'files.*' => 'required|file|max:1024000',
-                'folder_name' => 'required|string|max:255',
-                'paths.*' => 'nullable|string',
-                'check_duplicates' => 'nullable|boolean',
-                'handle_duplicates' => 'nullable|string|in:skip,store_temp,replace'
-            ]);
+            // قراءة ملف Excel باستخدام طريقة مبسطة
+            $processedRecords = [];
 
-            $files = $request->file('files');
-            $folderName = $request->input('folder_name');
-            $checkDuplicates = $request->input('check_duplicates', true);
-            $handleDuplicates = $request->input('handle_duplicates', 'store_temp');
+            // استخدام SimpleExcel أو CSV reader
+            if ($excelFile->getClientOriginalExtension() === 'csv') {
+                $csvData = array_map('str_getcsv', file($excelFile->getPathname()));
+                $headers = array_shift($csvData);
 
-            Log::info('Processing folder upload with duplicate detection', [
-                'folder_name' => $folderName,
-                'files_count' => count($files),
-                'check_duplicates' => $checkDuplicates,
-                'handle_duplicates' => $handleDuplicates
-            ]);
+                foreach ($csvData as $row) {
+                    $rowData = array_combine($headers, $row);
 
-            $results = [
-                'success' => true,
-                'folder_name' => $folderName,
-                'total_files' => count($files),
-                'processed_files' => 0,
-                'uploaded_files' => 0,
-                'duplicate_files' => 0,
-                'skipped_files' => 0,
-                'errors' => [],
-                'duplicates_session_id' => null,
-                'duplicates_info' => []
-            ];
+                    // البحث عن رقم الهوية في الصف
+                    $identityNumber = $rowData['person_id'] ?? $rowData['identity'] ?? $rowData['id'] ?? null;
 
-            // إذا كان فحص الملفات المكررة مفعل
-            if ($checkDuplicates) {
-                Log::info('Starting duplicate detection for folder', ['folder_name' => $folderName]);
+                    if ($identityNumber && isset($identityMapping[$identityNumber])) {
+                        // استبدال رقم الهوية برقم الملف
+                        $rowData['file_id_number'] = $identityMapping[$identityNumber];
+                        $rowData['original_identity'] = $identityNumber;
+                        $rowData['created_at'] = now();
+                        $rowData['updated_at'] = now();
 
-                $duplicateResults = $this->duplicateFileDetector->processFolderForDuplicates($files, $folderName);
-
-                $results['duplicates_session_id'] = $duplicateResults['session_id'];
-                $results['duplicate_files'] = $duplicateResults['duplicates_found'];
-                $results['duplicates_info'] = $duplicateResults['duplicate_files'];
-
-                Log::info('Duplicate detection completed', [
-                    'duplicates_found' => $duplicateResults['duplicates_found'],
-                    'session_id' => $duplicateResults['session_id']
+                        // إدخال البيانات في الجدول المحدد
+                        DB::table($targetTable)->insert($rowData);
+                        $processedRecords[] = $rowData;
+                    }
+                }
+            } else {
+                // للملفات Excel، نحتاج مكتبة خاصة أو تحويل إلى CSV أولاً
+                Log::warning('Excel file processing requires PhpSpreadsheet library', [
+                    'file_path' => $excelFile->getPathname(),
+                    'extension' => $excelFile->getClientOriginalExtension()
                 ]);
 
-                // إذا كان التعامل مع المكررات هو "تخطي"، قم بإزالة الملفات المكررة من قائمة المعالجة
-                if ($handleDuplicates === 'skip' && $duplicateResults['duplicates_found'] > 0) {
-                    $duplicateFileNames = array_column($duplicateResults['duplicate_files'], 'original_name');
-                    $files = array_filter($files, function($file) use ($duplicateFileNames) {
-                        return !in_array($file->getClientOriginalName(), $duplicateFileNames);
-                    });
-                    $results['skipped_files'] = $duplicateResults['duplicates_found'];
+                // للآن، سنعامل الملف كـ CSV بعد تحويله
+                $errors[] = 'يرجى تحويل ملف Excel إلى CSV أولاً للاستيراد الصحيح';
+            }
 
-                    Log::info('Skipped duplicate files', [
-                        'skipped_count' => $results['skipped_files'],
-                        'duplicate_files' => $duplicateFileNames
-                    ]);
+            return [
+                'processed_count' => count($processedRecords),
+                'total_excel_rows' => count($processedRecords),
+                'mapped_records' => $processedRecords
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Excel processing with mapping error: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * معالجة رفع ملفات الإكسل مع خيارات الاستيراد
+     */
+    public function processExcelUpload(Request $request)
+    {
+        // تعيين إعدادات PHP برمجياً لدعم الملفات الكبيرة
+        if (function_exists('ini_set')) {
+            @ini_set('upload_max_filesize', '1024M');
+            @ini_set('post_max_size', '1024M');
+            @ini_set('max_execution_time', 3600);
+            @ini_set('max_input_time', 3600);
+            @ini_set('memory_limit', '2048M');
+            @ini_set('max_file_uploads', 100);
+            @ini_set('file_uploads', 'On');
+            @ini_set('max_input_vars', 10000);
+        }
+
+        // رفع حد الذاكرة إضافياً إذا أمكن
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(3600);
+        }
+
+        try {
+            // Log request info for debugging مع الإعدادات المحدثة
+            Log::info('Excel upload request debug', [
+                'request_method' => $request->method(),
+                'has_files' => $request->hasFile('files'),
+                'request_files' => $request->file(),
+                'FILES_keys' => array_keys($_FILES ?? []),
+                'POST_keys' => array_keys($_POST ?? []),
+                'user_id' => auth()->id(),
+                'php_settings_after_update' => [
+                    'post_max_size' => ini_get('post_max_size'),
+                    'upload_max_filesize' => ini_get('upload_max_filesize'),
+                    'max_file_uploads' => ini_get('max_file_uploads'),
+                    'memory_limit' => ini_get('memory_limit'),
+                    'max_execution_time' => ini_get('max_execution_time')
+                ]
+            ]);
+
+            // خاصية تنظيف أسماء الملفات
+            $sanitizeFilename = function($filename) {
+                // إزالة المسارات الضارة
+                $filename = basename($filename);
+
+                // تحويل المسافات إلى شرطات سفلية
+                $filename = str_replace(' ', '_', $filename);
+
+                // إزالة الأحرف الخاصة الخطيرة
+                $filename = preg_replace('/[^a-zA-Z0-9_\-\.اأإآبتثجحخدذرزسشصضطظعغفقكلمنهوي]/', '', $filename);
+
+                // التأكد من أن الاسم ليس فارغ
+                if (empty(trim($filename))) {
+                    $filename = 'uploaded_file_' . time() . '.xlsx';
+                }
+
+                return $filename;
+            };
+
+            // Try multiple ways to get files
+            $files = [];
+
+            // Method 1: Standard Laravel way for single or multiple files
+            if ($request->hasFile('files')) {
+                $filesData = $request->file('files');
+                if (is_array($filesData)) {
+                    $files = $filesData;
+                } else {
+                    $files = [$filesData]; // Single file, convert to array
+                }
+                Log::info('Method 1: Files found via Laravel standard', [
+                    'count' => count($files),
+                    'is_array' => is_array($filesData),
+                    'file_names' => array_map(function($file) use ($sanitizeFilename) {
+                        return $sanitizeFilename($file->getClientOriginalName());
+                    }, $files)
+                ]);
+            }
+            // Method 2: Check for single file upload
+            elseif ($request->hasFile('file')) {
+                $files = [$request->file('file')];
+                Log::info('Method 1.5: Single file found via "file" key', [
+                    'count' => 1,
+                    'sanitized_name' => $sanitizeFilename($files[0]->getClientOriginalName())
+                ]);
+            }
+            // Method 3: Direct $_FILES access for array notation
+            elseif (isset($_FILES['files']) && !empty($_FILES['files'])) {
+                Log::info('Method 2: Checking $_FILES directly', [
+                    'files_structure' => $_FILES['files'],
+                    'name_is_array' => is_array($_FILES['files']['name'] ?? null)
+                ]);
+
+                if (is_array($_FILES['files']['name'])) {
+                    // Array of files (files[])
+                    $names = $_FILES['files']['name'];
+                    $tmpNames = $_FILES['files']['tmp_name'];
+                    $types = $_FILES['files']['type'];
+                    $errors = $_FILES['files']['error'];
+                    $sizes = $_FILES['files']['size'];
+
+                    for ($i = 0; $i < count($names); $i++) {
+                        if ($errors[$i] === UPLOAD_ERR_OK && !empty($tmpNames[$i])) {
+                            try {
+                                // تنظيف اسم الملف قبل إنشاء UploadedFile
+                                $sanitizedName = $sanitizeFilename($names[$i]);
+
+                                $uploadedFile = new \Illuminate\Http\UploadedFile(
+                                    $tmpNames[$i],
+                                    $sanitizedName,
+                                    $types[$i],
+                                    $errors[$i],
+                                    true
+                                );
+                                $files[] = $uploadedFile;
+                                Log::info("Created UploadedFile from array index $i", [
+                                    'original_name' => $names[$i],
+                                    'sanitized_name' => $sanitizedName,
+                                    'size' => $sizes[$i],
+                                    'size_mb' => round($sizes[$i] / 1024 / 1024, 2)
+                                ]);
+                            } catch (\Exception $e) {
+                                Log::error("Failed to create UploadedFile for index $i: " . $e->getMessage());
+                            }
+                        } else {
+                            Log::warning("File upload error for index $i", [
+                                'error_code' => $errors[$i],
+                                'error_message' => $this->getUploadErrorMessage($errors[$i]),
+                                'file_name' => $names[$i]
+                            ]);
+                        }
+                    }
+                } else {
+                    // Single file
+                    if ($_FILES['files']['error'] === UPLOAD_ERR_OK && !empty($_FILES['files']['tmp_name'])) {
+                        try {
+                            // تنظيف اسم الملف قبل إنشاء UploadedFile
+                            $sanitizedName = $sanitizeFilename($_FILES['files']['name']);
+
+                            $uploadedFile = new \Illuminate\Http\UploadedFile(
+                                $_FILES['files']['tmp_name'],
+                                $sanitizedName,
+                                $_FILES['files']['type'],
+                                $_FILES['files']['error'],
+                                true
+                            );
+                            $files[] = $uploadedFile;
+                            Log::info('Created single UploadedFile', [
+                                'original_name' => $_FILES['files']['name'],
+                                'sanitized_name' => $sanitizedName,
+                                'size' => $_FILES['files']['size'],
+                                'size_mb' => round($_FILES['files']['size'] / 1024 / 1024, 2)
+                            ]);
+                        } catch (\Exception $e) {
+                            Log::error('Failed to create single UploadedFile: ' . $e->getMessage());
+                        }
+                    } else {
+                        Log::warning('Single file upload error', [
+                            'error_code' => $_FILES['files']['error'],
+                            'error_message' => $this->getUploadErrorMessage($_FILES['files']['error']),
+                            'file_name' => $_FILES['files']['name']
+                        ]);
+                    }
                 }
             }
 
-            // معالجة الملفات المتبقية (غير المكررة أو المكررة حسب الإعداد)
-            foreach ($files as $file) {
-                try {
-                    $fileResult = $this->processIndividualFile($file, $folderName, $request);
+            // If still no files found, check for upload errors
+            if (empty($files)) {
+                // Check if there were upload errors
+                $uploadErrors = [];
+                $hasUploadErrors = false;
 
-                    if ($fileResult['success']) {
-                        $results['uploaded_files']++;
-                    } else {
-                        $results['errors'][] = [
-                            'file_name' => $file->getClientOriginalName(),
-                            'error' => $fileResult['message'] ?? 'خطأ غير معروف'
+                if (isset($_FILES['files'])) {
+                    if (is_array($_FILES['files']['error'])) {
+                        foreach ($_FILES['files']['error'] as $i => $errorCode) {
+                            if ($errorCode !== UPLOAD_ERR_OK) {
+                                $hasUploadErrors = true;
+                                $uploadErrors[] = [
+                                    'file_index' => $i,
+                                    'file_name' => $_FILES['files']['name'][$i] ?? 'Unknown',
+                                    'error_code' => $errorCode,
+                                    'error_message' => $this->getUploadErrorMessage($errorCode),
+                                    'file_size' => $_FILES['files']['size'][$i] ?? 0
+                                ];
+                            }
+                        }
+                    } elseif ($_FILES['files']['error'] !== UPLOAD_ERR_OK) {
+                        $hasUploadErrors = true;
+                        $uploadErrors[] = [
+                            'file_name' => $_FILES['files']['name'] ?? 'Unknown',
+                            'error_code' => $_FILES['files']['error'],
+                            'error_message' => $this->getUploadErrorMessage($_FILES['files']['error']),
+                            'file_size' => $_FILES['files']['size'] ?? 0
+                        ];
+                    }
+                }
+
+                if ($hasUploadErrors) {
+                    // Check if it's a size limit issue
+                    $isSizeIssue = false;
+                    $recommendations = [];
+
+                    foreach ($uploadErrors as $error) {
+                        if (in_array($error['error_code'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE])) {
+                            $isSizeIssue = true;
+                            break;
+                        }
+                    }
+
+                    if ($isSizeIssue) {
+                        $currentUploadLimit = ini_get('upload_max_filesize');
+                        $currentPostLimit = ini_get('post_max_size');
+
+                        $recommendations = [
+                            'المشكلة: حجم الملف أكبر من الحدود المسموحة في إعدادات الخادم',
+                            "الحد الحالي لرفع الملفات: {$currentUploadLimit}",
+                            "الحد الحالي لحجم البيانات: {$currentPostLimit}",
+                            'الحلول الممكنة:',
+                            '1. اطلب من مدير النظام زيادة قيم upload_max_filesize و post_max_size في ملف php.ini',
+                            '2. قسم الملف إلى ملفات أصغر',
+                            '3. استخدم صيغة ضغط أفضل للملف',
+                            '4. احذف البيانات غير الضرورية من الملف'
                         ];
                     }
 
-                    $results['processed_files']++;
-
-                } catch (\Exception $e) {
-                    $results['errors'][] = [
-                        'file_name' => $file->getClientOriginalName(),
-                        'error' => $e->getMessage()
-                    ];
-
-                    Log::error('Error processing individual file', [
-                        'file_name' => $file->getClientOriginalName(),
-                        'error' => $e->getMessage()
+                    Log::warning('Upload errors detected', [
+                        'upload_errors' => $uploadErrors,
+                        'FILES_structure' => $_FILES ?? [],
+                        'user_id' => auth()->id(),
+                        'current_limits' => [
+                            'upload_max_filesize' => ini_get('upload_max_filesize'),
+                            'post_max_size' => ini_get('post_max_size')
+                        ]
                     ]);
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => $isSizeIssue ?
+                            'فشل رفع الملف بسبب تجاوز الحد المسموح لحجم الملف. يرجى تصغير حجم الملف أو تقسيمه.' :
+                            'حدث خطأ أثناء رفع الملف. يرجى التحقق من الملف والمحاولة مرة أخرى.',
+                        'errors' => array_column($uploadErrors, 'error_message'),
+                        'upload_errors' => $uploadErrors,
+                        'recommendations' => $recommendations,
+                        'debug_info' => [
+                            'FILES_keys' => array_keys($_FILES ?? []),
+                            'has_files' => $request->hasFile('files'),
+                            'FILES_structure' => $_FILES ?? [],
+                            'php_limits' => [
+                                'post_max_size' => ini_get('post_max_size'),
+                                'upload_max_filesize' => ini_get('upload_max_filesize'),
+                                'max_file_uploads' => ini_get('max_file_uploads'),
+                                'memory_limit' => ini_get('memory_limit'),
+                                'max_execution_time' => ini_get('max_execution_time')
+                            ]
+                        ]
+                    ], 422);
+                }
+
+                Log::warning('No valid files found after all methods', [
+                    'request_has_files' => $request->hasFile('files'),
+                    'FILES_structure' => $_FILES ?? [],
+                    'user_id' => auth()->id()
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لم يتم رفع أي ملفات. يرجى اختيار ملف Excel للرفع.',
+                    'errors' => ['لا توجد ملفات مرفوعة'],
+                    'debug_info' => [
+                        'FILES_keys' => array_keys($_FILES ?? []),
+                        'has_files' => $request->hasFile('files'),
+                        'FILES_structure' => $_FILES ?? [],
+                        'php_limits' => [
+                            'post_max_size' => ini_get('post_max_size'),
+                            'upload_max_filesize' => ini_get('upload_max_filesize'),
+                            'max_file_uploads' => ini_get('max_file_uploads'),
+                            'memory_limit' => ini_get('memory_limit'),
+                            'max_execution_time' => ini_get('max_execution_time')
+                        ]
+                    ]
+                ], 422);
+            }
+
+            Log::info('Files successfully processed', [
+                'files_count' => count($files),
+                'file_names' => array_map(function($file) {
+                    return $file->getClientOriginalName();
+                }, $files),
+                'total_size_mb' => round(array_sum(array_map(function($file) {
+                    return $file->getSize();
+                }, $files)) / 1024 / 1024, 2)
+            ]);
+
+            // التحقق من صحة كل ملف
+            foreach ($files as $index => $file) {
+                if (!$file || !$file->isValid()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "فشل في تحميل files.{$index}. الملف غير صحيح أو تالف.",
+                        'errors' => ["فشل في تحميل files.{$index}."]
+                    ], 422);
+                }
+
+                // التحقق من نوع الملف
+                $extension = strtolower($file->getClientOriginalExtension());
+                $allowedExtensions = ['xlsx', 'xls', 'csv'];
+                if (!in_array($extension, $allowedExtensions)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "نوع الملف {$file->getClientOriginalName()} غير مدعوم. يجب أن يكون Excel أو CSV.",
+                        'errors' => ["نوع ملف غير مدعوم: {$extension}"]
+                    ], 422);
+                }
+
+                // التحقق من حجم الملف (100MB max)
+                if ($file->getSize() > 104857600) { // 100MB in bytes
+                    return response()->json([
+                        'success' => false,
+                        'message' => "حجم الملف {$file->getClientOriginalName()} كبير جداً. الحد الأقصى 100MB.",
+                        'errors' => ["حجم الملف كبير جداً"]
+                    ], 422);
                 }
             }
 
-            // إعداد الرسالة النهائية
-            $message = "تم معالجة {$results['total_files']} ملف. ";
-            $message .= "رفع ناجح: {$results['uploaded_files']}, ";
+            // Validate other request parameters
+            $request->validate([
+                'processing_mode' => 'required|string|in:file-only,import-data',
+                'enable_excel_import' => 'nullable|boolean',
+                'target_table' => 'nullable|string|in:data,dead_people,guardian_bank_accounts,re_people',
+                'header_row' => 'nullable|boolean',
+                'skip_empty_rows' => 'nullable|boolean',
+                'validate_data' => 'nullable|boolean'
+            ]);
 
-            if ($results['duplicate_files'] > 0) {
-                $message .= "ملفات مكررة: {$results['duplicate_files']}, ";
+            $processingMode = $request->input('processing_mode');
+            $enableImport = filter_var($request->input('enable_excel_import', false), FILTER_VALIDATE_BOOLEAN);
+            $results = [];
+            $importSummary = null;
+
+            Log::info('Excel upload started', [
+                'files_count' => count($files),
+                'processing_mode' => $processingMode,
+                'enable_import' => $enableImport,
+                'user_id' => auth()->id(),
+                'files_info' => array_map(function($file) {
+                    return [
+                        'name' => $file->getClientOriginalName(),
+                        'size' => $file->getSize(),
+                        'mime' => $file->getMimeType(),
+                        'is_valid' => $file->isValid()
+                    ];
+                }, $files)
+            ]);
+
+            DB::beginTransaction();
+
+            foreach ($files as $file) {
+                // 1. حفظ الملف في مجلد documents/excel
+                $filePath = $this->storeExcelFile($file);
+
+                // 2. حفظ معلومات الملف في جدول enhanced_attachments
+                $fileRecord = $this->saveExcelFileRecord($file, $filePath);
+
+                $fileResult = [
+                    'success' => true,
+                    'original_name' => $file->getClientOriginalName(),
+                    'file_path' => $filePath,
+                    'file_size' => $file->getSize(),
+                    'file_type' => 'excel',
+                    'storage_table' => 'enhanced_attachments',
+                    'file_id' => $fileRecord['id'],
+                    'status' => $fileRecord['status'], // created أو updated
+                    'message' => $fileRecord['message']
+                ];
+
+                // 3. إذا كان مطلوب استيراد البيانات
+                if ($processingMode === 'import-data' && $enableImport) {
+                    $importOptions = [
+                        'target_table' => $request->input('target_table', 'data'),
+                        'header_row' => filter_var($request->input('header_row', true), FILTER_VALIDATE_BOOLEAN),
+                        'skip_empty_rows' => filter_var($request->input('skip_empty_rows', true), FILTER_VALIDATE_BOOLEAN),
+                        'validate_data' => filter_var($request->input('validate_data', true), FILTER_VALIDATE_BOOLEAN)
+                    ];
+
+                    $importResult = $this->importExcelToDatabase($filePath, $importOptions);
+                    $fileResult['import_result'] = $importResult;
+
+                    if (!$importSummary) {
+                        $importSummary = [
+                            'target_table' => $importOptions['target_table'],
+                            'imported_rows' => 0,
+                            'total_files' => 0,
+                            'errors' => [],
+                            'file_id_replacements' => [
+                                'total_replacements' => 0,
+                                'files_with_replacements' => 0,
+                                'replacement_details' => []
+                            ]
+                        ];
+                    }
+
+                    $importSummary['imported_rows'] += $importResult['imported_rows'] ?? 0;
+                    $importSummary['total_files']++;
+
+                    if (isset($importResult['errors'])) {
+                        $importSummary['errors'] = array_merge($importSummary['errors'], $importResult['errors']);
+                    }
+
+                    // إضافة معلومات استبدال أرقام الملفات
+                    if (isset($importResult['file_id_report']) && $importResult['file_id_report']['total_replacements'] > 0) {
+                        $importSummary['file_id_replacements']['total_replacements'] += $importResult['file_id_report']['total_replacements'];
+                        $importSummary['file_id_replacements']['files_with_replacements']++;
+                        $importSummary['file_id_replacements']['replacement_details'][] = [
+                            'file_name' => $file->getClientOriginalName(),
+                            'replacements_count' => $importResult['file_id_report']['total_replacements'],
+                            'replacement_methods' => $importResult['detailed_stats']['file_id_management']['replacement_methods_used'] ?? []
+                        ];
+                    }
+                }
+
+                $results[] = $fileResult;
             }
 
-            if ($results['skipped_files'] > 0) {
-                $message .= "ملفات متخطاة: {$results['skipped_files']}, ";
-            }
+            DB::commit();
 
-            if (count($results['errors']) > 0) {
-                $message .= "أخطاء: " . count($results['errors']);
-            }
+            Log::info('Excel upload completed successfully', [
+                'files_processed' => count($results),
+                'import_enabled' => $enableImport,
+                'imported_rows' => $importSummary ? $importSummary['imported_rows'] : 0
+            ]);
 
-            $results['message'] = trim($message, ', ');
-
-            Log::info('Folder upload processing completed', $results);
-
-            return response()->json($results);
+            return response()->json([
+                'success' => true,
+                'message' => 'تم رفع ومعالجة ملفات Excel بنجاح',
+                'files' => $results,
+                'total_files' => count($results),
+                'processing_mode' => $processingMode,
+                'import_summary' => $importSummary
+            ]);
 
         } catch (\Exception $e) {
-            Log::error('Error in folder upload with duplicate detection', [
-                'error' => $e->getMessage(),
-                'folder_name' => $request->input('folder_name', 'unknown'),
+            DB::rollBack();
+            Log::error('Excel upload error: ' . $e->getMessage(), [
+                'user_id' => auth()->id(),
+                'ip' => request()->ip(),
                 'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'فشل في معالجة المجلد: ' . $e->getMessage(),
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Process individual file (helper method)
-     */
-    private function processIndividualFile($file, $folderName, $request)
-    {
-        try {
-            // تحديد نوع الملف
-            $fileType = $this->determineFileType($file);
-
-            // معالجة حسب نوع الملف
-            switch ($fileType) {
-                case 'image':
-                    return $this->processImageFileIndividual($file, $folderName, $request);
-                case 'pdf':
-                case 'document':
-                    return $this->processDocumentFileIndividual($file, $folderName, $request);
-                case 'excel':
-                    return $this->processExcelFileIndividual($file, $folderName, $request);
-                default:
-                    return [
-                        'success' => false,
-                        'message' => 'نوع ملف غير مدعوم: ' . $fileType
-                    ];
-            }
-
-        } catch (\Exception $e) {
-            Log::error('Error processing individual file', [
-                'file_name' => $file->getClientOriginalName(),
-                'folder_name' => $folderName,
-                'error' => $e->getMessage()
-            ]);
-
-            return [
-                'success' => false,
-                'message' => 'فشل في معالجة الملف: ' . $e->getMessage()
-            ];
-        }
-    }
-
-    /**
-     * Process individual image file
-     */
-    private function processImageFileIndividual($file, $folderName, $request)
-    {
-        try {
-            // Generate record number if not provided
-            $recordNumber = $request->input('record_number') ?: $this->autoGenerateRecordNumber();
-
-            // Store the image file
-            $fileName = time() . '_' . $file->getClientOriginalName();
-            $filePath = $file->storeAs('uploads/images', $fileName, 'public');
-
-            // Save to attachments table
-            $attachment = Attachment::create([
-                'person_identity_number' => $folderName, // Using folder name as identity
-                'stored_file_name' => $fileName,
-                'file_name' => $file->getClientOriginalName(), // Original file name for duplicate detection
-                'file_path' => $filePath,
-                'file_type' => 'image',
-                'file_size' => $file->getSize(),
-                'uploaded_at' => now(),
-                'upload_source' => 'folder_upload'
-            ]);
-
-            Log::info('Image file processed successfully', [
-                'file_name' => $file->getClientOriginalName(),
-                'stored_name' => $fileName,
-                'attachment_id' => $attachment->id
-            ]);
-
-            return [
-                'success' => true,
-                'message' => 'تم رفع الصورة بنجاح',
-                'attachment_id' => $attachment->id,
-                'file_path' => $filePath
-            ];
-
-        } catch (\Exception $e) {
-            Log::error('Error processing image file', [
-                'file_name' => $file->getClientOriginalName(),
-                'error' => $e->getMessage()
-            ]);
-
-            return [
-                'success' => false,
-                'message' => 'فشل في معالجة الصورة: ' . $e->getMessage()
-            ];
-        }
-    }
-
-    /**
-     * Process individual document file
-     */
-    private function processDocumentFileIndividual($file, $folderName, $request)
-    {
-        try {
-            // Store the document file
-            $fileName = time() . '_' . $file->getClientOriginalName();
-            $filePath = $file->storeAs('uploads/documents', $fileName, 'public');
-
-            // For now, storing in attachments table - could be moved to enhanced_attachments
-            $attachment = Attachment::create([
-                'person_identity_number' => $folderName,
-                'stored_file_name' => $fileName,
-                'file_path' => $filePath,
-                'file_type' => 'document',
-                'file_size' => $file->getSize()
-            ]);
-
-            Log::info('Document file processed successfully', [
-                'file_name' => $file->getClientOriginalName(),
-                'stored_name' => $fileName,
-                'attachment_id' => $attachment->id
-            ]);
-
-            return [
-                'success' => true,
-                'message' => 'تم رفع المستند بنجاح',
-                'attachment_id' => $attachment->id,
-                'file_path' => $filePath
-            ];
-
-        } catch (\Exception $e) {
-            Log::error('Error processing document file', [
-                'file_name' => $file->getClientOriginalName(),
-                'error' => $e->getMessage()
-            ]);
-
-            return [
-                'success' => false,
-                'message' => 'فشل في معالجة المستند: ' . $e->getMessage()
-            ];
-        }
-    }
-
-    /**
-     * Process individual Excel file
-     */
-    private function processExcelFileIndividual($file, $folderName, $request)
-    {
-        try {
-            // Store the Excel file
-            $fileName = time() . '_' . $file->getClientOriginalName();
-            $filePath = $file->storeAs('uploads/excel', $fileName, 'public');
-
-            // Store in attachments table (or could use enhanced_attachments)
-            $attachment = Attachment::create([
-                'person_identity_number' => $folderName,
-                'stored_file_name' => $fileName,
-                'file_path' => $filePath,
-                'file_type' => 'excel',
-                'file_size' => $file->getSize()
-            ]);
-
-            Log::info('Excel file processed successfully', [
-                'file_name' => $file->getClientOriginalName(),
-                'stored_name' => $fileName,
-                'attachment_id' => $attachment->id
-            ]);
-
-            return [
-                'success' => true,
-                'message' => 'تم رفع ملف Excel بنجاح',
-                'attachment_id' => $attachment->id,
-                'file_path' => $filePath
-            ];
-
-        } catch (\Exception $e) {
-            Log::error('Error processing Excel file', [
-                'file_name' => $file->getClientOriginalName(),
-                'error' => $e->getMessage()
-            ]);
-
-            return [
-                'success' => false,
-                'message' => 'فشل في معالجة ملف Excel: ' . $e->getMessage()
-            ];
-        }
-    }
-
-    /**
-     * Get duplicate files summary for frontend
-     */
-    public function getDuplicateFilesSummary(Request $request)
-    {
-        $request->validate([
-            'session_id' => 'required|string'
-        ]);
-
-        try {
-            $sessionId = $request->input('session_id');
-            $duplicates = $this->duplicateFileDetector->getDuplicateFiles($sessionId);
-
-            return response()->json([
-                'success' => true,
-                'message' => $duplicates['total_duplicates'] > 0
-                    ? "تم العثور على {$duplicates['total_duplicates']} ملف مكرر"
-                    : "لا توجد ملفات مكررة",
-                'data' => $duplicates
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Error getting duplicate files summary', [
-                'session_id' => $request->input('session_id'),
-                'error' => $e->getMessage()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'فشل في جلب ملخص الملفات المكررة: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Download duplicate files as ZIP
-     */
-    public function downloadDuplicateFiles(Request $request)
-    {
-        $request->validate([
-            'session_id' => 'required|string'
-        ]);
-
-        try {
-            $sessionId = $request->input('session_id');
-            $zipPath = $this->duplicateFileDetector->createDuplicatesZip($sessionId);
-
-            if (!$zipPath || !file_exists($zipPath)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'لا توجد ملفات مكررة للتحميل'
-                ], 404);
-            }
-
-            $zipFileName = "duplicate_files_{$sessionId}_" . date('Y-m-d_H-i-s') . '.zip';
-
-            return response()->download($zipPath, $zipFileName)->deleteFileAfterSend(true);
-
-        } catch (\Exception $e) {
-            Log::error('Error downloading duplicate files', [
-                'session_id' => $request->input('session_id'),
-                'error' => $e->getMessage()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'فشل في تحميل الملفات المكررة: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Delete duplicate files for session
-     */
-    public function deleteDuplicateFiles(Request $request)
-    {
-        $request->validate([
-            'session_id' => 'required|string'
-        ]);
-
-        try {
-            $sessionId = $request->input('session_id');
-            $result = $this->duplicateFileDetector->deleteDuplicatesForSession($sessionId);
-
-            return response()->json([
-                'success' => true,
-                'message' => "تم حذف {$result['deleted_files']} ملف و {$result['deleted_records']} سجل",
-                'data' => $result
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error('Error deleting duplicate files', [
-                'session_id' => $request->input('session_id'),
-                'error' => $e->getMessage()
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'فشل في حذف الملفات المكررة: ' . $e->getMessage()
+                'message' => 'حدث خطأ أثناء معالجة ملفات Excel: ' . $e->getMessage(),
+                'errors' => [$e->getMessage()]
             ], 500);
         }
     }
@@ -1369,15 +1501,25 @@ class UnifiedFileManagementController extends Controller
     public function showExcelGateway()
     {
         try {
-            return view('file-management.excel-gateway');
-        } catch (\Exception $e) {
-            Log::error('Error showing Excel gateway', [
-                'error' => $e->getMessage()
-            ]);
+            // تطبيق إعدادات PHP برمجياً قبل عرض الصفحة
+            $this->applyLargeFileSettings();
 
-            return response()->view('errors.500', [
-                'message' => 'فشل في تحميل بوابة Excel'
-            ], 500);
+            $currentSettings = [
+                'upload_max_filesize' => ini_get('upload_max_filesize') ?: '2M',
+                'post_max_size' => ini_get('post_max_size') ?: '8M',
+                'max_execution_time' => ini_get('max_execution_time') ?: '30',
+                'memory_limit' => ini_get('memory_limit') ?: '128M',
+                'max_file_uploads' => ini_get('max_file_uploads') ?: '20'
+            ];
+
+            return view('admin.file.excel-gateway', [
+                'page_title' => 'Excel Upload Gateway',
+                'current_settings' => $currentSettings
+            ]);
+        } catch (\Exception $e) {
+            // إذا فشل تحميل view، استخدم صفحة HTML بسيطة
+            return response(file_get_contents(public_path('excel-gateway.html')), 200)
+                ->header('Content-Type', 'text/html');
         }
     }
 
@@ -1387,24 +1529,1347 @@ class UnifiedFileManagementController extends Controller
     public function showPhpDiagnostic()
     {
         try {
+            // تطبيق إعدادات PHP برمجياً
+            $this->applyLargeFileSettings();
+
+            // جمع معلومات شاملة عن إعدادات PHP
             $phpSettings = [
-                'upload_max_filesize' => ini_get('upload_max_filesize'),
-                'post_max_size' => ini_get('post_max_size'),
-                'max_execution_time' => ini_get('max_execution_time'),
-                'memory_limit' => ini_get('memory_limit'),
-                'max_input_vars' => ini_get('max_input_vars'),
-                'max_file_uploads' => ini_get('max_file_uploads'),
+                'upload_max_filesize' => ini_get('upload_max_filesize') ?: 'Unknown',
+                'post_max_size' => ini_get('post_max_size') ?: 'Unknown',
+                'max_execution_time' => ini_get('max_execution_time') ?: 'Unknown',
+                'memory_limit' => ini_get('memory_limit') ?: 'Unknown',
+                'max_file_uploads' => ini_get('max_file_uploads') ?: 'Unknown',
+                'file_uploads' => ini_get('file_uploads') ?: 'Unknown',
+                'max_input_time' => ini_get('max_input_time') ?: 'Unknown',
+                'max_input_vars' => ini_get('max_input_vars') ?: 'Unknown',
+                'auto_detect_line_endings' => ini_get('auto_detect_line_endings') ?: 'Unknown',
+                'default_socket_timeout' => ini_get('default_socket_timeout') ?: 'Unknown'
             ];
 
-            return view('file-management.php-diagnostic', compact('phpSettings'));
+            // فحص إعدادات الأمان
+            $securitySettings = [
+                'allow_url_fopen' => ini_get('allow_url_fopen'),
+                'allow_url_include' => ini_get('allow_url_include'),
+                'expose_php' => ini_get('expose_php'),
+                'display_errors' => ini_get('display_errors'),
+                'log_errors' => ini_get('log_errors')
+            ];
+
+            // فحص المتغيرات العامة
+            $serverInfo = [
+                'php_version' => phpversion(),
+                'server_software' => $_SERVER['SERVER_SOFTWARE'] ?? 'Unknown',
+                'document_root' => $_SERVER['DOCUMENT_ROOT'] ?? 'Unknown',
+                'server_name' => $_SERVER['SERVER_NAME'] ?? 'Unknown',
+                'request_method' => $_SERVER['REQUEST_METHOD'] ?? 'Unknown',
+                'request_uri' => $_SERVER['REQUEST_URI'] ?? 'Unknown'
+            ];
+
+            // فحص المجلدات المهمة
+            $directoryInfo = [
+                'storage_path' => storage_path(),
+                'public_path' => public_path(),
+                'base_path' => base_path(),
+                'temp_dir' => sys_get_temp_dir(),
+                'upload_tmp_dir' => ini_get('upload_tmp_dir') ?: sys_get_temp_dir()
+            ];
+
+            // فحص صلاحيات المجلدات
+            $permissions = [];
+            foreach ($directoryInfo as $name => $path) {
+                $permissions[$name] = [
+                    'path' => $path,
+                    'exists' => file_exists($path),
+                    'readable' => is_readable($path),
+                    'writable' => is_writable($path),
+                    'permissions' => file_exists($path) ? substr(sprintf('%o', fileperms($path)), -4) : 'N/A'
+                ];
+            }
+
+            // فحص Extensions المطلوبة
+            $requiredExtensions = [
+                'fileinfo', 'mbstring', 'openssl', 'pdo', 'tokenizer', 'xml', 'curl', 'zip', 'gd'
+            ];
+
+            $extensions = [];
+            foreach ($requiredExtensions as $ext) {
+                $extensions[$ext] = extension_loaded($ext);
+            }
+
+            // فحص متغيرات البيئة المهمة
+            $environmentVars = [
+                'APP_ENV' => env('APP_ENV'),
+                'APP_DEBUG' => env('APP_DEBUG'),
+                'DB_CONNECTION' => env('DB_CONNECTION'),
+                'CACHE_DRIVER' => env('CACHE_DRIVER'),
+                'SESSION_DRIVER' => env('SESSION_DRIVER')
+            ];
+
+            return view('admin.file.php-diagnostic', [
+                'page_title' => 'PHP System Diagnostic',
+                'php_settings' => $phpSettings,
+                'security_settings' => $securitySettings ?? [],
+                'server_info' => $serverInfo ?? [],
+                'directory_info' => $directoryInfo ?? [],
+                'permissions' => $permissions ?? [],
+                'extensions' => $extensions ?? [],
+                'environment_vars' => $environmentVars ?? [],
+                'recommendations' => $this->getPhpRecommendations($phpSettings ?? [])
+            ]);
+
         } catch (\Exception $e) {
-            Log::error('Error showing PHP diagnostic', [
+            // إذا فشل تحميل view، استخدم صفحة HTML بسيطة
+            return response(file_get_contents(public_path('php-diagnostic.html')), 200)
+                ->header('Content-Type', 'text/html');
+        }
+    }
+
+    /**
+     * تطبيق إعدادات الملفات الكبيرة برمجياً
+     */
+    private function applyLargeFileSettings(): void
+    {
+        try {
+            if (function_exists('ini_set')) {
+                @ini_set('upload_max_filesize', '1024M');
+                @ini_set('post_max_size', '1024M');
+                @ini_set('memory_limit', '2048M');
+                @ini_set('max_execution_time', 3600);
+                @ini_set('max_input_time', 3600);
+                @ini_set('max_file_uploads', 100);
+                @ini_set('file_uploads', 'On');
+                @ini_set('max_input_vars', 10000);
+            }
+
+            if (function_exists('set_time_limit')) {
+                @set_time_limit(3600);
+            }
+        } catch (\Exception $e) {
+            // تجاهل الأخطاء في تطبيق الإعدادات
+        }
+    }
+
+    /**
+     * Get PHP configuration recommendations
+     */
+    private function getPhpRecommendations(array $phpSettings): array
+    {
+        $recommendations = [];
+
+        try {
+            // فحص حجم الرفع
+            $uploadMaxMB = $this->parseSize($phpSettings['upload_max_filesize'] ?? '2M');
+            if ($uploadMaxMB < 1024) {
+                $recommendations[] = [
+                    'type' => 'warning',
+                    'setting' => 'upload_max_filesize',
+                    'current' => $phpSettings['upload_max_filesize'] ?? 'Unknown',
+                    'recommended' => '1024M',
+                    'reason' => 'Large Excel files may fail to upload with current setting'
+                ];
+            }
+
+            // فحص post_max_size
+            $postMaxMB = $this->parseSize($phpSettings['post_max_size'] ?? '8M');
+            if ($postMaxMB < $uploadMaxMB) {
+                $recommendations[] = [
+                    'type' => 'error',
+                    'setting' => 'post_max_size',
+                    'current' => $phpSettings['post_max_size'] ?? 'Unknown',
+                    'recommended' => 'Should be larger than upload_max_filesize',
+                    'reason' => 'post_max_size must be larger than upload_max_filesize'
+                ];
+            }
+
+            // فحص وقت التنفيذ
+            $maxExecTime = (int)($phpSettings['max_execution_time'] ?? '30');
+            if ($maxExecTime < 300 && $maxExecTime !== 0) {
+                $recommendations[] = [
+                    'type' => 'warning',
+                    'setting' => 'max_execution_time',
+                    'current' => $phpSettings['max_execution_time'] ?? 'Unknown',
+                    'recommended' => '3600',
+                    'reason' => 'Large file uploads may timeout with current setting'
+                ];
+            }
+
+            // فحص الذاكرة
+            $memoryLimitMB = $this->parseSize($phpSettings['memory_limit'] ?? '128M');
+            if ($memoryLimitMB < 2048) {
+                $recommendations[] = [
+                    'type' => 'warning',
+                    'setting' => 'memory_limit',
+                    'current' => $phpSettings['memory_limit'] ?? 'Unknown',
+                    'recommended' => '2048M',
+                    'reason' => 'Large file processing requires more memory'
+                ];
+            }
+
+        } catch (\Exception $e) {
+            // في حالة حدوث خطأ، أرجع توصيات فارغة
+            $recommendations = [];
+        }
+
+        return $recommendations;
+    }
+
+    /**
+     * Parse size string to MB
+     */
+    private function parseSize(string $sizeStr): float
+    {
+        $size = floatval($sizeStr);
+        $unit = strtolower(substr($sizeStr, -1));
+
+        switch ($unit) {
+            case 'g':
+                $size *= 1024;
+            case 'm':
+                $size *= 1024;
+            case 'k':
+                $size *= 1024;
+        }
+
+        return $size / (1024 * 1024); // Return in MB
+    }
+
+    /**
+     * Store Excel file in documents/excel folder
+     */
+    private function storeExcelFile($file): string
+    {
+        try {
+            // إنشاء اسم ملف فريد
+            $fileName = time() . '_' . $file->getClientOriginalName();
+
+            // تخزين في مجلد documents/excel
+            $filePath = $file->storeAs('documents/excel', $fileName, 'public');
+
+            Log::info('Excel file stored successfully', [
+                'original_name' => $file->getClientOriginalName(),
+                'stored_path' => $filePath,
+                'file_size' => $file->getSize()
+            ]);
+
+            return $filePath;
+        } catch (\Exception $e) {
+            Log::error('Excel file storage error: ' . $e->getMessage());
+            throw new \Exception('فشل في حفظ ملف Excel');
+        }
+    }
+
+    /**
+     * Save Excel file record to enhanced_attachments table
+     */
+    private function saveExcelFileRecord($file, string $filePath): array
+    {
+        try {
+            // إنشاء hash للملف أولاً
+            $fileHash = md5_file($file->getPathname());
+
+            // البحث عن ملف موجود بنفس الـ hash (ملف مطابق)
+            $duplicateHashFile = DB::table('enhanced_attachments')
+                ->where('file_hash', $fileHash)
+                ->first();
+
+            if ($duplicateHashFile) {
+                // الملف موجود بالفعل بنفس المحتوى
+                Log::info('Duplicate file detected by hash', [
+                    'existing_id' => $duplicateHashFile->id,
+                    'existing_name' => $duplicateHashFile->original_file_name,
+                    'new_name' => $file->getClientOriginalName(),
+                    'hash' => $fileHash
+                ]);
+
+                return [
+                    'id' => $duplicateHashFile->id,
+                    'status' => 'duplicate',
+                    'message' => 'ملف مطابق موجود بالفعل - تم تجاهل الرفع المكرر',
+                    'existing_file' => [
+                        'id' => $duplicateHashFile->id,
+                        'name' => $duplicateHashFile->original_file_name,
+                        'path' => $duplicateHashFile->file_path
+                    ]
+                ];
+            }
+
+            // البحث عن ملف موجود بنفس الاسم (إصدار مختلف)
+            $existingFile = DB::table('enhanced_attachments')
+                ->where('original_file_name', $file->getClientOriginalName())
+                ->where('file_type', 'excel')
+                ->first();
+
+            // توليد رقم مرفق فريد بالبادئة exc_
+            $attachmentRecordNumber = generateUniqueAttachmentRecordNumber();
+
+            $fileData = [
+                'record_number' => $attachmentRecordNumber,
+                'person_identity_number' => null,
+                'stored_file_name' => basename($filePath),
+                'original_file_name' => $file->getClientOriginalName(),
+                'file_path' => $filePath,
+                'file_type' => 'excel',
+                'mime_type' => $file->getMimeType(),
+                'file_extension' => $file->getClientOriginalExtension(),
+                'file_size' => $file->getSize(),
+                'file_hash' => $fileHash,
+                'file_last_modified' => date('Y-m-d H:i:s', $file->getMTime()),
+                'source' => 'direct_upload',
+                'upload_ip_address' => request()->ip(),
+                'upload_user_agent' => request()->userAgent(),
+                'uploaded_by_user_id' => auth()->id(),
+                'processing_status' => 'pending',
+                'compression_status' => 'not_required',
+                'access_level' => 'internal',
+                'requires_approval' => false,
+                'is_encrypted' => false,
+                'version_number' => 1,
+                'is_latest_version' => true,
+                'cloud_sync_status' => 'not_synced',
+                'document_status' => 'draft',
+                'quality_status' => 'not_checked',
+                'is_complete' => true,
+                'download_count' => 0,
+                'view_count' => 0,
+                'created_by' => auth()->id(),
+                'updated_by' => auth()->id(),
+                'updated_at' => now()
+            ];
+
+            if ($existingFile) {
+                // تحديث الإصدار السابق ليكون غير latest
+                DB::table('enhanced_attachments')
+                    ->where('id', $existingFile->id)
+                    ->update(['is_latest_version' => false]);
+
+                // إنشاء إصدار جديد
+                $fileData['version_number'] = ($existingFile->version_number ?? 1) + 1;
+                $fileData['created_at'] = now();
+                $fileId = DB::table('enhanced_attachments')->insertGetId($fileData);
+
+                return [
+                    'id' => $fileId,
+                    'status' => 'new_version',
+                    'message' => 'تم إنشاء إصدار جديد من الملف (v' . $fileData['version_number'] . ')',
+                    'version_number' => $fileData['version_number']
+                ];
+            } else {
+                // إنشاء سجل جديد
+                $fileData['created_at'] = now();
+                $fileId = DB::table('enhanced_attachments')->insertGetId($fileData);
+
+                return [
+                    'id' => $fileId,
+                    'status' => 'created',
+                    'message' => 'تم حفظ ملف Excel جديد'
+                ];
+            }
+        } catch (\Exception $e) {
+            Log::error('Excel file record save error: ' . $e->getMessage(), [
+                'file_name' => $file->getClientOriginalName(),
+                'file_path' => $filePath,
+                'error_trace' => $e->getTraceAsString()
+            ]);
+            throw new \Exception('فشل في حفظ سجل ملف Excel: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Import Excel data to database
+     */
+    private function importExcelToDatabase(string $filePath, array $options): array
+    {
+        try {
+            $targetTable = $options['target_table'] ?? 'data';
+            $importOptions = [
+                'update_existing' => $options['update_existing'] ?? false,
+                'batch_size' => $options['batch_size'] ?? 100,
+                'header_row' => $options['header_row'] ?? true,
+                'skip_empty_rows' => $options['skip_empty_rows'] ?? true,
+                'validate_data' => $options['validate_data'] ?? true
+            ];
+
+            $results = $this->excelImportService->importToModel($filePath, $targetTable, $importOptions);
+
+            // إضافة إحصائيات استبدال أرقام الملفات لجدول data
+            if ($targetTable === 'data') {
+                $fileIdReport = $this->excelImportService->formatFileIdReplacementsReport();
+                $detailedStats = $this->excelImportService->getDetailedImportStats($results);
+
+                $results['file_id_report'] = $fileIdReport;
+                $results['detailed_stats'] = $detailedStats;
+
+                // تسجيل ملخص العملية
+                if ($fileIdReport['total_replacements'] > 0) {
+                    Log::info('Excel import with file ID replacements completed', [
+                        'target_table' => $targetTable,
+                        'total_imported' => $results['imported_rows'],
+                        'file_id_replacements' => $fileIdReport['total_replacements'],
+                        'replacement_methods' => $detailedStats['file_id_management']['replacement_methods_used'] ?? []
+                    ]);
+                }
+            }
+
+            return $results;
+
+        } catch (\Exception $e) {
+            Log::error('Excel database import error: ' . $e->getMessage());
+            return [
+                'imported_rows' => 0,
+                'errors' => [$e->getMessage()],
+                'skipped_rows'=>0,
+                'total_rows' => 0,
+                'file_id_report' => [
+                    'total_replacements' => 0,
+                    'message' => 'فشل في عملية الاستيراد',
+                    'replacements' => []
+                ]
+            ];
+        }
+    }
+
+    /**
+     * تسجيل نشاط الاستيراد
+     */
+    private function logImportActivity(string $filePath, string $targetTable, array $results): void
+    {
+        try {
+            DB::table('import_logs')->insert([
+                'file_path' => $filePath,
+                'target_table' => $targetTable,
+                'imported_rows' => $results['imported_rows'],
+                'total_rows' => $results['total_rows'],
+                'errors_count' => count($results['errors']),
+                'skipped_rows' => $results['skipped_rows'],
+                'user_id' => auth()->id(),
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+        } catch (\Exception $e) {
+            Log::warning('Failed to log import activity: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * إنشاء رسالة النتيجة
+     */
+    private function getImportMessage(array $results, bool $previewOnly, array $fileIdReport = []): string
+    {
+        if ($previewOnly) {
+            $previewMessage = "معاينة البيانات: {$results['total_rows']} صف، {$results['imported_rows']} صف صالح للاستيراد";
+
+            // إضافة معلومات استبدال أرقام الملفات في المعاينة
+            if (!empty($fileIdReport) && $fileIdReport['total_replacements'] > 0) {
+                $previewMessage .= "، سيتم استبدال {$fileIdReport['total_replacements']} رقم ملف";
+            }
+
+            return $previewMessage;
+        }
+
+        $baseMessage = "";
+
+        if (!empty($results['errors'])) {
+            $baseMessage = "تم الاستيراد مع أخطاء: {$results['imported_rows']} صف تم استيراده من أصل {$results['total_rows']}، " . count($results['errors']) . " خطأ";
+        } else {
+            $baseMessage = "تم الاستيراد بنجاح: {$results['imported_rows']} صف من أصل {$results['total_rows']}";
+        }
+
+        // إضافة معلومات استبدال أرقام الملفات
+        if (!empty($fileIdReport) && $fileIdReport['total_replacements'] > 0) {
+            $baseMessage .= "، تم استبدال {$fileIdReport['total_replacements']} رقم ملف بأرقام جديدة";
+        }
+
+        return $baseMessage;
+    }
+
+    /**
+     * Preview Excel import data before actual import
+     */
+    public function previewExcelImport(Request $request)
+    {
+        $request->validate([
+            'file_path' => 'required|string',
+            'target_table' => 'required|string|in:data,dead_people,guardian_bank_accounts,re_people',
+            'preview_rows' => 'nullable|integer|min:1|max:100'
+        ]);
+
+        try {
+            $filePath = $request->input('file_path');
+            $targetTable = $request->input('target_table');
+            $previewRows = $request->input('preview_rows', 10);
+
+            // Convert relative path to absolute if needed
+            if (!str_starts_with($filePath, '/') && !str_contains($filePath, ':\\')) {
+                $filePath = storage_path('app/public/' . $filePath);
+            }
+
+            if (!file_exists($filePath)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'ملف Excel غير موجود'
+                ], 404);
+            }
+
+            $previewData = $this->excelImportService->previewImport($filePath, $targetTable, [
+                'max_rows' => $previewRows,
+                'header_row' => true
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'preview_data' => $previewData,
+                'target_table' => $targetTable,
+                'file_path' => $filePath
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Excel preview error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'فشل في معاينة ملف Excel: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Validate Excel file structure and data
+     */
+    public function validateExcelFile(Request $request)
+    {
+        $request->validate([
+            'file_path' => 'required|string',
+            'target_table' => 'required|string|in:data,dead_people,guardian_bank_accounts,re_people',
+            'validation_rules' => 'nullable|array'
+        ]);
+
+        try {
+            $filePath = $request->input('file_path');
+            $targetTable = $request->input('target_table');
+            $validationRules = $request->input('validation_rules', []);
+
+            // Convert relative path to absolute if needed
+            if (!str_starts_with($filePath, '/') && !str_contains($filePath, ':\\')) {
+                $filePath = storage_path('app/public/' . $filePath);
+            }
+
+            if (!file_exists($filePath)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'ملف Excel غير موجود'
+                ], 404);
+            }
+
+            $validationResult = $this->excelImportService->validateExcelFile($filePath, $targetTable, $validationRules);
+
+            return response()->json([
+                'success' => true,
+                'validation_result' => $validationResult,
+                'is_valid' => $validationResult['is_valid'] ?? false,
+                'errors' => $validationResult['errors'] ?? [],
+                'warnings' => $validationResult['warnings'] ?? []
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Excel validation error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'فشل في التحقق من ملف Excel: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get upload error message from error code
+     */
+    private function getUploadErrorMessage(int $errorCode): string
+    {
+        return match($errorCode) {
+            UPLOAD_ERR_OK => 'تم الرفع بنجاح',
+            UPLOAD_ERR_INI_SIZE => 'حجم الملف أكبر من الحد المسموح في إعدادات الخادم (upload_max_filesize)',
+            UPLOAD_ERR_FORM_SIZE => 'حجم الملف أكبر من الحد المسموح في النموذج (MAX_FILE_SIZE)',
+            UPLOAD_ERR_PARTIAL => 'تم رفع الملف جزئياً فقط',
+            UPLOAD_ERR_NO_FILE => 'لم يتم رفع أي ملف',
+            UPLOAD_ERR_NO_TMP_DIR => 'مجلد الملفات المؤقتة غير موجود',
+            UPLOAD_ERR_CANT_WRITE => 'فشل في كتابة الملف على القرص',
+            UPLOAD_ERR_EXTENSION => 'امتداد PHP أوقف رفع الملف',
+            default => "خطأ غير معروف في رفع الملف (كود الخطأ: {$errorCode})"
+        };
+    }
+
+    /**
+     * Detect file type based on extension and mime type
+     */
+    private function detectFileType($file): string
+    {
+        $extension = strtolower($file->getClientOriginalExtension());
+        $mimeType = $file->getMimeType();
+
+        // Image files
+        if (in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp']) ||
+            str_starts_with($mimeType, 'image/')) {
+            return 'image';
+        }
+
+        // PDF files
+        if ($extension === 'pdf' || $mimeType === 'application/pdf') {
+            return 'pdf';
+        }
+
+        // Excel files
+        if (in_array($extension, ['xlsx', 'xls', 'csv']) ||
+            in_array($mimeType, [
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'application/vnd.ms-excel',
+                'text/csv'
+            ])) {
+            return 'excel';
+        }
+
+        // Word files
+        if (in_array($extension, ['docx', 'doc']) ||
+            in_array($mimeType, [
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'application/msword'
+            ])) {
+            return 'word';
+        }
+
+        return 'unknown';
+    }
+
+    /**
+     * Store document file in appropriate folder
+     */
+    private function storeDocumentFile($file, string $fileType): string
+    {
+        $folderName = match($fileType) {
+            'pdf' => 'documents/pdf',
+            'excel' => 'documents/excel',
+            'word' => 'documents/word',
+            default => 'documents/other'
+        };
+
+        $fileName = time() . '_' . $file->getClientOriginalName();
+        return $file->storeAs($folderName, $fileName, 'public');
+    }
+
+    /**
+     * Save document record to enhanced_attachments table
+     */
+    private function saveDocumentRecord($file, string $recordNumber, ?string $personId, string $filePath, string $fileType): void
+    {
+        try {
+            $fileHash = md5_file($file->getPathname());
+
+            // توليد رقم مرفق فريد بالبادئة exc_
+            $attachmentRecordNumber = generateUniqueAttachmentRecordNumber();
+
+            $fileData = [
+                'record_number' => $attachmentRecordNumber,
+                'person_identity_number' => $personId,
+                'stored_file_name' => basename($filePath),
+                'original_file_name' => $file->getClientOriginalName(),
+                'file_path' => $filePath,
+                'file_type' => $fileType,
+                'mime_type' => $file->getMimeType(),
+                'file_extension' => $file->getClientOriginalExtension(),
+                'file_size' => $file->getSize(),
+                'file_hash' => $fileHash,
+                'file_last_modified' => date('Y-m-d H:i:s', $file->getMTime()),
+                'source' => 'direct_upload',
+                'upload_ip_address' => request()->ip(),
+                'upload_user_agent' => request()->userAgent(),
+                'uploaded_by_user_id' => auth()->id(),
+                'processing_status' => 'pending',
+                'compression_status' => 'not_required',
+                'access_level' => 'internal',
+                'requires_approval' => false,
+                'is_encrypted' => false,
+                'version_number' => 1,
+                'is_latest_version' => true,
+                'cloud_sync_status' => 'not_synced',
+                'document_status' => 'draft',
+                'quality_status' => 'not_checked',
+                'is_complete' => true,
+                'download_count' => 0,
+                'view_count' => 0,
+                'created_by' => auth()->id(),
+                'updated_by' => auth()->id(),
+                'created_at' => now(),
+                'updated_at' => now()
+            ];
+
+            DB::table('enhanced_attachments')->insert($fileData);
+
+        } catch (\Exception $e) {
+            Log::error('Document record save error: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Save image record with custom name
+     */
+    private function saveImageRecordWithCustomName($file, string $folderId, string $identityNumber, string $filePath, string $customName): void
+    {
+        try {
+            // Check file existence before accessing size
+            $filePathname = method_exists($file, 'getPathname') ? $file->getPathname() : null;
+            $fileSize = ($filePathname && file_exists($filePathname)) ? $file->getSize() : null;
+            $fileHash = ($filePathname && file_exists($filePathname)) ? md5_file($filePathname) : md5($customName . time());
+
+            // توليد رقم مرفق فريد بالبادئة exc_
+            $attachmentRecordNumber = generateUniqueAttachmentRecordNumber();
+
+            $imageData = [
+                'record_number' => $attachmentRecordNumber,
+                'person_identity_number' => $identityNumber,
+                'stored_file_name' => $customName,
+                'original_file_name' => method_exists($file, 'getClientOriginalName') ? $file->getClientOriginalName() : $customName,
+                'file_path' => $filePath,
+                'file_type' => 'image',
+                'mime_type' => method_exists($file, 'getMimeType') ? $file->getMimeType() : 'image/jpeg',
+                'file_extension' => pathinfo($customName, PATHINFO_EXTENSION),
+                'file_size' => $fileSize,
+                'file_hash' => $fileHash,
+                'file_last_modified' => now(),
+                'source' => 'direct_upload',
+                'upload_ip_address' => request()->ip(),
+                'upload_user_agent' => request()->userAgent(),
+                'uploaded_by_user_id' => auth()->id(),
+                'processing_status' => 'completed',
+                'compression_status' => 'not_required',
+                'access_level' => 'internal',
+                'requires_approval' => false,
+                'is_encrypted' => false,
+                'version_number' => 1,
+                'is_latest_version' => true,
+                'cloud_sync_status' => 'not_synced',
+                'document_status' => 'active',
+                'quality_status' => 'good',
+                'is_complete' => true,
+                'download_count' => 0,
+                'view_count' => 0,
+                'created_by' => auth()->id(),
+                'updated_by' => auth()->id(),
+                'created_at' => now(),
+                'updated_at' => now()
+            ];
+
+            // Try to insert into attachments table (old system compatibility)
+            try {
+                DB::table('attachments')->insert([
+                    'folder_id' => $folderId,
+                    'identity_number' => $identityNumber,
+                    'file_name' => $customName,
+                    'file_path' => $filePath,
+                    'file_size' => $fileSize,
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Failed to insert into attachments table: ' . $e->getMessage());
+            }
+
+            // Insert into enhanced_attachments table
+            DB::table('enhanced_attachments')->insert($imageData);
+
+        } catch (\Exception $e) {
+            Log::error('Image record save error: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Compress image if needed
+     */
+    private function compressImage($file)
+    {
+        // This would implement image compression logic
+        // For now, return the original file
+        return $file;
+    }
+
+    /**
+     * Process Excel import
+     */
+    private function processExcelImport(string $filePath, array $options): array
+    {
+        try {
+            $targetTable = $options['target_table'] ?? 'data';
+            $importOptions = [
+                'header_row' => $options['header_row'] ?? true,
+                'skip_empty_rows' => $options['skip_empty_rows'] ?? true,
+                'validate_data' => $options['validate_data'] ?? true,
+                'batch_size' => $options['batch_size'] ?? 100
+            ];
+
+            return $this->excelImportService->importToModel($filePath, $targetTable, $importOptions);
+
+        } catch (\Exception $e) {
+            Log::error('Excel import processing error: ' . $e->getMessage());
+            return [
+                'imported_rows' => 0,
+                'errors' => [$e->getMessage()],
+                'skipped_rows' => 0,
+                'total_rows' => 0
+            ];
+        }
+    }
+
+    /**
+     * Get analytics data for the file management system
+     */
+    public function getAnalytics(Request $request)
+    {
+        try {
+            Log::info('Analytics request started', ['user_id' => auth()->id()]);
+
+            $data = [
+                'total_files' => $this->getTotalFilesCount(),
+                'file_types' => $this->getFileTypeStats(),
+                'processing_status' => $this->getProcessingStatusStats(),
+                'upload_trends' => $this->getUploadTrends(),
+                'storage_usage' => $this->getStorageUsage(),
+                'error_rates' => $this->getErrorRates(),
+                'recent_uploads' => $this->getRecentUploads(),
+                'cloud_sync_stats' => $this->getCloudSyncStats()
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => $data
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Analytics error', [
+                'error' => $e->getMessage(),
+                'user_id' => auth()->id()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Failed to load analytics data'
+            ], 500);
+        }
+    }
+
+    private function getTotalFilesCount(): int
+    {
+        try {
+            $enhancedCount = DB::table('enhanced_attachments')->count();
+            $attachmentsCount = DB::table('attachments')->count();
+            return $enhancedCount + $attachmentsCount;
+        } catch (\Exception $e) {
+            Log::warning('Failed to get total files count', ['error' => $e->getMessage()]);
+            return 0;
+        }
+    }
+
+    private function getFileTypeStats(): array
+    {
+        try {
+            return DB::table('enhanced_attachments')
+                ->select('file_type', DB::raw('count(*) as count'))
+                ->groupBy('file_type')
+                ->pluck('count', 'file_type')
+                ->toArray();
+        } catch (\Exception $e) {
+            Log::warning('Failed to get file type stats', ['error' => $e->getMessage()]);
+            return [];
+        }
+    }
+
+    private function getProcessingStatusStats(): array
+    {
+        try {
+            return DB::table('enhanced_attachments')
+                ->select('processing_status', DB::raw('count(*) as count'))
+                ->groupBy('processing_status')
+                ->pluck('count', 'processing_status')
+                ->toArray();
+        } catch (\Exception $e) {
+            Log::warning('Failed to get processing status stats', ['error' => $e->getMessage()]);
+            return [];
+        }
+    }
+
+    private function getUploadTrends(): array
+    {
+        try {
+            return DB::table('enhanced_attachments')
+                ->select(DB::raw('DATE(created_at) as date'), DB::raw('count(*) as count'))
+                ->where('created_at', '>=', now()->subDays(30))
+                ->groupBy(DB::raw('DATE(created_at)'))
+                ->orderBy('date')
+                ->get()
+                ->pluck('count', 'date')
+                ->toArray();
+        } catch (\Exception $e) {
+            Log::warning('Failed to get upload trends', ['error' => $e->getMessage()]);
+            return [];
+        }
+    }
+
+    private function getStorageUsage(): array
+    {
+        try {
+            $totalSize = DB::table('enhanced_attachments')->sum('file_size');
+            $avgSize = DB::table('enhanced_attachments')->avg('file_size');
+
+            return [
+                'total_size' => $totalSize ?: 0,
+                'average_size' => round($avgSize ?: 0, 2),
+                'total_size_formatted' => $this->formatBytes($totalSize ?: 0)
+            ];
+        } catch (\Exception $e) {
+            Log::warning('Failed to get storage usage', ['error' => $e->getMessage()]);
+            return ['total_size' => 0, 'average_size' => 0, 'total_size_formatted' => '0 B'];
+        }
+    }
+
+    private function getErrorRates(): array
+    {
+        try {
+            $total = DB::table('enhanced_attachments')->count();
+            $failed = DB::table('enhanced_attachments')
+                ->where('processing_status', 'failed')
+                ->count();
+
+            $errorRate = $total > 0 ? round(($failed / $total) * 100, 2) : 0;
+
+            return [
+                'total_files' => $total,
+                'failed_files' => $failed,
+                'error_rate_percentage' => $errorRate
+            ];
+        } catch (\Exception $e) {
+            Log::warning('Failed to get error rates', ['error' => $e->getMessage()]);
+            return ['total_files' => 0, 'failed_files' => 0, 'error_rate_percentage' => 0];
+        }
+    }
+
+    private function getRecentUploads(): array
+    {
+        try {
+            return DB::table('enhanced_attachments')
+                ->select('original_file_name', 'file_type', 'file_size', 'processing_status', 'created_at')
+                ->orderBy('created_at', 'desc')
+                ->limit(10)
+                ->get()
+                ->map(function ($file) {
+                    return [
+                        'name' => $file->original_file_name,
+                        'type' => $file->file_type,
+                        'size' => $this->formatBytes($file->file_size ?: 0),
+                        'status' => $file->processing_status,
+                        'uploaded_at' => $file->created_at
+                    ];
+                })
+                ->toArray();
+        } catch (\Exception $e) {
+            Log::warning('Failed to get recent uploads', ['error' => $e->getMessage()]);
+            return [];
+        }
+    }
+
+    private function formatBytes($bytes, $precision = 2): string
+    {
+        $units = array('B', 'KB', 'MB', 'GB', 'TB');
+
+        for ($i = 0; $bytes > 1024 && $i < count($units) - 1; $i++) {
+            $bytes /= 1024;
+        }
+
+        return round($bytes, $precision) . ' ' . $units[$i];
+    }
+
+    private function getCloudSyncStats(): array
+    {
+        try {
+            return DB::table('enhanced_attachments')
+                ->select('cloud_sync_status', DB::raw('count(*) as count'))
+                ->groupBy('cloud_sync_status')
+                ->pluck('count', 'cloud_sync_status')
+                ->toArray();
+        } catch (\Exception $e) {
+            Log::warning('Failed to get cloud sync stats', ['error' => $e->getMessage()]);
+            return ['not_synced' => 0, 'synced' => 0, 'failed' => 0];
+        }
+    }
+
+    /**
+     * Determine the final folder name for storage based on folder validation
+     */
+    private function determineFinalFolderName(string $originalFolderName, string $fileIdNumber): string
+    {
+        try {
+            // استخدام file_id_number كاسم المجلد النهائي
+            // إزالة الأصفار من البداية إذا لزم الأمر
+            $cleanFileId = ltrim($fileIdNumber, '0');
+
+            // إذا كان الرقم فارغاً بعد إزالة الأصفار، استخدم الرقم الأصلي
+            if (empty($cleanFileId)) {
+                return $fileIdNumber;
+            }
+
+            return $cleanFileId;
+        } catch (\Exception $e) {
+            Log::warning('Error determining final folder name', [
+                'original_folder' => $originalFolderName,
+                'file_id_number' => $fileIdNumber,
                 'error' => $e->getMessage()
             ]);
 
-            return response()->view('errors.500', [
-                'message' => 'فشل في تحميل صفحة التشخيص'
-            ], 500);
+            // في حالة الخطأ، استخدم file_id_number كما هو
+            return $fileIdNumber;
+        }
+    }
+
+    /**
+     * Check if a storage folder exists in the file system
+     */
+    private function checkStorageFolderExists(string $folderName): bool
+    {
+        try {
+            $storagePath = storage_path('app/public/uploads/' . $folderName);
+            $publicPath = public_path('uploads/' . $folderName);
+
+            // تحقق من وجود المجلد في أي من المسارين
+            return is_dir($storagePath) || is_dir($publicPath);
+        } catch (\Exception $e) {
+            Log::warning('Error checking storage folder existence', [
+                'folder_name' => $folderName,
+                'error' => $e->getMessage()
+            ]);
+
+            return false;
+        }
+    }
+
+    /**
+     * Process a single validated file inside a validated folder
+     *
+     * @param \Illuminate\Http\UploadedFile $file
+     * @param string $targetFileId
+     * @param string $originalFolderName
+     * @param string $filePath
+     * @param array $folderInfo
+     * @return array
+     */
+    public function processValidatedFolderFile($file, string $targetFileId, string $originalFolderName, string $filePath, array $folderInfo)
+    {
+        try {
+            // Get file information
+            $fileName = $file->getClientOriginalName();
+            $fileSize = $file->getSize();
+            $mimeType = $file->getMimeType();
+            $extension = strtolower($file->getClientOriginalExtension());
+
+            // Define allowed extensions
+            $allowedExtensions = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx', 'xlsx', 'xls'];
+
+            if (!in_array($extension, $allowedExtensions)) {
+                Log::warning('File extension not allowed', [
+                    'file' => $fileName,
+                    'ext' => $extension,
+                    'folder' => $originalFolderName
+                ]);
+                return [
+                    'success' => false,
+                    'error' => 'صيغة الملف غير مدعومة: ' . $extension,
+                    'file' => $fileName
+                ];
+            }
+
+            // Check file size (max 10MB)
+            if ($fileSize > 10 * 1024 * 1024) {
+                Log::warning('File too large', [
+                    'file' => $fileName,
+                    'size' => $fileSize,
+                    'folder' => $originalFolderName
+                ]);
+                return [
+                    'success' => false,
+                    'error' => 'حجم الملف كبير جداً (أكثر من 10MB)',
+                    'file' => $fileName
+                ];
+            }
+
+            // Create storage directory if it doesn't exist
+            $storageDir = storage_path('app/public/uploads/' . $targetFileId);
+            if (!is_dir($storageDir)) {
+                mkdir($storageDir, 0755, true);
+            }
+
+            // Generate processed filename using business rules
+            $newFileName = $this->processImageFileName($fileName, $targetFileId);
+
+            // Store the file
+            $storedPath = $file->storeAs('public/uploads/' . $targetFileId, $newFileName);
+
+            // Determine file type for further processing
+            $fileType = $this->determineFileTypeFromExtension($extension);
+
+            // Extract identity number from processed filename for database storage
+            $identityNumber = $this->extractIdentityNumberFromFilename($fileName);
+
+            // Save to attachments table
+            $this->saveToAttachmentsTable(
+                $identityNumber,
+                $newFileName,
+                $storedPath,
+                $fileType,
+                $fileSize
+            );
+
+            // Log successful processing
+            Log::info('Folder file processed successfully', [
+                'original_folder' => $originalFolderName,
+                'target_file_id' => $targetFileId,
+                'file_name' => $fileName,
+                'file_type' => $fileType,
+                'success' => true
+            ]);
+
+            return [
+                'success' => true,
+                'file' => $fileName,
+                'stored_path' => $storedPath,
+                'stored_name' => $newFileName,
+                'file_type' => $fileType,
+                'file_size' => $fileSize
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Validated folder file processing error', [
+                'error' => $e->getMessage(),
+                'file_name' => $file->getClientOriginalName() ?? 'unknown',
+                'target_file_id' => $targetFileId,
+                'original_folder' => $originalFolderName
+            ]);
+
+            return [
+                'success' => false,
+                'error' => 'فشل في معالجة الصورة. يرجى التأكد من صيغة اسم الملف والحجم.',
+                'file' => $file->getClientOriginalName() ?? 'unknown'
+            ];
+        }
+    }
+
+    /**
+     * Determine file type from UploadedFile object
+     */
+    private function determineFileType(UploadedFile $file): string
+    {
+        $extension = strtolower($file->getClientOriginalExtension());
+        return $this->determineFileTypeFromExtension($extension);
+    }
+
+    /**
+     * Determine file type from extension
+     */
+    private function determineFileTypeFromExtension(string $extension): string
+    {
+        return match(strtolower($extension)) {
+            'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp' => 'image',
+            'pdf' => 'pdf',
+            'doc', 'docx' => 'document',
+            'xls', 'xlsx', 'csv' => 'excel',
+            default => 'unknown'
+        };
+    }
+
+    /**
+     * Process image filename according to business rules
+     * Converts: A_566557550_4 -> NewPrefix_001460_566557550
+     *
+     * @param string $originalFileName Original filename like "A_566557550_4.jpg"
+     * @param string $folderName The folder name like "001460"
+     * @return string Processed filename
+     */
+    private function processImageFileName(string $originalFileName, string $folderName): string
+    {
+        try {
+            // Extract filename without extension
+            $nameWithoutExt = pathinfo($originalFileName, PATHINFO_FILENAME);
+            $extension = pathinfo($originalFileName, PATHINFO_EXTENSION);
+
+            Log::info('Processing image filename', [
+                'original' => $originalFileName,
+                'name_without_ext' => $nameWithoutExt,
+                'folder_name' => $folderName
+            ]);
+
+            // Split filename by underscore
+            $parts = explode('_', $nameWithoutExt);
+
+            // Check if filename matches expected pattern (at least 3 parts)
+            if (count($parts) >= 3) {
+                $firstPart = $parts[0]; // A
+                $identityNumber = $parts[1]; // 566557550
+                $documentTypeId = (int)$parts[2]; // 4
+
+                Log::info('Parsed filename parts', [
+                    'first_part' => $firstPart,
+                    'identity_number' => $identityNumber,
+                    'document_type_id' => $documentTypeId
+                ]);
+
+                try {
+                    // Primary processing: Get prefix from DocumentType table
+                    $documentType = DB::table('document_types')
+                        ->where('id', $documentTypeId)
+                        ->first();
+
+                    if ($documentType && !empty($documentType->pref)) {
+                        // Success case: Use prefix from database
+                        $newPrefix = $documentType->pref;
+                        $newFileName = $newPrefix . '_' . $folderName . '_' . $identityNumber;
+
+                        Log::info('Primary processing successful', [
+                            'document_type_id' => $documentTypeId,
+                            'found_prefix' => $newPrefix,
+                            'new_filename' => $newFileName
+                        ]);
+
+                        return $newFileName . '.' . $extension;
+                    } else {
+                        throw new \Exception('DocumentType not found or empty prefix');
+                    }
+
+                } catch (\Exception $e) {
+                    // Fallback case: Keep A_ prefix
+                    Log::warning('Primary processing failed, using fallback', [
+                        'error' => $e->getMessage(),
+                        'document_type_id' => $documentTypeId
+                    ]);
+
+                    $fallbackFileName = $firstPart . '_' . $folderName . '_' . $identityNumber;
+
+                    Log::info('Fallback processing applied', [
+                        'fallback_filename' => $fallbackFileName
+                    ]);
+
+                    return $fallbackFileName . '.' . $extension;
+                }
+
+            } else {
+                // If filename doesn't match expected pattern, return as is with timestamp
+                Log::warning('Filename does not match expected pattern', [
+                    'parts_count' => count($parts),
+                    'parts' => $parts
+                ]);
+
+                return time() . '_' . $originalFileName;
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Error processing image filename', [
+                'error' => $e->getMessage(),
+                'original_filename' => $originalFileName
+            ]);
+
+            // Ultimate fallback: timestamp + original name
+            return time() . '_' . $originalFileName;
+        }
+    }
+
+    /**
+     * Extract identity number from original filename
+     * From: A_566557550_4.jpg -> Returns: 566557550
+     */
+    private function extractIdentityNumberFromFilename(string $originalFileName): ?string
+    {
+        try {
+            $nameWithoutExt = pathinfo($originalFileName, PATHINFO_FILENAME);
+            $parts = explode('_', $nameWithoutExt);
+
+            // Expected pattern: A_566557550_4
+            if (count($parts) >= 3) {
+                return $parts[1]; // Identity number is in the second part
+            }
+
+            return null;
+        } catch (\Exception $e) {
+            Log::warning('Failed to extract identity number from filename', [
+                'filename' => $originalFileName,
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Save image information to attachments table
+     */
+    private function saveToAttachmentsTable(
+        ?string $identityNumber,
+        string $storedFileName,
+        string $filePath,
+        string $fileType,
+        int $fileSize
+    ): void {
+        try {
+            // Log the input parameters for debugging
+            Log::info('saveToAttachmentsTable - Input Parameters', [
+                'person_identity_number' => $identityNumber,
+                'stored_file_name' => $storedFileName,
+                'file_path' => $filePath,
+                'file_type' => $fileType,
+                'file_size' => $fileSize
+            ]);
+
+            // Create attachment record
+            $attachmentData = [
+                'person_identity_number' => $identityNumber,
+                'stored_file_name' => $storedFileName,
+                'file_path' => $filePath,
+                'file_type' => $fileType,
+                'file_size' => $fileSize,
+                'created_at' => now(),
+                'updated_at' => now()
+            ];
+
+            // Log the data being inserted
+            Log::info('saveToAttachmentsTable - Data to Insert', $attachmentData);
+
+            // Insert into attachments table
+            $insertResult = DB::table('attachments')->insert($attachmentData);
+
+            // Log the result
+            Log::info('saveToAttachmentsTable - Insert Result', [
+                'success' => $insertResult,
+                'data_inserted' => $attachmentData
+            ]);
+
+            // Verify insertion by querying the last inserted record
+            $lastRecord = DB::table('attachments')
+                ->where('person_identity_number', $identityNumber)
+                ->where('stored_file_name', $storedFileName)
+                ->latest('created_at')
+                ->first();
+
+            Log::info('saveToAttachmentsTable - Verification Query', [
+                'found_record' => $lastRecord
+            ]);
+
+            Log::info('Image saved to attachments table', [
+                'identity_number' => $identityNumber,
+                'stored_file_name' => $storedFileName,
+                'file_path' => $filePath,
+                'file_type' => $fileType
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to save to attachments table', [
+                'error' => $e->getMessage(),
+                'identity_number' => $identityNumber,
+                'stored_file_name' => $storedFileName
+            ]);
+
+            // Don't throw exception to avoid breaking file upload process
+            // Just log the error for investigation
         }
     }
 }

@@ -10,8 +10,8 @@ use App\Http\Controllers\Users\ShowGeneralRegisrationController;
 use App\Http\Controllers\Users\UserLoginContoller;
 use App\Http\Controllers\Users\UserProfileController;
 use App\Http\Controllers\UnifiedFileManagementController;
-use App\Http\Controllers\DuplicateFileController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\DuplicateFileController;
 
 /*
 |--------------------------------------------------------------------------
@@ -35,21 +35,6 @@ Route::get('/', function () {
 Route::get('/file-manager', function () {
     return view('file-management.advanced-interface');
 })->name('file-manager');
-
-// Admin file manager route
-Route::get('/admin/file-manager', function () {
-    return view('file-management.advanced-interface');
-})->name('admin.file-manager');
-
-// Test JavaScript syntax route
-Route::get('/test-js', function () {
-    return view('test-js');
-})->name('test-js');
-
-// Test file upload route
-Route::get('/test-upload', function () {
-    return view('test-upload');
-})->name('test-upload');
 
 // حماية جميع مسارات المستخدمين بميدل وير auth و verified
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -104,6 +89,15 @@ Route::prefix('api/files')->group(function () {
         ->name('api.files.analytics');
 });
 
+// // Routes للمعالجة الملفات المكررة
+// Route::group(['prefix' => 'file-management'], function() {
+//     Route::get('/download-duplicates', [UnifiedFileManagementController::class, 'downloadDuplicateFiles'])
+//         ->name('file.download-duplicates');
+//     Route::get('/duplicate-summary', [UnifiedFileManagementController::class, 'getDuplicateFilesSummary'])
+//         ->name('file.duplicate-summary');
+//     Route::post('/cleanup-expired', [UnifiedFileManagementController::class, 'cleanupExpiredDuplicates'])
+//         ->name('file.cleanup-expired');
+// });
 // Routes للمعالجة الملفات المكررة - تم نقلها إلى admin.php
 
 // API Routes for Duplicate File Management - TEST WITHOUT MIDDLEWARE
@@ -146,5 +140,4 @@ Route::group(['prefix' => 'admin/file'], function() {
     Route::get('/php-diagnostic', [UnifiedFileManagementController::class, 'showPhpDiagnostic'])
         ->name('admin.file.php.diagnostic');
 });
-
 require __DIR__ . '/auth.php';
