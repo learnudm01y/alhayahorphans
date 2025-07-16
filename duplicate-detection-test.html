@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>اختبار نظام كشف الملفات المكررة</title>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="file"] { width: 100%; padding: 8px; border: 1px solid #ddd; }
+        button { background: #007bff; color: white; padding: 10px 20px; border: none; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .result { margin-top: 20px; padding: 15px; background: #f8f9fa; border: 1px solid #ddd; }
+        .success { background: #d4edda; border-color: #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+        .loading { display: none; color: #007bff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 اختبار نظام كشف الملفات المكررة للمجلدات</h1>
+
+        <form id="testForm" enctype="multipart/form-data">
+            <div class="form-group">
+                <label>اختر الملفات والمجلدات:</label>
+                <input type="file" name="files" multiple webkitdirectory>
+                <small>سيتم رفع المجلدات مع كشف الملفات المكررة تلقائياً</small>
+            </div>
+
+            <button type="submit">🚀 رفع واختبار النظام</button>
+            <span class="loading">⏳ جاري المعالجة...</span>
+        </form>
+
+        <div id="result" class="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        // إعداد CSRF token
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+        document.getElementById('testForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const formData = new FormData();
+            const files = document.querySelector('input[name="files"]').files;
+            const paths = [];
+
+            if (files.length === 0) {
+                showResult('يرجى اختيار الملفات أولاً', 'error');
+                return;
+            }
+
+            // إضافة الملفات والمسارات
+            for (let i = 0; i < files.length; i++) {
+                formData.append('files[]', files[i]);
+                paths.push(files[i].webkitRelativePath);
+            }
+
+            // إضافة المسارات
+            paths.forEach(path => {
+                formData.append('paths[]', path);
+            });
+
+            // إعداد الطلب
+            document.querySelector('.loading').style.display = 'inline';
+
+            try {
+                const response = await fetch('/admin/file/process-bulk-folder-upload', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json'
+                    },
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showResult(`
+                        <h3>✅ نجح الاختبار!</h3>
+                        <p><strong>معرف الجلسة:</strong> ${result.session_id}</p>
+                        <p><strong>الملفات المعالجة:</strong> ${result.results.processed_files}</p>
+                        <p><strong>الملفات المحفوظة:</strong> ${result.results.files_saved}</p>
+                        <p><strong>الملفات المكررة:</strong> ${result.results.duplicates_found}</p>
+
+                        ${result.results.duplicates_found > 0 ? `
+                        <div style="margin-top: 15px; padding: 10px; background: #fff3cd; border: 1px solid #ffeaa7;">
+                            <h4>🔍 ملفات مكررة تم اكتشافها:</h4>
+                            <p>عدد الملفات المكررة: ${result.results.duplicates_found}</p>
+                            <p>يمكنك إدارة الملفات المكررة من خلال واجهة النظام الرئيسية</p>
+                        </div>
+                        ` : ''}
+
+                        <div style="margin-top: 15px;">
+                            <h4>📊 إحصائيات التحليل:</h4>
+                            <ul>
+                                <li>إجمالي المجلدات: ${result.statistics.total_folders}</li>
+                                <li>مجلدات الهوية: ${result.statistics.identity_folders}</li>
+                                <li>المجلدات الصحيحة: ${result.statistics.valid_folders}</li>
+                                <li>المجلدات المرفوضة: ${result.statistics.rejected_folders}</li>
+                            </ul>
+                        </div>
+                    `, 'success');
+                } else {
+                    showResult(`
+                        <h3>❌ فشل الاختبار</h3>
+                        <p><strong>الخطأ:</strong> ${result.message || 'خطأ غير معروف'}</p>
+                        ${result.error_details ? `<p><strong>التفاصيل:</strong> ${result.error_details}</p>` : ''}
+                    `, 'error');
+                }
+
+            } catch (error) {
+                showResult(`
+                    <h3>❌ خطأ في الشبكة</h3>
+                    <p><strong>الخطأ:</strong> ${error.message}</p>
+                    <p>يرجى التأكد من أن الخادم يعمل والمسار صحيح</p>
+                `, 'error');
+            }
+
+            document.querySelector('.loading').style.display = 'none';
+        });
+
+        function showResult(message, type) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = message;
+            resultDiv.className = `result ${type}`;
+            resultDiv.style.display = 'block';
+            resultDiv.scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>

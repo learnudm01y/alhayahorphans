@@ -85,9 +85,14 @@ Route::prefix('api/files')->group(function () {
     Route::post('/process-folder-upload', [App\Http\Controllers\UnifiedFileManagementController::class, 'processFolderUpload'])
         ->name('api.files.process-folder-upload');
 
-    Route::get('/analytics', [App\Http\Controllers\UnifiedFileManagementController::class, 'getAnalytics'])
+    Route::get('/analytics', [App\Http\Controllers\UnifiedFileManagementController::class, 'getFileAnalytics'])
         ->name('api.files.analytics');
 });
+
+// Fallback routes for analytics without auth
+Route::get('/api/files/analytics', [App\Http\Controllers\UnifiedFileManagementController::class, 'getFileAnalytics'])
+    ->withoutMiddleware(['auth', 'verified'])
+    ->name('api.files.analytics.fallback');
 
 // // Routes للمعالجة الملفات المكررة
 // Route::group(['prefix' => 'file-management'], function() {

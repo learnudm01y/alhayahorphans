@@ -108,9 +108,13 @@ function showDuplicateFilesModal(sessionId = null, showAll = false) {
     // إعداد رابط التنزيل فوراً
     if (downloadLink) {
         const baseUrl = window.location.protocol + '//' + window.location.host;
-        const downloadUrl = `${baseUrl}/admin/duplicate-files/download-all`;
+        const downloadUrl = sessionId ?
+            `${baseUrl}/api/duplicate-files/download?session_id=${sessionId}` :
+            `${baseUrl}/admin/duplicate-files/download-all`;
         downloadLink.href = downloadUrl;
-        downloadLink.download = `all_duplicate_files_${Date.now()}.zip`;
+        downloadLink.download = sessionId ?
+            `duplicate_files_${sessionId}.zip` :
+            `all_duplicate_files_${Date.now()}.zip`;
         downloadLink.style.display = 'inline-block';
         console.log('🔗 تم إعداد رابط التنزيل:', downloadUrl);
     }
@@ -122,8 +126,15 @@ function showDuplicateFilesModal(sessionId = null, showAll = false) {
     // استدعاء دالة التأكيد
     ensureButtonsVisible();
 
-    // استخدام النظام الجديد فقط
-    const fetchUrl = '/admin/duplicate-files/paginated?per_page=100';
+    // تحديد URL حسب ما إذا كنا نريد عرض جميع الملفات أم جلسة معينة
+    let fetchUrl;
+    if (showAll || !sessionId) {
+        // عرض جميع الملفات المكررة
+        fetchUrl = '/admin/duplicate-files/paginated?per_page=100';
+    } else {
+        // عرض ملفات جلسة معينة
+        fetchUrl = `/api/duplicate-files/summary?session_id=${sessionId}`;
+    }
 
     fetch(fetchUrl, {
             headers: {
@@ -133,17 +144,28 @@ function showDuplicateFilesModal(sessionId = null, showAll = false) {
         })
         .then(res => res.json())
         .then(data => {
-            console.log('Duplicate files response:', data);
+            console.log('Duplicate files response:', data); // للتشخيص
 
             let files = [];
             let totalCount = 0;
             let statistics = null;
 
-            // معالجة البيانات من النظام الجديد فقط
-            if (data.success && data.data && data.data.files) {
-                files = data.data.files;
-                totalCount = data.data.pagination ? data.data.pagination.total : files.length;
-                statistics = data.data.statistics;
+            // معالجة البيانات حسب نوع الاستجابة
+            if (showAll || !sessionId) {
+                // استجابة من النظام الجديد (pagination)
+                if (data.success && data.data && data.data.files) {
+                    files = data.data.files;
+                    totalCount = data.data.pagination ? data.data.pagination.total : files.length;
+                    statistics = data.data.statistics;
+                }
+            } else {
+                // استجابة من النظام القديم (session-based)
+                if (data.success && data.data) {
+                    if (data.data.files && data.data.files.length > 0) {
+                        files = data.data.files;
+                        totalCount = data.data.total_duplicates || files.length;
+                    }
+                }
             }
 
             if (files.length > 0) {
@@ -154,15 +176,15 @@ function showDuplicateFilesModal(sessionId = null, showAll = false) {
 
                 // عرض الإحصائيات إذا كانت متاحة
                 if (statistics) {
-                    document.getElementById('modalTotalFiles').textContent = statistics.total_files || totalCount;
-                    document.getElementById('modalTotalImages').textContent = statistics.total_images || 0;
-                    document.getElementById('modalTotalDocuments').textContent = statistics.total_documents || 0;
-                    document.getElementById('modalTotalSize').textContent = formatFileSize(statistics.total_size || 0);
-                    document.getElementById('duplicateStatsCards').style.display = 'block';
+                    $('#modalTotalFiles').text(statistics.total_files || totalCount);
+                    $('#modalTotalImages').text(statistics.total_images || 0);
+                    $('#modalTotalDocuments').text(statistics.total_documents || 0);
+                    $('#modalTotalSize').text(formatFileSize(statistics.total_size || 0));
+                    $('#duplicateStatsCards').show();
                 } else {
                     // إحصائيات بسيطة إذا لم تكن متاحة
-                    document.getElementById('modalTotalFiles').textContent = totalCount;
-                    document.getElementById('duplicateStatsCards').style.display = 'block';
+                    $('#modalTotalFiles').text(totalCount);
+                    $('#duplicateStatsCards').show();
                 }
 
                 // إضافة رابط للإدارة المتقدمة إذا كان هناك ملفات كثيرة
@@ -214,44 +236,13 @@ function showDuplicateFilesModal(sessionId = null, showAll = false) {
                     const fileIcon = getFileIcon(mimeType);
                     const fileTypeLabel = getFileTypeLabel(mimeType);
 
-                    // تنظيف وإصلاح مسار الصور
-                    let imagePreviewUrl = '';
-                    if (isImage) {
-                        if (file.preview_url) {
-                            // استخدام preview_url إذا كان متاحاً
-                            imagePreviewUrl = file.preview_url;
-                        } else if (file.temp_path) {
-                            // تنظيف المسار
-                            let cleanPath = file.temp_path;
-
-                            // إزالة المسار المطلق الكامل
-                            const patterns = [
-                                /^.*storage[\\\/]app[\\\/]public[\\\/]/,
-                                /^.*storage[\\\/]/,
-                                /^[A-Z]:[\\\/].*?storage[\\\/]app[\\\/]public[\\\/]/
-                            ];
-
-                            for (let pattern of patterns) {
-                                cleanPath = cleanPath.replace(pattern, '');
-                            }
-
-                            // التأكد من بدء المسار بـ temp/duplicates
-                            if (!cleanPath.startsWith('temp/duplicates')) {
-                                if (cleanPath.includes('temp/duplicates')) {
-                                    cleanPath = cleanPath.substring(cleanPath.indexOf('temp/duplicates'));
-                                } else {
-                                    cleanPath = `temp/duplicates/${cleanPath}`;
-                                }
-                            }
-
-                            imagePreviewUrl = `/storage/${cleanPath}`;
-                        }
-                    }
-
                     // إنشاء معاينة للملف
                     let previewHtml = '';
-                    if (isImage && imagePreviewUrl) {
-                        previewHtml = `<img src="${imagePreviewUrl}" class="img-thumbnail" style="width: 60px; height: 60px; object-fit: cover;" alt="معاينة" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" onclick="showImagePreview('${imagePreviewUrl}', '${originalName}')">
+                    if (isImage && file.preview_url) {
+                        previewHtml = `<img src="${file.preview_url}" class="img-thumbnail" style="width: 60px; height: 60px; object-fit: cover;" alt="معاينة" onclick="showImagePreview('${file.preview_url}', '${originalName}')">`;
+                    } else if (isImage && file.temp_path) {
+                        // محاولة عرض الصورة من المسار المباشر (إذا كان متاحاً)
+                        previewHtml = `<img src="/storage/${file.temp_path}" class="img-thumbnail" style="width: 60px; height: 60px; object-fit: cover;" alt="معاينة" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" onclick="showImagePreview('/storage/${file.temp_path}', '${originalName}')">
                                       <div class="d-flex align-items-center justify-content-center bg-light border rounded" style="width: 60px; height: 60px; display: none;">
                                           <i class="${fileIcon} text-muted"></i>
                                       </div>`;
@@ -303,7 +294,7 @@ function showDuplicateFilesModal(sessionId = null, showAll = false) {
                         </td>
                         <td>
                             <div class="btn-group-vertical" role="group">
-                                ${isImage && imagePreviewUrl ? `<button class="btn btn-sm btn-outline-info" onclick="showImagePreview('${imagePreviewUrl}', '${originalName}')" title="معاينة">
+                                ${isImage ? `<button class="btn btn-sm btn-outline-info" onclick="showImagePreview('${file.preview_url || '/storage/' + file.temp_path}', '${originalName}')" title="معاينة">
                                     <i class="fas fa-eye"></i>
                                 </button>` : ''}
                                 ${downloadBtn}
@@ -324,9 +315,13 @@ function showDuplicateFilesModal(sessionId = null, showAll = false) {
                 const finalDownloadLink = document.getElementById('downloadDuplicatesLink');
                 if (finalDownloadLink) {
                     const baseUrl = window.location.protocol + '//' + window.location.host;
-                    const downloadUrl = `${baseUrl}/admin/duplicate-files/download-all`;
+                    const downloadUrl = sessionId ?
+                        `${baseUrl}/api/duplicate-files/download?session_id=${sessionId}` :
+                        `${baseUrl}/admin/duplicate-files/download-all`;
                     finalDownloadLink.href = downloadUrl;
-                    finalDownloadLink.download = `all_duplicate_files_${Date.now()}.zip`;
+                    finalDownloadLink.download = sessionId ?
+                        `duplicate_files_${sessionId}.zip` :
+                        `all_duplicate_files_${Date.now()}.zip`;
                     finalDownloadLink.style.display = 'inline-block';
                     console.log('🔗 تم تحديث رابط التنزيل:', downloadUrl);
                 }
@@ -335,34 +330,49 @@ function showDuplicateFilesModal(sessionId = null, showAll = false) {
                 note.style.display = 'block';
             } else {
                 // لا توجد ملفات مكررة
+                let message;
+                if (showAll || !sessionId) {
+                    message = 'لا توجد ملفات مكررة في النظام حالياً.';
+                } else {
+                    message = 'لا توجد ملفات مكررة لهذه الجلسة.';
+                }
+
                 listDiv.innerHTML = `<div class="alert alert-info">
                     <i class="fas fa-info-circle me-2"></i>
-                    لا توجد ملفات مكررة في النظام حالياً.
+                    ${message}
                     <br><br>
                     <div class="alert alert-primary mt-2">
                         <i class="fas fa-lightbulb me-2"></i>
-                        <strong>نصيحة:</strong> يمكنك الانتقال إلى
+                        <strong>نصيحة:</strong> يمكنك استخدام
+                        <button class="btn btn-sm btn-outline-info" onclick="showAllDuplicateFiles()">
+                            <i class="fas fa-list me-1"></i>
+                            عرض الكل
+                        </button>
+                        لعرض جميع الملفات المكررة، أو الانتقال إلى
                         <a href="/admin/duplicate-files" target="_blank" class="alert-link">
                             الإدارة المتقدمة
                         </a>
-                        للحصول على المزيد من الخيارات
                     </div>
                 </div>`;
 
-                // إظهار رابط التحميل والحذف
+                // إظهار رابط التحميل والحذف حتى لو لم توجد ملفات مكررة (لأغراض الاختبار)
                 const finalDownloadLink = document.getElementById('downloadDuplicatesLink');
                 if (finalDownloadLink) {
                     const baseUrl = window.location.protocol + '//' + window.location.host;
-                    const downloadUrl = `${baseUrl}/admin/duplicate-files/download-all`;
+                    const downloadUrl = sessionId ?
+                        `${baseUrl}/api/duplicate-files/download?session_id=${sessionId}` :
+                        `${baseUrl}/admin/duplicate-files/download-all`;
                     finalDownloadLink.href = downloadUrl;
-                    finalDownloadLink.download = `all_duplicate_files_${Date.now()}.zip`;
+                    finalDownloadLink.download = sessionId ?
+                        `duplicate_files_${sessionId}.zip` :
+                        `all_duplicate_files_${Date.now()}.zip`;
                     finalDownloadLink.style.display = 'inline-block';
                     console.log('🔗 تم إعداد رابط التنزيل للاختبار:', downloadUrl);
                 }
 
                 deleteBtn.style.display = 'inline-block';
                 note.style.display = 'block';
-                ensureButtonsVisible();
+                ensureButtonsVisible(); // تأكيد إضافي
             }
         })
         .catch(error => {
@@ -377,13 +387,14 @@ function showDuplicateFilesModal(sessionId = null, showAll = false) {
                 </div>
             </div>`;
 
-            // إظهار رابط التحميل والحذف حتى في حالة الخطأ
+            // إظهار رابط التحميل والحذف حتى في حالة الخطأ (لأغراض الاختبار)
+            const sessionId = duplicateSessionId || 'test123';
             const finalDownloadLink = document.getElementById('downloadDuplicatesLink');
             if (finalDownloadLink) {
                 const baseUrl = window.location.protocol + '//' + window.location.host;
-                const downloadUrl = `${baseUrl}/admin/duplicate-files/download-all`;
+                const downloadUrl = `${baseUrl}/api/duplicate-files/download?session_id=${sessionId}`;
                 finalDownloadLink.href = downloadUrl;
-                finalDownloadLink.download = `all_duplicate_files_${Date.now()}.zip`;
+                finalDownloadLink.download = `duplicate_files_${sessionId}.zip`;
                 finalDownloadLink.style.display = 'inline-block';
                 console.log('🔗 تم إعداد رابط التنزيل (حالة خطأ):', downloadUrl);
             }
@@ -416,10 +427,10 @@ function showDuplicateFilesModal(sessionId = null, showAll = false) {
     }, 2000);
 }
 
-// دالة لعرض جميع الملفات المكررة
+// دالة لعرض جميع الملفات المكررة (بدون تحديد session)
 function showAllDuplicateFiles() {
     console.log('🔄 عرض جميع الملفات المكررة...');
-    showDuplicateFilesModal();
+    showDuplicateFilesModal(null, true);
 }
 
 // دالة لتحديث عدد الملفات في الزر
@@ -518,6 +529,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const deleteBtn = document.getElementById('deleteDuplicatesBtn');
     if (deleteBtn) {
         deleteBtn.onclick = function() {
+            if (!duplicateSessionId) {
+                alert('معرف الجلسة غير متوفر');
+                return;
+            }
+
             if (!confirm('هل أنت متأكد من حذف جميع الملفات المكررة نهائياً؟\nلن يمكن استرجاعها بعد الحذف.')) {
                 return;
             }
@@ -527,7 +543,7 @@ document.addEventListener('DOMContentLoaded', function() {
             deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> جاري الحذف...';
             deleteBtn.disabled = true;
 
-            fetch('/admin/duplicate-files/delete-all', {
+            fetch(`/api/duplicate-files/delete?session_id=${duplicateSessionId}`, {
                 method: 'DELETE',
                 headers: {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
@@ -538,22 +554,19 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(res => res.json())
             .then(data => {
-                console.log('Delete response:', data);
+                console.log('Delete response:', data); // للتشخيص
 
                 if (data.success) {
                     document.getElementById('duplicateFilesList').innerHTML = `
                         <div class="alert alert-success">
                             <i class="fas fa-check-circle me-2"></i>
                             ${data.message}
-                            <br><small class="text-muted">تم حذف الملفات المكررة بنجاح</small>
+                            <br><small class="text-muted">تم حذف ${data.data.deleted_files} ملف و ${data.data.deleted_records} سجل من قاعدة البيانات</small>
                         </div>`;
                     document.getElementById('downloadDuplicatesLink').style.display = 'none';
                     deleteBtn.style.display = 'none';
                     document.getElementById('duplicateFilesNote').style.display = 'none';
                     document.getElementById('duplicateStatsCards').style.display = 'none';
-
-                    // تحديث عدد الملفات في الزر
-                    updateFileCount();
                 } else {
                     alert('تعذر حذف الملفات المكررة: ' + (data.message || 'خطأ غير معروف'));
                     deleteBtn.innerHTML = originalText;

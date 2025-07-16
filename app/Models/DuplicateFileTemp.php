@@ -22,6 +22,9 @@ class DuplicateFileTemp extends Model
         'original_folder',
         'target_folder',
         'existing_file_name',
+        'existing_file_id',
+        'file_size',
+        'mime_type',
         'created_at',
         'expires_at'
     ];

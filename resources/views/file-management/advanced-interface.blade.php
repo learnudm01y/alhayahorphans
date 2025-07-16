@@ -470,6 +470,32 @@
     </div>
 
     @include('file-management.modalDublicateFiles')
+
+    <!-- Duplicate Files Modal for Folders -->
+    <div class="modal fade" id="duplicateFilesModal" tabindex="-1" aria-labelledby="duplicateFilesModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title" id="duplicateFilesModalLabel">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        الملفات المكررة المكتشفة
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Content will be loaded dynamically -->
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">جاري التحميل...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+                </div>
+            </div>
+        </div>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // ربط زر عرض الملفات المكررة بالمودال
@@ -1141,7 +1167,7 @@
                 try {
                     console.log('📤 إرسال البيانات إلى الخادم...');
 
-                    const response = await fetch('/admin/files/process-folder-upload', {
+                    const response = await fetch('/admin/file/process-bulk-folder-upload', {
                         method: 'POST',
                         headers: {
                             'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
@@ -1154,88 +1180,58 @@
                     const result = await response.json();
 
                     if (response.ok) {
-                        console.log('✅ نجح رفع المجلد:', result);
+                        console.log('✅ نجح رفع المجلد مع كشف التكرار:', result);
 
-                        // فحص وعرض الملفات المكررة
-                        if (result.duplicate_files && result.duplicate_files.total_duplicates > 0) {
-                            console.log('🔍 تم اكتشاف ملفات مكررة:', result.duplicate_files);
+                        // فحص وعرض الملفات المكررة الجديدة
+                        if (result.duplicates_info && result.duplicates_info.total_duplicates > 0) {
+                            console.log('🔍 تم اكتشاف ملفات مكررة جديدة:', result.duplicates_info);
 
                             // حفظ session_id للملفات المكررة
-                            if (result.duplicate_files.session_id) {
-                                window.CURRENT_DUPLICATE_SESSION_ID = result.duplicate_files.session_id;
-                                sessionStorage.setItem('duplicate_files_session_id', result.duplicate_files.session_id);
+                            window.CURRENT_DUPLICATE_SESSION_ID = result.session_id;
+                            sessionStorage.setItem('duplicate_files_session_id', result.session_id);
 
-                                // إظهار زر عرض الملفات المكررة
-                                const duplicateBtn = document.getElementById('showDuplicateFilesBtn');
-                                if (duplicateBtn) {
-                                    duplicateBtn.style.display = 'inline-block';
-                                    duplicateBtn.innerHTML = `<i class="fas fa-clone me-2"></i>عرض الملفات المكررة (${result.duplicate_files.total_duplicates})`;
-                                    duplicateBtn.classList.add('btn-warning');
-                                    duplicateBtn.classList.remove('btn-secondary');
-                                }
+                            // تحديث زر عرض الملفات المكررة
+                            this.updateDuplicateFilesButton(result.duplicates_info);
 
-                                // عرض تنبيه للمستخدم
-                                this.showAlert(`تم اكتشاف ${result.duplicate_files.total_duplicates} ملف مكرر. تم حفظهم في مجلد مؤقت.`, 'warning');
+                            // عرض تنبيه للمستخدم
+                            this.showAlert(`تم اكتشاف ${result.duplicates_info.total_duplicates} ملف مكرر. تم حفظهم في مجلد مؤقت.`, 'warning');
+                        }
+
+                        // عرض ملخص العملية
+                        if (result.summary) {
+                            console.log('📊 ملخص العملية:', result.summary);
+
+                            let summaryMessage = `تم معالجة ${result.summary.total_files} ملف: `;
+                            summaryMessage += `${result.summary.files_saved} محفوظ، `;
+                            summaryMessage += `${result.summary.duplicates_found} مكرر`;
+
+                            if (result.summary.errors_count > 0) {
+                                summaryMessage += `، ${result.summary.errors_count} خطأ`;
+                            }
+
+                            this.showAlert(summaryMessage, 'success');
+                        }
+
+                        // عرض تحليل المجلدات
+                        if (result.folder_analysis && result.folder_analysis.validated_folders) {
+                            console.log('📁 المجلدات المعتمدة:', result.folder_analysis.validated_folders);
+                            Object.entries(result.folder_analysis.validated_folders).forEach(([folderName, data]) => {
+                                console.log(`✅ ${folderName} → file_id: ${data.file_id_number} (${data.matched_by})`);
+                            });
+                        }
+
+                        if (result.folder_analysis && result.folder_analysis.rejected_folders && result.folder_analysis.rejected_folders.length > 0) {
+                            console.log('❌ مجلدات مرفوضة:', result.folder_analysis.rejected_folders);
+                        }
+
+                        // عرض تفاصيل كشف التكرار
+                        if (result.duplicate_detection_results) {
+                            console.log('� نتائج كشف التكرار:', result.duplicate_detection_results);
+
+                            if (result.duplicate_detection_results.folder_analysis) {
+                                console.log('📂 تحليل المجلدات للتكرار:', result.duplicate_detection_results.folder_analysis);
                             }
                         }
-
-                        // عرض تفاصيل التحقق من الملفات المكررة
-                        if (result.warnings && result.warnings.length > 0) {
-                            console.log('⚠️ تحذيرات الملفات المكررة:', result.warnings);
-                            result.warnings.forEach(warning => {
-                                if (warning.type === 'duplicate_file') {
-                                    console.log(`🔄 ملف مكرر: ${warning.file_name} في المجلد ${warning.folder}`);
-                                    console.log(`📁 مسار التخزين المؤقت: ${warning.duplicate_temp_path}`);
-                                }
-                            });
-                        }
-
-                        // عرض ربط أسماء المجلدات برقم الملف في Console
-                        if (result.identity_mapping && Object.keys(result.identity_mapping).length > 0) {
-                            console.log('🔗 ربط أسماء المجلدات برقم الملف:');
-                            Object.entries(result.identity_mapping).forEach(([identity, fileId]) => {
-                                console.log(`📁 المجلد: ${identity} ← رقم الملف: ${fileId}`);
-                            });
-                        }
-
-                        // عرض المجلدات المعتمدة والمرفوضة والمتجاهلة
-                        if (result.validated_folders && Object.keys(result.validated_folders).length > 0) {
-                            console.log('✅ مجلدات الهوية المعتمدة:');
-                            Object.entries(result.validated_folders).forEach(([folderName, data]) => {
-                                console.log(`📁 ${folderName} → file_id: ${data.file_id_number} (${data.matched_by})`);
-                            });
-                        }
-
-                        if (result.ignored_parent_folders && result.ignored_parent_folders.length > 0) {
-                            console.log('🏷️ المجلدات الأب المتجاهلة (غير مجلدات هوية):', result.ignored_parent_folders);
-                            result.ignored_parent_folders.forEach(folder => {
-                                console.log(`📂 ${folder} - تم تجاهله لأنه ليس مجلد هوية صحيح`);
-                            });
-                        }
-
-                        if (result.rejected_folders && result.rejected_folders.length > 0) {
-                            console.log('❌ مجلدات الهوية المرفوضة:', result.rejected_folders);
-                            result.rejected_folders.forEach(folder => {
-                                console.log(`📁 ${folder} - غير موجود في النظام`);
-                            });
-                        }
-
-                        // عرض إحصائيات عملية الرفع
-                        if (result.statistics) {
-                            console.log('📊 إحصائيات العملية:', {
-                                total_folders: result.statistics.total_folders,
-                                identity_folders: result.statistics.identity_folders,
-                                valid_folders: result.statistics.valid_folders,
-                                rejected_identity_folders: result.statistics.rejected_identity_folders,
-                                ignored_parent_folders: result.statistics.ignored_parent_folders,
-                                processed_files: result.statistics.processed_files,
-                                duplicate_files: result.statistics.duplicate_files_count || 0,
-                                files_with_errors: result.statistics.files_with_errors,
-                                files_with_warnings: result.statistics.files_with_warnings
-                            });
-                        }
-
-                        this.showAlert(`تم رفع ${result.processed_files || files.length} ملف بنجاح!`, 'success');
 
                         // تحديث الواجهة
                         this.updateFileCounts();
@@ -1406,6 +1402,291 @@
                 this.files.delete(fileId);
                 document.getElementById(`preview_${fileId}`).closest('.col-md-4').remove();
                 this.showAlert('تم حذف الملف بنجاح.', 'success');
+            }
+
+            /**
+             * تحديث زر عرض الملفات المكررة
+             */
+            updateDuplicateFilesButton(duplicatesInfo) {
+                const duplicateBtn = document.getElementById('showDuplicateFilesBtn');
+                if (duplicateBtn && duplicatesInfo) {
+                    duplicateBtn.style.display = 'inline-block';
+                    duplicateBtn.innerHTML = `<i class="fas fa-clone me-2"></i>عرض الملفات المكررة (${duplicatesInfo.total_duplicates})`;
+                    duplicateBtn.classList.add('btn-warning');
+                    duplicateBtn.classList.remove('btn-secondary');
+
+                    // إضافة وظيفة النقر
+                    duplicateBtn.onclick = () => {
+                        this.showDuplicateFilesModal(duplicatesInfo.session_id);
+                    };
+                }
+            }
+
+            /**
+             * عرض modal الملفات المكررة
+             */
+            async showDuplicateFilesModal(sessionId) {
+                try {
+                    // جلب قائمة الملفات المكررة
+                    const response = await fetch(`/admin/file/duplicate-summary?session_id=${sessionId}`);
+                    const result = await response.json();
+
+                    if (result.success && result.data.total_duplicates > 0) {
+                        // تحديث محتوى الـ modal
+                        this.populateDuplicateFilesModal(result.data);
+
+                        // عرض الـ modal
+                        const modal = new bootstrap.Modal(document.getElementById('duplicateFilesModal'));
+                        modal.show();
+                    } else {
+                        this.showAlert('لا توجد ملفات مكررة للعرض', 'info');
+                    }
+                } catch (error) {
+                    console.error('خطأ في جلب الملفات المكررة:', error);
+                    this.showAlert('حدث خطأ أثناء جلب قائمة الملفات المكررة', 'danger');
+                }
+            }
+
+            /**
+             * ملء محتوى modal الملفات المكررة
+             */
+            populateDuplicateFilesModal(duplicateData) {
+                const modalBody = document.querySelector('#duplicateFilesModal .modal-body');
+
+                let html = `
+                    <div class="alert alert-warning">
+                        <h6><i class="fas fa-exclamation-triangle"></i> تم العثور على ${duplicateData.total_duplicates} ملف مكرر</h6>
+                        <p>الحجم الإجمالي: ${this.formatFileSize(duplicateData.total_size)}</p>
+                    </div>
+                `;
+
+                // عرض تحليل المجلدات إذا كان متوفراً
+                if (duplicateData.folders_analysis) {
+                    html += `<h6>تحليل المجلدات المتأثرة:</h6>`;
+                    Object.values(duplicateData.folders_analysis).forEach(folder => {
+                        html += `
+                            <div class="card mb-2">
+                                <div class="card-body">
+                                    <h6 class="card-title">مجلد: ${folder.folder_id}</h6>
+                                    <p class="card-text">
+                                        ملفات مكررة: ${folder.duplicates_count}<br>
+                                        الحجم: ${this.formatFileSize(folder.total_size)}
+                                    </p>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+
+                // قائمة الملفات المكررة
+                html += `<h6>قائمة الملفات المكررة:</h6>`;
+                html += `<div class="list-group">`;
+
+                duplicateData.files.forEach(file => {
+                    const canDownload = file.can_download;
+                    html += `
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-1">${file.original_name}</h6>
+                                    <p class="mb-1">
+                                        <small class="text-muted">
+                                            المجلد الأصلي: ${file.original_folder} → المجلد الهدف: ${file.target_folder}
+                                        </small>
+                                    </p>
+                                    <small>الحجم: ${this.formatFileSize(file.file_size)}</small>
+                                </div>
+                                <div>
+                                    ${canDownload ? `
+                                        <button class="btn btn-sm btn-outline-primary" onclick="window.open('${file.download_url}', '_blank')">
+                                            <i class="fas fa-download"></i> تحميل
+                                        </button>
+                                    ` : `
+                                        <span class="badge bg-secondary">غير متوفر</span>
+                                    `}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `</div>`;
+
+                // أزرار العمليات
+                html += `
+                    <div class="mt-3 d-flex gap-2">
+                        <button class="btn btn-primary" onclick="app.downloadAllDuplicates('${duplicateData.session_id}')">
+                            <i class="fas fa-download"></i> تحميل جميع الملفات
+                        </button>
+                        <button class="btn btn-danger" onclick="app.deleteAllDuplicates('${duplicateData.session_id}')">
+                            <i class="fas fa-trash"></i> حذف جميع الملفات المكررة
+                        </button>
+                        <button class="btn btn-info" onclick="app.showDuplicateStatistics('${duplicateData.session_id}')">
+                            <i class="fas fa-chart-bar"></i> إحصائيات مفصلة
+                        </button>
+                    </div>
+                `;
+
+                modalBody.innerHTML = html;
+            }
+
+            /**
+             * تحميل جميع الملفات المكررة
+             */
+            async downloadAllDuplicates(sessionId) {
+                try {
+                    window.open(`/admin/file/download-duplicates?session_id=${sessionId}`, '_blank');
+                    this.showAlert('جاري تحميل جميع الملفات المكررة...', 'info');
+                } catch (error) {
+                    console.error('خطأ في تحميل الملفات:', error);
+                    this.showAlert('حدث خطأ أثناء تحميل الملفات', 'danger');
+                }
+            }
+
+            /**
+             * حذف جميع الملفات المكررة
+             */
+            async deleteAllDuplicates(sessionId) {
+                if (!confirm('هل أنت متأكد من حذف جميع الملفات المكررة؟ هذا الإجراء لا يمكن التراجع عنه.')) {
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/admin/file/delete-duplicates?session_id=${sessionId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                        }
+                    });
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        this.showAlert(`تم حذف ${result.data.deleted_files} ملف مكرر بنجاح`, 'success');
+
+                        // إغلاق الـ modal
+                        const modal = bootstrap.Modal.getInstance(document.getElementById('duplicateFilesModal'));
+                        if (modal) modal.hide();
+
+                        // إخفاء زر عرض الملفات المكررة
+                        const duplicateBtn = document.getElementById('showDuplicateFilesBtn');
+                        if (duplicateBtn) {
+                            duplicateBtn.style.display = 'none';
+                        }
+
+                        // مسح معرف الجلسة
+                        sessionStorage.removeItem('duplicate_files_session_id');
+                        delete window.CURRENT_DUPLICATE_SESSION_ID;
+
+                    } else {
+                        this.showAlert(`فشل في حذف الملفات: ${result.message}`, 'danger');
+                    }
+                } catch (error) {
+                    console.error('خطأ في حذف الملفات:', error);
+                    this.showAlert('حدث خطأ أثناء حذف الملفات', 'danger');
+                }
+            }
+
+            /**
+             * عرض إحصائيات مفصلة للملفات المكررة
+             */
+            async showDuplicateStatistics(sessionId) {
+                try {
+                    const response = await fetch(`/admin/file/duplicate-statistics?session_id=${sessionId}`);
+                    const result = await response.json();
+
+                    if (result.success) {
+                        const stats = result.data;
+                        let html = `
+                            <div class="modal fade" id="statisticsModal" tabindex="-1">
+                                <div class="modal-dialog modal-lg">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">إحصائيات الملفات المكررة</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <div class="card">
+                                                        <div class="card-header">إحصائيات عامة</div>
+                                                        <div class="card-body">
+                                                            <p>إجمالي الملفات المكررة: <strong>${stats.total_duplicates}</strong></p>
+                                                            <p>الحجم الإجمالي: <strong>${this.formatFileSize(stats.total_size)}</strong></p>
+                                                            <p>المجلدات المتأثرة: <strong>${stats.folders_affected}</strong></p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="card">
+                                                        <div class="card-header">أنواع الملفات</div>
+                                                        <div class="card-body">
+                        `;
+
+                        Object.entries(stats.file_types).forEach(([ext, count]) => {
+                            html += `<p>${ext.toUpperCase()}: <strong>${count}</strong> ملف</p>`;
+                        });
+
+                        html += `
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="mt-3">
+                                                <h6>تفصيل المجلدات:</h6>
+                        `;
+
+                        Object.values(stats.folders_breakdown).forEach(folder => {
+                            html += `
+                                <div class="card mb-2">
+                                    <div class="card-body">
+                                        <h6>مجلد: ${folder.folder_id}</h6>
+                                        <p>ملفات مكررة: ${folder.duplicates_count} | الحجم: ${this.formatFileSize(folder.total_size)}</p>
+                                        <small class="text-muted">الملفات: ${folder.files.join(', ')}</small>
+                                    </div>
+                                </div>
+                            `;
+                        });
+
+                        html += `
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+
+                        // إضافة الـ modal إلى الصفحة وعرضه
+                        document.body.insertAdjacentHTML('beforeend', html);
+                        const statsModal = new bootstrap.Modal(document.getElementById('statisticsModal'));
+                        statsModal.show();
+
+                        // حذف الـ modal عند الإغلاق
+                        document.getElementById('statisticsModal').addEventListener('hidden.bs.modal', function() {
+                            this.remove();
+                        });
+
+                    } else {
+                        this.showAlert('فشل في جلب الإحصائيات', 'danger');
+                    }
+                } catch (error) {
+                    console.error('خطأ في جلب الإحصائيات:', error);
+                    this.showAlert('حدث خطأ أثناء جلب الإحصائيات', 'danger');
+                }
+            }
+
+            /**
+             * تنسيق حجم الملف
+             */
+            formatFileSize(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
             }
         }
 

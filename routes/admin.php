@@ -18,6 +18,7 @@ use App\Http\Controllers\Admin\MaritalStatusController;
 use App\Http\Controllers\Admin\PersonsController;
 use App\Http\Controllers\Admin\ProvinceController;
 use App\Http\Controllers\Admin\RecordsManagementController;
+use App\Http\Controllers\TestController;
 use App\Http\Controllers\UnifiedFileManagementController;
 use App\Http\Controllers\Admin\RecordsManagementEditController;
 use App\Http\Controllers\Admin\RequestStatusController;
@@ -135,10 +136,17 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
 
     // File Management Routes
     Route::prefix('file')->group(function () {
-        Route::get('duplicate-summary', [UnifiedFileManagementController::class, 'getDuplicateSummary'])->name('file.duplicate.summary');
-        Route::delete('delete-duplicates', [UnifiedFileManagementController::class, 'deleteDuplicates'])->name('file.delete.duplicates');
-        Route::get('download-duplicates', [UnifiedFileManagementController::class, 'downloadDuplicateFiles'])->name('file.download.duplicates');
-        Route::get('download-duplicate', [UnifiedFileManagementController::class, 'downloadSingleDuplicate'])->name('file.download.duplicate.single');
+        // Duplicate Detection Routes for Folders
+        Route::get('duplicate-summary', [UnifiedFileManagementController::class, 'getDuplicateFilesSummary'])->name('file.duplicate.summary');
+        Route::delete('delete-duplicates', [UnifiedFileManagementController::class, 'deleteDuplicateFiles'])->name('file.delete.duplicates');
+        Route::get('download-duplicates', [UnifiedFileManagementController::class, 'downloadDuplicateFilesZip'])->name('file.download.duplicates');
+        Route::get('download-duplicate', [UnifiedFileManagementController::class, 'downloadSingleDuplicateFile'])->name('file.download.duplicate.single');
+        Route::get('duplicate-statistics', [UnifiedFileManagementController::class, 'getFolderDuplicateStatistics'])->name('file.duplicate.statistics');
+
+        // Bulk Folder Upload with Duplicate Detection
+        Route::post('process-bulk-folder-upload', [UnifiedFileManagementController::class, 'processBulkFolderUploadWithDuplicateDetection'])->name('file.process.bulk.folder.upload');
+
+        // Legacy routes (keeping for backward compatibility)
         Route::post('create-test-duplicates', [UnifiedFileManagementController::class, 'createTestDuplicates'])->name('file.create.test.duplicates');
 
         // Excel Gateway Routes
@@ -174,4 +182,33 @@ Route::prefix('test/api/file')->group(function () {
     Route::delete('delete-duplicates', [DuplicateFileController::class, 'deleteDuplicateFiles'])->name('test.api.file.delete.duplicates');
     Route::get('download-duplicates', [DuplicateFileController::class, 'downloadDuplicateFiles'])->name('test.api.file.download.duplicates');
     Route::post('process-folder-duplicates', [DuplicateFileController::class, 'processFolderForDuplicates'])->name('test.api.file.process.folder.duplicates');
+});
+
+// Admin Routes Group
+Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
+    // Duplicate Files Management with Pagination - إدارة الملفات المكررة مع التقسيم للصفحات
+    Route::prefix('duplicate-files')->group(function () {
+        Route::get('/', [UnifiedFileManagementController::class, 'duplicateFilesIndex'])->name('duplicate.files.index');
+        Route::get('test', function () {
+            return view('admin.duplicate-files.test');
+        })->name('duplicate.files.test');
+        Route::get('count', [UnifiedFileManagementController::class, 'getDuplicateFilesCount'])->name('duplicate.files.count');
+        Route::get('paginated', [UnifiedFileManagementController::class, 'getDuplicateFilesPaginated'])->name('duplicate.files.paginated');
+        Route::get('view/{id}', [UnifiedFileManagementController::class, 'viewDuplicateFile'])->name('duplicate.files.view');
+        Route::get('download/{id}', [UnifiedFileManagementController::class, 'downloadDuplicateFileById'])->name('duplicate.files.download');
+        Route::delete('delete/{id}', [UnifiedFileManagementController::class, 'deleteDuplicateFileById'])->name('duplicate.files.delete');
+        Route::delete('bulk-delete', [UnifiedFileManagementController::class, 'bulkDeleteDuplicateFiles'])->name('duplicate.files.bulk.delete');
+        Route::get('preview/{id}', [UnifiedFileManagementController::class, 'previewDuplicateFile'])->name('duplicate.files.preview');
+    });
+});;
+
+// Admin Routes Group - Additional Testing Routes
+Route::prefix('admin')->group(function () {
+    Route::get('test-connection', [UnifiedFileManagementController::class, 'testConnection'])->name('admin.test.connection');
+    Route::get('test-document-types', [UnifiedFileManagementController::class, 'testDocumentTypes'])->name('admin.test.document.types');
+    Route::post('process-bulk-folder-upload-with-duplicate-detection', [UnifiedFileManagementController::class, 'processBulkFolderUploadWithDuplicateDetection'])->name('admin.process.bulk.folder.upload.duplicate.detection');
+
+    // مسارات اختبار الإصلاحات
+    Route::post('file/test-duplicate-detection', [TestController::class, 'testDuplicateDetection'])->name('admin.file.test.duplicate.detection');
+    Route::get('file/get-recent-logs', [TestController::class, 'getRecentLogs'])->name('admin.file.get.recent.logs');
 });

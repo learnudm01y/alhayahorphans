@@ -1,0 +1,331 @@
+/* تحسينات CSS لنظام إدارة الملفات المكررة */
+
+/* معاينة الصور المصغرة */
+.duplicate-file-preview {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.duplicate-file-preview:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+/* أيقونة الملف */
+.file-icon-container {
+    width: 60px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.file-icon-container:hover {
+    background: #e9ecef;
+}
+
+/* تحسينات الجدول */
+.duplicate-files-table th {
+    font-weight: 600;
+    background-color: #fff3cd;
+    border-bottom: 2px solid #ffeaa7;
+}
+
+.duplicate-files-table tbody tr:hover {
+    background-color: #f8f9fa;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: all 0.2s ease;
+}
+
+/* مسارات الملفات */
+.file-path-display {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-path-full {
+    font-family: 'Courier New', monospace;
+    font-size: 0.7rem;
+    color: #6c757d;
+    background: #f8f9fa;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid #e9ecef;
+}
+
+/* شارات الحالة */
+.status-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.375rem;
+}
+
+.status-active {
+    background-color: #d1e7dd;
+    color: #0a3622;
+    border: 1px solid #badbcc;
+}
+
+.status-expired {
+    background-color: #f8d7da;
+    color: #58151c;
+    border: 1px solid #f1aeb5;
+}
+
+.status-missing {
+    background-color: #fff3cd;
+    color: #664d03;
+    border: 1px solid #ffecb5;
+}
+
+/* أزرار الإجراءات */
+.action-buttons {
+    display: flex;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+}
+
+.action-buttons .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.875rem;
+    border-radius: 0.375rem;
+}
+
+/* كروت الإحصائيات */
+.stats-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stats-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.stats-icon {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+/* modal معاينة الصور */
+.image-preview-modal .modal-body img {
+    max-width: 100%;
+    max-height: 70vh;
+    object-fit: contain;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* تحسينات pagination */
+.pagination .page-link {
+    border-radius: 0.375rem;
+    margin: 0 0.125rem;
+    color: #6c757d;
+    border-color: #dee2e6;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.pagination .page-link:hover {
+    background-color: #e9ecef;
+    border-color: #adb5bd;
+}
+
+/* حالة التحميل */
+.loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1rem;
+}
+
+.loading-spinner {
+    width: 3rem;
+    height: 3rem;
+    border: 0.3rem solid #f3f4f6;
+    border-top: 0.3rem solid #3b82f6;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* حالة فارغة */
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #6c757d;
+}
+
+.empty-state-icon {
+    font-size: 4rem;
+    color: #dee2e6;
+    margin-bottom: 1rem;
+}
+
+/* filters */
+.filters-container {
+    background: #ffffff;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.filter-group {
+    margin-bottom: 1rem;
+}
+
+.filter-group:last-child {
+    margin-bottom: 0;
+}
+
+/* رسائل التنبيه */
+.alert-enhanced {
+    border: none;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.alert-enhanced .alert-icon {
+    font-size: 1.25rem;
+    margin-left: 0.5rem;
+}
+
+/* تحسينات responsive */
+@media (max-width: 768px) {
+    .duplicate-file-preview,
+    .file-icon-container {
+        width: 40px;
+        height: 40px;
+    }
+
+    .action-buttons {
+        flex-direction: column;
+    }
+
+    .action-buttons .btn {
+        font-size: 0.75rem;
+        padding: 0.125rem 0.25rem;
+    }
+
+    .file-path-display {
+        max-width: 100px;
+    }
+
+    .stats-card .card-body {
+        padding: 0.75rem;
+    }
+
+    .pagination .page-link {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .filters-container {
+        padding: 1rem;
+    }
+
+    .filter-group {
+        margin-bottom: 0.75rem;
+    }
+
+    .duplicate-files-table {
+        font-size: 0.875rem;
+    }
+
+    .status-badge {
+        font-size: 0.6875rem;
+        padding: 0.125rem 0.375rem;
+    }
+}
+
+/* تحسينات إضافية للواجهة العربية */
+.rtl-support {
+    direction: rtl;
+    text-align: right;
+}
+
+.file-name-arabic {
+    font-family: 'Cairo', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-weight: 500;
+}
+
+.breadcrumb-arabic {
+    font-family: 'Cairo', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* تحسينات tooltips */
+.tooltip-custom {
+    max-width: 300px;
+}
+
+.tooltip-custom .tooltip-inner {
+    background-color: #212529;
+    color: #fff;
+    font-size: 0.875rem;
+    border-radius: 0.375rem;
+    padding: 0.5rem 0.75rem;
+}
+
+/* تحسينات البحث */
+.search-highlight {
+    background-color: #fff3cd;
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-weight: 600;
+}
+
+/* أنيميشن للعناصر الجديدة */
+.fade-in {
+    opacity: 0;
+    animation: fadeIn 0.5s ease-in-out forwards;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* تحسينات الطباعة */
+@media print {
+    .action-buttons,
+    .pagination,
+    .filters-container {
+        display: none !important;
+    }
+
+    .duplicate-files-table {
+        font-size: 10px;
+    }
+
+    .duplicate-file-preview,
+    .file-icon-container {
+        width: 30px;
+        height: 30px;
+    }
+}

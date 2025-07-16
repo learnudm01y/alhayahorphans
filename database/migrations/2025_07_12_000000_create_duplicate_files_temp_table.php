@@ -20,6 +20,9 @@ return new class extends Migration
             $table->string('original_folder');
             $table->string('target_folder');
             $table->string('existing_file_name');
+            $table->unsignedBigInteger('existing_file_id')->nullable();
+            $table->bigInteger('file_size')->nullable();
+            $table->string('mime_type')->nullable();
             $table->timestamp('created_at');
             $table->timestamp('expires_at')->index();
         });
