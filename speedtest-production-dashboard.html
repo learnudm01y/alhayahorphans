@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة تحكم Speedtest - الإنتاج</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .dashboard-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .dashboard-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+
+        .status-online {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-offline {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-cached {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .speed-meter {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            margin: 0 auto;
+        }
+
+        .speed-circle {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: conic-gradient(#00ff00 0deg, #ffff00 120deg, #ff0000 240deg);
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .speed-inner {
+            width: 80%;
+            height: 80%;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .log-container {
+            background: #1e1e1e;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            padding: 20px;
+            border-radius: 10px;
+            height: 300px;
+            overflow-y: auto;
+            font-size: 0.9em;
+        }
+
+        .btn-gradient {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: none;
+            color: white;
+            transition: all 0.3s ease;
+        }
+
+        .btn-gradient:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+            color: white;
+        }
+
+        .metric-card {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 15px;
+            padding: 20px;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .metric-card:hover {
+            transform: scale(1.05);
+        }
+
+        .metric-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .metric-label {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin: 20px 0;
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .settings-panel {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .timeline-item {
+            border-left: 3px solid #667eea;
+            padding-left: 20px;
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -8px;
+            top: 10px;
+            width: 12px;
+            height: 12px;
+            background: #667eea;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <div class="row">
+            <div class="col-12 text-center mb-4">
+                <h1 class="text-white mb-3">
+                    <i class="fas fa-tachometer-alt"></i>
+                    لوحة تحكم Speedtest - الإنتاج
+                </h1>
+                <div class="d-flex justify-content-center gap-3">
+                    <button class="btn btn-gradient" onclick="checkSystemStatus()">
+                        <i class="fas fa-sync"></i> فحص النظام
+                    </button>
+                    <button class="btn btn-gradient" onclick="runSpeedTest()">
+                        <i class="fas fa-play"></i> تشغيل الاختبار
+                    </button>
+                    <button class="btn btn-gradient" onclick="clearCache()">
+                        <i class="fas fa-trash"></i> مسح الذاكرة
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Status -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="dashboard-card p-4">
+                    <h3 class="mb-3">
+                        <i class="fas fa-server"></i> حالة النظام
+                    </h3>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <div id="systemStatus" class="status-badge status-offline">
+                                    <i class="fas fa-circle"></i> غير محدد
+                                </div>
+                                <div class="mt-2">
+                                    <strong>حالة CLI</strong>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <div id="cacheStatus" class="status-badge status-offline">
+                                    <i class="fas fa-database"></i> غير محدد
+                                </div>
+                                <div class="mt-2">
+                                    <strong>حالة الذاكرة</strong>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <div id="lastTestTime" class="status-badge status-offline">
+                                    <i class="fas fa-clock"></i> غير محدد
+                                </div>
+                                <div class="mt-2">
+                                    <strong>آخر اختبار</strong>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <div id="totalTests" class="status-badge status-offline">
+                                    <i class="fas fa-chart-line"></i> 0
+                                </div>
+                                <div class="mt-2">
+                                    <strong>إجمالي الاختبارات</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Speed Results -->
+        <div class="row mb-4">
+            <div class="col-lg-8">
+                <div class="dashboard-card p-4">
+                    <h3 class="mb-3">
+                        <i class="fas fa-tachometer-alt"></i> نتائج السرعة
+                    </h3>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="metric-card">
+                                <div class="metric-value text-primary" id="downloadSpeed">--</div>
+                                <div class="metric-label">
+                                    <i class="fas fa-download"></i> التحميل (Mbps)
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="metric-card">
+                                <div class="metric-value text-success" id="uploadSpeed">--</div>
+                                <div class="metric-label">
+                                    <i class="fas fa-upload"></i> الرفع (Mbps)
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="metric-card">
+                                <div class="metric-value text-warning" id="pingTime">--</div>
+                                <div class="metric-label">
+                                    <i class="fas fa-stopwatch"></i> البينغ (ms)
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="chart-container">
+                        <canvas id="speedChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="dashboard-card p-4">
+                    <h3 class="mb-3">
+                        <i class="fas fa-info-circle"></i> معلومات الاتصال
+                    </h3>
+                    <div class="info-item mb-3">
+                        <strong>الخادم:</strong>
+                        <span id="serverName">--</span>
+                    </div>
+                    <div class="info-item mb-3">
+                        <strong>الموقع:</strong>
+                        <span id="serverLocation">--</span>
+                    </div>
+                    <div class="info-item mb-3">
+                        <strong>مزود الخدمة:</strong>
+                        <span id="ispName">--</span>
+                    </div>
+                    <div class="info-item mb-3">
+                        <strong>IP الخارجي:</strong>
+                        <span id="externalIp">--</span>
+                    </div>
+                    <div class="info-item mb-3">
+                        <strong>نوع البيانات:</strong>
+                        <span id="dataType" class="status-badge">--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs and History -->
+        <div class="row">
+            <div class="col-lg-6">
+                <div class="dashboard-card p-4">
+                    <h3 class="mb-3">
+                        <i class="fas fa-terminal"></i> سجل النظام
+                    </h3>
+                    <div class="log-container" id="systemLogs">
+                        <div class="text-center">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            بدء تشغيل نظام المراقبة...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="dashboard-card p-4">
+                    <h3 class="mb-3">
+                        <i class="fas fa-history"></i> سجل الاختبارات
+                    </h3>
+                    <div id="testHistory" style="height: 300px; overflow-y: auto;">
+                        <div class="text-center text-muted">
+                            <i class="fas fa-clock"></i>
+                            لا توجد اختبارات محفوظة
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Panel -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="settings-panel">
+                    <h4 class="text-white mb-3">
+                        <i class="fas fa-cog"></i> الإعدادات
+                    </h4>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label class="text-white">فاصل الاختبار (ثانية)</label>
+                                <input type="number" class="form-control" id="testInterval" value="30" min="10" max="300">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label class="text-white">الحد الأقصى للمحاولات</label>
+                                <input type="number" class="form-control" id="maxAttempts" value="3" min="1" max="10">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label class="text-white">مهلة الانتظار (ثانية)</label>
+                                <input type="number" class="form-control" id="timeout" value="120" min="30" max="300">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label class="text-white">اختبار تلقائي</label>
+                                <div class="form-check form-switch mt-2">
+                                    <input class="form-check-input" type="checkbox" id="autoTest">
+                                    <label class="form-check-label text-white" for="autoTest">
+                                        تشغيل تلقائي
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        class SpeedTestDashboard {
+            constructor() {
+                this.testHistory = [];
+                this.isAutoTesting = false;
+                this.autoTestInterval = null;
+                this.chart = null;
+                this.init();
+            }
+
+            init() {
+                this.setupChart();
+                this.checkSystemStatus();
+                this.loadSettings();
+                this.logMessage('Dashboard initialized', 'info');
+            }
+
+            setupChart() {
+                const ctx = document.getElementById('speedChart').getContext('2d');
+                this.chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Download (Mbps)',
+                            data: [],
+                            borderColor: '#007bff',
+                            fill: false,
+                            tension: 0.1
+                        }, {
+                            label: 'Upload (Mbps)',
+                            data: [],
+                            borderColor: '#28a745',
+                            fill: false,
+                            tension: 0.1
+                        }, {
+                            label: 'Ping (ms)',
+                            data: [],
+                            borderColor: '#ffc107',
+                            fill: false,
+                            tension: 0.1,
+                            yAxisID: 'y1'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Speed (Mbps)'
+                                }
+                            },
+                            y1: {
+                                type: 'linear',
+                                display: true,
+                                position: 'right',
+                                title: {
+                                    display: true,
+                                    text: 'Ping (ms)'
+                                },
+                                grid: {
+                                    drawOnChartArea: false,
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            async checkSystemStatus() {
+                this.logMessage('Checking system status...', 'info');
+
+                try {
+                    const response = await fetch('/api/speedtest/check');
+                    const data = await response.json();
+
+                    if (data.available) {
+                        this.updateStatus('systemStatus', 'online', `✓ ${data.version}`);
+                        this.logMessage(`CLI Available: ${data.version}`, 'success');
+                    } else {
+                        this.updateStatus('systemStatus', 'offline', '✗ غير متاح');
+                        this.logMessage('CLI Not Available', 'error');
+                    }
+
+                } catch (error) {
+                    this.updateStatus('systemStatus', 'offline', '✗ خطأ');
+                    this.logMessage(`Status check failed: ${error.message}`, 'error');
+                }
+            }
+
+            async runSpeedTest() {
+                this.logMessage('Starting speed test...', 'info');
+
+                const button = document.querySelector('button[onclick="runSpeedTest()"]');
+                const originalText = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الاختبار...';
+                button.disabled = true;
+
+                try {
+                    const response = await fetch('/api/speedtest');
+                    const data = await response.json();
+
+                    if (data.success || data.fallback_data) {
+                        this.processSpeedTestResult(data);
+                        this.logMessage('Speed test completed successfully', 'success');
+                    } else {
+                        this.logMessage(`Speed test failed: ${data.message}`, 'error');
+                    }
+
+                } catch (error) {
+                    this.logMessage(`Speed test error: ${error.message}`, 'error');
+                } finally {
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                }
+            }
+
+            processSpeedTestResult(data) {
+                let result = data.success ? data : data.fallback_data;
+
+                // Update metrics
+                document.getElementById('downloadSpeed').textContent = result.download_mbps;
+                document.getElementById('uploadSpeed').textContent = result.upload_mbps;
+                document.getElementById('pingTime').textContent = result.ping_ms;
+
+                // Update connection info
+                document.getElementById('serverName').textContent = result.server || 'Unknown';
+                document.getElementById('serverLocation').textContent = result.location || 'Unknown';
+                document.getElementById('ispName').textContent = result.isp || 'Unknown';
+                document.getElementById('externalIp').textContent = result.external_ip || 'Unknown';
+
+                // Update data type
+                const dataType = document.getElementById('dataType');
+                if (data.success) {
+                    dataType.textContent = data.cached ? 'Cached' : 'Live';
+                    dataType.className = data.cached ? 'status-badge status-cached' : 'status-badge status-online';
+                } else {
+                    dataType.textContent = 'Simulated';
+                    dataType.className = 'status-badge status-offline';
+                }
+
+                // Update chart
+                const now = new Date().toLocaleTimeString();
+                this.chart.data.labels.push(now);
+                this.chart.data.datasets[0].data.push(result.download_mbps);
+                this.chart.data.datasets[1].data.push(result.upload_mbps);
+                this.chart.data.datasets[2].data.push(result.ping_ms);
+
+                // Keep only last 10 points
+                if (this.chart.data.labels.length > 10) {
+                    this.chart.data.labels.shift();
+                    this.chart.data.datasets.forEach(dataset => dataset.data.shift());
+                }
+
+                this.chart.update();
+
+                // Add to history
+                this.testHistory.unshift({
+                    timestamp: now,
+                    download: result.download_mbps,
+                    upload: result.upload_mbps,
+                    ping: result.ping_ms,
+                    server: result.server,
+                    type: data.success ? (data.cached ? 'Cached' : 'Live') : 'Simulated'
+                });
+
+                this.updateTestHistory();
+                this.updateStats();
+            }
+
+            updateTestHistory() {
+                const historyContainer = document.getElementById('testHistory');
+                historyContainer.innerHTML = '';
+
+                this.testHistory.slice(0, 10).forEach(test => {
+                    const item = document.createElement('div');
+                    item.className = 'timeline-item';
+                    item.innerHTML = `
+                        <div class="d-flex justify-content-between">
+                            <strong>${test.timestamp}</strong>
+                            <span class="status-badge ${test.type === 'Live' ? 'status-online' : test.type === 'Cached' ? 'status-cached' : 'status-offline'}">
+                                ${test.type}
+                            </span>
+                        </div>
+                        <div class="mt-1">
+                            <i class="fas fa-download text-primary"></i> ${test.download} Mbps
+                            <i class="fas fa-upload text-success ms-2"></i> ${test.upload} Mbps
+                            <i class="fas fa-stopwatch text-warning ms-2"></i> ${test.ping} ms
+                        </div>
+                        <div class="text-muted small">${test.server}</div>
+                    `;
+                    historyContainer.appendChild(item);
+                });
+            }
+
+            updateStats() {
+                document.getElementById('totalTests').textContent = this.testHistory.length;
+                document.getElementById('lastTestTime').textContent = this.testHistory[0]?.timestamp || 'Never';
+
+                if (this.testHistory.length > 0) {
+                    this.updateStatus('lastTestTime', 'online', this.testHistory[0].timestamp);
+                    this.updateStatus('totalTests', 'online', this.testHistory.length);
+                }
+            }
+
+            updateStatus(elementId, status, text) {
+                const element = document.getElementById(elementId);
+                element.textContent = text;
+                element.className = `status-badge status-${status}`;
+            }
+
+            logMessage(message, type = 'info') {
+                const logsContainer = document.getElementById('systemLogs');
+                const timestamp = new Date().toLocaleTimeString();
+                const colors = {
+                    info: '#00ff00',
+                    success: '#00ff00',
+                    error: '#ff0000',
+                    warning: '#ffff00'
+                };
+
+                const logEntry = document.createElement('div');
+                logEntry.style.color = colors[type];
+                logEntry.innerHTML = `[${timestamp}] ${message}`;
+
+                logsContainer.appendChild(logEntry);
+                logsContainer.scrollTop = logsContainer.scrollHeight;
+
+                // Keep only last 50 log entries
+                while (logsContainer.children.length > 50) {
+                    logsContainer.removeChild(logsContainer.firstChild);
+                }
+            }
+
+            async clearCache() {
+                this.logMessage('Clearing cache...', 'info');
+
+                try {
+                    const response = await fetch('/api/speedtest/clear-cache', {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        this.logMessage('Cache cleared successfully', 'success');
+                    } else {
+                        this.logMessage(`Cache clear failed: ${data.message}`, 'error');
+                    }
+
+                } catch (error) {
+                    this.logMessage(`Cache clear error: ${error.message}`, 'error');
+                }
+            }
+
+            toggleAutoTest() {
+                const checkbox = document.getElementById('autoTest');
+                const interval = parseInt(document.getElementById('testInterval').value) * 1000;
+
+                if (checkbox.checked) {
+                    this.isAutoTesting = true;
+                    this.autoTestInterval = setInterval(() => {
+                        this.runSpeedTest();
+                    }, interval);
+                    this.logMessage(`Auto-testing enabled (${interval/1000}s interval)`, 'info');
+                } else {
+                    this.isAutoTesting = false;
+                    if (this.autoTestInterval) {
+                        clearInterval(this.autoTestInterval);
+                        this.autoTestInterval = null;
+                    }
+                    this.logMessage('Auto-testing disabled', 'info');
+                }
+            }
+
+            loadSettings() {
+                const savedSettings = localStorage.getItem('speedtest-settings');
+                if (savedSettings) {
+                    const settings = JSON.parse(savedSettings);
+                    document.getElementById('testInterval').value = settings.testInterval || 30;
+                    document.getElementById('maxAttempts').value = settings.maxAttempts || 3;
+                    document.getElementById('timeout').value = settings.timeout || 120;
+                    document.getElementById('autoTest').checked = settings.autoTest || false;
+                }
+            }
+
+            saveSettings() {
+                const settings = {
+                    testInterval: document.getElementById('testInterval').value,
+                    maxAttempts: document.getElementById('maxAttempts').value,
+                    timeout: document.getElementById('timeout').value,
+                    autoTest: document.getElementById('autoTest').checked
+                };
+                localStorage.setItem('speedtest-settings', JSON.stringify(settings));
+                this.logMessage('Settings saved', 'success');
+            }
+        }
+
+        // Initialize dashboard
+        const dashboard = new SpeedTestDashboard();
+
+        // Global functions
+        function checkSystemStatus() {
+            dashboard.checkSystemStatus();
+        }
+
+        function runSpeedTest() {
+            dashboard.runSpeedTest();
+        }
+
+        function clearCache() {
+            dashboard.clearCache();
+        }
+
+        // Event listeners
+        document.getElementById('autoTest').addEventListener('change', () => {
+            dashboard.toggleAutoTest();
+            dashboard.saveSettings();
+        });
+
+        document.getElementById('testInterval').addEventListener('change', () => {
+            dashboard.saveSettings();
+        });
+
+        document.getElementById('maxAttempts').addEventListener('change', () => {
+            dashboard.saveSettings();
+        });
+
+        document.getElementById('timeout').addEventListener('change', () => {
+            dashboard.saveSettings();
+        });
+
+        // Initial status check
+        setTimeout(() => {
+            dashboard.checkSystemStatus();
+        }, 1000);
+    </script>
+</body>
+</html>

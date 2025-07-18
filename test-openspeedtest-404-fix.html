@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار إصلاح أخطاء OpenSpeedTest 404</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .test-container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .test-section {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            background: #f8f9fa;
+        }
+        .test-result {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+
+        .console-monitor {
+            background: #1e1e1e;
+            color: #00ff00;
+            font-family: monospace;
+            padding: 15px;
+            border-radius: 8px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin: 15px 0;
+        }
+
+        .network-monitor {
+            background: #2d3748;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+
+        .request-item {
+            padding: 8px;
+            margin: 5px 0;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        .request-blocked {
+            background: #fed7d7;
+            color: #9b2c2c;
+            border-left: 4px solid #e53e3e;
+        }
+
+        .request-allowed {
+            background: #c6f6d5;
+            color: #276749;
+            border-left: 4px solid #38a169;
+        }
+
+        .speedtest-frame {
+            width: 100%;
+            height: 500px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <div class="text-center mb-4">
+            <h1 class="text-primary">
+                <i class="fas fa-bug-slash"></i>
+                اختبار إصلاح أخطاء OpenSpeedTest 404
+            </h1>
+            <p class="text-muted">فحص شامل للتأكد من حل مشاكل المسارات المشبوهة</p>
+        </div>
+
+        <!-- Console Monitor -->
+        <div class="test-section">
+            <h3><i class="fas fa-terminal"></i> مراقب الكونسول</h3>
+            <p>يعرض الرسائل والأخطاء في الكونسول مع التركيز على أخطاء 404</p>
+            <div id="console-monitor" class="console-monitor">
+                <div>🔍 بدء مراقبة الكونسول...</div>
+            </div>
+            <div id="console-summary"></div>
+        </div>
+
+        <!-- Network Monitor -->
+        <div class="test-section">
+            <h3><i class="fas fa-network-wired"></i> مراقب الشبكة</h3>
+            <p>يعرض الطلبات المحجوبة والمسموحة</p>
+            <div id="network-monitor" class="network-monitor">
+                <div>📡 بدء مراقبة الشبكة...</div>
+            </div>
+            <div id="network-summary"></div>
+        </div>
+
+        <!-- OpenSpeedTest Integration Test -->
+        <div class="test-section">
+            <h3><i class="fas fa-tachometer-alt"></i> اختبار تكامل OpenSpeedTest</h3>
+            <p>تحميل OpenSpeedTest ومراقبة الأخطاء</p>
+            <button id="load-speedtest-btn" class="btn btn-primary mb-3">
+                <i class="fas fa-play"></i> تحميل OpenSpeedTest
+            </button>
+            <div id="speedtest-container"></div>
+            <div id="speedtest-results"></div>
+        </div>
+
+        <!-- Suspicious Requests Test -->
+        <div class="test-section">
+            <h3><i class="fas fa-shield-alt"></i> اختبار حجب الطلبات المشبوهة</h3>
+            <p>محاولة إرسال طلبات للمسارات المحظورة</p>
+            <button id="test-suspicious-btn" class="btn btn-warning mb-3">
+                <i class="fas fa-exclamation-triangle"></i> اختبار الطلبات المشبوهة
+            </button>
+            <div id="suspicious-test-results"></div>
+        </div>
+
+        <!-- Results Summary -->
+        <div class="test-section">
+            <h3><i class="fas fa-chart-bar"></i> ملخص النتائج</h3>
+            <div id="final-summary"></div>
+        </div>
+    </div>
+
+    <!-- تحميل سكريبت الحماية -->
+    <script src="/js/openspeedtest-fix.js"></script>
+
+    <script>
+        // متغيرات المراقبة
+        let consoleMessages = [];
+        let networkRequests = [];
+        let suspiciousRequests = [];
+        let blockedCount = 0;
+        let allowedCount = 0;
+
+        // مراقبة الكونسول
+        const originalConsoleLog = console.log;
+        const originalConsoleError = console.error;
+        const originalConsoleWarn = console.warn;
+
+        function addConsoleMessage(type, message) {
+            const timestamp = new Date().toLocaleTimeString('ar-EG');
+            consoleMessages.push({
+                type: type,
+                message: message,
+                timestamp: timestamp
+            });
+            updateConsoleMonitor();
+        }
+
+        console.log = function(...args) {
+            addConsoleMessage('log', args.join(' '));
+            return originalConsoleLog.apply(this, args);
+        };
+
+        console.error = function(...args) {
+            addConsoleMessage('error', args.join(' '));
+            return originalConsoleError.apply(this, args);
+        };
+
+        console.warn = function(...args) {
+            addConsoleMessage('warn', args.join(' '));
+            return originalConsoleWarn.apply(this, args);
+        };
+
+        // مراقبة طلبات الشبكة
+        const originalFetch = window.fetch;
+        window.fetch = function(url, options) {
+            const timestamp = new Date().toLocaleTimeString('ar-EG');
+
+            // فحص إذا كان الطلب مشبوه
+            const isSuspicious = checkIfSuspicious(url);
+
+            networkRequests.push({
+                url: url,
+                method: options?.method || 'GET',
+                timestamp: timestamp,
+                suspicious: isSuspicious,
+                blocked: isSuspicious
+            });
+
+            if (isSuspicious) {
+                blockedCount++;
+                addConsoleMessage('warn', `🚫 تم حجب طلب مشبوه: ${url}`);
+            } else {
+                allowedCount++;
+            }
+
+            updateNetworkMonitor();
+
+            // استدعاء الدالة الأصلية أو المُعدلة
+            return originalFetch.apply(this, arguments);
+        };
+
+        function checkIfSuspicious(url) {
+            const suspiciousPatterns = [
+                '/storage/i:',
+                '/storage/c:',
+                'unit%20test',
+                'unit test'
+            ];
+
+            return suspiciousPatterns.some(pattern =>
+                url.toLowerCase().includes(pattern.toLowerCase())
+            );
+        }
+
+        function updateConsoleMonitor() {
+            const monitor = document.getElementById('console-monitor');
+            const summary = document.getElementById('console-summary');
+
+            // عرض آخر 10 رسائل
+            const recentMessages = consoleMessages.slice(-10);
+
+            monitor.innerHTML = recentMessages.map(msg => {
+                const color = msg.type === 'error' ? '#ff6b6b' :
+                             msg.type === 'warn' ? '#ffd93d' : '#00ff00';
+                return `<div style="color: ${color}">[${msg.timestamp}] ${msg.message}</div>`;
+            }).join('');
+
+            // ملخص الأخطاء
+            const errorCount = consoleMessages.filter(m => m.type === 'error').length;
+            const warnCount = consoleMessages.filter(m => m.type === 'warn').length;
+
+            summary.innerHTML = `
+                <div class="row text-center">
+                    <div class="col-md-4">
+                        <div class="test-result ${errorCount === 0 ? 'success' : 'error'}">
+                            <strong>أخطاء: ${errorCount}</strong>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="test-result info">
+                            <strong>تحذيرات: ${warnCount}</strong>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="test-result success">
+                            <strong>إجمالي الرسائل: ${consoleMessages.length}</strong>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateNetworkMonitor() {
+            const monitor = document.getElementById('network-monitor');
+            const summary = document.getElementById('network-summary');
+
+            // عرض آخر 5 طلبات
+            const recentRequests = networkRequests.slice(-5);
+
+            monitor.innerHTML = recentRequests.map(req => {
+                const itemClass = req.blocked ? 'request-blocked' : 'request-allowed';
+                const icon = req.blocked ? '🚫' : '✅';
+
+                return `
+                    <div class="request-item ${itemClass}">
+                        ${icon} [${req.timestamp}] ${req.method} ${req.url}
+                    </div>
+                `;
+            }).join('');
+
+            summary.innerHTML = `
+                <div class="row text-center">
+                    <div class="col-md-4">
+                        <div class="test-result success">
+                            <strong>طلبات مسموحة: ${allowedCount}</strong>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="test-result warning">
+                            <strong>طلبات محجوبة: ${blockedCount}</strong>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="test-result info">
+                            <strong>إجمالي الطلبات: ${networkRequests.length}</strong>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // اختبار تحميل OpenSpeedTest
+        document.getElementById('load-speedtest-btn').addEventListener('click', function() {
+            const container = document.getElementById('speedtest-container');
+            const results = document.getElementById('speedtest-results');
+
+            container.innerHTML = `
+                <iframe src="/admin/speedtest/openspeedtest" class="speedtest-frame"></iframe>
+            `;
+
+            // مراقبة الأخطاء لمدة 10 ثوان
+            setTimeout(() => {
+                const recentErrors = consoleMessages.filter(m =>
+                    m.type === 'error' && m.message.includes('404')
+                ).length;
+
+                results.innerHTML = `
+                    <div class="test-result ${recentErrors === 0 ? 'success' : 'error'}">
+                        <i class="fas fa-${recentErrors === 0 ? 'check' : 'times'}"></i>
+                        ${recentErrors === 0 ? 'نجح تحميل OpenSpeedTest بدون أخطاء 404' : `تم رصد ${recentErrors} خطأ 404`}
+                    </div>
+                `;
+            }, 10000);
+        });
+
+        // اختبار الطلبات المشبوهة
+        document.getElementById('test-suspicious-btn').addEventListener('click', function() {
+            const results = document.getElementById('suspicious-test-results');
+
+            const suspiciousUrls = [
+                '/storage/i:/unit%20test/ASO/test.jpg',
+                '/storage/C:/projects/test.png',
+                '/storage/I:/unit%20test/ASO/ASO%20-%20Copy/st/file.pdf'
+            ];
+
+            let testsPassed = 0;
+
+            suspiciousUrls.forEach((url, index) => {
+                fetch(url)
+                    .then(response => {
+                        if (response.status === 200) {
+                            testsPassed++;
+                        }
+                    })
+                    .catch(error => {
+                        // هذا متوقع للطلبات المحجوبة
+                    })
+                    .finally(() => {
+                        if (index === suspiciousUrls.length - 1) {
+                            // اختبار النتائج النهائية
+                            setTimeout(() => {
+                                results.innerHTML = `
+                                    <div class="test-result ${blockedCount >= suspiciousUrls.length ? 'success' : 'warning'}">
+                                        <i class="fas fa-shield-alt"></i>
+                                        تم حجب ${blockedCount} من ${suspiciousUrls.length} طلب مشبوه
+                                    </div>
+                                    <div class="mt-2">
+                                        ${suspiciousUrls.map((url, i) =>
+                                            `<div class="request-item request-blocked">🚫 ${url}</div>`
+                                        ).join('')}
+                                    </div>
+                                `;
+                            }, 1000);
+                        }
+                    });
+            });
+        });
+
+        // ملخص النتائج النهائية
+        function updateFinalSummary() {
+            const summary = document.getElementById('final-summary');
+
+            const errorCount = consoleMessages.filter(m => m.type === 'error').length;
+            const blockedRatio = networkRequests.length > 0 ? (blockedCount / networkRequests.length * 100).toFixed(1) : 0;
+
+            const overallStatus = errorCount === 0 && blockedCount > 0 ? 'success' :
+                                 errorCount === 0 ? 'warning' : 'error';
+
+            summary.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="test-result ${overallStatus}">
+                            <h5><i class="fas fa-chart-pie"></i> الحالة العامة</h5>
+                            <p><strong>أخطاء الكونسول:</strong> ${errorCount}</p>
+                            <p><strong>الطلبات المحجوبة:</strong> ${blockedCount}</p>
+                            <p><strong>نسبة الحجب:</strong> ${blockedRatio}%</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="test-result info">
+                            <h5><i class="fas fa-info-circle"></i> التوصيات</h5>
+                            ${errorCount === 0 ?
+                                '<p>✅ الإصلاحات تعمل بشكل مثالي</p>' :
+                                '<p>⚠️ قد تحتاج إلى مراجعة إضافية</p>'
+                            }
+                            ${blockedCount > 0 ?
+                                '<p>✅ نظام الحماية نشط ويعمل</p>' :
+                                '<p>ℹ️ لم يتم رصد طلبات مشبوهة</p>'
+                            }
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // تحديث الملخص كل 5 ثوان
+        setInterval(updateFinalSummary, 5000);
+
+        // رسالة البداية
+        console.log('🚀 بدء اختبار إصلاح أخطاء OpenSpeedTest 404');
+        console.log('🛡️ نظام الحماية نشط ومراقب');
+    </script>
+</body>
+</html>

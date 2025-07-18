@@ -1,12 +1,9 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+@extends('admin.dashboard.toolbars.index')
+@section('content')
+    <!-- إضافة CSRF token -->
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>نظام إدارة الملفات المتقدم</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- إضافة النظام الجديد لقياس سرعة الإنترنت -->
+    <script src="{{ asset('js/real-speed-test.js') }}"></script>
     <style>
         .file-drop-zone {
             border: 3px dashed #007bff;
@@ -87,6 +84,205 @@
             border-radius: 15px;
             padding: 20px;
             margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease;
+        }
+
+        .analytics-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .small-breakdown {
+            font-size: 0.75rem;
+            opacity: 0.9;
+        }
+
+        .file-types-breakdown {
+            font-size: 0.75rem;
+        }
+
+        .small-breakdown hr {
+            margin: 0.25rem 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        /* Responsive Design Improvements */
+        @media (max-width: 768px) {
+            .container-fluid {
+                padding-left: 10px;
+                padding-right: 10px;
+            }
+
+            .smart-upload-controls {
+                padding: 15px;
+                margin-bottom: 15px;
+            }
+
+            .analytics-card {
+                padding: 15px;
+                margin-bottom: 15px;
+            }
+
+            .analytics-card h3 {
+                font-size: 1.5rem;
+            }
+
+            .analytics-card h6 {
+                font-size: 0.9rem;
+            }
+
+            .small-breakdown {
+                font-size: 0.65rem;
+            }
+
+            .file-types-breakdown {
+                font-size: 0.65rem;
+            }
+
+            .btn-group-responsive .btn {
+                flex: 1 1 auto;
+                min-width: 100px;
+                margin-bottom: 5px;
+                font-size: 0.85rem;
+            }
+
+            .d-flex.gap-2 {
+                flex-direction: column;
+                gap: 0.5rem !important;
+            }
+
+            .file-type-filter {
+                justify-content: center;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .card-header .row {
+                align-items: stretch !important;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .container-fluid {
+                padding-left: 5px;
+                padding-right: 5px;
+            }
+
+            .analytics-card {
+                padding: 12px;
+            }
+
+            .analytics-card h3 {
+                font-size: 1.25rem;
+            }
+
+            .analytics-card .fa-2x {
+                font-size: 1.5em;
+            }
+
+            .small-breakdown {
+                font-size: 0.6rem;
+            }
+
+            .file-types-breakdown {
+                font-size: 0.6rem;
+            }
+
+            .analytics-card h6 {
+                font-size: 0.8rem;
+                margin-bottom: 0.5rem;
+            }
+
+            .card-header {
+                padding: 10px 15px;
+            }
+
+            .card-body {
+                padding: 15px;
+            }
+
+            .btn-lg {
+                padding: 8px 16px;
+                font-size: 1rem;
+            }
+
+            .btn-sm {
+                padding: 4px 8px;
+                font-size: 0.8rem;
+            }
+
+            /* تحسين عرض النصوص في الجوال */
+            h1.h3 {
+                font-size: 1.5rem;
+            }
+
+            .form-label {
+                font-size: 0.9rem;
+            }
+
+            .form-check-label {
+                font-size: 0.85rem;
+            }
+        }
+
+        /* تحسينات إضافية للتوافق مع الأنظمة الخارجية */
+        .file-management-container {
+            /* ورث الخصائص من النظام الخارجي */
+            font-family: inherit;
+            color: inherit;
+            direction: inherit;
+        }
+
+        .file-management-container .btn {
+            /* تأكد من توافق الأزرار */
+            border-radius: inherit;
+            font-family: inherit;
+            transition: all 0.3s ease;
+        }
+
+        .file-management-container .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .file-management-container .btn-lg {
+            padding: 12px 24px;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .file-management-container .btn-sm {
+            padding: 8px 16px;
+            font-size: 0.9rem;
+        }
+
+        /* تحسينات الأزرار المخصصة */
+        .header-buttons .btn {
+            margin-bottom: 8px;
+            min-width: 120px;
+        }
+
+        @media (max-width: 768px) {
+            .header-buttons .btn {
+                min-width: 80px;
+                font-size: 0.9rem;
+            }
+        }
+
+        .file-management-container .card {
+            /* تأكد من توافق البطاقات */
+            border-radius: inherit;
+            box-shadow: inherit;
+        }
+
+        /* Override للخصائص المهمة فقط */
+        .analytics-card {
+            border-radius: 15px !important;
+        }
+
+        .smart-upload-controls {
+            border-radius: 10px !important;
         }
 
         .cloud-sync-status {
@@ -97,21 +293,662 @@
             font-weight: bold;
         }
 
-        .cloud-sync-status.synced { background: #d4edda; color: #155724; }
-        .cloud-sync-status.pending { background: #fff3cd; color: #856404; }
-        .cloud-sync-status.failed { background: #f8d7da; color: #721c24; }
+        .cloud-sync-status.synced {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .cloud-sync-status.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .cloud-sync-status.failed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        /* تحسينات أزرار card header */
+        .card-header .btn {
+            border-radius: 20px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .card-header .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .card-header .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            border: none;
+        }
+
+        .card-header .btn-info {
+            background: linear-gradient(135deg, #17a2b8 0%, #007bff 100%);
+            border: none;
+        }
+
+        .card-header .btn-danger {
+            background: linear-gradient(135deg, #dc3545 0%, #e91e63 100%);
+            border: none;
+        }
+
+        /* إجبار الأزرار على الظهور في أقصى اليسار */
+        .card-header .d-flex {
+            justify-content: flex-start !important;
+            text-align: start !important;
+        }
+
+        .card-header .d-flex.gap-2 {
+            direction: ltr !important;
+            justify-content: flex-start !important;
+        }
+
+        /* في الاتجاه العربي، نريد الأزرار في أقصى اليسار */
+        [dir="rtl"] .card-header .d-flex {
+            justify-content: flex-end !important;
+            direction: rtl !important;
+        }
+
+        [dir="rtl"] .card-header .d-flex.gap-2 {
+            justify-content: flex-end !important;
+            direction: rtl !important;
+        }
+
+        /* تحسينات التجاوب للأزرار */
+        @media (max-width: 768px) {
+            .card-header .btn {
+                min-width: 60px;
+                font-size: 0.8rem;
+                padding: 6px 12px;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .card-header .btn {
+                min-width: 50px;
+                font-size: 0.75rem;
+                padding: 4px 8px;
+            }
+        }
+
+        /* كارت قياس سرعة الإنترنت - التصميم المحسن بالأبيض */
+        .speed-test-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 24px;
+            padding: 20px 24px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+            transition: all 0.4s ease;
+            position: relative;
+            overflow: hidden;
+            min-height: 140px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .speed-test-card.download-card {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        .speed-test-card.upload-card {
+            background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        }
+
+        .speed-test-card:hover {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+        }
+
+        .speed-test-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: pulse-enhanced 5s infinite;
+        }
+
+        @keyframes pulse-enhanced {
+            0% { transform: scale(0.8); opacity: 0.6; }
+            50% { transform: scale(1.2); opacity: 0.2; }
+            100% { transform: scale(0.8); opacity: 0.6; }
+        }
+
+        .speed-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            z-index: 10;
+            position: relative;
+        }
+
+        .speed-card-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #ffffff;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .speed-card-title i {
+            font-size: 1.3rem;
+            color: #ffffff;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+        }
+
+        .speed-card-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-grow: 1;
+            z-index: 10;
+            position: relative;
+        }
+
+        .speed-gauge-container {
+            position: relative;
+            width: 90px;
+            height: 90px;
+            margin-right: 18px;
+        }
+
+        .speed-gauge {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            background: conic-gradient(
+                from 0deg,
+                #ff6b6b 0deg 72deg,
+                #ffa726 72deg 144deg,
+                #42a5f5 144deg 216deg,
+                #66bb6a 216deg 288deg,
+                #4fc3f7 288deg 360deg
+            );
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+            border: 3px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .speed-gauge::before {
+            content: '';
+            position: absolute;
+            width: 55px;
+            height: 55px;
+            background: radial-gradient(circle, #ffffff 0%, #f8f9fa 100%);
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: inset 0 3px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .speed-gauge-needle {
+            position: absolute;
+            width: 3px;
+            height: 32px;
+            background: linear-gradient(to top, #2c3e50 0%, #34495e 100%);
+            top: 50%;
+            left: 50%;
+            transform-origin: bottom center;
+            transform: translate(-50%, -100%) rotate(0deg);
+            border-radius: 2px;
+            transition: transform 1s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            z-index: 10;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .speed-gauge-needle::after {
+            content: '';
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            border-radius: 50%;
+            bottom: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .speed-display {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 15;
+            background: rgba(255, 255, 255, 0.95);
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #2c3e50;
+            font-weight: bold;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .speed-value {
+            font-size: 0.8rem;
+            line-height: 1;
+            color: #2c3e50;
+            font-weight: 800;
+        }
+
+        .speed-unit {
+            font-size: 0.5rem;
+            opacity: 0.8;
+            color: #7f8c8d;
+            margin-top: 2px;
+        }
+
+        .speed-info {
+            flex-grow: 1;
+            padding-left: 40px;
+            color: #2c3e50;
+        }
+
+        .speed-status {
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+            opacity: 1;
+            font-weight: 700;
+            color: #2c3e50;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        .speed-test-btn {
+            background: rgba(255, 255, 255, 0.25);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            color: #ffffff;
+            font-size: 0.8rem;
+            font-weight: 700;
+            padding: 8px 16px;
+            border-radius: 25px;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(15px);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .speed-test-btn:hover {
+            background: rgba(255, 255, 255, 0.35);
+            border-color: rgba(255, 255, 255, 0.7);
+            color: #ffffff;
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+        }
+
+        .speed-test-btn:disabled {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.3);
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .speed-test-btn i {
+            color: #ffffff;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .speed-details {
+            font-size: 0.8rem;
+            opacity: 1;
+            margin-top: 8px;
+            color: #2c3e50;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            font-weight: 600;
+        }
+
+        .speed-progress {
+            height: 6px;
+            background: rgba(255, 255, 255, 0.25);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 10px;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.15);
+        }
+
+        .speed-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #ffffff 0%, rgba(255, 255, 255, 0.8) 100%);
+            border-radius: 3px;
+            transition: width 0.8s ease;
+            width: 0%;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        }
+
+        /* التجاوب مع الأجهزة المحسن */
+        @media (max-width: 768px) {
+            .speed-test-card {
+                padding: 16px 20px;
+                min-height: 120px;
+            }
+
+            .speed-gauge-container {
+                width: 80px;
+                height: 80px;
+                margin-right: 12px;
+            }
+
+            .speed-gauge {
+                width: 80px;
+                height: 80px;
+            }
+
+            .speed-gauge::before {
+                width: 60px;
+                height: 60px;
+            }
+
+            .speed-display {
+                width: 50px;
+                height: 50px;
+            }
+
+            .speed-value {
+                font-size: 0.9rem;
+            }
+
+            .speed-card-title {
+                font-size: 1rem;
+                color: #ffffff;
+            }
+
+            .speed-card-title i {
+                color: #ffffff;
+            }
+
+            .speed-status {
+                color: #ffffff;
+            }
+
+            .speed-details {
+                color: #ffffff;
+            }
+
+            .speed-test-btn {
+                color: #ffffff;
+            }
+
+            .speed-test-btn i {
+                color: #ffffff;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .speed-test-card {
+                padding: 14px 18px;
+                min-height: 110px;
+            }
+
+            .speed-gauge-container {
+                width: 70px;
+                height: 70px;
+                margin-right: 10px;
+            }
+
+            .speed-gauge {
+                width: 70px;
+                height: 70px;
+            }
+
+            .speed-gauge::before {
+                width: 40px;
+                height: 40px;
+            }
+
+            .speed-display {
+                width: 30px;
+                height: 30px;
+            }
+
+            .speed-value {
+                font-size: 0.6rem;
+            }
+
+            .speed-card-title {
+                font-size: 0.9rem;
+                color: #ffffff;
+            }
+
+            .speed-card-title i {
+                color: #ffffff;
+            }
+
+            .speed-status {
+                color: #2c3e50;
+                font-size: 0.7rem;
+            }
+
+            .speed-details {
+                color: #2c3e50;
+                font-size: 0.6rem;
+            }
+
+            .speed-test-btn {
+                color: #ffffff;
+                font-size: 0.65rem;
+                padding: 4px 8px;
+            }
+
+            .speed-test-btn i {
+                color: #ffffff;
+            }
+
+            .speed-info {
+                padding-left: 30px;
+                color: #2c3e50;
+            }
+        }
     </style>
-</head>
-<body>
-    <div class="container-fluid py-4">
+    <div class="container-fluid py-4 file-management-container">
         <!-- Header -->
         <div class="row mb-4">
-            <div class="col-12">
+            <div class="col-lg-6 col-md-6 col-12">
                 <h1 class="h3 mb-0">
                     <i class="fas fa-cloud-upload-alt text-primary me-2"></i>
                     نظام إدارة الملفات المتقدم
                 </h1>
                 <p class="text-muted">رفع وإدارة ملفات متعددة الأنواع مع التكامل السحابي</p>
+            </div>
+            <div class="col-lg-6 col-md-6 col-12">
+                <div class="d-flex justify-content-end gap-2 flex-wrap">
+                </div>
+            </div>
+
+            <!-- تحسينات للأجهزة المحمولة -->
+            <style>
+                @media (max-width: 992px) {
+                    .speed-test-card {
+                        width: 100% !important;
+                        max-width: 280px;
+                        margin-bottom: 10px;
+                    }
+
+                    .d-flex.gap-2.flex-wrap {
+                        justify-content: center !important;
+                    }
+                }
+
+                @media (max-width: 768px) {
+                    .speed-test-card {
+                        width: 100% !important;
+                        max-width: none;
+                        margin-bottom: 10px;
+                    }
+
+                    .speed-card-content {
+                        flex-direction: column;
+                        text-align: center;
+                    }
+
+                    .speed-gauge-container {
+                        margin-right: 0;
+                        margin-bottom: 10px;
+                        align-self: center;
+                    }
+
+                    .speed-info {
+                        padding-left: 0;
+                    }
+                }
+            </style>
+        </div>
+
+        <!-- Analytics Dashboard - Top Position -->
+        <div class="row mb-4">
+            <div class="col-xl-3 col-lg-6 col-md-6 col-sm-12 mb-3">
+                <div class="analytics-card">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="flex-grow-1">
+                            <h6 class="mb-2">إجمالي الملفات</h6>
+                            <h3 class="mb-2" id="totalFilesCount">0</h3>
+                            <div class="small-breakdown">
+                                <div class="d-flex justify-content-between">
+                                    <span>الأساسية:</span>
+                                    <span id="attachmentsCount">0</span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span>المحسنة:</span>
+                                    <span id="enhancedCount">0</span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span>المكررة:</span>
+                                    <span id="duplicatesCount">0</span>
+                                </div>
+                                <hr class="my-1" style="border-color: rgba(255,255,255,0.3);">
+                                <div class="d-flex justify-content-between fw-bold">
+                                    <span>الإجمالي:</span>
+                                    <span id="grandTotalFiles">0</span>
+                                </div>
+                            </div>
+                        </div>
+                        <i class="fas fa-file fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-3 col-lg-6 col-md-6 col-sm-12 mb-3">
+                <div class="analytics-card"
+                    style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="flex-grow-1">
+                            <h6 class="mb-2">حجم التخزين</h6>
+                            <h3 class="mb-2" id="totalStorageSize">0 MB</h3>
+                            <div class="small-breakdown">
+                                <div class="d-flex justify-content-between">
+                                    <span>الأساسية:</span>
+                                    <span id="attachmentsSize">0</span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span>المحسنة:</span>
+                                    <span id="enhancedSize">0</span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span>المكررة:</span>
+                                    <span id="duplicatesSize">0</span>
+                                </div>
+                                <hr class="my-1" style="border-color: rgba(255,255,255,0.3);">
+                                <div class="d-flex justify-content-between fw-bold">
+                                    <span>الإجمالي:</span>
+                                    <span id="grandTotalSize">0</span>
+                                </div>
+                            </div>
+                        </div>
+                        <i class="fas fa-hdd fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-3 col-lg-6 col-md-6 col-sm-12 mb-3">
+                <div class="analytics-card"
+                    style="background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%); color: #333;">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="flex-grow-1">
+                            <h6 class="mb-2">ملفات اليوم</h6>
+                            <h3 class="mb-2" id="todayFilesCount">0</h3>
+                            <div class="small-breakdown">
+                                <div class="d-flex justify-content-between">
+                                    <span>الأساسية:</span>
+                                    <span id="todayAttachments">0</span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span>المحسنة:</span>
+                                    <span id="todayEnhanced">0</span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span>المكررة:</span>
+                                    <span id="todayDuplicates">0</span>
+                                </div>
+                                <hr class="my-1" style="border-color: rgba(0,0,0,0.2);">
+                                <div class="d-flex justify-content-between fw-bold">
+                                    <span>الإجمالي:</span>
+                                    <span id="grandTotalToday">0</span>
+                                </div>
+                            </div>
+                        </div>
+                        <i class="fas fa-calendar-day fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="col-xl-3 col-lg-6 col-md-6 col-sm-12 mb-3">
+                <div class="analytics-card"
+                    style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); color: #333;">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="flex-grow-1">
+                            <h6 class="mb-2">أنواع الملفات المحسنة</h6>
+                            <div class="file-types-breakdown">
+                                <div class="d-flex justify-content-between">
+                                    <span>📷 صور:</span>
+                                    <span id="imagesCount">0</span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span>📄 PDF:</span>
+                                    <span id="pdfCount">0</span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span>📊 Excel:</span>
+                                    <span id="excelCount">0</span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span>📝 Word:</span>
+                                    <span id="wordCount">0</span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span>🗜️ أرشيف:</span>
+                                    <span id="archiveCount">0</span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span>📎 أخرى:</span>
+                                    <span id="otherCount">0</span>
+                                </div>
+                            </div>
+                        </div>
+                        <i class="fas fa-chart-pie fa-2x opacity-50"></i>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -134,21 +971,21 @@
                     </div>
                 </div>
 
-                <div class="col-md-6">
+                {{-- <div class="col-md-6">
                     <label for="personId" class="form-label fw-bold">
                         <i class="fas fa-id-card text-secondary"></i> رقم الهوية (اختياري)
                     </label>
-                    <input type="text" class="form-control" id="personId" placeholder="رقم الهوية للربط مع الشخص">
-                </div>
+                    <input type="text" class="form-control" id="personId" placeholder="رقم الهوية للربط مع الشخص" >
+                </div> --}}
             </div>
 
             <!-- Processing Options and Controls Row -->
             <div class="row mb-4">
-                <div class="col-md-8">
+                <div class="col-lg-6 col-md-8 mb-3">
                     <label class="form-label fw-bold">
                         <i class="fas fa-cogs text-success"></i> خيارات المعالجة
                     </label>
-                    <div class="d-flex gap-4 flex-wrap">
+                    <div class="d-flex gap-3 flex-wrap">
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" id="compressImages" checked>
                             <label class="form-check-label" for="compressImages">
@@ -169,1562 +1006,320 @@
                         </div>
                     </div>
                 </div>
-
-                <div class="col-md-4">
+                <div class="col-lg-6 col-md-4">
                     <label class="form-label fw-bold">
-                        <i class="fas fa-upload text-primary"></i> عمليات الرفع
+                        <i class="fas fa-tools text-warning"></i> أدوات إضافية
                     </label>
-                    <div class="d-flex flex-column gap-2">
-                        <div class="d-flex gap-2">
-                            <button type="button" class="btn btn-success flex-fill" id="selectFilesBtn">
-                                <i class="fas fa-file-plus"></i> اختيار ملفات
-                            </button>
-                            <button type="button" class="btn btn-info flex-fill" id="selectFolderBtn">
-                                <i class="fas fa-folder-plus"></i> اختيار مجلد
-                            </button>
-                        </div>
-                        <button type="button" class="btn btn-warning w-100" id="selectFolderWithImagesBtn">
-                            <i class="fas fa-images"></i> مجلد + صور متعددة
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" class="btn btn-warning btn-sm shadow-sm" id="showDuplicateFilesBtn">
+                            <i class="fas fa-clone me-1"></i>
+                            <span class="d-none d-sm-inline">الملفات المكررة</span>
+                            <span class="d-sm-none">مكررة</span>
                         </button>
-                    </div>
-                        <button type="button" class="btn btn-info" id="clearAllBtn">
-                            <i class="fas fa-trash"></i> مسح
+                        <button type="button" class="btn btn-success btn-sm shadow-sm" id="excel-gateway-btn" title="بوابة Excel المتخصصة">
+                            <i class="fas fa-table me-1"></i>
+                            <span class="d-none d-sm-inline">بوابة Excel</span>
+                            <span class="d-sm-none">Excel</span>
                         </button>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Excel Import Options (Conditional) -->
-            <div class="row mb-3" id="excelImportSection" style="display: none;">
-                <div class="col-12">
-                    <div class="card border-info">
-                        <div class="card-header bg-info text-white">
-                            <h6 class="mb-0">
-                                <i class="fas fa-file-excel"></i> خيارات استيراد ملفات Excel
-                            </h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="form-check form-switch mb-3">
-                                        <input class="form-check-input" type="checkbox" id="enableExcelImport">
-                                        <label class="form-check-label fw-bold" for="enableExcelImport">
-                                            <i class="fas fa-database"></i> استيراد البيانات إلى قاعدة البيانات
-                                        </label>
-                                    </div>
-                                    <div class="form-text">
-                                        <i class="fas fa-exclamation-triangle text-warning"></i>
-                                        اختياري: يمكن رفع ملفات Excel للتخزين فقط دون استيراد البيانات
-                                    </div>
-                                </div>
-
-                                <div class="col-md-6" id="excelTargetOptions" style="display: none;">
-                                    <label for="targetTable" class="form-label fw-bold">
-                                        <i class="fas fa-table"></i> الجدول المستهدف
+        <!-- Excel Import Options (Conditional) -->
+        <div class="row mb-3" id="excelImportSection" style="display: none;">
+            <div class="col-12">
+                <div class="card border-info">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0">
+                            <i class="fas fa-file-excel"></i> خيارات استيراد ملفات Excel
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="enableExcelImport">
+                                    <label class="form-check-label fw-bold" for="enableExcelImport">
+                                        <i class="fas fa-database"></i> استيراد البيانات إلى قاعدة البيانات
                                     </label>
-                                    <select class="form-select" id="targetTable">
-                                        <option value="data">جدول البيانات الرئيسي</option>
-                                        <option value="dead_people">سجلات المتوفين</option>
-                                        <option value="guardian_bank_accounts">حسابات الأوصياء المصرفية</option>
-                                        <option value="re_people">سجلات الهويات المعاد إصدارها</option>
-                                    </select>
-
-                                    <div class="mt-3">
-                                        <button type="button" class="btn btn-outline-success btn-sm me-2" onclick="document.getElementById('excelFileInput').click()">
-                                            <i class="fas fa-file-excel"></i> اختيار ملف Excel
-                                        </button>
-                                        <button type="button" class="btn btn-outline-info btn-sm" id="previewExcelBtn">
-                                            <i class="fas fa-eye"></i> معاينة البيانات
-                                        </button>
-                                    </div>
-                                    <div id="excelFileStatus" class="small text-muted mt-2"></div>
+                                </div>
+                                <div class="form-text">
+                                    <i class="fas fa-exclamation-triangle text-warning"></i>
+                                    اختياري: يمكن رفع ملفات Excel للتخزين فقط دون استيراد البيانات
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
-            <!-- File Type Filters -->
-            <div class="row">
-                <div class="col-12">
-                    <label class="form-label fw-bold">
-                        <i class="fas fa-filter text-info"></i> فلترة أنواع الملفات
-                    </label>
-                    <div class="btn-group w-100" role="group">
-                        <input type="radio" class="btn-check" name="fileFilter" id="filterAll" value="all" checked>
-                        <label class="btn btn-outline-primary" for="filterAll">
-                            <i class="fas fa-th"></i> جميع الملفات
-                        </label>
-
-                        <input type="radio" class="btn-check" name="fileFilter" id="filterImages" value="image">
-                        <label class="btn btn-outline-success" for="filterImages">
-                            <i class="fas fa-image"></i> صور
-                        </label>
-
-                        <input type="radio" class="btn-check" name="fileFilter" id="filterPDF" value="pdf">
-                        <label class="btn btn-outline-danger" for="filterPDF">
-                            <i class="fas fa-file-pdf"></i> PDF
-                        </label>
-
-                        <input type="radio" class="btn-check" name="fileFilter" id="filterExcel" value="excel">
-                        <label class="btn btn-outline-info" for="filterExcel">
-                            <i class="fas fa-file-excel"></i> Excel
-                        </label>
-
-                        <input type="radio" class="btn-check" name="fileFilter" id="filterArchive" value="archive">
-                        <label class="btn btn-outline-warning" for="filterArchive">
-                            <i class="fas fa-file-archive"></i> مضغوط
-                        </label>
-
-                        <!-- زر بوابة Excel المتخصصة -->
-                        <button type="button" class="btn btn-success" id="excel-gateway-btn" title="بوابة Excel المتخصصة">
-                            <i class="fas fa-table"></i> بوابة Excel
-                        </button>
-        </div>
-
-        <!-- Enhanced File Drop Zone -->
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="file-drop-zone" id="fileDropZone">
-                    <div class="drop-zone-content text-center">
-                        <i class="fas fa-cloud-upload-alt fa-5x text-primary mb-4"></i>
-                        <h3 class="text-primary">اسحب وأفلت الملفات هنا</h3>
-                        <p class="text-muted mb-4">أو انقر على الزر أدناه لاختيار الملفات</p>
-
-                        <!-- File Upload Actions -->
-                        <div class="d-flex justify-content-center gap-3 mb-3">
-                            <button type="button" class="btn btn-primary btn-lg" id="selectFilesBtn">
-                                <i class="fas fa-file-plus me-2"></i>اختيار ملفات
-                            </button>
-                            <button type="button" class="btn btn-success btn-lg" id="startUploadBtn" style="display: none;">
-                                <i class="fas fa-upload me-2"></i>بدء الرفع
-                            </button>
-                            <button type="button" class="btn btn-warning btn-lg" id="pauseUploadBtn" style="display: none;">
-                                <i class="fas fa-pause me-2"></i>إيقاف مؤقت
-                            </button>
-                        </div>
-
-                        <div class="text-muted small">
-                            <i class="fas fa-info-circle me-1"></i>
-                            يدعم: الصور (JPG, PNG, GIF)، المستندات (PDF, Word)، Excel، والملفات المضغوطة (ZIP, RAR)
-                            <br>
-                            الحد الأقصى للملف: 1 جيجابايت
-                        </div>
-
-                        <!-- File Input Elements -->
-                        <input type="file" id="fileInput" multiple class="d-none" accept="*/*">
-                        <!-- مدخل المجلدات -->
-                        <input type="file" id="folderInput" webkitdirectory directory multiple class="d-none">
-                        <!-- مدخل الصور مع المجلدات -->
-                        <input type="file" id="imagesWithFolderInput" webkitdirectory directory multiple class="d-none" accept="image/*">
-                        <!-- مدخل ملف Excel للمجلدات -->
-                        <input type="file" id="excelFileInput" class="d-none" accept=".xlsx,.xls,.csv">
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Upload Progress -->
-        <div class="row mt-4" id="uploadProgressSection" style="display: none;">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-tasks me-2"></i>تقدم الرفع
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="progress mb-3" style="height: 8px;">
-                            <div class="progress-bar progress-bar-striped progress-bar-animated"
-                                 id="overallProgress" role="progressbar" style="width: 0%"></div>
-                        </div>
-                        <div class="row text-center">
-                            <div class="col-3">
-                                <div class="h5 mb-0" id="totalFiles">0</div>
-                                <small class="text-muted">إجمالي الملفات</small>
-                            </div>
-                            <div class="col-3">
-                                <div class="h5 mb-0 text-success" id="completedFiles">0</div>
-                                <small class="text-muted">مكتملة</small>
-                            </div>
-                            <div class="col-3">
-                                <div class="h5 mb-0 text-warning" id="processingFiles">0</div>
-                                <small class="text-muted">قيد المعالجة</small>
-                            </div>
-                            <div class="col-3">
-                                <div class="h5 mb-0 text-danger" id="failedFiles">0</div>
-                                <small class="text-muted">فاشلة</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-
-        <!-- File Previews -->
-        <div class="row mt-4" id="filePreviewsSection">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="card-title mb-0">
-                            <i class="fas fa-images me-2"></i>معاينة الملفات
-                        </h5>
-                        <div class="file-type-filter">
-                            <button class="btn btn-sm btn-primary active" data-filter="all">الكل</button>
-                            <button class="btn btn-sm btn-outline-primary" data-filter="image">صور</button>
-                            <button class="btn btn-sm btn-outline-primary" data-filter="pdf">PDF</button>
-                            <button class="btn btn-sm btn-outline-success" data-filter="excel" id="excelFilterBtn">
-                                <i class="fas fa-file-excel me-1"></i>Excel
-                            </button>
-                            <button class="btn btn-sm btn-outline-primary" data-filter="word">Word</button>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        <div class="row" id="filePreviewsContainer">
-                            <div class="col-12 text-center text-muted py-5">
-                                <i class="fas fa-folder-open fa-3x mb-3"></i>
-                                <p>لا توجد ملفات محددة بعد</p>
-                            </div>
-                        </div>
-                        <!-- زر عرض الملفات المكررة -->
-                        <div class="text-center mt-4">
-                            <button type="button" class="btn btn-warning" id="showDuplicateFilesBtn">
-                                <i class="fas fa-clone me-2"></i>عرض الملفات المكررة
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Analytics Dashboard -->
-        <div class="row mt-4">
-            <div class="col-md-3">
-                <div class="analytics-card">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-grow-1">
-                            <h6 class="mb-1">إجمالي الملفات</h6>
-                            <h3 class="mb-0" id="totalFilesCount">0</h3>
-                        </div>
-                        <i class="fas fa-file fa-2x opacity-50"></i>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="analytics-card" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-grow-1">
-                            <h6 class="mb-1">حجم التخزين</h6>
-                            <h3 class="mb-0" id="totalStorageSize">0 MB</h3>
-                        </div>
-                        <i class="fas fa-hdd fa-2x opacity-50"></i>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="analytics-card" style="background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%); color: #333;">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-grow-1">
-                            <h6 class="mb-1">ملفات اليوم</h6>
-                            <h3 class="mb-0" id="todayFilesCount">0</h3>
-                        </div>
-                        <i class="fas fa-calendar-day fa-2x opacity-50"></i>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="analytics-card" style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); color: #333;">
-                    <div class="d-flex align-items-center">
-                        <div class="flex-grow-1">
-                            <h6 class="mb-1">نسبة الضغط</h6>
-                            <h3 class="mb-0" id="compressionRatio">0%</h3>
-                        </div>
-                        <i class="fas fa-compress fa-2x opacity-50"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- File Preview Modal -->
-    <div class="modal fade" id="filePreviewModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="previewModalTitle">معاينة الملف</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body" id="previewModalBody">
-                    <!-- Preview content will be loaded here -->
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
-                    <button type="button" class="btn btn-primary" id="downloadFileBtn">
-                        <i class="fas fa-download me-2"></i>تحميل
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    @include('file-management.modalDublicateFiles')
-
-    <!-- Duplicate Files Modal for Folders -->
-    <div class="modal fade" id="duplicateFilesModal" tabindex="-1" aria-labelledby="duplicateFilesModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-xl">
-            <div class="modal-content">
-                <div class="modal-header bg-warning text-dark">
-                    <h5 class="modal-title" id="duplicateFilesModalLabel">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        الملفات المكررة المكتشفة
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <!-- Content will be loaded dynamically -->
-                    <div class="text-center">
-                        <div class="spinner-border" role="status">
-                            <span class="visually-hidden">جاري التحميل...</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
-                </div>
-            </div>
-        </div>
-    </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // ربط زر عرض الملفات المكررة بالمودال
-        document.addEventListener('DOMContentLoaded', function() {
-            const btn = document.getElementById('showDuplicateFilesBtn');
-            if (btn) {
-                btn.onclick = function() {
-                    // مثال: جلب sessionId من السيرفر أو من sessionStorage أو من آخر عملية رفع
-                    // هنا يجب استبدال 'CURRENT_DUPLICATE_SESSION_ID' بالمعرف الفعلي للجلسة
-                    const sessionId = window.CURRENT_DUPLICATE_SESSION_ID || sessionStorage.getItem('duplicate_files_session_id');
-                    if (sessionId) {
-                        showDuplicateFilesModal(sessionId);
-                        const modal = new bootstrap.Modal(document.getElementById('duplicateFilesModal'));
-                        modal.show();
-                    } else {
-                        alert('لا توجد جلسة ملفات مكررة حالياً.');
-                    }
-                };
-            }
-        });
-
-        class AdvancedFileManager {
-            constructor() {
-                this.files = new Map();
-                this.currentBatch = null;
-                this.uploadQueue = [];
-                this.maxConcurrentUploads = 3;
-                this.activeUploads = 0;
-
-                // متغيرات للتعامل مع ملفات المجلدات
-                this.processedFiles = null;
-                this.currentUploadType = null;
-
-                this.initializeEventListeners();
-                this.loadAnalytics();
-                this.checkForExistingDuplicates();
-            }
-
-            // فحص وجود ملفات مكررة موجودة مسبقاً
-            async checkForExistingDuplicates() {
-                const sessionId = sessionStorage.getItem('duplicate_files_session_id');
-                if (sessionId) {
-                    try {
-                        const response = await fetch(`/admin/file/duplicate-summary?session_id=${sessionId}`);
-                        if (response.ok) {
-                            const result = await response.json();
-                            if (result.success && result.data && result.data.files.length > 0) {
-                                window.CURRENT_DUPLICATE_SESSION_ID = sessionId;
-                                const duplicateBtn = document.getElementById('showDuplicateFilesBtn');
-                                if (duplicateBtn) {
-                                    duplicateBtn.style.display = 'inline-block';
-                                    duplicateBtn.innerHTML = `<i class="fas fa-clone me-2"></i>عرض الملفات المكررة (${result.data.total_duplicates})`;
-                                    duplicateBtn.classList.add('btn-warning');
-                                    duplicateBtn.classList.remove('btn-secondary');
-                                }
-                                console.log('🔍 تم العثور على ملفات مكررة موجودة مسبقاً:', result.data);
-                            }
-                        }
-                    } catch (error) {
-                        console.log('لا توجد ملفات مكررة سابقة');
-                    }
-                }
-            }
-
-            initializeEventListeners() {
-                const dropZone = document.getElementById('fileDropZone');
-                const fileInput = document.getElementById('fileInput');
-                const folderInput = document.getElementById('folderInput');
-                const imagesWithFolderInput = document.getElementById('imagesWithFolderInput');
-                const selectBtn = document.getElementById('selectFilesBtn');
-                const selectFolderBtn = document.getElementById('selectFolderBtn');
-                const selectFolderWithImagesBtn = document.getElementById('selectFolderWithImagesBtn');
-                const generateRecordBtn = document.getElementById('generateRecordBtn');
-                const clearAllBtn = document.getElementById('clearAllBtn');
-                const startUploadBtn = document.getElementById('startUploadBtn');
-
-                // Drag and drop events
-                dropZone.addEventListener('dragover', this.handleDragOver.bind(this));
-                dropZone.addEventListener('dragleave', this.handleDragLeave.bind(this));
-                dropZone.addEventListener('drop', this.handleDrop.bind(this));
-
-                // File and folder selection
-                selectBtn.addEventListener('click', () => fileInput.click());
-                selectFolderBtn.addEventListener('click', () => folderInput.click());
-                selectFolderWithImagesBtn.addEventListener('click', () => imagesWithFolderInput.click());
-
-                fileInput.addEventListener('change', this.handleFileSelect.bind(this));
-                folderInput.addEventListener('change', this.handleFolderSelect.bind(this));
-                imagesWithFolderInput.addEventListener('change', this.handleImagesWithFolderSelect.bind(this));
-
-                // Record number generation
-                generateRecordBtn.addEventListener('click', this.generateRecordNumber.bind(this));
-
-                // Clear all files
-                clearAllBtn.addEventListener('click', this.clearAllFiles.bind(this));
-
-                // Start upload manually
-                startUploadBtn.addEventListener('click', this.startUploads.bind(this));
-
-                // Excel import options visibility
-                fileInput.addEventListener('change', this.toggleExcelOptions.bind(this));
-
-                // Enable/disable Excel import target table
-                document.getElementById('enableExcelImport').addEventListener('change', (e) => {
-                    document.getElementById('excelTargetOptions').style.display =
-                        e.target.checked ? 'block' : 'none';
-                });
-
-                // Excel file selection for folder uploads
-                document.getElementById('excelFileInput').addEventListener('change', (e) => {
-                    const file = e.target.files[0];
-                    const statusDiv = document.getElementById('excelFileStatus');
-
-                    if (file) {
-                        statusDiv.innerHTML = `<i class="fas fa-file-excel text-success"></i> ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
-                        console.log('📊 ملف Excel محدد:', {
-                            name: file.name,
-                            size: file.size,
-                            type: file.type
-                        });
-                    } else {
-                        statusDiv.innerHTML = '';
-                    }
-                });
-
-                // File filter radio buttons
-                document.querySelectorAll('input[name="fileFilter"]').forEach(radio => {
-                    radio.addEventListener('change', this.handleFilterChange.bind(this));
-                });
-            }
-
-            clearAllFiles() {
-                this.files.clear();
-                document.getElementById('fileInput').value = '';
-                document.getElementById('folderInput').value = '';
-                document.getElementById('imagesWithFolderInput').value = '';
-                document.getElementById('filePreviewsContainer').innerHTML = `
-                    <div class="col-12 text-center text-muted py-5">
-                        <i class="fas fa-folder-open fa-3x mb-3"></i>
-                        <p>لا توجد ملفات محددة بعد</p>
-                    </div>
-                `;
-                document.getElementById('startUploadBtn').style.display = 'none';
-                document.getElementById('uploadProgressSection').style.display = 'none';
-                this.updateFileCounts();
-
-                console.log('🧹 تم مسح جميع الملفات');
-            }
-
-            async generateRecordNumber() {
-                try {
-                    const response = await fetch('/api/files/generate-record-number', {
-                        method: 'POST',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest'
-                        }
-                    });
-
-                    if (response.ok) {
-                        const result = await response.json();
-                        document.getElementById('recordNumber').value = result.record_number;
-
-                        // عرض رقم الملف في Console
-                        console.log('🔢 رقم الملف المولد:', result.record_number);
-                        console.log('📄 تفاصيل إضافية:', {
-                            recordNumber: result.record_number,
-                            timestamp: new Date().toISOString(),
-                            source: 'file_id_number من قاعدة البيانات'
-                        });
-
-                        this.showAlert(`تم إنشاء رقم الملف: ${result.record_number}`, 'success');
-                    } else {
-                        throw new Error('Failed to generate record number');
-                    }
-                } catch (error) {
-                    console.error('❌ خطأ في توليد رقم الملف:', error);
-                    this.showAlert('فشل في إنشاء رقم الملف', 'danger');
-                }
-            }
-
-            toggleExcelOptions() {
-                const files = Array.from(document.getElementById('fileInput').files);
-                const hasExcelFiles = files.some(file => {
-                    const ext = file.name.split('.').pop().toLowerCase();
-                    return ['xlsx', 'xls', 'csv', 'zip', 'rar', '7z'].includes(ext);
-                });
-
-                document.getElementById('excelImportSection').style.display =
-                    hasExcelFiles ? 'block' : 'none';
-            }
-
-            handleDragOver(e) {
-                e.preventDefault();
-                e.currentTarget.classList.add('drag-over');
-            }
-
-            handleDragLeave(e) {
-                e.currentTarget.classList.remove('drag-over');
-            }
-
-            handleDrop(e) {
-                e.preventDefault();
-                e.currentTarget.classList.remove('drag-over');
-
-                const files = Array.from(e.dataTransfer.files);
-                this.processFiles(files);
-            }
-
-            handleFileSelect(e) {
-                const files = Array.from(e.target.files);
-                this.processFiles(files);
-                e.target.value = ''; // Reset input
-            }
-
-            handleFolderSelect(e) {
-                const files = Array.from(e.target.files);
-                console.log('📁 تم اختيار مجلد يحتوي على:', files.length, 'ملف');
-
-                // تحليل المجلد وعرض التفاصيل
-                const folderAnalysis = this.analyzeFolderStructure(files);
-                console.log('📊 تحليل المجلد:', folderAnalysis);
-
-                // عرض هيكل المجلدات
-                console.log('🏗️ هيكل المجلدات:', folderAnalysis.folderHierarchy);
-
-                // عرض تفاصيل المجلدات الأب
-                if (folderAnalysis.parentFolders.length > 0) {
-                    console.log('📂 المجلدات الأب المكتشفة:', folderAnalysis.parentFolders);
-                    folderAnalysis.parentFolders.forEach(parent => {
-                        console.log(`📁 مجلد أب: ${parent} - سيتم تجاهله وتحليل محتوياته`);
-                    });
-                }
-
-                // عرض تفاصيل إضافية حول مجلدات الهوية
-                if (folderAnalysis.identityFolders.length > 0) {
-                    console.log('🆔 مجلدات الهوية المكتشفة:', folderAnalysis.identityFolders);
-                    folderAnalysis.identityFolders.forEach(identity => {
-                        console.log(`📋 ${identity}: سيتم التحقق من وجوده في النظام`);
-                    });
-                } else {
-                    console.log('⚠️ لم يتم العثور على مجلدات بأسماء أرقام هوية');
-                    console.log('💡 المجلدات الموجودة:', folderAnalysis.folders);
-                    console.log('💡 تنبيه: يجب أن تحتوي على مجلدات فرعية بأسماء أرقام هوية صحيحة');
-                }
-
-                // عرض المجلدات غير الصالحة
-                if (folderAnalysis.invalidFolders.length > 0) {
-                    console.log('❌ مجلدات غير صالحة (ستُتجاهل):', folderAnalysis.invalidFolders);
-                }
-
-                this.processFolderFiles(files, 'folder');
-                e.target.value = ''; // Reset input
-            }
-
-            handleImagesWithFolderSelect(e) {
-                const files = Array.from(e.target.files);
-                console.log('🖼️ تم اختيار مجلد صور يحتوي على:', files.length, 'صورة');
-
-                // تحليل المجلد وعرض التفاصيل
-                const folderAnalysis = this.analyzeFolderStructure(files);
-                console.log('📊 تحليل مجلد الصور:', folderAnalysis);
-
-                // عرض هيكل المجلدات
-                console.log('🏗️ هيكل مجلدات الصور:', folderAnalysis.folderHierarchy);
-
-                // عرض تفاصيل المجلدات الأب
-                if (folderAnalysis.parentFolders.length > 0) {
-                    console.log('📂 المجلدات الأب المكتشفة:', folderAnalysis.parentFolders);
-                    folderAnalysis.parentFolders.forEach(parent => {
-                        console.log(`📁 مجلد أب: ${parent} - سيتم تجاهله وتحليل محتوياته`);
-                    });
-                }
-
-                // عرض تفاصيل إضافية حول مجلدات الهوية
-                if (folderAnalysis.identityFolders.length > 0) {
-                    console.log('🆔 مجلدات الهوية المكتشفة:', folderAnalysis.identityFolders);
-                    folderAnalysis.identityFolders.forEach(identity => {
-                        console.log(`📋 ${identity}: سيتم التحقق من وجوده في النظام`);
-                    });
-                } else {
-                    console.log('⚠️ لم يتم العثور على مجلدات بأسماء أرقام هوية');
-                    console.log('💡 المجلدات الموجودة:', folderAnalysis.folders);
-                    console.log('💡 تنبيه: يجب أن تحتوي على مجلدات فرعية بأسماء أرقام هوية صحيحة');
-                }
-
-                // عرض المجلدات غير الصالحة
-                if (folderAnalysis.invalidFolders.length > 0) {
-                    console.log('❌ مجلدات غير صالحة (ستُتجاهل):', folderAnalysis.invalidFolders);
-                }
-
-                this.processFolderFiles(files, 'images');
-                e.target.value = ''; // Reset input
-            }
-
-            analyzeFolderStructure(files) {
-                const analysis = {
-                    totalFiles: files.length,
-                    folders: new Set(),
-                    identityFolders: new Set(),
-                    parentFolders: new Set(),
-                    invalidFolders: new Set(),
-                    fileTypes: {},
-                    structure: {},
-                    folderHierarchy: {}
-                };
-
-                files.forEach(file => {
-                    // تحليل المسار الكامل
-                    const pathParts = file.webkitRelativePath.split('/').filter(part => part.trim() !== '');
-
-                    if (pathParts.length === 0) return;
-
-                    // المجلد المباشر للملف (المجلد الأخير في المسار)
-                    const directFolder = pathParts[pathParts.length - 2] || 'root';
-
-                    // جميع المجلدات في المسار
-                    pathParts.slice(0, -1).forEach((folderName, index) => {
-                        analysis.folders.add(folderName);
-
-                        // تحديد نوع المجلد
-                        if (/^\d{8,10}$/.test(folderName)) {
-                            analysis.identityFolders.add(folderName);
-                        } else if (index === 0) {
-                            // المجلد الأول في المسار (المجلد الأب)
-                            analysis.parentFolders.add(folderName);
-                        } else {
-                            // مجلد متوسط أو غير صالح
-                            analysis.invalidFolders.add(folderName);
-                        }
-                    });
-
-                    // بناء هيكل التسلسل الهرمي للمجلدات
-                    let currentLevel = analysis.folderHierarchy;
-                    pathParts.slice(0, -1).forEach(folderName => {
-                        if (!currentLevel[folderName]) {
-                            currentLevel[folderName] = {
-                                files: [],
-                                subfolders: {},
-                                isIdentityFolder: /^\d{8,10}$/.test(folderName),
-                                isParentFolder: false
-                            };
-                        }
-                        currentLevel = currentLevel[folderName].subfolders;
-                    });
-
-                    // إضافة الملف إلى المجلد المناسب
-                    let targetLevel = analysis.folderHierarchy;
-                    pathParts.slice(0, -1).forEach(folderName => {
-                        targetLevel = targetLevel[folderName];
-                        if (pathParts.slice(0, -1)[pathParts.slice(0, -1).length - 1] === folderName) {
-                            targetLevel.files.push({
-                                name: file.name,
-                                size: file.size,
-                                type: file.type,
-                                fullPath: file.webkitRelativePath
-                            });
-                        }
-                        targetLevel = targetLevel.subfolders;
-                    });
-
-                    // تحليل نوع الملف
-                    const ext = file.name.split('.').pop().toLowerCase();
-                    analysis.fileTypes[ext] = (analysis.fileTypes[ext] || 0) + 1;
-
-                    // بناء هيكل المجلد التقليدي (للتوافق مع الكود الموجود)
-                    if (!analysis.structure[directFolder]) {
-                        analysis.structure[directFolder] = [];
-                    }
-                    analysis.structure[directFolder].push({
-                        name: file.name,
-                        size: file.size,
-                        type: file.type,
-                        fullPath: file.webkitRelativePath
-                    });
-                });
-
-                // تحويل Sets إلى Arrays
-                analysis.folders = Array.from(analysis.folders);
-                analysis.identityFolders = Array.from(analysis.identityFolders);
-                analysis.parentFolders = Array.from(analysis.parentFolders);
-                analysis.invalidFolders = Array.from(analysis.invalidFolders);
-
-                // تحديد المجلدات الأب
-                Object.keys(analysis.folderHierarchy).forEach(rootFolder => {
-                    analysis.folderHierarchy[rootFolder].isParentFolder = true;
-                });
-
-                return analysis;
-            }
-
-            processFiles(files) {
-                if (!this.validateInputs()) return;
-
-                files.forEach(file => {
-                    const fileId = this.generateFileId();
-                    const fileData = {
-                        id: fileId,
-                        file: file,
-                        status: 'pending',
-                        progress: 0,
-                        type: this.detectFileType(file),
-                        preview: null,
-                        processing: {
-                            compression: false,
-                            cloudSync: false,
-                            ocr: false
-                        }
-                    };
-
-                    this.files.set(fileId, fileData);
-                    this.createFilePreview(fileData);
-                });
-
-                this.updateFileCounts();
-                this.startUploads();
-            }
-
-            processFolderFiles(files, type) {
-                if (!this.validateInputs()) return;
-
-                console.log(`🔄 بدء معالجة ${type === 'folder' ? 'المجلد' : 'مجلد الصور'}...`);
-
-                // تحليل هيكل المجلدات لتحديد الملفات الصالحة
-                const folderAnalysis = this.analyzeFolderStructure(files);
-
-                // فلترة الملفات للاحتفاظ فقط بالملفات في مجلدات الهوية الصحيحة
-                const validFiles = files.filter(file => {
-                    const pathParts = file.webkitRelativePath.split('/').filter(part => part.trim() !== '');
-
-                    // البحث عن مجلد هوية في المسار
-                    const hasIdentityFolder = pathParts.some(part => /^\d{8,10}$/.test(part));
-
-                    if (hasIdentityFolder) {
-                        return true;
-                    }
-
-                    // إذا لم نجد مجلد هوية، سجل تحذير
-                    console.log(`⚠️ تجاهل الملف: ${file.webkitRelativePath} - لا يوجد في مجلد هوية صحيح`);
-                    return false;
-                });
-
-                console.log(`📊 فلترة الملفات: ${files.length} إجمالي → ${validFiles.length} صالح`);
-
-                if (validFiles.length === 0) {
-                    console.log('⚠️ لا توجد ملفات صالحة للرفع. تأكد من وجود مجلدات بأسماء أرقام هوية صحيحة (8-10 أرقام).');
-                    return;
-                }
-
-                // معالجة الملفات الصالحة محلياً أولاً للمعاينة
-                validFiles.forEach(file => {
-                    const fileId = this.generateFileId();
-                    const pathParts = file.webkitRelativePath.split('/').filter(part => part.trim() !== '');
-
-                    // العثور على مجلد الهوية في المسار
-                    const identityFolder = pathParts.find(part => /^\d{8,10}$/.test(part));
-
-                    const fileData = {
-                        id: fileId,
-                        file: file,
-                        status: 'pending',
-                        progress: 0,
-                        type: this.detectFileType(file),
-                        preview: null,
-                        folderPath: file.webkitRelativePath.split('/').slice(0, -1).join('/'),
-                        relativePath: file.webkitRelativePath,
-                        identityFolder: identityFolder,
-                        source: type === 'folder' ? 'folder-upload' : 'images-folder',
-                        processing: {
-                            compression: document.getElementById('compressImages').checked,
-                            cloudSync: document.getElementById('cloudSync').checked,
-                            ocr: false
-                        }
-                    };
-
-                    this.files.set(fileId, fileData);
-                    this.createFilePreview(fileData);
-                });
-
-                this.updateFileCounts();
-                this.toggleExcelOptions();
-
-                console.log(`✅ تمت معالجة ${validFiles.length} ملف صالح من ${type === 'folder' ? 'المجلد' : 'مجلد الصور'}`);
-                console.log('📊 حالة النظام:', {
-                    totalFiles: this.files.size,
-                    identityFolders: folderAnalysis.identityFolders,
-                    parentFolders: folderAnalysis.parentFolders,
-                    folderStructure: this.getFolderStructure()
-                });
-
-                // إظهار زر الرفع
-                document.getElementById('startUploadBtn').style.display = 'inline-block';
-
-                // حفظ الملفات المعالجة للرفع اللاحق
-                this.processedFiles = validFiles;
-                this.currentUploadType = type;
-
-                console.log(`✨ تم تحضير ${validFiles.length} ملف للرفع. اضغط على زر "بدء الرفع" لتنفيذ العملية.`);
-            }
-
-            getFolderStructure() {
-                const structure = {};
-                this.files.forEach(fileData => {
-                    if (fileData.folderPath) {
-                        if (!structure[fileData.folderPath]) {
-                            structure[fileData.folderPath] = [];
-                        }
-                        structure[fileData.folderPath].push(fileData);
-                    }
-                });
-                return structure;
-            }
-
-            async loadAnalytics() {
-                try {
-                    const response = await fetch('/api/files/analytics', {
-                        method: 'GET',
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest'
-                        }
-                    });
-
-                    if (response.ok) {
-                        const data = await response.json();
-                        document.getElementById('totalFilesCount').innerText = data.total_files;
-                        document.getElementById('totalStorageSize').innerText = (data.total_storage_size / 1024 / 1024).toFixed(1) + ' MB';
-                        document.getElementById('todayFilesCount').innerText = data.today_files;
-                        document.getElementById('compressionRatio').innerText = data.compression_ratio + '%';
-                    } else {
-                        throw new Error('Failed to load analytics data');
-                    }
-                } catch (error) {
-                    console.error('❌ خطأ في تحميل بيانات التحليلات:', error);
-                }
-            }
-
-            validateInputs() {
-                // Add your validation logic here
-                return true;
-            }
-
-            generateFileId() {
-                return 'file_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
-            }
-
-            detectFileType(file) {
-                const ext = file.name.split('.').pop().toLowerCase();
-                if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) return 'image';
-                if (['pdf'].includes(ext)) return 'pdf';
-                if (['xlsx', 'xls', 'csv'].includes(ext)) return 'excel';
-                if (['zip', 'rar', '7z'].includes(ext)) return 'archive';
-                return 'unknown';
-            }
-
-            createFilePreview(fileData) {
-                const container = document.getElementById('filePreviewsContainer');
-
-                // إزالة رسالة "لا توجد ملفات" إذا كانت موجودة
-                const emptyMessage = container.querySelector('.text-center.text-muted');
-                if (emptyMessage) {
-                    emptyMessage.remove();
-                }
-
-                const fileElement = document.createElement('div');
-                fileElement.className = 'col-md-4 mb-4';
-
-                // تحديد نوع الملف وأيقونته
-                let iconClass = 'fas fa-file';
-                if (fileData.type === 'image') iconClass = 'fas fa-image';
-                else if (fileData.type === 'pdf') iconClass = 'fas fa-file-pdf';
-                else if (fileData.type === 'excel') iconClass = 'fas fa-file-excel';
-
-                fileElement.innerHTML = `
-                    <div class="file-preview" id="preview_${fileData.id}">
-                        <div class="position-relative">
-                            <div class="d-flex align-items-center justify-content-center bg-light rounded-top" style="height: 150px;">
-                                <i class="${iconClass} fa-3x text-secondary"></i>
-                            </div>
-                            <div class="processing-overlay" style="display: none;" id="overlay_${fileData.id}">
-                                <div class="spinner-border text-light" role="status">
-                                    <span class="visually-hidden">جاري المعالجة...</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="p-3 bg-light rounded-bottom">
-                            <h6 class="mb-1" id="fileName_${fileData.id}" title="${fileData.file.name}">
-                                ${fileData.file.name.length > 20 ? fileData.file.name.substring(0, 20) + '...' : fileData.file.name}
-                            </h6>
-                            <small class="text-muted d-block mb-2">📁 ${fileData.folderPath || 'مجلد رئيسي'}</small>
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <span class="badge bg-secondary" id="fileType_${fileData.id}">${fileData.type}</span>
-                                    <span class="badge bg-info text-dark" id="fileStatus_${fileData.id}">معلق</span>
-                                </div>
-                                <div class="dropdown">
-                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="actionsMenu_${fileData.id}" data-bs-toggle="dropdown" aria-expanded="false">
-                                        <i class="fas fa-ellipsis-v"></i>
+                            <div class="col-md-6" id="excelTargetOptions" style="display: none;">
+                                <label for="targetTable" class="form-label fw-bold">
+                                    <i class="fas fa-table"></i> الجدول المستهدف
+                                </label>
+                                <select class="form-select" id="targetTable">
+                                    <option value="data">جدول البيانات الرئيسي</option>
+                                    <option value="dead_people">سجلات المتوفين</option>
+                                    <option value="guardian_bank_accounts">حسابات الأوصياء المصرفية</option>
+                                    <option value="re_people">سجلات الهويات المعاد إصدارها</option>
+                                </select>
+
+                                <div class="mt-3">
+                                    <button type="button" class="btn btn-outline-success btn-sm me-2"
+                                        onclick="document.getElementById('excelFileInput').click()">
+                                        <i class="fas fa-file-excel"></i> اختيار ملف Excel
                                     </button>
-                                    <ul class="dropdown-menu" aria-labelledby="actionsMenu_${fileData.id}">
-                                        <li><a class="dropdown-item" href="#" onclick="app.downloadFile('${fileData.id}')"><i class="fas fa-download me-2"></i> تحميل</a></li>
-                                        <li><a class="dropdown-item" href="#" onclick="app.deleteFile('${fileData.id}')"><i class="fas fa-trash me-2"></i> حذف</a></li>
-                                    </ul>
+                                    <button type="button" class="btn btn-outline-info btn-sm" id="previewExcelBtn">
+                                        <i class="fas fa-eye"></i> معاينة البيانات
+                                    </button>
                                 </div>
+                                <div id="excelFileStatus" class="small text-muted mt-2"></div>
                             </div>
                         </div>
                     </div>
-                `;
-                container.appendChild(fileElement);
-            }
-
-            updateFileCounts() {
-                // تحديث عدادات الواجهة
-                const totalFiles = this.files.size;
-                document.getElementById('totalFiles').textContent = totalFiles;
-
-                // تحديث إحصائيات بسيطة
-                const completedFiles = Array.from(this.files.values()).filter(f => f.status === 'completed').length;
-                const processingFiles = Array.from(this.files.values()).filter(f => f.status === 'processing').length;
-                const failedFiles = Array.from(this.files.values()).filter(f => f.status === 'failed').length;
-
-                document.getElementById('completedFiles').textContent = completedFiles;
-                document.getElementById('processingFiles').textContent = processingFiles;
-                document.getElementById('failedFiles').textContent = failedFiles;
-
-                // إظهار قسم التقدم إذا كان هناك ملفات
-                if (totalFiles > 0) {
-                    document.getElementById('uploadProgressSection').style.display = 'block';
-                    const progress = totalFiles > 0 ? (completedFiles / totalFiles) * 100 : 0;
-                    document.getElementById('overallProgress').style.width = `${progress}%`;
-                }
-            }
-
-            async uploadFolderFile(files, uploadType) {
-                console.log(`🚀 بدء رفع ${uploadType}:`, {
-                    filesCount: files.length,
-                    timestamp: new Date().toISOString()
-                });
-
-                const formData = new FormData();
-
-                // إضافة جميع الملفات
-                files.forEach((file, index) => {
-                    formData.append(`files[${index}]`, file);
-                    formData.append(`paths[${index}]`, file.webkitRelativePath || file.name);
-                });
-
-                // إضافة معلومات إضافية
-                formData.append('upload_type', uploadType);
-                formData.append('person_id', document.getElementById('personId').value || '');
-                formData.append('compress_images', document.getElementById('compressImages').checked);
-                formData.append('auto_organize', document.getElementById('autoOrganize').checked);
-                formData.append('cloud_sync', document.getElementById('cloudSync').checked);
-
-                // إضافة ملف Excel إذا كان موجود
-                const excelFile = document.getElementById('excelFileInput').files[0];
-                if (excelFile) {
-                    formData.append('excel_file', excelFile);
-                    formData.append('enable_excel_import', document.getElementById('enableExcelImport').checked);
-                    formData.append('target_table', document.getElementById('targetTable').value);
-
-                    console.log('📊 ملف Excel مرفق:', {
-                        name: excelFile.name,
-                        size: excelFile.size,
-                        importEnabled: document.getElementById('enableExcelImport').checked
-                    });
-                }
-
-                try {
-                    console.log('📤 إرسال البيانات إلى الخادم...');
-
-                    const response = await fetch('/admin/file/process-bulk-folder-upload', {
-                        method: 'POST',
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                            'Accept': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest'
-                        },
-                        body: formData
-                    });
-
-                    const result = await response.json();
-
-                    if (response.ok) {
-                        console.log('✅ نجح رفع المجلد مع كشف التكرار:', result);
-
-                        // فحص وعرض الملفات المكررة الجديدة
-                        if (result.duplicates_info && result.duplicates_info.total_duplicates > 0) {
-                            console.log('🔍 تم اكتشاف ملفات مكررة جديدة:', result.duplicates_info);
-
-                            // حفظ session_id للملفات المكررة
-                            window.CURRENT_DUPLICATE_SESSION_ID = result.session_id;
-                            sessionStorage.setItem('duplicate_files_session_id', result.session_id);
-
-                            // تحديث زر عرض الملفات المكررة
-                            this.updateDuplicateFilesButton(result.duplicates_info);
-
-                            // عرض تنبيه للمستخدم
-                            this.showAlert(`تم اكتشاف ${result.duplicates_info.total_duplicates} ملف مكرر. تم حفظهم في مجلد مؤقت.`, 'warning');
-                        }
-
-                        // عرض ملخص العملية
-                        if (result.summary) {
-                            console.log('📊 ملخص العملية:', result.summary);
-
-                            let summaryMessage = `تم معالجة ${result.summary.total_files} ملف: `;
-                            summaryMessage += `${result.summary.files_saved} محفوظ، `;
-                            summaryMessage += `${result.summary.duplicates_found} مكرر`;
-
-                            if (result.summary.errors_count > 0) {
-                                summaryMessage += `، ${result.summary.errors_count} خطأ`;
-                            }
-
-                            this.showAlert(summaryMessage, 'success');
-                        }
-
-                        // عرض تحليل المجلدات
-                        if (result.folder_analysis && result.folder_analysis.validated_folders) {
-                            console.log('📁 المجلدات المعتمدة:', result.folder_analysis.validated_folders);
-                            Object.entries(result.folder_analysis.validated_folders).forEach(([folderName, data]) => {
-                                console.log(`✅ ${folderName} → file_id: ${data.file_id_number} (${data.matched_by})`);
-                            });
-                        }
-
-                        if (result.folder_analysis && result.folder_analysis.rejected_folders && result.folder_analysis.rejected_folders.length > 0) {
-                            console.log('❌ مجلدات مرفوضة:', result.folder_analysis.rejected_folders);
-                        }
-
-                        // عرض تفاصيل كشف التكرار
-                        if (result.duplicate_detection_results) {
-                            console.log('� نتائج كشف التكرار:', result.duplicate_detection_results);
-
-                            if (result.duplicate_detection_results.folder_analysis) {
-                                console.log('📂 تحليل المجلدات للتكرار:', result.duplicate_detection_results.folder_analysis);
-                            }
-                        }
-
-                        // تحديث الواجهة
-                        this.updateFileCounts();
-                        this.loadAnalytics();
-
-                        return result;
-                    } else {
-                        // معالجة أخطاء التحقق من صحة المجلدات
-                        if (response.status === 422) {
-                            let errorMessage = result.message;
-
-                            if (result.rejected_folders && result.rejected_folders.length > 0) {
-                                console.error('❌ مجلدات هوية مرفوضة:', result.rejected_folders);
-                                errorMessage += `: ${result.rejected_folders.join(', ')}`;
-                            }
-
-                            if (result.ignored_parent_folders && result.ignored_parent_folders.length > 0) {
-                                console.log('ℹ️ مجلدات أب تم تجاهلها (عادي):', result.ignored_parent_folders);
-                                errorMessage += `\nملاحظة: تم تجاهل المجلدات الأب التالية بشكل طبيعي: ${result.ignored_parent_folders.join(', ')}`;
-                            }
-
-                            this.showAlert(errorMessage, 'danger');
-                        } else {
-                            throw new Error(result.message || 'فشل في رفع المجلد');
-                        }
-                    }
-                } catch (error) {
-                    console.error('❌ خطأ في رفع المجلد:', error);
-                    this.showAlert(`فشل في رفع المجلد: ${error.message}`, 'danger');
-                    throw error;
-                }
-            }
-
-            async startUploads() {
-                // التحقق من وجود ملفات معالجة للرفع (من المجلدات)
-                if (this.processedFiles && this.processedFiles.length > 0) {
-                    console.log('🚀 بدء رفع الملفات المعالجة من المجلد...');
-                    try {
-                        const result = await this.uploadFolderFile(this.processedFiles, this.currentUploadType);
-                        console.log('🎉 اكتملت عملية الرفع والتحويل بنجاح!', result);
-                        this.showAlert('تم رفع ملفات المجلد بنجاح!', 'success');
-
-                        // مسح الملفات المعالجة بعد الرفع
-                        this.processedFiles = null;
-                        this.currentUploadType = null;
-                    } catch (error) {
-                        console.error('❌ فشلت عملية الرفع:', error);
-                        this.showAlert('فشلت عملية رفع ملفات المجلد: ' + error.message, 'error');
-                    }
-                    return;
-                }
-
-                // معالجة الملفات العادية (غير المجلدات)
-                if (this.activeUploads >= this.maxConcurrentUploads) {
-                    this.showAlert('يوجد عمليات رفع نشطة. يرجى الانتظار حتى تكتمل.', 'warning');
-                    return;
-                }
-
-                const pendingFiles = Array.from(this.files.values()).filter(f => f.status === 'pending');
-                if (pendingFiles.length === 0) {
-                    this.showAlert('لا توجد ملفات جديدة للرفع.', 'info');
-                    return;
-                }
-
-                this.showAlert('بدء رفع الملفات...', 'info');
-                this.updateFileCounts();
-
-                for (const fileData of pendingFiles) {
-                    if (this.activeUploads >= this.maxConcurrentUploads) break;
-
-                    this.activeUploads++;
-                    fileData.status = 'processing';
-                    this.updateFileStatus(fileData.id, 'processing');
-
-                    try {
-                        // Simulate file upload
-                        await this.simulateFileUpload(fileData);
-                        fileData.status = 'completed';
-                        this.updateFileStatus(fileData.id, 'completed');
-                    } catch (error) {
-                        fileData.status = 'failed';
-                        this.updateFileStatus(fileData.id, 'failed');
-                        console.error('❌ خطأ في رفع الملف:', fileData.file.name, error);
-                    } finally {
-                        this.activeUploads--;
-                    }
-                }
-
-                this.updateFileCounts();
-                this.showAlert('تمت معالجة الدفعة الحالية.', 'success');
-            }
-
-            async simulateFileUpload(fileData) {
-                return new Promise((resolve, reject) => {
-                    setTimeout(() => {
-                        // Randomly succeed or fail the upload
-                        Math.random() > 0.2 ? resolve() : reject(new Error('Upload failed'));
-                    }, 2000);
-                });
-            }
-
-            updateFileStatus(fileId, status) {
-                const fileElement = document.getElementById(`preview_${fileId}`);
-                const statusLabel = document.getElementById(`fileStatus_${fileId}`);
-                const overlay = document.getElementById(`overlay_${fileId}`);
-
-                if (status === 'processing') {
-                    statusLabel.innerText = 'قيد المعالجة';
-                    overlay.style.display = 'flex';
-                } else if (status === 'completed') {
-                    statusLabel.innerText = 'مكتملة';
-                    overlay.style.display = 'none';
-                } else if (status === 'failed') {
-                    statusLabel.innerText = 'فاشلة';
-                    overlay.style.display = 'none';
-                }
-            }
-
-            showAlert(message, type = 'info') {
-                const alertBox = document.createElement('div');
-                alertBox.className = `alert alert-${type} alert-dismissible fade show`;
-                alertBox.role = 'alert';
-                alertBox.innerHTML = `
-                    <i class="fas fa-info-circle me-2"></i> ${message}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                `;
-                document.querySelector('.container-fluid').prepend(alertBox);
-
-                // إزالة التنبيه تلقائياً بعد 5 ثوان
-                setTimeout(() => {
-                    if (alertBox && alertBox.parentNode) {
-                        alertBox.parentNode.removeChild(alertBox);
-                    }
-                }, 5000);
-            }
-
-            handleFilterChange(e) {
-                const filter = e.target.value;
-                const files = document.querySelectorAll('#filePreviewsContainer .file-preview');
-
-                files.forEach(file => {
-                    const fileType = file.querySelector('[id^="fileType_"]').innerText.toLowerCase();
-                    if (filter === 'all' || fileType === filter) {
-                        file.closest('.col-md-4').style.display = 'block';
-                    } else {
-                        file.closest('.col-md-4').style.display = 'none';
-                    }
-                });
-            }
-
-            downloadFile(fileId) {
-                const fileData = this.files.get(fileId);
-                if (!fileData) return;
-
-                const url = URL.createObjectURL(fileData.file);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = fileData.file.name;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-
-                this.showAlert(`جاري تحميل ${fileData.file.name}...`, 'info');
-            }
-
-            deleteFile(fileId) {
-                this.files.delete(fileId);
-                document.getElementById(`preview_${fileId}`).closest('.col-md-4').remove();
-                this.showAlert('تم حذف الملف بنجاح.', 'success');
-            }
-
-            /**
-             * تحديث زر عرض الملفات المكررة
-             */
-            updateDuplicateFilesButton(duplicatesInfo) {
-                const duplicateBtn = document.getElementById('showDuplicateFilesBtn');
-                if (duplicateBtn && duplicatesInfo) {
-                    duplicateBtn.style.display = 'inline-block';
-                    duplicateBtn.innerHTML = `<i class="fas fa-clone me-2"></i>عرض الملفات المكررة (${duplicatesInfo.total_duplicates})`;
-                    duplicateBtn.classList.add('btn-warning');
-                    duplicateBtn.classList.remove('btn-secondary');
-
-                    // إضافة وظيفة النقر
-                    duplicateBtn.onclick = () => {
-                        this.showDuplicateFilesModal(duplicatesInfo.session_id);
-                    };
-                }
-            }
-
-            /**
-             * عرض modal الملفات المكررة
-             */
-            async showDuplicateFilesModal(sessionId) {
-                try {
-                    // جلب قائمة الملفات المكررة
-                    const response = await fetch(`/admin/file/duplicate-summary?session_id=${sessionId}`);
-                    const result = await response.json();
-
-                    if (result.success && result.data.total_duplicates > 0) {
-                        // تحديث محتوى الـ modal
-                        this.populateDuplicateFilesModal(result.data);
-
-                        // عرض الـ modal
-                        const modal = new bootstrap.Modal(document.getElementById('duplicateFilesModal'));
-                        modal.show();
-                    } else {
-                        this.showAlert('لا توجد ملفات مكررة للعرض', 'info');
-                    }
-                } catch (error) {
-                    console.error('خطأ في جلب الملفات المكررة:', error);
-                    this.showAlert('حدث خطأ أثناء جلب قائمة الملفات المكررة', 'danger');
-                }
-            }
-
-            /**
-             * ملء محتوى modal الملفات المكررة
-             */
-            populateDuplicateFilesModal(duplicateData) {
-                const modalBody = document.querySelector('#duplicateFilesModal .modal-body');
-
-                let html = `
-                    <div class="alert alert-warning">
-                        <h6><i class="fas fa-exclamation-triangle"></i> تم العثور على ${duplicateData.total_duplicates} ملف مكرر</h6>
-                        <p>الحجم الإجمالي: ${this.formatFileSize(duplicateData.total_size)}</p>
-                    </div>
-                `;
-
-                // عرض تحليل المجلدات إذا كان متوفراً
-                if (duplicateData.folders_analysis) {
-                    html += `<h6>تحليل المجلدات المتأثرة:</h6>`;
-                    Object.values(duplicateData.folders_analysis).forEach(folder => {
-                        html += `
-                            <div class="card mb-2">
-                                <div class="card-body">
-                                    <h6 class="card-title">مجلد: ${folder.folder_id}</h6>
-                                    <p class="card-text">
-                                        ملفات مكررة: ${folder.duplicates_count}<br>
-                                        الحجم: ${this.formatFileSize(folder.total_size)}
-                                    </p>
-                                </div>
-                            </div>
-                        `;
-                    });
-                }
-
-                // قائمة الملفات المكررة
-                html += `<h6>قائمة الملفات المكررة:</h6>`;
-                html += `<div class="list-group">`;
-
-                duplicateData.files.forEach(file => {
-                    const canDownload = file.can_download;
-                    html += `
-                        <div class="list-group-item">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-1">${file.original_name}</h6>
-                                    <p class="mb-1">
-                                        <small class="text-muted">
-                                            المجلد الأصلي: ${file.original_folder} → المجلد الهدف: ${file.target_folder}
-                                        </small>
-                                    </p>
-                                    <small>الحجم: ${this.formatFileSize(file.file_size)}</small>
-                                </div>
-                                <div>
-                                    ${canDownload ? `
-                                        <button class="btn btn-sm btn-outline-primary" onclick="window.open('${file.download_url}', '_blank')">
-                                            <i class="fas fa-download"></i> تحميل
-                                        </button>
-                                    ` : `
-                                        <span class="badge bg-secondary">غير متوفر</span>
-                                    `}
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                });
-
-                html += `</div>`;
-
-                // أزرار العمليات
-                html += `
-                    <div class="mt-3 d-flex gap-2">
-                        <button class="btn btn-primary" onclick="app.downloadAllDuplicates('${duplicateData.session_id}')">
-                            <i class="fas fa-download"></i> تحميل جميع الملفات
-                        </button>
-                        <button class="btn btn-danger" onclick="app.deleteAllDuplicates('${duplicateData.session_id}')">
-                            <i class="fas fa-trash"></i> حذف جميع الملفات المكررة
-                        </button>
-                        <button class="btn btn-info" onclick="app.showDuplicateStatistics('${duplicateData.session_id}')">
-                            <i class="fas fa-chart-bar"></i> إحصائيات مفصلة
-                        </button>
-                    </div>
-                `;
-
-                modalBody.innerHTML = html;
-            }
-
-            /**
-             * تحميل جميع الملفات المكررة
-             */
-            async downloadAllDuplicates(sessionId) {
-                try {
-                    window.open(`/admin/file/download-duplicates?session_id=${sessionId}`, '_blank');
-                    this.showAlert('جاري تحميل جميع الملفات المكررة...', 'info');
-                } catch (error) {
-                    console.error('خطأ في تحميل الملفات:', error);
-                    this.showAlert('حدث خطأ أثناء تحميل الملفات', 'danger');
-                }
-            }
-
-            /**
-             * حذف جميع الملفات المكررة
-             */
-            async deleteAllDuplicates(sessionId) {
-                if (!confirm('هل أنت متأكد من حذف جميع الملفات المكررة؟ هذا الإجراء لا يمكن التراجع عنه.')) {
-                    return;
-                }
-
-                try {
-                    const response = await fetch(`/admin/file/delete-duplicates?session_id=${sessionId}`, {
-                        method: 'DELETE',
-                        headers: {
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-                        }
-                    });
-
-                    const result = await response.json();
-
-                    if (result.success) {
-                        this.showAlert(`تم حذف ${result.data.deleted_files} ملف مكرر بنجاح`, 'success');
-
-                        // إغلاق الـ modal
-                        const modal = bootstrap.Modal.getInstance(document.getElementById('duplicateFilesModal'));
-                        if (modal) modal.hide();
-
-                        // إخفاء زر عرض الملفات المكررة
-                        const duplicateBtn = document.getElementById('showDuplicateFilesBtn');
-                        if (duplicateBtn) {
-                            duplicateBtn.style.display = 'none';
-                        }
-
-                        // مسح معرف الجلسة
-                        sessionStorage.removeItem('duplicate_files_session_id');
-                        delete window.CURRENT_DUPLICATE_SESSION_ID;
-
-                    } else {
-                        this.showAlert(`فشل في حذف الملفات: ${result.message}`, 'danger');
-                    }
-                } catch (error) {
-                    console.error('خطأ في حذف الملفات:', error);
-                    this.showAlert('حدث خطأ أثناء حذف الملفات', 'danger');
-                }
-            }
-
-            /**
-             * عرض إحصائيات مفصلة للملفات المكررة
-             */
-            async showDuplicateStatistics(sessionId) {
-                try {
-                    const response = await fetch(`/admin/file/duplicate-statistics?session_id=${sessionId}`);
-                    const result = await response.json();
-
-                    if (result.success) {
-                        const stats = result.data;
-                        let html = `
-                            <div class="modal fade" id="statisticsModal" tabindex="-1">
-                                <div class="modal-dialog modal-lg">
-                                    <div class="modal-content">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title">إحصائيات الملفات المكررة</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            <div class="row">
-                                                <div class="col-md-6">
-                                                    <div class="card">
-                                                        <div class="card-header">إحصائيات عامة</div>
-                                                        <div class="card-body">
-                                                            <p>إجمالي الملفات المكررة: <strong>${stats.total_duplicates}</strong></p>
-                                                            <p>الحجم الإجمالي: <strong>${this.formatFileSize(stats.total_size)}</strong></p>
-                                                            <p>المجلدات المتأثرة: <strong>${stats.folders_affected}</strong></p>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <div class="card">
-                                                        <div class="card-header">أنواع الملفات</div>
-                                                        <div class="card-body">
-                        `;
-
-                        Object.entries(stats.file_types).forEach(([ext, count]) => {
-                            html += `<p>${ext.toUpperCase()}: <strong>${count}</strong> ملف</p>`;
-                        });
-
-                        html += `
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="mt-3">
-                                                <h6>تفصيل المجلدات:</h6>
-                        `;
-
-                        Object.values(stats.folders_breakdown).forEach(folder => {
-                            html += `
-                                <div class="card mb-2">
-                                    <div class="card-body">
-                                        <h6>مجلد: ${folder.folder_id}</h6>
-                                        <p>ملفات مكررة: ${folder.duplicates_count} | الحجم: ${this.formatFileSize(folder.total_size)}</p>
-                                        <small class="text-muted">الملفات: ${folder.files.join(', ')}</small>
-                                    </div>
-                                </div>
-                            `;
-                        });
-
-                        html += `
-                                            </div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-
-                        // إضافة الـ modal إلى الصفحة وعرضه
-                        document.body.insertAdjacentHTML('beforeend', html);
-                        const statsModal = new bootstrap.Modal(document.getElementById('statisticsModal'));
-                        statsModal.show();
-
-                        // حذف الـ modal عند الإغلاق
-                        document.getElementById('statisticsModal').addEventListener('hidden.bs.modal', function() {
-                            this.remove();
-                        });
-
-                    } else {
-                        this.showAlert('فشل في جلب الإحصائيات', 'danger');
-                    }
-                } catch (error) {
-                    console.error('خطأ في جلب الإحصائيات:', error);
-                    this.showAlert('حدث خطأ أثناء جلب الإحصائيات', 'danger');
-                }
-            }
-
-            /**
-             * تنسيق حجم الملف
-             */
-            formatFileSize(bytes) {
-                if (bytes === 0) return '0 Bytes';
-                const k = 1024;
-                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-                const i = Math.floor(Math.log(bytes) / Math.log(k));
-                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-            }
-        }
-
-        const app = new AdvancedFileManager();
-
-        // تفعيل بوابة Excel
-        document.getElementById('excel-gateway-btn').addEventListener('click', function() {
-            const modal = new bootstrap.Modal(document.getElementById('excelGatewayModal'));
-            modal.show();
-        });
-    </script>
-</body>
-</html>
-
-<!-- Excel Gateway Modal -->
-<div class="modal fade" id="excelGatewayModal" tabindex="-1" aria-labelledby="excelGatewayModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title" id="excelGatewayModalLabel">
-                    <i class="fas fa-table me-2"></i>بوابة Excel المتخصصة
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body p-0">
-                <iframe src="{{ route('admin.file.excel.gateway') }}"
-                        width="100%"
-                        height="600"
-                        frameborder="0"
-                        id="excelGatewayFrame">
-                </iframe>
+                </div>
             </div>
         </div>
-    </div>
-</div>
 
-<!-- نصيحة حول رفع المجلدات -->
-<div class="alert alert-info mt-2" style="font-size: 0.95em;">
-    <i class="fas fa-info-circle"></i>
-    عند رفع مجلد رئيسي يحتوي على عدة مجلدات فرعية، سيتم تجاهل المجلد الأب تلقائياً وسيتم معالجة المجلدات الفرعية التي تحمل أرقام هوية فقط. تأكد أن أسماء المجلدات الفرعية تطابق أرقام الهوية أو أرقام الملفات في النظام.
-</div>
+        <!-- File Type Filters -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <label class="form-label fw-bold">
+                    <i class="fas fa-filter text-info"></i> فلترة أنواع الملفات
+                </label>
+                <div class="btn-group-responsive w-100" role="group">
+                    <div class="row g-2">
+                        <div class="col-lg-2 col-md-4 col-6">
+                            <input type="radio" class="btn-check" name="fileFilter" id="filterAll" value="all" checked>
+                            <label class="btn btn-outline-primary w-100 shadow-sm" for="filterAll">
+                                <i class="fas fa-th"></i> <span class="d-none d-sm-inline">جميع الملفات</span><span class="d-sm-none">الكل</span>
+                            </label>
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-6">
+                            <input type="radio" class="btn-check" name="fileFilter" id="filterImages" value="image">
+                            <label class="btn btn-outline-success w-100 shadow-sm" for="filterImages">
+                                <i class="fas fa-image"></i> <span class="d-none d-sm-inline">صور</span><span class="d-sm-none">صور</span>
+                            </label>
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-6">
+                            <input type="radio" class="btn-check" name="fileFilter" id="filterPDF" value="pdf">
+                            <label class="btn btn-outline-danger w-100 shadow-sm" for="filterPDF">
+                                <i class="fas fa-file-pdf"></i> <span class="d-none d-sm-inline">PDF</span><span class="d-sm-none">PDF</span>
+                            </label>
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-6">
+                            <input type="radio" class="btn-check" name="fileFilter" id="filterExcel" value="excel">
+                            <label class="btn btn-outline-info w-100 shadow-sm" for="filterExcel">
+                                <i class="fas fa-file-excel"></i> <span class="d-none d-sm-inline">Excel</span><span class="d-sm-none">Excel</span>
+                            </label>
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-6">
+                            <input type="radio" class="btn-check" name="fileFilter" id="filterArchive" value="archive">
+                            <label class="btn btn-outline-warning w-100 shadow-sm" for="filterArchive">
+                                <i class="fas fa-file-archive"></i> <span class="d-none d-sm-inline">مضغوط</span><span class="d-sm-none">ZIP</span>
+                            </label>
+                        </div>
+                        <div class="col-lg-2 col-md-4 col-6">
+                            <input type="radio" class="btn-check" name="fileFilter" id="filterOther" value="other">
+                            <label class="btn btn-outline-secondary w-100 shadow-sm" for="filterOther">
+                                <i class="fas fa-file"></i> <span class="d-none d-sm-inline">أخرى</span><span class="d-sm-none">أخرى</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+                <!-- Enhanced File Drop Zone -->
+                <div class="row mt-4" style="display: none;">
+                    <div class="col-12">
+                        <div class="file-drop-zone" id="fileDropZone">
+                            <div class="drop-zone-content text-center">
+                                <i class="fas fa-cloud-upload-alt fa-5x text-primary mb-4"></i>
+                                <h3 class="text-primary">اسحب وأفلت الملفات هنا</h3>
+                                <p class="text-muted mb-4">أو انقر على الزر أدناه لاختيار الملفات</p>
+
+                                <!-- File Upload Actions -->
+                                <div class="d-flex justify-content-center gap-3 mb-3">
+                                    {{-- <button type="button" class="btn btn-success btn-lg" id="startUploadBtn" style="display: none;">
+                                <i class="fas fa-upload me-2"></i>بدء الرفع
+                            </button> --}}
+                                    <button type="button" class="btn btn-warning btn-lg" id="pauseUploadBtn"
+                                        style="display: none;">
+                                        <i class="fas fa-pause me-2"></i>إيقاف مؤقت
+                                    </button>
+                                </div>
+
+                                <div class="text-muted small">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    يدعم: الصور (JPG, PNG, GIF)، المستندات (PDF, Word)، Excel، والملفات المضغوطة (ZIP, RAR)
+                                    <br>
+                                    الحد الأقصى للملف: 1 جيجابايت
+                                </div>
+
+                                <!-- File Input Elements -->
+                                <input type="file" id="fileInput" multiple class="d-none" accept="*/*">
+                                <!-- مدخل المجلدات -->
+                                <input type="file" id="folderInput" webkitdirectory directory multiple class="d-none">
+                                <!-- مدخل ملف Excel للمجلدات -->
+                                <input type="file" id="excelFileInput" class="d-none" accept=".xlsx,.xls,.csv">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upload Progress -->
+                <div class="row mt-4" id="uploadProgressSection" style="display: none;">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="card-title mb-0">
+                                    <i class="fas fa-tasks me-2"></i>تقدم الرفع
+                                </h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="progress mb-3" style="height: 8px;">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                        id="overallProgress" role="progressbar" style="width: 0%"></div>
+                                </div>
+                                <div class="row text-center">
+                                    <div class="col-3">
+                                        <div class="h5 mb-0" id="totalFiles">0</div>
+                                        <small class="text-muted">إجمالي الملفات</small>
+                                    </div>
+                                    <div class="col-3">
+                                        <div class="h5 mb-0 text-success" id="completedFiles">0</div>
+                                        <small class="text-muted">مكتملة</small>
+                                    </div>
+                                    <div class="col-3">
+                                        <div class="h5 mb-0 text-warning" id="processingFiles">0</div>
+                                        <small class="text-muted">قيد المعالجة</small>
+                                    </div>
+                                    <div class="col-3">
+                                        <div class="h5 mb-0 text-danger" id="failedFiles">0</div>
+                                        <small class="text-muted">فاشلة</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- File Previews -->
+                <div class="row mt-4" id="filePreviewsSection">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header pt-8">
+                                    <div class="col-md-6 col-12">
+                                        <h5 class="card-title mb-0 text-end">
+                                            <i class="fas fa-images me-2"></i>معاينة الملفات
+                                        </h5>
+                                    </div>
+                                    <div class="col-md-6 col-12 mb-2 mb-md-0">
+                                        <div class="d-flex flex-wrap gap-2 justify-content-start">
+                                            <button type="button" class="btn btn-success btn-sm" id="startUploadBtn"
+                                                style="display: none;">
+                                                <i class="fas fa-upload me-1"></i><span class="d-none d-sm-inline">بدء الرفع</span><span class="d-sm-none">رفع</span>
+                                            </button>
+                                            <button type="button" class="btn btn-info btn-sm" id="selectFolderBtn2">
+                                                <i class="fas fa-folder-plus me-1"></i><span class="d-none d-sm-inline">اختيار مجلد</span><span class="d-sm-none">مجلد</span>
+                                            </button>
+                                            <button type="button" class="btn btn-danger btn-sm" id="clearAllBtn2">
+                                                <i class="fas fa-trash me-1"></i><span class="d-none d-sm-inline">مسح</span><span class="d-sm-none">مسح</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="row" id="filePreviewsContainer">
+                                    <div class="col-12 text-center text-muted py-5">
+                                        <i class="fas fa-folder-open fa-3x mb-3"></i>
+                                        <p>لا توجد ملفات محددة بعد</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>                </div>
+            </div>
+
+            <!-- File Preview Modal -->
+            <div class="modal fade" id="filePreviewModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="previewModalTitle">معاينة الملف</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body" id="previewModalBody">
+                            <!-- Preview content will be loaded here -->
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+                            <button type="button" class="btn btn-primary" id="downloadFileBtn">
+                                <i class="fas fa-download me-2"></i>تحميل
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @include('file-management.modalDublicateFiles')
+
+            <!-- Duplicate Files Modal for Folders -->
+            <div class="modal fade" id="duplicateFilesModal" tabindex="-1" aria-labelledby="duplicateFilesModalLabel"
+                aria-hidden="true">
+                <div class="modal-dialog modal-xl">
+                    <div class="modal-content">
+                        <div class="modal-header bg-warning text-dark">
+                            <h5 class="modal-title" id="duplicateFilesModalLabel">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                الملفات المكررة المكتشفة
+                            </h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <!-- Content will be loaded dynamically -->
+                            <div class="text-center">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">جاري التحميل...</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Excel Gateway Modal -->
+            <div class="modal fade" id="excelGatewayModal" tabindex="-1" aria-labelledby="excelGatewayModalLabel"
+                aria-hidden="true">
+                <div class="modal-dialog modal-xl">
+                    <div class="modal-content">
+                        <div class="modal-header bg-success text-white">
+                            <h5 class="modal-title" id="excelGatewayModalLabel">
+                                <i class="fas fa-table me-2"></i>بوابة Excel المتخصصة
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                                aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body p-0">
+                            <iframe src="{{ route('admin.file.excel.gateway') }}" width="100%" height="600"
+                                frameborder="0" id="excelGatewayFrame">
+                            </iframe>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- نصيحة حول رفع المجلدات -->
+            <div class="alert alert-info mt-2" style="font-size: 0.95em;">
+                <i class="fas fa-info-circle"></i>
+                عند رفع مجلد رئيسي يحتوي على عدة مجلدات فرعية، سيتم تجاهل المجلد الأب تلقائياً وسيتم معالجة المجلدات الفرعية التي تحمل أرقام هوية فقط. تأكد أن أسماء المجلدات الفرعية تطابق أرقام الهوية أو أرقام الملفات في النظام.
+            </div>
+
+            <!-- معلومات الأداء والتوافق -->
+            <div class="alert alert-success mt-2 d-block d-md-none" style="font-size: 0.9em;">
+                <i class="fas fa-mobile-alt"></i>
+                <strong>نصائح للجوال:</strong> تم تحسين هذه الصفحة للعمل على الأجهزة المحمولة. يمكنك التمرير أفقياً لعرض المزيد من الخيارات، والنقر مطولاً على الأزرار للحصول على تفاصيل إضافية.
+            </div>
+            @include('file-management.indexFileManegerjavascript')
+@endsection

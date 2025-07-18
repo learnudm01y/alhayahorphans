@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>JavaScript Syntax Test</title>
+</head>
+<body>
+    <script>
+        // Test basic syntax
+        console.log('Testing JavaScript syntax...');
+
+        // Test the file content
+        fetch('resources/views/file-management/indexFileManegerjavascript.blade.php')
+            .then(response => response.text())
+            .then(content => {
+                // Extract JavaScript content between <script> tags
+                const scriptMatch = content.match(/<script>([\s\S]*?)<\/script>/);
+                if (scriptMatch) {
+                    const jsCode = scriptMatch[1];
+                    try {
+                        // Try to evaluate the JavaScript code
+                        new Function(jsCode);
+                        console.log('✅ JavaScript syntax is valid!');
+                    } catch (error) {
+                        console.error('❌ JavaScript syntax error:', error);
+                    }
+                } else {
+                    console.error('❌ No script tags found');
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error reading file:', error);
+            });
+    </script>
+</body>
+</html>

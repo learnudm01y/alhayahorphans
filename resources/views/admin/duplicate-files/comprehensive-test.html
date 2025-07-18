@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار عمليات الملفات المكررة</title>
+    <meta name="csrf-token" content="test-token">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .test-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            padding: 30px;
+        }
+        .feature-card {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border: 1px solid #dee2e6;
+            transition: all 0.3s ease;
+        }
+        .feature-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+        .btn-action {
+            border-radius: 10px;
+            padding: 12px 25px;
+            font-weight: 600;
+            margin: 8px;
+            transition: all 0.3s ease;
+        }
+        .btn-action:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .result-area {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            border: 1px solid #e9ecef;
+            min-height: 200px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success-log {
+            color: #155724;
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 8px;
+            padding: 10px;
+            margin: 5px 0;
+        }
+        .error-log {
+            color: #721c24;
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 8px;
+            padding: 10px;
+            margin: 5px 0;
+        }
+        .info-log {
+            color: #0c5460;
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            border-radius: 8px;
+            padding: 10px;
+            margin: 5px 0;
+        }
+        .loading-spinner {
+            text-align: center;
+            padding: 30px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .stat-label {
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+        .test-section {
+            margin-bottom: 40px;
+        }
+        .section-title {
+            color: #495057;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <!-- Header -->
+        <div class="text-center mb-5">
+            <h1 class="display-4 text-primary">
+                <i class="fas fa-cogs"></i>
+                اختبار عمليات الملفات المكررة
+            </h1>
+            <p class="lead text-muted">اختبار شامل لجميع وظائف إدارة الملفات المكررة</p>
+        </div>
+
+        <!-- Statistics -->
+        <div class="test-section">
+            <h2 class="section-title">
+                <i class="fas fa-chart-bar"></i>
+                الإحصائيات
+            </h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalFiles">-</div>
+                    <div class="stat-label">إجمالي الملفات</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="selectedFiles">0</div>
+                    <div class="stat-label">الملفات المحددة</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="totalSize">-</div>
+                    <div class="stat-label">الحجم الإجمالي</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="lastOperation">-</div>
+                    <div class="stat-label">آخر عملية</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Control Panel -->
+        <div class="test-section">
+            <h2 class="section-title">
+                <i class="fas fa-tools"></i>
+                لوحة التحكم
+            </h2>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="feature-card">
+                        <h4 class="text-primary">
+                            <i class="fas fa-sync-alt"></i>
+                            تحميل البيانات
+                        </h4>
+                        <p class="text-muted">تحميل قائمة الملفات المكررة من قاعدة البيانات</p>
+                        <button class="btn btn-primary btn-action" id="loadFilesBtn">
+                            <i class="fas fa-download"></i>
+                            تحميل الملفات
+                        </button>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="feature-card">
+                        <h4 class="text-success">
+                            <i class="fas fa-download"></i>
+                            تنزيل الملفات
+                        </h4>
+                        <p class="text-muted">تنزيل الملفات كملف مضغوط</p>
+                        <button class="btn btn-success btn-action" id="downloadAllBtn">
+                            <i class="fas fa-download"></i>
+                            تنزيل الكل
+                        </button>
+                        <button class="btn btn-info btn-action" id="downloadSelectedBtn" style="display: none;">
+                            <i class="fas fa-download"></i>
+                            تنزيل المحدد
+                        </button>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="feature-card">
+                        <h4 class="text-warning">
+                            <i class="fas fa-trash"></i>
+                            حذف الملفات
+                        </h4>
+                        <p class="text-muted">حذف الملفات المحددة أو جميع الملفات</p>
+                        <button class="btn btn-warning btn-action" id="bulkDeleteBtn" style="display: none;">
+                            <i class="fas fa-trash"></i>
+                            حذف المحدد
+                        </button>
+                        <button class="btn btn-danger btn-action" id="deleteAllBtn">
+                            <i class="fas fa-trash-alt"></i>
+                            حذف الكل
+                        </button>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="feature-card">
+                        <h4 class="text-info">
+                            <i class="fas fa-check-square"></i>
+                            التحديد
+                        </h4>
+                        <p class="text-muted">تحديد أو إلغاء تحديد الملفات</p>
+                        <button class="btn btn-info btn-action" id="selectAllBtn">
+                            <i class="fas fa-check-square"></i>
+                            تحديد الكل
+                        </button>
+                        <button class="btn btn-outline-info btn-action" id="deselectAllBtn">
+                            <i class="fas fa-square"></i>
+                            إلغاء التحديد
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Files Table -->
+        <div class="test-section">
+            <h2 class="section-title">
+                <i class="fas fa-table"></i>
+                قائمة الملفات
+            </h2>
+            <div class="feature-card">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>
+                                    <input type="checkbox" id="selectAllCheckbox" class="form-check-input">
+                                </th>
+                                <th>اسم الملف</th>
+                                <th>النوع</th>
+                                <th>الحجم</th>
+                                <th>تاريخ الإنشاء</th>
+                                <th>الحالة</th>
+                            </tr>
+                        </thead>
+                        <tbody id="filesTableBody">
+                            <tr>
+                                <td colspan="6" class="text-center text-muted py-4">
+                                    <i class="fas fa-folder-open fa-2x mb-2"></i>
+                                    <br>
+                                    انقر على "تحميل الملفات" لعرض البيانات
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div class="test-section">
+            <h2 class="section-title">
+                <i class="fas fa-clipboard-list"></i>
+                سجل النتائج
+            </h2>
+            <div class="result-area" id="resultArea">
+                <div class="info-log">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>مرحباً!</strong> ابدأ بتحميل الملفات لرؤية النتائج هنا
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div class="loading-spinner" id="loadingIndicator" style="display: none;">
+            <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+                <span class="visually-hidden">جاري التحميل...</span>
+            </div>
+            <p class="mt-3 text-muted">جاري المعالجة...</p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.1.3/js/bootstrap.bundle.min.js"></script>
+    <script>
+        class DuplicateFilesTestManager {
+            constructor() {
+                this.selectedFiles = new Set();
+                this.filesData = [];
+                this.baseUrl = '/admin/duplicate-files';
+                this.init();
+            }
+
+            init() {
+                this.bindEvents();
+                this.setupAjax();
+                this.logResult('نظام إدارة الملفات المكررة جاهز للاستخدام', 'info');
+            }
+
+            setupAjax() {
+                $.ajaxSetup({
+                    headers: {
+                        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                    }
+                });
+            }
+
+            bindEvents() {
+                $('#loadFilesBtn').on('click', () => this.loadFiles());
+                $('#downloadAllBtn').on('click', () => this.downloadAllFiles());
+                $('#downloadSelectedBtn').on('click', () => this.downloadSelectedFiles());
+                $('#bulkDeleteBtn').on('click', () => this.bulkDelete());
+                $('#deleteAllBtn').on('click', () => this.deleteAllFiles());
+                $('#selectAllBtn').on('click', () => this.selectAllFiles());
+                $('#deselectAllBtn').on('click', () => this.deselectAllFiles());
+                $('#selectAllCheckbox').on('change', (e) => this.toggleSelectAll(e.target.checked));
+
+                $(document).on('change', '.file-checkbox', () => this.updateSelectedFiles());
+            }
+
+            async loadFiles() {
+                try {
+                    this.showLoading();
+                    this.logResult('بدء تحميل الملفات من قاعدة البيانات...', 'info');
+
+                    const response = await fetch(`${this.baseUrl}/paginated?per_page=100`, {
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        this.filesData = data.data.files;
+                        this.renderFiles(data.data.files);
+                        this.updateStatistics(data.data.statistics);
+                        this.logResult(`✅ تم تحميل ${data.data.files.length} ملف بنجاح`, 'success');
+                        this.updateLastOperation('تحميل الملفات');
+                    } else {
+                        throw new Error(data.message || 'فشل في تحميل الملفات');
+                    }
+                } catch (error) {
+                    this.logResult(`❌ خطأ في تحميل الملفات: ${error.message}`, 'error');
+                } finally {
+                    this.hideLoading();
+                }
+            }
+
+            renderFiles(files) {
+                const tbody = $('#filesTableBody');
+                tbody.empty();
+
+                if (files.length === 0) {
+                    tbody.html(`
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-4">
+                                <i class="fas fa-folder-open fa-2x mb-2"></i>
+                                <br>
+                                لا توجد ملفات مكررة في النظام
+                            </td>
+                        </tr>
+                    `);
+                    return;
+                }
+
+                files.forEach(file => {
+                    const isExpired = new Date(file.expires_at) < new Date();
+                    const statusClass = isExpired ? 'bg-danger' : 'bg-success';
+                    const statusText = isExpired ? 'منتهي الصلاحية' : 'نشط';
+
+                    const row = $(`
+                        <tr class="${isExpired ? 'table-warning' : ''}">
+                            <td>
+                                <input type="checkbox" class="form-check-input file-checkbox" value="${file.id}">
+                            </td>
+                            <td>
+                                <strong>${file.original_name}</strong>
+                                <br>
+                                <small class="text-muted">${file.duplicate_name || 'بدون اسم مكرر'}</small>
+                            </td>
+                            <td>
+                                <span class="badge bg-secondary">${this.getFileTypeLabel(file.mime_type)}</span>
+                            </td>
+                            <td>${this.formatFileSize(file.file_size)}</td>
+                            <td>${new Date(file.created_at).toLocaleDateString('ar-SA')}</td>
+                            <td>
+                                <span class="badge ${statusClass}">${statusText}</span>
+                            </td>
+                        </tr>
+                    `);
+                    tbody.append(row);
+                });
+            }
+
+            updateStatistics(stats) {
+                $('#totalFiles').text(stats.total_files || 0);
+                $('#totalSize').text(this.formatFileSize(stats.total_size || 0));
+            }
+
+            updateSelectedFiles() {
+                this.selectedFiles.clear();
+                $('.file-checkbox:checked').each((index, checkbox) => {
+                    this.selectedFiles.add(parseInt(checkbox.value));
+                });
+
+                const hasSelection = this.selectedFiles.size > 0;
+                $('#bulkDeleteBtn').toggle(hasSelection);
+                $('#downloadSelectedBtn').toggle(hasSelection);
+                $('#selectedFiles').text(this.selectedFiles.size);
+
+                // Update checkbox states
+                const totalCheckboxes = $('.file-checkbox').length;
+                const checkedCheckboxes = $('.file-checkbox:checked').length;
+                const selectAllCheckbox = $('#selectAllCheckbox');
+
+                if (checkedCheckboxes === 0) {
+                    selectAllCheckbox.prop('indeterminate', false).prop('checked', false);
+                } else if (checkedCheckboxes === totalCheckboxes) {
+                    selectAllCheckbox.prop('indeterminate', false).prop('checked', true);
+                } else {
+                    selectAllCheckbox.prop('indeterminate', true);
+                }
+
+                if (hasSelection) {
+                    this.logResult(`تم تحديد ${this.selectedFiles.size} ملف`, 'info');
+                }
+            }
+
+            async downloadAllFiles() {
+                try {
+                    this.showLoading();
+                    this.logResult('🔄 بدء تنزيل جميع الملفات...', 'info');
+
+                    // Create download link
+                    const link = document.createElement('a');
+                    link.href = `${this.baseUrl}/download-all`;
+                    link.download = `duplicate_files_all_${new Date().toISOString().split('T')[0]}.zip`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
+                    this.logResult('✅ تم بدء تنزيل جميع الملفات بنجاح', 'success');
+                    this.updateLastOperation('تنزيل الكل');
+                } catch (error) {
+                    this.logResult(`❌ خطأ في تنزيل الملفات: ${error.message}`, 'error');
+                } finally {
+                    this.hideLoading();
+                }
+            }
+
+            async downloadSelectedFiles() {
+                if (this.selectedFiles.size === 0) {
+                    this.logResult('⚠️ يرجى تحديد ملف واحد على الأقل للتنزيل', 'error');
+                    return;
+                }
+
+                try {
+                    this.showLoading();
+                    this.logResult(`🔄 بدء تنزيل ${this.selectedFiles.size} ملف محدد...`, 'info');
+
+                    const response = await fetch(`${this.baseUrl}/download-selected`, {
+                        method: 'POST',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                        },
+                        body: JSON.stringify({
+                            file_ids: Array.from(this.selectedFiles)
+                        })
+                    });
+
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `duplicate_files_selected_${new Date().toISOString().split('T')[0]}.zip`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        window.URL.revokeObjectURL(url);
+
+                        this.logResult(`✅ تم تنزيل ${this.selectedFiles.size} ملف بنجاح`, 'success');
+                        this.updateLastOperation('تنزيل المحدد');
+                    } else {
+                        throw new Error(`HTTP ${response.status}: فشل في تنزيل الملفات`);
+                    }
+                } catch (error) {
+                    this.logResult(`❌ خطأ في تنزيل الملفات المحددة: ${error.message}`, 'error');
+                } finally {
+                    this.hideLoading();
+                }
+            }
+
+            async bulkDelete() {
+                if (this.selectedFiles.size === 0) {
+                    this.logResult('⚠️ يرجى تحديد ملف واحد على الأقل للحذف', 'error');
+                    return;
+                }
+
+                const confirmed = confirm(`هل أنت متأكد من حذف ${this.selectedFiles.size} ملف؟\n\nهذا الإجراء لا يمكن التراجع عنه!`);
+                if (!confirmed) {
+                    this.logResult('❌ تم إلغاء عملية الحذف', 'info');
+                    return;
+                }
+
+                try {
+                    this.showLoading();
+                    this.logResult(`🗑️ بدء حذف ${this.selectedFiles.size} ملف محدد...`, 'info');
+
+                    const response = await fetch(`${this.baseUrl}/bulk-delete`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                        },
+                        body: JSON.stringify({
+                            file_ids: Array.from(this.selectedFiles)
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        this.logResult(`✅ تم حذف ${data.data.deleted_count} ملف بنجاح`, 'success');
+                        this.selectedFiles.clear();
+                        this.updateSelectedFiles();
+                        this.updateLastOperation('حذف المحدد');
+
+                        // Reload files to show updated list
+                        setTimeout(() => this.loadFiles(), 1000);
+                    } else {
+                        throw new Error(data.message || 'فشل في حذف الملفات');
+                    }
+                } catch (error) {
+                    this.logResult(`❌ خطأ في حذف الملفات: ${error.message}`, 'error');
+                } finally {
+                    this.hideLoading();
+                }
+            }
+
+            async deleteAllFiles() {
+                const confirmed1 = confirm('هل أنت متأكد من حذف جميع الملفات المكررة؟\n\nهذا الإجراء لا يمكن التراجع عنه!');
+                if (!confirmed1) {
+                    this.logResult('❌ تم إلغاء عملية الحذف', 'info');
+                    return;
+                }
+
+                const confirmed2 = confirm('⚠️ تأكيد نهائي:\n\nسيتم حذف جميع الملفات المكررة نهائياً من النظام!\n\nهل تريد المتابعة؟');
+                if (!confirmed2) {
+                    this.logResult('❌ تم إلغاء عملية الحذف', 'info');
+                    return;
+                }
+
+                try {
+                    this.showLoading();
+                    this.logResult('🗑️ بدء حذف جميع الملفات المكررة...', 'info');
+
+                    const response = await fetch(`${this.baseUrl}/bulk-delete`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                        },
+                        body: JSON.stringify({
+                            delete_all: true
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        this.logResult(`✅ تم حذف ${data.data.deleted_count} ملف بنجاح`, 'success');
+                        this.selectedFiles.clear();
+                        this.updateSelectedFiles();
+                        this.updateLastOperation('حذف الكل');
+
+                        // Reload files to show updated list
+                        setTimeout(() => this.loadFiles(), 1000);
+                    } else {
+                        throw new Error(data.message || 'فشل في حذف الملفات');
+                    }
+                } catch (error) {
+                    this.logResult(`❌ خطأ في حذف جميع الملفات: ${error.message}`, 'error');
+                } finally {
+                    this.hideLoading();
+                }
+            }
+
+            selectAllFiles() {
+                $('.file-checkbox').prop('checked', true);
+                this.updateSelectedFiles();
+                this.logResult('✅ تم تحديد جميع الملفات', 'info');
+            }
+
+            deselectAllFiles() {
+                $('.file-checkbox').prop('checked', false);
+                this.updateSelectedFiles();
+                this.logResult('📋 تم إلغاء تحديد جميع الملفات', 'info');
+            }
+
+            toggleSelectAll(checked) {
+                $('.file-checkbox').prop('checked', checked);
+                this.updateSelectedFiles();
+            }
+
+            updateLastOperation(operation) {
+                $('#lastOperation').text(operation);
+            }
+
+            showLoading() {
+                $('#loadingIndicator').show();
+            }
+
+            hideLoading() {
+                $('#loadingIndicator').hide();
+            }
+
+            logResult(message, type) {
+                const timestamp = new Date().toLocaleTimeString('ar-SA');
+                const typeClass = type === 'success' ? 'success-log' : type === 'error' ? 'error-log' : 'info-log';
+                const icon = type === 'success' ? 'fas fa-check' : type === 'error' ? 'fas fa-times' : 'fas fa-info';
+
+                const logEntry = $(`
+                    <div class="${typeClass}">
+                        <i class="${icon}"></i>
+                        <span class="me-2">[${timestamp}]</span>
+                        ${message}
+                    </div>
+                `);
+
+                $('#resultArea').prepend(logEntry);
+
+                // Auto-scroll to top
+                $('#resultArea').scrollTop(0);
+
+                // Remove old logs (keep last 20)
+                const logs = $('#resultArea .success-log, #resultArea .error-log, #resultArea .info-log');
+                if (logs.length > 20) {
+                    logs.slice(20).remove();
+                }
+            }
+
+            formatFileSize(bytes) {
+                if (!bytes || bytes === 0) return '0 بايت';
+                const sizes = ['بايت', 'كيلوبايت', 'ميجابايت', 'جيجابايت'];
+                const i = Math.floor(Math.log(bytes) / Math.log(1024));
+                return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+            }
+
+            getFileTypeLabel(mimeType) {
+                if (!mimeType) return 'غير معروف';
+                if (mimeType.startsWith('image/')) return 'صورة';
+                if (mimeType.includes('pdf')) return 'PDF';
+                if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return 'Excel';
+                if (mimeType.includes('word') || mimeType.includes('document')) return 'Word';
+                if (mimeType.includes('zip') || mimeType.includes('rar')) return 'أرشيف';
+                return 'ملف';
+            }
+        }
+
+        // Initialize when ready
+        $(document).ready(function() {
+            window.testManager = new DuplicateFilesTestManager();
+
+            // Show welcome message
+            console.log('🚀 نظام اختبار الملفات المكررة جاهز للاستخدام');
+        });
+    </script>
+</body>
+</html>

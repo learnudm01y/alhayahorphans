@@ -162,4 +162,10 @@ class AdminController extends Controller
     }
 }
 
+    public function showExcelGatewaySidebar(): View
+    {
+        return view('admin.file.sidebar-excel-gateway');
+
+    }
+
 }

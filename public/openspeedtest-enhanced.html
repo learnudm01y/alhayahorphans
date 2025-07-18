@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <title>اختبار السرعة - OpenSpeedTest مع Laravel (محسن)</title>
+  <meta name="description" content="اختبار سرعة الإنترنت باستخدام OpenSpeedTest مع Laravel Backend"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      direction: rtl;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 20px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+      padding: 40px;
+      backdrop-filter: blur(10px);
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .header h1 {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      font-size: 2.5rem;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    .speed-display {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin: 30px 0;
+    }
+
+    .speed-card {
+      background: #f8f9fa;
+      border-radius: 15px;
+      padding: 25px;
+      text-align: center;
+      border: 2px solid transparent;
+      transition: all 0.3s ease;
+    }
+
+    .speed-card:hover {
+      border-color: #667eea;
+      transform: translateY(-5px);
+    }
+
+    .speed-value {
+      font-size: 2.5rem;
+      font-weight: bold;
+      color: #2c3e50;
+      margin-bottom: 5px;
+    }
+
+    .speed-label {
+      color: #6c757d;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .speed-unit {
+      color: #495057;
+      font-size: 0.9rem;
+    }
+
+    .test-controls {
+      text-align: center;
+      margin: 30px 0;
+    }
+
+    .btn-test {
+      background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+      border: none;
+      color: white;
+      padding: 15px 30px;
+      border-radius: 50px;
+      font-size: 1.2rem;
+      font-weight: bold;
+      transition: all 0.3s ease;
+      box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+      margin: 0 10px;
+    }
+
+    .btn-test:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(40, 167, 69, 0.4);
+      color: white;
+    }
+
+    .btn-test:disabled {
+      background: #6c757d;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .progress-section {
+      margin: 30px 0;
+    }
+
+    .progress {
+      height: 20px;
+      border-radius: 10px;
+      background: #e9ecef;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      background: linear-gradient(90deg, #28a745, #20c997);
+      transition: width 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+    }
+
+    .status-section {
+      background: #e8f4fd;
+      border: 1px solid #b8daff;
+      border-radius: 10px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+
+    .log-section {
+      background: #2c3e50;
+      color: #ecf0f1;
+      border-radius: 10px;
+      padding: 15px;
+      margin: 20px 0;
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85rem;
+      direction: ltr;
+    }
+
+    .log-entry {
+      padding: 2px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .log-entry:last-child {
+      border-bottom: none;
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        padding: 20px;
+        margin: 10px;
+      }
+
+      .header h1 {
+        font-size: 2rem;
+      }
+
+      .speed-value {
+        font-size: 2rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>
+        <i class="fas fa-rocket"></i>
+        اختبار سرعة الإنترنت - OpenSpeedTest محسن
+      </h1>
+      <p class="text-muted">قياس سرعة الإنترنت باستخدام Laravel Backend</p>
+    </div>
+
+    <!-- Speed Display -->
+    <div class="speed-display">
+      <div class="speed-card">
+        <div class="speed-value" id="downloadSpeed">0.00</div>
+        <div class="speed-label">
+          <i class="fas fa-download"></i>
+          التحميل
+        </div>
+        <div class="speed-unit">Mbps</div>
+      </div>
+
+      <div class="speed-card">
+        <div class="speed-value" id="uploadSpeed">0.00</div>
+        <div class="speed-label">
+          <i class="fas fa-upload"></i>
+          الرفع
+        </div>
+        <div class="speed-unit">Mbps</div>
+      </div>
+
+      <div class="speed-card">
+        <div class="speed-value" id="pingValue">0</div>
+        <div class="speed-label">
+          <i class="fas fa-clock"></i>
+          الاستجابة
+        </div>
+        <div class="speed-unit">ms</div>
+      </div>
+
+      <div class="speed-card">
+        <div class="speed-value" id="jitterValue">0</div>
+        <div class="speed-label">
+          <i class="fas fa-wave-square"></i>
+          التذبذب
+        </div>
+        <div class="speed-unit">ms</div>
+      </div>
+    </div>
+
+    <!-- Test Controls -->
+    <div class="test-controls">
+      <button class="btn btn-test" id="startBtn" onclick="startSpeedTest()">
+        <i class="fas fa-play"></i>
+        بدء الاختبار
+      </button>
+      <button class="btn btn-test" onclick="resetTest()">
+        <i class="fas fa-redo"></i>
+        إعادة تعيين
+      </button>
+    </div>
+
+    <!-- Progress Section -->
+    <div class="progress-section">
+      <div class="progress">
+        <div class="progress-bar" id="progressBar" style="width: 0%">
+          <span id="progressText">جاهز للبدء</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status Section -->
+    <div class="status-section">
+      <h6>
+        <i class="fas fa-info-circle"></i>
+        معلومات النظام
+      </h6>
+      <div class="row">
+        <div class="col-md-3">
+          <strong>عنوان IP:</strong>
+          <div id="userIP">جاري التحديد...</div>
+        </div>
+        <div class="col-md-3">
+          <strong>الخادم:</strong>
+          <div>Laravel Local</div>
+        </div>
+        <div class="col-md-3">
+          <strong>حالة الاتصال:</strong>
+          <div id="connectionStatus" class="text-success">متصل</div>
+        </div>
+        <div class="col-md-3">
+          <strong>وقت الاختبار:</strong>
+          <div id="testTime">-</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Log Section -->
+    <div class="log-section" id="logContainer">
+      <div class="log-entry">System initialized - OpenSpeedTest Enhanced Ready</div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // متغيرات النظام
+    let isTestRunning = false;
+    let testResults = {
+      download: 0,
+      upload: 0,
+      ping: 0,
+      jitter: 0
+    };
+
+    // عناصر DOM
+    const downloadSpeedEl = document.getElementById('downloadSpeed');
+    const uploadSpeedEl = document.getElementById('uploadSpeed');
+    const pingValueEl = document.getElementById('pingValue');
+    const jitterValueEl = document.getElementById('jitterValue');
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const startBtn = document.getElementById('startBtn');
+    const logContainer = document.getElementById('logContainer');
+
+    // تهيئة النظام
+    window.addEventListener('load', function() {
+      initializeSystem();
+    });
+
+    function initializeSystem() {
+      logMessage('تهيئة نظام اختبار السرعة المحسن...');
+
+      // الحصول على IP المستخدم
+      getUserIP();
+
+      // فحص حالة الخادم
+      checkServerStatus();
+
+      logMessage('النظام جاهز للاختبار');
+    }
+
+    async function getUserIP() {
+      try {
+        const response = await fetch('/admin/openspeedtest/backend/getip');
+        const data = await response.json();
+        document.getElementById('userIP').textContent = data.ip || 'Unknown';
+        logMessage(`تم تحديد عنوان IP: ${data.ip}`);
+      } catch (error) {
+        logMessage(`خطأ في الحصول على IP: ${error.message}`);
+        document.getElementById('userIP').textContent = 'غير متاح';
+      }
+    }
+
+    async function checkServerStatus() {
+      try {
+        const response = await fetch('/admin/openspeedtest/status');
+        const data = await response.json();
+
+        if (data.status === 'online') {
+          document.getElementById('connectionStatus').textContent = 'متصل';
+          document.getElementById('connectionStatus').className = 'text-success';
+          logMessage('حالة الخادم: متاح ويعمل');
+        } else {
+          throw new Error('Server not responding properly');
+        }
+      } catch (error) {
+        document.getElementById('connectionStatus').textContent = 'غير متصل';
+        document.getElementById('connectionStatus').className = 'text-danger';
+        logMessage(`خطأ في فحص الخادم: ${error.message}`);
+      }
+    }
+
+    async function startSpeedTest() {
+      if (isTestRunning) return;
+
+      isTestRunning = true;
+      startBtn.disabled = true;
+      startBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الاختبار...';
+
+      logMessage('بدء اختبار السرعة الشامل...');
+      document.getElementById('testTime').textContent = new Date().toLocaleTimeString('ar-SA');
+
+      try {
+        // إعادة تعيين النتائج
+        resetDisplay();
+
+        // اختبار الاستجابة
+        await testLatency();
+
+        // اختبار التحميل
+        await testDownload();
+
+        // اختبار الرفع
+        await testUpload();
+
+        // عرض النتائج النهائية
+        showFinalResults();
+
+      } catch (error) {
+        logMessage(`فشل الاختبار: ${error.message}`);
+        updateProgress(0, 'فشل في الاختبار');
+      } finally {
+        finishTest();
+      }
+    }
+
+    async function testLatency() {
+      updateProgress(10, 'اختبار الاستجابة...');
+      logMessage('بدء اختبار الاستجابة والتذبذب...');
+
+      const pingTimes = [];
+      const testCount = 5;
+
+      for (let i = 0; i < testCount; i++) {
+        const startTime = performance.now();
+
+        try {
+          const response = await fetch('/admin/openspeedtest/backend/getip?' + Math.random());
+
+          if (response.ok) {
+            const endTime = performance.now();
+            const pingTime = endTime - startTime;
+            pingTimes.push(pingTime);
+
+            updateProgress(10 + (i + 1) / testCount * 15, `اختبار الاستجابة... ${i + 1}/${testCount}`);
+          }
+        } catch (error) {
+          logMessage(`فشل في اختبار الاستجابة ${i + 1}: ${error.message}`);
+        }
+
+        await sleep(200);
+      }
+
+      if (pingTimes.length > 0) {
+        const avgPing = pingTimes.reduce((a, b) => a + b, 0) / pingTimes.length;
+        const jitter = Math.sqrt(pingTimes.reduce((acc, ping) => acc + Math.pow(ping - avgPing, 2), 0) / pingTimes.length);
+
+        testResults.ping = Math.round(avgPing);
+        testResults.jitter = Math.round(jitter);
+
+        pingValueEl.textContent = testResults.ping;
+        jitterValueEl.textContent = testResults.jitter;
+
+        logMessage(`الاستجابة: ${testResults.ping}ms، التذبذب: ${testResults.jitter}ms`);
+      }
+    }
+
+    async function testDownload() {
+      updateProgress(25, 'اختبار التحميل...');
+      logMessage('بدء اختبار سرعة التحميل...');
+
+      const testDuration = 5000; // 5 ثواني
+      let totalBytes = 0;
+      const startTime = performance.now();
+
+      try {
+        const response = await fetch('/admin/openspeedtest/backend/download?' + Math.random());
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          totalBytes += value.length;
+
+          const currentTime = performance.now();
+          const elapsedSeconds = (currentTime - startTime) / 1000;
+          const currentSpeed = (totalBytes * 8) / (elapsedSeconds * 1000000); // Mbps
+
+          downloadSpeedEl.textContent = currentSpeed.toFixed(2);
+
+          const progress = 25 + (elapsedSeconds / (testDuration / 1000)) * 40;
+          updateProgress(Math.min(progress, 65), `التحميل: ${currentSpeed.toFixed(1)} Mbps`);
+
+          if (currentTime - startTime >= testDuration) break;
+        }
+      } catch (error) {
+        logMessage(`خطأ في اختبار التحميل: ${error.message}`);
+      }
+
+      const totalTime = (performance.now() - startTime) / 1000;
+      testResults.download = Math.round((totalBytes * 8) / (totalTime * 1000000));
+
+      downloadSpeedEl.textContent = testResults.download;
+      logMessage(`سرعة التحميل: ${testResults.download} Mbps`);
+    }
+
+    async function testUpload() {
+      updateProgress(65, 'اختبار الرفع...');
+      logMessage('بدء اختبار سرعة الرفع...');
+
+      const testDuration = 3000; // 3 ثواني
+      let totalBytes = 0;
+      const startTime = performance.now();
+
+      // إنشاء بيانات اختبار صغيرة
+      const testData = 'A'.repeat(16384); // 16KB
+      const dataBlob = new Blob([testData]);
+
+      while (performance.now() - startTime < testDuration) {
+        try {
+          const response = await fetch('/admin/openspeedtest/backend/upload', {
+            method: 'POST',
+            body: dataBlob,
+            headers: {
+              'Content-Type': 'application/octet-stream'
+            }
+          });
+
+          if (response.ok) {
+            totalBytes += testData.length;
+
+            const currentTime = performance.now();
+            const elapsedSeconds = (currentTime - startTime) / 1000;
+            const currentSpeed = (totalBytes * 8) / (elapsedSeconds * 1000000); // Mbps
+
+            uploadSpeedEl.textContent = currentSpeed.toFixed(2);
+
+            const progress = 65 + (elapsedSeconds / (testDuration / 1000)) * 35;
+            updateProgress(Math.min(progress, 100), `الرفع: ${currentSpeed.toFixed(1)} Mbps`);
+          } else {
+            break;
+          }
+        } catch (error) {
+          logMessage(`خطأ في اختبار الرفع: ${error.message}`);
+          break;
+        }
+
+        await sleep(50); // تأخير قصير
+      }
+
+      const totalTime = (performance.now() - startTime) / 1000;
+      testResults.upload = Math.round((totalBytes * 8) / (totalTime * 1000000));
+
+      uploadSpeedEl.textContent = testResults.upload;
+      logMessage(`سرعة الرفع: ${testResults.upload} Mbps`);
+    }
+
+    function showFinalResults() {
+      updateProgress(100, 'تم الانتهاء من الاختبار');
+      logMessage(`اكتمل الاختبار - التحميل: ${testResults.download}Mbps، الرفع: ${testResults.upload}Mbps، الاستجابة: ${testResults.ping}ms، التذبذب: ${testResults.jitter}ms`);
+    }
+
+    function finishTest() {
+      isTestRunning = false;
+      startBtn.disabled = false;
+      startBtn.innerHTML = '<i class="fas fa-play"></i> بدء الاختبار';
+    }
+
+    function resetTest() {
+      if (isTestRunning) return;
+
+      testResults = { download: 0, upload: 0, ping: 0, jitter: 0 };
+      resetDisplay();
+      updateProgress(0, 'جاهز للبدء');
+      logMessage('تم إعادة تعيين النتائج');
+    }
+
+    function resetDisplay() {
+      downloadSpeedEl.textContent = '0.00';
+      uploadSpeedEl.textContent = '0.00';
+      pingValueEl.textContent = '0';
+      jitterValueEl.textContent = '0';
+    }
+
+    function updateProgress(percentage, text) {
+      progressBar.style.width = percentage + '%';
+      progressText.textContent = text;
+    }
+
+    function logMessage(message) {
+      const timestamp = new Date().toLocaleTimeString();
+      const logEntry = document.createElement('div');
+      logEntry.className = 'log-entry';
+      logEntry.textContent = `[${timestamp}] ${message}`;
+
+      logContainer.appendChild(logEntry);
+      logContainer.scrollTop = logContainer.scrollHeight;
+
+      // الحفاظ على آخر 50 رسالة فقط
+      while (logContainer.children.length > 50) {
+        logContainer.removeChild(logContainer.firstChild);
+      }
+    }
+
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // التحقق الدوري من حالة الخادم
+    setInterval(checkServerStatus, 30000); // كل 30 ثانية
+  </script>
+</body>
+</html>

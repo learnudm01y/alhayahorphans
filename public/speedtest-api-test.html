@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار API قياس السرعة</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+            font-size: 16px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            white-space: pre-wrap;
+        }
+        .loading {
+            color: #007bff;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc3545;
+            background: #f8d7da;
+            border-color: #f5c6cb;
+        }
+        .success {
+            color: #155724;
+            background: #d4edda;
+            border-color: #c3e6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 اختبار API قياس السرعة</h1>
+
+        <div>
+            <button class="btn" onclick="checkAvailability()">
+                🔍 فحص توفر Speedtest CLI
+            </button>
+
+            <button class="btn" onclick="runSpeedTest()">
+                ⚡ تشغيل قياس السرعة
+            </button>
+
+            <button class="btn" onclick="clearResults()">
+                🗑️ مسح النتائج
+            </button>
+        </div>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        async function checkAvailability() {
+            showLoading('جاري فحص توفر أداة Speedtest CLI...');
+
+            try {
+                const response = await fetch('/api/speedtest/check');
+                const data = await response.json();
+
+                if (data.available) {
+                    showResult('✅ Speedtest CLI متوفر ويعمل بشكل صحيح\n\n' +
+                              'إصدار الأداة:\n' + data.version, 'success');
+                } else {
+                    showResult('❌ Speedtest CLI غير متوفر\n\n' +
+                              'السبب: ' + data.error + '\n\n' +
+                              'سيتم استخدام النظام الاحتياطي', 'error');
+                }
+            } catch (error) {
+                showResult('❌ خطأ في الاتصال بالخادم:\n' + error.message, 'error');
+            }
+        }
+
+        async function runSpeedTest() {
+            showLoading('جاري تشغيل قياس السرعة... يرجى الانتظار (قد يستغرق دقيقتين)');
+
+            try {
+                const response = await fetch('/api/speedtest');
+                const data = await response.json();
+
+                if (data.success) {
+                    showResult(`✅ تم قياس السرعة بنجاح!
+
+🔽 سرعة التنزيل: ${data.download_mbps} Mbps
+🔼 سرعة الرفع: ${data.upload_mbps} Mbps
+⏱️ البينج: ${data.ping_ms} ms
+🌐 الخادم: ${data.server || 'غير محدد'}
+📍 المدينة: ${data.location || 'غير محدد'}
+🏢 مقدم الخدمة: ${data.isp || 'غير محدد'}
+📅 الوقت: ${new Date(data.timestamp).toLocaleString('ar-EG')}`, 'success');
+                } else {
+                    showResult(`⚠️ فشل القياس الحقيقي - تم استخدام البيانات الاحتياطية
+
+🔽 سرعة التنزيل: ${data.fallback_data.download_mbps} Mbps
+🔼 سرعة الرفع: ${data.fallback_data.upload_mbps} Mbps
+⏱️ البينج: ${data.fallback_data.ping_ms} ms
+🌐 الخادم: ${data.fallback_data.server}
+📍 المدينة: ${data.fallback_data.location}
+
+❌ سبب الفشل: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                showResult('❌ خطأ في تشغيل قياس السرعة:\n' + error.message, 'error');
+            }
+        }
+
+        function showLoading(message) {
+            const results = document.getElementById('results');
+            results.innerHTML = `<div class="result loading">${message}</div>`;
+        }
+
+        function showResult(message, type = '') {
+            const results = document.getElementById('results');
+            results.innerHTML = `<div class="result ${type}">${message}</div>`;
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+    </script>
+</body>
+</html>

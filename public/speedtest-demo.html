@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار سرعة الإنترنت - LibreSpeed Test</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Cairo', sans-serif;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 50px auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 40px;
+        }
+        .metric-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 20px;
+            transition: transform 0.3s;
+        }
+        .metric-card:hover {
+            transform: translateY(-5px);
+        }
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #667eea;
+            margin: 10px 0;
+        }
+        .btn-test {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            border-radius: 50px;
+            transition: all 0.3s;
+        }
+        .btn-test:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin: 10px;
+        }
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-testing {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <div class="text-center mb-4">
+            <h1 class="mb-3">
+                <i class="fas fa-tachometer-alt text-primary me-2"></i>
+                اختبار سرعة الإنترنت
+            </h1>
+            <p class="text-muted">LibreSpeed مدمج مع Laravel</p>
+            <div id="systemStatus" class="status-badge status-success">
+                <i class="fas fa-check-circle me-2"></i>
+                النظام جاهز
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-3 col-sm-6">
+                <div class="metric-card">
+                    <i class="fas fa-download text-primary fa-2x"></i>
+                    <div id="downloadSpeed" class="metric-value">--</div>
+                    <div class="text-muted">التحميل (Mbps)</div>
+                </div>
+            </div>
+            <div class="col-md-3 col-sm-6">
+                <div class="metric-card">
+                    <i class="fas fa-upload text-success fa-2x"></i>
+                    <div id="uploadSpeed" class="metric-value">--</div>
+                    <div class="text-muted">الرفع (Mbps)</div>
+                </div>
+            </div>
+            <div class="col-md-3 col-sm-6">
+                <div class="metric-card">
+                    <i class="fas fa-clock text-warning fa-2x"></i>
+                    <div id="pingValue" class="metric-value">--</div>
+                    <div class="text-muted">Ping (ms)</div>
+                </div>
+            </div>
+            <div class="col-md-3 col-sm-6">
+                <div class="metric-card">
+                    <i class="fas fa-wave-square text-danger fa-2x"></i>
+                    <div id="jitterValue" class="metric-value">--</div>
+                    <div class="text-muted">Jitter (ms)</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center mt-4">
+            <button id="testBtn" class="btn btn-test" onclick="runTest()">
+                <i class="fas fa-play me-2"></i>
+                بدء الاختبار
+            </button>
+        </div>
+
+        <div class="mt-4">
+            <div class="alert alert-info" role="alert">
+                <h5><i class="fas fa-info-circle me-2"></i>معلومات الاختبار</h5>
+                <p class="mb-2"><strong>عنوان IP:</strong> <span id="ipAddress">جاري التحديد...</span></p>
+                <p class="mb-2"><strong>الخادم:</strong> Laravel Local Server</p>
+                <p class="mb-0"><strong>النوع:</strong> LibreSpeed Open Source</p>
+            </div>
+        </div>
+
+        <div id="logArea" class="mt-4" style="display: none;">
+            <h5>سجل الاختبار:</h5>
+            <div id="logContent" style="background: #f8f9fa; padding: 15px; border-radius: 10px; font-family: monospace; height: 200px; overflow-y: auto;"></div>
+        </div>
+    </div>
+
+    <script>
+        let isTestRunning = false;
+        let logContent = [];
+
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString('ar-EG');
+            const logMessage = `[${timestamp}] ${message}`;
+            logContent.push(logMessage);
+            console.log(logMessage);
+
+            const logArea = document.getElementById('logArea');
+            const logContentDiv = document.getElementById('logContent');
+            logArea.style.display = 'block';
+            logContentDiv.innerHTML = logContent.join('<br>');
+            logContentDiv.scrollTop = logContentDiv.scrollHeight;
+        }
+
+        function updateStatus(type, message) {
+            const statusDiv = document.getElementById('systemStatus');
+            statusDiv.className = `status-badge status-${type}`;
+
+            const icons = {
+                success: 'fas fa-check-circle',
+                testing: 'fas fa-spinner fa-spin',
+                error: 'fas fa-exclamation-triangle'
+            };
+
+            statusDiv.innerHTML = `<i class="${icons[type]} me-2"></i>${message}`;
+        }
+
+        function updateMetric(id, value) {
+            document.getElementById(id).textContent = value;
+        }
+
+        async function checkSystemStatus() {
+            try {
+                log('فحص حالة النظام...');
+                const response = await fetch('/admin/speedtest/quick-test');
+                const data = await response.json();
+
+                if (data.status === 'active') {
+                    updateStatus('success', 'النظام جاهز');
+                    log('✅ النظام جاهز للاستخدام');
+                    return true;
+                } else {
+                    updateStatus('error', 'النظام غير متاح');
+                    log('❌ النظام غير متاح');
+                    return false;
+                }
+            } catch (error) {
+                updateStatus('error', 'خطأ في الاتصال');
+                log('❌ خطأ في فحص النظام: ' + error.message);
+                return false;
+            }
+        }
+
+        async function getClientIP() {
+            try {
+                log('جاري الحصول على عنوان IP...');
+                const response = await fetch('/admin/speedtest/api?endpoint=getIP');
+                const data = await response.json();
+
+                if (data.processedString) {
+                    document.getElementById('ipAddress').textContent = data.processedString;
+                    log('📍 عنوان IP: ' + data.processedString);
+                } else {
+                    document.getElementById('ipAddress').textContent = 'غير متاح';
+                    log('⚠️ لم يتم الحصول على عنوان IP');
+                }
+            } catch (error) {
+                log('❌ خطأ في الحصول على IP: ' + error.message);
+                document.getElementById('ipAddress').textContent = 'خطأ';
+            }
+        }
+
+        async function testPing() {
+            try {
+                log('🏓 بدء اختبار Ping...');
+                const pingResults = [];
+
+                for (let i = 0; i < 5; i++) {
+                    const startTime = performance.now();
+                    const response = await fetch('/admin/speedtest/api?endpoint=empty&t=' + Date.now());
+                    await response.text();
+                    const endTime = performance.now();
+
+                    const pingTime = Math.round(endTime - startTime);
+                    pingResults.push(pingTime);
+
+                    log(`Ping ${i + 1}: ${pingTime}ms`);
+
+                    // تأخير قصير
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+
+                const avgPing = Math.round(pingResults.reduce((a, b) => a + b, 0) / pingResults.length);
+                updateMetric('pingValue', avgPing);
+
+                // حساب Jitter
+                const jitter = Math.round(Math.sqrt(pingResults.reduce((acc, ping) => acc + Math.pow(ping - avgPing, 2), 0) / pingResults.length));
+                updateMetric('jitterValue', jitter);
+
+                log(`✅ متوسط Ping: ${avgPing}ms, Jitter: ${jitter}ms`);
+
+                return { ping: avgPing, jitter: jitter };
+            } catch (error) {
+                log('❌ خطأ في اختبار Ping: ' + error.message);
+                return { ping: 0, jitter: 0 };
+            }
+        }
+
+        async function testDownload() {
+            try {
+                log('📥 بدء اختبار التحميل...');
+                const testSizes = [1, 5, 10]; // MB
+                const results = [];
+
+                for (const size of testSizes) {
+                    const startTime = performance.now();
+                    const response = await fetch(`/admin/speedtest/api?endpoint=garbage&ckSize=${size * 4}&t=${Date.now()}`);
+
+                    const reader = response.body.getReader();
+                    let receivedLength = 0;
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        receivedLength += value.length;
+                    }
+
+                    const endTime = performance.now();
+                    const testDuration = (endTime - startTime) / 1000;
+                    const speed = (receivedLength * 8) / (testDuration * 1000000);
+
+                    results.push(speed);
+                    log(`تحميل ${size}MB: ${speed.toFixed(2)} Mbps`);
+                }
+
+                const avgSpeed = results.reduce((a, b) => a + b, 0) / results.length;
+                updateMetric('downloadSpeed', avgSpeed.toFixed(1));
+
+                log(`✅ متوسط سرعة التحميل: ${avgSpeed.toFixed(2)} Mbps`);
+                return avgSpeed;
+            } catch (error) {
+                log('❌ خطأ في اختبار التحميل: ' + error.message);
+                return 0;
+            }
+        }
+
+        async function testUpload() {
+            try {
+                log('📤 بدء اختبار الرفع...');
+                const testSizes = [1, 2]; // MB
+                const results = [];
+
+                for (const size of testSizes) {
+                    const testData = new Uint8Array(size * 1024 * 1024);
+                    crypto.getRandomValues(testData);
+
+                    const formData = new FormData();
+                    formData.append('data', new Blob([testData]));
+                    formData.append('endpoint', 'empty');
+
+                    const startTime = performance.now();
+                    const response = await fetch('/admin/speedtest/api', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    await response.text();
+                    const endTime = performance.now();
+
+                    const testDuration = (endTime - startTime) / 1000;
+                    const speed = (testData.length * 8) / (testDuration * 1000000);
+
+                    results.push(speed);
+                    log(`رفع ${size}MB: ${speed.toFixed(2)} Mbps`);
+                }
+
+                const avgSpeed = results.reduce((a, b) => a + b, 0) / results.length;
+                updateMetric('uploadSpeed', avgSpeed.toFixed(1));
+
+                log(`✅ متوسط سرعة الرفع: ${avgSpeed.toFixed(2)} Mbps`);
+                return avgSpeed;
+            } catch (error) {
+                log('❌ خطأ في اختبار الرفع: ' + error.message);
+                return 0;
+            }
+        }
+
+        async function runTest() {
+            if (isTestRunning) return;
+
+            isTestRunning = true;
+            updateStatus('testing', 'جاري الاختبار...');
+
+            const testBtn = document.getElementById('testBtn');
+            testBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>جاري الاختبار...';
+            testBtn.disabled = true;
+
+            try {
+                // إعادة تعيين القيم
+                updateMetric('downloadSpeed', '--');
+                updateMetric('uploadSpeed', '--');
+                updateMetric('pingValue', '--');
+                updateMetric('jitterValue', '--');
+
+                log('🎯 بدء اختبار شامل للسرعة');
+
+                // اختبار الأجزاء بالتتابع
+                await getClientIP();
+                await testPing();
+                await testDownload();
+                await testUpload();
+
+                log('🏆 اكتمل الاختبار بنجاح');
+                updateStatus('success', 'اكتمل الاختبار');
+
+            } catch (error) {
+                log('❌ خطأ في الاختبار: ' + error.message);
+                updateStatus('error', 'فشل الاختبار');
+            } finally {
+                isTestRunning = false;
+                testBtn.innerHTML = '<i class="fas fa-play me-2"></i>بدء الاختبار';
+                testBtn.disabled = false;
+            }
+        }
+
+        // التهيئة عند تحميل الصفحة
+        document.addEventListener('DOMContentLoaded', function() {
+            log('🚀 تهيئة نظام قياس السرعة...');
+            checkSystemStatus();
+            getClientIP();
+        });
+    </script>
+</body>
+</html>

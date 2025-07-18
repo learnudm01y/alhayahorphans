@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>اختبار تحميل الملفات المكررة</title>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .btn { padding: 10px 20px; margin: 10px; background: #007bff; color: white; border: none; cursor: pointer; }
+        .btn:hover { background: #0056b3; }
+        .result { margin: 10px 0; padding: 10px; border: 1px solid #ccc; background: #f9f9f9; }
+    </style>
+</head>
+<body>
+    <h1>اختبار تحميل الملفات المكررة</h1>
+
+    <button class="btn" onclick="downloadAll()">تحميل جميع الملفات</button>
+    <button class="btn" onclick="downloadSelected()">تحميل الملفات المحددة</button>
+
+    <div id="result" class="result"></div>
+
+    <script>
+        function downloadAll() {
+            document.getElementById('result').innerHTML = 'جاري تحميل جميع الملفات...';
+
+            fetch('/admin/duplicate-files/download-all', {
+                method: 'GET',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                }
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.blob();
+                } else {
+                    return response.json().then(data => {
+                        throw new Error(data.message || 'فشل في التحميل');
+                    });
+                }
+            })
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'duplicate_files_all_' + new Date().toISOString().slice(0, 19).replace(/:/g, '-') + '.zip';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+
+                document.getElementById('result').innerHTML = 'تم تحميل جميع الملفات بنجاح!';
+            })
+            .catch(error => {
+                document.getElementById('result').innerHTML = 'خطأ: ' + error.message;
+            });
+        }
+
+        function downloadSelected() {
+            const fileIds = [15, 76, 77]; // أمثلة على معرفات الملفات
+
+            document.getElementById('result').innerHTML = 'جاري تحميل الملفات المحددة...';
+
+            fetch('/admin/duplicate-files/download-selected', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+                },
+                body: JSON.stringify({ file_ids: fileIds })
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.blob();
+                } else {
+                    return response.json().then(data => {
+                        throw new Error(data.message || 'فشل في التحميل');
+                    });
+                }
+            })
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'duplicate_files_selected_' + new Date().toISOString().slice(0, 19).replace(/:/g, '-') + '.zip';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+
+                document.getElementById('result').innerHTML = 'تم تحميل الملفات المحددة بنجاح!';
+            })
+            .catch(error => {
+                document.getElementById('result').innerHTML = 'خطأ: ' + error.message;
+            });
+        }
+    </script>
+</body>
+</html>

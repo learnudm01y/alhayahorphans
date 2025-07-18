@@ -12,6 +12,11 @@ use App\Http\Controllers\Users\UserProfileController;
 use App\Http\Controllers\UnifiedFileManagementController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\DuplicateFileController;
+use App\Http\Controllers\SpeedTestController;
+
+// مسارات اختبار التحميل بدون مصادقة
+Route::get('/test-download-all', [UnifiedFileManagementController::class, 'downloadAllDuplicateFiles']);
+Route::post('/test-download-selected', [UnifiedFileManagementController::class, 'downloadSelectedDuplicateFiles']);
 
 /*
 |--------------------------------------------------------------------------
@@ -94,6 +99,21 @@ Route::get('/api/files/analytics', [App\Http\Controllers\UnifiedFileManagementCo
     ->withoutMiddleware(['auth', 'verified'])
     ->name('api.files.analytics.fallback');
 
+// Speed Test Routes
+Route::prefix('api/speedtest')->group(function () {
+    Route::post('/run', [SpeedTestController::class, 'run'])->name('api.speedtest.run');
+    Route::get('/check-availability', [SpeedTestController::class, 'checkAvailability'])->name('api.speedtest.check');
+    Route::post('/clear-cache', [SpeedTestController::class, 'clearCache'])->name('api.speedtest.clear-cache');
+});
+
+// Fallback speedtest routes without auth
+Route::post('/api/speedtest/run', [SpeedTestController::class, 'run'])
+    ->withoutMiddleware(['auth', 'verified'])
+    ->name('api.speedtest.run.fallback');
+Route::get('/api/speedtest/check-availability', [SpeedTestController::class, 'checkAvailability'])
+    ->withoutMiddleware(['auth', 'verified'])
+    ->name('api.speedtest.check.fallback');
+
 // // Routes للمعالجة الملفات المكررة
 // Route::group(['prefix' => 'file-management'], function() {
 //     Route::get('/download-duplicates', [UnifiedFileManagementController::class, 'downloadDuplicateFiles'])
@@ -145,4 +165,17 @@ Route::group(['prefix' => 'admin/file'], function() {
     Route::get('/php-diagnostic', [UnifiedFileManagementController::class, 'showPhpDiagnostic'])
         ->name('admin.file.php.diagnostic');
 });
+
+// Speedtest Routes - Production Ready
+Route::prefix('api/speedtest')->withoutMiddleware(['auth', 'verified'])->group(function () {
+    Route::get('/', [SpeedTestController::class, 'run'])
+        ->name('api.speedtest.run');
+
+    Route::get('/check', [SpeedTestController::class, 'checkAvailability'])
+        ->name('api.speedtest.check');
+
+    Route::post('/clear-cache', [SpeedTestController::class, 'clearCache'])
+        ->name('api.speedtest.clear-cache');
+});
+
 require __DIR__ . '/auth.php';

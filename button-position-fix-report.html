@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 إصلاح موقع الأزرار - أقصى اليسار</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin: 0 0 10px 0;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin: 0;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            border: 1px solid #e9ecef;
+        }
+
+        .section h2 {
+            color: #667eea;
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .problem-solution {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin: 30px 0;
+        }
+
+        .problem, .solution {
+            padding: 25px;
+            border-radius: 10px;
+            border: 2px solid;
+        }
+
+        .problem {
+            background: #fff3cd;
+            border-color: #ffeaa7;
+        }
+
+        .solution {
+            background: #d4edda;
+            border-color: #c3e6cb;
+        }
+
+        .problem h3 {
+            color: #856404;
+            margin-bottom: 15px;
+        }
+
+        .solution h3 {
+            color: #155724;
+            margin-bottom: 15px;
+        }
+
+        .code-block {
+            background: #f1f3f4;
+            border: 1px solid #dadce0;
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            margin: 15px 0;
+            overflow-x: auto;
+            direction: ltr;
+        }
+
+        .visual-demo {
+            background: white;
+            border: 2px solid #dee2e6;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .demo-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .demo-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 20px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+        }
+
+        .btn-info {
+            background: linear-gradient(135deg, #17a2b8 0%, #007bff 100%);
+            color: white;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545 0%, #e91e63 100%);
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .demo-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .fix-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .fix-list li {
+            padding: 15px 20px;
+            margin: 10px 0;
+            background: white;
+            border-radius: 8px;
+            border-right: 4px solid #28a745;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .fix-list li:before {
+            content: "✅ ";
+            color: #28a745;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .highlight {
+            background: #667eea;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin: 5px;
+        }
+
+        .status-fixed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-improved {
+            background: #cce7ff;
+            color: #004085;
+        }
+
+        .comparison-arrows {
+            text-align: center;
+            font-size: 2rem;
+            color: #667eea;
+            margin: 20px 0;
+        }
+
+        @media (max-width: 768px) {
+            .problem-solution {
+                grid-template-columns: 1fr;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+
+        .wrong-position {
+            background: #f8d7da;
+            border: 2px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        .correct-position {
+            background: #d4edda;
+            border: 2px solid #c3e6cb;
+            color: #155724;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 إصلاح موقع الأزرار</h1>
+            <p>تم حل مشكلة ظهور الأزرار في أقصى اليمين بدلاً من أقصى اليسار</p>
+            <div style="margin-top: 20px;">
+                <span class="status-badge status-fixed">مصحح</span>
+                <span class="status-badge status-improved">محسن</span>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="section">
+                <h2>🎯 المشكلة والحل</h2>
+                <div class="problem-solution">
+                    <div class="problem">
+                        <h3>❌ المشكلة</h3>
+                        <p>الأزرار كانت تظهر في <strong>أقصى اليمين</strong> بدلاً من أقصى اليسار</p>
+                        <div class="code-block">
+justify-content-md-start
+text-md-end
+                        </div>
+                        <p>هذا يسبب عدم وضوح في التخطيط ويجعل الأزرار تظهر في المكان الخطأ</p>
+                    </div>
+
+                    <div class="solution">
+                        <h3>✅ الحل</h3>
+                        <p>تم تعديل الكود لإجبار الأزرار على الظهور في <strong>أقصى اليسار</strong></p>
+                        <div class="code-block">
+justify-content-start
+text-end
+direction: ltr/rtl
+                        </div>
+                        <p>مع إضافة قواعد CSS خاصة للاتجاه العربي والإنجليزي</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>🔧 التغييرات المطبقة</h2>
+                <ul class="fix-list">
+                    <li>تغيير <span class="highlight">justify-content-md-start</span> إلى <span class="highlight">justify-content-start</span></li>
+                    <li>تغيير <span class="highlight">text-md-end</span> إلى <span class="highlight">text-end</span></li>
+                    <li>إضافة قواعد CSS خاصة للاتجاه العربي</li>
+                    <li>إجبار الأزرار على الظهور في أقصى اليسار</li>
+                    <li>تحسين التجاوب مع الأجهزة المختلفة</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>📱 العرض الصحيح</h2>
+                <div class="visual-demo">
+                    <h4>التخطيط الصحيح (بعد الإصلاح):</h4>
+                    <div class="demo-header correct-position">
+                        <div class="demo-buttons">
+                            <button class="btn btn-success">
+                                <i class="fas fa-upload"></i> بدء الرفع
+                            </button>
+                            <button class="btn btn-info">
+                                <i class="fas fa-folder-plus"></i> اختيار مجلد
+                            </button>
+                            <button class="btn btn-danger">
+                                <i class="fas fa-trash"></i> مسح
+                            </button>
+                        </div>
+                        <div class="demo-title">
+                            📁 معاينة الملفات
+                        </div>
+                    </div>
+                    <p style="text-align: center; margin-top: 15px; font-weight: bold;">
+                        ✅ الأزرار في أقصى اليسار والعنوان في أقصى اليمين
+                    </p>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>💻 الكود المحسن</h2>
+                <h3>HTML:</h3>
+                <div class="code-block">
+&lt;div class="d-flex flex-wrap gap-2 justify-content-start"&gt;
+    &lt;button type="button" class="btn btn-success btn-sm"&gt;
+        بدء الرفع
+    &lt;/button&gt;
+    &lt;button type="button" class="btn btn-info btn-sm"&gt;
+        اختيار مجلد
+    &lt;/button&gt;
+    &lt;button type="button" class="btn btn-danger btn-sm"&gt;
+        مسح
+    &lt;/button&gt;
+&lt;/div&gt;
+                </div>
+
+                <h3>CSS المضاف:</h3>
+                <div class="code-block">
+/* إجبار الأزرار على الظهور في أقصى اليسار */
+.card-header .d-flex {
+    justify-content: flex-start !important;
+    text-align: start !important;
+}
+
+.card-header .d-flex.gap-2 {
+    direction: ltr !important;
+    justify-content: flex-start !important;
+}
+
+/* في الاتجاه العربي، نريد الأزرار في أقصى اليسار */
+[dir="rtl"] .card-header .d-flex {
+    justify-content: flex-end !important;
+    direction: rtl !important;
+}
+
+[dir="rtl"] .card-header .d-flex.gap-2 {
+    justify-content: flex-end !important;
+    direction: rtl !important;
+}
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>🎨 الميزات الإضافية</h2>
+                <ul class="fix-list">
+                    <li>تدرجات لونية جذابة للأزرار</li>
+                    <li>تأثيرات hover مع حركة وظلال</li>
+                    <li>دعم الاتجاه العربي والإنجليزي</li>
+                    <li>تجاوب مثالي مع الأجهزة المختلفة</li>
+                    <li>انتقالات سلسة وسريعة</li>
+                </ul>
+            </div>
+
+            <div class="section">
+                <h2>✅ النتيجة النهائية</h2>
+                <div style="background: #d4edda; padding: 20px; border-radius: 10px; border: 1px solid #c3e6cb;">
+                    <h3 style="color: #155724; margin-bottom: 15px;">🎉 تم إصلاح المشكلة بنجاح!</h3>
+                    <p style="color: #155724; margin: 0;">الأزرار الآن تظهر في <strong>أقصى اليسار</strong> كما هو مطلوب، مع العنوان في أقصى اليمين. التخطيط يعمل بشكل صحيح في جميع الأجهزة والاتجاهات.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

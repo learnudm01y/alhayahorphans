@@ -3694,6 +3694,46 @@ class UnifiedFileManagementController extends Controller
     }
 
     /**
+     * Serve image file for preview
+     */
+    public function serveImageFile($id)
+    {
+        try {
+            $file = DuplicateFileTemp::findOrFail($id);
+
+            $fullPath = storage_path('app/' . $file->temp_path);
+
+            if (!file_exists($fullPath)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'الملف غير موجود'
+                ], 404);
+            }
+
+            if (!$this->isImageFile($file->mime_type)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'الملف ليس صورة'
+                ], 400);
+            }
+
+            $mimeType = $file->mime_type ?: 'image/jpeg';
+
+            return response()->file($fullPath, [
+                'Content-Type' => $mimeType,
+                'Cache-Control' => 'public, max-age=3600',
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('خطأ في عرض الصورة: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء عرض الصورة'
+            ], 500);
+        }
+    }
+
+    /**
      * Download a duplicate file by ID
      */
     public function downloadDuplicateFileById($id)
@@ -3759,11 +3799,51 @@ class UnifiedFileManagementController extends Controller
     }
 
     /**
-     * Bulk delete duplicate files
+     * Bulk delete duplicate files - Enhanced version
      */
     public function bulkDeleteDuplicateFiles(Request $request)
     {
         try {
+            // Check if delete_all is requested
+            if ($request->input('delete_all')) {
+                $files = DuplicateFileTemp::all();
+
+                if ($files->isEmpty()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'لا توجد ملفات مكررة للحذف'
+                    ], 404);
+                }
+
+                $deletedCount = 0;
+                foreach ($files as $file) {
+                    try {
+                        // Delete the physical file
+                        $fullPath = storage_path('app/' . $file->temp_path);
+                        if (file_exists($fullPath)) {
+                            unlink($fullPath);
+                        }
+
+                        // Delete the database record
+                        $file->delete();
+                        $deletedCount++;
+
+                    } catch (\Exception $e) {
+                        Log::warning('فشل في حذف الملف المكرر ID: ' . $file->id . ' - ' . $e->getMessage());
+                        continue;
+                    }
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'message' => "تم حذف جميع الملفات المكررة بنجاح ({$deletedCount} ملف)",
+                    'data' => [
+                        'deleted_count' => $deletedCount
+                    ]
+                ]);
+            }
+
+            // Handle selected files deletion
             $fileIds = $request->input('file_ids', []);
 
             if (empty($fileIds) || !is_array($fileIds)) {
@@ -3871,9 +3951,8 @@ class UnifiedFileManagementController extends Controller
                 return null;
             }
 
-            // Create a temporary symlink or use a controller route for serving the image
-            // For now, we'll return the file path for internal use
-            return route('admin.duplicate.files.preview', $file->id);
+            // Return a proper web URL for serving the image
+            return route('admin.duplicate.files.serve', $file->id);
 
         } catch (\Exception $e) {
             Log::warning('خطأ في إنشاء رابط المعاينة: ' . $e->getMessage());
@@ -3907,4 +3986,325 @@ class UnifiedFileManagementController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Download all duplicate files as ZIP
+     */
+    public function downloadAllDuplicateFiles(Request $request)
+    {
+        try {
+            $files = DuplicateFileTemp::all();
+
+            if ($files->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لا توجد ملفات مكررة للتنزيل'
+                ], 404);
+            }
+
+            $zipFileName = 'duplicate_files_all_' . date('Y-m-d_H-i-s') . '.zip';
+            $tempDir = storage_path('app/temp');
+            $zipPath = $tempDir . '/' . $zipFileName;
+
+            // إنشاء مجلد temp إذا لم يكن موجوداً
+            if (!file_exists($tempDir)) {
+                mkdir($tempDir, 0755, true);
+            }
+
+            // التأكد من أن الملف غير موجود مسبقاً
+            if (file_exists($zipPath)) {
+                unlink($zipPath);
+            }
+
+            $zip = new \ZipArchive();
+            $result = $zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+
+            if ($result !== TRUE) {
+                Log::error('فشل في إنشاء الملف المضغوط', [
+                    'zip_path' => $zipPath,
+                    'error_code' => $result,
+                    'error_message' => $this->getZipErrorMessage($result)
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'فشل في إنشاء الملف المضغوط: ' . $this->getZipErrorMessage($result)
+                ], 500);
+            }
+
+            $addedFiles = 0;
+            foreach ($files as $file) {
+                $filePath = $file->temp_path; // المسار الكامل للملف المؤقت
+
+                if (file_exists($filePath) && is_readable($filePath)) {
+                    $fileName = $file->original_name ?: basename($file->temp_path);
+
+                    // تجنب تكرار الأسماء
+                    $counter = 1;
+                    $originalFileName = $fileName;
+                    while ($zip->locateName($fileName) !== false) {
+                        $pathInfo = pathinfo($originalFileName);
+                        $fileName = $pathInfo['filename'] . '_' . $counter . '.' . ($pathInfo['extension'] ?? '');
+                        $counter++;
+                    }
+
+                    if ($zip->addFile($filePath, $fileName)) {
+                        $addedFiles++;
+                    } else {
+                        Log::warning('فشل في إضافة الملف إلى الأرشيف', [
+                            'file_path' => $filePath,
+                            'file_name' => $fileName
+                        ]);
+                    }
+                } else {
+                    Log::warning('الملف غير موجود أو غير قابل للقراءة', [
+                        'file_path' => $filePath
+                    ]);
+                }
+            }
+
+            if ($addedFiles === 0) {
+                $zip->close();
+                if (file_exists($zipPath)) {
+                    unlink($zipPath);
+                }
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لم يتم العثور على أي ملفات صالحة للتنزيل'
+                ], 404);
+            }
+
+            $closeResult = $zip->close();
+            if (!$closeResult) {
+                Log::error('فشل في إغلاق الملف المضغوط', [
+                    'zip_path' => $zipPath,
+                    'added_files' => $addedFiles
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'فشل في إنهاء إنشاء الملف المضغوط'
+                ], 500);
+            }
+
+            // التأكد من أن الملف تم إنشاؤه بنجاح
+            if (!file_exists($zipPath) || filesize($zipPath) === 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'فشل في إنشاء الملف المضغوط أو الملف فارغ'
+                ], 500);
+            }
+
+            Log::info('تم إنشاء الملف المضغوط بنجاح', [
+                'zip_path' => $zipPath,
+                'file_size' => filesize($zipPath),
+                'added_files' => $addedFiles
+            ]);
+
+            return response()->download($zipPath, $zipFileName)->deleteFileAfterSend();
+
+        } catch (\Exception $e) {
+            Log::error('Error downloading all duplicate files: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء تنزيل الملفات: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Download selected duplicate files as ZIP
+     */
+    public function downloadSelectedDuplicateFiles(Request $request)
+    {
+        try {
+            $request->validate([
+                'file_ids' => 'required|array|min:1',
+                'file_ids.*' => 'integer|exists:duplicate_files_temp,id'
+            ]);
+
+            $files = DuplicateFileTemp::whereIn('id', $request->file_ids)->get();
+
+            if ($files->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لا توجد ملفات محددة للتنزيل'
+                ], 404);
+            }
+
+            $zipFileName = 'duplicate_files_selected_' . date('Y-m-d_H-i-s') . '.zip';
+            $tempDir = storage_path('app/temp');
+            $zipPath = $tempDir . '/' . $zipFileName;
+
+            // إنشاء مجلد temp إذا لم يكن موجوداً
+            if (!file_exists($tempDir)) {
+                mkdir($tempDir, 0755, true);
+            }
+
+            // التأكد من أن الملف غير موجود مسبقاً
+            if (file_exists($zipPath)) {
+                unlink($zipPath);
+            }
+
+            $zip = new \ZipArchive();
+            $result = $zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+
+            if ($result !== TRUE) {
+                Log::error('فشل في إنشاء الملف المضغوط للملفات المحددة', [
+                    'zip_path' => $zipPath,
+                    'error_code' => $result,
+                    'error_message' => $this->getZipErrorMessage($result)
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'فشل في إنشاء الملف المضغوط: ' . $this->getZipErrorMessage($result)
+                ], 500);
+            }
+
+            $addedFiles = 0;
+            foreach ($files as $file) {
+                $filePath = $file->temp_path; // المسار الكامل للملف المؤقت
+
+                if (file_exists($filePath) && is_readable($filePath)) {
+                    $fileName = $file->original_name ?: basename($file->temp_path);
+
+                    // تجنب تكرار الأسماء
+                    $counter = 1;
+                    $originalFileName = $fileName;
+                    while ($zip->locateName($fileName) !== false) {
+                        $pathInfo = pathinfo($originalFileName);
+                        $fileName = $pathInfo['filename'] . '_' . $counter . '.' . ($pathInfo['extension'] ?? '');
+                        $counter++;
+                    }
+
+                    if ($zip->addFile($filePath, $fileName)) {
+                        $addedFiles++;
+                    } else {
+                        Log::warning('فشل في إضافة الملف إلى الأرشيف', [
+                            'file_path' => $filePath,
+                            'file_name' => $fileName
+                        ]);
+                    }
+                } else {
+                    Log::warning('الملف غير موجود أو غير قابل للقراءة', [
+                        'file_path' => $filePath
+                    ]);
+                }
+            }
+
+            if ($addedFiles === 0) {
+                $zip->close();
+                if (file_exists($zipPath)) {
+                    unlink($zipPath);
+                }
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لم يتم العثور على أي ملفات صالحة للتنزيل'
+                ], 404);
+            }
+
+            $closeResult = $zip->close();
+            if (!$closeResult) {
+                Log::error('فشل في إغلاق الملف المضغوط للملفات المحددة', [
+                    'zip_path' => $zipPath,
+                    'added_files' => $addedFiles
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'فشل في إنهاء إنشاء الملف المضغوط'
+                ], 500);
+            }
+
+            // التأكد من أن الملف تم إنشاؤه بنجاح
+            if (!file_exists($zipPath) || filesize($zipPath) === 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'فشل في إنشاء الملف المضغوط أو الملف فارغ'
+                ], 500);
+            }
+
+            Log::info('تم إنشاء الملف المضغوط للملفات المحددة بنجاح', [
+                'zip_path' => $zipPath,
+                'file_size' => filesize($zipPath),
+                'added_files' => $addedFiles
+            ]);
+
+            return response()->download($zipPath, $zipFileName)->deleteFileAfterSend();
+
+        } catch (\Exception $e) {
+            Log::error('Error downloading selected duplicate files: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء تنزيل الملفات المحددة: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get ZipArchive error message
+     */
+    private function getZipErrorMessage($errorCode)
+    {
+        switch ($errorCode) {
+            case \ZipArchive::ER_OK:
+                return 'لا يوجد خطأ';
+            case \ZipArchive::ER_MULTIDISK:
+                return 'عدة أقراص غير مدعومة';
+            case \ZipArchive::ER_RENAME:
+                return 'خطأ في إعادة التسمية';
+            case \ZipArchive::ER_CLOSE:
+                return 'خطأ في إغلاق الملف';
+            case \ZipArchive::ER_SEEK:
+                return 'خطأ في البحث';
+            case \ZipArchive::ER_READ:
+                return 'خطأ في القراءة';
+            case \ZipArchive::ER_WRITE:
+                return 'خطأ في الكتابة';
+            case \ZipArchive::ER_CRC:
+                return 'خطأ في CRC';
+            case \ZipArchive::ER_ZIPCLOSED:
+                return 'الملف المضغوط مغلق';
+            case \ZipArchive::ER_NOENT:
+                return 'لا يوجد مثل هذا الملف';
+            case \ZipArchive::ER_EXISTS:
+                return 'الملف موجود بالفعل';
+            case \ZipArchive::ER_OPEN:
+                return 'لا يمكن فتح الملف';
+            case \ZipArchive::ER_TMPOPEN:
+                return 'فشل في إنشاء ملف مؤقت';
+            case \ZipArchive::ER_ZLIB:
+                return 'خطأ في Zlib';
+            case \ZipArchive::ER_MEMORY:
+                return 'خطأ في الذاكرة';
+            case \ZipArchive::ER_CHANGED:
+                return 'الدخول تم تغييره';
+            case \ZipArchive::ER_COMPNOTSUPP:
+                return 'طريقة الضغط غير مدعومة';
+            case \ZipArchive::ER_EOF:
+                return 'نهاية الملف غير متوقعة';
+            case \ZipArchive::ER_INVAL:
+                return 'معامل غير صحيح';
+            case \ZipArchive::ER_NOZIP:
+                return 'ليس ملف ZIP';
+            case \ZipArchive::ER_INTERNAL:
+                return 'خطأ داخلي';
+            case \ZipArchive::ER_INCONS:
+                return 'ملف ZIP غير متسق';
+            case \ZipArchive::ER_REMOVE:
+                return 'لا يمكن حذف الملف';
+            case \ZipArchive::ER_DELETED:
+                return 'الدخول تم حذفه';
+            default:
+                return 'خطأ غير معروف (' . $errorCode . ')';
+        }
+    }
+
 }

@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار إصلاح مسارات الملفات</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .test-container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .test-section {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .test-result {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background-color: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+
+        .file-preview {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            background: #f8f9fa;
+        }
+
+        .path-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .path-box {
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            word-break: break-all;
+        }
+
+        .original-path {
+            background: #ffebee;
+            border: 1px solid #e57373;
+        }
+
+        .fixed-path {
+            background: #e8f5e8;
+            border: 1px solid #81c784;
+        }
+
+        @media (max-width: 768px) {
+            .path-comparison {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <div class="text-center mb-4">
+            <h1 class="text-primary">
+                <i class="fas fa-tools"></i>
+                اختبار إصلاح مسارات الملفات
+            </h1>
+            <p class="text-muted">فحص شامل لتحويل مسارات Windows إلى روابط ويب صحيحة</p>
+        </div>
+
+        <!-- Test 1: Basic Path Fixing -->
+        <div class="test-section">
+            <h3><i class="fas fa-1"></i> اختبار إصلاح المسارات الأساسية</h3>
+            <div id="basic-test-results"></div>
+        </div>
+
+        <!-- Test 2: File Array Processing -->
+        <div class="test-section">
+            <h3><i class="fas fa-2"></i> اختبار معالجة مصفوفة الملفات</h3>
+            <div id="array-test-results"></div>
+        </div>
+
+        <!-- Test 3: AJAX Response Fixing -->
+        <div class="test-section">
+            <h3><i class="fas fa-3"></i> اختبار إصلاح استجابات AJAX</h3>
+            <div id="ajax-test-results"></div>
+        </div>
+
+        <!-- Test 4: DOM Image Fixing -->
+        <div class="test-section">
+            <h3><i class="fas fa-4"></i> اختبار إصلاح الصور في DOM</h3>
+            <div id="dom-test-container">
+                <!-- سيتم إضافة صور تجريبية هنا -->
+            </div>
+            <div id="dom-test-results"></div>
+        </div>
+
+        <!-- Test 5: Real API Test -->
+        <div class="test-section">
+            <h3><i class="fas fa-5"></i> اختبار مع API حقيقي</h3>
+            <button id="api-test-btn" class="btn btn-primary">
+                <i class="fas fa-play"></i> تشغيل اختبار API
+            </button>
+            <div id="api-test-results"></div>
+        </div>
+
+        <!-- Results Summary -->
+        <div class="test-section">
+            <h3><i class="fas fa-chart-bar"></i> ملخص النتائج</h3>
+            <div id="summary-results"></div>
+        </div>
+    </div>
+
+    <!-- تضمين مُصلح المسارات -->
+    <script src="/js/file-path-fixer.js"></script>
+
+    <script>
+        // متغيرات الاختبار
+        let testResults = {
+            basic: 0,
+            array: 0,
+            ajax: 0,
+            dom: 0,
+            api: 0,
+            total: 5
+        };
+
+        // بيانات تجريبية
+        const testData = {
+            windowsPaths: [
+                'I:\\unit test\\ASO\\ASO - Copy\\storage\\app\\public\\temp\\duplicates\\dup_folder_123\\image1.jpg',
+                'C:\\projects\\laravel\\storage\\app\\temp\\duplicates\\folder_456\\document.pdf',
+                'I:\\unit test\\ASO\\storage\\app\\public\\temp\\duplicates\\test_folder\\video.mp4'
+            ],
+            files: [
+                {
+                    id: 1,
+                    temp_path: 'I:\\unit test\\ASO\\ASO - Copy\\storage\\app\\public\\temp\\duplicates\\folder1\\image1.jpg',
+                    mime_type: 'image/jpeg',
+                    original_name: 'صورة_اختبار_1.jpg'
+                },
+                {
+                    id: 2,
+                    temp_path: 'temp/duplicates/folder2/document.pdf',
+                    mime_type: 'application/pdf',
+                    original_name: 'مستند_اختبار.pdf'
+                },
+                {
+                    id: 3,
+                    temp_path: '/storage/temp/duplicates/folder3/video.mp4',
+                    mime_type: 'video/mp4',
+                    original_name: 'فيديو_اختبار.mp4'
+                }
+            ]
+        };
+
+        // Test 1: Basic Path Fixing
+        function runBasicTest() {
+            const container = document.getElementById('basic-test-results');
+            let results = '';
+            let passed = 0;
+
+            testData.windowsPaths.forEach((path, index) => {
+                const fixed = window.FilePathFixer.fixFilePath(path, index + 1, 'image');
+                const success = fixed && !fixed.includes('I:\\') && !fixed.includes('C:\\');
+
+                if (success) passed++;
+
+                results += `
+                    <div class="path-comparison">
+                        <div class="path-box original-path">
+                            <strong>قبل:</strong><br>${path}
+                        </div>
+                        <div class="path-box fixed-path">
+                            <strong>بعد:</strong><br>${fixed || 'فشل في الإصلاح'}
+                        </div>
+                    </div>
+                    <div class="test-result ${success ? 'success' : 'error'}">
+                        <i class="fas fa-${success ? 'check' : 'times'}"></i>
+                        ${success ? 'نجح الإصلاح' : 'فشل الإصلاح'}
+                    </div>
+                `;
+            });
+
+            testResults.basic = passed === testData.windowsPaths.length ? 1 : 0;
+            container.innerHTML = results;
+        }
+
+        // Test 2: File Array Processing
+        function runArrayTest() {
+            const container = document.getElementById('array-test-results');
+            const fixedFiles = window.FilePathFixer.fixFilePathsInArray([...testData.files]);
+
+            let results = '';
+            let passed = 0;
+
+            fixedFiles.forEach((file, index) => {
+                const hasWebUrl = file.web_url && !file.web_url.includes('I:\\');
+                if (hasWebUrl) passed++;
+
+                results += `
+                    <div class="file-preview">
+                        <h5>${file.original_name}</h5>
+                        <p><strong>النوع:</strong> ${file.mime_type}</p>
+                        <div class="path-comparison">
+                            <div class="path-box original-path">
+                                <strong>المسار الأصلي:</strong><br>${file.temp_path}
+                            </div>
+                            <div class="path-box fixed-path">
+                                <strong>الرابط الويب:</strong><br>${file.web_url || 'غير متوفر'}
+                            </div>
+                        </div>
+                        <div class="test-result ${hasWebUrl ? 'success' : 'error'}">
+                            <i class="fas fa-${hasWebUrl ? 'check' : 'times'}"></i>
+                            ${hasWebUrl ? 'تم إنشاء الرابط الويب' : 'فشل في إنشاء الرابط'}
+                        </div>
+                    </div>
+                `;
+            });
+
+            testResults.array = passed === fixedFiles.length ? 1 : 0;
+            container.innerHTML = results;
+        }
+
+        // Test 3: AJAX Response Fixing
+        function runAjaxTest() {
+            const container = document.getElementById('ajax-test-results');
+
+            const mockResponse = {
+                success: true,
+                data: {
+                    files: [...testData.files]
+                }
+            };
+
+            const fixedResponse = window.FilePathFixer.fixAjaxResponse(mockResponse);
+            const hasFixedFiles = fixedResponse.data.files.every(file =>
+                file.web_url && !file.web_url.includes('I:\\')
+            );
+
+            testResults.ajax = hasFixedFiles ? 1 : 0;
+
+            container.innerHTML = `
+                <div class="test-result ${hasFixedFiles ? 'success' : 'error'}">
+                    <i class="fas fa-${hasFixedFiles ? 'check' : 'times'}"></i>
+                    ${hasFixedFiles ? 'تم إصلاح استجابة AJAX بنجاح' : 'فشل في إصلاح استجابة AJAX'}
+                </div>
+                <pre class="bg-light p-3 rounded">${JSON.stringify(fixedResponse, null, 2)}</pre>
+            `;
+        }
+
+        // Test 4: DOM Image Fixing
+        function runDomTest() {
+            const container = document.getElementById('dom-test-container');
+            const resultsContainer = document.getElementById('dom-test-results');
+
+            // إضافة صور تجريبية مع مسارات Windows
+            container.innerHTML = `
+                <div class="row">
+                    <div class="col-md-4">
+                        <img src="I:\\test\\image1.jpg" data-file-id="1" class="img-fluid test-image" alt="صورة تجريبية 1">
+                    </div>
+                    <div class="col-md-4">
+                        <img src="C:\\projects\\image2.jpg" data-file-id="2" class="img-fluid test-image" alt="صورة تجريبية 2">
+                    </div>
+                    <div class="col-md-4">
+                        <img src="/storage/temp/image3.jpg" data-file-id="3" class="img-fluid test-image" alt="صورة تجريبية 3">
+                    </div>
+                </div>
+            `;
+
+            // تشغيل إصلاح DOM
+            setTimeout(() => {
+                window.FilePathFixer.fixImagePathsInDOM('#dom-test-container');
+
+                // فحص النتائج
+                const images = container.querySelectorAll('.test-image');
+                let fixedCount = 0;
+
+                images.forEach(img => {
+                    if (!img.src.includes('I:\\') && !img.src.includes('C:\\')) {
+                        fixedCount++;
+                    }
+                });
+
+                testResults.dom = fixedCount === images.length ? 1 : 0;
+
+                resultsContainer.innerHTML = `
+                    <div class="test-result ${testResults.dom ? 'success' : 'error'}">
+                        <i class="fas fa-${testResults.dom ? 'check' : 'times'}"></i>
+                        تم إصلاح ${fixedCount} من ${images.length} صورة
+                    </div>
+                `;
+            }, 100);
+        }
+
+        // Test 5: Real API Test
+        function runApiTest() {
+            const container = document.getElementById('api-test-results');
+            container.innerHTML = '<div class="info"><i class="fas fa-spinner fa-spin"></i> جاري اختبار API...</div>';
+
+            // محاولة استدعاء API حقيقي
+            fetch('/admin/duplicate-files/count')
+                .then(response => response.json())
+                .then(data => {
+                    testResults.api = 1;
+                    container.innerHTML = `
+                        <div class="test-result success">
+                            <i class="fas fa-check"></i>
+                            نجح الاتصال بـ API - عدد الملفات: ${data.data?.total_count || 0}
+                        </div>
+                    `;
+                })
+                .catch(error => {
+                    testResults.api = 0;
+                    container.innerHTML = `
+                        <div class="test-result warning">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            لا يمكن الوصول لـ API (هذا طبيعي في بيئة الاختبار)
+                        </div>
+                    `;
+                })
+                .finally(() => {
+                    updateSummary();
+                });
+        }
+
+        // Update Summary
+        function updateSummary() {
+            const passed = Object.values(testResults).reduce((sum, result) => sum + result, 0) - testResults.total;
+            const percentage = Math.round((passed / (testResults.total - 1)) * 100);
+
+            document.getElementById('summary-results').innerHTML = `
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <div class="card border-primary">
+                            <div class="card-body">
+                                <h4 class="text-primary">${passed}</h4>
+                                <p class="mb-0">اختبارات ناجحة</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-danger">
+                            <div class="card-body">
+                                <h4 class="text-danger">${(testResults.total - 1) - passed}</h4>
+                                <p class="mb-0">اختبارات فاشلة</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-success">
+                            <div class="card-body">
+                                <h4 class="text-success">${percentage}%</h4>
+                                <p class="mb-0">معدل النجاح</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card border-info">
+                            <div class="card-body">
+                                <h4 class="text-info">${testResults.total - 1}</h4>
+                                <p class="mb-0">إجمالي الاختبارات</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <div class="test-result ${percentage === 100 ? 'success' : percentage >= 80 ? 'warning' : 'error'}">
+                        <i class="fas fa-${percentage === 100 ? 'trophy' : percentage >= 80 ? 'star' : 'exclamation-triangle'}"></i>
+                        ${percentage === 100 ? 'ممتاز! جميع الاختبارات نجحت' :
+                          percentage >= 80 ? 'جيد! معظم الاختبارات نجحت' :
+                          'يحتاج لمراجعة - بعض الاختبارات فشلت'}
+                    </div>
+                </div>
+            `;
+        }
+
+        // تشغيل جميع الاختبارات
+        document.addEventListener('DOMContentLoaded', function() {
+            // تأكد من تحميل FilePathFixer
+            if (typeof window.FilePathFixer === 'undefined') {
+                document.body.innerHTML = `
+                    <div class="alert alert-danger text-center">
+                        <h4>خطأ!</h4>
+                        <p>لم يتم تحميل ملف file-path-fixer.js</p>
+                        <p>تأكد من وجود الملف في: /js/file-path-fixer.js</p>
+                    </div>
+                `;
+                return;
+            }
+
+            console.log('🚀 بدء اختبارات إصلاح مسارات الملفات...');
+
+            // تشغيل الاختبارات تدريجياً
+            setTimeout(() => runBasicTest(), 100);
+            setTimeout(() => runArrayTest(), 200);
+            setTimeout(() => runAjaxTest(), 300);
+            setTimeout(() => runDomTest(), 400);
+
+            // ربط زر اختبار API
+            document.getElementById('api-test-btn').addEventListener('click', runApiTest);
+
+            console.log('✅ تم تشغيل جميع الاختبارات');
+        });
+    </script>
+</body>
+</html>

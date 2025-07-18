@@ -16,12 +16,7 @@
             <!--begin:Menu link-->
             <span class="menu-link">
                 <span class="menu-icon">
-                    <i class="ki-duotone ki-element-11 fs-2">
-                        <span class="path1"></span>
-                        <span class="path2"></span>
-                        <span class="path3"></span>
-                        <span class="path4"></span>
-                    </i>
+                    <i class="fas fa-database fs-2"></i>
                 </span>
                 <span class="menu-title"> إدارة التسجيلات </span>
                 <span class="menu-arrow"></span>
@@ -41,16 +36,6 @@
                     <!--end:Menu link-->
                 </div>
                 <!--begin:Menu item-->
-                <div class="menu-item">
-                    <!--begin:Menu link-->
-                    <a class="menu-link" href="{{ route('admin.file.manager') }}">
-                        <span class="menu-bullet">
-                            <i class="fas fa-folder-open"></i>
-                        </span>
-                        <span class="menu-title"> مدير الملفات </span>
-                    </a>
-                    <!--end:Menu link-->
-                </div>
                 <!--end:Menu item-->
                 <!--begin:Menu item-->
                 <div class="menu-item">
@@ -85,12 +70,7 @@
             <!--begin:Menu link-->
             <span class="menu-link">
                 <span class="menu-icon">
-                    <i class="ki-duotone ki-element-11 fs-2">
-                        <span class="path1"></span>
-                        <span class="path2"></span>
-                        <span class="path3"></span>
-                        <span class="path4"></span>
-                    </i>
+                    <i class="fas fa-tags fs-2"></i>
                 </span>
                 <span class="menu-title"> إدارة التصنيفات </span>
                 <span class="menu-arrow"></span>
@@ -447,6 +427,72 @@
                             <i class="fas fa-user-plus"></i>
                         </span>
                         <span class="menu-title"> إضافة مواطن </span>
+                    </a>
+                </div>
+            </div>
+        </div>
+        <!--end:Menu item-->
+        <!--begin:Menu item-->
+        <div data-kt-menu-trigger="click" class="menu-item menu-accordion">
+            <span class="menu-link">
+                <span class="menu-icon">
+                    <i class="fas fa-folder-open"></i>
+                </span>
+                <span class="menu-title">إدارة الملفات</span>
+                <span class="menu-arrow"></span>
+            </span>
+            <div class="menu-sub menu-sub-accordion">
+                <div class="menu-item">
+                    <a class="menu-link" href="{{ route('admin.file.manager') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-folder-open"></i>
+                        </span>
+                        <span class="menu-title"> البوابة الرئيسية </span>
+                    </a>
+                </div>
+                <div class="menu-item">
+                    <a class="menu-link" href="{{ route('admin.file.excel.gateway.sidebar') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-file-excel"></i>
+                        </span>
+                        <span class="menu-title"> رفع ملفات اكسل  </span>
+                    </a>
+                </div>
+                <div class="menu-item">
+                    <a class="menu-link" href="{{ route('admin.duplicate.files.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-copy"></i>
+                        </span>
+                        <span class="menu-title"> إدارة الملفات المكررة </span>
+                    </a>
+                </div>
+            </div>
+        </div>
+        <!--end:Menu item-->
+        <!--begin:Menu item-->
+        <div data-kt-menu-trigger="click" class="menu-item menu-accordion">
+            <span class="menu-link">
+                <span class="menu-icon">
+                    <i class="fas fa-tools"></i>
+                </span>
+                <span class="menu-title">أدوات النظام</span>
+                <span class="menu-arrow"></span>
+            </span>
+            <div class="menu-sub menu-sub-accordion">
+                <div class="menu-item">
+                    <a class="menu-link" href="{{ route('admin.speedtest.standalone') }}">
+                        <span class="menu-bullet">
+                             <i class="fas fa-tachometer-alt"></i>
+                        </span>
+                           <span class="menu-title"> اختبار سرعة الإنترنت </span>
+                    </a>
+                </div>
+                <div class="menu-item">
+                    <a class="menu-link" href="{{ route('admin.openspeedtest.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-rocket"></i>
+                        </span>
+                        <span class="menu-title"> OpenSpeedTest </span>
                     </a>
                 </div>
             </div>

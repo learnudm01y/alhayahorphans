@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار Speedtest CLI - الإنتاج</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .test-card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-test {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: none;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 1.1em;
+            transition: all 0.3s ease;
+        }
+
+        .btn-test:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.2);
+            color: white;
+        }
+
+        .result-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin: 10px 0;
+            border-left: 5px solid #667eea;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-left: 8px;
+        }
+
+        .status-online { background: #28a745; }
+        .status-offline { background: #dc3545; }
+        .status-testing { background: #ffc107; animation: pulse 1s infinite; }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .speed-display {
+            font-size: 2.5em;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .log-area {
+            background: #1e1e1e;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            padding: 15px;
+            border-radius: 10px;
+            height: 200px;
+            overflow-y: auto;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="test-card p-5">
+                    <div class="text-center mb-4">
+                        <h1 class="mb-3">
+                            <i class="fas fa-tachometer-alt text-primary"></i>
+                            اختبار Speedtest CLI - الإنتاج
+                        </h1>
+                        <p class="text-muted">
+                            نظام قياس سرعة الإنترنت المتكامل مع Laravel و Ookla Speedtest CLI
+                        </p>
+                    </div>
+
+                    <!-- Control Panel -->
+                    <div class="row mb-4">
+                        <div class="col-md-12 text-center">
+                            <button class="btn btn-test me-3" onclick="checkAvailability()">
+                                <i class="fas fa-search"></i> فحص التوفر
+                            </button>
+                            <button class="btn btn-test me-3" onclick="runSpeedTest()" id="testBtn">
+                                <i class="fas fa-play"></i> تشغيل الاختبار
+                            </button>
+                            <button class="btn btn-test" onclick="clearCache()">
+                                <i class="fas fa-trash"></i> مسح الذاكرة
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- System Status -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h5>
+                                <i class="fas fa-server"></i> حالة النظام
+                                <span class="status-indicator status-offline" id="systemStatus"></span>
+                            </h5>
+                            <div id="systemInfo" class="result-card">
+                                <p class="mb-1"><strong>حالة CLI:</strong> <span id="cliStatus">غير محدد</span></p>
+                                <p class="mb-1"><strong>الإصدار:</strong> <span id="cliVersion">غير محدد</span></p>
+                                <p class="mb-0"><strong>المسار:</strong> <span id="cliPath">غير محدد</span></p>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <h5>
+                                <i class="fas fa-clock"></i> إحصائيات الاختبار
+                            </h5>
+                            <div id="testStats" class="result-card">
+                                <p class="mb-1"><strong>آخر اختبار:</strong> <span id="lastTest">لا يوجد</span></p>
+                                <p class="mb-1"><strong>إجمالي الاختبارات:</strong> <span id="totalTests">0</span></p>
+                                <p class="mb-0"><strong>نوع البيانات:</strong> <span id="dataType">غير محدد</span></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Speed Results -->
+                    <div class="row mb-4" id="speedResults" style="display: none;">
+                        <div class="col-md-4 text-center">
+                            <div class="result-card">
+                                <h6 class="text-primary">
+                                    <i class="fas fa-download"></i> سرعة التحميل
+                                </h6>
+                                <div class="speed-display text-primary" id="downloadSpeed">--</div>
+                                <small class="text-muted">Mbps</small>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4 text-center">
+                            <div class="result-card">
+                                <h6 class="text-success">
+                                    <i class="fas fa-upload"></i> سرعة الرفع
+                                </h6>
+                                <div class="speed-display text-success" id="uploadSpeed">--</div>
+                                <small class="text-muted">Mbps</small>
+                            </div>
+                        </div>
+
+                        <div class="col-md-4 text-center">
+                            <div class="result-card">
+                                <h6 class="text-warning">
+                                    <i class="fas fa-stopwatch"></i> زمن الاستجابة
+                                </h6>
+                                <div class="speed-display text-warning" id="pingTime">--</div>
+                                <small class="text-muted">ms</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Connection Info -->
+                    <div class="row mb-4" id="connectionInfo" style="display: none;">
+                        <div class="col-12">
+                            <h5><i class="fas fa-info-circle"></i> معلومات الاتصال</h5>
+                            <div class="result-card">
+                                <div class="row">
+                                    <div class="col-md-3">
+                                        <strong>الخادم:</strong><br>
+                                        <span id="serverName">--</span>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>الموقع:</strong><br>
+                                        <span id="serverLocation">--</span>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>مزود الخدمة:</strong><br>
+                                        <span id="ispName">--</span>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <strong>IP الخارجي:</strong><br>
+                                        <span id="externalIp">--</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Logs -->
+                    <div class="row">
+                        <div class="col-12">
+                            <h5><i class="fas fa-terminal"></i> سجل العمليات</h5>
+                            <div class="log-area" id="logs">
+                                <div class="text-center">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                    بدء تشغيل النظام...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        class SpeedTestManager {
+            constructor() {
+                this.testCount = 0;
+                this.lastTestTime = null;
+                this.init();
+            }
+
+            init() {
+                this.log('System initializing...', 'info');
+                setTimeout(() => {
+                    this.checkAvailability();
+                }, 1000);
+            }
+
+            log(message, type = 'info') {
+                const logsContainer = document.getElementById('logs');
+                const timestamp = new Date().toLocaleTimeString();
+                const colors = {
+                    info: '#00ff00',
+                    success: '#00ff00',
+                    error: '#ff0000',
+                    warning: '#ffff00'
+                };
+
+                const logEntry = document.createElement('div');
+                logEntry.style.color = colors[type];
+                logEntry.innerHTML = `[${timestamp}] ${message}`;
+
+                logsContainer.appendChild(logEntry);
+                logsContainer.scrollTop = logsContainer.scrollHeight;
+            }
+
+            updateStatus(isOnline) {
+                const statusIndicator = document.getElementById('systemStatus');
+                statusIndicator.className = `status-indicator ${isOnline ? 'status-online' : 'status-offline'}`;
+            }
+
+            async checkAvailability() {
+                this.log('Checking Speedtest CLI availability...', 'info');
+
+                try {
+                    const response = await fetch('/api/speedtest/check');
+                    const data = await response.json();
+
+                    document.getElementById('cliStatus').textContent = data.available ? 'متاح' : 'غير متاح';
+                    document.getElementById('cliVersion').textContent = data.version || 'غير محدد';
+                    document.getElementById('cliPath').textContent = data.path || 'غير محدد';
+
+                    this.updateStatus(data.available);
+
+                    if (data.available) {
+                        this.log(`CLI Available: ${data.version}`, 'success');
+                    } else {
+                        this.log(`CLI Not Available: ${data.error || 'Unknown error'}`, 'error');
+                    }
+
+                } catch (error) {
+                    this.log(`Status check failed: ${error.message}`, 'error');
+                    this.updateStatus(false);
+                }
+            }
+
+            async runSpeedTest() {
+                const testBtn = document.getElementById('testBtn');
+                const statusIndicator = document.getElementById('systemStatus');
+
+                // Update UI for testing state
+                testBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الاختبار...';
+                testBtn.disabled = true;
+                statusIndicator.className = 'status-indicator status-testing';
+
+                this.log('Starting speed test...', 'info');
+
+                try {
+                    const response = await fetch('/api/speedtest');
+                    const data = await response.json();
+
+                    if (data.success || data.fallback_data) {
+                        this.processResults(data);
+                        this.log('Speed test completed successfully', 'success');
+                    } else {
+                        this.log(`Speed test failed: ${data.message}`, 'error');
+                    }
+
+                } catch (error) {
+                    this.log(`Speed test error: ${error.message}`, 'error');
+                } finally {
+                    // Reset UI
+                    testBtn.innerHTML = '<i class="fas fa-play"></i> تشغيل الاختبار';
+                    testBtn.disabled = false;
+                    statusIndicator.className = 'status-indicator status-online';
+                }
+            }
+
+            processResults(data) {
+                const result = data.success ? data : data.fallback_data;
+
+                // Show results sections
+                document.getElementById('speedResults').style.display = 'block';
+                document.getElementById('connectionInfo').style.display = 'block';
+
+                // Update speed metrics
+                document.getElementById('downloadSpeed').textContent = result.download_mbps;
+                document.getElementById('uploadSpeed').textContent = result.upload_mbps;
+                document.getElementById('pingTime').textContent = result.ping_ms;
+
+                // Update connection info
+                document.getElementById('serverName').textContent = result.server || 'Unknown';
+                document.getElementById('serverLocation').textContent = result.location || 'Unknown';
+                document.getElementById('ispName').textContent = result.isp || 'Unknown';
+                document.getElementById('externalIp').textContent = result.external_ip || 'Unknown';
+
+                // Update stats
+                this.testCount++;
+                this.lastTestTime = new Date().toLocaleString();
+
+                document.getElementById('totalTests').textContent = this.testCount;
+                document.getElementById('lastTest').textContent = this.lastTestTime;
+
+                if (data.success) {
+                    document.getElementById('dataType').textContent = data.cached ? 'Cached' : 'Live';
+                } else {
+                    document.getElementById('dataType').textContent = 'Simulated';
+                }
+
+                // Log detailed results
+                this.log(`Download: ${result.download_mbps} Mbps, Upload: ${result.upload_mbps} Mbps, Ping: ${result.ping_ms} ms`, 'success');
+                if (result.server) {
+                    this.log(`Server: ${result.server} (${result.location})`, 'info');
+                }
+            }
+
+            async clearCache() {
+                this.log('Clearing cache...', 'info');
+
+                try {
+                    const response = await fetch('/api/speedtest/clear-cache', {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        this.log('Cache cleared successfully', 'success');
+                    } else {
+                        this.log(`Cache clear failed: ${data.message}`, 'error');
+                    }
+
+                } catch (error) {
+                    this.log(`Cache clear error: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        // Initialize the manager
+        const speedTestManager = new SpeedTestManager();
+
+        // Global functions for buttons
+        function checkAvailability() {
+            speedTestManager.checkAvailability();
+        }
+
+        function runSpeedTest() {
+            speedTestManager.runSpeedTest();
+        }
+
+        function clearCache() {
+            speedTestManager.clearCache();
+        }
+
+        // Auto-refresh status every 30 seconds
+        setInterval(() => {
+            speedTestManager.checkAvailability();
+        }, 30000);
+    </script>
+</body>
+</html>

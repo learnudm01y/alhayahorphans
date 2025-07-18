@@ -20,12 +20,14 @@ use App\Http\Controllers\Admin\ProvinceController;
 use App\Http\Controllers\Admin\RecordsManagementController;
 use App\Http\Controllers\TestController;
 use App\Http\Controllers\UnifiedFileManagementController;
+use App\Http\Controllers\ZipTestController;
 use App\Http\Controllers\Admin\RecordsManagementEditController;
 use App\Http\Controllers\Admin\RequestStatusController;
 use App\Http\Controllers\Admin\SponsorshipStatusController;
 use App\Http\Controllers\Admin\TypeOfAccommodationController;
 use App\Http\Controllers\Admin\TypeOfGuaranteeController;
 use App\Http\Controllers\Users\UserController;
+use App\Http\Controllers\Admin\SpeedTestController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Admin\ManageTheUserRequestController;
 use App\Http\Controllers\DuplicateFileController;
@@ -151,6 +153,7 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
 
         // Excel Gateway Routes
         Route::get('excel-gateway', [UnifiedFileManagementController::class, 'showExcelGateway'])->name('file.excel.gateway');
+        Route::get('excel-gateway/sidebar', [AdminController::class, 'showExcelGatewaySidebar'])->name('file.excel.gateway.sidebar');
         Route::post('excel-upload', [UnifiedFileManagementController::class, 'processExcelUpload'])
             ->middleware('large.upload')
             ->name('file.excel.upload');
@@ -199,6 +202,9 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
         Route::delete('delete/{id}', [UnifiedFileManagementController::class, 'deleteDuplicateFileById'])->name('duplicate.files.delete');
         Route::delete('bulk-delete', [UnifiedFileManagementController::class, 'bulkDeleteDuplicateFiles'])->name('duplicate.files.bulk.delete');
         Route::get('preview/{id}', [UnifiedFileManagementController::class, 'previewDuplicateFile'])->name('duplicate.files.preview');
+        Route::get('serve/{id}', [UnifiedFileManagementController::class, 'serveImageFile'])->name('duplicate.files.serve');
+        Route::get('download-all', [UnifiedFileManagementController::class, 'downloadAllDuplicateFiles'])->name('duplicate.files.download.all');
+        Route::post('download-selected', [UnifiedFileManagementController::class, 'downloadSelectedDuplicateFiles'])->name('duplicate.files.download.selected');
     });
 });;
 
@@ -211,4 +217,141 @@ Route::prefix('admin')->group(function () {
     // مسارات اختبار الإصلاحات
     Route::post('file/test-duplicate-detection', [TestController::class, 'testDuplicateDetection'])->name('admin.file.test.duplicate.detection');
     Route::get('file/get-recent-logs', [TestController::class, 'getRecentLogs'])->name('admin.file.get.recent.logs');
+
+    // مسارات اختبار ZIP
+    Route::get('test/zip-creation', [ZipTestController::class, 'testZipCreation'])->name('admin.test.zip.creation');
+    Route::get('test/download-with-error-handling', [ZipTestController::class, 'testDownloadWithBetterErrorHandling'])->name('admin.test.download.error.handling');
+
+    // مسارات اختبار السرعة - Speed Test Routes
+    Route::get('speedtest', [SpeedTestController::class, 'index'])->name('admin.speedtest.index');
+    Route::get('speedtest/standalone', function() {
+        return view('admin.speedtest.standalone');
+    })->name('admin.speedtest.standalone');
+    Route::match(['get', 'post'], 'speedtest/api', [SpeedTestController::class, 'api'])->name('admin.speedtest.api');
+    Route::get('speedtest/stats', [SpeedTestController::class, 'stats'])->name('admin.speedtest.stats');
+
+    // اختبار سريع بدون مصادقة للتطوير فقط
+    Route::get('speedtest/quick-test', function() {
+        return response()->json([
+            'status' => 'active',
+            'version' => '1.0.0',
+            'server_time' => date('Y-m-d H:i:s'),
+            'server_location' => 'Local Server',
+            'message' => 'نظام قياس السرعة يعمل بنجاح'
+        ]);
+    })->name('admin.speedtest.quick.test');
+
+    // API endpoints بدون مصادقة للتطوير
+    Route::match(['get', 'post'], 'speedtest/test-api', function(Illuminate\Http\Request $request) {
+        $endpoint = $request->input('endpoint', 'empty');
+
+        switch ($endpoint) {
+            case 'empty':
+                return response('', 200, [
+                    'Access-Control-Allow-Origin' => '*',
+                    'Cache-Control' => 'no-cache, no-store, must-revalidate',
+                    'Pragma' => 'no-cache',
+                    'Connection' => 'keep-alive'
+                ]);
+
+            case 'garbage':
+                $chunkCount = $request->input('ckSize', 4);
+                $chunkSize = 1048576; // 1MB
+                $data = str_repeat('A', $chunkSize);
+
+                return response()->streamDownload(function() use ($data, $chunkCount) {
+                    for ($i = 0; $i < $chunkCount; $i++) {
+                        echo $data;
+                        flush();
+                    }
+                }, 'test-data.bin', [
+                    'Content-Type' => 'application/octet-stream',
+                    'Access-Control-Allow-Origin' => '*',
+                    'Cache-Control' => 'no-cache, no-store, must-revalidate',
+                    'Pragma' => 'no-cache'
+                ]);
+
+            case 'getIP':
+                $ip = $request->ip();
+                return response()->json([
+                    'processedString' => $ip . ' - Local Server',
+                    'rawIspInfo' => [
+                        'ip' => $ip,
+                        'country' => 'Local',
+                        'isp' => 'Local Server'
+                    ]
+                ], 200, [
+                    'Access-Control-Allow-Origin' => '*',
+                    'Cache-Control' => 'no-cache, no-store, must-revalidate'
+                ]);
+
+            default:
+                return response()->json(['error' => 'Invalid endpoint'], 400);
+        }
+    })->name('admin.speedtest.test.api');
+
+    // OpenSpeedTest Routes
+    Route::get('openspeedtest', [SpeedTestController::class, 'openSpeedTest'])->name('admin.openspeedtest.index');
+    Route::get('openspeedtest/download', [SpeedTestController::class, 'download'])->name('admin.openspeedtest.download');
+    Route::post('openspeedtest/upload', [SpeedTestController::class, 'upload'])->name('admin.openspeedtest.upload');
+    Route::get('openspeedtest/getip', [SpeedTestController::class, 'getIP'])->name('admin.openspeedtest.getip');
+    Route::get('openspeedtest/status', [SpeedTestController::class, 'status'])->name('admin.openspeedtest.status');
+
+    // OpenSpeedTest Backend Files (بدون middleware للوصول المباشر)
+    Route::get('openspeedtest/backend/download', function() {
+        return response()->file(public_path('openspeedtest/downloading'), [
+            'Content-Type' => 'application/octet-stream',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'Pragma' => 'no-cache'
+        ]);
+    })->name('admin.openspeedtest.backend.download')->withoutMiddleware(['auth']);
+
+    Route::post('openspeedtest/backend/upload', function() {
+        return response('', 200, [
+            'Access-Control-Allow-Origin' => '*',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+            'Pragma' => 'no-cache'
+        ]);
+    })->name('admin.openspeedtest.backend.upload')->withoutMiddleware(['auth']);
+
+    Route::get('openspeedtest/backend/getip', function() {
+        return response()->json([
+            'ip' => request()->ip(),
+            'hostname' => request()->getHost(),
+            'country' => 'Local',
+            'isp' => 'Local Server'
+        ], 200, [
+            'Access-Control-Allow-Origin' => '*',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate'
+        ]);
+    })->name('admin.openspeedtest.backend.getip')->withoutMiddleware(['auth']);
+
+    // تنظيف الملفات المؤقتة
+    Route::get('openspeedtest/cleanup', function() {
+        try {
+            $tempPath = storage_path('app/public/temp');
+            if (is_dir($tempPath)) {
+                $files = glob($tempPath . '/*');
+                $deletedCount = 0;
+                foreach ($files as $file) {
+                    if (is_file($file) && unlink($file)) {
+                        $deletedCount++;
+                    }
+                }
+                return response()->json([
+                    'status' => 'success',
+                    'message' => "تم حذف {$deletedCount} ملف مؤقت"
+                ]);
+            }
+            return response()->json([
+                'status' => 'info',
+                'message' => 'لا توجد ملفات مؤقتة للحذف'
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'خطأ في تنظيف الملفات: ' . $e->getMessage()
+            ], 500);
+        }
+    })->name('admin.openspeedtest.cleanup');
 });

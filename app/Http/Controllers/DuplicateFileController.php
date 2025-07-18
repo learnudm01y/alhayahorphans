@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class DuplicateFileController extends Controller
@@ -477,11 +478,37 @@ class DuplicateFileController extends Controller
         try {
             $sessionId = $request->input('session_id');
 
+            // إذا لم يتم تمرير session_id، جلب جميع الملفات المكررة من قاعدة البيانات
             if (!$sessionId) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Session ID مطلوب'
-                ], 400);
+                try {
+                    $duplicateFiles = DB::table('duplicate_files_temp')
+                        ->select('id', 'original_name', 'duplicate_name', 'file_size', 'temp_path', 'created_at')
+                        ->orderBy('created_at', 'desc')
+                        ->get();
+
+                    if ($duplicateFiles->isEmpty()) {
+                        return response()->json([
+                            'success' => true,
+                            'data' => [],
+                            'message' => 'لا توجد ملفات مكررة'
+                        ]);
+                    }
+
+                    return response()->json([
+                        'success' => true,
+                        'data' => $duplicateFiles
+                    ]);
+
+                } catch (\Exception $e) {
+                    Log::error('Error fetching duplicate files from database', [
+                        'error' => $e->getMessage()
+                    ]);
+
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'خطأ في جلب الملفات المكررة من قاعدة البيانات'
+                    ], 500);
+                }
             }
 
             $summary = $this->duplicateDetectionService->getDuplicateFilesSummary($sessionId);

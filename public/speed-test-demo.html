@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار قياس السرعة</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .speed-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .speed-display {
+            font-size: 2em;
+            font-weight: bold;
+            color: #007bff;
+            margin: 10px 0;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        .btn:hover {
+            background: #0056b3;
+        }
+        .btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+        }
+        .loading {
+            color: #007bff;
+        }
+        .error {
+            color: #dc3545;
+        }
+        .success {
+            color: #28a745;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 اختبار قياس سرعة الإنترنت</h1>
+
+    <div class="speed-card">
+        <h2>📊 قياس السرعة</h2>
+        <div class="speed-display" id="speedDisplay">--</div>
+        <button class="btn" id="testBtn" onclick="runSpeedTest()">
+            🎯 بدء القياس
+        </button>
+        <button class="btn" onclick="checkAvailability()">
+            🔍 فحص التوفر
+        </button>
+        <div id="result" class="result"></div>
+    </div>
+
+    <script>
+        async function runSpeedTest() {
+            const btn = document.getElementById('testBtn');
+            const result = document.getElementById('result');
+            const speedDisplay = document.getElementById('speedDisplay');
+
+            btn.disabled = true;
+            btn.textContent = '⏳ جاري القياس...';
+            result.className = 'result loading';
+            result.textContent = 'جاري قياس سرعة الإنترنت... يرجى الانتظار';
+            speedDisplay.textContent = '⏳';
+
+            try {
+                const response = await fetch('/api/speedtest');
+                const data = await response.json();
+
+                if (data.success) {
+                    result.className = 'result success';
+                    result.textContent = `✅ تم قياس السرعة بنجاح!
+
+🔽 سرعة التنزيل: ${data.download_mbps} Mbps
+🔼 سرعة الرفع: ${data.upload_mbps} Mbps
+⏱️ البينج: ${data.ping_ms} ms
+🌐 الخادم: ${data.server}
+📍 المدينة: ${data.location}
+🏢 مقدم الخدمة: ${data.isp}`;
+
+                    speedDisplay.textContent = `${data.download_mbps} Mbps`;
+                } else {
+                    result.className = 'result error';
+                    result.textContent = `⚠️ تم استخدام النظام الاحتياطي
+
+🔽 سرعة التنزيل: ${data.fallback_data.download_mbps} Mbps
+🔼 سرعة الرفع: ${data.fallback_data.upload_mbps} Mbps
+⏱️ البينج: ${data.fallback_data.ping_ms} ms
+🌐 الخادم: ${data.fallback_data.server}
+📍 المدينة: ${data.fallback_data.location}
+
+❌ السبب: ${data.message}`;
+
+                    speedDisplay.textContent = `${data.fallback_data.download_mbps} Mbps`;
+                }
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `❌ خطأ في الاتصال: ${error.message}`;
+                speedDisplay.textContent = 'خطأ';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🎯 بدء القياس';
+            }
+        }
+
+        async function checkAvailability() {
+            const result = document.getElementById('result');
+            result.className = 'result loading';
+            result.textContent = 'جاري فحص توفر أداة Speedtest CLI...';
+
+            try {
+                const response = await fetch('/api/speedtest/check');
+                const data = await response.json();
+
+                if (data.available) {
+                    result.className = 'result success';
+                    result.textContent = `✅ Speedtest CLI متوفر ويعمل بشكل صحيح
+
+الإصدار: ${data.version}`;
+                } else {
+                    result.className = 'result error';
+                    result.textContent = `❌ Speedtest CLI غير متوفر
+
+سيتم استخدام النظام الاحتياطي للمحاكاة`;
+                }
+            } catch (error) {
+                result.className = 'result error';
+                result.textContent = `❌ خطأ في الفحص: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

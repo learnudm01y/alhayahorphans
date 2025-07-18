@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UnifiedFileManagementController;
 use App\Http\Controllers\SimpleFileUploadController;
 use App\Http\Controllers\DuplicateFileController;
+use App\Http\Controllers\Api\FileAnalyticsController;
 
 
 /*
@@ -30,7 +31,13 @@ Route::prefix('simple')->group(function () {
 
 // File management API routes
 Route::prefix('files')->group(function () {
-    Route::get('/analytics', [UnifiedFileManagementController::class, 'getAnalytics']);
+    // إحصائيات محدّثة من الجداول الجديدة (يجب أن تكون الأولى)
+    Route::get('/analytics/detailed', [FileAnalyticsController::class, 'getDetailedAnalytics']);
+    Route::get('/analytics/new', [FileAnalyticsController::class, 'getAnalytics']); // استخدام endpoint جديد
+
+    // Routes القديمة (للتوافق مع الأنظمة الموجودة)
+    Route::get('/analytics-legacy', [UnifiedFileManagementController::class, 'getAnalytics']);
+    Route::get('/analytics', [UnifiedFileManagementController::class, 'getAnalytics']); // الـ route القديم
     Route::post('/smart-upload', [UnifiedFileManagementController::class, 'smartUpload']);
     Route::post('/batch-upload', [UnifiedFileManagementController::class, 'batchUpload']);
     Route::get('/batch-status/{batch_id}', [UnifiedFileManagementController::class, 'getBatchStatus']);
