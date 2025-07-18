@@ -195,6 +195,9 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
         Route::get('test', function () {
             return view('admin.duplicate-files.test');
         })->name('duplicate.files.test');
+        Route::get('test-real-stats', function () {
+            return view('admin.duplicate-files.test-real-stats');
+        })->name('duplicate.files.test.real.stats');
         Route::get('count', [UnifiedFileManagementController::class, 'getDuplicateFilesCount'])->name('duplicate.files.count');
         Route::get('paginated', [UnifiedFileManagementController::class, 'getDuplicateFilesPaginated'])->name('duplicate.files.paginated');
         Route::get('view/{id}', [UnifiedFileManagementController::class, 'viewDuplicateFile'])->name('duplicate.files.view');
@@ -205,6 +208,7 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
         Route::get('serve/{id}', [UnifiedFileManagementController::class, 'serveImageFile'])->name('duplicate.files.serve');
         Route::get('download-all', [UnifiedFileManagementController::class, 'downloadAllDuplicateFiles'])->name('duplicate.files.download.all');
         Route::post('download-selected', [UnifiedFileManagementController::class, 'downloadSelectedDuplicateFiles'])->name('duplicate.files.download.selected');
+        Route::get('real-statistics', [UnifiedFileManagementController::class, 'getRealDuplicateFilesStatistics'])->name('duplicate.files.real.statistics');
     });
 });;
 
@@ -354,4 +358,16 @@ Route::prefix('admin')->group(function () {
             ], 500);
         }
     })->name('admin.openspeedtest.cleanup');
+});
+
+// Public routes for duplicate files (without authentication middleware)
+Route::prefix('public-api/duplicate-files')->group(function () {
+    Route::get('paginated', [UnifiedFileManagementController::class, 'getDuplicateFilesPaginated'])->name('public.duplicate.files.paginated');
+    Route::get('real-statistics', [UnifiedFileManagementController::class, 'getRealDuplicateFilesStatistics'])->name('public.duplicate.files.real.statistics');
+    Route::get('preview/{id}', [UnifiedFileManagementController::class, 'previewDuplicateFile'])->name('public.duplicate.files.preview');
+    Route::get('serve/{id}', [UnifiedFileManagementController::class, 'serveImageFile'])->name('public.duplicate.files.serve');
+    Route::get('download/{id}', [UnifiedFileManagementController::class, 'downloadDuplicateFileById'])->name('public.duplicate.files.download');
+    Route::get('view/{id}', [UnifiedFileManagementController::class, 'viewDuplicateFile'])->name('public.duplicate.files.view');
+    Route::delete('delete/{id}', [UnifiedFileManagementController::class, 'deleteDuplicateFileById'])->name('public.duplicate.files.delete');
+    Route::delete('bulk-delete', [UnifiedFileManagementController::class, 'bulkDeleteDuplicateFiles'])->name('public.duplicate.files.bulk.delete');
 });

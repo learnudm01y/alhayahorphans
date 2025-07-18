@@ -8,8 +8,8 @@ use App\Http\Controllers\Users\CreateRecordsController;
 use App\Http\Controllers\Users\GeneralRegistrationController;
 use App\Http\Controllers\Users\ShowGeneralRegisrationController;
 use App\Http\Controllers\Users\UserLoginContoller;
-use App\Http\Controllers\Users\UserProfileController;
 use App\Http\Controllers\UnifiedFileManagementController;
+use App\Http\Controllers\Users\UserProfileController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\DuplicateFileController;
 use App\Http\Controllers\SpeedTestController;
@@ -17,6 +17,21 @@ use App\Http\Controllers\SpeedTestController;
 // مسارات اختبار التحميل بدون مصادقة
 Route::get('/test-download-all', [UnifiedFileManagementController::class, 'downloadAllDuplicateFiles']);
 Route::post('/test-download-selected', [UnifiedFileManagementController::class, 'downloadSelectedDuplicateFiles']);
+
+// مسار اختبار الإحصائيات الحقيقية بدون مصادقة (مؤقت)
+Route::get('/test-real-stats-public', [UnifiedFileManagementController::class, 'getRealDuplicateFilesStatistics']);
+
+// Public API routes for duplicate files (without authentication middleware)
+Route::prefix('public-api/duplicate-files')->group(function () {
+    Route::get('paginated', [UnifiedFileManagementController::class, 'getDuplicateFilesPaginated'])->name('public.duplicate.files.paginated');
+    Route::get('real-statistics', [UnifiedFileManagementController::class, 'getRealDuplicateFilesStatistics'])->name('public.duplicate.files.real.statistics');
+    Route::get('preview/{id}', [UnifiedFileManagementController::class, 'previewDuplicateFile'])->name('public.duplicate.files.preview');
+    Route::get('serve/{id}', [UnifiedFileManagementController::class, 'serveImageFile'])->name('public.duplicate.files.serve');
+    Route::get('download/{id}', [UnifiedFileManagementController::class, 'downloadDuplicateFileById'])->name('public.duplicate.files.download');
+    Route::get('view/{id}', [UnifiedFileManagementController::class, 'viewDuplicateFile'])->name('public.duplicate.files.view');
+    Route::delete('delete/{id}', [UnifiedFileManagementController::class, 'deleteDuplicateFileById'])->name('public.duplicate.files.delete');
+    Route::delete('bulk-delete', [UnifiedFileManagementController::class, 'bulkDeleteDuplicateFiles'])->name('public.duplicate.files.bulk.delete');
+});
 
 /*
 |--------------------------------------------------------------------------

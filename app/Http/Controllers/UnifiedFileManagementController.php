@@ -3604,14 +3604,18 @@ class UnifiedFileManagementController extends Controller
             // Get paginated results
             $paginatedFiles = $query->paginate($perPage);
 
-            // Add preview URLs for images
+            // Add preview URLs for images and fix missing mime types
             $items = collect($paginatedFiles->items())->map(function ($file) {
+                // Fix missing mime_type
+                if (!$file->mime_type || $file->mime_type === '') {
+                    $extension = pathinfo($file->original_name, PATHINFO_EXTENSION);
+                    $file->mime_type = $this->getMimeTypeFromExtension($extension);
+                    $file->save();
+                }
+
                 if ($this->isImageFile($file->mime_type)) {
-                    $fullPath = storage_path('app/' . $file->temp_path);
-                    if (file_exists($fullPath)) {
-                        // Create a temporary public link for preview
-                        $file->preview_url = $this->createTemporaryPreviewUrl($file);
-                    }
+                    // Create a temporary public link for preview
+                    $file->preview_url = $this->createTemporaryPreviewUrl($file);
                 }
                 return $file;
             })->toArray();
@@ -3701,23 +3705,47 @@ class UnifiedFileManagementController extends Controller
         try {
             $file = DuplicateFileTemp::findOrFail($id);
 
-            $fullPath = storage_path('app/' . $file->temp_path);
+            // Try different path combinations
+            $possiblePaths = [
+                storage_path('app/' . $file->temp_path),
+                $file->temp_path,
+                storage_path('app/temp/' . basename($file->temp_path)),
+                public_path($file->temp_path),
+                public_path('storage/' . $file->temp_path),
+            ];
 
-            if (!file_exists($fullPath)) {
+            $fullPath = null;
+            foreach ($possiblePaths as $path) {
+                if ($path && file_exists($path)) {
+                    $fullPath = $path;
+                    break;
+                }
+            }
+
+            if (!$fullPath) {
+                Log::warning('الملف غير موجود أو غير قابل للقراءة', ['file_path' => $file->temp_path]);
+
+                // Create a placeholder image
+                $placeholderPath = public_path('images/file-not-found.png');
+                if (file_exists($placeholderPath)) {
+                    return response()->file($placeholderPath, [
+                        'Content-Type' => 'image/png',
+                        'Cache-Control' => 'public, max-age=3600',
+                    ]);
+                }
+
                 return response()->json([
                     'success' => false,
                     'message' => 'الملف غير موجود'
                 ], 404);
             }
 
-            if (!$this->isImageFile($file->mime_type)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'الملف ليس صورة'
-                ], 400);
+            // Determine MIME type from file extension if not set
+            $mimeType = $file->mime_type;
+            if (!$mimeType) {
+                $extension = pathinfo($file->original_name, PATHINFO_EXTENSION);
+                $mimeType = $this->getMimeTypeFromExtension($extension);
             }
-
-            $mimeType = $file->mime_type ?: 'image/jpeg';
 
             return response()->file($fullPath, [
                 'Content-Type' => $mimeType,
@@ -3937,6 +3965,42 @@ class UnifiedFileManagementController extends Controller
     protected function isImageFile($mimeType)
     {
         return $mimeType && str_starts_with(strtolower($mimeType), 'image/');
+    }
+
+    /**
+     * Get MIME type from file extension
+     */
+    protected function getMimeTypeFromExtension($extension)
+    {
+        $extension = strtolower($extension);
+
+        $mimeTypes = [
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'bmp' => 'image/bmp',
+            'webp' => 'image/webp',
+            'svg' => 'image/svg+xml',
+            'pdf' => 'application/pdf',
+            'doc' => 'application/msword',
+            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls' => 'application/vnd.ms-excel',
+            'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'ppt' => 'application/vnd.ms-powerpoint',
+            'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'txt' => 'text/plain',
+            'csv' => 'text/csv',
+            'mp4' => 'video/mp4',
+            'avi' => 'video/avi',
+            'mov' => 'video/quicktime',
+            'mp3' => 'audio/mpeg',
+            'wav' => 'audio/wav',
+            'zip' => 'application/zip',
+            'rar' => 'application/x-rar-compressed',
+        ];
+
+        return $mimeTypes[$extension] ?? 'application/octet-stream';
     }
 
     /**
@@ -4304,6 +4368,52 @@ class UnifiedFileManagementController extends Controller
                 return 'الدخول تم حذفه';
             default:
                 return 'خطأ غير معروف (' . $errorCode . ')';
+        }
+    }
+
+    /**
+     * Get real duplicate files statistics directly from database
+     */
+    public function getRealDuplicateFilesStatistics()
+    {
+        try {
+            $totalFiles = DB::table('duplicate_files_temp')->count();
+            $activeFiles = DB::table('duplicate_files_temp')
+                ->where('expires_at', '>', now())
+                ->count();
+            $expiredFiles = DB::table('duplicate_files_temp')
+                ->where('expires_at', '<=', now())
+                ->count();
+            $totalImages = DB::table('duplicate_files_temp')
+                ->where('mime_type', 'like', 'image/%')
+                ->count();
+            $totalDocuments = DB::table('duplicate_files_temp')
+                ->where(function ($query) {
+                    $query->where('mime_type', 'like', '%pdf%')
+                          ->orWhere('mime_type', 'like', '%word%')
+                          ->orWhere('mime_type', 'like', '%document%')
+                          ->orWhere('mime_type', 'like', '%text%');
+                })
+                ->count();
+            $totalSize = DB::table('duplicate_files_temp')->sum('file_size');
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'total_files' => $totalFiles,
+                    'active_files' => $activeFiles,
+                    'expired_files' => $expiredFiles,
+                    'total_images' => $totalImages,
+                    'total_documents' => $totalDocuments,
+                    'total_size' => $totalSize
+                ]
+            ]);
+        } catch (\Exception $e) {
+            Log::error('خطأ في جلب الإحصائيات الحقيقية للملفات المكررة: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء جلب الإحصائيات'
+            ], 500);
         }
     }
 

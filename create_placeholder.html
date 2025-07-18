@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Placeholder Image</title>
+</head>
+<body>
+    <canvas id="canvas" width="200" height="200" style="border: 1px solid #ddd;"></canvas>
+    <br>
+    <button onclick="downloadImage()">Download Placeholder</button>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Create placeholder image
+        ctx.fillStyle = '#f8f9fa';
+        ctx.fillRect(0, 0, 200, 200);
+
+        ctx.fillStyle = '#6c757d';
+        ctx.font = '16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('File Not Found', 100, 90);
+        ctx.fillText('📄', 100, 120);
+        ctx.fillText('Placeholder', 100, 140);
+
+        function downloadImage() {
+            const link = document.createElement('a');
+            link.download = 'file-not-found.png';
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+    </script>
+</body>
+</html>
