@@ -213,19 +213,7 @@
 }
 </style>
 
-/* تحسينات للشاشات المتوسطة */
-@media (min-width: 768px) and (max-width: 991px) {
-    .responsive-table thead th {
-        font-size: 0.85rem;
-    }
-}
 
-/* تحسينات لشاشات الحاسوب */
-@media (min-width: 992px) {
-    .responsive-table {
-        font-size: 1rem;
-    }
-}
 </style>
 
 @if(isset($folders) && method_exists($folders, 'hasPages') && $folders->hasPages())

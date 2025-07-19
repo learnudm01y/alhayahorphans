@@ -4,65 +4,65 @@
 <link href="{{ asset('css/folder-management-enhanced.css') }}" rel="stylesheet" type="text/css" />
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <style>
-/* عزل كامل لرؤوس الجداول - تجاوز جميع الأنماط الخارجية */
-#kt_file_manager_list thead,
-#kt_excel_manager_list thead,
-.table thead {
-    background-color: #ffffff !important;
-    background-image: none !important;
-    background: #ffffff !important;
-}
+    /* عزل كامل لرؤوس الجداول - تجاوز جميع الأنماط الخارجية */
+    #kt_file_manager_list thead,
+    #kt_excel_manager_list thead,
+    .table thead {
+        background-color: #ffffff !important;
+        background-image: none !important;
+        background: #ffffff !important;
+    }
 
-#kt_file_manager_list thead tr,
-#kt_excel_manager_list thead tr,
-.table thead tr {
-    background-color: #ffffff !important;
-    background-image: none !important;
-    background: #ffffff !important;
-    color: #333333 !important;
-}
+    #kt_file_manager_list thead tr,
+    #kt_excel_manager_list thead tr,
+    .table thead tr {
+        background-color: #ffffff !important;
+        background-image: none !important;
+        background: #ffffff !important;
+        color: #333333 !important;
+    }
 
-#kt_file_manager_list thead th,
-#kt_excel_manager_list thead th,
-.table thead th {
-    background-color: #ffffff !important;
-    background-image: none !important;
-    background: #ffffff !important;
-    color: #333333 !important;
-    border-color: #e4e6ea !important;
-    border-top: none !important;
-    position: relative;
-}
+    #kt_file_manager_list thead th,
+    #kt_excel_manager_list thead th,
+    .table thead th {
+        background-color: #ffffff !important;
+        background-image: none !important;
+        background: #ffffff !important;
+        color: #333333 !important;
+        border-color: #e4e6ea !important;
+        border-top: none !important;
+        position: relative;
+    }
 
-/* منع أي gradients أو patterns */
-#kt_file_manager_list thead *,
-#kt_excel_manager_list thead *,
-.table thead * {
-    background-color: #ffffff !important;
-    background-image: none !important;
-    background: #ffffff !important;
-}
+    /* منع أي gradients أو patterns */
+    #kt_file_manager_list thead *,
+    #kt_excel_manager_list thead *,
+    .table thead * {
+        background-color: #ffffff !important;
+        background-image: none !important;
+        background: #ffffff !important;
+    }
 
-/* تجاوز أي أنماط bootstrap */
-.table-light,
-.table-primary,
-.table-secondary,
-.table-success,
-.table-danger,
-.table-warning,
-.table-info,
-.table-dark {
-    background-color: #ffffff !important;
-}
+    /* تجاوز أي أنماط bootstrap */
+    .table-light,
+    .table-primary,
+    .table-secondary,
+    .table-success,
+    .table-danger,
+    .table-warning,
+    .table-info,
+    .table-dark {
+        background-color: #ffffff !important;
+    }
 
-/* تجاوز أي أنماط من frameworks أخرى */
-thead {
-    background: white !important;
-}
+    /* تجاوز أي أنماط من frameworks أخرى */
+    thead {
+        background: white !important;
+    }
 
-th {
-    background: white !important;
-}
+    th {
+        background: white !important;
+    }
 </style>
 @endpush
 
@@ -94,14 +94,14 @@ th {
                                 <i class="ki-duotone ki-picture fs-2 me-2">
                                     <span class="path1"></span>
                                     <span class="path2"></span>
-                                </i>🖼️ مجلدات الصور
+                                </i> مجلدات الصور
                             </button>
                             <button type="button" class="btn btn-enhanced btn-{{ request('type') === 'excel' ? 'primary' : 'light' }}"
                                     onclick="window.location.href='{{ route('admin.manage.folders.index', ['type' => 'excel']) }}'">
                                 <i class="ki-duotone ki-file fs-2 me-2">
                                     <span class="path1"></span>
                                     <span class="path2"></span>
-                                </i>📊 ملفات Excel
+                                </i> ملفات Excel
                             </button>
                         </div>
                         <!--end::Type Toggle-->
@@ -144,7 +144,7 @@ th {
                             <span class="path2"></span>
                         </i>
                         <span>
-                            {{ request('type', 'images') === 'images' ? '🖼️ مجلدات الصور والوثائق' : '📊 ملفات Excel' }}
+                            {{ request('type', 'images') === 'images' ? ' مجلدات الصور والوثائق' : ' ملفات Excel' }}
                             @if(isset($scanned_from_disk) && $scanned_from_disk)
                                 <small class="text-warning ms-2">(مسح فيزيائي)</small>
                             @endif
@@ -243,7 +243,7 @@ th {
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="imageModalLabel">🖼️ عرض الصورة</h5>
+                    <h5 class="modal-title" id="imageModalLabel"> عرض الصورة</h5>
                     <div class="btn-close" data-bs-dismiss="modal" aria-label="Close"></div>
                 </div>
                 <div class="modal-body text-center">
