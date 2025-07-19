@@ -539,6 +539,148 @@
             return icons[ext] || icons.default;
         }
 
+        // دالة تحديث محتويات الجدول مع نتائج البحث
+        function updateTableContent(results) {
+            console.log('🔄 Updating table content with search results:', results);
+
+            const container = document.getElementById('files_table_container');
+            if (!container) {
+                console.error('❌ Container غير موجود');
+                return;
+            }
+
+            if (!results || results.data.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-5">
+                        <i class="fas fa-images fs-3x text-muted mb-3"></i>
+                        <h4 class="text-muted">لم يتم العثور على ملفات</h4>
+                        <p class="text-muted">جرب كلمات بحث مختلفة</p>
+                    </div>`;
+                return;
+            }
+
+            let tableHtml = `
+                <div class="table-responsive">
+                    <table class="table table-row-dashed table-hover align-middle" id="kt_file_manager_list">
+                        <thead>
+                            <tr class="text-start text-gray-400 fw-bold fs-7 text-uppercase gs-0">
+                                <th class="min-w-250px">اسم الملف</th>
+                                <th class="min-w-150px">الحجم</th>
+                                <th class="min-w-150px">رقم السجل</th>
+                                <th class="min-w-150px">تاريخ الإنشاء</th>
+                                <th class="text-end min-w-70px">الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
+            results.data.forEach(file => {
+                const fileSize = file.file_size ? (file.file_size / 1024).toFixed(1) + ' KB' : 'غير معروف';
+                const recordNumber = file.record_number || 'غير محدد';
+                const fileName = file.original_file_name || file.stored_file_name || file.file_name;
+
+                tableHtml += `
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-image text-primary fs-2 me-3"></i>
+                                <div>
+                                    <span class="text-gray-800 fw-bold">${fileName}</span>
+                                    <div class="text-muted fs-7">${file.file_path || ''}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="text-gray-400">${fileSize}</td>
+                        <td class="text-gray-400">
+                            <span class="badge badge-light-primary">${recordNumber}</span>
+                        </td>
+                        <td class="text-gray-400">${file.created_at || file.updated_at || ''}</td>
+                        <td class="text-end">
+                            <div class="btn-group" role="group">
+                                <button class="btn btn-sm btn-success image-preview-btn"
+                                        data-src="${file.download_url}"
+                                        data-title="${fileName}">
+                                    <i class="fas fa-eye"></i> معاينة
+                                </button>
+                                <button class="btn btn-sm btn-primary download-file-btn"
+                                        data-url="${file.download_url}"
+                                        data-filename="${fileName}">
+                                    <i class="fas fa-download"></i> تحميل
+                                </button>
+                            </div>
+                        </td>
+                    </tr>`;
+            });
+
+            tableHtml += `</tbody></table></div>`;
+            container.innerHTML = tableHtml;
+
+            // إعادة ربط Event Listeners للعناصر الجديدة
+            attachEventListenersToSearchResults();
+
+            console.log('✅ تم تحديث الجدول وربط الأحداث بنجاح');
+        }
+
+        // دالة ربط الأحداث بنتائج البحث
+        function attachEventListenersToSearchResults() {
+            console.log('🔗 ربط الأحداث بنتائج البحث...');
+
+            // معاينة الصور
+            document.querySelectorAll('.image-preview-btn').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const imageSrc = this.getAttribute('data-src');
+                    const imageTitle = this.getAttribute('data-title');
+                    console.log('👁️ معاينة صورة من نتائج البحث:', imageSrc);
+                    showImageModal(imageSrc, imageTitle);
+                });
+            });
+
+            // تحميل الملفات
+            document.querySelectorAll('.download-file-btn').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const fileUrl = this.getAttribute('data-url');
+                    const fileName = this.getAttribute('data-filename');
+                    console.log('📥 تحميل ملف من نتائج البحث:', fileName);
+
+                    // إنشاء رابط تحميل ديناميكي
+                    const link = document.createElement('a');
+                    link.href = fileUrl;
+                    link.download = fileName;
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+            });
+
+            console.log('✅ تم ربط جميع الأحداث بنجاح');
+        }
+
+        // دوال مساعدة
+        function showLoadingState() {
+            console.log('⏳ عرض حالة التحميل...');
+            // يمكن إضافة منطق عرض التحميل هنا
+        }
+
+        function hideLoadingState() {
+            console.log('✅ إخفاء حالة التحميل...');
+            // يمكن إضافة منطق إخفاء التحميل هنا
+        }
+
+        function showErrorMessage(message) {
+            console.error('❌ خطأ:', message);
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'خطأ',
+                    text: message,
+                    timer: 3000,
+                    showConfirmButton: false
+                });
+            }
+        }
+
     });
 
 </script>

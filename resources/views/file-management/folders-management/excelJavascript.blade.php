@@ -760,8 +760,164 @@
         }
 
         function updateExcelTableContent(results) {
-            console.log('🔄 Updating Excel table content:', results);
-            // يمكن تطوير هذه الدالة لاحقاً حسب الحاجة
+            console.log('🔄 تحديث محتويات جدول Excel مع نتائج البحث:', results);
+
+            const container = document.getElementById('files_table_container');
+            if (!container) {
+                console.error('❌ Container غير موجود');
+                return;
+            }
+
+            if (!results || results.data.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-5">
+                        <i class="fas fa-file-excel fs-3x text-muted mb-3"></i>
+                        <h4 class="text-muted">لم يتم العثور على ملفات Excel</h4>
+                        <p class="text-muted">جرب كلمات بحث مختلفة</p>
+                    </div>`;
+                return;
+            }
+
+            let tableHtml = `
+                <div class="table-responsive">
+                    <table class="table table-row-dashed table-hover align-middle" id="kt_excel_manager_list">
+                        <thead>
+                            <tr class="text-start text-gray-400 fw-bold fs-7 text-uppercase gs-0">
+                                <th class="min-w-250px">اسم الملف</th>
+                                <th class="min-w-150px">الحجم</th>
+                                <th class="min-w-150px">رقم السجل</th>
+                                <th class="min-w-150px">تاريخ الإنشاء</th>
+                                <th class="text-end min-w-70px">الإجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
+            results.data.forEach(file => {
+                const fileSize = file.file_size ? (file.file_size / 1024).toFixed(1) + ' KB' : 'غير معروف';
+                const recordNumber = file.record_number || 'غير محدد';
+                const fileName = file.original_file_name || file.stored_file_name || file.file_name;
+
+                tableHtml += `
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-file-excel text-success fs-2 me-3"></i>
+                                <div>
+                                    <span class="text-gray-800 fw-bold">${fileName}</span>
+                                    <div class="text-muted fs-7">${file.file_path || ''}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="text-gray-400">${fileSize}</td>
+                        <td class="text-gray-400">
+                            <span class="badge badge-light-primary">${recordNumber}</span>
+                        </td>
+                        <td class="text-gray-400">${file.created_at || file.updated_at || ''}</td>
+                        <td class="text-end">
+                            <div class="btn-group" role="group">
+                                <button class="btn btn-sm btn-success excel-view-search-btn"
+                                        data-excel-src="${file.download_url}"
+                                        data-title="${fileName}">
+                                    <i class="fas fa-eye"></i> عرض
+                                </button>
+                                <button class="btn btn-sm btn-primary excel-download-btn"
+                                        data-url="${file.download_url}"
+                                        data-filename="${fileName}">
+                                    <i class="fas fa-download"></i> تحميل
+                                </button>
+                            </div>
+                        </td>
+                    </tr>`;
+            });
+
+            tableHtml += `</tbody></table></div>`;
+            container.innerHTML = tableHtml;
+
+            // إعادة ربط Event Listeners للعناصر الجديدة
+            attachExcelEventListenersToSearchResults();
+
+            console.log('✅ تم تحديث جدول Excel وربط الأحداث بنجاح');
+        }
+
+        // دالة ربط الأحداث بنتائج البحث Excel
+        function attachExcelEventListenersToSearchResults() {
+            console.log('🔗 ربط الأحداث بنتائج البحث Excel...');
+
+            // معاينة ملفات Excel
+            document.querySelectorAll('.excel-view-search-btn').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const excelSrc = this.getAttribute('data-excel-src');
+                    const title = this.getAttribute('data-title');
+                    console.log('📊 عرض Excel من نتائج البحث:', excelSrc);
+                    showExcelModal(excelSrc, title);
+                });
+            });
+
+            // تحميل ملفات Excel
+            document.querySelectorAll('.excel-download-btn').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const fileUrl = this.getAttribute('data-url');
+                    const fileName = this.getAttribute('data-filename');
+                    console.log('📥 تحميل Excel من نتائج البحث:', fileName);
+
+                    // إنشاء رابط تحميل
+                    const link = document.createElement('a');
+                    link.href = fileUrl;
+                    link.download = fileName;
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+            });
+
+            console.log('✅ تم ربط جميع أحداث Excel بنجاح');
+        }
+
+        // دالة عرض Excel Modal
+        function showExcelModal(excelSrc, fileName = 'ملف Excel') {
+            console.log('📊 عرض Excel في Modal:', excelSrc);
+
+            if (!excelSrc) {
+                console.error('❌ مسار Excel غير صحيح');
+                showErrorMessage('مسار الملف غير صحيح');
+                return;
+            }
+
+            // استخدام دالة المعاينة الموجودة
+            if (typeof previewExcelFile === 'function') {
+                previewExcelFile(excelSrc, fileName);
+            } else {
+                // fallback - فتح في نافذة جديدة
+                console.log('📊 فتح Excel في نافذة جديدة');
+                window.open(excelSrc, '_blank');
+            }
+        }
+
+        // دوال مساعدة للحالات والأخطاء
+        function showLoadingState() {
+            console.log('⏳ Showing loading state...');
+            // يمكن إضافة منطق عرض التحميل هنا
+        }
+
+        function hideLoadingState() {
+            console.log('✅ Hiding loading state...');
+            // يمكن إضافة منطق إخفاء التحميل هنا
+        }
+
+        function showErrorMessage(message) {
+            console.error('❌ Error:', message);
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'خطأ',
+                    text: message,
+                    timer: 3000,
+                    showConfirmButton: false
+                });
+            }
         }
 
         // إتاحة الدوال عالمياً
