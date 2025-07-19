@@ -230,8 +230,10 @@ class FolderManagementController extends Controller
 
                     // 1. If file_path exists in database, try it first
                     if (!empty($file->file_path)) {
-                        $cleanPath = str_replace(['storage/', '/storage/', '\\'], ['', '', '/'], $file->file_path);
-                        $pathsToCheck[] = $basePath . ltrim($cleanPath, '/');
+                        $cleanPath = $file->file_path;
+                        // إزالة storage/ من البداية إذا كانت موجودة لتجنب التكرار
+                        $cleanPath = preg_replace('#^/?storage/#', '', $cleanPath);
+                        $pathsToCheck[] = "storage/" . ltrim($cleanPath, '/');
                     }
 
                     // 2. Direct path in record folder (most common for newer records)
@@ -312,6 +314,7 @@ class FolderManagementController extends Controller
                         $q->where('original_file_name', 'LIKE', "%{$query}%")
                           ->orWhere('stored_file_name', 'LIKE', "%{$query}%")
                           ->orWhere('file_path', 'LIKE', "%{$query}%")
+                          ->orWhere('record_number', 'LIKE', "%{$query}%")
                           ->orWhereRaw('JSON_EXTRACT(file_metadata, "$.person_identity_number") LIKE ?', ["%{$query}%"]);
                     })
                     ->whereIn('file_type', ['image', 'photo', 'document', 'pdf'])
@@ -320,27 +323,75 @@ class FolderManagementController extends Controller
                     ->orderBy('updated_at', 'desc')
                     ->paginate(20);
             } else {
+                // تحسين البحث في ملفات Excel - بحث بسيط وآمن
                 $results = DB::table('enhanced_attachments')
                     ->where(function($q) use ($query) {
                         $q->where('original_file_name', 'LIKE', "%{$query}%")
                           ->orWhere('stored_file_name', 'LIKE', "%{$query}%")
-                          ->orWhere('file_path', 'LIKE', "%{$query}%");
+                          ->orWhere('file_path', 'LIKE', "%{$query}%")
+                          ->orWhere('record_number', 'LIKE', "%{$query}%");
+
+                        // البحث في metadata JSON إذا كان العمود موجود
+                        $columns = DB::getSchemaBuilder()->getColumnListing('enhanced_attachments');
+                        if (in_array('file_metadata', $columns)) {
+                            $q->orWhere('file_metadata', 'LIKE', "%{$query}%");
+                        }
                     })
                     ->where(function($query) {
                         $query->where('file_extension', 'xlsx')
                               ->orWhere('file_extension', 'xls')
                               ->orWhere('file_extension', 'csv')
+                              ->orWhere('file_extension', 'xlsm')
                               ->orWhere('mime_type', 'LIKE', '%excel%')
-                              ->orWhere('mime_type', 'LIKE', '%spreadsheet%');
+                              ->orWhere('mime_type', 'LIKE', '%spreadsheet%')
+                              ->orWhere('file_type', 'excel');
                     })
                     ->whereNull('deleted_at')
                     ->orderBy('created_at', 'desc')
                     ->paginate(20);
             }
 
+            // إضافة معلومات إضافية للنتائج
+            $enhancedData = collect($results->items())->map(function ($file) {
+                // التأكد من وجود download_url وإصلاح المسار
+                if (empty($file->download_url) && !empty($file->file_path)) {
+                    // إزالة storage/ في بداية المسار إذا كانت موجودة
+                    $cleanPath = ltrim($file->file_path, '/');
+                    if (strpos($cleanPath, 'storage/') === 0) {
+                        $cleanPath = substr($cleanPath, 8); // إزالة storage/
+                    }
+                    $file->download_url = asset('storage/' . $cleanPath);
+                }
+
+                // إضافة formatted size
+                if (isset($file->file_size)) {
+                    $file->formatted_size = $this->formatFileSize($file->file_size);
+                }
+
+                // إضافة formatted date
+                if (isset($file->created_at)) {
+                    $file->formatted_date = date('Y-m-d', strtotime($file->created_at));
+                }
+
+                return $file;
+            });
+
+            // إنشاء pagination response محسن
+            $paginationData = [
+                'data' => $enhancedData->toArray(),
+                'current_page' => $results->currentPage(),
+                'last_page' => $results->lastPage(),
+                'per_page' => $results->perPage(),
+                'total' => $results->total(),
+                'from' => $results->firstItem(),
+                'to' => $results->lastItem()
+            ];
+
             return response()->json([
                 'success' => true,
-                'results' => $results
+                'results' => $paginationData,
+                'search_query' => $query,
+                'search_type' => $type
             ]);
 
         } catch (\Exception $e) {

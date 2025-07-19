@@ -578,6 +578,30 @@
                 const recordNumber = file.record_number || 'غير محدد';
                 const fileName = file.original_file_name || file.stored_file_name || file.file_name;
 
+                // التأكد من وجود download_url وتنسيقه بشكل صحيح
+                let downloadUrl = file.download_url || file.file_path || '';
+                if (downloadUrl && !downloadUrl.startsWith('http')) {
+                    // إزالة storage/ المكررة من البداية
+                    downloadUrl = downloadUrl.replace(/^\/?(storage\/)+/, '');
+                    downloadUrl = downloadUrl.startsWith('/') ?
+                        window.location.origin + '/storage/' + downloadUrl.substring(1) :
+                        window.location.origin + '/storage/' + downloadUrl;
+                }
+
+                // التحقق من نوع الملف
+                const fileExtension = (file.file_extension || file.extension || '').toLowerCase();
+                const mimeType = file.mime_type || '';
+                const isImage = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(fileExtension) ||
+                              mimeType.includes('image/');
+
+                console.log('🔍 File data:', {
+                    name: fileName,
+                    original_url: file.download_url,
+                    processed_url: downloadUrl,
+                    isImage: isImage,
+                    extension: fileExtension
+                });
+
                 tableHtml += `
                     <tr>
                         <td>
@@ -596,13 +620,15 @@
                         <td class="text-gray-400">${file.created_at || file.updated_at || ''}</td>
                         <td class="text-end">
                             <div class="btn-group" role="group">
-                                <button class="btn btn-sm btn-success image-preview-btn"
-                                        data-src="${file.download_url}"
-                                        data-title="${fileName}">
-                                    <i class="fas fa-eye"></i> معاينة
-                                </button>
+                                ${isImage ? `
+                                    <button class="btn btn-sm btn-success image-preview-btn"
+                                            data-src="${downloadUrl}"
+                                            data-title="${fileName}">
+                                        <i class="fas fa-eye"></i> معاينة
+                                    </button>
+                                ` : ''}
                                 <button class="btn btn-sm btn-primary download-file-btn"
-                                        data-url="${file.download_url}"
+                                        data-url="${downloadUrl}"
                                         data-filename="${fileName}">
                                     <i class="fas fa-download"></i> تحميل
                                 </button>
@@ -630,7 +656,25 @@
                     e.preventDefault();
                     const imageSrc = this.getAttribute('data-src');
                     const imageTitle = this.getAttribute('data-title');
-                    console.log('👁️ معاينة صورة من نتائج البحث:', imageSrc);
+
+                    console.log('👁️ معاينة صورة من نتائج البحث:', {
+                        imageSrc: imageSrc,
+                        imageTitle: imageTitle
+                    });
+
+                    if (!imageSrc || imageSrc === 'undefined' || imageSrc === '') {
+                        console.error('❌ مسار الصورة غير صحيح:', imageSrc);
+                        if (typeof Swal !== 'undefined') {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'خطأ',
+                                text: 'مسار الصورة غير متاح',
+                                timer: 3000
+                            });
+                        }
+                        return;
+                    }
+
                     showImageModal(imageSrc, imageTitle);
                 });
             });
@@ -641,7 +685,24 @@
                     e.preventDefault();
                     const fileUrl = this.getAttribute('data-url');
                     const fileName = this.getAttribute('data-filename');
-                    console.log('📥 تحميل ملف من نتائج البحث:', fileName);
+
+                    console.log('📥 تحميل ملف من نتائج البحث:', {
+                        fileUrl: fileUrl,
+                        fileName: fileName
+                    });
+
+                    if (!fileUrl || fileUrl === 'undefined' || fileUrl === '') {
+                        console.error('❌ رابط التحميل غير صحيح:', fileUrl);
+                        if (typeof Swal !== 'undefined') {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'خطأ',
+                                text: 'رابط التحميل غير متاح',
+                                timer: 3000
+                            });
+                        }
+                        return;
+                    }
 
                     // إنشاء رابط تحميل ديناميكي
                     const link = document.createElement('a');

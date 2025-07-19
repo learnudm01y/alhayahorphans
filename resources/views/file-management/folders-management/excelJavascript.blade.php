@@ -143,7 +143,11 @@
                     // رابط التحميل
                     let downloadUrl = file.download_url || '';
                     if (downloadUrl && !downloadUrl.startsWith('http')) {
-                        downloadUrl = downloadUrl.startsWith('/') ? window.location.origin + downloadUrl : window.location.origin + '/' + downloadUrl;
+                        // إزالة storage/ المكررة من البداية
+                        downloadUrl = downloadUrl.replace(/^\/?(storage\/)+/, '');
+                        downloadUrl = downloadUrl.startsWith('/') ?
+                            window.location.origin + '/storage/' + downloadUrl.substring(1) :
+                            window.location.origin + '/storage/' + downloadUrl;
                     }
 
                     // تصميم كرت Excel محسن
@@ -797,6 +801,23 @@
                 const recordNumber = file.record_number || 'غير محدد';
                 const fileName = file.original_file_name || file.stored_file_name || file.file_name;
 
+                // التأكد من وجود download_url وتنسيقه بشكل صحيح
+                let downloadUrl = file.download_url || file.file_path || '';
+                if (downloadUrl && !downloadUrl.startsWith('http')) {
+                    // إزالة storage/ المكررة من البداية
+                    downloadUrl = downloadUrl.replace(/^\/?(storage\/)+/, '');
+                    downloadUrl = downloadUrl.startsWith('/') ?
+                        window.location.origin + '/storage/' + downloadUrl.substring(1) :
+                        window.location.origin + '/storage/' + downloadUrl;
+                }
+
+                console.log('📊 Excel file data:', {
+                    name: fileName,
+                    original_url: file.download_url,
+                    processed_url: downloadUrl,
+                    record_number: recordNumber
+                });
+
                 tableHtml += `
                     <tr>
                         <td>
@@ -816,12 +837,12 @@
                         <td class="text-end">
                             <div class="btn-group" role="group">
                                 <button class="btn btn-sm btn-success excel-view-search-btn"
-                                        data-excel-src="${file.download_url}"
+                                        data-excel-src="${downloadUrl}"
                                         data-title="${fileName}">
                                     <i class="fas fa-eye"></i> عرض
                                 </button>
                                 <button class="btn btn-sm btn-primary excel-download-btn"
-                                        data-url="${file.download_url}"
+                                        data-url="${downloadUrl}"
                                         data-filename="${fileName}">
                                     <i class="fas fa-download"></i> تحميل
                                 </button>
