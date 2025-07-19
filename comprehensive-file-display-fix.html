@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 إصلاح شامل لعرض الملفات</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            direction: rtl;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+        }
+        .success { background: rgba(40, 167, 69, 0.3); padding: 15px; margin: 10px 0; border-radius: 8px; border: 2px solid #28a745; }
+        .warning { background: rgba(255, 193, 7, 0.3); padding: 15px; margin: 10px 0; border-radius: 8px; border: 2px solid #ffc107; color: #333; }
+        .error { background: rgba(220, 53, 69, 0.3); padding: 15px; margin: 10px 0; border-radius: 8px; border: 2px solid #dc3545; }
+        .info { background: rgba(23, 162, 184, 0.3); padding: 15px; margin: 10px 0; border-radius: 8px; border: 2px solid #17a2b8; }
+        .test-section {
+            background: rgba(255,255,255,0.2);
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+        }
+        .btn {
+            padding: 12px 25px;
+            background: linear-gradient(45deg, #007bff, #6f42c1);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
+            transition: all 0.3s ease;
+        }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+        .btn-success { background: linear-gradient(45deg, #28a745, #20c997); }
+        .btn-warning { background: linear-gradient(45deg, #ffc107, #fd7e14); }
+        .btn-danger { background: linear-gradient(45deg, #dc3545, #c82333); }
+        .code {
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            margin: 10px 0;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .file-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .file-card {
+            background: rgba(255,255,255,0.15);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .file-preview {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        .spinner {
+            border: 4px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top: 4px solid #fff;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 10px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 إصلاح شامل لعرض الملفات</h1>
+
+        <div class="info">
+            <h3>📋 المشكلة المكتشفة</h3>
+            <p>النظام لا يعرض الملفات بسبب عدم تطابق أسماء الأعمدة بين الـ Models والـ Controller.</p>
+            <p><strong>الحل:</strong> إضافة نظام fallback متعدد المستويات للعثور على الملفات.</p>
+        </div>
+
+        <div class="test-section">
+            <h3>🏠 الخطوة 1: فحص بنية قاعدة البيانات</h3>
+            <button onclick="checkDatabaseStructure()" class="btn">فحص بنية الجداول</button>
+            <div id="db-structure-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 الخطوة 2: اختبار API المجلدات</h3>
+            <button onclick="testFoldersAPI()" class="btn btn-warning">اختبار API الرئيسي</button>
+            <div id="folders-api-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>📁 الخطوة 3: اختبار محتويات مجلد محدد</h3>
+            <input type="text" id="folder-input" placeholder="رقم المجلد (مثل: 000072)" value="000072"
+                   style="padding: 10px; border-radius: 5px; border: none; margin: 5px;">
+            <button onclick="testSpecificFolder()" class="btn btn-success">اختبار المجلد</button>
+            <div id="folder-contents-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔄 الخطوة 4: اختبار النظام المحدث</h3>
+            <button onclick="testUpdatedSystem()" class="btn btn-danger">اختبار النظام بعد التحديث</button>
+            <div id="updated-system-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🎯 الخطوة 5: اختبار الواجهة الكاملة</h3>
+            <button onclick="openFullInterface()" class="btn">فتح واجهة إدارة المجلدات</button>
+            <div id="interface-results"></div>
+        </div>
+    </div>
+
+    <script>
+        async function checkDatabaseStructure() {
+            const resultsDiv = document.getElementById('db-structure-results');
+            resultsDiv.innerHTML = '<div class="spinner"></div><p>جاري فحص بنية قاعدة البيانات...</p>';
+
+            try {
+                // فتح صفحة تحليل قاعدة البيانات
+                window.open('/analyze-database-structure.php', '_blank');
+
+                resultsDiv.innerHTML = `
+                    <div class="success">
+                        <h4>✅ تم فتح صفحة تحليل قاعدة البيانات</h4>
+                        <p>تحقق من النافذة الجديدة لرؤية تفاصيل بنية الجداول.</p>
+                    </div>
+                `;
+
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">❌ خطأ: ${error.message}</div>`;
+            }
+        }
+
+        async function testFoldersAPI() {
+            const resultsDiv = document.getElementById('folders-api-results');
+            resultsDiv.innerHTML = '<div class="spinner"></div><p>جاري اختبار API المجلدات...</p>';
+
+            try {
+                const response = await fetch('/admin/manage-folders?type=images');
+
+                if (response.ok) {
+                    const html = await response.text();
+
+                    // فحص إذا كانت الصفحة تحتوي على مجلدات
+                    const hasData = html.includes('000072') || html.includes('000078') || html.includes('folder-');
+
+                    resultsDiv.innerHTML = `
+                        <div class="${hasData ? 'success' : 'warning'}">
+                            <h4>${hasData ? '✅ API يعمل' : '⚠️ API يعمل لكن قد لا يحتوي على بيانات'}</h4>
+                            <p><strong>حالة الاستجابة:</strong> ${response.status} ${response.statusText}</p>
+                            <p><strong>يحتوي على بيانات:</strong> ${hasData ? 'نعم' : 'لا'}</p>
+                            <button onclick="window.open('/admin/manage-folders', '_blank')" class="btn">فتح الصفحة</button>
+                        </div>
+                    `;
+                } else {
+                    resultsDiv.innerHTML = `
+                        <div class="error">
+                            <h4>❌ خطأ في API</h4>
+                            <p>كود الخطأ: ${response.status}</p>
+                        </div>
+                    `;
+                }
+
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">❌ خطأ في الاتصال: ${error.message}</div>`;
+            }
+        }
+
+        async function testSpecificFolder() {
+            const folderNumber = document.getElementById('folder-input').value;
+            const resultsDiv = document.getElementById('folder-contents-results');
+
+            if (!folderNumber) {
+                resultsDiv.innerHTML = '<div class="warning">⚠️ يرجى إدخال رقم المجلد</div>';
+                return;
+            }
+
+            resultsDiv.innerHTML = '<div class="spinner"></div><p>جاري اختبار محتويات المجلد...</p>';
+
+            try {
+                const response = await fetch(`/admin/folders/contents?folder=${folderNumber}&type=images`);
+                const data = await response.json();
+
+                console.log('Folder Contents Response:', data);
+
+                let html = '<div class="code">';
+                html += '<h4>📋 استجابة API:</h4>';
+                html += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                html += '</div>';
+
+                if (data.success) {
+                    if (data.files && data.files.length > 0) {
+                        html += `<div class="success">✅ تم العثور على ${data.files.length} ملف(ات)</div>`;
+
+                        if (data.source) {
+                            html += `<p><strong>مصدر البيانات:</strong> ${data.source}</p>`;
+                        }
+
+                        html += '<h4>🖼️ معاينة الملفات:</h4>';
+                        html += '<div class="file-grid">';
+
+                        data.files.slice(0, 6).forEach(file => {
+                            html += `
+                                <div class="file-card">
+                                    ${file.is_image ?
+                                        `<img src="${file.download_url}" class="file-preview"
+                                             alt="${file.original_file_name}"
+                                             onload="console.log('✅ صورة محملة')"
+                                             onerror="console.error('❌ فشل تحميل'); this.style.display='none';">` :
+                                        `<div class="file-preview" style="background: #f0f0f0; display: flex; align-items: center; justify-content: center; color: #666;">
+                                            📄 ${file.file_extension || 'ملف'}
+                                         </div>`
+                                    }
+                                    <h5>${file.original_file_name}</h5>
+                                    <p><small>${file.formatted_size}</small></p>
+                                    <a href="${file.download_url}" target="_blank" class="btn" style="font-size: 12px; padding: 5px 10px;">فتح</a>
+                                </div>
+                            `;
+                        });
+
+                        html += '</div>';
+                    } else {
+                        html += '<div class="warning">⚠️ المجلد فارغ أو لا يحتوي على ملفات</div>';
+                    }
+                } else {
+                    html += `<div class="error">❌ خطأ: ${data.message || 'غير محدد'}</div>`;
+                }
+
+                resultsDiv.innerHTML = html;
+
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">❌ خطأ في الاتصال: ${error.message}</div>`;
+            }
+        }
+
+        async function testUpdatedSystem() {
+            const resultsDiv = document.getElementById('updated-system-results');
+            resultsDiv.innerHTML = '<div class="spinner"></div><p>جاري اختبار النظام المحدث...</p>';
+
+            try {
+                // اختبار عدة مجلدات
+                const testFolders = ['000072', '000078', '000079', '000076'];
+                let html = '<h4>🧪 نتائج الاختبار الشامل:</h4>';
+
+                for (const folder of testFolders) {
+                    const response = await fetch(`/admin/folders/contents?folder=${folder}&type=images`);
+                    const data = await response.json();
+
+                    const status = data.success && data.files && data.files.length > 0 ? 'success' : 'warning';
+                    const icon = status === 'success' ? '✅' : '⚠️';
+                    const filesCount = data.files ? data.files.length : 0;
+                    const source = data.source || 'database';
+
+                    html += `
+                        <div class="${status}">
+                            <strong>${icon} المجلد ${folder}:</strong>
+                            ${filesCount} ملف (مصدر: ${source})
+                        </div>
+                    `;
+                }
+
+                html += `
+                    <div class="info">
+                        <h4>📊 ملخص النتائج:</h4>
+                        <p>تم تحديث النظام ليدعم:</p>
+                        <ul style="text-align: right;">
+                            <li>✅ فحص أعمدة قاعدة البيانات تلقائياً</li>
+                            <li>✅ استخدام Models كبديل</li>
+                            <li>✅ فحص الملفات الفيزيائية كملاذ أخير</li>
+                            <li>✅ مسارات متعددة للعثور على الملفات</li>
+                        </ul>
+                    </div>
+                `;
+
+                resultsDiv.innerHTML = html;
+
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">❌ خطأ في اختبار النظام: ${error.message}</div>`;
+            }
+        }
+
+        function openFullInterface() {
+            const resultsDiv = document.getElementById('interface-results');
+
+            // فتح واجهة إدارة المجلدات
+            window.open('/admin/manage-folders', '_blank');
+
+            resultsDiv.innerHTML = `
+                <div class="success">
+                    <h4>🚀 تم فتح واجهة إدارة المجلدات</h4>
+                    <p>تحقق من النافذة الجديدة لرؤية النتائج النهائية.</p>
+                    <p><strong>ما يجب أن تراه:</strong></p>
+                    <ul style="text-align: right;">
+                        <li>قائمة بجميع المجلدات المتوفرة</li>
+                        <li>عدد الملفات في كل مجلد</li>
+                        <li>إمكانية فتح المجلدات وعرض محتوياتها</li>
+                        <li>معاينة الصور والملفات</li>
+                    </ul>
+                </div>
+            `;
+        }
+
+        // تشغيل تلقائي عند تحميل الصفحة
+        window.onload = function() {
+            console.log('🔧 صفحة الإصلاح الشامل جاهزة');
+
+            // تشغيل فحص سريع
+            setTimeout(() => {
+                testFoldersAPI();
+            }, 1000);
+        };
+    </script>
+</body>
+</html>

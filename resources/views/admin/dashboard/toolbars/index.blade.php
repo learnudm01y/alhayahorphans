@@ -704,7 +704,7 @@
     <script src="{{ asset('admin/assets/js/custom/utilities/modals/users-search.js') }}"></script>
     <!--end::Custom Javascript-->
     <script src="{{ asset('admin/assets/plugins/custom/cropper/cropper.bundle.js') }}"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!--begin::Theme Mode Script-->
 
     <script>

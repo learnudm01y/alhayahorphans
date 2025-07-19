@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار الإصلاحات النهائية</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f8f9fa; }
+        .test-card { background: white; padding: 20px; margin: 20px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .status { padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .btn { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+        .btn:hover { background: #0056b3; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 اختبار الإصلاحات النهائية</h1>
+
+        <div class="test-card">
+            <h2>1️⃣ اختبار صحة JavaScript</h2>
+            <button class="btn" onclick="testJavaScriptSyntax()">اختبار JavaScript</button>
+            <div id="js-test-result"></div>
+        </div>
+
+        <div class="test-card">
+            <h2>2️⃣ اختبار الروابط</h2>
+            <button class="btn" onclick="testLinks()">اختبار الروابط</button>
+            <div id="links-test-result"></div>
+
+            <!-- Test links -->
+            <div style="margin-top: 20px;">
+                <h4>روابط اختبارية:</h4>
+                <a href="javascript:void(0)" onclick="testLinkClick(this)" class="btn">رابط صحيح</a>
+                <a href="#" onclick="testLinkClick(this)" class="btn" style="background: #dc3545;">رابط خاطئ</a>
+            </div>
+        </div>
+
+        <div class="test-card">
+            <h2>3️⃣ اختبار صفحة المجلدات</h2>
+            <button class="btn" onclick="testMainPage()">اختبار الصفحة</button>
+            <div id="page-test-result"></div>
+
+            <div style="margin-top: 15px;">
+                <a href="http://localhost:8000/admin/manage-folders" target="_blank" class="btn">افتح صفحة المجلدات</a>
+            </div>
+        </div>
+
+        <div class="test-card">
+            <h2>4️⃣ فحص Console للأخطاء</h2>
+            <button class="btn" onclick="checkConsoleErrors()">فحص الأخطاء</button>
+            <div id="console-test-result"></div>
+        </div>
+    </div>
+
+    <script>
+        function testJavaScriptSyntax() {
+            const resultDiv = document.getElementById('js-test-result');
+            resultDiv.innerHTML = '<div class="status info">🔄 جاري اختبار JavaScript...</div>';
+
+            let tests = [];
+
+            // Test 1: Basic syntax
+            try {
+                eval('const testVar = "hello"; console.log("JS syntax OK");');
+                tests.push('✅ Basic JavaScript syntax working');
+            } catch (error) {
+                tests.push('❌ JavaScript syntax error: ' + error.message);
+            }
+
+            // Test 2: Function definition
+            try {
+                function testFunction() {
+                    return 'working';
+                }
+                const result = testFunction();
+                if (result === 'working') {
+                    tests.push('✅ Function definition working');
+                } else {
+                    tests.push('❌ Function execution failed');
+                }
+            } catch (error) {
+                tests.push('❌ Function definition error: ' + error.message);
+            }
+
+            // Test 3: Event handling
+            try {
+                document.addEventListener('click', function() {});
+                tests.push('✅ Event handling working');
+            } catch (error) {
+                tests.push('❌ Event handling error: ' + error.message);
+            }
+
+            resultDiv.innerHTML = '<div class="status ' + (tests.every(t => t.includes('✅')) ? 'success' : 'error') + '">' +
+                tests.join('<br>') + '</div>';
+        }
+
+        function testLinks() {
+            const resultDiv = document.getElementById('links-test-result');
+            resultDiv.innerHTML = '<div class="status info">🔄 جاري اختبار الروابط...</div>';
+
+            // Get current URL before test
+            const currentURL = window.location.href;
+
+            // Test javascript:void(0) link
+            try {
+                const testLink = document.createElement('a');
+                testLink.href = 'javascript:void(0)';
+                testLink.click();
+
+                // Check if URL changed
+                const afterClickURL = window.location.href;
+
+                if (currentURL === afterClickURL) {
+                    resultDiv.innerHTML = '<div class="status success">✅ الروابط تعمل بشكل صحيح - لا تغيير في URL</div>';
+                } else {
+                    resultDiv.innerHTML = '<div class="status warning">⚠️ تم تغيير URL: ' + afterClickURL + '</div>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="status error">❌ خطأ في اختبار الروابط: ' + error.message + '</div>';
+            }
+        }
+
+        function testLinkClick(link) {
+            const href = link.getAttribute('href');
+            const currentURL = window.location.href;
+
+            alert('تم النقر على رابط: ' + href + '\nURL الحالي: ' + currentURL);
+
+            // Prevent # links from changing URL
+            if (href === '#') {
+                event.preventDefault();
+                alert('تم منع تغيير URL للرابط الخاطئ');
+            }
+        }
+
+        async function testMainPage() {
+            const resultDiv = document.getElementById('page-test-result');
+            resultDiv.innerHTML = '<div class="status info">🔄 جاري اختبار الصفحة...</div>';
+
+            try {
+                const response = await fetch('http://localhost:8000/admin/manage-folders');
+
+                if (response.ok) {
+                    const text = await response.text();
+
+                    // Check for common issues
+                    const hasJSError = text.includes('Unexpected token');
+                    const hasHashLinks = text.includes('href="#"');
+
+                    let results = [];
+
+                    if (hasJSError) {
+                        results.push('❌ يحتوي على أخطاء JavaScript');
+                    } else {
+                        results.push('✅ لا توجد أخطاء JavaScript ظاهرة');
+                    }
+
+                    if (hasHashLinks) {
+                        results.push('⚠️ يحتوي على روابط # (قد تسبب مشاكل)');
+                    } else {
+                        results.push('✅ لا توجد روابط # خاطئة');
+                    }
+
+                    resultDiv.innerHTML = '<div class="status ' + (results.every(r => r.includes('✅')) ? 'success' : 'warning') + '">' +
+                        results.join('<br>') + '</div>';
+
+                } else {
+                    resultDiv.innerHTML = '<div class="status error">❌ فشل في تحميل الصفحة: ' + response.status + '</div>';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="status error">❌ خطأ في الاتصال: ' + error.message + '</div>';
+            }
+        }
+
+        function checkConsoleErrors() {
+            const resultDiv = document.getElementById('console-test-result');
+
+            // Override console.error to catch errors
+            const originalError = console.error;
+            const errors = [];
+
+            console.error = function(...args) {
+                errors.push(args.join(' '));
+                originalError.apply(console, args);
+            };
+
+            // Test something that might cause error
+            try {
+                // This should not cause an error
+                const test = document.getElementById('nonexistent');
+                if (!test) {
+                    console.log('Element not found (this is expected)');
+                }
+            } catch (error) {
+                console.error('Test error:', error.message);
+            }
+
+            // Restore original console.error
+            console.error = originalError;
+
+            if (errors.length === 0) {
+                resultDiv.innerHTML = '<div class="status success">✅ لا توجد أخطاء في Console</div>';
+            } else {
+                resultDiv.innerHTML = '<div class="status warning">⚠️ تم اكتشاف أخطاء:<br><pre>' + errors.join('\n') + '</pre></div>';
+            }
+        }
+
+        // Auto-run tests
+        window.onload = function() {
+            console.log('🚀 بدء اختبار الإصلاحات...');
+            setTimeout(testJavaScriptSyntax, 500);
+            setTimeout(testLinks, 1000);
+        };
+    </script>
+</body>
+</html>

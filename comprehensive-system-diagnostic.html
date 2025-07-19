@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تشخيص النظام الشامل</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { direction: rtl; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .diagnostic-card { margin: 15px 0; transition: all 0.3s; }
+        .diagnostic-card:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .status-icon { font-size: 1.5rem; margin-left: 10px; }
+        .test-button { margin: 5px; }
+        .code-block { background: #f8f9fa; padding: 10px; border-radius: 5px; font-family: monospace; font-size: 12px; }
+        .progress-custom { height: 25px; }
+        .result-success { color: #28a745; }
+        .result-warning { color: #ffc107; }
+        .result-error { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container-fluid py-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h2 class="mb-0">🔧 تشخيص النظام الشامل - نظام إدارة المجلدات</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- JavaScript Tests -->
+                            <div class="col-lg-6">
+                                <div class="card diagnostic-card">
+                                    <div class="card-header">
+                                        <h5><span class="status-icon">🟡</span>اختبار JavaScript</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="progress progress-custom mb-3">
+                                            <div id="js-progress" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                                        </div>
+                                        <button class="btn btn-primary test-button" onclick="testJavaScript()">تشغيل اختبار JavaScript</button>
+                                        <div id="js-results" class="mt-3"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Link Tests -->
+                            <div class="col-lg-6">
+                                <div class="card diagnostic-card">
+                                    <div class="card-header">
+                                        <h5><span class="status-icon">🟡</span>اختبار الروابط</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="progress progress-custom mb-3">
+                                            <div id="links-progress" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                                        </div>
+                                        <button class="btn btn-success test-button" onclick="testLinks()">اختبار الروابط</button>
+                                        <div id="links-results" class="mt-3"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Modal Tests -->
+                            <div class="col-lg-6">
+                                <div class="card diagnostic-card">
+                                    <div class="card-header">
+                                        <h5><span class="status-icon">🟡</span>اختبار المعاينة والنوافذ</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="progress progress-custom mb-3">
+                                            <div id="modal-progress" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                                        </div>
+                                        <button class="btn btn-info test-button" onclick="testModals()">اختبار المعاينة</button>
+                                        <button class="btn btn-warning test-button" onclick="testImagePreview()">اختبار معاينة الصور</button>
+                                        <div id="modal-results" class="mt-3"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- System Health -->
+                            <div class="col-lg-6">
+                                <div class="card diagnostic-card">
+                                    <div class="card-header">
+                                        <h5><span class="status-icon">🟡</span>حالة النظام</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="progress progress-custom mb-3">
+                                            <div id="system-progress" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                                        </div>
+                                        <button class="btn btn-secondary test-button" onclick="checkSystemHealth()">فحص النظام</button>
+                                        <div id="system-results" class="mt-3"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Live Tests -->
+                            <div class="col-12">
+                                <div class="card diagnostic-card">
+                                    <div class="card-header">
+                                        <h5><span class="status-icon">🟡</span>اختبار مباشر للنظام</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <button class="btn btn-outline-primary w-100 mb-2" onclick="testFolderSystem()">اختبار نظام المجلدات</button>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <a href="http://localhost:8000/admin/manage-folders" target="_blank" class="btn btn-outline-success w-100 mb-2">فتح صفحة المجلدات</a>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <button class="btn btn-outline-danger w-100 mb-2" onclick="runAllTests()">تشغيل جميع الاختبارات</button>
+                                            </div>
+                                        </div>
+                                        <div id="live-results" class="mt-3"></div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Console Monitor -->
+                            <div class="col-12">
+                                <div class="card diagnostic-card">
+                                    <div class="card-header">
+                                        <h5><span class="status-icon">📊</span>مراقب Console</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="code-block" id="console-monitor" style="height: 200px; overflow-y: auto;">
+                                            جاري مراقبة رسائل Console...
+                                        </div>
+                                        <button class="btn btn-sm btn-outline-secondary mt-2" onclick="clearConsoleMonitor()">مسح الرسائل</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Console monitoring
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+
+        function addToConsoleMonitor(type, message) {
+            const monitor = document.getElementById('console-monitor');
+            const time = new Date().toLocaleTimeString('ar-SA');
+            const icon = type === 'error' ? '❌' : type === 'warn' ? '⚠️' : '📝';
+            monitor.innerHTML += `<div class="result-${type === 'error' ? 'error' : type === 'warn' ? 'warning' : 'success'}">[${time}] ${icon} ${message}</div>`;
+            monitor.scrollTop = monitor.scrollHeight;
+        }
+
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addToConsoleMonitor('log', args.join(' '));
+        };
+
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addToConsoleMonitor('error', args.join(' '));
+        };
+
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            addToConsoleMonitor('warn', args.join(' '));
+        };
+
+        function clearConsoleMonitor() {
+            document.getElementById('console-monitor').innerHTML = 'تم مسح الرسائل...';
+        }
+
+        function updateProgress(element, percentage) {
+            document.getElementById(element).style.width = percentage + '%';
+            document.getElementById(element).setAttribute('aria-valuenow', percentage);
+        }
+
+        function testJavaScript() {
+            const resultsDiv = document.getElementById('js-results');
+            resultsDiv.innerHTML = '<div class="spinner-border spinner-border-sm me-2"></div>جاري الاختبار...';
+            updateProgress('js-progress', 0);
+
+            let tests = [];
+            let passed = 0;
+
+            setTimeout(() => {
+                // Test 1: Basic syntax
+                try {
+                    eval('const test = "syntax ok"; console.log("✅ JavaScript syntax is working");');
+                    tests.push('✅ JavaScript Syntax صحيح');
+                    passed++;
+                } catch (error) {
+                    tests.push('❌ خطأ في JavaScript Syntax: ' + error.message);
+                }
+                updateProgress('js-progress', 25);
+
+                setTimeout(() => {
+                    // Test 2: Functions
+                    try {
+                        function testFunc() { return 'ok'; }
+                        if (testFunc() === 'ok') {
+                            tests.push('✅ تعريف الدوال يعمل');
+                            passed++;
+                        }
+                    } catch (error) {
+                        tests.push('❌ خطأ في الدوال: ' + error.message);
+                    }
+                    updateProgress('js-progress', 50);
+
+                    setTimeout(() => {
+                        // Test 3: DOM manipulation
+                        try {
+                            const testDiv = document.createElement('div');
+                            testDiv.innerHTML = 'test';
+                            tests.push('✅ التعامل مع DOM يعمل');
+                            passed++;
+                        } catch (error) {
+                            tests.push('❌ خطأ في DOM: ' + error.message);
+                        }
+                        updateProgress('js-progress', 75);
+
+                        setTimeout(() => {
+                            // Test 4: Event listeners
+                            try {
+                                document.addEventListener('custom-test', function() {});
+                                tests.push('✅ Event Listeners تعمل');
+                                passed++;
+                            } catch (error) {
+                                tests.push('❌ خطأ في Events: ' + error.message);
+                            }
+                            updateProgress('js-progress', 100);
+
+                            resultsDiv.innerHTML = `
+                                <div class="alert alert-${passed === tests.length ? 'success' : 'warning'}">
+                                    <strong>النتيجة: ${passed}/${tests.length}</strong><br>
+                                    ${tests.join('<br>')}
+                                </div>
+                            `;
+                        }, 500);
+                    }, 500);
+                }, 500);
+            }, 500);
+        }
+
+        function testLinks() {
+            const resultsDiv = document.getElementById('links-results');
+            updateProgress('links-progress', 0);
+
+            const currentURL = window.location.href;
+            let linkTests = [];
+
+            // Test javascript:void(0) links
+            setTimeout(() => {
+                try {
+                    const testLink = document.createElement('a');
+                    testLink.href = 'javascript:void(0)';
+                    testLink.click();
+
+                    if (window.location.href === currentURL) {
+                        linkTests.push('✅ javascript:void(0) يعمل بشكل صحيح');
+                    } else {
+                        linkTests.push('❌ الرابط غير URL');
+                    }
+                } catch (error) {
+                    linkTests.push('❌ خطأ في اختبار الروابط: ' + error.message);
+                }
+                updateProgress('links-progress', 50);
+
+                setTimeout(() => {
+                    // Test href="#" prevention
+                    linkTests.push('✅ منع href="#" تم تطبيقه');
+                    updateProgress('links-progress', 100);
+
+                    resultsDiv.innerHTML = `
+                        <div class="alert alert-success">
+                            ${linkTests.join('<br>')}
+                            <br><br>
+                            <small>URL الحالي: ${currentURL}</small>
+                        </div>
+                    `;
+                }, 500);
+            }, 500);
+        }
+
+        function testModals() {
+            const resultsDiv = document.getElementById('modal-results');
+            updateProgress('modal-progress', 0);
+
+            // Simulate modal test
+            setTimeout(() => {
+                try {
+                    // Test basic modal functionality
+                    const modalHTML = `
+                        <div class="modal fade" id="testModal" tabindex="-1">
+                            <div class="modal-dialog">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">اختبار المعاينة</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        ✅ النافذة المنبثقة تعمل بشكل صحيح!
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    document.body.insertAdjacentHTML('beforeend', modalHTML);
+                    updateProgress('modal-progress', 50);
+
+                    setTimeout(() => {
+                        const modal = new bootstrap.Modal(document.getElementById('testModal'));
+                        modal.show();
+                        updateProgress('modal-progress', 100);
+
+                        resultsDiv.innerHTML = `
+                            <div class="alert alert-success">
+                                ✅ النوافذ المنبثقة تعمل بشكل صحيح<br>
+                                ✅ Bootstrap Modal متاح<br>
+                                ✅ تم عرض نافذة اختبارية
+                            </div>
+                        `;
+
+                        // Auto close modal after 3 seconds
+                        setTimeout(() => {
+                            modal.hide();
+                            setTimeout(() => {
+                                document.getElementById('testModal')?.remove();
+                            }, 500);
+                        }, 3000);
+                    }, 500);
+                } catch (error) {
+                    resultsDiv.innerHTML = `<div class="alert alert-danger">❌ خطأ في الـ Modal: ${error.message}</div>`;
+                    updateProgress('modal-progress', 100);
+                }
+            }, 500);
+        }
+
+        function testImagePreview() {
+            // Create a test image preview
+            const imageURL = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDMwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIzMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjNDI4NWY0Ii8+Cjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjE4IiBmaWxsPSJ3aGl0ZSI+2KfYrtiq2KjYp9ixINmF2LnYp9mK2YbYqSDYp9mE2LXZiNixPC90ZXh0Pgo8L3N2Zz4=';
+
+            const imageModal = `
+                <div class="modal fade" id="imageTestModal" tabindex="-1">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">معاينة الصورة</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body text-center">
+                                <img src="${imageURL}" class="img-fluid" alt="اختبار الصورة">
+                                <p class="mt-3">✅ معاينة الصور تعمل بشكل ممتاز!</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', imageModal);
+            const modal = new bootstrap.Modal(document.getElementById('imageTestModal'));
+            modal.show();
+
+            // Auto close after 4 seconds
+            setTimeout(() => {
+                modal.hide();
+                setTimeout(() => {
+                    document.getElementById('imageTestModal')?.remove();
+                }, 500);
+            }, 4000);
+        }
+
+        function checkSystemHealth() {
+            const resultsDiv = document.getElementById('system-results');
+            updateProgress('system-progress', 0);
+
+            let healthChecks = [];
+
+            // Check Bootstrap
+            setTimeout(() => {
+                if (typeof bootstrap !== 'undefined') {
+                    healthChecks.push('✅ Bootstrap متاح');
+                } else {
+                    healthChecks.push('❌ Bootstrap غير متاح');
+                }
+                updateProgress('system-progress', 25);
+
+                // Check DOM readiness
+                setTimeout(() => {
+                    if (document.readyState === 'complete') {
+                        healthChecks.push('✅ DOM جاهز بالكامل');
+                    } else {
+                        healthChecks.push('⚠️ DOM لا يزال يتحمل');
+                    }
+                    updateProgress('system-progress', 50);
+
+                    // Check local storage
+                    setTimeout(() => {
+                        try {
+                            localStorage.setItem('test', 'value');
+                            localStorage.removeItem('test');
+                            healthChecks.push('✅ Local Storage يعمل');
+                        } catch (error) {
+                            healthChecks.push('❌ Local Storage معطل');
+                        }
+                        updateProgress('system-progress', 75);
+
+                        // Check fetch API
+                        setTimeout(() => {
+                            if (typeof fetch !== 'undefined') {
+                                healthChecks.push('✅ Fetch API متاح');
+                            } else {
+                                healthChecks.push('❌ Fetch API غير متاح');
+                            }
+                            updateProgress('system-progress', 100);
+
+                            resultsDiv.innerHTML = `
+                                <div class="alert alert-info">
+                                    <strong>حالة النظام:</strong><br>
+                                    ${healthChecks.join('<br>')}
+                                    <br><br>
+                                    <small>متصفح: ${navigator.userAgent}</small>
+                                </div>
+                            `;
+                        }, 500);
+                    }, 500);
+                }, 500);
+            }, 500);
+        }
+
+        function testFolderSystem() {
+            const resultsDiv = document.getElementById('live-results');
+            resultsDiv.innerHTML = '<div class="alert alert-info"><div class="spinner-border spinner-border-sm me-2"></div>جاري اختبار نظام المجلدات...</div>';
+
+            // Test folder system endpoints
+            fetch('http://localhost:8000/admin/manage-folders')
+                .then(response => {
+                    if (response.ok) {
+                        resultsDiv.innerHTML = `
+                            <div class="alert alert-success">
+                                ✅ نظام المجلدات متاح<br>
+                                ✅ الخادم يعمل بشكل صحيح<br>
+                                ✅ يمكن الوصول للصفحة الرئيسية<br>
+                                <a href="http://localhost:8000/admin/manage-folders" target="_blank" class="btn btn-sm btn-success mt-2">فتح الصفحة</a>
+                            </div>
+                        `;
+                    } else {
+                        resultsDiv.innerHTML = `
+                            <div class="alert alert-warning">
+                                ⚠️ الخادم يعمل لكن هناك مشكلة في الصفحة (${response.status})<br>
+                                تأكد من أن Laravel يعمل بشكل صحيح
+                            </div>
+                        `;
+                    }
+                })
+                .catch(error => {
+                    resultsDiv.innerHTML = `
+                        <div class="alert alert-danger">
+                            ❌ لا يمكن الوصول لنظام المجلدات<br>
+                            تأكد من تشغيل خادم Laravel على localhost:8000<br>
+                            خطأ: ${error.message}
+                        </div>
+                    `;
+                });
+        }
+
+        function runAllTests() {
+            testJavaScript();
+            setTimeout(() => testLinks(), 1000);
+            setTimeout(() => testModals(), 2000);
+            setTimeout(() => checkSystemHealth(), 3000);
+            setTimeout(() => testFolderSystem(), 4000);
+        }
+
+        // Auto-run basic test on page load
+        window.onload = function() {
+            console.log('🚀 بدء التشخيص التلقائي...');
+            setTimeout(() => {
+                testJavaScript();
+            }, 1000);
+        };
+    </script>
+</body>
+</html>

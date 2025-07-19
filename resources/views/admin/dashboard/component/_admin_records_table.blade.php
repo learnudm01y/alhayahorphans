@@ -1,11 +1,11 @@
 <div class="table-responsive">
     <table class="table table-bordered table-sm align-middle text-center mb-2">
-        <thead class="table-light">
-            <tr>
-                <th>#</th>
-                <th>رقم السجل</th>
-                <th>الاسم</th>
-                <th>خيارات</th>
+        <thead style="background-color: white !important;">
+            <tr style="background-color: white !important;">
+                <th style="background-color: white !important; color: #333 !important;">#</th>
+                <th style="background-color: white !important; color: #333 !important;">رقم السجل</th>
+                <th style="background-color: white !important; color: #333 !important;">الاسم</th>
+                <th style="background-color: white !important; color: #333 !important;">خيارات</th>
             </tr>
         </thead>
         <tbody>

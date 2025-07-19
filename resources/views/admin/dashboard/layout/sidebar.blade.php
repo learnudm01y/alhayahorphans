@@ -451,6 +451,14 @@
                     </a>
                 </div>
                 <div class="menu-item">
+                    <a class="menu-link" href="{{ route('admin.manage.folders.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-folder-open"></i>
+                        </span>
+                        <span class="menu-title"> ادارة المجلدات  </span>
+                    </a>
+                </div>
+                <div class="menu-item">
                     <a class="menu-link" href="{{ route('admin.file.excel.gateway.sidebar') }}">
                         <span class="menu-bullet">
                             <i class="fas fa-file-excel"></i>

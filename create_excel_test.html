@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>إنشاء ملف Excel تجريبي</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+    <h1>إنشاء ملف Excel تجريبي</h1>
+    <button onclick="createExcelFile()">إنشاء ملف Excel</button>
+
+    <script>
+        function createExcelFile() {
+            // إنشاء مصنف جديد
+            const wb = XLSX.utils.book_new();
+
+            // بيانات تجريبية للورقة الأولى
+            const ws1_data = [
+                ['اسم الموظف', 'القسم', 'الراتب', 'تاريخ التوظيف'],
+                ['أحمد محمد', 'المبيعات', 5000, '2023-01-15'],
+                ['فاطمة أحمد', 'المحاسبة', 4500, '2023-02-20'],
+                ['محمد علي', 'تقنية المعلومات', 6000, '2023-03-10'],
+                ['نور الدين', 'الموارد البشرية', 4800, '2023-04-05']
+            ];
+
+            // بيانات تجريبية للورقة الثانية
+            const ws2_data = [
+                ['المنتج', 'السعر', 'الكمية', 'الإجمالي'],
+                ['لابتوب', 2500, 10, 25000],
+                ['طابعة', 800, 5, 4000],
+                ['ماوس', 50, 100, 5000],
+                ['لوحة مفاتيح', 120, 50, 6000]
+            ];
+
+            // إنشاء أوراق العمل
+            const ws1 = XLSX.utils.aoa_to_sheet(ws1_data);
+            const ws2 = XLSX.utils.aoa_to_sheet(ws2_data);
+
+            // إضافة الأوراق للمصنف
+            XLSX.utils.book_append_sheet(wb, ws1, "الموظفين");
+            XLSX.utils.book_append_sheet(wb, ws2, "المنتجات");
+
+            // حفظ الملف
+            XLSX.writeFile(wb, "test_excel_file.xlsx");
+
+            alert('تم إنشاء ملف Excel بنجاح!');
+        }
+    </script>
+</body>
+</html>

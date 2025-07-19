@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار نهائي - نظام المجلدات</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f8f9fa; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .test-card { background: white; padding: 20px; margin: 20px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .status { padding: 10px; border-radius: 5px; margin: 10px 0; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .btn { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+        .btn:hover { background: #0056b3; }
+        .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin: 20px 0; }
+        .image-card { border: 1px solid #ddd; border-radius: 8px; padding: 10px; background: white; }
+        .image-preview { width: 100%; height: 150px; object-fit: cover; border-radius: 5px; }
+        .file-info { font-size: 12px; margin-top: 5px; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 اختبار نهائي - نظام المجلدات</h1>
+
+        <div class="test-card">
+            <h2>1️⃣ اختبار API الجديد</h2>
+            <button class="btn" onclick="testNewAPI()">اختبار API</button>
+            <div id="api-result"></div>
+        </div>
+
+        <div class="test-card">
+            <h2>2️⃣ عرض الصور</h2>
+            <div id="images-display"></div>
+        </div>
+
+        <div class="test-card">
+            <h2>3️⃣ اختبار JavaScript</h2>
+            <button class="btn" onclick="testJavaScript()">اختبار JS</button>
+            <div id="js-result"></div>
+        </div>
+
+        <div class="test-card">
+            <h2>4️⃣ روابط مهمة</h2>
+            <div>
+                <a href="http://localhost:8000/admin/manage-folders" target="_blank" class="btn">الصفحة الرئيسية</a>
+                <a href="http://localhost:8000/admin/folders/contents?folder=000010&type=images" target="_blank" class="btn">API مباشر</a>
+                <a href="http://localhost:8000/file-management/folders-management" target="_blank" class="btn">الصفحة القديمة</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function testNewAPI() {
+            const resultDiv = document.getElementById('api-result');
+            const imagesDiv = document.getElementById('images-display');
+
+            resultDiv.innerHTML = '<div class="status info">🔄 جاري اختبار API...</div>';
+
+            try {
+                const response = await fetch('/admin/folders/contents?folder=000010&type=images');
+                const data = await response.json();
+
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <div class="status success">✅ API يعمل بنجاح!</div>
+                        <div>📊 عدد الملفات: ${data.files.length}</div>
+                        <div>📂 اسم المجلد: ${data.folder_name}</div>
+                    `;
+
+                    // Display images
+                    let imagesHtml = '<h3>🖼️ الصور المعروضة:</h3><div class="image-grid">';
+                    let imageCount = 0;
+
+                    data.files.forEach((file, index) => {
+                        if (file.is_image) {
+                            imageCount++;
+                            imagesHtml += `
+                                <div class="image-card">
+                                    <img src="${file.download_url}"
+                                         class="image-preview"
+                                         alt="${file.stored_file_name || file.original_file_name}"
+                                         onload="imageLoaded(${index})"
+                                         onerror="imageFailed(${index})"
+                                         id="img_${index}">
+                                    <div class="file-info">
+                                        <strong>الملف:</strong> ${file.stored_file_name || file.original_file_name}<br>
+                                        <strong>الحجم:</strong> ${file.formatted_size}<br>
+                                        <strong>النوع:</strong> ${file.extension}<br>
+                                        <div id="status_${index}">جاري التحميل...</div>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    });
+
+                    imagesHtml += '</div>';
+
+                    if (imageCount === 0) {
+                        imagesHtml = '<div class="status warning">⚠️ لا توجد صور في هذا المجلد</div>';
+                    }
+
+                    imagesDiv.innerHTML = imagesHtml;
+
+                    // Show raw data
+                    resultDiv.innerHTML += `
+                        <details style="margin-top: 15px;">
+                            <summary style="cursor: pointer; font-weight: bold;">عرض البيانات الخام</summary>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </details>
+                    `;
+
+                } else {
+                    resultDiv.innerHTML = `<div class="status error">❌ فشل في API: ${data.message || 'خطأ غير معروف'}</div>`;
+                }
+
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="status error">❌ خطأ في الشبكة: ${error.message}</div>`;
+            }
+        }
+
+        function imageLoaded(index) {
+            const statusDiv = document.getElementById('status_' + index);
+            if (statusDiv) {
+                statusDiv.innerHTML = '<span style="color: green;">✅ تم التحميل</span>';
+            }
+        }
+
+        function imageFailed(index) {
+            const statusDiv = document.getElementById('status_' + index);
+            if (statusDiv) {
+                statusDiv.innerHTML = '<span style="color: red;">❌ فشل التحميل</span>';
+            }
+
+            // Replace with placeholder
+            const img = document.getElementById('img_' + index);
+            if (img) {
+                img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjE1MCIgdmlld0JveD0iMCAwIDIwMCAxNTAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMTUwIiBmaWxsPSIjRjVGNUY1Ii8+Cjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjE0IiBmaWxsPSIjOTk5Ij7YtdmI2LHYqSDYutmK2LEg2YXYqtmI2YHYsdipPC90ZXh0Pgo8L3N2Zz4=';
+            }
+        }
+
+        function testJavaScript() {
+            const jsDiv = document.getElementById('js-result');
+
+            // Test basic functionality
+            let tests = [];
+
+            // Test 1: Console logging
+            try {
+                console.log('Test log from JavaScript');
+                tests.push('✅ Console logging يعمل');
+            } catch (e) {
+                tests.push('❌ Console logging فشل: ' + e.message);
+            }
+
+            // Test 2: Fetch API
+            try {
+                fetch('/admin/folders/contents?folder=000010&type=images')
+                    .then(response => response.json())
+                    .then(data => {
+                        tests.push('✅ Fetch API يعمل');
+                        updateJSResult(tests);
+                    })
+                    .catch(error => {
+                        tests.push('❌ Fetch API فشل: ' + error.message);
+                        updateJSResult(tests);
+                    });
+            } catch (e) {
+                tests.push('❌ Fetch API غير مدعوم: ' + e.message);
+            }
+
+            // Test 3: Local Storage
+            try {
+                localStorage.setItem('test', 'value');
+                const value = localStorage.getItem('test');
+                if (value === 'value') {
+                    tests.push('✅ Local Storage يعمل');
+                } else {
+                    tests.push('❌ Local Storage لا يعمل بشكل صحيح');
+                }
+                localStorage.removeItem('test');
+            } catch (e) {
+                tests.push('❌ Local Storage فشل: ' + e.message);
+            }
+
+            updateJSResult(tests);
+        }
+
+        function updateJSResult(tests) {
+            const jsDiv = document.getElementById('js-result');
+            jsDiv.innerHTML = '<div class="status info">نتائج اختبار JavaScript:</div>' +
+                tests.map(test => '<div>' + test + '</div>').join('');
+        }
+
+        // Auto-run test on page load
+        window.onload = function() {
+            console.log('🚀 بدء اختبار النظام...');
+            setTimeout(testNewAPI, 1000);
+        };
+    </script>
+</body>
+</html>

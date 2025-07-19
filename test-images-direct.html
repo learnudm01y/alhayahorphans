@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار تحميل الصور المباشر</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f8f9fa; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .test-section { background: white; padding: 20px; margin: 20px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .test-title { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; margin-bottom: 20px; }
+        .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+        .image-card { border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: white; }
+        .test-image { width: 100%; height: 200px; object-fit: cover; border-radius: 5px; margin-bottom: 10px; }
+        .status { padding: 5px 10px; border-radius: 5px; margin: 5px 0; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .loading { background: #d1ecf1; color: #0c5460; }
+        .btn { padding: 10px 20px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 5px; }
+        .btn:hover { background: #2980b9; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="test-title">🖼️ اختبار تحميل الصور المباشر</h1>
+
+        <div class="test-section">
+            <h2>اختبار الصور التجريبية</h2>
+            <button class="btn" onclick="testImages()">اختبار الصور</button>
+            <div id="image-results" class="image-grid"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>اختبار مسارات مختلفة</h2>
+            <button class="btn" onclick="testPaths()">اختبار المسارات</button>
+            <div id="path-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>اختبار AJAX للمجلدات</h2>
+            <button class="btn" onclick="testFolderAPI()">اختبار API</button>
+            <div id="api-results"></div>
+        </div>
+    </div>
+
+    <script>
+        async function testImages() {
+            const resultsDiv = document.getElementById('image-results');
+            resultsDiv.innerHTML = '<div class="status loading">جاري تحميل الصور...</div>';
+
+            const testImages = [
+                { name: 'Test Image 1', url: '/storage/attachments/test_image_1.jpg' },
+                { name: 'Test Image 2', url: '/storage/attachments/test_image_2.jpg' },
+                { name: 'Test Image 3', url: '/storage/attachments/test_image_3.jpg' },
+                { name: 'Sample JPG', url: '/storage/attachments/sample.jpg' },
+                { name: 'Demo PNG', url: '/storage/attachments/demo.png' }
+            ];
+
+            let html = '';
+            let successCount = 0;
+
+            for (const imgData of testImages) {
+                const card = document.createElement('div');
+                card.className = 'image-card';
+
+                const img = new Image();
+
+                await new Promise((resolve) => {
+                    img.onload = () => {
+                        successCount++;
+                        card.innerHTML = `
+                            <img src="${imgData.url}" class="test-image" alt="${imgData.name}">
+                            <div class="status success">✅ ${imgData.name} - تم التحميل</div>
+                            <small>الحجم: ${img.naturalWidth}x${img.naturalHeight}</small>
+                        `;
+                        resolve();
+                    };
+
+                    img.onerror = () => {
+                        card.innerHTML = `
+                            <div style="height: 200px; background: #f8f9fa; display: flex; align-items: center; justify-content: center; border-radius: 5px; margin-bottom: 10px;">
+                                <span>❌ فشل التحميل</span>
+                            </div>
+                            <div class="status error">❌ ${imgData.name} - فشل التحميل</div>
+                            <small>URL: ${imgData.url}</small>
+                        `;
+                        resolve();
+                    };
+
+                    img.src = imgData.url;
+                });
+
+                html += card.outerHTML;
+            }
+
+            resultsDiv.innerHTML = html + `<div class="status ${successCount > 0 ? 'success' : 'error'}">النتيجة: ${successCount} من ${testImages.length} صور تم تحميلها بنجاح</div>`;
+        }
+
+        async function testPaths() {
+            const resultsDiv = document.getElementById('path-results');
+            resultsDiv.innerHTML = '<div class="status loading">جاري اختبار المسارات...</div>';
+
+            const testPaths = [
+                '/storage/attachments/',
+                'storage/attachments/',
+                '../storage/attachments/',
+                'http://localhost/storage/attachments/',
+                window.location.origin + '/storage/attachments/'
+            ];
+
+            let html = '';
+
+            for (const path of testPaths) {
+                try {
+                    const response = await fetch(path + 'test_image_1.jpg', { method: 'HEAD' });
+                    const status = response.ok ? 'success' : 'error';
+                    const icon = response.ok ? '✅' : '❌';
+                    html += `<div class="status ${status}">${icon} ${path} - Status: ${response.status}</div>`;
+                } catch (error) {
+                    html += `<div class="status error">❌ ${path} - Error: ${error.message}</div>`;
+                }
+            }
+
+            resultsDiv.innerHTML = html;
+        }
+
+        async function testFolderAPI() {
+            const resultsDiv = document.getElementById('api-results');
+            resultsDiv.innerHTML = '<div class="status loading">جاري اختبار API...</div>';
+
+            try {
+                const response = await fetch('/file-management/folders-management/folder-contents?record_number=000010');
+                const data = await response.json();
+
+                let html = `<div class="status success">✅ API يعمل بنجاح</div>`;
+                html += `<div>عدد الملفات: ${data.files ? data.files.length : 0}</div>`;
+
+                if (data.files && data.files.length > 0) {
+                    html += '<h4>أول 3 ملفات:</h4>';
+                    data.files.slice(0, 3).forEach(file => {
+                        html += `<div style="padding: 10px; border: 1px solid #ddd; margin: 5px 0; border-radius: 5px;">
+                            <strong>الملف:</strong> ${file.stored_file_name || file.file_name}<br>
+                            <strong>النوع:</strong> ${file.extension || 'غير محدد'}<br>
+                            <strong>الحجم:</strong> ${file.formatted_size || 'غير محدد'}<br>
+                            <strong>الرابط:</strong> <a href="${file.download_url}" target="_blank">${file.download_url}</a><br>
+                            <strong>صورة:</strong> ${file.is_image ? 'نعم' : 'لا'}
+                        </div>`;
+                    });
+                }
+
+                resultsDiv.innerHTML = html;
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="status error">❌ خطأ في API: ${error.message}</div>`;
+            }
+        }
+
+        // Auto-run tests on page load
+        window.onload = function() {
+            console.log('Testing system...');
+            testImages();
+        };
+    </script>
+</body>
+</html>

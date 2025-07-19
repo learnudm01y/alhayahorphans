@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>✅ اختبار سريع - إصلاح المسارات</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            direction: rtl;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+        .success {
+            background: rgba(40, 167, 69, 0.3);
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 10px;
+            border: 2px solid #28a745;
+            text-align: center;
+        }
+        .test-item {
+            background: rgba(255,255,255,0.2);
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .btn {
+            padding: 10px 20px;
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            color: white;
+        }
+        .status {
+            font-size: 1.5rem;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success">
+            <h1>✅ اختبار سريع - إصلاح المسارات</h1>
+            <p>التحقق من نجاح الإصلاحات المطبقة</p>
+        </div>
+
+        <div class="test-item">
+            <div>
+                <strong>🗂️ صفحة إدارة المجلدات</strong><br>
+                <small>يجب عرض جميع المجلدات (150+)</small>
+            </div>
+            <a href="http://127.0.0.1:8000/admin/manage-folders" target="_blank" class="btn">
+                فتح الصفحة
+            </a>
+        </div>
+
+        <div class="test-item">
+            <div>
+                <strong>📁 مجلد 001447</strong><br>
+                <small>يجب ظهور المجلد في القائمة</small>
+            </div>
+            <a href="http://127.0.0.1:8000/storage/uploads/001447/" target="_blank" class="btn">
+                فتح المجلد
+            </a>
+        </div>
+
+        <div class="test-item">
+            <div>
+                <strong>🖼️ ملف PNG من 001447</strong><br>
+                <small>http://127.0.0.1:8000/storage/uploads/001447/TE102_001447_82364444.png</small>
+            </div>
+            <a href="http://127.0.0.1:8000/storage/uploads/001447/TE102_001447_82364444.png" target="_blank" class="btn">
+                فتح الملف
+            </a>
+        </div>
+
+        <div class="test-item">
+            <div>
+                <strong>📊 مستكشف التخزين الشامل</strong><br>
+                <small>عرض جميع المجلدات والملفات</small>
+            </div>
+            <a href="storage-explorer-comprehensive.html" target="_blank" class="btn">
+                فتح المستكشف
+            </a>
+        </div>
+
+        <div class="test-item">
+            <div>
+                <strong>🧪 اختبار تفصيلي</strong><br>
+                <small>فحص شامل للمسارات</small>
+            </div>
+            <a href="folder-path-fix-test.html" target="_blank" class="btn">
+                تشغيل الاختبار
+            </a>
+        </div>
+
+        <div class="success">
+            <h3>📋 قائمة التحقق</h3>
+            <div style="text-align: right; margin: 20px 0;">
+                <div>☐ المجلد 001447 يظهر في قائمة المجلدات</div>
+                <div>☐ ملفات المجلد 001447 تُعرض بشكل صحيح</div>
+                <div>☐ المسارات المباشرة تعمل (بدون /images/)</div>
+                <div>☐ عدد المجلدات المعروضة زاد إلى 150+</div>
+                <div>☐ لا توجد أخطاء في console المتصفح</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Auto-check file accessibility
+        window.onload = function() {
+            console.log('🚀 بدء اختبار سريع للإصلاحات');
+
+            // Test key file
+            const testUrl = 'http://127.0.0.1:8000/storage/uploads/001447/TE102_001447_82364444.png';
+
+            fetch(testUrl, { method: 'HEAD' })
+                .then(response => {
+                    if (response.ok) {
+                        console.log('✅ ملف الاختبار متاح:', testUrl);
+                    } else {
+                        console.log('❌ ملف الاختبار غير متاح:', testUrl);
+                    }
+                })
+                .catch(error => {
+                    console.log('⚠️ خطأ في اختبار الملف:', error.message);
+                });
+        };
+    </script>
+</body>
+</html>

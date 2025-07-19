@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 إصلاح مشكلة المجلد 000078</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            direction: rtl;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+        }
+        .success {
+            background: rgba(40, 167, 69, 0.3);
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 10px;
+            border: 2px solid #28a745;
+        }
+        .warning {
+            background: rgba(255, 193, 7, 0.3);
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 10px;
+            border: 2px solid #ffc107;
+            color: #333;
+        }
+        .error {
+            background: rgba(220, 53, 69, 0.3);
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 10px;
+            border: 2px solid #dc3545;
+        }
+        .btn {
+            padding: 15px 30px;
+            background: linear-gradient(45deg, #007bff, #6f42c1);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            margin: 10px;
+            transition: all 0.3s ease;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .btn-success {
+            background: linear-gradient(45deg, #28a745, #20c997);
+        }
+        .btn-warning {
+            background: linear-gradient(45deg, #ffc107, #fd7e14);
+        }
+        .step {
+            background: rgba(255,255,255,0.2);
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 10px;
+            border-left: 5px solid #007bff;
+        }
+        .file-item {
+            background: rgba(255,255,255,0.15);
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .code {
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            margin: 10px 0;
+        }
+        .progress {
+            width: 100%;
+            height: 20px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(45deg, #28a745, #20c997);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 إصلاح مشكلة المجلد 000078</h1>
+
+        <div class="warning">
+            <h3>⚠️ تشخيص المشكلة</h3>
+            <p><strong>المشكلة:</strong> الملفات موجودة فيزيائياً في المجلد لكن غير مسجلة في قاعدة البيانات</p>
+            <p><strong>الحل:</strong> مزامنة الملفات الفيزيائية مع قاعدة البيانات</p>
+        </div>
+
+        <div class="step">
+            <h3>📊 الخطوة 1: تحليل الوضع الحالي</h3>
+            <button onclick="analyzeFolder()" class="btn">تحليل المجلد 000078</button>
+            <div id="analysis-results"></div>
+        </div>
+
+        <div class="step">
+            <h3>🔍 الخطوة 2: معاينة التغييرات (Dry Run)</h3>
+            <button onclick="previewSync()" class="btn btn-warning">معاينة المزامنة</button>
+            <div id="preview-results"></div>
+        </div>
+
+        <div class="step">
+            <h3>✅ الخطوة 3: تطبيق الإصلاح</h3>
+            <button onclick="applySync()" class="btn btn-success" id="apply-btn" disabled>تطبيق المزامنة</button>
+            <div id="sync-results"></div>
+        </div>
+
+        <div class="step">
+            <h3>🧪 الخطوة 4: اختبار النتائج</h3>
+            <button onclick="testResults()" class="btn">اختبار عرض الملفات</button>
+            <div id="test-results"></div>
+        </div>
+    </div>
+
+    <script>
+        let analysisData = null;
+        let previewData = null;
+
+        async function analyzeFolder() {
+            const resultsDiv = document.getElementById('analysis-results');
+            resultsDiv.innerHTML = '<div>جاري تحليل المجلد...</div>';
+
+            try {
+                // فحص الملفات الفيزيائية
+                const physicalFiles = [
+                    'TE102_000078_2253592.png',
+                    'TE102_000078_472.png',
+                    'TES_000078_1234413.png',
+                    'TES_000078_2312412333.png',
+                    'TES_000078_812223151.jpg'
+                ];
+
+                // فحص API قاعدة البيانات
+                const apiResponse = await fetch('/admin/folders/contents?folder=000078&type=images');
+                const apiData = await apiResponse.json();
+
+                analysisData = {
+                    physical_files: physicalFiles,
+                    database_files: apiData.files || [],
+                    api_working: apiData.success
+                };
+
+                let html = '<div class="code">';
+                html += '<h4>📋 نتائج التحليل:</h4>';
+                html += `<p><strong>الملفات الفيزيائية:</strong> ${physicalFiles.length} ملف</p>`;
+                html += `<p><strong>ملفات قاعدة البيانات:</strong> ${analysisData.database_files.length} ملف</p>`;
+                html += `<p><strong>حالة API:</strong> ${apiData.success ? '✅ يعمل' : '❌ لا يعمل'}</p>`;
+
+                if (physicalFiles.length > analysisData.database_files.length) {
+                    html += `<p class="warning"><strong>⚠️ مشكلة مكتشفة:</strong> يوجد ${physicalFiles.length - analysisData.database_files.length} ملف(ات) غير مسجلة في قاعدة البيانات</p>`;
+                }
+
+                html += '<h5>الملفات الفيزيائية:</h5><ul>';
+                physicalFiles.forEach(file => {
+                    html += `<li>${file}</li>`;
+                });
+                html += '</ul></div>';
+
+                resultsDiv.innerHTML = html;
+
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">❌ خطأ في التحليل: ${error.message}</div>`;
+            }
+        }
+
+        async function previewSync() {
+            const resultsDiv = document.getElementById('preview-results');
+            resultsDiv.innerHTML = '<div>جاري معاينة المزامنة...</div>';
+
+            try {
+                const response = await fetch('/admin/sync-files?folder=000078&dry_run=true');
+                const data = await response.json();
+
+                previewData = data;
+
+                if (data.success) {
+                    let html = '<div class="success">';
+                    html += '<h4>✅ معاينة المزامنة:</h4>';
+                    html += `<p><strong>الملفات الفيزيائية:</strong> ${data.summary.total_physical}</p>`;
+                    html += `<p><strong>ملفات قاعدة البيانات:</strong> ${data.summary.total_database}</p>`;
+                    html += `<p><strong>ملفات مفقودة في قاعدة البيانات:</strong> ${data.summary.missing_in_db}</p>`;
+                    html += `<p><strong>ملفات مفقودة فيزيائياً:</strong> ${data.summary.missing_physical}</p>`;
+
+                    if (data.missing_in_db.length > 0) {
+                        html += '<h5>الملفات التي ستتم إضافتها لقاعدة البيانات:</h5>';
+                        data.missing_in_db.forEach(file => {
+                            html += `<div class="file-item"><span>${file.name}</span><span>${(file.size / 1024).toFixed(1)} KB</span></div>`;
+                        });
+
+                        // تفعيل زر التطبيق
+                        document.getElementById('apply-btn').disabled = false;
+                    }
+
+                    html += '</div>';
+                    resultsDiv.innerHTML = html;
+                } else {
+                    resultsDiv.innerHTML = `<div class="error">❌ خطأ في المعاينة: ${data.message}</div>`;
+                }
+
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">❌ خطأ في الاتصال: ${error.message}</div>`;
+            }
+        }
+
+        async function applySync() {
+            const resultsDiv = document.getElementById('sync-results');
+            resultsDiv.innerHTML = '<div>جاري تطبيق المزامنة...</div>';
+
+            // شريط التقدم
+            let html = '<div class="progress"><div class="progress-bar" id="sync-progress"></div></div>';
+            resultsDiv.innerHTML = html;
+
+            // محاكاة التقدم
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += 10;
+                document.getElementById('sync-progress').style.width = progress + '%';
+                if (progress >= 100) clearInterval(progressInterval);
+            }, 200);
+
+            try {
+                const response = await fetch('/admin/sync-files?folder=000078&dry_run=false');
+                const data = await response.json();
+
+                clearInterval(progressInterval);
+                document.getElementById('sync-progress').style.width = '100%';
+
+                if (data.success) {
+                    html = '<div class="success">';
+                    html += '<h4>🎉 تمت المزامنة بنجاح!</h4>';
+                    html += `<p><strong>تم إضافة:</strong> ${data.summary.missing_in_db} ملف(ات) لقاعدة البيانات</p>`;
+
+                    if (data.actions_taken.length > 0) {
+                        html += '<h5>الإجراءات المنفذة:</h5><ul>';
+                        data.actions_taken.forEach(action => {
+                            html += `<li>${action}</li>`;
+                        });
+                        html += '</ul>';
+                    }
+
+                    html += '</div>';
+                    resultsDiv.innerHTML = html;
+                } else {
+                    resultsDiv.innerHTML = `<div class="error">❌ خطأ في التطبيق: ${data.message}</div>`;
+                }
+
+            } catch (error) {
+                clearInterval(progressInterval);
+                resultsDiv.innerHTML = `<div class="error">❌ خطأ في الاتصال: ${error.message}</div>`;
+            }
+        }
+
+        async function testResults() {
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.innerHTML = '<div>جاري اختبار النتائج...</div>';
+
+            try {
+                // اختبار API بعد المزامنة
+                const response = await fetch('/admin/folders/contents?folder=000078&type=images');
+                const data = await response.json();
+
+                if (data.success && data.files && data.files.length > 0) {
+                    let html = '<div class="success">';
+                    html += '<h4>🎉 الاختبار نجح!</h4>';
+                    html += `<p><strong>عدد الملفات المعروضة:</strong> ${data.files.length}</p>`;
+
+                    html += '<h5>🖼️ عينة من الصور:</h5>';
+                    html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 15px 0;">';
+
+                    data.files.slice(0, 5).forEach(file => {
+                        if (file.is_image) {
+                            html += `
+                                <div style="text-align: center; background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px;">
+                                    <img src="${file.download_url}"
+                                         style="width: 100%; height: 120px; object-fit: cover; border-radius: 5px; margin-bottom: 10px;"
+                                         alt="${file.original_file_name}"
+                                         onload="console.log('✅ صورة محملة بنجاح')"
+                                         onerror="console.error('❌ فشل تحميل الصورة')">
+                                    <div style="font-size: 12px; word-break: break-all;">${file.original_file_name}</div>
+                                    <a href="${file.download_url}" target="_blank" style="color: #51cf66; text-decoration: underline;">فتح</a>
+                                </div>
+                            `;
+                        }
+                    });
+
+                    html += '</div>';
+                    html += '<p><a href="/admin/manage-folders" target="_blank" class="btn">فتح صفحة إدارة المجلدات</a></p>';
+                    html += '</div>';
+
+                    resultsDiv.innerHTML = html;
+                } else {
+                    resultsDiv.innerHTML = '<div class="error">❌ الاختبار فشل - لا تزال المشكلة موجودة</div>';
+                }
+
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">❌ خطأ في الاختبار: ${error.message}</div>`;
+            }
+        }
+
+        // تشغيل تلقائي للتحليل عند تحميل الصفحة
+        window.onload = function() {
+            console.log('🔧 صفحة إصلاح المجلد 000078 جاهزة');
+            analyzeFolder();
+        };
+    </script>
+</body>
+</html>

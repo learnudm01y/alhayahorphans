@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار بوابة Excel</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row">
+            <div class="col-12">
+                <h2 class="text-center mb-4">🧪 اختبار بوابة Excel</h2>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h5>📊 اختبار API - محتويات مجلد Excel</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="folderInput" class="form-label">رقم السجل:</label>
+                            <select class="form-select" id="folderInput">
+                                <option value="0000000000">0000000000 (4 ملفات)</option>
+                                <option value="000017">000017 (3 ملفات)</option>
+                                <option value="000014">000014 (2 ملفات)</option>
+                                <option value="000010">000010 (1 ملف)</option>
+                                <option value="exc_000001">exc_000001 (1 ملف)</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary" onclick="testExcelAPI()">اختبار API</button>
+                        <button class="btn btn-success ms-2" onclick="openExcelPortal()">فتح بوابة Excel</button>
+                        <button class="btn btn-info ms-2" onclick="openImagePortal()">فتح بوابة الصور</button>
+                    </div>
+                </div>
+
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5>📋 نتائج الاختبار</h5>
+                    </div>
+                    <div class="card-body">
+                        <pre id="results" class="bg-light p-3" style="max-height: 400px; overflow-y: auto;"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function log(message) {
+            const results = document.getElementById('results');
+            const timestamp = new Date().toLocaleTimeString();
+            results.innerHTML += `[${timestamp}] ${message}\n`;
+            results.scrollTop = results.scrollHeight;
+        }
+
+        function testExcelAPI() {
+            const folderName = document.getElementById('folderInput').value;
+            log(`🚀 بدء اختبار API لمجلد: ${folderName}`);
+
+            const url = `http://127.0.0.1:8000/admin/folders/contents?folder=${encodeURIComponent(folderName)}&type=excel`;
+            log(`📡 URL: ${url}`);
+
+            fetch(url)
+                .then(response => {
+                    log(`📶 HTTP Status: ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    log(`✅ استجابة API:`);
+                    log(JSON.stringify(data, null, 2));
+
+                    if (data.success && data.files) {
+                        log(`📊 تم العثور على ${data.files.length} ملف Excel`);
+                        data.files.forEach((file, index) => {
+                            log(`   ${index + 1}. ${file.original_file_name || file.stored_file_name}`);
+                            log(`      📎 رابط التحميل: ${file.download_url || 'غير متاح'}`);
+                        });
+                    }
+                })
+                .catch(error => {
+                    log(`❌ خطأ في API: ${error.message}`);
+                    console.error('Error:', error);
+                });
+        }
+
+        function openExcelPortal() {
+            window.open('http://127.0.0.1:8000/file-management/folders-management?type=excel', '_blank');
+        }
+
+        function openImagePortal() {
+            window.open('http://127.0.0.1:8000/file-management/folders-management?type=images', '_blank');
+        }
+
+        // اختبار تلقائي عند تحميل الصفحة
+        window.onload = function() {
+            log('🎯 مرحباً بك في اختبار بوابة Excel');
+            log('📋 يمكنك اختيار رقم سجل واختبار API');
+            log('🔗 أو فتح البوابات مباشرة');
+        };
+    </script>
+</body>
+</html>

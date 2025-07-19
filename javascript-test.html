@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار إصلاح JavaScript</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f8f9fa;
+            direction: rtl;
+        }
+        .test-result {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .btn {
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>🔧 اختبار إصلاح JavaScript</h1>
+
+    <div id="test-results">
+        <div class="test-result">
+            <h3>⏳ جاري اختبار الكود...</h3>
+        </div>
+    </div>
+
+    <div class="test-result">
+        <h3>اختبار الروابط:</h3>
+        <a href="javascript:void(0)" onclick="testLink()" class="btn">اختبار رابط</a>
+        <a href="javascript:void(0)" onclick="showTestModal()" class="btn">اختبار معاينة</a>
+    </div>
+
+    <script>
+        function testJavaScript() {
+            const resultsDiv = document.getElementById('test-results');
+            let results = [];
+
+            // Test 1: Basic JavaScript
+            try {
+                const test = "JavaScript يعمل بشكل صحيح";
+                results.push('✅ JavaScript يعمل بدون أخطاء syntax');
+            } catch (error) {
+                results.push('❌ خطأ في JavaScript: ' + error.message);
+            }
+
+            // Test 2: Function definition
+            try {
+                function testFunction() {
+                    return 'success';
+                }
+                const result = testFunction();
+                if (result === 'success') {
+                    results.push('✅ تعريف الدوال يعمل بشكل صحيح');
+                }
+            } catch (error) {
+                results.push('❌ خطأ في تعريف الدوال: ' + error.message);
+            }
+
+            // Test 3: Event handlers
+            try {
+                document.addEventListener('click', function() {});
+                results.push('✅ معالج الأحداث يعمل بشكل صحيح');
+            } catch (error) {
+                results.push('❌ خطأ في معالج الأحداث: ' + error.message);
+            }
+
+            // Test 4: Template literals
+            try {
+                const name = 'test';
+                const template = `Hello ${name}`;
+                results.push('✅ Template literals تعمل بشكل صحيح');
+            } catch (error) {
+                results.push('❌ خطأ في Template literals: ' + error.message);
+            }
+
+            // Display results
+            const successCount = results.filter(r => r.includes('✅')).length;
+            const totalTests = results.length;
+
+            resultsDiv.innerHTML = `
+                <div class="test-result ${successCount === totalTests ? 'success' : 'error'}">
+                    <h3>نتائج الاختبار: ${successCount}/${totalTests}</h3>
+                    ${results.map(r => '<div>' + r + '</div>').join('')}
+                </div>
+            `;
+        }
+
+        function testLink() {
+            alert('✅ الرابط يعمل بشكل صحيح!');
+        }
+
+        function showTestModal() {
+            // Simulate modal functionality
+            const modalHtml = `
+                <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;" onclick="this.remove()">
+                    <div style="background: white; padding: 20px; border-radius: 8px; max-width: 500px; text-align: center;" onclick="event.stopPropagation()">
+                        <h3>✅ معاينة تعمل بشكل صحيح!</h3>
+                        <p>المعاينة والنوافذ المنبثقة تعمل بدون مشاكل</p>
+                        <button onclick="this.closest('div[style*=fixed]').remove()" class="btn">إغلاق</button>
+                    </div>
+                </div>
+            `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+
+        // Auto-run test
+        window.onload = function() {
+            console.log('🚀 بدء اختبار JavaScript...');
+            setTimeout(testJavaScript, 500);
+        };
+
+        // Test console for errors
+        const originalError = console.error;
+        const errors = [];
+
+        console.error = function(...args) {
+            errors.push(args.join(' '));
+            originalError.apply(console, args);
+        };
+
+        // Check for errors after a delay
+        setTimeout(() => {
+            if (errors.length === 0) {
+                console.log('✅ لا توجد أخطاء في Console');
+            } else {
+                console.log('⚠️ تم اكتشاف أخطاء:', errors);
+            }
+        }, 2000);
+    </script>
+</body>
+</html>

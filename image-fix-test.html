@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 اختبار إصلاح عرض الصور</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            direction: rtl;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 30px;
+        }
+        .success {
+            background: rgba(40, 167, 69, 0.3);
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 10px;
+            border: 2px solid #28a745;
+            text-align: center;
+        }
+        .btn {
+            padding: 15px 30px;
+            background: linear-gradient(45deg, #007bff, #6f42c1);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 16px;
+            margin: 10px;
+            display: inline-block;
+            transition: all 0.3s ease;
+        }
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            color: white;
+        }
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .test-card {
+            background: rgba(255,255,255,0.2);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success">
+            <h1>🚀 اختبار إصلاح عرض الصور</h1>
+            <p>تم تطبيق التحسينات التالية:</p>
+            <ul style="text-align: right; list-style: none; padding: 0;">
+                <li>✅ تحسين منطق اكتشاف أنواع الملفات</li>
+                <li>✅ إصلاح مسارات URL للصور</li>
+                <li>✅ تحسين معالجة الأخطاء</li>
+                <li>✅ إضافة تسجيل مفصل للتشخيص</li>
+            </ul>
+        </div>
+
+        <div class="test-grid">
+            <div class="test-card">
+                <div class="icon">🗂️</div>
+                <h3>إدارة المجلدات</h3>
+                <p>اختبار الصفحة الرئيسية</p>
+                <a href="http://127.0.0.1:8000/admin/manage-folders" target="_blank" class="btn">
+                    فتح الصفحة
+                </a>
+            </div>
+
+            <div class="test-card">
+                <div class="icon">🔍</div>
+                <h3>فحص تشخيصي</h3>
+                <p>اختبار مفصل للصور</p>
+                <a href="advanced-image-diagnostic.html" target="_blank" class="btn">
+                    تشغيل الفحص
+                </a>
+            </div>
+
+            <div class="test-card">
+                <div class="icon">🖼️</div>
+                <h3>اختبار مباشر</h3>
+                <p>مجلد 001447</p>
+                <button onclick="testDirectAPI()" class="btn">
+                    اختبار المجلد
+                </button>
+            </div>
+
+            <div class="test-card">
+                <div class="icon">📊</div>
+                <h3>مستكشف شامل</h3>
+                <p>جميع المجلدات</p>
+                <a href="storage-explorer-comprehensive.html" target="_blank" class="btn">
+                    فتح المستكشف
+                </a>
+            </div>
+        </div>
+
+        <div id="test-results" style="margin-top: 30px;"></div>
+    </div>
+
+    <script>
+        async function testDirectAPI() {
+            const resultsDiv = document.getElementById('test-results');
+            resultsDiv.innerHTML = `
+                <div style="background: rgba(255,255,255,0.2); padding: 20px; border-radius: 10px;">
+                    <h3>🧪 اختبار مباشر للـ API</h3>
+                    <div id="progress">جاري الاختبار...</div>
+                </div>
+            `;
+
+            try {
+                const response = await fetch('/admin/folders/contents?folder=001447&type=images');
+                const data = await response.json();
+
+                let html = '<div style="background: rgba(255,255,255,0.2); padding: 20px; border-radius: 10px;">';
+                html += '<h3>📋 نتائج الاختبار</h3>';
+
+                if (data.success) {
+                    html += `<div style="color: #28a745;">✅ API يعمل بنجاح</div>`;
+                    html += `<div>📊 عدد الملفات: ${data.files ? data.files.length : 0}</div>`;
+                    html += `<div>📁 اسم المجلد: ${data.folder_name}</div>`;
+
+                    if (data.files && data.files.length > 0) {
+                        html += '<h4>🖼️ عينة من الصور:</h4>';
+                        html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 15px 0;">';
+
+                        data.files.slice(0, 6).forEach(file => {
+                            if (file.is_image) {
+                                html += `
+                                    <div style="text-align: center; background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px;">
+                                        <img src="${file.download_url}"
+                                             style="width: 100%; height: 120px; object-fit: cover; border-radius: 5px; margin-bottom: 10px;"
+                                             alt="${file.original_file_name}"
+                                             onload="console.log('✅ صورة محملة:', this.src)"
+                                             onerror="console.error('❌ فشل تحميل:', this.src); this.style.background='#ffebee'; this.alt='فشل التحميل';">
+                                        <div style="font-size: 12px; word-break: break-all;">${file.original_file_name}</div>
+                                        <a href="${file.download_url}" target="_blank" style="color: #fff; text-decoration: underline;">فتح</a>
+                                    </div>
+                                `;
+                            }
+                        });
+
+                        html += '</div>';
+                    }
+                } else {
+                    html += `<div style="color: #dc3545;">❌ خطأ: ${data.message || 'غير محدد'}</div>`;
+                }
+
+                html += '</div>';
+                resultsDiv.innerHTML = html;
+
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div style="background: rgba(220, 53, 69, 0.2); padding: 20px; border-radius: 10px; border: 2px solid #dc3545;">
+                        <h3>❌ خطأ في الاتصال</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Show loading message
+        window.onload = function() {
+            console.log('🚀 صفحة اختبار إصلاح الصور جاهزة');
+        };
+    </script>
+</body>
+</html>

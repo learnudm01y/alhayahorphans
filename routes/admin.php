@@ -11,6 +11,8 @@ use App\Http\Controllers\Admin\DeathReasonController;
 use App\Http\Controllers\Admin\DisplacementStatusController;
 use App\Http\Controllers\Admin\DocumentTypeCotroller;
 use App\Http\Controllers\Admin\EmploymentCotroller;
+use App\Http\Controllers\Admin\FolderManagementController;
+use App\Http\Controllers\Admin\FileSystemSyncController;
 use App\Http\Controllers\Admin\GeneralCategoryCotroller;
 use App\Http\Controllers\Admin\HealthStatusCotroller;
 use App\Http\Controllers\Admin\HousingStatusController;
@@ -130,6 +132,13 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::get('records-management/{id}/show', [RecordsManagementEditController::class, 'show'])->name('records.management.show');
      // AJAX: جلب سجلات موظف مع pagination
     Route::get('ajax/admin-records/{admin}', [RecordsManagementEditController::class, 'ajaxAdminRecords'])->name('ajax.admin-records');
+     // AJAX: جلب سجلات موظف مع pagination
+    Route::get('manage-folders', [FolderManagementController::class, 'index'])->name('manage.folders.index');
+    Route::get('folders/contents', [FolderManagementController::class, 'getFolderContents'])->name('folders.contents');
+    Route::get('folders/search', [FolderManagementController::class, 'search'])->name('folders.search');
+
+    // File System Sync Routes
+    Route::get('sync-files', [FileSystemSyncController::class, 'syncPhysicalFiles'])->name('sync.files');
 
     // File Manager Route
     Route::get('file-manager', function () {

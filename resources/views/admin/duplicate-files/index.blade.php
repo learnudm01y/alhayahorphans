@@ -284,113 +284,113 @@
 </div>
 
 @push('styles')
-<link rel="stylesheet" href="{{ asset('css/duplicate-files-enhanced.css') }}">
-<style>
-.preview-thumbnail {
-    width: 60px;
-    height: 60px;
-    object-fit: cover;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
+        <link rel="stylesheet" href="{{ asset('css/duplicate-files-enhanced.css') }}">
+        <style>
+        .preview-thumbnail {
+            width: 60px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
 
-.file-icon {
-    width: 60px;
-    height: 60px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #f8f9fa;
-    border-radius: 8px;
-    border: 1px solid #dee2e6;
-}
+        .file-icon {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
 
-.status-badge {
-    font-size: 0.75rem;
-    padding: 0.25rem 0.5rem;
-}
+        .status-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+        }
 
-.file-size {
-    font-size: 0.85rem;
-    color: #6c757d;
-}
+        .file-size {
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
 
-.file-path {
-    max-width: 200px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
+        .file-path {
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
 
-.action-buttons .btn {
-    padding: 0.25rem 0.5rem;
-    margin: 0 0.125rem;
-}
+        .action-buttons .btn {
+            padding: 0.25rem 0.5rem;
+            margin: 0 0.125rem;
+        }
 
-.table-hover tbody tr:hover {
-    background-color: #f8f9fa;
-}
+        .table-hover tbody tr:hover {
+            background-color: #f8f9fa;
+        }
 
-.bg-gradient-primary {
-    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-}
+        .bg-gradient-primary {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+        }
 
-.bg-gradient-success {
-    background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
-}
+        .bg-gradient-success {
+            background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
+        }
 
-.spinner-border-sm {
-    width: 1rem;
-    height: 1rem;
-}
+        .spinner-border-sm {
+            width: 1rem;
+            height: 1rem;
+        }
 
-/* تحسينات المعاينة */
-.image-preview-container img {
-    transition: transform 0.2s ease;
-    cursor: zoom-in;
-}
+        /* تحسينات المعاينة */
+        .image-preview-container img {
+            transition: transform 0.2s ease;
+            cursor: zoom-in;
+        }
 
-.image-preview-container img:hover {
-    transform: scale(1.02);
-}
+        .image-preview-container img:hover {
+            transform: scale(1.02);
+        }
 
-.video-preview-container video {
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
+        .video-preview-container video {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
 
-.audio-preview-container audio {
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
+        .audio-preview-container audio {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
 
-.pdf-preview-container iframe {
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
+        .pdf-preview-container iframe {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
 
-.file-preview-container {
-    padding: 2rem;
-}
+        .file-preview-container {
+            padding: 2rem;
+        }
 
-.modal-xl .modal-body {
-    max-height: 70vh;
-    overflow-y: auto;
-}
+        .modal-xl .modal-body {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
 
-/* تحسين عرض المعلومات */
-.preview-info-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
-    margin-top: 1rem;
-}
+        /* تحسين عرض المعلومات */
+        .preview-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
 
-.preview-info-item {
-    text-align: center;
-    padding: 0.75rem;
-    background: #f8f9fa;
-    border-radius: 0.5rem;
-    border: 1px solid #dee2e6;
-}
-</style>
+        .preview-info-item {
+            text-align: center;
+            padding: 0.75rem;
+            background: #f8f9fa;
+            border-radius: 0.5rem;
+            border: 1px solid #dee2e6;
+        }
+        </style>
 @endpush
 
 @push('scriptsCode')
