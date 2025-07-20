@@ -25,17 +25,17 @@ try {
     # Method 1: Mark migration as run without executing it
     Write-Host "⚡ Method 1: Mark migration as completed (RECOMMENDED)" -ForegroundColor $Cyan
     Write-Host "   Running: php artisan migrate:mark-as-run" -ForegroundColor White
-    
+
     $markResult = php artisan migrate:mark-as-run --path=database/migrations/2025_01_16_000001_create_enhanced_attachments_table.php 2>&1
-    
+
     if ($LASTEXITCODE -eq 0) {
         Write-Host "   ✅ Migration marked as completed successfully!" -ForegroundColor $Green
         Write-Host ""
-        
+
         # Now try running all pending migrations
         Write-Host "🚀 Running remaining pending migrations..." -ForegroundColor $Cyan
         $migrateResult = php artisan migrate --force 2>&1
-        
+
         if ($LASTEXITCODE -eq 0) {
             Write-Host "   ✅ All migrations completed successfully!" -ForegroundColor $Green
         } else {
@@ -46,7 +46,7 @@ try {
         Write-Host "   ⚠️  Method 1 failed, trying alternative approach..." -ForegroundColor $Yellow
         Write-Host $markResult -ForegroundColor White
         Write-Host ""
-        
+
         # Method 2: Manual database entry
         Write-Host "⚡ Method 2: Manual database fix" -ForegroundColor $Cyan
         Write-Host "   Please run this SQL command manually:" -ForegroundColor White

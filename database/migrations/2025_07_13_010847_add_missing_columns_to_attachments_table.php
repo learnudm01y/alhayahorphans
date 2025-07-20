@@ -14,7 +14,8 @@ return new class extends Migration
         Schema::table('attachments', function (Blueprint $table) {
             // Check if columns don't exist before adding them
             if (!Schema::hasColumn('attachments', 'file_size')) {
-                $table->unsignedBigInteger('file_size')->nullable()->after('folder_id');
+                // Add file_size after file_type since folder_id doesn't exist in this table
+                $table->unsignedBigInteger('file_size')->nullable()->after('file_type');
             }
         });
     }

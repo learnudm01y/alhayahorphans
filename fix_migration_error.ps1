@@ -19,23 +19,23 @@ $result = php artisan migrate --force
 if ($LASTEXITCODE -ne 0) {
     Write-Host ""
     Write-Host "❌ Migration failed. Trying alternative approaches..." -ForegroundColor Red
-    
+
     Write-Host ""
     Write-Host "📝 Manual SQL commands to run in your database:" -ForegroundColor Cyan
     Write-Host "=============================================="
-    
+
     Write-Host "-- Check if table exists" -ForegroundColor Gray
     Write-Host "SHOW TABLES LIKE 'duplicate_files_temp';" -ForegroundColor White
     Write-Host ""
-    
+
     Write-Host "-- If table exists, check existing indexes" -ForegroundColor Gray
     Write-Host "SHOW INDEX FROM duplicate_files_temp;" -ForegroundColor White
     Write-Host ""
-    
+
     Write-Host "-- Drop problematic index if it exists" -ForegroundColor Gray
     Write-Host "ALTER TABLE duplicate_files_temp DROP INDEX IF EXISTS duplicate_files_temp_expires_at_index;" -ForegroundColor White
     Write-Host ""
-    
+
     Write-Host "-- Create table manually if needed" -ForegroundColor Gray
     Write-Host @"
 CREATE TABLE IF NOT EXISTS `duplicate_files_temp` (
@@ -56,14 +56,14 @@ CREATE TABLE IF NOT EXISTS `duplicate_files_temp` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 "@ -ForegroundColor White
     Write-Host ""
-    
+
     Write-Host "-- Mark migration as completed" -ForegroundColor Gray
     Write-Host @"
 INSERT INTO `migrations` (`migration`, `batch`) VALUES
 ('2025_07_20_121500_fix_duplicate_files_temp_table', (SELECT COALESCE(MAX(batch), 0) + 1 FROM migrations AS m));
 "@ -ForegroundColor White
     Write-Host ""
-    
+
     Write-Host "🎯 After running these SQL commands, try migration again:" -ForegroundColor Yellow
     Write-Host "php artisan migrate --force" -ForegroundColor White
 } else {

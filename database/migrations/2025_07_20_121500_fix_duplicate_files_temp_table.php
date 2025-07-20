@@ -34,7 +34,7 @@ return new class extends Migration
             });
         } else {
             // Table exists, check if indexes exist before adding them
-            
+
             // Check and add session_id index if not exists
             $indexes = DB::select("SHOW INDEX FROM duplicate_files_temp WHERE Key_name = 'duplicate_files_temp_session_id_index'");
             if (empty($indexes)) {
@@ -42,7 +42,7 @@ return new class extends Migration
                     $table->index('session_id');
                 });
             }
-            
+
             // Check and add expires_at index if not exists
             $indexes = DB::select("SHOW INDEX FROM duplicate_files_temp WHERE Key_name = 'duplicate_files_temp_expires_at_index'");
             if (empty($indexes)) {
@@ -50,7 +50,7 @@ return new class extends Migration
                     $table->index('expires_at');
                 });
             }
-            
+
             // Check and add composite index if not exists
             $indexes = DB::select("SHOW INDEX FROM duplicate_files_temp WHERE Key_name = 'duplicate_files_temp_session_id_expires_at_index'");
             if (empty($indexes)) {

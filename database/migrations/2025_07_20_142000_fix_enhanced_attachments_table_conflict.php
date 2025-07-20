@@ -16,10 +16,10 @@ return new class extends Migration
         // Check if the table already exists
         if (Schema::hasTable('enhanced_attachments')) {
             echo "ℹ️  Table 'enhanced_attachments' already exists. Skipping creation.\n";
-            
+
             // Add any missing columns that should have been in the original migration
             $this->addMissingColumns();
-            
+
             return;
         }
 
@@ -118,15 +118,15 @@ return new class extends Migration
             if (!in_array('enhanced_attachments_folder_id_file_type_index', $existingIndexes)) {
                 DB::statement('ALTER TABLE enhanced_attachments ADD INDEX enhanced_attachments_folder_id_file_type_index (folder_id, file_type)');
             }
-            
+
             if (!in_array('enhanced_attachments_file_hash_index', $existingIndexes)) {
                 DB::statement('ALTER TABLE enhanced_attachments ADD INDEX enhanced_attachments_file_hash_index (file_hash)');
             }
-            
+
             if (!in_array('enhanced_attachments_upload_session_id_index', $existingIndexes)) {
                 DB::statement('ALTER TABLE enhanced_attachments ADD INDEX enhanced_attachments_upload_session_id_index (upload_session_id)');
             }
-            
+
             if (!in_array('enhanced_attachments_is_processed_processing_status_index', $existingIndexes)) {
                 DB::statement('ALTER TABLE enhanced_attachments ADD INDEX enhanced_attachments_is_processed_processing_status_index (is_processed, processing_status)');
             }

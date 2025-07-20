@@ -20,23 +20,23 @@ php artisan migrate --force
 if [ $? -ne 0 ]; then
     echo ""
     echo "❌ Migration failed. Trying alternative approaches..."
-    
+
     echo ""
     echo "📝 Manual SQL commands to run in your database:"
     echo "=============================================="
-    
+
     echo "-- Check if table exists"
     echo "SHOW TABLES LIKE 'duplicate_files_temp';"
     echo ""
-    
+
     echo "-- If table exists, check existing indexes"
     echo "SHOW INDEX FROM duplicate_files_temp;"
     echo ""
-    
+
     echo "-- Drop problematic index if it exists"
     echo "ALTER TABLE duplicate_files_temp DROP INDEX IF EXISTS duplicate_files_temp_expires_at_index;"
     echo ""
-    
+
     echo "-- Create table manually if needed"
     echo "CREATE TABLE IF NOT EXISTS \`duplicate_files_temp\` ("
     echo "    \`id\` bigint(20) unsigned NOT NULL AUTO_INCREMENT,"
@@ -55,12 +55,12 @@ if [ $? -ne 0 ]; then
     echo "    KEY \`duplicate_files_temp_session_id_expires_at_index\` (\`session_id\`,\`expires_at\`)"
     echo ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;"
     echo ""
-    
+
     echo "-- Mark migration as completed"
     echo "INSERT INTO \`migrations\` (\`migration\`, \`batch\`) VALUES"
     echo "('2025_07_20_121500_fix_duplicate_files_temp_table', (SELECT COALESCE(MAX(batch), 0) + 1 FROM migrations AS m));"
     echo ""
-    
+
     echo "🎯 After running these SQL commands, try migration again:"
     echo "php artisan migrate --force"
 else

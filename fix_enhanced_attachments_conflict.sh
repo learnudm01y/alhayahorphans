@@ -32,7 +32,7 @@ echo -e "   Running: php artisan migrate:mark-as-run"
 if php artisan migrate:mark-as-run --path=database/migrations/2025_01_16_000001_create_enhanced_attachments_table.php; then
     echo -e "   ${GREEN}✅ Migration marked as completed successfully!${NC}"
     echo ""
-    
+
     # Now try running all pending migrations
     echo -e "${CYAN}🚀 Running remaining pending migrations...${NC}"
     if php artisan migrate --force; then
@@ -43,7 +43,7 @@ if php artisan migrate:mark-as-run --path=database/migrations/2025_01_16_000001_
 else
     echo -e "   ${YELLOW}⚠️  Method 1 failed, trying alternative approach...${NC}"
     echo ""
-    
+
     # Method 2: Manual database entry
     echo -e "${CYAN}⚡ Method 2: Manual database fix${NC}"
     echo -e "   Please run this SQL command manually:"
