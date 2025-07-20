@@ -68,7 +68,7 @@ class FolderManagementController extends Controller
                 ->whereIn('file_type', ['image', 'photo', 'document', 'pdf'])
                 ->whereNotIn('file_type', ['excel']) // استثناء ملفات Excel من بوابة الصور
                 ->whereNull('deleted_at')
-                ->groupBy('record_number')
+                ->groupBy($recordNumberColumn) // Use the same column variable here
                 ->orderBy('last_modified', 'desc')
                 ->paginate(50); // Increased from 20 to 50 to show more folders
 
@@ -121,21 +121,38 @@ class FolderManagementController extends Controller
     private function getExcelFiles()
     {
         try {
+            // فحص الأعمدة المتوفرة في enhanced_attachments
+            $columns = DB::getSchemaBuilder()->getColumnListing('enhanced_attachments');
+
+            // تحديد العمود المناسب لرقم السجل
+            $recordNumberColumn = 'record_number';
+            if (!in_array('record_number', $columns)) {
+                // جرب عمود بديل
+                if (in_array('folder_id', $columns)) {
+                    $recordNumberColumn = 'folder_id';
+                } elseif (in_array('original_folder_name', $columns)) {
+                    $recordNumberColumn = 'original_folder_name';
+                } else {
+                    Log::warning('No suitable record number column found for Excel files');
+                    return $this->scanPhysicalFolders();
+                }
+            }
+
             // جلب مجلدات Excel من قاعدة البيانات بناءً على رقم السجل
             $folders = DB::table('enhanced_attachments')
-                ->select(DB::raw('
-                    record_number as folder_name,
+                ->select(DB::raw("
+                    {$recordNumberColumn} as folder_name,
                     COUNT(*) as files_count,
                     SUM(file_size) as total_size,
                     MAX(updated_at) as last_modified,
                     GROUP_CONCAT(DISTINCT file_type) as file_types,
                     GROUP_CONCAT(DISTINCT mime_type) as mime_types
-                '))
-                ->whereNotNull('record_number')
-                ->where('record_number', '!=', '')
+                "))
+                ->whereNotNull($recordNumberColumn)
+                ->where($recordNumberColumn, '!=', '')
                 ->where('file_type', 'excel')
                 ->whereNull('deleted_at')
-                ->groupBy('record_number')
+                ->groupBy($recordNumberColumn) // Use the same column variable here
                 ->orderBy('last_modified', 'desc')
                 ->paginate(20);
 
