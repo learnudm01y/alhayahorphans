@@ -274,16 +274,15 @@ class FolderDuplicateDetectionService
     protected function findExistingFileByIdentityInFolder(string $identityNumber, string $targetFolderId)
     {
         // البحث في جدول attachments باستخدام رقم الهوية
-        $attachment = Attachment::where('folder_id', $targetFolderId)
-            ->where(function($query) use ($identityNumber) {
-                $query->whereRaw('stored_file_name LIKE ?', ['%_' . $identityNumber . '.%'])
-                      ->orWhereRaw('original_file_name LIKE ?', ['%_' . $identityNumber . '_%']);
-            })->first();
+        // استخدام file_path بدلاً من folder_id المحذوف
+        $attachment = Attachment::where('file_path', 'like', '%/' . $targetFolderId . '/%')
+            ->where('stored_file_name', 'like', '%_' . $identityNumber . '.%')
+            ->first();
 
         if ($attachment) {
             Log::info('تم العثور على ملف مكرر في قاعدة البيانات', [
                 'identity_number' => $identityNumber,
-                'folder_id' => $targetFolderId,
+                'target_folder' => $targetFolderId,
                 'existing_file' => $attachment->stored_file_name
             ]);
             return $attachment;
@@ -326,11 +325,9 @@ class FolderDuplicateDetectionService
     protected function findExistingFileInFolder(string $preparedFileName, string $targetFolderId)
     {
         // البحث في جدول attachments العادي (الأساسي)
-        $attachment = Attachment::where('folder_id', $targetFolderId)
-            ->where(function($query) use ($preparedFileName) {
-                $query->whereRaw('LOWER(REPLACE(REPLACE(stored_file_name, " ", "_"), "-", "_")) = ?', [strtolower($preparedFileName)])
-                      ->orWhereRaw('LOWER(REPLACE(REPLACE(original_file_name, " ", "_"), "-", "_")) = ?', [strtolower($preparedFileName)]);
-            })->first();
+        $attachment = Attachment::where('file_path', 'like', '%/' . $targetFolderId . '/%')
+            ->whereRaw('LOWER(REPLACE(REPLACE(stored_file_name, " ", "_"), "-", "_")) = ?', [strtolower($preparedFileName)])
+            ->first();
 
         if ($attachment) {
             return $attachment;
@@ -756,16 +753,19 @@ class FolderDuplicateDetectionService
 
             // حفظ معلومات الملف في جدول attachments العادي بدلاً من EnhancedAttachment
             $extension = $file->getClientOriginalExtension();
+
+            // استخراج نوع الوثيقة من اسم الملف الجديد
+            $documentType = $this->extractDocumentTypeFromFilename($fileName);
+
             $attachment = Attachment::create([
                 'record_number' => generateUniqueAttachmentRecordNumber(),
                 'person_identity_number' => $this->extractIdentityNumberFromOriginalName($file->getClientOriginalName()),
                 'stored_file_name' => $fileName,
                 'original_file_name' => $file->getClientOriginalName(),
                 'file_path' => $filePath,
-                'folder_id' => $targetFolderId,
                 'file_size' => $file->getSize(),
                 'mime_type' => $file->getMimeType(),
-                'file_type' => $this->determineFileType($file),
+                'file_type' => $documentType, // استخدام نوع الوثيقة المستخرج من اسم الملف
                 'file_extension' => $extension,
                 'file_hash' => hash_file('md5', $file->getRealPath()),
                 'file_last_modified' => now(),
@@ -1164,5 +1164,45 @@ class FolderDuplicateDetectionService
 
         // إذا لم نجد أي شيء، أرجع timestamp
         return (string) time();
+    }
+
+    /**
+     * استخراج نوع الوثيقة من اسم الملف
+     * From: TE102_001460_9214534563.jpg -> Returns: TE102
+     * From: TES-11_001443_538002200.png -> Returns: TES-11
+     */
+    private function extractDocumentTypeFromFilename(string $fileName): string
+    {
+        try {
+            $nameWithoutExt = pathinfo($fileName, PATHINFO_FILENAME);
+            $parts = explode('_', $nameWithoutExt);
+
+            // Expected pattern: PREFIX_FOLDERID_IDENTITY
+            if (count($parts) >= 3) {
+                $documentType = $parts[0]; // Document type is in the first part
+
+                Log::info('Extracted document type from filename', [
+                    'filename' => $fileName,
+                    'extracted_type' => $documentType
+                ]);
+
+                return $documentType;
+            }
+
+            // Fallback: return 'unknown' if pattern doesn't match
+            Log::warning('Could not extract document type from filename pattern', [
+                'filename' => $fileName,
+                'parts_count' => count($parts),
+                'parts' => $parts
+            ]);
+
+            return 'unknown';
+        } catch (\Exception $e) {
+            Log::error('Failed to extract document type from filename', [
+                'filename' => $fileName,
+                'error' => $e->getMessage()
+            ]);
+            return 'unknown';
+        }
     }
 }

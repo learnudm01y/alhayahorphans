@@ -2327,11 +2327,11 @@ class UnifiedFileManagementController extends Controller
             // Try to insert into attachments table (old system compatibility)
             try {
                 DB::table('attachments')->insert([
-                    'folder_id' => $folderId,
-                    'identity_number' => $identityNumber,
-                    'file_name' => $customName,
+                    'person_identity_number' => $identityNumber,
+                    'stored_file_name' => $customName,
                     'file_path' => $filePath,
                     'file_size' => $fileSize,
+                    'file_type' => $this->determineFileTypeFromPath($filePath),
                     'created_at' => now(),
                     'updated_at' => now()
                 ]);
@@ -2676,8 +2676,8 @@ class UnifiedFileManagementController extends Controller
             // Store the file
             $storedPath = $file->storeAs('public/uploads/' . $targetFileId, $newFileName);
 
-            // Determine file type for further processing
-            $fileType = $this->determineFileTypeFromExtension($extension);
+            // Extract document type from filename prefix for database storage
+            $documentType = $this->extractDocumentTypeFromFilename($newFileName);
 
             // Extract identity number from processed filename for database storage
             $identityNumber = $this->extractIdentityNumberFromFilename($fileName);
@@ -2687,7 +2687,7 @@ class UnifiedFileManagementController extends Controller
                 $identityNumber,
                 $newFileName,
                 $storedPath,
-                $fileType,
+                $documentType,
                 $fileSize
             );
 
@@ -2696,7 +2696,7 @@ class UnifiedFileManagementController extends Controller
                 'original_folder' => $originalFolderName,
                 'target_file_id' => $targetFileId,
                 'file_name' => $fileName,
-                'file_type' => $fileType,
+                'document_type' => $documentType,
                 'success' => true
             ]);
 
@@ -2705,7 +2705,7 @@ class UnifiedFileManagementController extends Controller
                 'file' => $fileName,
                 'stored_path' => $storedPath,
                 'stored_name' => $newFileName,
-                'file_type' => $fileType,
+                'document_type' => $documentType,
                 'file_size' => $fileSize
             ];
 
@@ -2799,6 +2799,15 @@ class UnifiedFileManagementController extends Controller
             'xls', 'xlsx', 'csv' => 'excel',
             default => 'unknown'
         };
+    }
+
+    /**
+     * Determine file type from file path
+     */
+    private function determineFileTypeFromPath(string $filePath): string
+    {
+        $extension = pathinfo($filePath, PATHINFO_EXTENSION);
+        return $this->determineFileTypeFromExtension($extension);
     }
 
     /**
@@ -2918,6 +2927,46 @@ class UnifiedFileManagementController extends Controller
                 'error' => $e->getMessage()
             ]);
             return null;
+        }
+    }
+
+    /**
+     * Extract document type from processed filename
+     * From: TE102_001460_9214534563.jpg -> Returns: TE102
+     * From: TES-11_001443_538002200.png -> Returns: TES-11
+     */
+    private function extractDocumentTypeFromFilename(string $processedFileName): string
+    {
+        try {
+            $nameWithoutExt = pathinfo($processedFileName, PATHINFO_FILENAME);
+            $parts = explode('_', $nameWithoutExt);
+
+            // Expected pattern: PREFIX_FOLDERID_IDENTITY
+            if (count($parts) >= 3) {
+                $documentType = $parts[0]; // Document type is in the first part
+
+                Log::info('Extracted document type from filename', [
+                    'processed_filename' => $processedFileName,
+                    'extracted_type' => $documentType
+                ]);
+
+                return $documentType;
+            }
+
+            // Fallback: return 'unknown' if pattern doesn't match
+            Log::warning('Could not extract document type from filename pattern', [
+                'processed_filename' => $processedFileName,
+                'parts_count' => count($parts),
+                'parts' => $parts
+            ]);
+
+            return 'unknown';
+        } catch (\Exception $e) {
+            Log::error('Failed to extract document type from filename', [
+                'processed_filename' => $processedFileName,
+                'error' => $e->getMessage()
+            ]);
+            return 'unknown';
         }
     }
 
@@ -3510,7 +3559,7 @@ class UnifiedFileManagementController extends Controller
             return [
                 'total_files' => Attachment::count(),
                 'total_size' => Attachment::sum('file_size') ?? 0,
-                'total_folders' => Attachment::distinct('folder_id')->count('folder_id'),
+                'total_folders' => Attachment::distinct('person_identity_number')->count('person_identity_number'),
                 'today_uploads' => Attachment::whereDate('created_at', today())->count(),
             ];
         } catch (\Exception $e) {
