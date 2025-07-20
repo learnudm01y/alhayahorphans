@@ -409,22 +409,166 @@ class FolderManagementController extends Controller
 
         try {
             if ($type === 'images') {
-                $results = DB::table('enhanced_attachments')
+                // البحث المحسن مع الخوارزمية الجديدة
+                $results = collect();
+
+                // 1. البحث في جدول attachments بالخوارزمية الجديدة
+                $attachmentResults = DB::table('attachments')
+                    ->where(function($q) use ($query) {
+                        // البحث في اسم الملف
+                        $q->where('stored_file_name', 'LIKE', "%{$query}%")
+                          ->orWhere('file_path', 'LIKE', "%{$query}%")
+                          // البحث برقم الهوية في person_identity_number
+                          ->orWhere('person_identity_number', 'LIKE', "%{$query}%")
+                          // البحث في اسم المجلد المستخرج من file_path
+                          ->orWhereRaw('SUBSTRING_INDEX(SUBSTRING_INDEX(file_path, "/", -2), "/", 1) LIKE ?', ["%{$query}%"]);
+                    })
+                    ->where('file_path', 'LIKE', '%storage/uploads/%')
+                    ->whereNotNull('file_path')
+                    ->select([
+                        'id',
+                        'stored_file_name as original_file_name',
+                        'stored_file_name',
+                        'file_path',
+                        'file_size',
+                        'file_type',
+                        'mime_type',
+                        'person_identity_number',
+                        'updated_at',
+                        'created_at',
+                        DB::raw('SUBSTRING_INDEX(SUBSTRING_INDEX(file_path, "/", -2), "/", 1) as extracted_folder_name'),
+                        DB::raw('"attachments" as source_table')
+                    ])
+                    ->orderBy('updated_at', 'desc')
+                    ->get();
+
+                // إضافة النتائج من attachments
+                foreach ($attachmentResults as $result) {
+                    $result->record_number = $result->extracted_folder_name;
+                    $result->file_extension = pathinfo($result->stored_file_name, PATHINFO_EXTENSION);
+                    $results->push($result);
+                }
+
+                // 2. البحث في enhanced_attachments (إضافي)
+                $enhancedResults = DB::table('enhanced_attachments')
                     ->where(function($q) use ($query) {
                         $q->where('original_file_name', 'LIKE', "%{$query}%")
                           ->orWhere('stored_file_name', 'LIKE', "%{$query}%")
                           ->orWhere('file_path', 'LIKE', "%{$query}%")
-                          ->orWhere('record_number', 'LIKE', "%{$query}%")
-                          ->orWhereRaw('JSON_EXTRACT(file_metadata, "$.person_identity_number") LIKE ?', ["%{$query}%"]);
+                          ->orWhere('record_number', 'LIKE', "%{$query}%");
                     })
                     ->whereIn('file_type', ['image', 'photo', 'document', 'pdf'])
-                    ->whereNotIn('file_type', ['excel']) // استثناء ملفات Excel من بحث الصور
+                    ->whereNotIn('file_type', ['excel'])
                     ->whereNull('deleted_at')
+                    ->select([
+                        'id',
+                        'original_file_name',
+                        'stored_file_name',
+                        'file_path',
+                        'file_size',
+                        'file_type',
+                        'mime_type',
+                        'record_number',
+                        'updated_at',
+                        'created_at',
+                        'file_extension',
+                        DB::raw('"enhanced_attachments" as source_table')
+                    ])
                     ->orderBy('updated_at', 'desc')
-                    ->paginate(20);
+                    ->get();
+
+                // إضافة النتائج من enhanced_attachments
+                foreach ($enhancedResults as $result) {
+                    $results->push($result);
+                }
+
+                // 3. البحث بأسماء الأشخاص من جدول data
+                $personResults = DB::table('data')
+                    ->where(function($q) use ($query) {
+                        $q->where('data_first_name', 'LIKE', "%{$query}%")
+                          ->orWhere('data_father_name', 'LIKE', "%{$query}%")
+                          ->orWhere('data_grand_father_name', 'LIKE', "%{$query}%")
+                          ->orWhere('data_family_name', 'LIKE', "%{$query}%")
+                          ->orWhereRaw('CONCAT(data_first_name, " ", data_father_name, " ", data_grand_father_name, " ", data_family_name) LIKE ?', ["%{$query}%"]);
+                    })
+                    ->get();
+
+                // للأشخاص الموجودين، ابحث عن ملفاتهم
+                foreach ($personResults as $person) {
+                    $personFiles = DB::table('attachments')
+                        ->where('file_path', 'LIKE', '%storage/uploads/%')
+                        ->whereRaw('SUBSTRING_INDEX(SUBSTRING_INDEX(file_path, "/", -2), "/", 1) = ?', [$person->file_id_number])
+                        ->select([
+                            'id',
+                            'stored_file_name as original_file_name',
+                            'stored_file_name',
+                            'file_path',
+                            'file_size',
+                            'file_type',
+                            'mime_type',
+                            'person_identity_number',
+                            'updated_at',
+                            'created_at',
+                            DB::raw('SUBSTRING_INDEX(SUBSTRING_INDEX(file_path, "/", -2), "/", 1) as extracted_folder_name'),
+                            DB::raw('"attachments_person_search" as source_table')
+                        ])
+                        ->get();
+
+                    foreach ($personFiles as $file) {
+                        $file->record_number = $file->extracted_folder_name;
+                        $file->file_extension = pathinfo($file->stored_file_name, PATHINFO_EXTENSION);
+                        $file->person_name_match = trim($person->data_first_name . ' ' . $person->data_father_name . ' ' . $person->data_grand_father_name . ' ' . $person->data_family_name);
+                        $results->push($file);
+                    }
+                }
+
+                // إزالة التكرار وترتيب النتائج
+                $results = $results->unique('id')->sortByDesc('updated_at')->take(20);
+
+                // تحويل إلى pagination format
+                $enhancedData = $results->map(function ($file) {
+                    // التأكد من وجود download_url وإصلاح المسار
+                    if (empty($file->download_url) && !empty($file->file_path)) {
+                        $cleanPath = ltrim($file->file_path, '/');
+                        if (strpos($cleanPath, 'storage/') === 0) {
+                            $cleanPath = substr($cleanPath, 8);
+                        }
+                        $file->download_url = asset('storage/' . $cleanPath);
+                    }
+
+                    // إضافة اسم الشخص
+                    if (empty($file->person_name_match)) {
+                        $file->person_name = $this->getPersonName($file->record_number ?? $file->extracted_folder_name ?? '');
+                    } else {
+                        $file->person_name = $file->person_name_match;
+                    }
+
+                    // إضافة formatted size
+                    if (isset($file->file_size)) {
+                        $file->formatted_size = $this->formatFileSize($file->file_size);
+                    }
+
+                    // إضافة formatted date
+                    if (isset($file->created_at)) {
+                        $file->formatted_date = date('Y-m-d', strtotime($file->created_at));
+                    }
+
+                    return $file;
+                });
+
+                // إنشاء pagination response محسن
+                $paginationData = [
+                    'data' => $enhancedData->toArray(),
+                    'current_page' => 1,
+                    'last_page' => 1,
+                    'per_page' => 20,
+                    'total' => $enhancedData->count(),
+                    'from' => 1,
+                    'to' => $enhancedData->count()
+                ];
             } else {
                 // تحسين البحث في ملفات Excel - بحث بسيط وآمن
-                $results = DB::table('enhanced_attachments')
+                $excelResults = DB::table('enhanced_attachments')
                     ->where(function($q) use ($query) {
                         $q->where('original_file_name', 'LIKE', "%{$query}%")
                           ->orWhere('stored_file_name', 'LIKE', "%{$query}%")
@@ -449,43 +593,42 @@ class FolderManagementController extends Controller
                     ->whereNull('deleted_at')
                     ->orderBy('created_at', 'desc')
                     ->paginate(20);
-            }
 
-            // إضافة معلومات إضافية للنتائج
-            $enhancedData = collect($results->items())->map(function ($file) {
-                // التأكد من وجود download_url وإصلاح المسار
-                if (empty($file->download_url) && !empty($file->file_path)) {
-                    // إزالة storage/ في بداية المسار إذا كانت موجودة
-                    $cleanPath = ltrim($file->file_path, '/');
-                    if (strpos($cleanPath, 'storage/') === 0) {
-                        $cleanPath = substr($cleanPath, 8); // إزالة storage/
+                // إضافة معلومات إضافية للنتائج
+                $enhancedData = collect($excelResults->items())->map(function ($file) {
+                    // التأكد من وجود download_url وإصلاح المسار
+                    if (empty($file->download_url) && !empty($file->file_path)) {
+                        $cleanPath = ltrim($file->file_path, '/');
+                        if (strpos($cleanPath, 'storage/') === 0) {
+                            $cleanPath = substr($cleanPath, 8);
+                        }
+                        $file->download_url = asset('storage/' . $cleanPath);
                     }
-                    $file->download_url = asset('storage/' . $cleanPath);
-                }
 
-                // إضافة formatted size
-                if (isset($file->file_size)) {
-                    $file->formatted_size = $this->formatFileSize($file->file_size);
-                }
+                    // إضافة formatted size
+                    if (isset($file->file_size)) {
+                        $file->formatted_size = $this->formatFileSize($file->file_size);
+                    }
 
-                // إضافة formatted date
-                if (isset($file->created_at)) {
-                    $file->formatted_date = date('Y-m-d', strtotime($file->created_at));
-                }
+                    // إضافة formatted date
+                    if (isset($file->created_at)) {
+                        $file->formatted_date = date('Y-m-d', strtotime($file->created_at));
+                    }
 
-                return $file;
-            });
+                    return $file;
+                });
 
-            // إنشاء pagination response محسن
-            $paginationData = [
-                'data' => $enhancedData->toArray(),
-                'current_page' => $results->currentPage(),
-                'last_page' => $results->lastPage(),
-                'per_page' => $results->perPage(),
-                'total' => $results->total(),
-                'from' => $results->firstItem(),
-                'to' => $results->lastItem()
-            ];
+                // إنشاء pagination response محسن
+                $paginationData = [
+                    'data' => $enhancedData->toArray(),
+                    'current_page' => $excelResults->currentPage(),
+                    'last_page' => $excelResults->lastPage(),
+                    'per_page' => $excelResults->perPage(),
+                    'total' => $excelResults->total(),
+                    'from' => $excelResults->firstItem(),
+                    'to' => $excelResults->lastItem()
+                ];
+            }
 
             return response()->json([
                 'success' => true,
