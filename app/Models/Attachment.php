@@ -16,9 +16,6 @@ class Attachment extends Model
         'file_path',
         'file_type',
         'file_size',
-        'description',
-        'uploaded_at',
-        'upload_source'
     ];
     protected $table = 'attachments';
 }

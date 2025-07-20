@@ -27,58 +27,114 @@ class FolderManagementController extends Controller
     private function getImageFolders()
     {
         try {
-            // التحقق من وجود جدول enhanced_attachments
-            if (!DB::getSchemaBuilder()->hasTable('enhanced_attachments')) {
-                Log::warning('Table enhanced_attachments does not exist');
-
-                // Fallback: scan physical folders if database table doesn't exist
-                return $this->scanPhysicalFolders();
-            }
-
-            // فحص الأعمدة المتوفرة
-            $columns = DB::getSchemaBuilder()->getColumnListing('enhanced_attachments');
-            Log::info('Available columns in enhanced_attachments:', $columns);
-
-            // تحديد العمود المناسب لرقم السجل
-            $recordNumberColumn = 'record_number';
-            if (!in_array('record_number', $columns)) {
-                // جرب عمود بديل
-                if (in_array('folder_id', $columns)) {
-                    $recordNumberColumn = 'folder_id';
-                } elseif (in_array('original_folder_name', $columns)) {
-                    $recordNumberColumn = 'original_folder_name';
-                } else {
-                    Log::warning('No suitable record number column found');
-                    return $this->scanPhysicalFolders();
-                }
-            }
-
-            // جلب المجلدات من قاعدة البيانات (استثناء ملفات Excel)
-            $folders = DB::table('enhanced_attachments')
+            // البحث في جدول attachments (الجدول الأساسي للصور)
+            $attachmentFolders = DB::table('attachments')
                 ->select(DB::raw("
-                    {$recordNumberColumn} as folder_name,
+                    person_identity_number as folder_name,
                     COUNT(*) as files_count,
                     SUM(file_size) as total_size,
                     MAX(updated_at) as last_modified,
                     GROUP_CONCAT(DISTINCT file_type) as file_types,
-                    GROUP_CONCAT(DISTINCT mime_type) as mime_types
+                    'attachments' as source
                 "))
-                ->whereNotNull($recordNumberColumn)
-                ->where($recordNumberColumn, '!=', '')
-                ->whereIn('file_type', ['image', 'photo', 'document', 'pdf'])
-                ->whereNotIn('file_type', ['excel']) // استثناء ملفات Excel من بوابة الصور
-                ->whereNull('deleted_at')
-                ->groupBy($recordNumberColumn) // Use the same column variable here
-                ->orderBy('last_modified', 'desc')
-                ->paginate(50); // Increased from 20 to 50 to show more folders
+                ->whereNotNull('person_identity_number')
+                ->where('person_identity_number', '!=', '')
+                ->groupBy('person_identity_number')
+                ->get();
 
-            // إذا لم نجد مجلدات في قاعدة البيانات، جرب المسح الفيزيائي
+            // البحث في enhanced_attachments كنسخة احتياطية
+            $enhancedFolders = collect();
+            if (DB::getSchemaBuilder()->hasTable('enhanced_attachments')) {
+                $columns = DB::getSchemaBuilder()->getColumnListing('enhanced_attachments');
+                $recordNumberColumn = 'record_number';
+
+                if (!in_array('record_number', $columns)) {
+                    if (in_array('folder_id', $columns)) {
+                        $recordNumberColumn = 'folder_id';
+                    } elseif (in_array('original_folder_name', $columns)) {
+                        $recordNumberColumn = 'original_folder_name';
+                    }
+                }
+
+                if (in_array($recordNumberColumn, $columns)) {
+                    $enhancedFolders = DB::table('enhanced_attachments')
+                        ->select(DB::raw("
+                            {$recordNumberColumn} as folder_name,
+                            COUNT(*) as files_count,
+                            SUM(file_size) as total_size,
+                            MAX(updated_at) as last_modified,
+                            GROUP_CONCAT(DISTINCT file_type) as file_types,
+                            GROUP_CONCAT(DISTINCT mime_type) as mime_types,
+                            'enhanced_attachments' as source
+                        "))
+                        ->whereNotNull($recordNumberColumn)
+                        ->where($recordNumberColumn, '!=', '')
+                        ->whereIn('file_type', ['image', 'photo', 'document', 'pdf'])
+                        ->whereNotIn('file_type', ['excel'])
+                        ->whereNull('deleted_at')
+                        ->groupBy($recordNumberColumn)
+                        ->get();
+                }
+            }
+
+            // دمج النتائج من كلا الجدولين
+            $allFolders = collect();
+            $processedFolders = [];
+
+            // إضافة مجلدات attachments
+            foreach ($attachmentFolders as $folder) {
+                $folderName = $folder->folder_name;
+                if (!isset($processedFolders[$folderName])) {
+                    $processedFolders[$folderName] = $folder;
+                } else {
+                    // دمج البيانات إذا كان المجلد موجود من مصدر آخر
+                    $processedFolders[$folderName]->files_count += $folder->files_count;
+                    $processedFolders[$folderName]->total_size += $folder->total_size;
+                    if ($folder->last_modified > $processedFolders[$folderName]->last_modified) {
+                        $processedFolders[$folderName]->last_modified = $folder->last_modified;
+                    }
+                }
+            }
+
+            // إضافة مجلدات enhanced_attachments (فقط إذا لم تكن موجودة)
+            foreach ($enhancedFolders as $folder) {
+                $folderName = $folder->folder_name;
+                if (!isset($processedFolders[$folderName])) {
+                    $processedFolders[$folderName] = $folder;
+                } else {
+                    // دمج البيانات
+                    $processedFolders[$folderName]->files_count += $folder->files_count;
+                    $processedFolders[$folderName]->total_size += $folder->total_size;
+                    if ($folder->last_modified > $processedFolders[$folderName]->last_modified) {
+                        $processedFolders[$folderName]->last_modified = $folder->last_modified;
+                    }
+                }
+            }
+
+            // تحويل إلى collection وتطبيق الترقيم التصفحي
+            $folders = collect($processedFolders)->sortByDesc('last_modified');
+
+            // إذا لم نجد مجلدات، جرب المسح الفيزيائي
             if ($folders->isEmpty()) {
                 return $this->scanPhysicalFolders();
             }
 
+            // تطبيق الترقيم التصفحي
+            $currentPage = request()->get('page', 1);
+            $perPage = 50;
+            $totalItems = $folders->count();
+            $foldersForPage = $folders->forPage($currentPage, $perPage);
+
+            $paginatedFolders = new LengthAwarePaginator(
+                $foldersForPage->values(),
+                $totalItems,
+                $perPage,
+                $currentPage,
+                ['path' => request()->url(), 'pageName' => 'page']
+            );
+
             // تحسين البيانات وإضافة أسماء الأشخاص
-            foreach ($folders as $folder) {
+            foreach ($paginatedFolders as $folder) {
                 $folder->formatted_size = $this->formatFileSize($folder->total_size ?? 0);
                 $folder->formatted_date = date('Y-m-d H:i', strtotime($folder->last_modified));
                 $folder->file_types_array = !empty($folder->file_types) ? explode(',', $folder->file_types) : [];
@@ -87,28 +143,14 @@ class FolderManagementController extends Controller
                 $folder->has_images = !empty(array_intersect($folder->file_types_array, ['image', 'photo']));
                 $folder->has_documents = !empty(array_intersect($folder->file_types_array, ['document', 'pdf']));
 
-                // البحث عن اسم الشخص من جدول data
-                $personData = DB::table('data')
-                    ->where('file_id_number', $folder->folder_name)
-                    ->select('data_first_name', 'data_father_name', 'data_grand_father_name', 'data_family_name')
-                    ->first();
-
-                if ($personData) {
-                    // تكوين الاسم الكامل
-                    $fullName = trim(
-                        ($personData->data_first_name ?? '') . ' ' .
-                        ($personData->data_father_name ?? '') . ' ' .
-                        ($personData->data_grand_father_name ?? '') . ' ' .
-                        ($personData->data_family_name ?? '')
-                    );
-                    $folder->person_name = $fullName ?: 'غير محدد';
-                } else {
-                    $folder->person_name = 'غير مسجل';
-                }
+                // البحث عن اسم الشخص من جدول data مع دعم التنسيقات المختلفة
+                $personData = $this->getPersonName($folder->folder_name);
+                $folder->person_name = $personData;
             }
 
-            return view('file-management.folders-management.index', compact('folders'))
-                ->with('type', 'images');
+            return view('file-management.folders-management.index', compact('paginatedFolders'))
+                ->with('type', 'images')
+                ->with('folders', $paginatedFolders);
 
         } catch (\Exception $e) {
             Log::error('Error fetching folders: ' . $e->getMessage());
@@ -162,7 +204,7 @@ class FolderManagementController extends Controller
                 ->whereNull('deleted_at')
                 ->count();
 
-            // تحسين البيانات
+            // تحسين البيانات وإضافة أسماء الأشخاص
             foreach ($folders as $folder) {
                 $folder->formatted_size = $this->formatFileSize($folder->total_size ?? 0);
                 $folder->formatted_date = date('Y-m-d H:i', strtotime($folder->last_modified));
@@ -171,6 +213,9 @@ class FolderManagementController extends Controller
                 $folder->folder_path = "excel/{$folder->folder_name}";
                 $folder->has_excel = true;
                 $folder->excel_only = true; // علامة لتمييز مجلدات Excel
+
+                // البحث عن اسم الشخص من جدول data
+                $folder->person_name = $this->getPersonName($folder->folder_name);
             }
 
             return view('file-management.folders-management.index', compact('folders'))
@@ -201,28 +246,65 @@ class FolderManagementController extends Controller
             }
 
             if ($type === 'images') {
-                // تحديد العمود المناسب لرقم السجل
-                $columns = DB::getSchemaBuilder()->getColumnListing('enhanced_attachments');
+                // البحث الشامل في كلا الجدولين
+                $files = collect();
+
+                // 1. البحث في جدول attachments (للصور التقليدية)
+                // البحث في جدول attachments للصور (إزالة record_number)
+                $attachmentFiles = DB::table('attachments')
+                    ->where('person_identity_number', $folderName)
+                    ->orderBy('updated_at', 'desc')
+                    ->get();                // تحويل بيانات attachments للبنية المطلوبة
+                foreach ($attachmentFiles as $file) {
+                    $fileObject = (object) [
+                        'id' => $file->id,
+                        'original_file_name' => $file->stored_file_name, // استخدام stored_file_name فقط
+                        'stored_file_name' => $file->stored_file_name,
+                        'file_path' => $file->file_path,
+                        'file_size' => $file->file_size,
+                        'file_type' => $file->file_type ?: 'image',
+                        'file_extension' => pathinfo($file->stored_file_name, PATHINFO_EXTENSION),
+                        'mime_type' => $this->getMimeTypeFromExtension(pathinfo($file->stored_file_name, PATHINFO_EXTENSION)),
+                        'record_number' => $file->person_identity_number, // إزالة مرجع record_number
+                        'updated_at' => $file->updated_at,
+                        'created_at' => $file->created_at,
+                        'source' => 'attachments_table'
+                    ];
+                    $files->push($fileObject);
+                }
+
+                // 2. البحث في جدول enhanced_attachments (للملفات المحسنة)
+                $enhancedColumns = DB::getSchemaBuilder()->getColumnListing('enhanced_attachments');
                 $recordNumberColumn = 'record_number';
 
-                if (!in_array('record_number', $columns)) {
-                    if (in_array('folder_id', $columns)) {
+                if (!in_array('record_number', $enhancedColumns)) {
+                    if (in_array('folder_id', $enhancedColumns)) {
                         $recordNumberColumn = 'folder_id';
-                    } elseif (in_array('original_folder_name', $columns)) {
+                    } elseif (in_array('original_folder_name', $enhancedColumns)) {
                         $recordNumberColumn = 'original_folder_name';
-                    } else {
-                        // استخدام Eloquent Model بدلاً من Query Builder
-                        return $this->getFolderContentsUsingModel($folderName, $type);
                     }
                 }
 
-                $files = DB::table('enhanced_attachments')
-                    ->where($recordNumberColumn, $folderName)
-                    ->whereIn('file_type', ['image', 'photo', 'document', 'pdf'])
-                    ->whereNotIn('file_type', ['excel']) // استثناء ملفات Excel من بوابة الصور
-                    ->whereNull('deleted_at')
-                    ->orderBy('updated_at', 'desc')
-                    ->get();
+                if (in_array($recordNumberColumn, $enhancedColumns)) {
+                    $enhancedFiles = DB::table('enhanced_attachments')
+                        ->where($recordNumberColumn, $folderName)
+                        ->whereIn('file_type', ['image', 'photo', 'document', 'pdf'])
+                        ->whereNotIn('file_type', ['excel']) // استثناء ملفات Excel من بوابة الصور
+                        ->whereNull('deleted_at')
+                        ->orderBy('updated_at', 'desc')
+                        ->get();
+
+                    // إضافة ملفات enhanced_attachments إلى القائمة
+                    foreach ($enhancedFiles as $enhancedFile) {
+                        $enhancedFile->source = 'enhanced_attachments_table';
+                        $files->push($enhancedFile);
+                    }
+                }
+
+                // 3. إذا لم نجد ملفات في أي من الجدولين، جرب المسح الفيزيائي
+                if ($files->isEmpty()) {
+                    return $this->getFolderContentsFromPhysical($folderName);
+                }
 
                 foreach ($files as $file) {
                     $file->formatted_size = $this->formatFileSize($file->file_size ?? 0);
@@ -730,22 +812,22 @@ class FolderManagementController extends Controller
             if ($files->isEmpty()) {
                 $files = Attachment::where('person_identity_number', $folderName)
                     ->orWhere('file_path', 'LIKE', "%{$folderName}%")
-                    ->orderBy('uploaded_at', 'desc')
+                    ->orderBy('updated_at', 'desc')
                     ->get();
 
                 // تحويل البيانات لتتوافق مع البنية المتوقعة
                 $files = $files->map(function($file) {
                     return (object) [
                         'id' => $file->id,
-                        'original_file_name' => $file->file_name,
+                        'original_file_name' => $file->stored_file_name, // استخدام stored_file_name بدلاً من file_name
                         'stored_file_name' => $file->stored_file_name,
                         'file_path' => $file->file_path,
                         'file_size' => $file->file_size,
                         'file_type' => $file->file_type,
-                        'file_extension' => pathinfo($file->file_name, PATHINFO_EXTENSION),
-                        'mime_type' => $this->getMimeTypeFromExtension(pathinfo($file->file_name, PATHINFO_EXTENSION)),
+                        'file_extension' => pathinfo($file->stored_file_name, PATHINFO_EXTENSION),
+                        'mime_type' => $this->getMimeTypeFromExtension(pathinfo($file->stored_file_name, PATHINFO_EXTENSION)),
                         'record_number' => $file->person_identity_number,
-                        'updated_at' => $file->uploaded_at,
+                        'updated_at' => $file->updated_at,
                         'created_at' => $file->created_at
                     ];
                 });
@@ -959,5 +1041,47 @@ class FolderManagementController extends Controller
         }
 
         return 'document';
+    }
+
+    /**
+     * Get person name from data table with support for different formats
+     */
+    private function getPersonName($folderName)
+    {
+        try {
+            // محاولة 1: مقارنة مباشرة (للأرقام الكبيرة مثل 000029)
+            $personData = DB::table('data')
+                ->where('file_id_number', $folderName)
+                ->select('data_first_name', 'data_father_name', 'data_grand_father_name', 'data_family_name')
+                ->first();
+
+            // محاولة 2: إزالة الأصفار البادئة (للأرقام الصغيرة مثل 000010)
+            if (!$personData && preg_match('/^0+(\d+)$/', $folderName, $matches)) {
+                $numericPart = (int)$matches[1];
+                $personData = DB::table('data')
+                    ->where('file_id_number', $numericPart)
+                    ->select('data_first_name', 'data_father_name', 'data_grand_father_name', 'data_family_name')
+                    ->first();
+            }
+
+            if ($personData) {
+                // تكوين الاسم الكامل
+                $nameComponents = array_filter([
+                    $personData->data_first_name ?? '',
+                    $personData->data_father_name ?? '',
+                    $personData->data_grand_father_name ?? '',
+                    $personData->data_family_name ?? ''
+                ]);
+
+                $fullName = trim(implode(' ', $nameComponents));
+                return $fullName ?: 'غير محدد';
+            }
+
+            return 'غير مسجل';
+
+        } catch (\Exception $e) {
+            Log::error('Error getting person name for folder ' . $folderName . ': ' . $e->getMessage());
+            return 'خطأ في البيانات';
+        }
     }
 }
