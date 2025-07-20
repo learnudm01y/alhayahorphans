@@ -21,7 +21,7 @@ return new class extends Migration
             $table->string('target_folder', 100)->nullable();
             $table->string('existing_file_name', 255)->nullable();
             $table->timestamp('created_at');
-            $table->timestamp('expires_at')->index();
+            $table->timestamp('expires_at');
 
             // Indexes for performance
             $table->index(['session_id', 'expires_at']);
