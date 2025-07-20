@@ -27,19 +27,20 @@ class FolderManagementController extends Controller
     private function getImageFolders()
     {
         try {
-            // البحث في جدول attachments (الجدول الأساسي للصور)
+            // البحث في جدول attachments (الجدول الأساسي للصور) - استخراج اسم المجلد من file_path
             $attachmentFolders = DB::table('attachments')
                 ->select(DB::raw("
-                    person_identity_number as folder_name,
+                    SUBSTRING_INDEX(SUBSTRING_INDEX(file_path, '/', -2), '/', 1) as folder_name,
                     COUNT(*) as files_count,
                     SUM(file_size) as total_size,
                     MAX(updated_at) as last_modified,
                     GROUP_CONCAT(DISTINCT file_type) as file_types,
                     'attachments' as source
                 "))
-                ->whereNotNull('person_identity_number')
-                ->where('person_identity_number', '!=', '')
-                ->groupBy('person_identity_number')
+                ->where('file_path', 'LIKE', '%storage/uploads/%')
+                ->whereNotNull('file_path')
+                ->where('file_path', '!=', '')
+                ->groupBy(DB::raw("SUBSTRING_INDEX(SUBSTRING_INDEX(file_path, '/', -2), '/', 1)"))
                 ->get();
 
             // البحث في enhanced_attachments كنسخة احتياطية
