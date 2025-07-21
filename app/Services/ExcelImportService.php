@@ -606,16 +606,14 @@ class ExcelImportService
                     $data['data_user_insert_data'] = auth()->id();
                     // تعيين حالة الطلب كـ "مقبول" تلقائياً إذا لم تكن محددة
                     if (!isset($data['data_request_status']) || empty($data['data_request_status'])) {
-                        // البحث عن ID حالة "مقبول" من قاعدة البيانات
-                        $acceptedStatusId = DB::table('request_status')
-                            ->where('description', 'مقبول')
-                            ->value('id');
-
-                        $data['data_request_status'] = $acceptedStatusId ?: 2; // استخدام 2 كافتراضي إذا لم يتم العثور على الحالة
+                        // البحث المحسن عن ID حالة "مقبول" مع معالجة أخطاء الاستضافة
+                        $acceptedStatusId = $this->getAcceptedStatusId();
+                        $data['data_request_status'] = $acceptedStatusId;
 
                         Log::info('Excel import: Auto-assigned request status', [
                             'assigned_status_id' => $data['data_request_status'],
-                            'found_in_db' => $acceptedStatusId ? 'yes' : 'no'
+                            'method' => 'dynamic_lookup',
+                            'environment' => app()->environment()
                         ]);
                     }
                     break;
@@ -1042,6 +1040,90 @@ class ExcelImportService
             ]);
 
             return null;
+        }
+    }
+
+    /**
+     * الحصول على ID حالة "مقبول" مع معالجة محسنة للأخطاء
+     * يتعامل مع مشاكل الاستضافة المشتركة والبيئات المختلفة
+     */
+    private function getAcceptedStatusId(): int
+    {
+        try {
+            // المحاولة الأولى: البحث المباشر
+            $acceptedStatusId = DB::table('request_status')
+                ->where('description', 'مقبول')
+                ->value('id');
+
+            if ($acceptedStatusId) {
+                Log::info('Excel import: Found accepted status', [
+                    'status_id' => $acceptedStatusId,
+                    'method' => 'direct_search'
+                ]);
+                return (int) $acceptedStatusId;
+            }
+
+            // المحاولة الثانية: البحث مع تجاهل الحالة
+            $acceptedStatusId = DB::table('request_status')
+                ->whereRaw('LOWER(description) = ?', ['مقبول'])
+                ->value('id');
+
+            if ($acceptedStatusId) {
+                Log::info('Excel import: Found accepted status with case insensitive search', [
+                    'status_id' => $acceptedStatusId,
+                    'method' => 'case_insensitive_search'
+                ]);
+                return (int) $acceptedStatusId;
+            }
+
+            // المحاولة الثالثة: البحث في جميع السجلات للعثور على أقرب تطابق
+            $allStatuses = DB::table('request_status')->get();
+            foreach ($allStatuses as $status) {
+                if (strpos($status->description, 'مقبول') !== false ||
+                    strpos($status->description, 'موافق') !== false ||
+                    strpos($status->description, 'accepted') !== false) {
+
+                    Log::warning('Excel import: Found similar status to accepted', [
+                        'status_id' => $status->id,
+                        'description' => $status->description,
+                        'method' => 'partial_match'
+                    ]);
+                    return (int) $status->id;
+                }
+            }
+
+            // المحاولة الأخيرة: استخدام أعلى ID (غالباً ما يكون الأحدث)
+            $fallbackStatusId = DB::table('request_status')
+                ->orderBy('id', 'desc')
+                ->value('id');
+
+            if ($fallbackStatusId) {
+                Log::warning('Excel import: Using fallback status (highest ID)', [
+                    'status_id' => $fallbackStatusId,
+                    'method' => 'fallback_highest_id'
+                ]);
+                return (int) $fallbackStatusId;
+            }
+
+            // إذا فشل كل شيء، استخدم القيم الافتراضية حسب البيئة
+            $defaultStatusId = app()->environment('production') ? 4 : 2;
+
+            Log::error('Excel import: No status found, using environment default', [
+                'default_status_id' => $defaultStatusId,
+                'environment' => app()->environment(),
+                'method' => 'environment_default'
+            ]);
+
+            return $defaultStatusId;
+
+        } catch (\Exception $e) {
+            Log::error('Excel import: Error finding accepted status', [
+                'error' => $e->getMessage(),
+                'fallback_status' => 2
+            ]);
+
+            // في حالة الخطأ، استخدم 2 كافتراضي
+            return 2;
         }
     }
 }
