@@ -606,7 +606,7 @@ class ExcelImportService
                     $data['data_user_insert_data'] = auth()->id();
                     // تعيين حالة الطلب كـ "مقبول" تلقائياً إذا لم تكن محددة
                     if (!isset($data['data_request_status']) || empty($data['data_request_status'])) {
-                        $data['data_request_status'] = 2; // 2 = مقبول
+                        $data['data_request_status'] = 4; // 4 = مقبول
                     }
                     break;
 
