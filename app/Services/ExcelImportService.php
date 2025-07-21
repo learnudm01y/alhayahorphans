@@ -606,7 +606,17 @@ class ExcelImportService
                     $data['data_user_insert_data'] = auth()->id();
                     // تعيين حالة الطلب كـ "مقبول" تلقائياً إذا لم تكن محددة
                     if (!isset($data['data_request_status']) || empty($data['data_request_status'])) {
-                        $data['data_request_status'] = 4; // 4 = مقبول
+                        // البحث عن ID حالة "مقبول" من قاعدة البيانات
+                        $acceptedStatusId = DB::table('request_status')
+                            ->where('description', 'مقبول')
+                            ->value('id');
+
+                        $data['data_request_status'] = $acceptedStatusId ?: 2; // استخدام 2 كافتراضي إذا لم يتم العثور على الحالة
+
+                        Log::info('Excel import: Auto-assigned request status', [
+                            'assigned_status_id' => $data['data_request_status'],
+                            'found_in_db' => $acceptedStatusId ? 'yes' : 'no'
+                        ]);
                     }
                     break;
 

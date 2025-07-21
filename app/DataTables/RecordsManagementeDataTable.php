@@ -92,7 +92,7 @@ class RecordsManagementeDataTable extends DataTable
     public function query(Data $model): QueryBuilder
     {
         // عرض فقط السجلات التي حالة الطلب لها "مقبول"
-        // ملاحظة: تأكد من أن البيانات المستوردة من Excel لها data_request_status = 2 (مقبول)
+        // ملاحظة: تأكد من أن البيانات المستوردة من Excel لها data_request_status = 4 (مقبول على الاستضافة)
         return $model->newQuery()
             ->whereHas('requestStatus', function($q) {
                 $q->where('description', 'مقبول');
