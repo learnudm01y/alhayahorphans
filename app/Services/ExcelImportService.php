@@ -644,6 +644,23 @@ class ExcelImportService
         try {
             DB::beginTransaction();
 
+            // ضمانة إضافية: التأكد من تعيين الحالة الصحيحة لجميع السجلات المستوردة من Excel
+            if ($modelClass === Data::class) {
+                $acceptedStatusId = $this->getAcceptedStatusId();
+                foreach ($data as &$record) {
+                    if (isset($record['original_file_id_from_excel']) &&
+                        (!isset($record['data_request_status']) || empty($record['data_request_status']))) {
+                        $record['data_request_status'] = $acceptedStatusId;
+
+                        Log::info('Excel import: Last-minute status assignment', [
+                            'file_id' => $record['file_id_number'] ?? 'unknown',
+                            'status_id' => $acceptedStatusId,
+                            'location' => 'saveToDatabase'
+                        ]);
+                    }
+                }
+            }
+
             // حفظ البيانات في دفعات
             $chunks = array_chunk($data, $batchSize);
 
