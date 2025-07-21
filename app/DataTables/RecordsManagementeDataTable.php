@@ -82,7 +82,7 @@ class RecordsManagementeDataTable extends DataTable
             ->addColumn('employment_status_name', function($row) {
                 return optional($row->employmentStatusBreadwinner)->description; // حالة عمل العائل من العلاقة
             })
-            // ->rawColumns(['action'])
+            ->rawColumns(['action'])
             ->setRowId('id');
     }
 
@@ -92,6 +92,7 @@ class RecordsManagementeDataTable extends DataTable
     public function query(Data $model): QueryBuilder
     {
         // عرض فقط السجلات التي حالة الطلب لها "مقبول"
+        // ملاحظة: تأكد من أن البيانات المستوردة من Excel لها data_request_status = 2 (مقبول)
         return $model->newQuery()
             ->whereHas('requestStatus', function($q) {
                 $q->where('description', 'مقبول');

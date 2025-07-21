@@ -604,6 +604,10 @@ class ExcelImportService
                 case 'data':
                     // جدول data يستخدم data_user_insert_data
                     $data['data_user_insert_data'] = auth()->id();
+                    // تعيين حالة الطلب كـ "مقبول" تلقائياً إذا لم تكن محددة
+                    if (!isset($data['data_request_status']) || empty($data['data_request_status'])) {
+                        $data['data_request_status'] = 2; // 2 = مقبول
+                    }
                     break;
 
                 case 'dead_people':
