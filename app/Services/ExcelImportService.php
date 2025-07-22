@@ -157,6 +157,7 @@ class ExcelImportService
             'الجنس' => 'person_gender',
             'الحالة الصحية' => 'person_health_status',
             'نوع الضمان' => 'person_type_of_guarantee',
+            'المؤهل الأكاديمي' => 'acadimic_degree',
             'ملاحظة' => 'person_note',
             // English versions
             'registration_id' => 'registration_id',
@@ -171,6 +172,7 @@ class ExcelImportService
             'gender' => 'person_gender',
             'health_status' => 'person_health_status',
             'guarantee_type' => 'person_type_of_guarantee',
+            'academic_degree' => 'acadimic_degree',
             'note' => 'person_note',
         ],
     ];

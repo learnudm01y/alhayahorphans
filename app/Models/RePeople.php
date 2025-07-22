@@ -23,7 +23,8 @@ class RePeople extends Model
         'person_gender',
         'person_health_status',
         'person_type_of_guarantee',
-        'person_note'
+        'person_note',
+        'acadimic_degree'
     ];
 
     public function sponsorshipStatus()
