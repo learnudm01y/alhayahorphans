@@ -604,18 +604,24 @@ class ExcelImportService
                 case 'data':
                     // جدول data يستخدم data_user_insert_data
                     $data['data_user_insert_data'] = auth()->id();
-                    // تعيين حالة الطلب كـ "مقبول" تلقائياً إذا لم تكن محددة
-                    if (!isset($data['data_request_status']) || empty($data['data_request_status'])) {
-                        // البحث المحسن عن ID حالة "مقبول" مع معالجة أخطاء الاستضافة
-                        $acceptedStatusId = $this->getAcceptedStatusId();
-                        $data['data_request_status'] = $acceptedStatusId;
 
-                        Log::info('Excel import: Auto-assigned request status', [
-                            'assigned_status_id' => $data['data_request_status'],
-                            'method' => 'dynamic_lookup',
-                            'environment' => app()->environment()
-                        ]);
+                    // === ضمانة إجبارية لتعيين حالة "مقبول" ===
+                    // هذا التعيين إجباري لجميع السجلات المستوردة من Excel
+                    $acceptedStatusId = $this->getAcceptedStatusId();
+                    $data['data_request_status'] = $acceptedStatusId;
+
+                    // إضافة علامة للتعرف على السجلات المستوردة من Excel
+                    if (!isset($data['original_file_id_from_excel'])) {
+                        $data['original_file_id_from_excel'] = $data['file_id_number'] ?? 'excel_import_' . time();
                     }
+
+                    Log::info('Excel import: Force-assigned accepted status', [
+                        'file_id' => $data['file_id_number'] ?? 'unknown',
+                        'assigned_status_id' => $acceptedStatusId,
+                        'method' => 'force_assignment',
+                        'environment' => app()->environment(),
+                        'excel_marker' => $data['original_file_id_from_excel']
+                    ]);
                     break;
 
                 case 'dead_people':

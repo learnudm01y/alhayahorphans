@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class Data extends Model
 {
@@ -45,6 +47,97 @@ class Data extends Model
         'data_user_insert_data',
         'data_request_status',
     ];
+
+    /**
+     * Boot method لإضافة الحماية التلقائية للسجلات المستوردة من Excel
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        // قبل الحفظ: التأكد من تعيين حالة "مقبول" للسجلات المستوردة من Excel
+        static::saving(function ($data) {
+            if (!empty($data->original_file_id_from_excel) &&
+                (empty($data->data_request_status) || $data->data_request_status == 0)) {
+
+                $acceptedStatusId = self::getAcceptedStatusId();
+                $data->data_request_status = $acceptedStatusId;
+
+                Log::info('Data Model: Auto-assigned accepted status on save', [
+                    'file_id' => $data->file_id_number,
+                    'status_id' => $acceptedStatusId,
+                    'event' => 'saving'
+                ]);
+            }
+        });
+
+        // بعد الحفظ: فحص نهائي للتأكد من ظهور السجل
+        static::saved(function ($data) {
+            if (!empty($data->original_file_id_from_excel)) {
+                // فحص فوري: هل السجل مرئي في DataTable؟
+                $isVisible = DB::table('data')
+                    ->join('request_status', 'data.data_request_status', '=', 'request_status.id')
+                    ->where('data.id', $data->id)
+                    ->where('request_status.description', 'مقبول')
+                    ->exists();
+
+                if (!$isVisible) {
+                    // إصلاح طارئ فوري
+                    $acceptedStatusId = self::getAcceptedStatusId();
+                    DB::table('data')
+                        ->where('id', $data->id)
+                        ->update(['data_request_status' => $acceptedStatusId]);
+
+                    Log::warning('Data Model: Emergency visibility fix applied', [
+                        'data_id' => $data->id,
+                        'file_id' => $data->file_id_number,
+                        'status_id' => $acceptedStatusId
+                    ]);
+                }
+            }
+        });
+    }
+
+    /**
+     * الحصول على ID حالة "مقبول" مع ضمانة أكيدة
+     */
+    private static function getAcceptedStatusId(): int
+    {
+        try {
+            // البحث المباشر
+            $acceptedStatusId = DB::table('request_status')
+                ->where('description', 'مقبول')
+                ->value('id');
+
+            if ($acceptedStatusId) {
+                return (int) $acceptedStatusId;
+            }
+
+            // البحث الجزئي
+            $partialMatch = DB::table('request_status')
+                ->where('description', 'like', '%مقبول%')
+                ->orWhere('description', 'like', '%موافق%')
+                ->orWhere('description', 'like', '%accepted%')
+                ->value('id');
+
+            if ($partialMatch) {
+                return (int) $partialMatch;
+            }
+
+            // استخدام أعلى ID (غالباً الأحدث)
+            $highestId = DB::table('request_status')
+                ->orderBy('id', 'desc')
+                ->value('id');
+
+            return $highestId ? (int) $highestId : 2;
+
+        } catch (\Exception $e) {
+            Log::error('Data Model: Error finding accepted status', [
+                'error' => $e->getMessage()
+            ]);
+            return 2; // قيمة آمنة
+        }
+    }
 
     // علاقات Eloquent
     public function section()
