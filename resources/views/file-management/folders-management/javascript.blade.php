@@ -95,6 +95,8 @@
 
         // تحميل محتويات المجلد
         function loadFolderContents(folderName) {
+            console.log('📂 Loading folder contents for:', folderName);
+
             const modalTitle = document.getElementById('modal-folder-name');
             const folderContents = document.getElementById('folder-contents');
 
@@ -103,18 +105,42 @@
 
             folderContentsModal.show();
 
-            fetch(`{{ route('admin.folders.contents') }}?folder=${encodeURIComponent(folderName)}&type=${currentType}`)
-                .then(response => response.json())
+            // إضافة المزيد من معاملات التشخيص
+            const requestUrl = `{{ route('admin.folders.contents') }}?folder=${encodeURIComponent(folderName)}&type=${currentType}&debug=1`;
+            console.log('🔍 Request URL:', requestUrl);
+
+            fetch(requestUrl)
+                .then(response => {
+                    console.log('📡 Response status:', response.status);
+                    console.log('📡 Response headers:', response.headers);
+                    return response.json();
+                })
                 .then(data => {
+                    console.log('📊 Full response data:', data);
+
                     if (data.success) {
+                        console.log('✅ Success response:', {
+                            filesCount: data.files ? data.files.length : 0,
+                            folderName: data.folder_name,
+                            files: data.files
+                        });
                         displayFolderContents(data.files, data.folder_name);
                     } else {
-                        folderContents.innerHTML = '<div class="alert alert-danger">حدث خطأ في جلب محتويات المجلد</div>';
+                        console.error('❌ Server returned error:', data.message || 'Unknown error');
+                        folderContents.innerHTML = `<div class="alert alert-danger">
+                            <h5>خطأ في جلب محتويات المجلد</h5>
+                            <p>${data.message || 'حدث خطأ غير معروف'}</p>
+                            <small>المجلد: ${folderName}</small>
+                        </div>`;
                     }
                 })
                 .catch(error => {
-                    console.error('Folder contents error:', error);
-                    folderContents.innerHTML = '<div class="alert alert-danger">حدث خطأ في الاتصال</div>';
+                    console.error('🚨 Fetch error:', error);
+                    folderContents.innerHTML = `<div class="alert alert-danger">
+                        <h5>خطأ في الاتصال</h5>
+                        <p>تعذر الاتصال بالخادم</p>
+                        <small>Error: ${error.message}</small>
+                    </div>`;
                 });
         }
 
@@ -191,9 +217,11 @@
                 // Build image URL with enhanced validation
                 let imageUrl = file.download_url || '';
 
-                // Ensure URL is properly formatted
+                // استخدام العرض الآمن للصور
                 if (imageUrl && !imageUrl.startsWith('http')) {
-                    imageUrl = imageUrl.startsWith('/') ? window.location.origin + imageUrl : window.location.origin + '/' + imageUrl;
+                    // استخراج اسم الملف من المسار
+                    const filename = imageUrl.replace(/^\/?(storage\/)+/, '').split('/').pop();
+                    imageUrl = `{{ route('admin.file.show', '') }}/${filename}`;
                 }
 
                 // Create preview HTML with enhanced design and no black overlay
@@ -583,9 +611,10 @@
                 if (downloadUrl && !downloadUrl.startsWith('http')) {
                     // إزالة storage/ المكررة من البداية
                     downloadUrl = downloadUrl.replace(/^\/?(storage\/)+/, '');
-                    downloadUrl = downloadUrl.startsWith('/') ?
-                        window.location.origin + '/storage/' + downloadUrl.substring(1) :
-                        window.location.origin + '/storage/' + downloadUrl;
+
+                    // استخدام العرض الآمن للملفات
+                    const filename = downloadUrl.split('/').pop();
+                    downloadUrl = `{{ route('admin.file.show', '') }}/${filename}`;
                 }
 
                 // التحقق من نوع الملف

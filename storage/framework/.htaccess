@@ -1,0 +1,22 @@
+# حماية تلقائية للمجلد - AUTO-GENERATED PROTECTION
+Order Allow,Deny
+Deny from all
+
+<FilesMatch "\.(php|php3|php4|php5|php7|php8|phtml|pl|py|jsp|asp|sh|cgi|exe|bat|cmd|com|scr|vbs|js|jar|war|ear)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+Options -Indexes -ExecCGI -Includes
+
+<FilesMatch "\.(htaccess|htpasswd|ini|log|sh|sql|sqlite|sqlite3|db|bak|backup|git|svn|env|config|conf|yaml|yml|json|xml|csv|txt)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^(.*)$ - [F,L]
+</IfModule>
+
+ErrorDocument 403 "<!DOCTYPE html><html dir='rtl' lang='ar'><head><meta charset='UTF-8'><title>وصول مرفوض</title><style>body{font-family:Arial,sans-serif;text-align:center;margin-top:100px;background:#f8f9fa;}.error{color:#dc3545;font-size:24px;margin-bottom:20px;}.message{color:#6c757d;font-size:16px;}</style></head><body><div class='error'>🚫 وصول مرفوض</div><div class='message'>غير مصرح لك بالوصول إلى هذا المجلد</div></body></html>"

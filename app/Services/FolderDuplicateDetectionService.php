@@ -210,32 +210,33 @@ class FolderDuplicateDetectionService
      * فحص ملف واحد للتكرار في مجلد محدد
      */
     /**
-     * فحص ملف للتحقق من وجود تكرار في مجلد محدد
+     * فحص ملف للتحقق من وجود تكرار حقيقي في مجلد محدد (تحسين لتجنب الملفات المكررة الوهمية)
      */
     public function checkFileForDuplicateInFolder(UploadedFile $file, string $targetFolderId, string $originalFolderName): array
     {
         try {
             $originalName = $file->getClientOriginalName();
 
-            // استخراج رقم الهوية من اسم الملف
-            $identityNumber = $this->extractIdentityNumberFromOriginalName($originalName);
+            // استخراج معلومات الملف للمقارنة الدقيقة
+            $fileInfo = $this->extractFileIdentificationInfo($originalName);
 
-            Log::info('فحص الملف للتحقق من التكرار بناء على رقم الهوية', [
+            Log::info('فحص الملف للتحقق من التكرار بناء على معلومات شاملة', [
                 'original_name' => $originalName,
-                'identity_number' => $identityNumber,
+                'file_info' => $fileInfo,
                 'target_folder' => $targetFolderId,
                 'original_folder' => $originalFolderName
             ]);
 
-            // البحث عن ملف بنفس رقم الهوية
-            $existingFile = $this->findExistingFileByIdentityInFolder($identityNumber, $targetFolderId);
+            // البحث عن ملف مطابق باستخدام النظام المحسن
+            $existingFile = $this->findExactMatchingFile($fileInfo, $targetFolderId);
 
             if ($existingFile) {
-                Log::info('تم العثور على ملف مكرر', [
+                Log::info('تم العثور على ملف مطابق بالفعل', [
                     'original_name' => $originalName,
-                    'identity_number' => $identityNumber,
+                    'file_info' => $fileInfo,
                     'existing_file' => $existingFile->stored_file_name ?? $existingFile->file_name,
-                    'target_folder' => $targetFolderId
+                    'target_folder' => $targetFolderId,
+                    'match_type' => 'exact_match'
                 ]);
 
                 // توليد اسم الملف الصحيح للملف المكرر
@@ -244,17 +245,24 @@ class FolderDuplicateDetectionService
                 return $this->handleDuplicateFileInFolder($file, $originalFolderName, $targetFolderId, $existingFile, $correctFileName);
             }
 
-            // الملف غير مكرر
+            // الملف غير مكرر - أو على الأقل لا يوجد تطابق دقيق
+            Log::info('لم يتم العثور على تطابق دقيق - الملف ليس مكرراً', [
+                'original_name' => $originalName,
+                'file_info' => $fileInfo,
+                'target_folder' => $targetFolderId
+            ]);
+
             return [
                 'is_duplicate' => false,
                 'original_name' => $originalName,
-                'identity_number' => $identityNumber,
+                'file_info' => $fileInfo,
                 'target_folder' => $targetFolderId,
-                'original_folder' => $originalFolderName
+                'original_folder' => $originalFolderName,
+                'check_method' => 'enhanced_duplicate_detection'
             ];
 
         } catch (\Exception $e) {
-            Log::error('خطأ في فحص التكرار', [
+            Log::error('خطأ في فحص التكرار المحسن', [
                 'file_name' => $file->getClientOriginalName(),
                 'target_folder' => $targetFolderId,
                 'error' => $e->getMessage()
@@ -263,43 +271,127 @@ class FolderDuplicateDetectionService
             return [
                 'is_duplicate' => false,
                 'original_name' => $file->getClientOriginalName(),
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'check_method' => 'error_fallback'
             ];
         }
     }
 
     /**
-     * البحث عن ملف موجود بناء على رقم الهوية في مجلد محدد
+     * استخراج معلومات تعريف شاملة للملف لمقارنة أكثر دقة
      */
-    protected function findExistingFileByIdentityInFolder(string $identityNumber, string $targetFolderId)
+    protected function extractFileIdentificationInfo(string $originalName): array
     {
-        // البحث في جدول attachments باستخدام رقم الهوية
-        // استخدام file_path بدلاً من folder_id المحذوف
-        $attachment = Attachment::where('file_path', 'like', '%/' . $targetFolderId . '/%')
-            ->where('stored_file_name', 'like', '%_' . $identityNumber . '.%')
-            ->first();
+        $parts = explode('_', pathinfo($originalName, PATHINFO_FILENAME));
+        $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+
+        $info = [
+            'original_name' => $originalName,
+            'extension' => $extension,
+            'parts' => $parts,
+            'parts_count' => count($parts),
+            'prefix' => null,
+            'identity_number' => null,
+            'document_type' => null,
+            'file_pattern' => 'unknown'
+        ];
+
+        // تحديد نمط الملف وتحليله
+        if (count($parts) >= 3) {
+            // النمط الجديد: PREFIX_FOLDER_IDENTITY
+            if (preg_match('/^\d{8,10}$/', $parts[2])) {
+                $info['file_pattern'] = 'new_format';
+                $info['prefix'] = $parts[0];
+                $info['folder_number'] = $parts[1];
+                $info['identity_number'] = $parts[2];
+                // إنشاء توقيع موحد بناء على نوع الوثيقة (البادئة) والهوية
+                $info['unique_signature'] = $info['prefix'] . '_' . $info['identity_number'] . '_' . $extension;
+            }
+            // النمط القديم: PREFIX_IDENTITY_DOCTYPE
+            elseif (preg_match('/^\d{8,10}$/', $parts[1])) {
+                $info['file_pattern'] = 'old_format';
+                $info['prefix'] = $parts[0];
+                $info['identity_number'] = $parts[1];
+                $info['document_type'] = $parts[2];
+                // إنشاء توقيع موحد بناء على نوع الوثيقة والهوية
+                $info['unique_signature'] = $info['document_type'] . '_' . $info['identity_number'] . '_' . $extension;
+            }
+        }
+
+        // إذا لم نجد النمط المعروف، ابحث عن رقم هوية في أي مكان
+        if (!$info['identity_number']) {
+            foreach ($parts as $part) {
+                if (preg_match('/^\d{8,10}$/', $part)) {
+                    $info['identity_number'] = $part;
+                    $info['file_pattern'] = 'custom_format';
+                    break;
+                }
+            }
+        }
+
+        // إنشاء توقيع فريد للملف
+        if (!isset($info['unique_signature'])) {
+            $info['unique_signature'] = md5($originalName) . '_' . $extension;
+        }
+
+        return $info;
+    }
+
+    /**
+     * البحث عن ملف مطابق بالضبط باستخدام معلومات شاملة
+     */
+    protected function findExactMatchingFile(array $fileInfo, string $targetFolderId)
+    {
+        // إذا لم نحصل على معرف هوية، لا يمكننا المقارنة بدقة
+        if (!$fileInfo['identity_number']) {
+            Log::debug('لا يمكن البحث عن تطابق بدون رقم هوية', [
+                'file_info' => $fileInfo,
+                'target_folder' => $targetFolderId
+            ]);
+            return null;
+        }
+
+        // البحث في قاعدة البيانات باستخدام التوقيع الفريد
+        $query = Attachment::where('file_path', 'like', '%/' . $targetFolderId . '/%');
+
+        // البحث بناءً على نمط الملف
+        if ($fileInfo['file_pattern'] === 'new_format') {
+            // للنمط الجديد: ابحث عن ملفات بنفس البادئة ورقم الهوية والامتداد
+            $query->where('stored_file_name', 'like', $fileInfo['prefix'] . '_%_' . $fileInfo['identity_number'] . '.' . $fileInfo['extension']);
+        } elseif ($fileInfo['file_pattern'] === 'old_format') {
+            // للنمط القديم: ابحث عن ملفات بنفس البادئة ورقم الهوية ونوع الوثيقة والامتداد
+            $query->where('stored_file_name', 'like', $fileInfo['prefix'] . '_' . $fileInfo['identity_number'] . '_' . $fileInfo['document_type'] . '.' . $fileInfo['extension']);
+        } else {
+            // للأنماط المخصصة: ابحث بناءً على رقم الهوية والامتداد
+            $query->where('stored_file_name', 'like', '%' . $fileInfo['identity_number'] . '%.' . $fileInfo['extension']);
+        }
+
+        $attachment = $query->first();
 
         if ($attachment) {
-            Log::info('تم العثور على ملف مكرر في قاعدة البيانات', [
-                'identity_number' => $identityNumber,
+            Log::info('تم العثور على ملف مطابق في قاعدة البيانات', [
+                'file_info' => $fileInfo,
                 'target_folder' => $targetFolderId,
-                'existing_file' => $attachment->stored_file_name
+                'existing_file' => $attachment->stored_file_name,
+                'match_pattern' => $fileInfo['file_pattern']
             ]);
             return $attachment;
         }
 
-        // البحث المباشر في نظام الملفات
+        // البحث المباشر في نظام الملفات مع المطابقة الدقيقة
         $storageBasePath = storage_path('app/public/uploads/' . $targetFolderId);
         if (is_dir($storageBasePath)) {
             $files = File::files($storageBasePath);
             foreach ($files as $file) {
                 $fileName = $file->getFilename();
+                $existingFileInfo = $this->extractFileIdentificationInfo($fileName);
 
-                // التحقق من وجود رقم الهوية في اسم الملف
-                if (strpos($fileName, '_' . $identityNumber . '.') !== false) {
-                    Log::info('تم العثور على ملف مكرر في نظام الملفات', [
-                        'identity_number' => $identityNumber,
-                        'folder_id' => $targetFolderId,
+                // مقارنة التواقيع الفريدة أو المعلومات المهمة
+                if ($this->areFilesExactMatch($fileInfo, $existingFileInfo)) {
+                    Log::info('تم العثور على ملف مطابق في نظام الملفات', [
+                        'file_info' => $fileInfo,
+                        'existing_file_info' => $existingFileInfo,
+                        'target_folder' => $targetFolderId,
                         'existing_file' => $fileName
                     ]);
 
@@ -315,6 +407,129 @@ class FolderDuplicateDetectionService
                 }
             }
         }
+
+        return null;
+    }
+
+    /**
+     * مقارنة ملفين لتحديد ما إذا كانا متطابقين بالضبط
+     */
+    protected function areFilesExactMatch(array $fileInfo1, array $fileInfo2): bool
+    {
+        // الشروط الأساسية للتطابق
+        $basicMatch = (
+            $fileInfo1['identity_number'] === $fileInfo2['identity_number'] &&
+            $fileInfo1['extension'] === $fileInfo2['extension']
+        );
+
+        if (!$basicMatch) {
+            return false;
+        }
+
+        // للنمط الجديد: تحقق من البادئة أيضاً
+        if ($fileInfo1['file_pattern'] === 'new_format' && $fileInfo2['file_pattern'] === 'new_format') {
+            return $fileInfo1['prefix'] === $fileInfo2['prefix'];
+        }
+
+        // للنمط القديم: تحقق من البادئة ونوع الوثيقة
+        if ($fileInfo1['file_pattern'] === 'old_format' && $fileInfo2['file_pattern'] === 'old_format') {
+            return (
+                $fileInfo1['prefix'] === $fileInfo2['prefix'] &&
+                $fileInfo1['document_type'] === $fileInfo2['document_type']
+            );
+        }
+
+        // للأنماط المختلطة: مقارنة دقيقة بناء على نوع الوثيقة
+        // يجب أن يكون نوع الوثيقة متطابق بين الأنماط المختلفة
+        if ($fileInfo1['file_pattern'] !== $fileInfo2['file_pattern']) {
+            // استخراج نوع الوثيقة من كلا الملفين
+            $docType1 = isset($fileInfo1['document_type']) ? $fileInfo1['document_type'] :
+                       (isset($fileInfo1['prefix']) ? $fileInfo1['prefix'] : null);
+            $docType2 = isset($fileInfo2['document_type']) ? $fileInfo2['document_type'] :
+                       (isset($fileInfo2['prefix']) ? $fileInfo2['prefix'] : null);
+
+            // يجب أن يكون نوع الوثيقة متطابق
+            return $docType1 === $docType2 && !empty($docType1);
+        }
+
+        // إذا لم تطابق أي من الحالات أعلاه، فالملفات غير متطابقة
+        return false;
+    }
+
+    /**
+     * البحث عن ملف موجود بناء على رقم الهوية ونوع الوثيقة في مجلد محدد (تحسين مشكلة الملفات المكررة الوهمية)
+     */
+    protected function findExistingFileByIdentityInFolder(string $identityNumber, string $targetFolderId)
+    {
+        // التحقق من صحة المدخلات
+        if (empty($identityNumber) || empty($targetFolderId)) {
+            Log::warning('معاملات غير صحيحة للبحث عن الملف', [
+                'identity_number' => $identityNumber,
+                'target_folder' => $targetFolderId
+            ]);
+            return null;
+        }
+
+        // البحث في جدول attachments باستخدام رقم الهوية بدقة أكبر
+        // نبحث عن التطابق الدقيق لرقم الهوية كجزء من اسم الملف
+        $attachment = Attachment::where('file_path', 'like', '%/' . $targetFolderId . '/%')
+            ->where(function($query) use ($identityNumber) {
+                // البحث عن رقم الهوية في الجزء الثاني من اسم الملف
+                $query->where('stored_file_name', 'like', '%_' . $identityNumber . '_%')
+                      ->orWhere('stored_file_name', 'like', '%_' . $identityNumber . '.%');
+            })
+            ->first();
+
+        if ($attachment) {
+            // التحقق المزدوج: التأكد من أن رقم الهوية في المكان الصحيح
+            $fileNameParts = explode('_', pathinfo($attachment->stored_file_name, PATHINFO_FILENAME));
+
+            if (count($fileNameParts) >= 3 && $fileNameParts[2] === $identityNumber) {
+                Log::info('تم العثور على ملف مطابق في قاعدة البيانات', [
+                    'identity_number' => $identityNumber,
+                    'target_folder' => $targetFolderId,
+                    'existing_file' => $attachment->stored_file_name,
+                    'file_parts' => $fileNameParts
+                ]);
+                return $attachment;
+            }
+        }
+
+        // البحث المباشر في نظام الملفات مع التحقق الدقيق
+        $storageBasePath = storage_path('app/public/uploads/' . $targetFolderId);
+        if (is_dir($storageBasePath)) {
+            $files = File::files($storageBasePath);
+            foreach ($files as $file) {
+                $fileName = $file->getFilename();
+                $fileNameParts = explode('_', pathinfo($fileName, PATHINFO_FILENAME));
+
+                // التحقق من النمط الصحيح: PREFIX_FOLDER_IDENTITY
+                if (count($fileNameParts) >= 3 && $fileNameParts[2] === $identityNumber) {
+                    Log::info('تم العثور على ملف مطابق في نظام الملفات', [
+                        'identity_number' => $identityNumber,
+                        'folder_id' => $targetFolderId,
+                        'existing_file' => $fileName,
+                        'file_parts' => $fileNameParts
+                    ]);
+
+                    return (object) [
+                        'id' => null,
+                        'file_name' => $fileName,
+                        'stored_file_name' => $fileName,
+                        'original_file_name' => $fileName,
+                        'folder_id' => $targetFolderId,
+                        'file_path' => 'uploads/' . $targetFolderId . '/' . $fileName,
+                        'storage_type' => 'file_system'
+                    ];
+                }
+            }
+        }
+
+        Log::debug('لم يتم العثور على أي ملف مطابق', [
+            'identity_number' => $identityNumber,
+            'target_folder' => $targetFolderId,
+            'search_path' => $storageBasePath ?? 'unknown'
+        ]);
 
         return null;
     }
@@ -1129,38 +1344,62 @@ class FolderDuplicateDetectionService
     }
 
     /**
-     * استخراج رقم الهوية من اسم الملف الأصلي (المقطع الثاني)
+     * استخراج رقم الهوية من اسم الملف الأصلي (المقطع الثالث بدلاً من الثاني لتجنب الملفات المكررة الوهمية)
      */
     protected function extractIdentityNumberFromOriginalName(string $originalName): string
     {
-        // تحليل الاسم لاستخراج رقم الهوية من المقطع الثاني
+        // تحليل الاسم لاستخراج رقم الهوية بناءً على النمط المحدث
         $parts = explode('_', pathinfo($originalName, PATHINFO_FILENAME));
 
-        if (count($parts) >= 2) {
-            // المقطع الثاني هو رقم الهوية (مثل 82573265 من H_82573265_2)
-            $identityNumber = $parts[1];
+        Log::info('تحليل اسم الملف لاستخراج رقم الهوية', [
+            'original_name' => $originalName,
+            'parts' => $parts,
+            'parts_count' => count($parts)
+        ]);
 
-            Log::info('تم استخراج رقم الهوية', [
-                'original_name' => $originalName,
-                'identity_number' => $identityNumber,
-                'parts' => $parts
-            ]);
+        // النمط المتوقع الجديد: PREFIX_FOLDER_IDENTITY أو النمط القديم: PREFIX_IDENTITY_DOCTYPE
+        if (count($parts) >= 3) {
+            // أولاً: تجربة النمط الجديد PREFIX_FOLDER_IDENTITY (المقطع الثالث)
+            $thirdPart = $parts[2];
+            if (preg_match('/^\d{8,10}$/', $thirdPart)) {
+                Log::info('تم استخراج رقم الهوية من المقطع الثالث (النمط الجديد)', [
+                    'original_name' => $originalName,
+                    'identity_number' => $thirdPart,
+                    'pattern' => 'new_format_PREFIX_FOLDER_IDENTITY'
+                ]);
+                return $thirdPart;
+            }
 
-            return $identityNumber;
+            // ثانياً: تجربة النمط القديم PREFIX_IDENTITY_DOCTYPE (المقطع الثاني)
+            $secondPart = $parts[1];
+            if (preg_match('/^\d{8,10}$/', $secondPart)) {
+                Log::info('تم استخراج رقم الهوية من المقطع الثاني (النمط القديم)', [
+                    'original_name' => $originalName,
+                    'identity_number' => $secondPart,
+                    'pattern' => 'old_format_PREFIX_IDENTITY_DOCTYPE'
+                ]);
+                return $secondPart;
+            }
         }
 
-        Log::warning('فشل في استخراج رقم الهوية', [
+        // إذا لم نجد النمط المتوقع، ابحث عن أي رقم يشبه رقم هوية في جميع الأجزاء
+        foreach ($parts as $index => $part) {
+            if (preg_match('/^\d{8,10}$/', $part)) {
+                Log::info('تم العثور على رقم هوية محتمل في جزء غير متوقع', [
+                    'original_name' => $originalName,
+                    'identity_number' => $part,
+                    'part_index' => $index,
+                    'pattern' => 'fallback_search'
+                ]);
+                return $part;
+            }
+        }
+
+        Log::warning('فشل في استخراج رقم الهوية - استخدام timestamp كبديل', [
             'original_name' => $originalName,
             'parts_count' => count($parts ?? []),
             'parts' => $parts ?? []
         ]);
-
-        // إذا لم نجد النمط المتوقع، ابحث عن رقم يشبه رقم هوية
-        foreach ($parts as $part) {
-            if (preg_match('/^\d{8,10}$/', $part)) {
-                return $part;
-            }
-        }
 
         // إذا لم نجد أي شيء، أرجع timestamp
         return (string) time();

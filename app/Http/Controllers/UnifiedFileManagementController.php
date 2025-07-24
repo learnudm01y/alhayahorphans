@@ -12,6 +12,7 @@ use App\Services\FolderDuplicateDetectionService;
 use App\Models\Attachment;
 use App\Models\EnhancedAttachment;
 use App\Models\DuplicateFileTemp;
+use App\Models\DocumentType;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -211,11 +212,27 @@ class UnifiedFileManagementController extends Controller
                 }
             }
 
-            // بناء الاسم الجديد: {part1}_{folderId}_{part2}.{ext}
-            $newFileName = $part1 . '_' . $folderId . '_' . $part2;
+            // الحصول على البادئة من جدول document_types باستخدام part3
+            $documentPrefix = $this->getDocumentTypePrefix($part3);
+
+            // إذا لم نجد البادئة، نستخدم part1 كما هو (النظام القديم)
+            $finalPrefix = $documentPrefix ?: $part1;
+
+            // بناء الاسم الجديد: {prefix}_{folderId}_{part2}.{ext}
+            $newFileName = $finalPrefix . '_' . $folderId . '_' . $part2;
             if ($ext) {
                 $newFileName .= '.' . $ext;
             }
+
+            Log::info('تم إنشاء اسم الملف مع البادئة', [
+                'original_name' => $originalName,
+                'part1' => $part1,
+                'part2' => $part2,
+                'part3' => $part3,
+                'document_prefix' => $documentPrefix,
+                'final_prefix' => $finalPrefix,
+                'new_file_name' => $newFileName
+            ]);
 
             // Apply compression if enabled (only for images)
             $compressedFile = null;
@@ -3911,11 +3928,31 @@ class UnifiedFileManagementController extends Controller
                     }
                 }
 
+                // Delete the duplicate files directory after deleting all files
+                $duplicatesDir = storage_path('app/public/temp/duplicates');
+                $duplicatesDirDeleted = false;
+
+                if (is_dir($duplicatesDir)) {
+                    try {
+                        $this->deleteDirectoryRecursively($duplicatesDir);
+                        $duplicatesDirDeleted = true;
+                        Log::info("🗂️ تم حذف مجلد الملفات المكررة بنجاح: {$duplicatesDir}");
+                    } catch (\Exception $e) {
+                        Log::warning("⚠️ فشل في حذف مجلد الملفات المكررة: {$duplicatesDir} - خطأ: " . $e->getMessage());
+                    }
+                }
+
+                $message = "تم حذف جميع الملفات المكررة بنجاح ({$deletedCount} ملف)";
+                if ($duplicatesDirDeleted) {
+                    $message .= " وتم حذف المجلد";
+                }
+
                 return response()->json([
                     'success' => true,
-                    'message' => "تم حذف جميع الملفات المكررة بنجاح ({$deletedCount} ملف)",
+                    'message' => $message,
                     'data' => [
-                        'deleted_count' => $deletedCount
+                        'deleted_count' => $deletedCount,
+                        'directory_deleted' => $duplicatesDirDeleted
                     ]
                 ]);
             }
@@ -4462,6 +4499,693 @@ class UnifiedFileManagementController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'حدث خطأ أثناء جلب الإحصائيات'
+            ], 500);
+        }
+    }
+
+    /**
+     * عرض آمن للملفات من storage مع دعم مسارات متعددة ونظام بحث محسن
+     */
+    public function showSecureFile($filename)
+    {
+        try {
+            Log::info("طلب عرض ملف آمن: {$filename}");
+
+            // تنظيف اسم الملف من المسارات الضارة
+            $cleanFilename = basename($filename);
+
+            // البحث عن الملف في قاعدة البيانات أولاً باستخدام طرق متعددة
+            $fileRecord = $this->findFileInDatabase($cleanFilename);
+
+            if ($fileRecord) {
+                Log::info("تم العثور على الملف في قاعدة البيانات", [
+                    'filename' => $cleanFilename,
+                    'stored_name' => $fileRecord->stored_file_name ?? 'unknown',
+                    'file_path' => $fileRecord->file_path ?? 'unknown',
+                    'table' => $fileRecord->table_source ?? 'unknown'
+                ]);
+            }
+
+            // مجموعة شاملة من مسارات البحث
+            $searchPaths = $this->generateFilePaths($cleanFilename, $fileRecord);
+
+            // البحث عن الملف في المسارات المحددة
+            $foundPath = $this->findFileInPaths($searchPaths, $cleanFilename);
+
+            if (!$foundPath) {
+                Log::warning("لم يتم العثور على الملف في المسارات المحددة، البحث تكرارياً...");
+                $foundPath = $this->searchFileRecursively($cleanFilename);
+            }
+
+            if (!$foundPath) {
+                Log::warning("الملف غير موجود: {$cleanFilename}");
+                abort(404, 'الملف غير موجود');
+            }
+
+            // التحقق من نوع الملف وصحته
+            $this->validateFileType($foundPath, $cleanFilename);
+
+            // تحديد MIME type
+            $mimeType = $this->getMimeType($foundPath, $cleanFilename);
+
+            Log::info("عرض الملف: {$foundPath} بنوع MIME: {$mimeType}");
+
+            // إرجاع الملف مع العناوين المناسبة
+            return response()->file($foundPath, [
+                'Content-Type' => $mimeType,
+                'Cache-Control' => 'no-cache, no-store, must-revalidate',
+                'Pragma' => 'no-cache',
+                'Expires' => '0',
+                'X-Content-Type-Options' => 'nosniff',
+                'X-Frame-Options' => 'SAMEORIGIN'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('خطأ في عرض الملف الآمن: ' . $e->getMessage(), [
+                'filename' => $filename,
+                'trace' => $e->getTraceAsString()
+            ]);
+            abort(500, 'خطأ في عرض الملف');
+        }
+    }
+
+    /**
+     * البحث عن الملف في قاعدة البيانات باستخدام طرق متعددة
+     */
+    private function findFileInDatabase(string $filename)
+    {
+        // البحث في جدول attachments
+        $attachmentFile = DB::table('attachments')
+            ->where('stored_file_name', $filename)
+            ->orWhere('file_path', 'like', '%' . $filename)
+            ->first();
+
+        if ($attachmentFile) {
+            $attachmentFile->table_source = 'attachments';
+            return $attachmentFile;
+        }
+
+        // البحث في جدول enhanced_attachments
+        $enhancedFile = DB::table('enhanced_attachments')
+            ->where('stored_file_name', $filename)
+            ->orWhere('original_file_name', $filename)
+            ->orWhere('file_path', 'like', '%' . $filename)
+            ->whereNull('deleted_at')
+            ->first();
+
+        if ($enhancedFile) {
+            $enhancedFile->table_source = 'enhanced_attachments';
+            return $enhancedFile;
+        }
+
+        return null;
+    }
+
+    /**
+     * إنشاء مسارات البحث الشاملة
+     */
+    private function generateFilePaths(string $filename, $fileRecord = null): array
+    {
+        $paths = [];
+
+        // إذا وجدنا السجل في قاعدة البيانات، استخدم المسار المحفوظ
+        if ($fileRecord && !empty($fileRecord->file_path)) {
+            $dbPath = $fileRecord->file_path;
+
+            // تنظيف المسار من البادئات المكررة
+            $cleanPath = str_replace(['storage/', 'storage\\', 'app/public/', 'app\\public\\'], '', $dbPath);
+            $cleanPath = ltrim($cleanPath, '/\\');
+
+            $paths[] = storage_path('app/public/' . $cleanPath);
+            $paths[] = public_path('storage/' . $cleanPath);
+
+            // إضافة المسار كما هو في قاعدة البيانات
+            if (file_exists($dbPath)) {
+                $paths[] = $dbPath;
+            }
+        }
+
+        // مسارات الرفع الأساسية
+        $paths[] = storage_path('app/public/uploads/' . $filename);
+        $paths[] = public_path('storage/uploads/' . $filename);
+
+        // مسارات الوثائق
+        $paths[] = storage_path('app/public/documents/excel/' . $filename);
+        $paths[] = public_path('storage/documents/excel/' . $filename);
+        $paths[] = storage_path('app/public/documents/' . $filename);
+        $paths[] = public_path('storage/documents/' . $filename);
+
+        // مسارات ذكية بناءً على نمط اسم الملف
+        if (preg_match('/^(TES-11|TE102|A|B|C|D|E|F|G|H)_(\d{6})_/', $filename, $matches)) {
+            $folderNumber = $matches[2];
+            $paths[] = storage_path("app/public/uploads/{$folderNumber}/{$filename}");
+            $paths[] = public_path("storage/uploads/{$folderNumber}/{$filename}");
+        }
+
+        // استخراج رقم المجلد من أنماط مختلفة
+        if (preg_match('/.*?(\d{6}).*/', $filename, $matches)) {
+            $possibleFolder = $matches[1];
+            $paths[] = storage_path("app/public/uploads/{$possibleFolder}/{$filename}");
+            $paths[] = public_path("storage/uploads/{$possibleFolder}/{$filename}");
+        }
+
+        // مجلدات شائعة
+        $commonFolders = ['000045', '000188', '001541', '000881', '000882', '000883', '001460', '001443'];
+        foreach ($commonFolders as $folder) {
+            $paths[] = storage_path("app/public/uploads/{$folder}/{$filename}");
+            $paths[] = public_path("storage/uploads/{$folder}/{$filename}");
+        }
+
+        // إزالة المسارات المكررة
+        return array_unique($paths);
+    }
+
+    /**
+     * البحث عن الملف في مسارات محددة
+     */
+    private function findFileInPaths(array $paths, string $filename): ?string
+    {
+        foreach ($paths as $path) {
+            if (file_exists($path) && is_file($path)) {
+                Log::info("تم العثور على الملف في: {$path}");
+                return $path;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * البحث التكراري عن الملف
+     */
+    private function searchFileRecursively(string $filename): ?string
+    {
+        $searchDirectories = [
+            storage_path('app/public/uploads'),
+            storage_path('app/public/documents'),
+            public_path('storage/uploads'),
+            public_path('storage/documents'),
+        ];
+
+        foreach ($searchDirectories as $dir) {
+            if (is_dir($dir)) {
+                try {
+                    $iterator = new \RecursiveIteratorIterator(
+                        new \RecursiveDirectoryIterator($dir, \RecursiveDirectoryIterator::SKIP_DOTS),
+                        \RecursiveIteratorIterator::LEAVES_ONLY
+                    );
+
+                    foreach ($iterator as $file) {
+                        if ($file->isFile() && $file->getFilename() === $filename) {
+                            $foundPath = $file->getPathname();
+                            Log::info("تم العثور على الملف تكرارياً في: {$foundPath}");
+                            return $foundPath;
+                        }
+                    }
+                } catch (\Exception $e) {
+                    Log::warning("خطأ في البحث التكراري في {$dir}: " . $e->getMessage());
+                    continue;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * التحقق من نوع الملف المسموح
+     */
+    private function validateFileType(string $filePath, string $filename): void
+    {
+        $fileExtension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+        $allowedTypes = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'xlsm', 'csv', 'txt'];
+
+        if (!in_array($fileExtension, $allowedTypes)) {
+            Log::warning("نوع الملف غير مسموح: {$fileExtension} للملف: {$filename}");
+            abort(403, 'نوع الملف غير مسموح');
+        }
+    }
+
+    /**
+     * تحديد نوع MIME للملف
+     */
+    private function getMimeType(string $filePath, string $filename): string
+    {
+        try {
+            $mimeType = mime_content_type($filePath);
+            if ($mimeType) {
+                return $mimeType;
+            }
+        } catch (\Exception $e) {
+            Log::warning("فشل في الحصول على MIME type من الملف، استخدام نوع بديل");
+        }
+
+        // استخدام الامتداد كبديل
+        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        return match($extension) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            'bmp' => 'image/bmp',
+            'webp' => 'image/webp',
+            'pdf' => 'application/pdf',
+            'doc' => 'application/msword',
+            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xls' => 'application/vnd.ms-excel',
+            'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'csv' => 'text/csv',
+            'txt' => 'text/plain',
+            default => 'application/octet-stream'
+        };
+    }
+
+    /**
+     * Delete all duplicate files from the system
+     * حذف جميع الملفات المكررة من النظام
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function deleteAllDuplicateFiles()
+    {
+        try {
+            Log::info('🗑️ بدء عملية حذف جميع الملفات المكررة');
+
+            // Get all duplicate files
+            $files = DuplicateFileTemp::all();
+
+            if ($files->isEmpty()) {
+                Log::info('📭 لا توجد ملفات مكررة للحذف');
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لا توجد ملفات مكررة للحذف'
+                ], 404);
+            }
+
+            $totalFiles = $files->count();
+            $deletedCount = 0;
+            $failedCount = 0;
+
+            Log::info("📊 إجمالي الملفات المراد حذفها: {$totalFiles}");
+
+            foreach ($files as $file) {
+                try {
+                    // Delete the physical file first
+                    $fullPath = storage_path('app/' . $file->temp_path);
+
+                    if (file_exists($fullPath)) {
+                        if (unlink($fullPath)) {
+                            Log::debug("🗑️ تم حذف الملف الفيزيائي: {$fullPath}");
+                        } else {
+                            Log::warning("⚠️ فشل في حذف الملف الفيزيائي: {$fullPath}");
+                        }
+                    } else {
+                        Log::debug("📝 الملف الفيزيائي غير موجود: {$fullPath}");
+                    }
+
+                    // Delete the database record
+                    $file->delete();
+                    $deletedCount++;
+
+                    Log::debug("✅ تم حذف السجل ID: {$file->id} - {$file->original_name}");
+
+                } catch (\Exception $e) {
+                    $failedCount++;
+                    Log::error("❌ فشل في حذف الملف المكرر ID: {$file->id} - خطأ: " . $e->getMessage());
+                    continue;
+                }
+            }
+
+            // Delete the duplicate files directory after deleting all files
+            $duplicatesDir = storage_path('app/public/temp/duplicates');
+            $tempDir = storage_path('app/temp');
+            $duplicatesDirDeleted = false;
+            $tempDirCleaned = false;
+
+            $message = "تم حذف جميع الملفات المكررة بنجاح";
+            if ($failedCount > 0) {
+                $message .= " (نجح: {$deletedCount}، فشل: {$failedCount})";
+            } else {
+                $message .= " ({$deletedCount} ملف)";
+            }
+
+            // Delete main duplicates directory
+            if (is_dir($duplicatesDir)) {
+                try {
+                    $this->deleteDirectoryRecursively($duplicatesDir);
+                    $duplicatesDirDeleted = true;
+                    Log::info("🗂️ تم حذف مجلد الملفات المكررة بنجاح: {$duplicatesDir}");
+                } catch (\Exception $e) {
+                    Log::warning("⚠️ فشل في حذف مجلد الملفات المكررة: {$duplicatesDir} - خطأ: " . $e->getMessage());
+                }
+            } else {
+                Log::info("📁 مجلد الملفات المكررة غير موجود: {$duplicatesDir}");
+            }
+
+            // Clean up temp directory if it exists and has duplicate files
+            if (is_dir($tempDir)) {
+                try {
+                    $tempFiles = glob($tempDir . '/duplicate_*');
+                    foreach ($tempFiles as $tempFile) {
+                        if (is_file($tempFile)) {
+                            unlink($tempFile);
+                            Log::debug("🗑️ تم حذف ملف مؤقت: {$tempFile}");
+                        } elseif (is_dir($tempFile)) {
+                            $this->deleteDirectoryRecursively($tempFile);
+                            Log::debug("🗂️ تم حذف مجلد مؤقت: {$tempFile}");
+                        }
+                    }
+                    $tempDirCleaned = true;
+                    Log::info("🧹 تم تنظيف المجلد المؤقت من ملفات الأ duplicates");
+                } catch (\Exception $e) {
+                    Log::warning("⚠️ فشل في تنظيف المجلد المؤقت: {$tempDir} - خطأ: " . $e->getMessage());
+                }
+            }
+
+            // Update message with directory deletion results
+            if ($duplicatesDirDeleted) {
+                $message .= " وتم حذف المجلد الرئيسي";
+            }
+
+            if ($tempDirCleaned) {
+                $message .= " وتم تنظيف المجلد المؤقت";
+            }
+
+            Log::info("✅ انتهت عملية حذف جميع الملفات المكررة - نجح: {$deletedCount}، فشل: {$failedCount}، مجلد محذوف: " . ($duplicatesDirDeleted ? 'نعم' : 'لا') . "، مجلد مؤقت منظف: " . ($tempDirCleaned ? 'نعم' : 'لا'));
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'data' => [
+                    'total_files' => $totalFiles,
+                    'deleted_count' => $deletedCount,
+                    'failed_count' => $failedCount,
+                    'directory_deleted' => $duplicatesDirDeleted,
+                    'temp_directory_cleaned' => $tempDirCleaned,
+                    'success_rate' => $totalFiles > 0 ? round(($deletedCount / $totalFiles) * 100, 2) : 0
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('❌ خطأ عام في حذف جميع الملفات المكررة: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء حذف جميع الملفات المكررة: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Recursively delete a directory and all its contents
+     * حذف مجلد وجميع محتوياته بشكل تكراري
+     *
+     * @param string $dir
+     * @return bool
+     */
+    private function deleteDirectoryRecursively($dir)
+    {
+        if (!is_dir($dir)) {
+            return false;
+        }
+
+        Log::debug("🗂️ بدء حذف المجلد: {$dir}");
+
+        $files = array_diff(scandir($dir), array('.', '..'));
+
+        foreach ($files as $file) {
+            $path = $dir . DIRECTORY_SEPARATOR . $file;
+
+            if (is_dir($path)) {
+                // Recursively delete subdirectory
+                $this->deleteDirectoryRecursively($path);
+                Log::debug("📁 تم حذف المجلد الفرعي: {$path}");
+            } else {
+                // Delete file
+                if (unlink($path)) {
+                    Log::debug("🗑️ تم حذف الملف: {$path}");
+                } else {
+                    Log::warning("⚠️ فشل في حذف الملف: {$path}");
+                }
+            }
+        }
+
+        // Delete the directory itself
+        if (rmdir($dir)) {
+            Log::debug("✅ تم حذف المجلد الرئيسي: {$dir}");
+            return true;
+        } else {
+            Log::warning("⚠️ فشل في حذف المجلد الرئيسي: {$dir}");
+            return false;
+        }
+    }
+
+    /**
+     * معالجة رفع المجلدات على دفعات لتجنب حدود PHP
+     */
+    public function processBulkFolderUploadBatch(Request $request)
+    {
+        try {
+            Log::info('Starting batch folder upload', [
+                'user_id' => auth()->id(),
+                'files_count' => $request->hasFile('files') ? count($request->file('files')) : 0,
+                'batch_index' => $request->input('batch_index', 0),
+                'total_batches' => $request->input('total_batches', 1),
+                'is_final_batch' => $request->boolean('is_final_batch', false)
+            ]);
+
+            // التحقق من صحة البيانات مع حدود أقل للدفعات
+            $request->validate([
+                'files.*' => 'required|file|max:2048', // 2MB لكل ملف
+                'paths.*' => 'nullable|string',
+                'batch_index' => 'required|integer|min:0',
+                'total_batches' => 'required|integer|min:1',
+                'is_final_batch' => 'sometimes|boolean',
+                'enable_excel_import' => 'sometimes|boolean',
+                'excel_file' => 'nullable|file|mimes:xlsx,xls,csv|max:10240', // فقط في الدفعة الأولى
+                'target_table' => 'nullable|string|in:data,dead_people,guardian_bank_accounts,re_people'
+            ]);
+
+            $files = $request->file('files');
+            if (!$files || empty($files)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لا توجد ملفات للمعالجة في هذه الدفعة'
+                ], 422);
+            }
+
+            $batchIndex = $request->input('batch_index');
+            $totalBatches = $request->input('total_batches');
+            $isFinalBatch = $request->boolean('is_final_batch', false);
+            $paths = $request->input('paths', []);
+
+            // معرف جلسة للدفعات (يتم إنشاؤه في الدفعة الأولى)
+            $sessionId = session('batch_upload_session_id');
+            if (!$sessionId && $batchIndex === 0) {
+                $sessionId = uniqid('batch_', true);
+                session(['batch_upload_session_id' => $sessionId]);
+                Log::info("إنشاء جلسة رفع جديدة: {$sessionId}");
+            }
+
+            // استخراج وتحليل المجلدات من هذه الدفعة
+            $folderAnalysis = $this->analyzeFolderStructure($files, $paths);
+
+            // كشف الملفات المكررة باستخدام الخدمة المخصصة
+            $duplicateResults = $this->duplicateDetectionService->processFolderFilesForDuplicates(
+                $files,
+                $folderAnalysis['validated_folders'],
+                $folderAnalysis['path_to_folder_mapping'],
+                $sessionId . '_batch_' . $batchIndex
+            );
+
+            // معالجة ملف Excel فقط في الدفعة الأولى
+            $excelResults = null;
+            if ($batchIndex === 0 && $request->boolean('enable_excel_import') && $request->hasFile('excel_file')) {
+                $excelResults = $this->processExcelWithMapping(
+                    $request->file('excel_file'),
+                    $request->input('target_table', 'data'),
+                    $folderAnalysis['validated_folders']
+                );
+            }
+
+            // تجميع إحصائيات الدفعة
+            $batchStats = [
+                'batch_index' => $batchIndex,
+                'total_batches' => $totalBatches,
+                'is_final_batch' => $isFinalBatch,
+                'files_in_batch' => count($files),
+                'files_processed' => $duplicateResults['processed_files'],
+                'files_saved' => $duplicateResults['files_saved'],
+                'duplicates_found' => $duplicateResults['duplicates_found'],
+                'errors_count' => count($duplicateResults['errors']),
+                'warnings_count' => count($duplicateResults['warnings']),
+                'folders_validated' => count($folderAnalysis['validated_folders']),
+                'folders_rejected' => count($folderAnalysis['rejected_folders'])
+            ];
+
+            // حفظ إحصائيات الدفعة في الجلسة للتجميع النهائي
+            $allBatchStats = session('batch_upload_stats', []);
+            $allBatchStats[$batchIndex] = $batchStats;
+            session(['batch_upload_stats' => $allBatchStats]);
+
+            // إحصائيات تراكمية
+            $cumulativeStats = $this->calculateCumulativeStats($allBatchStats);
+
+            Log::info('Batch folder upload completed', [
+                'session_id' => $sessionId,
+                'batch_index' => $batchIndex,
+                'batch_stats' => $batchStats,
+                'cumulative_stats' => $cumulativeStats
+            ]);
+
+            $response = [
+                'success' => true,
+                'message' => "تم رفع الدفعة " . ($batchIndex + 1) . "/" . $totalBatches . " بنجاح",
+                'session_id' => $sessionId,
+                'batch_stats' => $batchStats,
+                'cumulative_stats' => $cumulativeStats,
+                'folder_analysis' => $folderAnalysis,
+                'duplicate_results' => $duplicateResults,
+                'excel_results' => $excelResults,
+                'statistics' => [
+                    'batch_index' => $batchIndex + 1,
+                    'total_batches' => $totalBatches,
+                    'progress_percentage' => round((($batchIndex + 1) / $totalBatches) * 100, 2),
+                    'files_saved' => $duplicateResults['files_saved'],
+                    'duplicates_detected' => $duplicateResults['duplicates_found'],
+                    'errors_count' => count($duplicateResults['errors'])
+                ]
+            ];
+
+            // إضافة معلومات إضافية للدفعة الأخيرة
+            if ($isFinalBatch) {
+                $response['final_summary'] = $cumulativeStats;
+                $response['message'] = "تم الانتهاء من رفع جميع الدفعات بنجاح! إجمالي: " . $cumulativeStats['total_files_saved'] . " ملف محفوظ";
+
+                // تنظيف بيانات الجلسة
+                session()->forget(['batch_upload_session_id', 'batch_upload_stats']);
+
+                Log::info('All batches completed successfully', [
+                    'session_id' => $sessionId,
+                    'final_summary' => $cumulativeStats
+                ]);
+            }
+
+            return response()->json($response);
+
+        } catch (\Exception $e) {
+            Log::error('Error in batch folder upload', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'batch_index' => $request->input('batch_index', 'unknown'),
+                'user_id' => auth()->id()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء معالجة دفعة الملفات: ' . $e->getMessage(),
+                'error_details' => $e->getMessage(),
+                'batch_index' => $request->input('batch_index', 0)
+            ], 500);
+        }
+    }
+
+    /**
+     * حساب الإحصائيات التراكمية لجميع الدفعات
+     */
+    private function calculateCumulativeStats($allBatchStats)
+    {
+        $cumulative = [
+            'total_batches' => count($allBatchStats),
+            'total_files_processed' => 0,
+            'total_files_saved' => 0,
+            'total_duplicates_found' => 0,
+            'total_errors' => 0,
+            'total_warnings' => 0,
+            'total_folders_validated' => 0,
+            'total_folders_rejected' => 0,
+            'completed_batches' => count($allBatchStats)
+        ];
+
+        foreach ($allBatchStats as $batchStat) {
+            $cumulative['total_files_processed'] += $batchStat['files_processed'] ?? 0;
+            $cumulative['total_files_saved'] += $batchStat['files_saved'] ?? 0;
+            $cumulative['total_duplicates_found'] += $batchStat['duplicates_found'] ?? 0;
+            $cumulative['total_errors'] += $batchStat['errors_count'] ?? 0;
+            $cumulative['total_warnings'] += $batchStat['warnings_count'] ?? 0;
+            $cumulative['total_folders_validated'] += $batchStat['folders_validated'] ?? 0;
+            $cumulative['total_folders_rejected'] += $batchStat['folders_rejected'] ?? 0;
+        }
+
+        return $cumulative;
+    }
+
+    /**
+     * الحصول على البادئة من جدول document_types
+     */
+    private function getDocumentTypePrefix($documentTypeId): ?string
+    {
+        try {
+            if (empty($documentTypeId) || !is_numeric($documentTypeId)) {
+                Log::warning('معرف نوع الوثيقة غير صحيح', [
+                    'document_type_id' => $documentTypeId
+                ]);
+                return null;
+            }
+
+            $documentType = DocumentType::where('id', $documentTypeId)->first();
+
+            if ($documentType && !empty($documentType->pref)) {
+                Log::info('تم العثور على بادئة نوع الوثيقة', [
+                    'document_type_id' => $documentTypeId,
+                    'found_prefix' => $documentType->pref,
+                    'description' => $documentType->description
+                ]);
+                return $documentType->pref;
+            }
+
+            Log::warning('لم يتم العثور على بادئة لنوع الوثيقة', [
+                'document_type_id' => $documentTypeId,
+                'document_type_found' => $documentType !== null,
+                'has_pref' => $documentType ? !empty($documentType->pref) : false
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('خطأ في الحصول على بادئة نوع الوثيقة', [
+                'document_type_id' => $documentTypeId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+
+        return null;
+    }
+
+    /**
+     * جلب بيانات جدول document_types للاختبار
+     */
+    public function getDocumentTypesData()
+    {
+        try {
+            $documentTypes = DocumentType::select('id', 'description', 'pref', 'basic_enabled', 'deceased_enabled', 'family_enabled')
+                ->orderBy('id')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم جلب بيانات أنواع الوثائق بنجاح',
+                'data' => $documentTypes,
+                'total' => $documentTypes->count()
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('خطأ في جلب بيانات أنواع الوثائق', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'فشل في جلب بيانات أنواع الوثائق: ' . $e->getMessage()
             ], 500);
         }
     }

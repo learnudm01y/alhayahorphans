@@ -44,9 +44,24 @@ class DeadPepole extends Model
     }
     public function attachments()
     {
-        // إذا كان جدول attachments لا يحتوي على أعمدة polymorphic، استخدم علاقة hasMany
-        // ملاحظة: يجب أن تحدد العلاقة حسب رقم هوية الأب أو الأم
-        return $this->hasMany(Attachment::class, 'person_identity_number', 'father_id')
-            ->orWhere('person_identity_number', $this->mother_id);
+        // إرجاع مجموعة مرفقات للأب والأم معاً
+        return Attachment::where(function($query) {
+            if (!empty($this->father_id)) {
+                $query->where('person_identity_number', $this->father_id);
+            }
+            if (!empty($this->mother_id)) {
+                $query->orWhere('person_identity_number', $this->mother_id);
+            }
+        });
+    }
+
+    public function fatherAttachments()
+    {
+        return $this->hasMany(Attachment::class, 'person_identity_number', 'father_id');
+    }
+
+    public function motherAttachments()
+    {
+        return $this->hasMany(Attachment::class, 'person_identity_number', 'mother_id');
     }
 }

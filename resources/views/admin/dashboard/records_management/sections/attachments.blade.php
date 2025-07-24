@@ -103,10 +103,10 @@
                                         <h6 class="mb-1 small">{{ $attachment->file_type }}</h6>
                                         <div class="d-flex gap-2">
                                             <a
-                                                href="{{ asset($attachment->file_path) }}"
+                                                href="{{ route('admin.file.show', ['filename' => basename($attachment->file_path)]) }}"
                                                 @if(Str::endsWith($attachment->file_path, ['jpg','jpeg','png']))
                                                     class="btn btn-sm btn-primary btn-preview-image"
-                                                    data-img-src="{{ asset($attachment->file_path) }}"
+                                                    data-img-src="{{ route('admin.file.show', ['filename' => basename($attachment->file_path)]) }}"
                                                     data-bs-toggle="modal"
                                                     data-bs-target="#imagePreviewModal"
                                                     onclick="event.preventDefault(); document.getElementById('imagePreviewModalImg').src=this.getAttribute('data-img-src');"
@@ -124,7 +124,7 @@
                                     </div>
                                     <div class="card-body text-center">
                                         @if(Str::endsWith($attachment->file_path, ['jpg','jpeg','png']))
-                                            <img src="{{ asset($attachment->file_path) }}" class="img-fluid" style="max-height:120px;">
+                                            <img src="{{ route('admin.file.show', ['filename' => basename($attachment->file_path)]) }}" class="img-fluid" style="max-height:120px;">
                                         @else
                                             <span class="text-muted">{{ $attachment->stored_file_name }}</span>
                                         @endif
@@ -157,10 +157,10 @@
                                                         <h6 class="mb-1 small">{{ $attachment->file_type }}</h6>
                                                         <div class="d-flex gap-2">
                                                             <a
-                                                                href="{{ asset($attachment->file_path) }}"
+                                                                href="{{ route('admin.file.show', ['filename' => basename($attachment->file_path)]) }}"
                                                                 @if(Str::endsWith($attachment->file_path, ['jpg','jpeg','png']))
                                                                     class="btn btn-sm btn-primary btn-preview-image"
-                                                                    data-img-src="{{ asset($attachment->file_path) }}"
+                                                                    data-img-src="{{ route('admin.file.show', ['filename' => basename($attachment->file_path)]) }}"
                                                                     data-bs-toggle="modal"
                                                                     data-bs-target="#imagePreviewModal"
                                                                     onclick="event.preventDefault(); document.getElementById('imagePreviewModalImg').src=this.getAttribute('data-img-src');"
@@ -176,7 +176,7 @@
                                                     </div>
                                                     <div class="card-body text-center">
                                                         @if(Str::endsWith($attachment->file_path, ['jpg','jpeg','png']))
-                                                            <img src="{{ asset($attachment->file_path) }}" class="img-fluid" style="max-height:120px;">
+                                                            <img src="{{ route('admin.file.show', ['filename' => basename($attachment->file_path)]) }}" class="img-fluid" style="max-height:120px;">
                                                         @else
                                                             <span class="text-muted">{{ $attachment->stored_file_name }}</span>
                                                         @endif
@@ -219,10 +219,10 @@
                                                     <h6 class="mb-1 small">{{ $attachment->file_type }}</h6>
                                                     <div class="d-flex gap-2">
                                                         <a
-                                                            href="{{ asset($attachment->file_path) }}"
+                                                            href="{{ route('admin.file.show', ['filename' => basename($attachment->file_path)]) }}"
                                                             @if(Str::endsWith($attachment->file_path, ['jpg','jpeg','png']))
                                                                 class="btn btn-sm btn-primary btn-preview-image"
-                                                                data-img-src="{{ asset($attachment->file_path) }}"
+                                                                data-img-src="{{ route('admin.file.show', ['filename' => basename($attachment->file_path)]) }}"
                                                                 data-bs-toggle="modal"
                                                                 data-bs-target="#imagePreviewModal"
                                                                 onclick="event.preventDefault(); document.getElementById('imagePreviewModalImg').src=this.getAttribute('data-img-src');"
@@ -238,7 +238,7 @@
                                                 </div>
                                                 <div class="card-body text-center">
                                                     @if(Str::endsWith($attachment->file_path, ['jpg','jpeg','png']))
-                                                        <img src="{{ asset($attachment->file_path) }}" class="img-fluid" style="max-height:120px;">
+                                                        <img src="{{ route('admin.file.show', ['filename' => basename($attachment->file_path)]) }}" class="img-fluid" style="max-height:120px;">
                                                     @else
                                                         <span class="text-muted">{{ $attachment->stored_file_name }}</span>
                                                     @endif
@@ -265,10 +265,10 @@
                                                     <h6 class="mb-1 small">{{ $attachment->file_type }}</h6>
                                                     <div class="d-flex gap-2">
                                                         <a
-                                                            href="{{ asset($attachment->file_path) }}"
+                                                            href="{{ route('admin.file.show', ['filename' => basename($attachment->file_path)]) }}"
                                                             @if(Str::endsWith($attachment->file_path, ['jpg','jpeg','png']))
                                                                 class="btn btn-sm btn-primary btn-preview-image"
-                                                                data-img-src="{{ asset($attachment->file_path) }}"
+                                                                data-img-src="{{ route('admin.file.show', ['filename' => basename($attachment->file_path)]) }}"
                                                                 data-bs-toggle="modal"
                                                                 data-bs-target="#imagePreviewModal"
                                                                 onclick="event.preventDefault(); document.getElementById('imagePreviewModalImg').src=this.getAttribute('data-img-src');"
@@ -284,7 +284,7 @@
                                                 </div>
                                                 <div class="card-body text-center">
                                                     @if(Str::endsWith($attachment->file_path, ['jpg','jpeg','png']))
-                                                        <img src="{{ asset($attachment->file_path) }}" class="img-fluid" style="max-height:120px;">
+                                                        <img src="{{ route('admin.file.show', ['filename' => basename($attachment->file_path)]) }}" class="img-fluid" style="max-height:120px;">
                                                     @else
                                                         <span class="text-muted">{{ $attachment->stored_file_name }}</span>
                                                     @endif

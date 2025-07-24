@@ -53,6 +53,7 @@
         max-width: 100%;
         max-height: 60vh;
     }
+
     @media (max-width: 1200px) {
         .modal-img-preview {
             max-width: 100vw;
@@ -239,12 +240,17 @@
                         @endphp
                         <a href="javascript:void(0);" class="open-attachments-modal"
                             data-attachments='@json($data->attachments->map(function($a){return [
-                                "file_path" => asset($a->file_path),
+                                "file_path" => route("admin.file.show", ["filename" => $a->stored_file_name ?: basename($a->file_path)]),
                                 "stored_file_name" => $a->stored_file_name
                             ];}))'
                             data-index="{{ $loop->index }}">
                             @if($isImage)
-                                <img src="{{ asset($att->file_path) }}" class="attachment-thumb" alt="مرفق">
+                                <img src="{{ route('admin.file.show', ['filename' => $att->stored_file_name ?: basename($att->file_path)]) }}"
+                                     class="attachment-thumb"
+                                     alt="مرفق"
+                                     oncontextmenu="return false;"
+                                     ondragstart="return false;"
+                                     style="user-select: none; -webkit-user-select: none;">
                             @else
                                 <span class="attachment-thumb d-flex align-items-center justify-content-center bg-light">
                                     <i class="bi bi-file-earmark-pdf" style="font-size: 1.5rem; color: #d9534f;"></i>
@@ -291,12 +297,17 @@
                                                 @endphp
                                                 <a href="javascript:void(0);" class="open-attachments-modal"
                                                     data-attachments='@json($member->attachments->map(function($a){return [
-                                                        "file_path" => asset($a->file_path),
+                                                        "file_path" => route("admin.file.show", ["filename" => $a->stored_file_name ?: basename($a->file_path)]),
                                                         "stored_file_name" => $a->stored_file_name
                                                     ];}))'
                                                     data-index="{{ $loop->index }}">
                                                     @if($isImage)
-                                                        <img src="{{ asset($att->file_path) }}" class="attachment-thumb" alt="مرفق">
+                                                        <img src="{{ route('admin.file.show', ['filename' => $att->stored_file_name ?: basename($att->file_path)]) }}"
+                                                             class="attachment-thumb"
+                                                             alt="مرفق"
+                                                             oncontextmenu="return false;"
+                                                             ondragstart="return false;"
+                                                             style="user-select: none; -webkit-user-select: none;">
                                                     @else
                                                         <span class="attachment-thumb d-flex align-items-center justify-content-center bg-light">
                                                             <i class="bi bi-file-earmark-pdf" style="font-size: 1.5rem; color: #d9534f;"></i>
@@ -327,9 +338,7 @@
                 {{-- الأب --}}
                 @if($data->deadPepole->father_first_name || $data->deadPepole->father_last_name || $data->deadPepole->father_id)
                     @php
-                        $fatherAttachments = $data->deadPepole->attachments->filter(function($a) use ($data) {
-                            return $a->person_identity_number == $data->deadPepole->father_id;
-                        })->values();
+                        $fatherAttachments = $data->deadPepole->fatherAttachments ?? collect();
                     @endphp
                     <div class="col-md-6 col-12 mb-3">
                         <div class="card h-100 shadow-sm border-0">
@@ -350,12 +359,17 @@
                                                 @endphp
                                                 <a href="javascript:void(0);" class="open-attachments-modal"
                                                     data-attachments='@json($fatherAttachments->map(function($a){return [
-                                                        "file_path" => asset($a->file_path),
+                                                        "file_path" => route("admin.file.show", ["filename" => $a->stored_file_name ?: basename($a->file_path)]),
                                                         "stored_file_name" => $a->stored_file_name
                                                     ];}))'
                                                     data-index="{{ $loop->index }}">
                                                     @if($isImage)
-                                                        <img src="{{ asset($att->file_path) }}" class="attachment-thumb" alt="مرفق">
+                                                        <img src="{{ route('admin.file.show', ['filename' => $att->stored_file_name ?: basename($att->file_path)]) }}"
+                                                             class="attachment-thumb"
+                                                             alt="مرفق"
+                                                             oncontextmenu="return false;"
+                                                             ondragstart="return false;"
+                                                             style="user-select: none; -webkit-user-select: none;">
                                                     @else
                                                         <span class="attachment-thumb d-flex align-items-center justify-content-center bg-light">
                                                             <i class="bi bi-file-earmark-pdf" style="font-size: 1.5rem; color: #d9534f;"></i>
@@ -375,9 +389,7 @@
                 {{-- الأم --}}
                 @if($data->deadPepole->mother_first_name || $data->deadPepole->mother_last_name || $data->deadPepole->mother_id)
                     @php
-                        $motherAttachments = $data->deadPepole->attachments->filter(function($a) use ($data) {
-                            return $a->person_identity_number == $data->deadPepole->mother_id;
-                        })->values();
+                        $motherAttachments = $data->deadPepole->motherAttachments ?? collect();
                     @endphp
                     <div class="col-md-6 col-12 mb-3">
                         <div class="card h-100 shadow-sm border-0">
@@ -398,12 +410,17 @@
                                                 @endphp
                                                 <a href="javascript:void(0);" class="open-attachments-modal"
                                                     data-attachments='@json($motherAttachments->map(function($a){return [
-                                                        "file_path" => asset($a->file_path),
+                                                        "file_path" => route("admin.file.show", ["filename" => $a->stored_file_name ?: basename($a->file_path)]),
                                                         "stored_file_name" => $a->stored_file_name
                                                     ];}))'
                                                     data-index="{{ $loop->index }}">
                                                     @if($isImage)
-                                                        <img src="{{ asset($att->file_path) }}" class="attachment-thumb" alt="مرفق">
+                                                        <img src="{{ route('admin.file.show', ['filename' => $att->stored_file_name ?: basename($att->file_path)]) }}"
+                                                             class="attachment-thumb"
+                                                             alt="مرفق"
+                                                             oncontextmenu="return false;"
+                                                             ondragstart="return false;"
+                                                             style="user-select: none; -webkit-user-select: none;">
                                                     @else
                                                         <span class="attachment-thumb d-flex align-items-center justify-content-center bg-light">
                                                             <i class="bi bi-file-earmark-pdf" style="font-size: 1.5rem; color: #d9534f;"></i>
@@ -452,7 +469,7 @@ document.addEventListener('DOMContentLoaded', function() {
             let isImage = /\.(jpg|jpeg|png|gif)$/i.test(att.stored_file_name);
             let thumb = '';
             if(isImage) {
-                thumb = `<img src="${att.file_path}" class="attachment-thumb" style="cursor:pointer;" data-preview-index="${idx}" alt="مرفق">`;
+                thumb = `<img src="${att.file_path}" class="attachment-thumb" style="cursor:pointer;" data-preview-index="${idx}" alt="مرفق" oncontextmenu="return false;" ondragstart="return false;">`;
             } else {
                 thumb = `<span class="attachment-thumb d-flex align-items-center justify-content-center bg-light" style="cursor:pointer;" data-preview-index="${idx}">
                     <i class="bi bi-file-earmark-pdf" style="font-size: 1.5rem; color: #d9534f;"></i>
@@ -464,12 +481,24 @@ document.addEventListener('DOMContentLoaded', function() {
         function renderPreview(idx) {
             let att = attachments[idx];
             let isImage = /\.(jpg|jpeg|png|gif)$/i.test(att.stored_file_name);
+
             if(isImage) {
-                preview.innerHTML = `<img src="${att.file_path}" class="modal-img-preview" alt="مرفق">`;
+                preview.innerHTML = `<img src="${att.file_path}" class="modal-img-preview" alt="مرفق" oncontextmenu="return false;" ondragstart="return false;">`;
             } else {
-                preview.innerHTML = `<a href="${att.file_path}" target="_blank" class="modal-file-link"><i class="bi bi-file-earmark-pdf"></i> عرض الملف</a>`;
+                preview.innerHTML = `
+                    <div class="text-center">
+                        <div class="mb-3">
+                            <i class="bi bi-file-earmark-pdf" style="font-size: 4rem; color: #d9534f;"></i>
+                        </div>
+                        <h5>${att.stored_file_name}</h5>
+                        <a href="${att.file_path}" target="_blank" class="btn btn-primary">
+                            <i class="bi bi-eye"></i> عرض الملف
+                        </a>
+                    </div>
+                `;
             }
         }
+
         renderPreview(activeIndex);
 
         modalContent.querySelectorAll('[data-preview-index]').forEach(function(el) {

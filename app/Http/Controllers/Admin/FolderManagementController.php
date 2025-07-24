@@ -239,6 +239,13 @@ class FolderManagementController extends Controller
     {
         $folderName = $request->get('folder');
         $type = $request->get('type', 'images');
+        $debug = $request->get('debug', false);
+
+        Log::info("Getting folder contents", [
+            'folder_name' => $folderName,
+            'type' => $type,
+            'debug' => $debug
+        ]);
 
         try {
             if ($type === 'excel') {
@@ -250,23 +257,37 @@ class FolderManagementController extends Controller
                 // البحث الشامل في كلا الجدولين
                 $files = collect();
 
-                // 1. البحث في جدول attachments (للصور التقليدية)
-                // البحث في جدول attachments للصور (إزالة record_number)
+                // 1. البحث في جدول attachments - البحث بالمجلد في file_path
                 $attachmentFiles = DB::table('attachments')
-                    ->where('person_identity_number', $folderName)
+                    ->where(function($query) use ($folderName) {
+                        $query->where('file_path', 'LIKE', "%/{$folderName}/%")
+                              ->orWhere('file_path', 'LIKE', "%uploads/{$folderName}/%")
+                              ->orWhere('file_path', 'LIKE', "storage/uploads/{$folderName}/%")
+                              ->orWhere('person_identity_number', $folderName);
+                    })
+                    ->whereNotNull('file_path')
+                    ->where('file_path', '!=', '')
                     ->orderBy('updated_at', 'desc')
-                    ->get();                // تحويل بيانات attachments للبنية المطلوبة
+                    ->get();
+
+                Log::info("Attachment files found", [
+                    'folder_name' => $folderName,
+                    'count' => $attachmentFiles->count(),
+                    'sample_paths' => $attachmentFiles->take(3)->pluck('file_path')->toArray()
+                ]);
+
+                // تحويل بيانات attachments للبنية المطلوبة
                 foreach ($attachmentFiles as $file) {
                     $fileObject = (object) [
                         'id' => $file->id,
-                        'original_file_name' => $file->stored_file_name, // استخدام stored_file_name فقط
+                        'original_file_name' => $file->stored_file_name,
                         'stored_file_name' => $file->stored_file_name,
                         'file_path' => $file->file_path,
                         'file_size' => $file->file_size,
                         'file_type' => $file->file_type ?: 'image',
                         'file_extension' => pathinfo($file->stored_file_name, PATHINFO_EXTENSION),
                         'mime_type' => $this->getMimeTypeFromExtension(pathinfo($file->stored_file_name, PATHINFO_EXTENSION)),
-                        'record_number' => $file->person_identity_number, // إزالة مرجع record_number
+                        'record_number' => $file->person_identity_number,
                         'updated_at' => $file->updated_at,
                         'created_at' => $file->created_at,
                         'source' => 'attachments_table'
@@ -275,25 +296,34 @@ class FolderManagementController extends Controller
                 }
 
                 // 2. البحث في جدول enhanced_attachments (للملفات المحسنة)
-                $enhancedColumns = DB::getSchemaBuilder()->getColumnListing('enhanced_attachments');
-                $recordNumberColumn = 'record_number';
+                if (DB::getSchemaBuilder()->hasTable('enhanced_attachments')) {
+                    $enhancedColumns = DB::getSchemaBuilder()->getColumnListing('enhanced_attachments');
 
-                if (!in_array('record_number', $enhancedColumns)) {
-                    if (in_array('folder_id', $enhancedColumns)) {
-                        $recordNumberColumn = 'folder_id';
-                    } elseif (in_array('original_folder_name', $enhancedColumns)) {
-                        $recordNumberColumn = 'original_folder_name';
-                    }
-                }
-
-                if (in_array($recordNumberColumn, $enhancedColumns)) {
-                    $enhancedFiles = DB::table('enhanced_attachments')
-                        ->where($recordNumberColumn, $folderName)
-                        ->whereIn('file_type', ['image', 'photo', 'document', 'pdf'])
-                        ->whereNotIn('file_type', ['excel']) // استثناء ملفات Excel من بوابة الصور
+                    // البحث بعدة طرق
+                    $enhancedQuery = DB::table('enhanced_attachments')
                         ->whereNull('deleted_at')
-                        ->orderBy('updated_at', 'desc')
-                        ->get();
+                        ->where(function($query) use ($folderName, $enhancedColumns) {
+                            $query->where('file_path', 'LIKE', "%/{$folderName}/%")
+                                  ->orWhere('file_path', 'LIKE', "%uploads/{$folderName}/%")
+                                  ->orWhere('file_path', 'LIKE', "storage/uploads/{$folderName}/%")
+                                  ->orWhere('original_folder_name', $folderName);
+
+                            // إضافة البحث بـ record_number إذا كان متاحاً
+                            if (in_array('record_number', $enhancedColumns)) {
+                                $query->orWhere('record_number', $folderName);
+                            }
+                            if (in_array('folder_id', $enhancedColumns)) {
+                                $query->orWhere('folder_id', $folderName);
+                            }
+                        });
+
+                    $enhancedFiles = $enhancedQuery->get();
+
+                    Log::info("Enhanced attachment files found", [
+                        'folder_name' => $folderName,
+                        'count' => $enhancedFiles->count(),
+                        'sample_paths' => $enhancedFiles->take(3)->pluck('file_path')->toArray()
+                    ]);
 
                     // إضافة ملفات enhanced_attachments إلى القائمة
                     foreach ($enhancedFiles as $enhancedFile) {
@@ -302,76 +332,41 @@ class FolderManagementController extends Controller
                     }
                 }
 
-                // 3. إذا لم نجد ملفات في أي من الجدولين، جرب المسح الفيزيائي
+                // 3. إذا لم نجد ملفات في قاعدة البيانات، جرب المسح الفيزيائي
                 if ($files->isEmpty()) {
+                    Log::info("No files found in database, trying physical scan for folder: {$folderName}");
                     return $this->getFolderContentsFromPhysical($folderName);
                 }
+
+                Log::info("Total files found in database", [
+                    'folder_name' => $folderName,
+                    'total_count' => $files->count(),
+                    'sources' => $files->groupBy('source')->map->count()
+                ]);
 
                 foreach ($files as $file) {
                     $file->formatted_size = $this->formatFileSize($file->file_size ?? 0);
                     $file->formatted_date = date('Y-m-d H:i', strtotime($file->updated_at));
 
-                    // Enhanced file processing
+                    // Enhanced file processing - استخدام العرض الآمن
                     $fileName = $file->stored_file_name ?: $file->original_file_name;
-                    $basePath = 'storage/';
                     $file->download_url = null;
 
+                    // تحديث المسار لاستخدام العرض الآمن للملفات
+                    if (!empty($fileName)) {
+                        $file->download_url = route('admin.file.show', ['filename' => $fileName]);
+                    }
+
                     // Debug: Log the file info
-                    Log::info("Processing file: {$fileName}", [
-                        'record_number' => $file->record_number,
-                        'original_file_name' => $file->original_file_name,
-                        'stored_file_name' => $file->stored_file_name,
-                        'file_path' => $file->file_path,
-                        'file_extension' => $file->file_extension
-                    ]);
-
-                    // Priority path checking with enhanced logic
-                    $pathsToCheck = [];
-
-                    // 1. If file_path exists in database, try it first
-                    if (!empty($file->file_path)) {
-                        $cleanPath = $file->file_path;
-                        // إزالة storage/ من البداية إذا كانت موجودة لتجنب التكرار
-                        $cleanPath = preg_replace('#^/?storage/#', '', $cleanPath);
-                        $pathsToCheck[] = "storage/" . ltrim($cleanPath, '/');
-                    }
-
-                    // 2. Direct path in record folder (most common for newer records)
-                    $pathsToCheck[] = "storage/uploads/{$file->record_number}/{$fileName}";
-
-                    // 3. Try with original filename if different
-                    if ($file->stored_file_name && $file->original_file_name && $file->stored_file_name !== $file->original_file_name) {
-                        $pathsToCheck[] = "storage/uploads/{$file->record_number}/{$file->original_file_name}";
-                    }
-
-                    // 4. Subfolders (legacy structure)
-                    $subfolders = ['images', 'documents', 'excels', 'files'];
-                    foreach ($subfolders as $subfolder) {
-                        $pathsToCheck[] = "storage/uploads/{$file->record_number}/{$subfolder}/{$fileName}";
-                        if ($file->stored_file_name && $file->original_file_name && $file->stored_file_name !== $file->original_file_name) {
-                            $pathsToCheck[] = "storage/uploads/{$file->record_number}/{$subfolder}/{$file->original_file_name}";
-                        }
-                    }
-
-                    // Check each path and use the first existing one
-                    $foundPath = null;
-                    foreach ($pathsToCheck as $testPath) {
-                        $fullPath = public_path($testPath);
-                        if (file_exists($fullPath)) {
-                            $foundPath = $testPath;
-                            Log::info("✅ Found file at: {$testPath} for record {$file->record_number}");
-                            break;
-                        }
-                    }
-
-                    // Set download URL
-                    if ($foundPath) {
-                        $file->download_url = asset($foundPath);
-                    } else {
-                        // Fallback: use the first attempted path even if file doesn't exist
-                        $fallbackPath = $pathsToCheck[0] ?? "storage/uploads/{$file->record_number}/{$fileName}";
-                        $file->download_url = asset($fallbackPath);
-                        Log::warning("⚠️ File not found for record {$file->record_number}, file: {$fileName}. Using fallback: {$fallbackPath}");
+                    if ($debug) {
+                        Log::info("Processing file: {$fileName}", [
+                            'record_number' => $file->record_number ?? 'N/A',
+                            'original_file_name' => $file->original_file_name ?? 'N/A',
+                            'stored_file_name' => $file->stored_file_name ?? 'N/A',
+                            'file_path' => $file->file_path ?? 'N/A',
+                            'file_extension' => $file->file_extension ?? 'N/A',
+                            'download_url' => $file->download_url ?? 'N/A'
+                        ]);
                     }
 
                     // Set additional properties for frontend
@@ -382,7 +377,7 @@ class FolderManagementController extends Controller
                         strpos($file->mime_type ?? '', 'image/') === 0;
                     $file->is_pdf = strtolower($file->file_extension ?? '') === 'pdf' ||
                         strpos($file->mime_type ?? '', 'pdf') !== false;
-                    $file->thumbnail_url = !empty($file->thumbnail_path) ? asset($file->thumbnail_path) : null;
+                    $file->thumbnail_url = !empty($file->thumbnail_path) ? route('admin.file.show', ['filename' => basename($file->thumbnail_path)]) : null;
                     $file->metadata_array = !empty($file->file_metadata) ? json_decode($file->file_metadata, true) : [];
                 }
 
@@ -527,13 +522,10 @@ class FolderManagementController extends Controller
 
                 // تحويل إلى pagination format
                 $enhancedData = $results->map(function ($file) {
-                    // التأكد من وجود download_url وإصلاح المسار
-                    if (empty($file->download_url) && !empty($file->file_path)) {
-                        $cleanPath = ltrim($file->file_path, '/');
-                        if (strpos($cleanPath, 'storage/') === 0) {
-                            $cleanPath = substr($cleanPath, 8);
-                        }
-                        $file->download_url = asset('storage/' . $cleanPath);
+                    // استخدام النظام الآمن للعرض
+                    $fileName = $file->stored_file_name ?: $file->original_file_name;
+                    if (!empty($fileName)) {
+                        $file->download_url = route('admin.file.show', ['filename' => $fileName]);
                     }
 
                     // إضافة اسم الشخص
@@ -596,13 +588,10 @@ class FolderManagementController extends Controller
 
                 // إضافة معلومات إضافية للنتائج
                 $enhancedData = collect($excelResults->items())->map(function ($file) {
-                    // التأكد من وجود download_url وإصلاح المسار
-                    if (empty($file->download_url) && !empty($file->file_path)) {
-                        $cleanPath = ltrim($file->file_path, '/');
-                        if (strpos($cleanPath, 'storage/') === 0) {
-                            $cleanPath = substr($cleanPath, 8);
-                        }
-                        $file->download_url = asset('storage/' . $cleanPath);
+                    // استخدام النظام الآمن للعرض
+                    $fileName = $file->stored_file_name ?: $file->original_file_name;
+                    if (!empty($fileName)) {
+                        $file->download_url = route('admin.file.show', ['filename' => $fileName]);
                     }
 
                     // إضافة formatted size
@@ -691,34 +680,20 @@ class FolderManagementController extends Controller
                 $file->formatted_size = $this->formatFileSize($file->file_size ?? 0);
                 $file->formatted_date = date('Y-m-d H:i', strtotime($file->updated_at));
 
-                // معالجة مسار الملف لـ Excel
+                // معالجة مسار الملف لـ Excel - استخدام النظام الآمن
                 $fileName = $file->stored_file_name ?: $file->original_file_name;
                 $file->download_url = null;
                 $file->is_excel = true;
                 $file->excel_type = $file->file_extension ?: 'xlsx';
 
-                // مسارات محتملة لملفات Excel
-                $pathsToCheck = [
-                    "storage/documents/excel/{$folderName}/{$fileName}",
-                    "storage/documents/{$folderName}/{$fileName}",
-                    "storage/uploads/{$folderName}/{$fileName}",
-                    "storage/{$file->file_path}",
-                ];
-
-                // التحقق من وجود الملف
-                foreach ($pathsToCheck as $path) {
-                    $fullPath = public_path($path);
-                    if (file_exists($fullPath)) {
-                        $file->download_url = url($path);
-                        $file->file_exists = true;
-                        break;
-                    }
-                }
-
-                if (!$file->download_url) {
+                // استخدام النظام الآمن للعرض
+                if (!empty($fileName)) {
+                    $file->download_url = route('admin.file.show', ['filename' => $fileName]);
+                    $file->file_exists = true; // سنتحقق من الوجود في النظام الآمن
+                } else {
                     $file->download_url = '#';
                     $file->file_exists = false;
-                    Log::warning("Excel file not found: {$fileName} in folder {$folderName}");
+                    Log::warning("Excel file without name in folder {$folderName}");
                 }
 
                 $processedFiles[] = $file;
@@ -1056,7 +1031,7 @@ class FolderManagementController extends Controller
                     'created_at' => date('Y-m-d H:i:s', filectime($filePath)),
                     'formatted_size' => $this->formatFileSize(filesize($filePath)),
                     'formatted_date' => date('Y-m-d H:i', filemtime($filePath)),
-                    'download_url' => asset("storage/uploads/{$folderName}/{$fileName}"),
+                    'download_url' => route('admin.file.show', ['filename' => $fileName]),
                     'extension' => $extension,
                     'file_name' => $fileName,
                     'is_image' => in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp']),
@@ -1082,7 +1057,7 @@ class FolderManagementController extends Controller
     }
 
     /**
-     * Process file URL with multiple fallback paths
+     * Process file URL with secure file route
      */
     private function processFileUrl($file, $folderName)
     {
@@ -1095,58 +1070,14 @@ class FolderManagementController extends Controller
             return;
         }
 
-        // مسارات متعددة للبحث بترتيب الأولوية
-        $pathsToCheck = [
-            "storage/uploads/{$folderName}/{$fileName}",
-            "storage/uploads/{$folderName}/images/{$fileName}",
-            "storage/uploads/{$folderName}/documents/{$fileName}",
-            $file->file_path,
-            str_replace(['storage/', '/storage/'], ['', ''], $file->file_path)
-        ];
+        // استخدام النظام الآمن للعرض
+        $file->download_url = route('admin.file.show', ['filename' => $fileName]);
 
-        $foundPath = null;
-
-        foreach ($pathsToCheck as $testPath) {
-            if (empty($testPath)) continue;
-
-            $fullPath = public_path($testPath);
-            if (file_exists($fullPath)) {
-                $foundPath = $testPath;
-                break;
-            }
-        }
-
-        // إنشاء URL بناءً على المسار الموجود أو الافتراضي
-        if ($foundPath) {
-            $file->download_url = asset($foundPath);
-            logger()->info("File URL created successfully", [
-                'folder' => $folderName,
-                'file' => $fileName,
-                'path' => $foundPath,
-                'url' => $file->download_url
-            ]);
-        } else {
-            // مسار افتراضي حتى لو لم يكن الملف موجوداً فعلياً
-            $defaultPath = "storage/uploads/{$folderName}/{$fileName}";
-            $file->download_url = asset($defaultPath);
-            logger()->warning("File not found physically, using default path", [
-                'folder' => $folderName,
-                'file' => $fileName,
-                'default_path' => $defaultPath,
-                'url' => $file->download_url,
-                'checked_paths' => $pathsToCheck
-            ]);
-        }
-
-        // التأكد من أن download_url ليس فارغاً
-        if (empty($file->download_url)) {
-            $file->download_url = asset("storage/uploads/{$folderName}/{$fileName}");
-            logger()->error("Empty download_url detected, forcing default", [
-                'folder' => $folderName,
-                'file' => $fileName,
-                'forced_url' => $file->download_url
-            ]);
-        }
+        logger()->info("Secure file URL created", [
+            'folder' => $folderName,
+            'file' => $fileName,
+            'url' => $file->download_url
+        ]);
     }
 
     /**

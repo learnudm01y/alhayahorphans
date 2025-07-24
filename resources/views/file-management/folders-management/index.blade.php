@@ -296,6 +296,12 @@
             const imageModal = document.getElementById('imageModal');
 
             if (modalImage && imageModal) {
+                // تحديث المسار ليستخدم العرض الآمن
+                if (imageSrc && !imageSrc.includes('admin/file/show/')) {
+                    const filename = imageSrc.split('/').pop();
+                    imageSrc = `{{ route('admin.file.show', '') }}/${filename}`;
+                }
+
                 modalImage.src = imageSrc;
                 modalImage.alt = imageTitle;
 
@@ -318,7 +324,7 @@
     // Test function
     window.testImageModal = function() {
         console.log('🧪 Testing image modal...');
-        showImageModal('/storage/uploads/000010/images/000010_sample.jpg', 'Test Image');
+        showImageModal('{{ route("admin.file.show", "000010_sample.jpg") }}', 'Test Image');
     };
 
     console.log('✅ Image modal support initialized');

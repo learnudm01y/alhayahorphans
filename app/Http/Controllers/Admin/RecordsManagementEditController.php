@@ -129,8 +129,9 @@ class RecordsManagementEditController extends Controller
             'housingStatus',
             'currentHousingType',
             'attachments',
-            'rePeople',
-            'deadPepole',
+            'rePeople.attachments', // إضافة مرفقات أفراد الأسرة
+            'deadPepole.fatherAttachments', // إضافة مرفقات الأب
+            'deadPepole.motherAttachments', // إضافة مرفقات الأم
         ])->findOrFail($id);
         return view('admin.dashboard.records_management.show', compact('data'));
     }

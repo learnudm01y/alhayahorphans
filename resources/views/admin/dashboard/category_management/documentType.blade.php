@@ -125,6 +125,30 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css" rel="stylesheet"/>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     <script>
+        // تهيئة القوائم المنسدلة
+        function initDropdowns() {
+            // انتظار تحميل Bootstrap
+            if (typeof bootstrap === 'undefined') {
+                setTimeout(initDropdowns, 100);
+                return;
+            }
+
+            // تهيئة جميع القوائم المنسدلة في الجدول
+            setTimeout(function() {
+                const dropdownTriggerList = document.querySelectorAll('[data-bs-toggle="dropdown"]');
+                dropdownTriggerList.forEach(function(dropdownTriggerEl) {
+                    if (!dropdownTriggerEl.hasAttribute('data-dropdown-initialized')) {
+                        try {
+                            new bootstrap.Dropdown(dropdownTriggerEl);
+                            dropdownTriggerEl.setAttribute('data-dropdown-initialized', 'true');
+                        } catch (error) {
+                            console.log('Error initializing dropdown:', error);
+                        }
+                    }
+                });
+            }, 100);
+        }
+
         // تفعيل زر on/off لأي بوابة
         function bindDocumentTypeSwitches() {
             document.querySelectorAll('.document-type-switch').forEach(function(switchEl) {
@@ -154,6 +178,7 @@
                                 window.LaravelDataTables['documenttype-table'].ajax.reload(function() {
                                     bindDocumentTypeSwitches();
                                     bindDocumentTypeRequiredRadios();
+                                    initDropdowns();
                                 }, false);
                             }
                         } else {
@@ -195,7 +220,11 @@
                         if (data.success) {
                             toastr.success('تم تحديث حالة الإلزامية بنجاح');
                             if (window.LaravelDataTables && window.LaravelDataTables['documenttype-table']) {
-                                window.LaravelDataTables['documenttype-table'].ajax.reload(null, false);
+                                window.LaravelDataTables['documenttype-table'].ajax.reload(function() {
+                                    bindDocumentTypeSwitches();
+                                    bindDocumentTypeRequiredRadios();
+                                    initDropdowns();
+                                }, false);
                             }
                         } else {
                             toastr.error('فشل التحديث: ' + (data.error || 'خطأ غير معروف'));
@@ -213,13 +242,46 @@
         $(document).ready(function() {
             bindDocumentTypeSwitches();
             bindDocumentTypeRequiredRadios();
+            initDropdowns();
+
+            // معالجة نماذج التعديل والحذف
+            handleEditModal();
+            handleDeleteModal();
+
             if (window.LaravelDataTables && window.LaravelDataTables['documenttype-table']) {
                 window.LaravelDataTables['documenttype-table'].on('draw', function() {
                     bindDocumentTypeSwitches();
                     bindDocumentTypeRequiredRadios();
+                    initDropdowns();
                 });
             }
         });
+
+        // معالجة نموذج التعديل
+        function handleEditModal() {
+            $(document).on('click', '[data-bs-target="#editDocumentTypeModal"]', function() {
+                const id = $(this).data('id');
+                const description = $(this).data('description');
+                const pref = $(this).data('pref');
+                const action = $(this).data('action');
+
+                $('#edit_DocumentType_id').val(id);
+                $('#edit_description').val(description);
+                $('#edit_pref').val(pref);
+                $('#editDocumentTypeForm').attr('action', action);
+            });
+        }
+
+        // معالجة نموذج الحذف
+        function handleDeleteModal() {
+            $(document).on('click', '[data-bs-target="#deleteDocumentTypeModal"]', function() {
+                const id = $(this).data('id');
+                const description = $(this).data('description');
+                const action = $(this).data('action');
+
+                $('#delete_DocumentType_name').text(description);
+                $('#deleteDocumentTypeForm').attr('action', action);
+            });
+        }
     </script>
 @endpush
-    

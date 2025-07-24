@@ -157,6 +157,12 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
         // Bulk Folder Upload with Duplicate Detection
         Route::post('process-bulk-folder-upload', [UnifiedFileManagementController::class, 'processBulkFolderUploadWithDuplicateDetection'])->name('file.process.bulk.folder.upload');
 
+        // Batch Upload for Large Folders (to avoid PHP limits)
+        Route::post('process-bulk-folder-upload-batch', [UnifiedFileManagementController::class, 'processBulkFolderUploadBatch'])->name('file.process.bulk.folder.upload.batch');
+
+        // Document Types Data Route
+        Route::get('document-types-data', [UnifiedFileManagementController::class, 'getDocumentTypesData'])->name('file.document.types.data');
+
         // Legacy routes (keeping for backward compatibility)
         Route::post('create-test-duplicates', [UnifiedFileManagementController::class, 'createTestDuplicates'])->name('file.create.test.duplicates');
 
@@ -379,4 +385,5 @@ Route::prefix('public-api/duplicate-files')->group(function () {
     Route::get('view/{id}', [UnifiedFileManagementController::class, 'viewDuplicateFile'])->name('public.duplicate.files.view');
     Route::delete('delete/{id}', [UnifiedFileManagementController::class, 'deleteDuplicateFileById'])->name('public.duplicate.files.delete');
     Route::delete('bulk-delete', [UnifiedFileManagementController::class, 'bulkDeleteDuplicateFiles'])->name('public.duplicate.files.bulk.delete');
+    Route::delete('delete-all', [UnifiedFileManagementController::class, 'deleteAllDuplicateFiles'])->name('public.duplicate.files.delete.all');
 });

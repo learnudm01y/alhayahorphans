@@ -450,6 +450,9 @@
 
                 // Bulk delete
                 $('#bulkDeleteBtn').on('click', () => this.bulkDelete());
+
+                // Delete all
+                $('#deleteAllBtn').on('click', () => this.deleteAll());
             }
 
             async loadFiles() {
@@ -1135,6 +1138,66 @@
                 } catch (error) {
                     console.error('Error bulk deleting files:', error);
                     this.showError('حدث خطأ أثناء حذف الملفات: ' + error.message);
+                }
+            }
+
+            async deleteAll() {
+                // تأكيد إضافي لحذف جميع الملفات
+                if (!confirm('هل أنت متأكد من حذف جميع الملفات المكررة؟ هذا الإجراء لا يمكن التراجع عنه!')) {
+                    return;
+                }
+
+                if (!confirm('تحذير أخير: سيتم حذف جميع الملفات المكررة نهائياً. هل تريد المتابعة؟')) {
+                    return;
+                }
+
+                try {
+                    // إظهار loading state
+                    $('#deleteAllBtn').html('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>جاري الحذف...').prop('disabled', true);
+
+                    const response = await fetch(`{{ route('public.duplicate.files.delete.all') }}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                        }
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        let successMessage = `تم حذف جميع الملفات المكررة بنجاح (${data.data.deleted_count} ملف)`;
+
+                        // Add directory deletion info if available
+                        if (data.data.directory_deleted) {
+                            successMessage += ' وتم حذف المجلد الرئيسي';
+                        }
+
+                        if (data.data.temp_directory_cleaned) {
+                            successMessage += ' وتم تنظيف المجلد المؤقت';
+                        }
+
+                        // Add success rate if there were failures
+                        if (data.data.failed_count > 0) {
+                            successMessage += ` (معدل النجاح: ${data.data.success_rate}%)`;
+                        }
+
+                        this.showSuccess(successMessage);
+                        this.selectedFiles.clear();
+                        $('#bulkDeleteBtn').hide();
+                        $('#selectAll').prop('checked', false);
+                        this.loadFiles(); // Reload files
+                        this.loadRealStatistics(); // Reload statistics
+                    } else {
+                        throw new Error(data.message || 'فشل في حذف جميع الملفات');
+                    }
+                } catch (error) {
+                    console.error('Error deleting all files:', error);
+                    this.showError('حدث خطأ أثناء حذف جميع الملفات: ' + error.message);
+                } finally {
+                    // إعادة تعيين الزر
+                    $('#deleteAllBtn').html('<i class="fas fa-trash-alt me-1"></i>حذف الكل').prop('disabled', false);
                 }
             }
 

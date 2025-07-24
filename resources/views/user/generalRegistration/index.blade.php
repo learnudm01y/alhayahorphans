@@ -174,7 +174,7 @@
     <!--end::Theme Mode Script-->
     {{-- @yield('scripts') --}}
     @stack('scriptsCodeUserRegistration')
-   
+
     <!--end::Custom Javascript-->
     <!--end::Javascript-->
 

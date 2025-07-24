@@ -1,0 +1,109 @@
+# ===================================================
+# حماية شاملة لجميع مجلدات storage - COMPREHENSIVE STORAGE PROTECTION
+# ===================================================
+
+# منع الوصول لجميع الملفات والمجلدات نهائياً
+# Deny access to ALL files and directories
+Order Allow,Deny
+Deny from all
+
+# منع تنفيذ أي ملفات تنفيذية
+# Prevent execution of any executable files
+<FilesMatch "\.(php|php3|php4|php5|php7|php8|phtml|pl|py|jsp|asp|sh|cgi|exe|bat|cmd|com|scr|vbs|js|jar|war|ear)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# منع عرض قائمة الملفات والمجلدات
+# Disable directory browsing
+Options -Indexes -ExecCGI -Includes
+
+# منع الوصول للملفات الحساسة
+# Deny access to sensitive files
+<FilesMatch "\.(htaccess|htpasswd|ini|log|sh|sql|sqlite|sqlite3|db|bak|backup|git|svn|env|config|conf|yaml|yml|json|xml|csv|txt)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# حماية ضد User-Agents مشبوهة
+# Protection against suspicious User-Agents
+<RequireAll>
+    Require all denied
+</RequireAll>
+
+# منع HTTP Methods خطيرة
+# Block dangerous HTTP methods
+<LimitExcept GET POST HEAD>
+    Order Allow,Deny
+    Deny from all
+</LimitExcept>
+
+# حماية ضد الهجمات الشائعة
+# Protection against common attacks
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # منع الوصول لملفات النظام
+    RewriteRule ^(.*)$ - [F,L]
+    
+    # منع محاولات التلاعب بالمسار
+    RewriteCond %{THE_REQUEST} \s/+[^\s]*[\?\&][^\s]*=\.\./
+    RewriteRule ^(.*)$ - [F,L]
+    
+    # منع HTTP Methods خطيرة
+    RewriteCond %{REQUEST_METHOD} ^(HEAD|TRACE|DELETE|TRACK|CONNECT|OPTIONS) [NC]
+    RewriteRule ^(.*)$ - [F,L]
+    
+    # منع الوصول لملفات مخفية
+    RewriteRule /(^|[^.])\.[^.]*$ - [F,L]
+</IfModule>
+
+# إزالة معلومات الخادم لزيادة الأمان
+# Remove server information for enhanced security
+<IfModule mod_headers.c>
+    Header unset Server
+    Header unset X-Powered-By
+    Header unset X-AspNet-Version
+    Header unset X-AspNetMvc-Version
+    Header set X-Content-Type-Options nosniff
+    Header set X-Frame-Options DENY
+    Header set X-XSS-Protection "1; mode=block"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    Header set Content-Security-Policy "default-src 'none'"
+</IfModule>
+
+# رسائل خطأ مخصصة
+# Custom error messages
+ErrorDocument 403 "<!DOCTYPE html><html dir='rtl' lang='ar'><head><meta charset='UTF-8'><title>وصول مرفوض</title><style>body{font-family:Arial,sans-serif;text-align:center;margin-top:100px;background:#f8f9fa;}.error{color:#dc3545;font-size:24px;margin-bottom:20px;}.message{color:#6c757d;font-size:16px;}</style></head><body><div class='error'>🚫 وصول مرفوض</div><div class='message'>غير مصرح لك بالوصول إلى ملفات التخزين</div></body></html>"
+ErrorDocument 404 "<!DOCTYPE html><html dir='rtl' lang='ar'><head><meta charset='UTF-8'><title>غير موجود</title><style>body{font-family:Arial,sans-serif;text-align:center;margin-top:100px;background:#f8f9fa;}.error{color:#dc3545;font-size:24px;margin-bottom:20px;}.message{color:#6c757d;font-size:16px;}</style></head><body><div class='error'>❌ غير موجود</div><div class='message'>الملف أو المجلد المطلوب غير موجود</div></body></html>"
+ErrorDocument 500 "<!DOCTYPE html><html dir='rtl' lang='ar'><head><meta charset='UTF-8'><title>خطأ في الخادم</title><style>body{font-family:Arial,sans-serif;text-align:center;margin-top:100px;background:#f8f9fa;}.error{color:#dc3545;font-size:24px;margin-bottom:20px;}.message{color:#6c757d;font-size:16px;}</style></head><body><div class='error'>⚠️ خطأ في الخادم</div><div class='message'>حدث خطأ في معالجة الطلب</div></body></html>"
+
+# منع تخزين الملفات في Cache
+# Prevent file caching
+<IfModule mod_expires.c>
+    ExpiresActive Off
+</IfModule>
+
+<IfModule mod_headers.c>
+    Header set Cache-Control "no-store, no-cache, must-revalidate, private"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+</IfModule>
+
+# تسجيل محاولات الوصول المشبوهة
+# Log suspicious access attempts
+<IfModule mod_log_config.c>
+    LogFormat "%h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\" [STORAGE-ACCESS-DENIED]" storage_denied
+    CustomLog logs/storage_access_denied.log storage_denied env=!dontlog
+</IfModule>
+Options -Indexes
+
+# حماية من Directory Traversal
+RewriteEngine On
+RewriteCond %{THE_REQUEST} /\.\./
+RewriteRule ^(.*)$ - [F,L]
+
+# منع الوصول للملفات المخفية
+<FilesMatch "^\.">
+    Deny from all
+</FilesMatch>

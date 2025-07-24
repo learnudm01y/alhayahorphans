@@ -140,14 +140,16 @@
                     // إنشاء أيقونة Excel
                     const excelIcon = getExcelIcon(fileExtension);
 
-                    // رابط التحميل
+                    // رابط التحميل - استخدام العرض الآمن
                     let downloadUrl = file.download_url || '';
-                    if (downloadUrl && !downloadUrl.startsWith('http')) {
-                        // إزالة storage/ المكررة من البداية
-                        downloadUrl = downloadUrl.replace(/^\/?(storage\/)+/, '');
-                        downloadUrl = downloadUrl.startsWith('/') ?
-                            window.location.origin + '/storage/' + downloadUrl.substring(1) :
-                            window.location.origin + '/storage/' + downloadUrl;
+                    const fileName = file.stored_file_name || file.original_file_name || file.file_name;
+
+                    // إنشاء URL آمن مباشرة من اسم الملف
+                    if (fileName) {
+                        downloadUrl = `{{ route('admin.file.show', '') }}/${fileName}`;
+                    } else {
+                        downloadUrl = '#';
+                        console.warn('No filename found for Excel file:', file);
                     }
 
                     // تصميم كرت Excel محسن
@@ -806,9 +808,10 @@
                 if (downloadUrl && !downloadUrl.startsWith('http')) {
                     // إزالة storage/ المكررة من البداية
                     downloadUrl = downloadUrl.replace(/^\/?(storage\/)+/, '');
-                    downloadUrl = downloadUrl.startsWith('/') ?
-                        window.location.origin + '/storage/' + downloadUrl.substring(1) :
-                        window.location.origin + '/storage/' + downloadUrl;
+
+                    // استخدام العرض الآمن للملفات
+                    const filename = downloadUrl.split('/').pop();
+                    downloadUrl = `{{ route('admin.file.show', '') }}/${filename}`;
                 }
 
                 console.log('📊 Excel file data:', {

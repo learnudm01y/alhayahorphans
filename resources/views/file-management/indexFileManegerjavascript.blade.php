@@ -959,6 +959,21 @@
                         try {
                             console.log('📤 إرسال البيانات إلى الخادم...');
 
+                            // فحص حجم الملفات وعددها للتبديل التلقائي للنظام المتعدد
+                            const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+                            const totalSizeMB = totalSize / (1024 * 1024);
+                            const shouldUseBatchUpload = files.length > 20 || totalSizeMB > 6;
+
+                            if (shouldUseBatchUpload) {
+                                console.log('🔄 التبديل للنظام المتعدد:', {
+                                    filesCount: files.length,
+                                    totalSizeMB: totalSizeMB.toFixed(2),
+                                    reason: files.length > 20 ? 'عدد الملفات كبير' : 'حجم الملفات كبير'
+                                });
+
+                                return await this.uploadFolderFileWithBatches(files, uploadType);
+                            }
+
                             const response = await fetch('/admin/file/process-bulk-folder-upload', {
                                 method: 'POST',
                                 headers: {
@@ -1489,6 +1504,245 @@
                         const sizes = ['Bytes', 'KB', 'MB', 'GB'];
                         const i = Math.floor(Math.log(bytes) / Math.log(k));
                         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+                    }
+
+                    /**
+                     * نظام الرفع المتعدد للمجلدات الكبيرة
+                     */
+                    async uploadFolderFileWithBatches(files, uploadType) {
+                        console.log(`🚀 بدء رفع ${uploadType} باستخدام النظام المتعدد:`, {
+                            filesCount: files.length,
+                            timestamp: new Date().toISOString()
+                        });
+
+                        // إنشاء الدفعات
+                        const batches = this.createBatches(files, 10, 6 * 1024 * 1024); // 10 ملفات، 6MB max
+                        console.log(`📦 تم إنشاء ${batches.length} دفعة`);
+
+                        // جمع الخيارات
+                        const options = {
+                            compress_images: document.getElementById('compressImages')?.checked || false,
+                            auto_organize: document.getElementById('autoOrganize')?.checked || true,
+                            cloud_sync: document.getElementById('cloudSync')?.checked || false,
+                        };
+
+                        // إضافة ملف Excel إذا كان موجود
+                        const excelFile = document.getElementById('excelFileInput')?.files[0];
+                        if (excelFile) {
+                            options.excelFile = excelFile;
+                            options.enable_excel_import = document.getElementById('enableExcelImport')?.checked || false;
+                            options.target_table = document.getElementById('targetTable')?.value || 'data';
+                        }
+
+                        try {
+                            // عرض شريط التقدم
+                            this.showBatchUploadProgress();
+
+                            let totalSuccessful = 0;
+                            let totalDuplicates = 0;
+                            let totalErrors = 0;
+
+                            for (let i = 0; i < batches.length; i++) {
+                                this.updateBatchProgress(i, batches.length, `رفع الدفعة ${i + 1}/${batches.length}...`);
+
+                                const result = await this.uploadSingleBatch(batches[i], i, batches.length, options);
+
+                                if (result.success) {
+                                    totalSuccessful += result.statistics?.files_saved || 0;
+                                    totalDuplicates += result.statistics?.duplicates_detected || 0;
+                                    console.log(`✅ تم رفع الدفعة ${i + 1} بنجاح`);
+                                } else {
+                                    totalErrors++;
+                                    console.error(`❌ فشل في رفع الدفعة ${i + 1}:`, result.message);
+                                }
+
+                                // انتظار قصير بين الدفعات
+                                if (i < batches.length - 1) {
+                                    await new Promise(resolve => setTimeout(resolve, 500));
+                                }
+                            }
+
+                            this.updateBatchProgress(batches.length, batches.length, 'تم الانتهاء!');
+
+                            let message = `تم رفع ${totalSuccessful} ملف بنجاح!`;
+                            if (totalDuplicates > 0) message += ` (${totalDuplicates} مكرر)`;
+                            if (totalErrors > 0) message += ` (${totalErrors} خطأ)`;
+
+                            this.showAlert(message, 'success');
+
+                            // تحديث الواجهة
+                            this.updateFileCounts();
+                            this.loadAnalytics();
+
+                            // إخفاء شريط التقدم
+                            setTimeout(() => this.hideBatchUploadProgress(), 2000);
+
+                            return {
+                                success: totalErrors === 0,
+                                totalSuccessful,
+                                totalDuplicates,
+                                totalErrors
+                            };
+
+                        } catch (error) {
+                            console.error('❌ خطأ في الرفع المتعدد:', error);
+                            this.showAlert(`فشل في رفع المجلد: ${error.message}`, 'danger');
+                            this.hideBatchUploadProgress();
+                            throw error;
+                        }
+                    }
+
+                    /**
+                     * إنشاء دفعات من الملفات
+                     */
+                    createBatches(files, maxFiles, maxSize) {
+                        const batches = [];
+                        let currentBatch = [];
+                        let currentSize = 0;
+
+                        for (let file of files) {
+                            // تخطي الملفات الكبيرة جداً
+                            if (file.size > 1.5 * 1024 * 1024) { // 1.5 ميجابايت
+                                console.warn(`⚠️ تم تخطي ملف كبير: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+                                continue;
+                            }
+
+                            // إضافة للدفعة الحالية أو إنشاء دفعة جديدة
+                            if (currentBatch.length < maxFiles && currentSize + file.size <= maxSize) {
+                                currentBatch.push(file);
+                                currentSize += file.size;
+                            } else {
+                                if (currentBatch.length > 0) {
+                                    batches.push(currentBatch);
+                                }
+                                currentBatch = [file];
+                                currentSize = file.size;
+                            }
+                        }
+
+                        if (currentBatch.length > 0) {
+                            batches.push(currentBatch);
+                        }
+
+                        return batches;
+                    }
+
+                    /**
+                     * رفع دفعة واحدة
+                     */
+                    async uploadSingleBatch(files, batchIndex, totalBatches, options = {}) {
+                        const formData = new FormData();
+
+                        // إضافة الملفات
+                        files.forEach((file, index) => {
+                            formData.append(`files[${index}]`, file);
+                            formData.append(`paths[${index}]`, file.webkitRelativePath || file.name);
+                        });
+
+                        // إضافة معلومات الدفعة
+                        formData.append('batch_index', batchIndex);
+                        formData.append('total_batches', totalBatches);
+                        formData.append('is_final_batch', batchIndex === totalBatches - 1 ? '1' : '0');
+                        formData.append('upload_type', 'batch_folder');
+
+                        // إضافة الخيارات
+                        if (options.compress_images) formData.append('compress_images', options.compress_images);
+                        if (options.auto_organize) formData.append('auto_organize', options.auto_organize);
+                        if (options.cloud_sync) formData.append('cloud_sync', options.cloud_sync);
+
+                        // إضافة ملف Excel فقط في الدفعة الأولى
+                        if (batchIndex === 0 && options.excelFile) {
+                            formData.append('excel_file', options.excelFile);
+                            formData.append('enable_excel_import', options.enable_excel_import);
+                            formData.append('target_table', options.target_table);
+                        }
+
+                        try {
+                            const response = await fetch('/admin/file/process-bulk-folder-upload-batch', {
+                                method: 'POST',
+                                headers: {
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                                    'Accept': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest'
+                                },
+                                body: formData
+                            });
+
+                            if (!response.ok) {
+                                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                            }
+
+                            return await response.json();
+
+                        } catch (error) {
+                            return {
+                                success: false,
+                                message: error.message,
+                                batch_index: batchIndex
+                            };
+                        }
+                    }
+
+                    /**
+                     * عرض شريط تقدم الرفع المتعدد
+                     */
+                    showBatchUploadProgress() {
+                        let progressHtml = `
+                        <div class="batch-upload-progress-container" style="margin: 20px 0;">
+                            <h5>📊 تقدم الرفع المتعدد</h5>
+                            <div class="progress" style="height: 25px;">
+                                <div class="progress-bar batch-upload-progress bg-success"
+                                     role="progressbar" style="width: 0%"
+                                     aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                    0%
+                                </div>
+                            </div>
+                            <div class="text-center mt-2">
+                                <small class="batch-upload-text text-muted">جاري التحضير...</small>
+                            </div>
+                        </div>`;
+
+                        // البحث عن منطقة مناسبة لعرض شريط التقدم
+                        const targetArea = document.querySelector('.upload-status') ||
+                                          document.querySelector('.file-upload-container') ||
+                                          document.querySelector('.modal-body') ||
+                                          document.querySelector('main');
+
+                        if (targetArea) {
+                            targetArea.insertAdjacentHTML('beforeend', progressHtml);
+                        }
+                    }
+
+                    /**
+                     * تحديث شريط تقدم الرفع المتعدد
+                     */
+                    updateBatchProgress(current, total, message) {
+                        const percentage = Math.round((current / total) * 100);
+
+                        const progressBar = document.querySelector('.batch-upload-progress');
+                        const progressText = document.querySelector('.batch-upload-text');
+
+                        if (progressBar) {
+                            progressBar.style.width = `${percentage}%`;
+                            progressBar.setAttribute('aria-valuenow', percentage);
+                            progressBar.textContent = `${percentage}%`;
+                        }
+
+                        if (progressText) {
+                            progressText.textContent = message;
+                        }
+
+                        console.log(`📊 التقدم: ${percentage}% - ${message}`);
+                    }
+
+                    /**
+                     * إخفاء شريط تقدم الرفع المتعدد
+                     */
+                    hideBatchUploadProgress() {
+                        const progressContainer = document.querySelector('.batch-upload-progress-container');
+                        if (progressContainer) {
+                            progressContainer.remove();
+                        }
                     }
                 }
 

@@ -31,6 +31,7 @@ Route::prefix('public-api/duplicate-files')->group(function () {
     Route::get('view/{id}', [UnifiedFileManagementController::class, 'viewDuplicateFile'])->name('public.duplicate.files.view');
     Route::delete('delete/{id}', [UnifiedFileManagementController::class, 'deleteDuplicateFileById'])->name('public.duplicate.files.delete');
     Route::delete('bulk-delete', [UnifiedFileManagementController::class, 'bulkDeleteDuplicateFiles'])->name('public.duplicate.files.bulk.delete');
+    Route::delete('delete-all', [UnifiedFileManagementController::class, 'deleteAllDuplicateFiles'])->name('public.duplicate.files.delete.all');
 });
 
 /*
@@ -179,6 +180,10 @@ Route::group(['prefix' => 'admin/file'], function() {
 
     Route::get('/php-diagnostic', [UnifiedFileManagementController::class, 'showPhpDiagnostic'])
         ->name('admin.file.php.diagnostic');
+
+    // العرض الآمن للملفات من storage
+    Route::get('/show/{filename}', [UnifiedFileManagementController::class, 'showSecureFile'])
+        ->name('admin.file.show');
 });
 
 // Speedtest Routes - Production Ready

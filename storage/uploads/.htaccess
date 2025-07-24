@@ -1,0 +1,42 @@
+# منع الوصول المباشر لجميع الملفات في هذا المجلد
+# Prevent direct access to all files in this directory
+
+# إنكار الوصول لجميع الملفات
+Order Allow,Deny
+Deny from all
+
+# منع تنفيذ أي ملفات PHP أو Script
+<Files "*">
+    SetHandler none
+    ForceType text/plain
+</Files>
+
+# منع عرض قائمة الملفات
+Options -Indexes
+
+# إزالة Server Headers لزيادة الأمان
+Header unset Server
+Header unset X-Powered-By
+
+# منع الوصول من خلال User-Agents مشبوهة
+<RequireAll>
+    Require all denied
+    Require env REDIRECT_STATUS
+</RequireAll>
+
+# رسالة خطأ مخصصة
+ErrorDocument 403 "غير مصرح لك بالوصول إلى هذا المجلد"
+ErrorDocument 404 "الملف غير موجود"
+
+# منع تنفيذ الملفات التنفيذية
+<FilesMatch "\.(php|php3|php4|php5|phtml|pl|py|jsp|asp|sh|cgi)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# حماية إضافية ضد الهجمات
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_METHOD} ^(HEAD|TRACE|DELETE|TRACK) [NC]
+    RewriteRule ^(.*)$ - [F,L]
+</IfModule>
