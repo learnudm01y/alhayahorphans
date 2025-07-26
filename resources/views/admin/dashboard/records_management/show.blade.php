@@ -81,9 +81,14 @@
         .main-header-row .d-flex {
             gap: 4px !important;
         }
-        .main-header-row .main-back-btn {
-            font-size: 0.95rem !important;
-            margin-right: 6px;
+        .main-header-row .d-flex.gap-2 {
+            gap: 4px !important;
+            flex-wrap: wrap;
+        }
+        .main-header-row .btn {
+            font-size: 0.85rem !important;
+            padding: 4px 8px !important;
+            min-width: 70px !important;
         }
         .modal-img-preview {
             max-width: 98vw !important;
@@ -94,15 +99,16 @@
     }
     @media (max-width: 767px) {
         .card-custom > .main-header-row {
-            flex-direction: row !important;
-            align-items: center !important;
-            gap: 0 !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 8px !important;
         }
-        .card-custom > .main-header-row > .d-flex {
-            justify-content: flex-start !important;
+        .card-custom > .main-header-row > .d-flex:first-child {
+            justify-content: center !important;
             margin-bottom: 0 !important;
         }
-        .card-custom > .main-header-row > .main-back-btn {
+        .card-custom > .main-header-row > .d-flex.gap-2 {
+            justify-content: center !important;
             align-self: auto !important;
             margin-bottom: 0 !important;
             margin-top: 0 !important;
@@ -154,7 +160,21 @@
                 <span style="border-right: 2px solid #bbb; height: 22px; margin: 0 12px;"></span>
                 <span>القسم: {{ optional($data->section)->description }}</span>
             </div>
-            <a href="{{ route('admin.records.management') }}" class="btn btn-warning main-back-btn" style="white-space: nowrap;">رجوع</a>
+            <div class="d-flex gap-2">
+                <a href="{{ route('admin.records.management.edit', $data->id) }}" class="btn btn-primary btn-sm" style="white-space: nowrap; min-width: 80px;">
+                    <i class="bi bi-pencil-square"></i> تعديل
+                </a>
+                <form action="{{ route('admin.records.management.delete', $data->id) }}" method="POST" style="display:inline;" onsubmit="return confirm('هل أنت متأكد من حذف السجل؟');">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn btn-danger btn-sm" style="white-space: nowrap; min-width: 80px;">
+                        <i class="bi bi-trash"></i> حذف
+                    </button>
+                </form>
+                <button onclick="window.history.back()" class="btn btn-warning btn-sm main-back-btn" style="white-space: nowrap; min-width: 80px;">
+                    <i class="bi bi-arrow-left"></i> رجوع
+                </button>
+            </div>
         </div>
         <div class="row mt-3">
             <div class="col-12 mb-3">
@@ -229,6 +249,51 @@
                 <div class="info-value">{{ $data->data_description_needs }}</div>
             </div>
         </div>
+        <div class="mt-3 w-100">
+                <div class="info-label mb-1">المعلومات البنكية:</div>
+                @php
+                    // جلب جميع الحسابات البنكية المرتبطة بنفس رقم السجل العام (file_id_number)
+                    $bankAccounts = \App\Models\GuardianBankAccount::where('guardian_registration', $data->file_id_number)->get();
+                @endphp
+                @if($bankAccounts->count())
+                    <div class="row mb-2">
+                        <div class="col-12">
+                            <table class="table table-bordered table-sm" style="background:#fff;">
+                                <thead>
+                                    <tr>
+                                        <th>اسم البنك</th>
+                                        <th>رقم الآيبان (شيكل)</th>
+                                        <th>رقم الآيبان (دولار)</th>
+                                        <th>اسم صاحب الحساب</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($bankAccounts as $account)
+                                        <tr>
+                                            <td>
+                                                @php
+                                                    // إذا كان bank_name رقم (id) فاعرض الوصف من جدول bank_names
+                                                    $bankName = $account->bank_name;
+                                                    if(is_numeric($bankName)) {
+                                                        $bankModel = \App\Models\BankName::find($bankName);
+                                                        $bankName = $bankModel ? $bankModel->description : $account->bank_name;
+                                                    }
+                                                @endphp
+                                                {{ $bankName }}
+                                            </td>
+                                            <td>{{ $account->iban_shekel }}</td>
+                                            <td>{{ $account->iban_usd }}</td>
+                                            <td>{{ $account->re_guardian_name }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                @else
+                    <span class="text-muted">لا توجد بيانات بنكية مسجلة.</span>
+                @endif
+            </div>
         {{-- المرفقات الخاصة بالبيانات الأساسية --}}
         <div class="mt-3 w-100">
             <div class="info-label mb-1">المرفقات:</div>
