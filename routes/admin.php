@@ -373,6 +373,17 @@ Route::prefix('admin')->group(function () {
             ], 500);
         }
     })->name('admin.openspeedtest.cleanup');
+
+    // Search Routes - البحث الشامل في السجلات
+    Route::get('search-records', [\App\Http\Controllers\Admin\SearchOnRecordsController::class, 'index'])->name('search.records.index');
+    Route::get('search-records/modal', [\App\Http\Controllers\Admin\SearchOnRecordsController::class, 'modalContent'])->name('search.records.modal');
+    Route::get('search-test', function() { return view('search_test'); })->name('search.test'); // للاختبار
+    Route::post('search-records', [\App\Http\Controllers\Admin\SearchOnRecordsController::class, 'search'])
+        ->middleware('search.rate.limit')
+        ->name('search.records');
+    Route::get('search-records/stats', [\App\Http\Controllers\Admin\SearchOnRecordsController::class, 'getSearchStats'])->name('search.stats');
+    Route::get('search-records/suggestions', [\App\Http\Controllers\Admin\SearchOnRecordsController::class, 'getSearchSuggestions'])->name('search.suggestions');
+    Route::post('search-records/clear-cache', [\App\Http\Controllers\Admin\SearchOnRecordsController::class, 'clearSearchCache'])->name('search.clear.cache');
 });
 
 // Public routes for duplicate files (without authentication middleware)

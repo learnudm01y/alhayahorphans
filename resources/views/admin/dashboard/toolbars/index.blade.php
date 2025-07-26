@@ -40,6 +40,9 @@
     <link href="{{ asset('admin/assets/plugins/custom/cropper/cropper.bundle.css') }}" rel="stylesheet"
         type="text/css" />
 
+    <!-- SweetAlert2 CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+
     <script>
         // Frame-busting to prevent site from being loaded within a frame without permission (click-jacking)
         if (window.top != window.self) {
@@ -695,16 +698,57 @@
     <script src="{{ asset('admin/assets/js/custom/utilities/modals/upgrade-plan.js') }}"></script>
     <script src="{{ asset('admin/assets/js/custom/utilities/modals/create-app.js') }}"></script>
     <script src="{{ asset('admin/assets/js/custom/utilities/modals/new-target.js') }}"></script>
-    <script src="{{ asset('admin/assets/js/custom/utilities/modals/offer-a-deal/type.js') }}"></script>
-    <script src="{{ asset('admin/assets/js/custom/utilities/modals/offer-a-deal/details.js') }}"></script>
-    <script src="{{ asset('admin/assets/js/custom/utilities/modals/offer-a-deal/finance.js') }}"></script>
-    <script src="{{ asset('admin/assets/js/custom/utilities/modals/offer-a-deal/complete.js') }}"></script>
-    <script src="{{ asset('admin/assets/js/custom/utilities/modals/offer-a-deal/main.js') }}"></script>
+
+    {{-- Offer-a-deal scripts with error handling --}}
+    <script>
+        // Function to safely load scripts
+        function loadScriptSafely(src, callback) {
+            var script = document.createElement('script');
+            script.src = src;
+            script.onload = function() {
+                console.log('Successfully loaded: ' + src);
+                if (callback) callback();
+            };
+            script.onerror = function() {
+                console.warn('Failed to load script: ' + src + ' - continuing without it');
+                if (callback) callback();
+            };
+            document.head.appendChild(script);
+        }
+
+        // Load offer-a-deal scripts with error handling
+        var offerDealScripts = [
+            '{{ asset("admin/assets/js/custom/utilities/modals/offer-a-deal/type.js") }}',
+            '{{ asset("admin/assets/js/custom/utilities/modals/offer-a-deal/details.js") }}',
+            '{{ asset("admin/assets/js/custom/utilities/modals/offer-a-deal/finance.js") }}',
+            '{{ asset("admin/assets/js/custom/utilities/modals/offer-a-deal/complete.js") }}',
+            '{{ asset("admin/assets/js/custom/utilities/modals/offer-a-deal/main.js") }}'
+        ];
+
+        // Load scripts sequentially with error handling
+        var loadNext = function(index) {
+            if (index < offerDealScripts.length) {
+                loadScriptSafely(offerDealScripts[index], function() {
+                    loadNext(index + 1);
+                });
+            }
+        };
+
+        // Start loading after a short delay
+        setTimeout(function() {
+            loadNext(0);
+        }, 100);
+    </script>
+
     <script src="{{ asset('admin/assets/js/custom/utilities/modals/two-factor-authentication.js') }}"></script>
     <script src="{{ asset('admin/assets/js/custom/utilities/modals/users-search.js') }}"></script>
     <!--end::Custom Javascript-->
     <script src="{{ asset('admin/assets/plugins/custom/cropper/cropper.bundle.js') }}"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- SweetAlert2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.js"></script>
+
     <!--begin::Theme Mode Script-->
 
     <script>

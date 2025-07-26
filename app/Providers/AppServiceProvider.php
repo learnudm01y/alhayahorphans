@@ -29,6 +29,11 @@ class AppServiceProvider extends ServiceProvider
             return new ImageProcessingService();
         });
 
+        // Register Search Service
+        $this->app->singleton(\App\Services\SearchService::class, function ($app) {
+            return new \App\Services\SearchService();
+        });
+
         $this->app->singleton(ExcelManagementService::class, function ($app) {
             return new ExcelManagementService();
         });

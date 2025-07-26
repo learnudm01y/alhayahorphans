@@ -94,6 +94,16 @@ class RecordsManagementeDataTable extends DataTable
         // عرض فقط السجلات التي حالة الطلب لها "مقبول"
         // ملاحظة: تأكد من أن البيانات المستوردة من Excel لها data_request_status = 4 (مقبول على الاستضافة)
         return $model->newQuery()
+            ->with([
+                'section',
+                'requestStatus',
+                'categoryOfRelation',
+                'healthStatus',
+                'maritalStatus',
+                'academicQualification',
+                'city',
+                'employmentStatusBreadwinner'
+            ])
             ->whereHas('requestStatus', function($q) {
                 $q->where('description', 'مقبول');
             });
