@@ -18,6 +18,8 @@ use App\Http\Controllers\Admin\HealthStatusCotroller;
 use App\Http\Controllers\Admin\HousingStatusController;
 use App\Http\Controllers\Admin\MaritalStatusController;
 use App\Http\Controllers\Admin\PersonsController;
+use App\Http\Controllers\Admin\PersonSearchController;
+use App\Http\Controllers\Admin\ScoutSearchController;
 use App\Http\Controllers\Admin\ProvinceController;
 use App\Http\Controllers\Admin\RecordsManagementController;
 use App\Http\Controllers\TestController;
@@ -54,6 +56,27 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::put('/persons/{id}', [PersonsController::class, 'update'])->name('persons.update');
     Route::post('/persons/sort', [PersonsController::class, 'sort'])->name('admin.persons.sort');
     Route::post('/persons', [PersonsController::class, 'store'])->name('persons.store');
+
+    // Person Search Routes - محرك البحث المتقدم
+    Route::prefix('persons')->name('admin.persons.')->group(function () {
+        Route::get('/search', [PersonSearchController::class, 'index'])->name('search.index');
+        Route::post('/search', [PersonSearchController::class, 'search'])->name('search');
+        Route::post('/quick-search', [PersonSearchController::class, 'quickSearch'])->name('search.quick');
+        Route::post('/search/statistics', [PersonSearchController::class, 'getStatistics'])->name('search.statistics');
+        Route::post('/search/export', [PersonSearchController::class, 'export'])->name('search.export');
+        Route::get('/search/advanced', [PersonSearchController::class, 'advancedSearch'])->name('search.advanced');
+        Route::get('/{id}/details', [PersonsController::class, 'show'])->name('details');
+    });
+
+    // Scout Search Routes - محرك البحث بتقنية Scout السريع
+    Route::prefix('scout')->name('admin.scout.')->group(function () {
+        Route::get('/instant-search', [ScoutSearchController::class, 'instantSearch'])->name('instant.search');
+        Route::post('/advanced-search', [ScoutSearchController::class, 'advancedSearch'])->name('advanced.search');
+        Route::get('/suggestions', [ScoutSearchController::class, 'suggestions'])->name('suggestions');
+        Route::get('/stats', [ScoutSearchController::class, 'stats'])->name('stats');
+        Route::post('/index-data', [ScoutSearchController::class, 'indexData'])->name('index.data');
+        Route::post('/clear-cache', [ScoutSearchController::class, 'clearCache'])->name('clear.cache');
+    });
     // user role management
     Route::get('admin/user-role-management', [UserController::class, 'index101'])->name('role.management101');
     Route::get('user/user-role-management', [UserController::class, 'index102'])->name('role.management102');

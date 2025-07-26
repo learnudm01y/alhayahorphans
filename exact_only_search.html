@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>البحث الدقيق - نتيجة واحدة فقط</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px 0;
+        }
+
+        .main-container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .search-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+
+        .search-header {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .search-body {
+            padding: 40px;
+        }
+
+        .search-input {
+            font-size: 20px;
+            padding: 18px 25px;
+            border: 3px solid #e0e0e0;
+            border-radius: 15px;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .search-input:focus {
+            border-color: #28a745;
+            box-shadow: 0 0 0 0.3rem rgba(40, 167, 69, 0.25);
+            transform: scale(1.02);
+        }
+
+        .search-btn {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            border: none;
+            padding: 18px 40px;
+            font-size: 20px;
+            border-radius: 15px;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+        }
+
+        .search-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 30px rgba(40, 167, 69, 0.4);
+        }
+
+        .result-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+            opacity: 0;
+            transform: translateY(30px);
+            animation: slideUp 0.6s ease forwards;
+        }
+
+        @keyframes slideUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .result-header {
+            background: linear-gradient(45deg, #007bff, #6f42c1);
+            color: white;
+            padding: 25px;
+            text-align: center;
+        }
+
+        .success-header {
+            background: linear-gradient(45deg, #28a745, #20c997);
+        }
+
+        .warning-header {
+            background: linear-gradient(45deg, #ffc107, #fd7e14);
+        }
+
+        .profile-section {
+            padding: 40px;
+            text-align: center;
+        }
+
+        .profile-avatar {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 25px;
+            color: white;
+            font-size: 48px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .profile-name {
+            font-size: 32px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .profile-id {
+            font-size: 18px;
+            color: #7f8c8d;
+            margin-bottom: 30px;
+        }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .detail-box {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            text-align: center;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .detail-box:hover {
+            transform: translateY(-5px);
+            border-color: #28a745;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        .detail-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 15px;
+            font-size: 24px;
+            color: white;
+        }
+
+        .detail-label {
+            font-size: 14px;
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        .detail-value {
+            font-size: 18px;
+            color: #2c3e50;
+            font-weight: 600;
+        }
+
+        .search-stats {
+            background: linear-gradient(45deg, #e3f2fd, #f3e5f5);
+            border-radius: 15px;
+            padding: 20px;
+            margin: 30px 0;
+            text-align: center;
+        }
+
+        .stat-item {
+            display: inline-block;
+            margin: 0 20px;
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #6c757d;
+            text-transform: uppercase;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .loading-content {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 300px;
+        }
+
+        .no-result {
+            text-align: center;
+            padding: 60px 40px;
+            color: #6c757d;
+        }
+
+        .no-result i {
+            font-size: 80px;
+            margin-bottom: 25px;
+            opacity: 0.3;
+        }
+
+        .alert-banner {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+
+        .gender-male { background: linear-gradient(45deg, #007bff, #6f42c1); }
+        .gender-female { background: linear-gradient(45deg, #e91e63, #f06292); }
+        .gender-unknown { background: linear-gradient(45deg, #6c757d, #adb5bd); }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="main-container">
+            <!-- كارت البحث -->
+            <div class="search-card">
+                <div class="search-header">
+                    <h1><i class="fas fa-bullseye me-3"></i>البحث الدقيق الوحيد</h1>
+                    <p class="mb-0">نتيجة واحدة مطابقة تماماً - لا مزيد من النتائج المتشابهة!</p>
+                </div>
+
+                <div class="alert-banner">
+                    <i class="fas fa-check-circle me-2"></i>
+                    هذا البحث يُرجع نتيجة واحدة دقيقة فقط - حل مشكلة النتائج المتعددة ✅
+                </div>
+
+                <div class="search-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <input type="text"
+                                   id="searchInput"
+                                   class="form-control search-input"
+                                   placeholder="أدخل الاسم الكامل..."
+                                   value="ديمو سليمان فيكتوري">
+                        </div>
+                        <div class="col-md-4">
+                            <button class="btn btn-success search-btn w-100" onclick="performSearch()">
+                                <i class="fas fa-search me-2"></i>بحث دقيق
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <button class="btn btn-outline-primary w-100" onclick="clearSearch()">
+                                <i class="fas fa-eraser me-2"></i>مسح
+                            </button>
+                        </div>
+                        <div class="col-md-6">
+                            <button class="btn btn-outline-info w-100" onclick="testDemo()">
+                                <i class="fas fa-play me-2"></i>اختبار تجريبي
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="row mt-3">
+                        <div class="col-md-12 text-center">
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                سيتم عرض أول نتيجة مطابقة تماماً للاسم المدخل فقط
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- منطقة عرض النتيجة -->
+            <div id="resultArea"></div>
+        </div>
+    </div>
+
+    <!-- شاشة التحميل -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-content">
+            <div class="spinner-border text-success mb-3" style="width: 3rem; height: 3rem;"></div>
+            <h5>جاري البحث الدقيق...</h5>
+            <p class="text-muted mb-0">البحث عن مطابقة واحدة دقيقة</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const searchInput = document.getElementById('searchInput');
+        const resultArea = document.getElementById('resultArea');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+
+        // البحث عند الضغط على Enter
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+
+        // دالة تنفيذ البحث
+        async function performSearch() {
+            const query = searchInput.value.trim();
+
+            if (!query) {
+                alert('يرجى إدخال اسم للبحث');
+                return;
+            }
+
+            showLoading();
+
+            try {
+                // استخدام الـ API الجديد الذي يُرجع نتيجة واحدة فقط
+                const url = `http://127.0.0.1:8001/api/search/exact-only?q=${encodeURIComponent(query)}`;
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                hideLoading();
+                displayResult(data, query);
+
+            } catch (error) {
+                hideLoading();
+                showError('حدث خطأ أثناء البحث: ' + error.message);
+            }
+        }
+
+        // إظهار شاشة التحميل
+        function showLoading() {
+            loadingOverlay.style.display = 'flex';
+        }
+
+        // إخفاء شاشة التحميل
+        function hideLoading() {
+            loadingOverlay.style.display = 'none';
+        }
+
+        // عرض النتيجة
+        function displayResult(data, query) {
+            resultArea.innerHTML = '';
+
+            if (!data.success || !data.results || data.results.length === 0) {
+                showNoResult(query, data.message);
+                return;
+            }
+
+            const person = data.results[0]; // نتيجة واحدة فقط
+            const resultCard = createResultCard(person, data);
+            resultArea.appendChild(resultCard);
+        }
+
+        // إنشاء كارت النتيجة
+        function createResultCard(person, searchData) {
+            const card = document.createElement('div');
+            card.className = 'result-card';
+
+            // تحديد أيقونة الجنس
+            let genderIcon = 'fas fa-user';
+            let genderClass = 'gender-unknown';
+            if (person.gender === 'ذكر') {
+                genderIcon = 'fas fa-mars';
+                genderClass = 'gender-male';
+            } else if (person.gender === 'أنثى') {
+                genderIcon = 'fas fa-venus';
+                genderClass = 'gender-female';
+            }
+
+            card.innerHTML = `
+                <div class="result-header success-header">
+                    <h3><i class="fas fa-check-circle me-2"></i>تم العثور على مطابقة دقيقة واحدة</h3>
+                    <p class="mb-0">هذا هو الشخص الوحيد المطابق تماماً للاسم المدخل</p>
+                </div>
+
+                <div class="search-stats">
+                    <div class="stat-item">
+                        <span class="stat-number">${searchData.search_time || 0}</span>
+                        <span class="stat-label">ملي ثانية</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">1</span>
+                        <span class="stat-label">نتيجة وحيدة</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-number">${searchData.word_count || 0}</span>
+                        <span class="stat-label">كلمات البحث</span>
+                    </div>
+                </div>
+
+                <div class="profile-section">
+                    <div class="profile-avatar ${genderClass}">
+                        <i class="${genderIcon}"></i>
+                    </div>
+
+                    <div class="profile-name">${person.full_name || 'غير محدد'}</div>
+                    <div class="profile-id">رقم الهوية: ${person.id_num || 'غير محدد'}</div>
+
+                    <div class="details-grid">
+                        <div class="detail-box">
+                            <div class="detail-icon" style="background: linear-gradient(45deg, #007bff, #6f42c1);">
+                                <i class="fas fa-id-card"></i>
+                            </div>
+                            <div class="detail-label">معرف السجل</div>
+                            <div class="detail-value">#${person.id || 'غير محدد'}</div>
+                        </div>
+
+                        <div class="detail-box">
+                            <div class="detail-icon" style="background: linear-gradient(45deg, #e91e63, #f06292);">
+                                <i class="fas fa-venus-mars"></i>
+                            </div>
+                            <div class="detail-label">الجنس</div>
+                            <div class="detail-value">${person.gender || 'غير محدد'}</div>
+                        </div>
+
+                        <div class="detail-box">
+                            <div class="detail-icon" style="background: linear-gradient(45deg, #28a745, #20c997);">
+                                <i class="fas fa-calendar-alt"></i>
+                            </div>
+                            <div class="detail-label">تاريخ الميلاد</div>
+                            <div class="detail-value">${person.birth_date || 'غير محدد'}</div>
+                        </div>
+
+                        <div class="detail-box">
+                            <div class="detail-icon" style="background: linear-gradient(45deg, #ffc107, #fd7e14);">
+                                <i class="fas fa-map-marker-alt"></i>
+                            </div>
+                            <div class="detail-label">المدينة</div>
+                            <div class="detail-value">${person.city || 'غير محدد'}</div>
+                        </div>
+
+                        <div class="detail-box">
+                            <div class="detail-icon" style="background: linear-gradient(45deg, #6f42c1, #e83e8c);">
+                                <i class="fas fa-female"></i>
+                            </div>
+                            <div class="detail-label">اسم الأم</div>
+                            <div class="detail-value">${person.mother_name || 'غير محدد'}</div>
+                        </div>
+
+                        <div class="detail-box">
+                            <div class="detail-icon" style="background: linear-gradient(45deg, #17a2b8, #138496);">
+                                <i class="fas fa-user-tag"></i>
+                            </div>
+                            <div class="detail-label">الاسم الأول</div>
+                            <div class="detail-value">${person.first_name || 'غير محدد'}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            return card;
+        }
+
+        // عرض رسالة عدم وجود نتائج
+        function showNoResult(query, message) {
+            const noResultCard = document.createElement('div');
+            noResultCard.className = 'result-card';
+            noResultCard.innerHTML = `
+                <div class="result-header warning-header">
+                    <h3><i class="fas fa-exclamation-triangle me-2"></i>لم يتم العثور على مطابقة دقيقة</h3>
+                </div>
+                <div class="no-result">
+                    <i class="fas fa-search-minus"></i>
+                    <h3>لا توجد مطابقة دقيقة</h3>
+                    <p>لم يتم العثور على أي شخص بالاسم الدقيق:</p>
+                    <strong>"${query}"</strong>
+                    <br><br>
+                    <div class="alert alert-info mt-3">
+                        <strong>نصائح للبحث الناجح:</strong><br>
+                        • تأكد من الإملاء الصحيح<br>
+                        • اكتب الاسم كاملاً كما هو في السجل<br>
+                        • تأكد من المسافات بين الكلمات<br>
+                        • جرب اسماً آخر
+                    </div>
+                    <p class="text-muted">${message || ''}</p>
+                </div>
+            `;
+            resultArea.appendChild(noResultCard);
+        }
+
+        // عرض رسالة خطأ
+        function showError(message) {
+            const errorCard = document.createElement('div');
+            errorCard.className = 'result-card';
+            errorCard.innerHTML = `
+                <div class="result-header" style="background: linear-gradient(45deg, #dc3545, #c82333);">
+                    <h3><i class="fas fa-exclamation-triangle me-2"></i>حدث خطأ</h3>
+                </div>
+                <div class="no-result">
+                    <i class="fas fa-exclamation-triangle" style="color: #dc3545;"></i>
+                    <h3>خطأ في النظام</h3>
+                    <p>${message}</p>
+                </div>
+            `;
+            resultArea.appendChild(errorCard);
+        }
+
+        // مسح البحث
+        function clearSearch() {
+            searchInput.value = '';
+            resultArea.innerHTML = '';
+            searchInput.focus();
+        }
+
+        // اختبار تجريبي
+        function testDemo() {
+            searchInput.value = 'ديمو سليمان فيكتوري';
+            performSearch();
+        }
+
+        // تفعيل البحث التلقائي عند التحميل (اختياري)
+        document.addEventListener('DOMContentLoaded', function() {
+            searchInput.focus();
+        });
+    </script>
+</body>
+</html>

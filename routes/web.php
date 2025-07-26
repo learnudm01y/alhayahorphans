@@ -13,6 +13,7 @@ use App\Http\Controllers\Users\UserProfileController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\DuplicateFileController;
 use App\Http\Controllers\SpeedTestController;
+use App\Http\Controllers\ScoutSearchController;
 
 // مسارات اختبار التحميل بدون مصادقة
 Route::get('/test-download-all', [UnifiedFileManagementController::class, 'downloadAllDuplicateFiles']);
@@ -20,6 +21,13 @@ Route::post('/test-download-selected', [UnifiedFileManagementController::class, 
 
 // مسار اختبار الإحصائيات الحقيقية بدون مصادقة (مؤقت)
 Route::get('/test-real-stats-public', [UnifiedFileManagementController::class, 'getRealDuplicateFilesStatistics']);
+
+// Scout Search API Routes - مسارات البحث الشامل
+Route::prefix('api/scout')->group(function () {
+    Route::get('instant-search', [ScoutSearchController::class, 'instantSearch'])->name('scout.instant.search');
+    Route::get('suggestions', [ScoutSearchController::class, 'suggestions'])->name('scout.suggestions');
+    Route::post('advanced-search', [ScoutSearchController::class, 'advancedSearch'])->name('scout.advanced.search');
+});
 
 // Public API routes for duplicate files (without authentication middleware)
 Route::prefix('public-api/duplicate-files')->group(function () {

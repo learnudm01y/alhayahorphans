@@ -1,0 +1,400 @@
+/**
+ * Scout Search CSS - Isolated Styles
+ * تصميم معزول لنظام البحث Scout
+ */
+
+/* عزل كامل للـ modal */
+#scoutSearchModal {
+    z-index: 99999 !important;
+}
+
+#scoutSearchModal * {
+    box-sizing: border-box;
+}
+
+/* عزل تصميم header الـ modal */
+#scoutSearchModal .modal-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: white !important;
+    border-bottom: none !important;
+    padding: 1rem 1.5rem !important;
+}
+
+#scoutSearchModal .modal-header .modal-title {
+    color: white !important;
+    font-weight: 600 !important;
+    font-size: 1.25rem !important;
+}
+
+#scoutSearchModal .modal-header .btn-close {
+    filter: invert(1) !important;
+    opacity: 0.8 !important;
+}
+
+/* عزل تصميم body الـ modal */
+#scoutSearchModal .modal-body {
+    padding: 1.5rem !important;
+    background-color: #f8f9fa !important;
+}
+
+/* عزل تصميم حقل البحث */
+#scoutSearchModal .scout-search-container {
+    position: relative !important;
+    margin-bottom: 1rem !important;
+}
+
+#scoutSearchModal #scoutSearchInput {
+    border: 2px solid #e9ecef !important;
+    border-radius: 25px !important;
+    padding: 12px 20px !important;
+    font-size: 1rem !important;
+    transition: all 0.3s ease !important;
+    width: 100% !important;
+    outline: none !important;
+    background-color: white !important;
+    color: #495057 !important;
+}
+
+#scoutSearchModal #scoutSearchInput:focus {
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25) !important;
+    transform: translateY(-1px) !important;
+}
+
+/* عزل تصميم الاقتراحات */
+.scout-suggestions {
+    position: absolute !important;
+    top: 100% !important;
+    left: 0 !important;
+    right: 0 !important;
+    background: white !important;
+    border: 1px solid #e9ecef !important;
+    border-radius: 10px !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1) !important;
+    z-index: 100000 !important;
+    max-height: 300px !important;
+    overflow-y: auto !important;
+    margin-top: 5px !important;
+}
+
+.scout-suggestion-item {
+    padding: 10px 15px !important;
+    cursor: pointer !important;
+    border-bottom: 1px solid #f1f3f4 !important;
+    transition: background-color 0.2s ease !important;
+    color: #495057 !important;
+}
+
+.scout-suggestion-item:hover {
+    background-color: #f8f9fa !important;
+    color: #667eea !important;
+}
+
+.scout-suggestion-item:last-child {
+    border-bottom: none !important;
+}
+
+.scout-suggestion-item strong {
+    color: #495057 !important;
+    font-weight: 600 !important;
+}
+
+.scout-suggestion-item small {
+    display: block !important;
+    margin-top: 2px !important;
+    color: #6c757d !important;
+}
+
+/* عزل تصميم الأزرار */
+#scoutSearchModal .scout-buttons {
+    display: flex !important;
+    gap: 10px !important;
+    flex-wrap: wrap !important;
+    margin-bottom: 1rem !important;
+}
+
+#scoutSearchModal .scout-buttons .btn {
+    border-radius: 20px !important;
+    padding: 8px 20px !important;
+    font-weight: 500 !important;
+    transition: all 0.3s ease !important;
+    border: none !important;
+    text-decoration: none !important;
+}
+
+#scoutSearchModal .btn-scout-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: white !important;
+}
+
+#scoutSearchModal .btn-scout-primary:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3) !important;
+    color: white !important;
+}
+
+#scoutSearchModal .btn-scout-success {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%) !important;
+    color: white !important;
+}
+
+#scoutSearchModal .btn-scout-success:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 15px rgba(17, 153, 142, 0.3) !important;
+    color: white !important;
+}
+
+#scoutSearchModal .btn-scout-secondary {
+    background: #6c757d !important;
+    color: white !important;
+}
+
+#scoutSearchModal .btn-scout-secondary:hover {
+    background: #5a6268 !important;
+    color: white !important;
+}
+
+/* عزل تصميم الفلاتر */
+#scoutSearchModal .scout-filters {
+    background: white !important;
+    border-radius: 15px !important;
+    padding: 1.5rem !important;
+    margin-bottom: 1rem !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05) !important;
+}
+
+#scoutSearchModal .scout-filters h6 {
+    color: #495057 !important;
+    font-weight: 600 !important;
+    margin-bottom: 1rem !important;
+    border-bottom: 2px solid #e9ecef !important;
+    padding-bottom: 0.5rem !important;
+}
+
+#scoutSearchModal .scout-filters .form-select,
+#scoutSearchModal .scout-filters .form-control {
+    border: 1px solid #e9ecef !important;
+    border-radius: 10px !important;
+    padding: 8px 12px !important;
+    font-size: 0.9rem !important;
+    background-color: white !important;
+    color: #495057 !important;
+}
+
+#scoutSearchModal .scout-filters .form-select:focus,
+#scoutSearchModal .scout-filters .form-control:focus {
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.15) !important;
+    outline: none !important;
+}
+
+/* عزل تصميم الإحصائيات */
+#scoutSearchModal .scout-stats {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
+    color: white !important;
+    border-radius: 15px !important;
+    padding: 1rem 1.5rem !important;
+    margin-bottom: 1rem !important;
+    text-align: center !important;
+}
+
+#scoutSearchModal .scout-stats h6 {
+    color: white !important;
+    margin-bottom: 0.5rem !important;
+    font-weight: 600 !important;
+}
+
+#scoutSearchModal .scout-stats #scoutSearchStats .badge {
+    margin: 0 5px !important;
+    padding: 8px 12px !important;
+    font-size: 0.8rem !important;
+    border-radius: 15px !important;
+}
+
+/* عزل تصميم النتائج */
+#scoutSearchModal .scout-results {
+    background: white !important;
+    border-radius: 15px !important;
+    overflow: hidden !important;
+    box-shadow: 0 2px 15px rgba(0, 0, 0, 0.1) !important;
+    max-height: 400px !important;
+    overflow-y: auto !important;
+}
+
+#scoutSearchModal .scout-results table {
+    margin-bottom: 0 !important;
+    width: 100% !important;
+    border-collapse: collapse !important;
+}
+
+#scoutSearchModal .scout-results table th {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: white !important;
+    font-weight: 600 !important;
+    padding: 12px 8px !important;
+    text-align: center !important;
+    border: none !important;
+    font-size: 0.9rem !important;
+}
+
+#scoutSearchModal .scout-results table td {
+    padding: 10px 8px !important;
+    text-align: center !important;
+    border-bottom: 1px solid #f1f3f4 !important;
+    font-size: 0.85rem !important;
+    color: #495057 !important;
+    vertical-align: middle !important;
+}
+
+#scoutSearchModal .scout-results .scout-result-row:hover {
+    background-color: #f8f9fa !important;
+}
+
+#scoutSearchModal .scout-results .scout-result-row:nth-child(even) {
+    background-color: #fbfcfd !important;
+}
+
+#scoutSearchModal .scout-results .btn {
+    padding: 4px 8px !important;
+    font-size: 0.75rem !important;
+    border-radius: 6px !important;
+    text-decoration: none !important;
+}
+
+/* عزل تصميم حالة التحميل */
+#scoutSearchModal .scout-loading {
+    text-align: center !important;
+    padding: 2rem !important;
+    color: #667eea !important;
+}
+
+#scoutSearchModal .scout-loading .spinner-border {
+    width: 2rem !important;
+    height: 2rem !important;
+    border-width: 3px !important;
+    border-color: #667eea !important;
+    border-right-color: transparent !important;
+}
+
+/* عزل تصميم رسائل الخطأ */
+#scoutSearchModal .scout-message {
+    border-radius: 10px !important;
+    padding: 12px 16px !important;
+    margin-bottom: 1rem !important;
+    border: none !important;
+    font-size: 0.9rem !important;
+}
+
+#scoutSearchModal .scout-message.alert-danger {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%) !important;
+    color: white !important;
+}
+
+#scoutSearchModal .scout-message.alert-warning {
+    background: linear-gradient(135deg, #feca57 0%, #ff9ff3 100%) !important;
+    color: #333 !important;
+}
+
+#scoutSearchModal .scout-message.alert-success {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%) !important;
+    color: white !important;
+}
+
+#scoutSearchModal .scout-message.alert-info {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    color: white !important;
+}
+
+/* عزل تصميم حالة عدم وجود نتائج */
+#scoutSearchModal .scout-no-results {
+    text-align: center !important;
+    padding: 3rem 2rem !important;
+    color: #6c757d !important;
+}
+
+#scoutSearchModal .scout-no-results i {
+    font-size: 3rem !important;
+    margin-bottom: 1rem !important;
+    color: #dee2e6 !important;
+}
+
+#scoutSearchModal .scout-no-results h5 {
+    color: #6c757d !important;
+    font-weight: 600 !important;
+}
+
+#scoutSearchModal .scout-no-results p {
+    color: #868e96 !important;
+    margin-bottom: 0 !important;
+}
+
+/* عزل تصميم الـ modal footer */
+#scoutSearchModal .modal-footer {
+    border-top: 1px solid #e9ecef !important;
+    padding: 1rem 1.5rem !important;
+    background-color: white !important;
+}
+
+/* Responsive Design - عزل كامل */
+@media (max-width: 768px) {
+    #scoutSearchModal .modal-dialog {
+        margin: 0.5rem !important;
+        max-width: calc(100% - 1rem) !important;
+    }
+
+    #scoutSearchModal .scout-buttons {
+        flex-direction: column !important;
+    }
+
+    #scoutSearchModal .scout-buttons .btn {
+        width: 100% !important;
+        margin-bottom: 0.5rem !important;
+    }
+
+    #scoutSearchModal .scout-results {
+        max-height: 300px !important;
+    }
+
+    #scoutSearchModal .scout-results table th,
+    #scoutSearchModal .scout-results table td {
+        padding: 8px 4px !important;
+        font-size: 0.8rem !important;
+    }
+}
+
+/* منع التداخل مع باقي التصاميم */
+#scoutSearchModal .modal-content {
+    border: none !important;
+    border-radius: 20px !important;
+    overflow: hidden !important;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* عزل scrollbar في النتائج */
+#scoutSearchModal .scout-results::-webkit-scrollbar {
+    width: 6px !important;
+}
+
+#scoutSearchModal .scout-results::-webkit-scrollbar-track {
+    background: #f1f1f1 !important;
+    border-radius: 3px !important;
+}
+
+#scoutSearchModal .scout-results::-webkit-scrollbar-thumb {
+    background: #667eea !important;
+    border-radius: 3px !important;
+}
+
+#scoutSearchModal .scout-results::-webkit-scrollbar-thumb:hover {
+    background: #5a67d8 !important;
+}
+
+/* عزل تام للـ z-index */
+#scoutSearchModal,
+#scoutSearchModal .modal-backdrop {
+    z-index: 99999 !important;
+}
+
+.scout-suggestions {
+    z-index: 100000 !important;
+}

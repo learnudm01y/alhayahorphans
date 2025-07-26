@@ -23,6 +23,17 @@ class PersonsController extends Controller
         return $dataTable->render('admin.dashboard.civil_registry.index');
     }
 
+    public function show($id)
+    {
+        $person = Persons::with('socialStatus', 'city', 'CI_BIRTH_TB_CD', 'CI_BIRTH_CD')->findOrFail($id);
+
+        if (request()->ajax()) {
+            return response()->json($person);
+        }
+
+        return view('admin.dashboard.civil_registry.show', compact('person'));
+    }
+
     public function edit($id)
     {
         $person = Persons::with('socialStatus','city')->findOrFail($id);

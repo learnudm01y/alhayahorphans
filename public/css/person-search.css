@@ -1,0 +1,473 @@
+/* Person Search Advanced Styles */
+
+/* تحسين شكل Modal البحث */
+#advancedSearchModal .modal-content {
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+#advancedSearchModal .modal-header {
+    border-radius: 15px 15px 0 0;
+}
+
+/* تحسين شكل inputs البحث */
+.search-input-group {
+    position: relative;
+}
+
+.search-input-group .form-control {
+    border-radius: 8px;
+    border: 2px solid #e9ecef;
+    transition: all 0.3s ease;
+}
+
+.search-input-group .form-control:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* تحسين شكل Autocomplete مع ضمان الظهور على اليمين */
+.autocomplete-suggestions {
+    border-radius: 8px !important;
+    border: 1px solid #dee2e6 !important;
+    background-color: #fff !important;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
+    margin-top: 2px !important;
+    max-height: 300px !important;
+    overflow-y: auto !important;
+    z-index: 9999 !important;
+    position: absolute !important;
+    top: calc(100% + 2px) !important;
+    right: 0 !important;
+    left: auto !important;
+    min-width: 300px !important;
+    max-width: 400px !important;
+    display: block !important;
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+    visibility: visible !important;
+    direction: rtl !important;
+    text-align: right !important;
+}
+
+.autocomplete-suggestions .list-group-item {
+    border: none !important;
+    border-bottom: 1px solid #f8f9fa !important;
+    transition: all 0.2s ease !important;
+    cursor: pointer !important;
+    padding: 12px 15px !important;
+    background-color: #fff !important;
+    color: #333 !important;
+    display: block !important;
+    width: 100% !important;
+    text-align: right !important;
+    direction: rtl !important;
+}
+
+.autocomplete-suggestions .list-group-item:hover,
+.autocomplete-suggestions .list-group-item.active {
+    background-color: #f8f9fa !important;
+    transform: translateX(2px) !important;
+    border-right: 3px solid #0d6efd !important;
+    border-left: none !important;
+}
+
+.autocomplete-suggestions .list-group-item:last-child {
+    border-bottom: none !important;
+    border-radius: 0 0 8px 8px !important;
+}
+
+.autocomplete-suggestions .list-group-item:first-child {
+    border-radius: 8px 8px 0 0 !important;
+}
+
+/* تأكد من أن input-group له position relative */
+.search-input-group,
+.input-group {
+    position: relative !important;
+}
+
+/* إخفاء أي overflow قد يؤثر على الاقتراحات */
+.modal-body {
+    overflow: visible !important;
+}
+
+.form-group,
+.mb-3 {
+    overflow: visible !important;
+}
+
+/* تأكد من عدم قطع الاقتراحات */
+.modal-content {
+    overflow: visible !important;
+}
+
+.modal-dialog {
+    overflow: visible !important;
+}
+
+/* تحسين التمييز للنص المطابق */
+.autocomplete-suggestions mark {
+    background-color: #fff3cd !important;
+    color: #856404 !important;
+    padding: 1px 3px !important;
+    border-radius: 3px !important;
+    font-weight: bold !important;
+}
+
+/* إضافة أولوية أعلى للحاوي */
+.autocomplete-suggestions {
+    position: absolute !important;
+    z-index: 9999 !important;
+    top: calc(100% + 2px) !important;
+    right: 0 !important;
+    left: auto !important;
+    min-width: 300px !important;
+}
+
+/* تحسين تمييز النص المطابق */
+.autocomplete-suggestions mark {
+    background-color: #fff3cd;
+    color: #856404;
+    padding: 1px 3px;
+    border-radius: 3px;
+    font-weight: bold;
+}
+
+/* تحسين scrollbar للاقتراحات */
+.autocomplete-suggestions::-webkit-scrollbar {
+    width: 6px;
+}
+
+.autocomplete-suggestions::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.autocomplete-suggestions::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.autocomplete-suggestions::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* تحسين شكل نتائج البحث */
+.search-results-container {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.search-results-table {
+    font-size: 0.9rem;
+}
+
+.search-results-table th {
+    background-color: #343a40;
+    color: white;
+    font-weight: 600;
+    text-align: center;
+    vertical-align: middle;
+    border: 1px solid #454d55;
+}
+
+.search-results-table td {
+    vertical-align: middle;
+    text-align: center;
+    border: 1px solid #dee2e6;
+}
+
+.search-results-table tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+/* تحسين شكل Statistics Cards */
+.statistics-card {
+    border-radius: 12px;
+    transition: transform 0.2s ease;
+}
+
+.statistics-card:hover {
+    transform: translateY(-2px);
+}
+
+.statistics-card .card-body {
+    padding: 1.5rem;
+}
+
+.statistics-card h4 {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+/* تحسين شكل الأزرار */
+.search-btn {
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.search-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* تحسين Loading Spinner */
+.search-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 1rem;
+}
+
+.search-loading .spinner-border {
+    width: 3rem;
+    height: 3rem;
+}
+
+.search-loading p {
+    margin-top: 1rem;
+    font-size: 1.1rem;
+}
+
+/* تحسين شكل Filter Badges */
+.filter-badge {
+    font-size: 0.85rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 20px;
+    margin: 0.25rem;
+    display: inline-block;
+}
+
+/* تحسين شكل Person Details Modal */
+#personDetailsModal .modal-content {
+    border-radius: 12px;
+}
+
+#personDetailsModal .form-control-plaintext {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    margin: 0;
+}
+
+/* تحسين Responsive للجوال */
+@media (max-width: 768px) {
+    #advancedSearchModal .modal-dialog {
+        margin: 0.5rem;
+    }
+
+    .search-filters .col-md-3,
+    .search-filters .col-md-2 {
+        margin-bottom: 1rem;
+    }
+
+    .statistics-card {
+        margin-bottom: 1rem;
+    }
+
+    .search-results-table {
+        font-size: 0.8rem;
+    }
+
+    .btn-group .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.8rem;
+    }
+}
+
+/* تحسين شكل Form Groups */
+.search-form-group {
+    margin-bottom: 1.5rem;
+}
+
+.search-form-group label {
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0.5rem;
+}
+
+/* تحسين شكل Export Dropdown */
+.export-dropdown .dropdown-menu {
+    border-radius: 8px;
+    border: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.export-dropdown .dropdown-item {
+    padding: 0.75rem 1rem;
+    transition: background-color 0.2s ease;
+}
+
+.export-dropdown .dropdown-item:hover {
+    background-color: #f8f9fa;
+}
+
+.export-dropdown .dropdown-item i {
+    width: 20px;
+    text-align: center;
+}
+
+/* تحسين شكل Pagination */
+.search-pagination .page-link {
+    border-radius: 6px;
+    margin: 0 2px;
+    border: 1px solid #dee2e6;
+    color: #0d6efd;
+}
+
+.search-pagination .page-item.active .page-link {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+/* تحسين شكل Alert */
+.search-criteria-alert {
+    border-radius: 10px;
+    border: none;
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    color: #1565c0;
+}
+
+.search-criteria-alert .alert-heading {
+    color: #0d47a1;
+    font-weight: 700;
+}
+
+/* تحسين Empty State */
+.empty-search-state {
+    text-align: center;
+    padding: 4rem 2rem;
+}
+
+.empty-search-state i {
+    font-size: 4rem;
+    color: #6c757d;
+    margin-bottom: 1rem;
+}
+
+.empty-search-state h4 {
+    color: #495057;
+    margin-bottom: 1rem;
+}
+
+.empty-search-state p {
+    color: #6c757d;
+    font-size: 1.1rem;
+    margin-bottom: 2rem;
+}
+
+/* Animation للنتائج */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.search-result-item {
+    animation: fadeInUp 0.5s ease forwards;
+}
+
+/* تحسين شكل Action Buttons */
+.action-buttons .btn {
+    margin: 0 1px;
+    border-radius: 6px;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.action-buttons .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.action-buttons .btn i {
+    font-size: 0.85rem;
+}
+
+.action-buttons .btn-outline-primary:hover {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    color: white;
+}
+
+.action-buttons .btn-outline-danger:hover {
+    background-color: #dc3545;
+    border-color: #dc3545;
+    color: white;
+}
+
+.action-buttons .btn-outline-info:hover {
+    background-color: #0dcaf0;
+    border-color: #0dcaf0;
+    color: #000;
+}
+
+/* تحسين شكل Gender Badge */
+.gender-badge.male {
+    background-color: #007bff;
+    color: white;
+}
+
+.gender-badge.female {
+    background-color: #e91e63;
+    color: white;
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    .autocomplete-suggestions {
+        background-color: #343a40;
+        border-color: #495057;
+    }
+
+    .autocomplete-suggestions .list-group-item {
+        background-color: #343a40;
+        color: #fff;
+        border-color: #495057;
+    }
+
+    .autocomplete-suggestions .list-group-item:hover {
+        background-color: #495057;
+    }
+
+    #personDetailsModal .form-control-plaintext {
+        background-color: #495057;
+        border-color: #6c757d;
+        color: #fff;
+    }
+}
+
+/* Print Styles */
+@media print {
+    #advancedSearchModal,
+    .search-btn,
+    .action-buttons,
+    .export-dropdown {
+        display: none !important;
+    }
+
+    .search-results-table {
+        font-size: 12px;
+    }
+
+    .search-results-table th,
+    .search-results-table td {
+        padding: 4px;
+        border: 1px solid #000;
+    }
+}

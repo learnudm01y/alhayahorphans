@@ -12,11 +12,21 @@
                                 إدارة المواطنين
                             </span>
                         </div>
-                        <div class="d-flex justify-content-start">
+                        <div class="d-flex justify-content-start gap-2">
                             <a href="{{ route('admin.persons.create') }}" class="btn btn-light btn-sm d-flex align-items-center justify-content-center">
                                 <i class="bi bi-plus-circle me-1"></i>
                                 إضافة مواطن
                             </a>
+                            <button type="button" class="btn btn-success btn-sm d-flex align-items-center justify-content-center"
+                                    onclick="openAdvancedSearch()">
+                                <i class="bi bi-search me-1"></i>
+                                البحث المتقدم
+                            </button>
+                            <button type="button" class="btn btn-primary btn-sm d-flex align-items-center justify-content-center"
+                                    onclick="openScoutSearchModal()">
+                                <i class="fas fa-rocket me-1"></i>
+                                البحث السريع Scout
+                            </button>
                         </div>
                     </div>
 
@@ -46,10 +56,21 @@
             </div>
         </div>
     </div>
+
+    <!-- تضمين Modal البحث المتقدم -->
+    @include('admin.dashboard.civil_registry.search_modal', [
+        'cities' => \App\Models\City::all(),
+        'socialStatuses' => \App\Models\CI_PERSONAL_CD::all()
+    ])
 @endsection
 
 @push('scriptsCode')
     {!! $dataTable->scripts() !!}
+
+    <!-- ملفات CSS و JavaScript للبحث المتقدم -->
+    <link href="{{ asset('css/person-search.css') }}" rel="stylesheet">
+    <script src="{{ asset('js/person-search.js') }}"></script>
+
     <script>
         // لا تغييرات هنا لأن التسريع يجب أن يتم في الاستعلامات وقاعدة البيانات وليس في الواجهة
         document.addEventListener('DOMContentLoaded', function () {
@@ -93,4 +114,13 @@
             });
         });
     </script>
+
+    <!-- Scout Search Modal -->
+    @include('admin.dashboard.civil_registry.scout_search_modal')
+
+    <!-- Scout Search CSS المعزول -->
+    <link rel="stylesheet" href="{{ asset('css/scout-search-isolated.css') }}">
+
+    <!-- Scout Search JavaScript المحسن -->
+    <script src="{{ asset('js/scout-search-fixed.js') }}"></script>
 @endpush
