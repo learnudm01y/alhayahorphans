@@ -14,35 +14,39 @@ return new class extends Migration
     {
         // تعطيل فحص الـ foreign keys مؤقتاً لتسريع العملية
         DB::statement('SET FOREIGN_KEY_CHECKS=0;');
-
+        
         try {
             // 1. فهرس الاسم الأول فقط (سريع)
             if (!$this->indexExists('persons', 'idx_first_name_fast')) {
+                // حذف الفهرس القديم إن وجد
+                $this->dropIndexIfExists('persons', 'idx_persons_ci_first_arb');
                 DB::statement('CREATE INDEX idx_first_name_fast ON persons (CI_FIRST_ARB(10))');
                 echo "✅ تم إنشاء فهرس الاسم الأول\n";
             }
-
+            
             // 2. فهرس رقم الهوية (سريع جداً)
             if (!$this->indexExists('persons', 'idx_id_num_fast')) {
+                // حذف الفهرس القديم إن وجد
+                $this->dropIndexIfExists('persons', 'idx_persons_ci_id_num');
                 DB::statement('CREATE INDEX idx_id_num_fast ON persons (CI_ID_NUM)');
                 echo "✅ تم إنشاء فهرس رقم الهوية\n";
             }
-
+            
             // 3. فهرس اسم الأب (سريع)
             if (!$this->indexExists('persons', 'idx_father_name_fast')) {
+                // حذف الفهرس القديم إن وجد
+                $this->dropIndexIfExists('persons', 'idx_persons_ci_father_arb');
                 DB::statement('CREATE INDEX idx_father_name_fast ON persons (CI_FATHER_ARB(10))');
                 echo "✅ تم إنشاء فهرس اسم الأب\n";
             }
-
+            
         } catch (Exception $e) {
             echo "⚠️ خطأ في إنشاء الفهارس: " . $e->getMessage() . "\n";
         }
-
+        
         // إعادة تفعيل فحص الـ foreign keys
         DB::statement('SET FOREIGN_KEY_CHECKS=1;');
-    }
-
-    /**
+    }    /**
      * Reverse the migrations.
      */
     public function down()
@@ -59,5 +63,20 @@ return new class extends Migration
     {
         $indexes = DB::select("SHOW INDEX FROM {$table} WHERE Key_name = ?", [$indexName]);
         return count($indexes) > 0;
+    }
+    
+    /**
+     * حذف الفهرس إن وجد
+     */
+    private function dropIndexIfExists($table, $indexName)
+    {
+        try {
+            if ($this->indexExists($table, $indexName)) {
+                DB::statement("DROP INDEX {$indexName} ON {$table}");
+                echo "🗑️ تم حذف الفهرس القديم: {$indexName}\n";
+            }
+        } catch (Exception $e) {
+            echo "⚠️ تعذر حذف الفهرس {$indexName}: " . $e->getMessage() . "\n";
+        }
     }
 };
