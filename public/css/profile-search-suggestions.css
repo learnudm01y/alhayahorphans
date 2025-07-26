@@ -1,0 +1,188 @@
+/**
+ * تصميم بسيط لقائمة اقتراحات البحث
+ * لون واحد وتصميم نظيف
+ */
+
+.profile-search-suggestions {
+    position: fixed !important;
+    background: #ffffff;
+    border: 1px solid #ddd;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    z-index: 9999 !important;
+    max-height: 450px;
+    overflow-y: auto;
+    font-family: inherit;
+    min-width: 300px;
+    max-width: 500px;
+}
+
+/* عنصر الاقتراح الواحد */
+.suggestion-item {
+    padding: 15px 18px;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item:hover,
+.suggestion-item.active {
+    background-color: #f8f9fa;
+}
+
+/* عنوان الاقتراح */
+.suggestion-title {
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 4px;
+    font-size: 15px;
+}
+
+/* العنوان الفرعي */
+.suggestion-subtitle {
+    color: #666;
+    font-size: 13px;
+    margin-bottom: 3px;
+}
+
+/* الوصف */
+.suggestion-description {
+    color: #888;
+    font-size: 12px;
+    margin-bottom: 4px;
+}
+
+/* نوع السجل */
+.suggestion-type {
+    color: #007bff;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+/* حالة التحميل */
+.suggestion-loading {
+    padding: 25px 18px;
+    text-align: center;
+    color: #666;
+}
+
+.loading-text {
+    font-size: 14px;
+}
+
+/* عدم وجود نتائج */
+.suggestion-no-results {
+    padding: 25px 18px;
+    text-align: center;
+    color: #999;
+}
+
+.no-results-text {
+    font-size: 14px;
+}
+
+/* رسالة الخطأ */
+.suggestion-error {
+    padding: 25px 18px;
+    text-align: center;
+    color: #dc3545;
+}
+
+.error-text {
+    font-size: 14px;
+}
+
+/* تحسين موضع حقل البحث */
+.profile-search-container {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+}
+
+/* تحسين شريط التمرير */
+.profile-search-suggestions::-webkit-scrollbar {
+    width: 6px;
+}
+
+.profile-search-suggestions::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.profile-search-suggestions::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 3px;
+}
+
+.profile-search-suggestions::-webkit-scrollbar-thumb:hover {
+    background: #bbb;
+}
+
+/* تحسينات للشاشات الصغيرة */
+@media (max-width: 768px) {
+    .profile-search-suggestions {
+        max-height: 350px;
+        min-width: 280px;
+        max-width: calc(100vw - 40px);
+        left: 20px !important;
+        right: 20px !important;
+        width: auto !important;
+    }
+
+    .suggestion-item {
+        padding: 12px 15px;
+    }
+
+    .suggestion-title {
+        font-size: 14px;
+    }
+
+    .suggestion-subtitle {
+        font-size: 12px;
+    }
+
+    .suggestion-description {
+        font-size: 11px;
+    }
+
+    .suggestion-type {
+        font-size: 10px;
+    }
+
+    .loading-text,
+    .no-results-text,
+    .error-text {
+        font-size: 13px;
+    }
+}
+
+/* تحسين التباين للوضوح */
+.suggestion-item:focus {
+    outline: 2px solid #007bff;
+    outline-offset: -2px;
+}
+
+/* تحسين النص العربي */
+.profile-search-suggestions {
+    direction: rtl;
+    text-align: right;
+}
+
+.suggestion-title,
+.suggestion-subtitle,
+.suggestion-description {
+    direction: rtl;
+    text-align: right;
+}
+
+/* إخفاء قائمة الاقتراحات عند الطباعة */
+@media print {
+    .profile-search-suggestions {
+        display: none !important;
+    }
+}

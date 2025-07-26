@@ -384,6 +384,9 @@ Route::prefix('admin')->group(function () {
     Route::get('search-records/stats', [\App\Http\Controllers\Admin\SearchOnRecordsController::class, 'getSearchStats'])->name('search.stats');
     Route::get('search-records/suggestions', [\App\Http\Controllers\Admin\SearchOnRecordsController::class, 'getSearchSuggestions'])->name('search.suggestions');
     Route::post('search-records/clear-cache', [\App\Http\Controllers\Admin\SearchOnRecordsController::class, 'clearSearchCache'])->name('search.clear.cache');
+
+    // Profile Search Routes - البحث السريع في الملفات مع الاقتراحات
+    Route::get('profile-search', [\App\Http\Controllers\Admin\ProfileSearchController::class, 'quickSearch'])->name('profile.search');
 });
 
 // Public routes for duplicate files (without authentication middleware)

@@ -43,6 +43,9 @@
     <!-- SweetAlert2 CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
 
+    <!-- Profile Search Suggestions CSS -->
+    <link href="{{ asset('css/profile-search-suggestions.css') }}" rel="stylesheet" type="text/css" />
+
     <script>
         // Frame-busting to prevent site from being loaded within a frame without permission (click-jacking)
         if (window.top != window.self) {
@@ -557,17 +560,18 @@
                                 </div>
                                 <!--end::Toolbar start-->
                                 <!--begin::Toolbar end-->
-                                <div class="d-flex align-items-center overflow-auto">
+                                <div class="d-flex align-items-center overflow-visible">
                                     <!--begin::Search-->
-                                    <div class="position-relative my-1">
+                                    <div class="position-relative my-1 profile-search-container" style="min-width: 300px; z-index: 1050;">
                                         <i
                                             class="ki-duotone ki-magnifier fs-2 text-gray-500 position-absolute top-50 translate-middle ps-10">
                                             <span class="path1"></span>
                                             <span class="path2"></span>
                                         </i>
                                         <input type="text"
-                                            class="form-control form-control-sm form-control-solid w-150px ps-10"
-                                            name="Search Team" value="" placeholder="Search Team" />
+                                            class="form-control form-control-lg form-control-solid ps-10"
+                                            name="search_profiles" value="" placeholder="البحث عن الملفات..."
+                                            autocomplete="off" style="width: 300px; font-size: 14px;" />
                                     </div>
                                     <!--end::Search-->
                                     <!--begin::Separartor-->
@@ -782,6 +786,9 @@
     @include('admin.dashboard.javascript.custom')
     @include('admin.dashboard.javascript.lodaer')
     @include('admin.dashboard.javascript.cropper')
+
+    <!-- Profile Search Suggestions JS -->
+    <script src="{{ asset('js/profile-search-suggestions.js') }}"></script>
 
 
     <!--end::Theme Mode Script-->
