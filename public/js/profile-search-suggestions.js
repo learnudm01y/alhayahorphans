@@ -31,8 +31,14 @@ class ProfileSearchSuggestions {
             this.suggestionsContainer.className = 'profile-search-suggestions';
             this.suggestionsContainer.style.display = 'none';
 
-            // إضافة الحاوي إلى body بدلاً من بعد عنصر البحث
-            document.body.appendChild(this.suggestionsContainer);
+            // إضافة الحاوي بعد عنصر البحث مباشرة
+            const searchContainer = this.input.closest('.profile-search-container');
+            if (searchContainer) {
+                searchContainer.appendChild(this.suggestionsContainer);
+            } else {
+                // في حالة عدم وجود container، أضف بعد البحث مباشرة
+                this.input.parentNode.insertBefore(this.suggestionsContainer, this.input.nextSibling);
+            }
         }
     }
 
@@ -172,6 +178,7 @@ class ProfileSearchSuggestions {
         this.suggestionsContainer.innerHTML = html;
         this.positionSuggestions();
         this.suggestionsContainer.style.display = 'block';
+        this.suggestionsContainer.classList.add('visible');
         this.isVisible = true;
 
         // ربط أحداث النقر
@@ -186,6 +193,7 @@ class ProfileSearchSuggestions {
         `;
         this.positionSuggestions();
         this.suggestionsContainer.style.display = 'block';
+        this.suggestionsContainer.classList.add('visible');
         this.isVisible = true;
     }
 
@@ -197,6 +205,7 @@ class ProfileSearchSuggestions {
         `;
         this.positionSuggestions();
         this.suggestionsContainer.style.display = 'block';
+        this.suggestionsContainer.classList.add('visible');
         this.isVisible = true;
     }
 
@@ -258,6 +267,7 @@ class ProfileSearchSuggestions {
 
     hideSuggestions() {
         this.suggestionsContainer.style.display = 'none';
+        this.suggestionsContainer.classList.remove('visible');
         this.isVisible = false;
     }
 

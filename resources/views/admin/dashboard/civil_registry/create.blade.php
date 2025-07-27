@@ -12,7 +12,7 @@
                     </span>
                 </div>
                 <div class="card-body bg-light">
-                    <form method="POST" action="{{ route('admin.persons.store') }}">
+                    <form method="POST" action="{{ route('civil-registry.store') }}">
                         @csrf
                         <div class="row g-4">
                             {{-- رقم الهوية --}}
@@ -108,7 +108,7 @@
                         </div>
                         <div class="mt-4 text-end">
                             <button type="submit" class="btn btn-success px-4">إضافة</button>
-                            <a href="{{ route('admin.persons.index') }}" class="btn btn-secondary px-4">إلغاء</a>
+                            <a href="{{ route('civil-registry.index') }}" class="btn btn-secondary px-4">إلغاء</a>
                         </div>
                     </form>
                 </div>

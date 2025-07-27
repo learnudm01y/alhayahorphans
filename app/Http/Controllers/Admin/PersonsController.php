@@ -25,7 +25,11 @@ class PersonsController extends Controller
 
     public function show($id)
     {
-        $person = Persons::with('socialStatus', 'city', 'CI_BIRTH_TB_CD', 'CI_BIRTH_CD')->findOrFail($id);
+        $person = DB::connection('civilregistry')->table('persons')->where('ID', $id)->first();
+
+        if (!$person) {
+            abort(404);
+        }
 
         if (request()->ajax()) {
             return response()->json($person);
@@ -36,7 +40,12 @@ class PersonsController extends Controller
 
     public function edit($id)
     {
-        $person = Persons::with('socialStatus','city')->findOrFail($id);
+        $person = DB::connection('civilregistry')->table('persons')->where('ID', $id)->first();
+
+        if (!$person) {
+            abort(404);
+        }
+
         $socialStatuses = CI_PERSONAL_CD::all();
         $city = City::all();
         $CI_BIRTH_TB_CD = CI_BIRTH_TB_CD::all();
@@ -48,18 +57,18 @@ class PersonsController extends Controller
     public function update(Request $request, $id)
     {
         // تحقق من صحة البيانات ثم حدث السجل
-        DB::table('persons')->where('ID', $id)->update($request->only([
+        DB::connection('civilregistry')->table('persons')->where('ID', $id)->update($request->only([
             'CI_ID_NUM','CI_FIRST_ARB','CI_FATHER_ARB','CI_GRAND_FATHER_ARB','CI_FAMILY_ARB',
             'CI_BIRTH_TB_CD','CI_BIRTH_CD','CI_BIRTH_DT','CI_SEX_CD','CI_PERSONAL_CD',
             'CI_DEAD_DT','MOTHER_NAME1','CITY','STREET','HOUSE_NO'
         ]));
-        return redirect()->route('admin.persons.index')->with('success', 'تم التعديل بنجاح');
+        return redirect()->route('civil-registry.index')->with('success', 'تم التعديل بنجاح');
     }
 
     public function destroy($id)
     {
-        DB::table('persons')->where('ID', $id)->delete();
-        return redirect()->route('admin.persons.index')->with('success', 'تم الحذف بنجاح');
+        DB::connection('civilregistry')->table('persons')->where('ID', $id)->delete();
+        return redirect()->route('civil-registry.index')->with('success', 'تم الحذف بنجاح');
     }
 
     public function sort(Request $request)
@@ -71,7 +80,7 @@ class PersonsController extends Controller
         ]);
 
         // تنفيذ عملية الفرز
-        $persons = DB::table('persons')
+        $persons = DB::connection('civilregistry')->table('persons')
             ->orderBy($validatedData['sort_field'], $validatedData['sort_order'])
             ->get();
 
@@ -114,9 +123,9 @@ class PersonsController extends Controller
             ]);
 
             // إنشاء سجل جديد
-            Persons::create($validatedData);
+            DB::connection('civilregistry')->table('persons')->insert($validatedData);
 
-            return redirect()->route('admin.persons.index')->with('success', 'تم إضافة المواطن بنجاح.');
+            return redirect()->route('civil-registry.index')->with('success', 'تم إضافة المواطن بنجاح.');
         } catch (\Exception $e) {
             // تسجيل الخطأ
             Log::error('Error adding person: ' . $e->getMessage());

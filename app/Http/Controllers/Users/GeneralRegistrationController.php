@@ -180,10 +180,9 @@ class GeneralRegistrationController extends Controller
                 'data_request_status' => 1, // تأكد من وجود هذا السطر دائماً
             ]);
 
-            // تحديث حالة الرقم في جدول reserved_codes ليصبح مستخدم فعلياً
-            DB::table('reserved_codes')
-                ->where('code', $fileIdNumber)
-                ->update(['used' => true]);
+            // تم إزالة الاعتماد على reserved_codes بسبب قيود الاستضافة المشتركة
+            // الرقم محجوز مؤقتاً بنجاح في جدول البيانات الرئيسي
+            Log::info('✅ تم حفظ الرقم بنجاح: ' . $fileIdNumber);
 
             // إضافة بيانات الحساب البنكي إذا وُجدت أي قيمة بنكية
             $bankAccounts = $request->input('bank_accounts', []);

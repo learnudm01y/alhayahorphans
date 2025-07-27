@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\DuplicateFileController;
 use App\Http\Controllers\SpeedTestController;
 use App\Http\Controllers\ScoutSearchController;
+use App\Http\Controllers\CivilRegistrySearchController;
 
 // مسارات اختبار التحميل بدون مصادقة
 Route::get('/test-download-all', [UnifiedFileManagementController::class, 'downloadAllDuplicateFiles']);
@@ -22,11 +23,42 @@ Route::post('/test-download-selected', [UnifiedFileManagementController::class, 
 // مسار اختبار الإحصائيات الحقيقية بدون مصادقة (مؤقت)
 Route::get('/test-real-stats-public', [UnifiedFileManagementController::class, 'getRealDuplicateFilesStatistics']);
 
-// Scout Search API Routes - مسارات البحث الشامل
+// Scout Search API Routes
 Route::prefix('api/scout')->group(function () {
     Route::get('instant-search', [ScoutSearchController::class, 'instantSearch'])->name('scout.instant.search');
-    Route::get('suggestions', [ScoutSearchController::class, 'suggestions'])->name('scout.suggestions');
     Route::post('advanced-search', [ScoutSearchController::class, 'advancedSearch'])->name('scout.advanced.search');
+});
+
+// Public API routes for duplicate files (without authentication middleware)
+
+// Civil Registry Scout Search API Routes - مسارات البحث في السجل المدني
+Route::prefix('api/civil-registry')->group(function () {
+    Route::get('/', [CivilRegistrySearchController::class, 'index'])->name('civil.registry.index');
+    Route::get('quick-search', [CivilRegistrySearchController::class, 'quickSearch'])->name('civil.registry.quick.search');
+    Route::get('advanced-search', [CivilRegistrySearchController::class, 'advancedSearch'])->name('civil.registry.advanced.search');
+    Route::get('search-by-id', [CivilRegistrySearchController::class, 'searchById'])->name('civil.registry.search.id');
+    Route::get('search-by-name', [CivilRegistrySearchController::class, 'searchByName'])->name('civil.registry.search.name');
+    Route::get('comprehensive-search', [CivilRegistrySearchController::class, 'comprehensiveSearch'])->name('civil.registry.comprehensive.search');
+    Route::get('stats', [CivilRegistrySearchController::class, 'getStats'])->name('civil.registry.stats');
+    Route::get('database-stats', [CivilRegistrySearchController::class, 'getStats'])->name('civil.registry.database.stats');
+    Route::post('index-data', [CivilRegistrySearchController::class, 'indexData'])->name('civil.registry.index.data');
+    Route::get('test-connection', [CivilRegistrySearchController::class, 'testConnection'])->name('civil.registry.test');
+    Route::post('clear-cache', [CivilRegistrySearchController::class, 'clearCache'])->name('civil.registry.clear.cache');
+});
+
+// Civil Registry CRUD Routes - مسارات إدارة السجل المدني
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::prefix('admin/civil-registry')->name('admin.civil-registry.')->group(function () {
+        Route::get('/', [App\Http\Controllers\Admin\CivilRegistryController::class, 'index'])->name('index');
+        Route::get('/create', [App\Http\Controllers\Admin\CivilRegistryController::class, 'create'])->name('create');
+        Route::post('/', [App\Http\Controllers\Admin\CivilRegistryController::class, 'store'])->name('store');
+        Route::get('/{id}', [App\Http\Controllers\Admin\CivilRegistryController::class, 'show'])->name('show');
+        Route::get('/{id}/edit', [App\Http\Controllers\Admin\CivilRegistryController::class, 'edit'])->name('edit');
+        Route::put('/{id}', [App\Http\Controllers\Admin\CivilRegistryController::class, 'update'])->name('update');
+        Route::delete('/{id}', [App\Http\Controllers\Admin\CivilRegistryController::class, 'destroy'])->name('destroy');
+        Route::get('/search', [App\Http\Controllers\Admin\CivilRegistryController::class, 'search'])->name('search');
+        Route::get('/stats', [App\Http\Controllers\Admin\CivilRegistryController::class, 'stats'])->name('stats');
+    });
 });
 
 // Public API routes for duplicate files (without authentication middleware)

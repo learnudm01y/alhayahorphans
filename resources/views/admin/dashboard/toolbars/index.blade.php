@@ -562,7 +562,7 @@
                                 <!--begin::Toolbar end-->
                                 <div class="d-flex align-items-center overflow-visible">
                                     <!--begin::Search-->
-                                    <div class="position-relative my-1 profile-search-container" style="min-width: 300px; z-index: 1050;">
+                                    <div class="position-relative my-1 profile-search-container" style="min-width: 300px; z-index: 1;">
                                         <i
                                             class="ki-duotone ki-magnifier fs-2 text-gray-500 position-absolute top-50 translate-middle ps-10">
                                             <span class="path1"></span>
@@ -572,33 +572,6 @@
                                             class="form-control form-control-lg form-control-solid ps-10"
                                             name="search_profiles" value="" placeholder="البحث عن الملفات..."
                                             autocomplete="off" style="width: 300px; font-size: 14px;" />
-                                    </div>
-                                    <!--end::Search-->
-                                    <!--begin::Separartor-->
-                                    <div class="bullet bg-secondary h-35px w-1px mx-6"></div>
-                                    <!--end::Separartor-->
-                                    <!--begin::Label-->
-                                    <span class="fs-7 fw-bold text-gray-700 flex-shrink-0 pe-4 d-none d-md-block">Sort
-                                        By:</span>
-                                    <!--end::Label-->
-                                    <!--begin::Select-->
-                                    <select class="form-select form-select-sm w-125px form-select-solid me-6"
-                                        data-control="select2" data-placeholder="Latest" data-hide-search="true">
-                                        <option value=""></option>
-                                        <option value="1" selected="selected">Latest</option>
-                                        <option value="2">In Progress</option>
-                                        <option value="3">Done</option>
-                                    </select>
-                                    <!--end::Select-->
-                                    <!--begin::Actions-->
-                                    <div class="d-flex align-items-center">
-                                        <button type="button" class="btn btn-sm btn-icon btn-light"
-                                            data-bs-toggle="tooltip" data-bs-placement="top" title="Enable row view">
-                                            <i class="ki-duotone ki-row-horizontal fs-2">
-                                                <span class="path1"></span>
-                                                <span class="path2"></span>
-                                            </i>
-                                        </button>
                                     </div>
                                     <!--end::Actions-->
                                 </div>

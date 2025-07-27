@@ -10,7 +10,7 @@
                     <span>تعديل بيانات المواطن</span>
                 </div>
                 <div class="card-body bg-light">
-                    <form method="POST" action="{{ route('admin.persons.update', $person->ID) }}">
+                    <form method="POST" action="{{ route('civil-registry.update', $person->ID) }}">
                         @csrf
                         @method('PUT')
                         <div class="row g-4">
@@ -120,7 +120,7 @@
                         </div>
                         <div class="mt-4 text-end">
                             <button type="submit" class="btn btn-success px-4">حفظ التعديلات</button>
-                            <a href="{{ route('admin.persons.index') }}" class="btn btn-secondary px-4">إلغاء</a>
+                            <a href="{{ route('civil-registry.index') }}" class="btn btn-secondary px-4">إلغاء</a>
                         </div>
                     </form>
                 </div>

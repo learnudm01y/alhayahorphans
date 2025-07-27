@@ -4,18 +4,23 @@
  */
 
 .profile-search-suggestions {
-    position: fixed !important;
+    position: absolute !important;
+    top: 100% !important;
+    left: 0 !important;
+    right: 0 !important;
     background: #ffffff;
     border: 1px solid #ddd;
     border-top: none;
     border-radius: 0 0 8px 8px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-    z-index: 9999 !important;
+    z-index: 999 !important; /* z-index عالي لضمان الظهور */
     max-height: 450px;
     overflow-y: auto;
     font-family: inherit;
-    min-width: 300px;
-    max-width: 500px;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: none;
 }
 
 /* عنصر الاقتراح الواحد */
@@ -100,9 +105,26 @@
 
 /* تحسين موضع حقل البحث */
 .profile-search-container {
-    position: relative;
+    position: relative !important;
     display: inline-block;
     width: 100%;
+    z-index: 1 !important; /* z-index منخفض لتجنب التداخل مع sidebar */
+}
+
+/* قواعد إظهار الاقتراحات عند التركيز */
+.profile-search-container input:focus + .profile-search-suggestions,
+.profile-search-container .profile-search-suggestions:hover,
+.profile-search-container .profile-search-suggestions.show {
+    display: block !important;
+}
+
+.profile-search-container input:focus ~ .profile-search-suggestions {
+    display: block !important;
+}
+
+/* قاعدة عامة لإظهار الاقتراحات */
+.profile-search-suggestions.visible {
+    display: block !important;
 }
 
 /* تحسين شريط التمرير */
@@ -132,6 +154,11 @@
         left: 20px !important;
         right: 20px !important;
         width: auto !important;
+        z-index: 50 !important; /* أقل من sidebar في الجوال */
+    }
+
+    .profile-search-container {
+        z-index: 1 !important; /* منخفض جداً في الجوال */
     }
 
     .suggestion-item {
@@ -158,6 +185,24 @@
     .no-results-text,
     .error-text {
         font-size: 13px;
+    }
+}
+
+/* إخفاء الاقتراحات عند فتح sidebar في الجوال فقط */
+@media (max-width: 768px) {
+    /* إخفاء الاقتراحات عند فتح الـ sidebar في الجوال فقط */
+    body[data-kt-drawer-shown="true"] .profile-search-suggestions,
+    .app-sidebar-enabled .profile-search-suggestions,
+    .drawer-on .profile-search-suggestions {
+        display: none !important;
+    }
+
+    .profile-search-container {
+        z-index: 1 !important;
+    }
+
+    .profile-search-suggestions {
+        z-index: 50 !important; /* أقل من sidebar */
     }
 }
 

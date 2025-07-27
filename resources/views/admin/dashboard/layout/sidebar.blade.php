@@ -414,19 +414,27 @@
             </span>
             <div class="menu-sub menu-sub-accordion">
                 <div class="menu-item">
-                    <a class="menu-link" href="{{ route('admin.index.civilian') }}">
+                    <a class="menu-link" href="{{ route('civil-registry.index') }}">
                         <span class="menu-bullet">
                             <i class="fas fa-user-friends"></i>
                         </span>
-                        <span class="menu-title"> المواطنين </span>
+                        <span class="menu-title"> السجل المدني الجديد </span>
                     </a>
                 </div>
                 <div class="menu-item">
-                    <a class="menu-link" href="{{ route('admin.persons.create') }}">
+                    <a class="menu-link" href="{{ route('civil-registry.create') }}">
                         <span class="menu-bullet">
                             <i class="fas fa-user-plus"></i>
                         </span>
                         <span class="menu-title"> إضافة مواطن </span>
+                    </a>
+                </div>
+                <div class="menu-item">
+                    <a class="menu-link" href="{{ route('admin.index.civilian') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-database"></i>
+                        </span>
+                        <span class="menu-title"> النظام القديم </span>
                     </a>
                 </div>
             </div>

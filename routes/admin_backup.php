@@ -55,6 +55,7 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     // civilian management
     Route::get('civilian', [PersonsController::class, 'index'])->name('index.civilian');
     Route::resource('persons', PersonsController::class);
+    Route::put('/persons/{id}', [PersonsController::class, 'update'])->name('persons.update');
     Route::post('/persons/sort', [PersonsController::class, 'sort'])->name('admin.persons.sort');
     Route::post('/persons', [PersonsController::class, 'store'])->name('persons.store');
 
@@ -424,18 +425,17 @@ Route::prefix('admin')->group(function () {
         Route::post('clear-cache', [CivilRegistrySearchController::class, 'clearCache'])->name('clear.cache');
     });
 
-    // Civil Registry CRUD Routes - مسارات إدارة السجل المدني
-    // Civil Registry CRUD Routes - مسارات إدارة السجل المدني
-    Route::prefix('civil-registry')->group(function () {
-        Route::get('/', [CivilRegistryController::class, 'index'])->name('civil-registry.index');
-        Route::get('/create', [CivilRegistryController::class, 'create'])->name('civil-registry.create');
-        Route::post('/', [CivilRegistryController::class, 'store'])->name('civil-registry.store');
-        Route::get('/{id}', [CivilRegistryController::class, 'show'])->name('civil-registry.show');
-        Route::get('/{id}/edit', [CivilRegistryController::class, 'edit'])->name('civil-registry.edit');
-        Route::put('/{id}', [CivilRegistryController::class, 'update'])->name('civil-registry.update');
-        Route::delete('/{id}', [CivilRegistryController::class, 'destroy'])->name('civil-registry.destroy');
-        Route::get('/search', [CivilRegistryController::class, 'search'])->name('civil-registry.search');
-        Route::get('/stats', [CivilRegistryController::class, 'stats'])->name('civil-registry.stats');
+    // Civil Registry CRUD Routes - مسارات إدارة السجل المدني  
+    Route::prefix('civil-registry')->name('civil-registry.')->group(function () {
+        Route::get('/', [CivilRegistryController::class, 'index'])->name('index');
+        Route::get('/create', [CivilRegistryController::class, 'create'])->name('create');
+        Route::post('/', [CivilRegistryController::class, 'store'])->name('store');
+        Route::get('/{id}', [CivilRegistryController::class, 'show'])->name('show');
+        Route::get('/{id}/edit', [CivilRegistryController::class, 'edit'])->name('edit');
+        Route::put('/{id}', [CivilRegistryController::class, 'update'])->name('update');
+        Route::delete('/{id}', [CivilRegistryController::class, 'destroy'])->name('destroy');
+        Route::get('/search', [CivilRegistryController::class, 'search'])->name('search');
+        Route::get('/stats', [CivilRegistryController::class, 'stats'])->name('stats');
     });
 });
 

@@ -439,7 +439,7 @@
                         <select name="target_table">
                             <option value="data">📋 جدول البيانات الرئيسي</option>
                             <option value="dead_people">⚰️ جدول المتوفين (مع ربط تلقائي)</option>
-                            <option value="re_people">👥 جدول إعادة التسجيل (مع ربط تلقائي)</option>
+                            <option value="re_people">👥 جدول افراد الاسرة  (مع ربط تلقائي)</option>
                         </select>
                     </div>
 

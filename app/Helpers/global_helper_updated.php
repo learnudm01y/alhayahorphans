@@ -11,21 +11,15 @@ if (!function_exists('generateUniqueReservedCode')) {
      */
     function generateUniqueReservedCode(string $table, string $column, ?string $sessionId = null): ?string
     {
-        // استخدام Static variable لضمان زيادة الأرقام في نفس الجلسة
-        static $lastGenerated = [];
-        $tableKey = "{$table}.{$column}";
-
-        return DB::transaction(function () use ($table, $column, $sessionId, $tableKey, &$lastGenerated) {
+        return DB::transaction(function () use ($table, $column, $sessionId) {
             // جلب أكبر رقم رقمي فقط من الجدول الأساسي
             $maxMain = DB::table($table)
                 ->select(DB::raw("MAX(CAST($column as UNSIGNED)) as max_code"))
                 ->whereRaw("LENGTH($column) = 6 AND $column REGEXP '^[0-9]+$'")
                 ->value('max_code');
 
-            // استخدام الرقم الأخير المولد أو الأكبر من الجدول
-            $lastGenerated[$tableKey] = $lastGenerated[$tableKey] ?? (int)$maxMain;
-            $next = max($lastGenerated[$tableKey], (int)$maxMain) + 1;
-
+            // بدء من الرقم التالي للأكبر
+            $next = (int)$maxMain + 1;
             $attempts = 0;
             $maxAttempts = 50;
 
@@ -36,7 +30,6 @@ if (!function_exists('generateUniqueReservedCode')) {
                 $exists = DB::table($table)->where($column, $code)->exists();
 
                 if (!$exists) {
-                    $lastGenerated[$tableKey] = $next; // حفظ الرقم المولد
                     Log::info("✅ تم توليد رقم فريد: {$code} للجدول {$table}");
                     return $code;
                 }
