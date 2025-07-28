@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
+use App\Helpers\RoleHelper;
 
 class RoleMiddleware
 {
@@ -13,12 +14,26 @@ class RoleMiddleware
      *
      * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      */
-    public function handle(Request $request, Closure $next ,$role): Response
+    public function handle(Request $request, Closure $next, $role): Response
     {
-        if($request->user()->role === $role){
+        $user = $request->user();
+
+        // التحقق من وجود المستخدم
+        if (!$user) {
+            return redirect()->route('login');
+        }
+
+        // التحقق من صحة بيانات المستخدم
+        if (!RoleHelper::validateUserRole($user)) {
+            return redirect()->route('login')->withErrors(['error' => 'بيانات المستخدم غير صحيحة']);
+        }
+
+        // التحقق من صحة الدور المطلوب
+        if ($user->role === $role) {
             return $next($request);
         }
 
-        return to_route('user.dashboard');
+        // إعادة التوجيه للمسار الصحيح بناءً على دور المستخدم
+        return redirect(RoleHelper::getCorrectRedirectPath($user));
     }
 }

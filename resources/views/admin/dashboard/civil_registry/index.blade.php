@@ -17,16 +17,6 @@
                                 <i class="bi bi-plus-circle me-1"></i>
                                 إضافة مواطن
                             </a>
-                            {{-- <button type="button" class="btn btn-success btn-sm d-flex align-items-center justify-content-center"
-                                    onclick="openAdvancedSearch()">
-                                <i class="bi bi-search me-1"></i>
-                                البحث المتقدم
-                            </button> --}}
-                            {{-- <button type="button" class="btn btn-primary btn-sm d-flex align-items-center justify-content-center"
-                                    onclick="openScoutSearchModal()">
-                                <i class="fas fa-rocket me-1"></i>
-                                البحث السريع Scout
-                            </button> --}}
                             <button type="button" class="btn btn-warning btn-sm d-flex align-items-center justify-content-center"
                                     data-bs-toggle="modal" data-bs-target="#civilRegistrySearchModal">
                                 <i class="fas fa-search-plus me-1"></i>
@@ -36,25 +26,6 @@
                     </div>
 
                     <div class="card-body">
-                        <div class="mb-3">
-                            <div class="row g-2">
-                                <div class="col-md-2">
-                                    <input type="text" id="search-ci-id-num" class="form-control" placeholder="رقم الهوية">
-                                </div>
-                                <div class="col-md-2">
-                                    <input type="text" id="search-ci-first-arb" class="form-control" placeholder="الاسم الأول">
-                                </div>
-                                <div class="col-md-2">
-                                    <input type="text" id="search-ci-father-arb" class="form-control" placeholder="اسم الأب">
-                                </div>
-                                <div class="col-md-2">
-                                    <input type="text" id="search-ci-grand-father-arb" class="form-control" placeholder="اسم الجد">
-                                </div>
-                                <div class="col-md-2">
-                                    <input type="text" id="search-ci-family-arb" class="form-control" placeholder="اسم العائلة">
-                                </div>
-                            </div>
-                        </div>
                         {!! $dataTable->table(['class' => 'table table-bordered table-striped text-center align-middle w-100'], true) !!}
                     </div>
                 </div>

@@ -1,5 +1,51 @@
 @push('scriptsCode')
-            <script>
+    <style>
+        /* تأثيرات CSS لأشرطة التقدم الجذابة */
+        @keyframes progress-glow {
+            0% {
+                box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            }
+            100% {
+                box-shadow: 0 4px 20px rgba(0,0,0,0.4), 0 0 10px rgba(255,255,255,0.3);
+            }
+        }
+
+        @keyframes rainbow-flow {
+            0% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
+        @keyframes pulse-processing {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        .progress-bar-animated {
+            background-size: 200% 200% !important;
+            animation: rainbow-flow 3s ease infinite !important;
+        }
+
+        .batch-upload-progress {
+            animation: pulse-processing 2s ease-in-out infinite;
+        }
+
+        .real-time-progress {
+            animation: rainbow-flow 4s ease infinite;
+            background-size: 300% 300% !important;
+        }
+    </style>
+    <script>
                 // ربط زر عرض الملفات المكررة بالمودال
                 document.addEventListener('DOMContentLoaded', function() {
                     const btn = document.getElementById('showDuplicateFilesBtn');
@@ -255,10 +301,28 @@
 
                         // Start upload manually - only if elements exist
                         if (startUploadBtn) {
-                            startUploadBtn.addEventListener('click', this.startUploads.bind(this));
+                            startUploadBtn.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                console.log('🔴 تم الضغط على زر بدء الرفع (startUploadBtn)');
+                                console.log('📊 حالة النظام الحالية:', {
+                                    filesCount: this.files.size,
+                                    processedFilesCount: this.processedFiles ? this.processedFiles.length : 0,
+                                    currentUploadType: this.currentUploadType
+                                });
+                                this.startUploads();
+                            });
                         }
                         if (startUploadBtnMain) {
-                            startUploadBtnMain.addEventListener('click', this.startUploads.bind(this));
+                            startUploadBtnMain.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                console.log('🔴 تم الضغط على زر بدء الرفع الرئيسي (startUploadBtnMain)');
+                                console.log('📊 حالة النظام الحالية:', {
+                                    filesCount: this.files.size,
+                                    processedFilesCount: this.processedFiles ? this.processedFiles.length : 0,
+                                    currentUploadType: this.currentUploadType
+                                });
+                                this.startUploads();
+                            });
                         }
 
                         // Excel import options visibility - only if fileInput exists
@@ -550,6 +614,8 @@
                     processFiles(files) {
                         if (!this.validateInputs()) return;
 
+                        console.log('🔄 بدء معالجة الملفات...', { count: files.length });
+
                         files.forEach(file => {
                             const fileId = this.generateFileId();
                             const fileData = {
@@ -571,7 +637,37 @@
                         });
 
                         this.updateFileCounts();
-                        this.startUploads();
+
+                        // إضافة تأخير قصير قبل بدء الرفع للتأكد من تحديث الواجهة
+                        setTimeout(() => {
+                            // إعداد التقدم قبل بدء الرفع
+                            this.setupUploadProgress();
+                            this.startUploads();
+                        }, 100);
+                    }
+
+                    setupUploadProgress() {
+                        console.log('🔧 إعداد شريط تقدم الرفع...');
+
+                        const uploadProgressSection = document.getElementById('uploadProgressSection');
+                        if (uploadProgressSection) {
+                            uploadProgressSection.style.display = 'block';
+                        }
+
+                        const progressText = document.getElementById('progressText');
+                        if (progressText) {
+                            progressText.textContent = 'جاري إعداد الرفع...';
+                        }
+
+                        const overallProgress = document.getElementById('overallProgress');
+                        if (overallProgress) {
+                            overallProgress.style.width = '0%';
+                            overallProgress.setAttribute('aria-valuenow', 0);
+                            overallProgress.textContent = '0%';
+                        }
+
+                        this.updateFileCounts();
+                        console.log('✅ تم إعداد شريط تقدم الرفع بنجاح');
                     }
 
                     processFolderFiles(files, type) {
@@ -649,13 +745,19 @@
                         });
 
                         // إظهار زر الرفع
-                        document.getElementById('startUploadBtn').style.display = 'inline-block';
+                        const startUploadBtn = document.getElementById('startUploadBtn');
+                        if (startUploadBtn) {
+                            startUploadBtn.style.display = 'inline-block';
+                        }
 
                         // حفظ الملفات المعالجة للرفع اللاحق
                         this.processedFiles = validFiles;
                         this.currentUploadType = type;
 
                         console.log(`✨ تم تحضير ${validFiles.length} ملف للرفع. اضغط على زر "بدء الرفع" لتنفيذ العملية.`);
+
+                        // إعداد شريط التقدم للمجلدات
+                        this.setupUploadProgress();
                     }
 
                     getFolderStructure() {
@@ -884,20 +986,28 @@
                     updateFileCounts() {
                         // تحديث عدادات الواجهة
                         const totalFiles = this.files.size;
-                        document.getElementById('totalFiles').textContent = totalFiles;
+                        const totalFilesElement = document.getElementById('totalFiles');
+                        if (totalFilesElement) {
+                            totalFilesElement.textContent = totalFiles;
+                        }
 
                         // تحديث إحصائيات بسيطة
                         const completedFiles = Array.from(this.files.values()).filter(f => f.status === 'completed').length;
                         const processingFiles = Array.from(this.files.values()).filter(f => f.status === 'processing').length;
                         const failedFiles = Array.from(this.files.values()).filter(f => f.status === 'failed').length;
 
-                        document.getElementById('completedFiles').textContent = completedFiles;
-                        document.getElementById('processingFiles').textContent = processingFiles;
-                        document.getElementById('failedFiles').textContent = failedFiles;
+                        const completedFilesElement = document.getElementById('completedFiles');
+                        const processingFilesElement = document.getElementById('processingFiles');
+                        const failedFilesElement = document.getElementById('failedFiles');
+
+                        if (completedFilesElement) completedFilesElement.textContent = completedFiles;
+                        if (processingFilesElement) processingFilesElement.textContent = processingFiles;
+                        if (failedFilesElement) failedFilesElement.textContent = failedFiles;
 
                         // إظهار/إخفاء أزرار الرفع بناءً على وجود ملفات
                         const startUploadBtn = document.getElementById('startUploadBtn');
                         const startUploadBtnMain = document.getElementById('startUploadBtnMain');
+                        const uploadProgressSection = document.getElementById('uploadProgressSection');
 
                         if (totalFiles > 0) {
                             // إظهار زر الرفع في جميع الأماكن
@@ -907,9 +1017,19 @@
                             if (startUploadBtnMain) {
                                 startUploadBtnMain.style.display = 'inline-block';
                             }
-                            document.getElementById('uploadProgressSection').style.display = 'block';
-                            const progress = totalFiles > 0 ? (completedFiles / totalFiles) * 100 : 0;
-                            document.getElementById('overallProgress').style.width = `${progress}%`;
+
+                            // إظهار قسم التقدم مع فحص الوجود
+                            if (uploadProgressSection) {
+                                uploadProgressSection.style.display = 'block';
+                            }
+
+                            // تحديث شريط التقدم مع فحص الوجود
+                            const overallProgress = document.getElementById('overallProgress');
+                            if (overallProgress) {
+                                const progress = totalFiles > 0 ? (completedFiles / totalFiles) * 100 : 0;
+                                overallProgress.style.width = `${progress}%`;
+                                overallProgress.setAttribute('aria-valuenow', progress);
+                            }
                         } else {
                             // إخفاء زر الرفع في جميع الأماكن
                             if (startUploadBtn) {
@@ -917,6 +1037,10 @@
                             }
                             if (startUploadBtnMain) {
                                 startUploadBtnMain.style.display = 'none';
+                            }
+                            // إخفاء قسم التقدم
+                            if (uploadProgressSection) {
+                                uploadProgressSection.style.display = 'none';
                             }
                         }
                     }
@@ -926,6 +1050,9 @@
                             filesCount: files.length,
                             timestamp: new Date().toISOString()
                         });
+
+                        // تحديث حالة جميع الملفات إلى "قيد المعالجة"
+                        this.updateAllFilesToProcessing();
 
                         const formData = new FormData();
 
@@ -1051,6 +1178,11 @@
                                 this.updateFileCounts();
                                 this.loadAnalytics();
 
+                                // تحديث حالة جميع الملفات إلى "مكتملة" مع تأخير واقعي
+                                setTimeout(() => {
+                                    this.updateAllFilesToCompleted();
+                                }, 1000); // تأخير ثانية واحدة للتأثير البصري
+
                                 return result;
                             } else {
                                 // معالجة أخطاء التحقق من صحة المجلدات
@@ -1069,6 +1201,8 @@
                                     }
 
                                     this.showAlert(errorMessage, 'danger');
+                                    // تحديث حالة الملفات إلى "فاشلة" في حالة الخطأ
+                                    this.updateAllFilesToFailed();
                                 } else {
                                     throw new Error(result.message || 'فشل في رفع المجلد');
                                 }
@@ -1076,14 +1210,24 @@
                         } catch (error) {
                             console.error('❌ خطأ في رفع المجلد:', error);
                             this.showAlert(`فشل في رفع المجلد: ${error.message}`, 'danger');
+                            // تحديث حالة الملفات إلى "فاشلة" في حالة الخطأ
+                            this.updateAllFilesToFailed();
                             throw error;
                         }
                     }
 
                     async startUploads() {
+                        console.log('🚀 تم استدعاء startUploads()...');
+
+                        // إظهار وإعداد قسم التقدم أولاً
+                        this.setupUploadProgress();
+
                         // التحقق من وجود ملفات معالجة للرفع (من المجلدات)
                         if (this.processedFiles && this.processedFiles.length > 0) {
                             console.log('🚀 بدء رفع الملفات المعالجة من المجلد...');
+
+                            // لا نحتاج محاكاة - سنتزامن مع الخلفية مباشرة
+
                             try {
                                 const result = await this.uploadFolderFile(this.processedFiles, this.currentUploadType);
                                 console.log('🎉 اكتملت عملية الرفع والتحويل بنجاح!', result);
@@ -1095,11 +1239,25 @@
                             } catch (error) {
                                 console.error('❌ فشلت عملية الرفع:', error);
                                 this.showAlert('فشلت عملية رفع ملفات المجلد: ' + error.message, 'error');
+                            } finally {
+                                // إخفاء شريط التقدم بعد الانتهاء من رفع المجلد
+                                setTimeout(() => {
+                                    const progressSection = document.getElementById('uploadProgressSection');
+                                    if (progressSection) {
+                                        progressSection.style.transition = 'opacity 0.5s ease';
+                                        progressSection.style.opacity = '0';
+
+                                        setTimeout(() => {
+                                            progressSection.style.display = 'none';
+                                            progressSection.style.opacity = '1';
+                                        }, 500);
+                                    }
+                                }, 2000);
                             }
                             return;
                         }
 
-                        // معالجة الملفات العادية (غير المجلدات)
+                        // معالجة الملفات العادية (غير المجلدات) بشكل تدريجي
                         if (this.activeUploads >= this.maxConcurrentUploads) {
                             this.showAlert('يوجد عمليات رفع نشطة. يرجى الانتظار حتى تكتمل.', 'warning');
                             return;
@@ -1114,29 +1272,89 @@
                         this.showAlert('بدء رفع الملفات...', 'info');
                         this.updateFileCounts();
 
-                        for (const fileData of pendingFiles) {
-                            if (this.activeUploads >= this.maxConcurrentUploads) break;
+                        // رفع الملفات بشكل تدريجي ومتسلسل
+                        this.uploadFilesSequentially(pendingFiles);
+                    }
 
-                            this.activeUploads++;
-                            fileData.status = 'processing';
-                            this.updateFileStatus(fileData.id, 'processing');
+                    // دالة جديدة لرفع الملفات بشكل متسلسل وسلس
+                    async uploadFilesSequentially(files) {
+                        let currentIndex = 0;
 
-                            try {
-                                // Simulate file upload
-                                await this.simulateFileUpload(fileData);
-                                fileData.status = 'completed';
-                                this.updateFileStatus(fileData.id, 'completed');
-                            } catch (error) {
-                                fileData.status = 'failed';
-                                this.updateFileStatus(fileData.id, 'failed');
-                                console.error('❌ خطأ في رفع الملف:', fileData.file.name, error);
-                            } finally {
-                                this.activeUploads--;
+                        const uploadNext = async () => {
+                            if (currentIndex < files.length) {
+                                const fileData = files[currentIndex];
+
+                                this.activeUploads++;
+                                fileData.status = 'processing';
+                                this.updateFileStatus(fileData.id, 'processing');
+                                this.updateOverallProgress();
+
+                                try {
+                                    // محاكاة رفع الملف مع تقدم واقعي
+                                    await this.simulateFileUploadWithProgress(fileData);
+                                    fileData.status = 'completed';
+                                    this.updateFileStatus(fileData.id, 'completed');
+                                } catch (error) {
+                                    fileData.status = 'failed';
+                                    this.updateFileStatus(fileData.id, 'failed');
+                                    console.error('❌ خطأ في رفع الملف:', fileData.file.name, error);
+                                } finally {
+                                    this.activeUploads--;
+                                    // تحديث شريط التقدم
+                                    this.updateOverallProgress();
+                                }
+
+                                currentIndex++;
+                                // انتظار قصير قبل الملف التالي
+                                setTimeout(uploadNext, 300);
+                            } else {
+                                // انتهت جميع الملفات - تحديث نهائي
+                                this.updateFileCounts();
+                                this.showAlert('تمت معالجة جميع الملفات.', 'success');
+
+                                // إخفاء شريط التقدم بعد الانتهاء بطريقة أنيقة
+                                setTimeout(() => {
+                                    const progressSection = document.getElementById('uploadProgressSection');
+                                    if (progressSection) {
+                                        progressSection.style.transition = 'opacity 0.5s ease';
+                                        progressSection.style.opacity = '0';
+
+                                        setTimeout(() => {
+                                            progressSection.style.display = 'none';
+                                            progressSection.style.opacity = '1'; // إعادة تعيين للمرة القادمة
+                                        }, 500);
+                                    }
+
+                                    console.log('🎉 تم الانتهاء من رفع جميع الملفات بنجاح!');
+                                }, 2000); // انتظار ثانيتين قبل الإخفاء
                             }
-                        }
+                        };
 
-                        this.updateFileCounts();
-                        this.showAlert('تمت معالجة الدفعة الحالية.', 'success');
+                        uploadNext();
+                    }
+
+                    // محاكي رفع محسن مع تقدم تدريجي
+                    async simulateFileUploadWithProgress(fileData) {
+                        return new Promise((resolve, reject) => {
+                            let progress = 0;
+                            const totalTime = 1500 + Math.random() * 1000; // 1.5-2.5 ثانية
+                            const steps = 10;
+                            const stepTime = totalTime / steps;
+
+                            const updateProgress = () => {
+                                progress += 10;
+                                fileData.progress = progress;
+
+                                if (progress >= 100) {
+                                    // نجح الرفع في 90% من الحالات
+                                    Math.random() > 0.1 ? resolve() : reject(new Error('Upload failed'));
+                                } else {
+                                    setTimeout(updateProgress, stepTime);
+                                }
+                            };
+
+                            updateProgress();
+                        });
                     }
 
                     async simulateFileUpload(fileData) {
@@ -1154,15 +1372,198 @@
                         const overlay = document.getElementById(`overlay_${fileId}`);
 
                         if (status === 'processing') {
-                            statusLabel.innerText = 'قيد المعالجة';
-                            overlay.style.display = 'flex';
+                            if (statusLabel) {
+                                statusLabel.innerText = 'قيد المعالجة';
+                                statusLabel.className = 'badge bg-primary text-white';
+                                statusLabel.style.background = 'linear-gradient(45deg, #007bff, #0056b3)';
+                                statusLabel.style.fontWeight = 'bold';
+                                statusLabel.style.animation = 'pulse-processing 1.5s infinite';
+                            }
+                            if (overlay) overlay.style.display = 'flex';
+                            if (fileElement) {
+                                fileElement.classList.add('processing');
+                            }
                         } else if (status === 'completed') {
-                            statusLabel.innerText = 'مكتملة';
-                            overlay.style.display = 'none';
+                            if (statusLabel) {
+                                statusLabel.innerText = 'مكتملة';
+                                statusLabel.className = 'badge bg-success text-white';
+                                // تأثير بصري للنجاح
+                                statusLabel.style.animation = 'bounce 0.5s ease';
+                            }
+                            if (overlay) overlay.style.display = 'none';
+                            if (fileElement) {
+                                fileElement.classList.remove('processing');
+                                fileElement.style.animation = 'fadeIn 0.3s ease';
+                            }
                         } else if (status === 'failed') {
-                            statusLabel.innerText = 'فاشلة';
-                            overlay.style.display = 'none';
+                            if (statusLabel) {
+                                statusLabel.innerText = 'فاشلة';
+                                statusLabel.className = 'badge bg-danger text-white';
+                                // تأثير اهتزاز للفشل
+                                statusLabel.style.animation = 'shake 0.5s ease';
+                            }
+                            if (overlay) overlay.style.display = 'none';
+                            if (fileElement) {
+                                fileElement.classList.remove('processing');
+                            }
                         }
+
+                        // تحديث تقدم العملية الإجمالي
+                        this.updateOverallProgress();
+                    }
+
+                    updateOverallProgress() {
+                        const totalFiles = this.files.size;
+                        if (totalFiles === 0) return;
+
+                        const completedFiles = Array.from(this.files.values()).filter(f => f.status === 'completed').length;
+                        const processingFiles = Array.from(this.files.values()).filter(f => f.status === 'processing').length;
+                        const failedFiles = Array.from(this.files.values()).filter(f => f.status === 'failed').length;
+
+                        const progress = (completedFiles / totalFiles) * 100;
+
+        // تحديث شريط التقدم الرئيسي بانيميشن سلس وألوان ديناميكية
+        const overallProgress = document.getElementById('overallProgress');
+        if (overallProgress) {
+            // إضافة transition CSS لجعل التحرك سلساً
+            overallProgress.style.transition = 'all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+            overallProgress.style.width = `${progress}%`;
+            overallProgress.setAttribute('aria-valuenow', progress);
+            overallProgress.textContent = `${Math.round(progress)}%`;
+
+            // تغيير اللون حسب نسبة التقدم - جميع درجات الأزرق الغامق جداً
+            let gradient;
+            if (progress < 25) {
+                gradient = 'linear-gradient(90deg, #0D47A1, #1565C0)'; // أزرق غامق جداً للبداية
+            } else if (progress < 50) {
+                gradient = 'linear-gradient(90deg, #1565C0, #0277BD)'; // أزرق غامق للربع الثاني
+            } else if (progress < 75) {
+                gradient = 'linear-gradient(90deg, #0277BD, #01579B)'; // أزرق غامق جداً للربع الثالث
+            } else if (progress < 100) {
+                gradient = 'linear-gradient(90deg, #01579B, #0D47A1)'; // أزرق غامق جداً للربع الأخير
+            } else {
+                gradient = 'linear-gradient(90deg, #0D47A1, #1565C0, #0277BD, #01579B)'; // أزرق غامق متدرج للاكتمال
+            }
+
+            overallProgress.style.background = gradient;
+            overallProgress.style.borderRadius = '10px';
+            overallProgress.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+            overallProgress.style.color = 'white';
+            overallProgress.style.fontWeight = 'bold';
+            overallProgress.style.textShadow = '1px 1px 2px rgba(0,0,0,0.5)';
+
+            // إضافة كلاس للانيميشن إذا كان التقدم يتحرك
+            if (progress > 0 && progress < 100) {
+                overallProgress.classList.add('progress-bar-animated');
+                // إضافة تأثير وميض للانيميشن
+                overallProgress.style.animation = 'progress-glow 2s ease-in-out infinite alternate';
+            } else {
+                overallProgress.classList.remove('progress-bar-animated');
+                overallProgress.style.animation = 'none';
+            }
+        }                        // تحديث النص التوضيحي بتأثير سلس
+                        const progressText = document.getElementById('progressText');
+                        if (progressText) {
+                            progressText.style.transition = 'opacity 0.2s ease';
+                            progressText.style.opacity = '0.7';
+                            progressText.textContent = `${completedFiles} من ${totalFiles} مكتمل`;
+
+                            setTimeout(() => {
+                                progressText.style.opacity = '1';
+                            }, 100);
+                        }
+
+                        console.log(`📊 تحديث التقدم: ${Math.round(progress)}% (${completedFiles}/${totalFiles})`);
+                    }
+
+                    // دوال مساعدة لتحديث حالة جميع الملفات
+                    updateAllFilesToProcessing() {
+                        console.log('🔄 تحديث حالة جميع الملفات إلى "قيد المعالجة"...');
+                        this.files.forEach(fileData => {
+                            fileData.status = 'processing';
+                            this.updateFileStatus(fileData.id, 'processing');
+                        });
+
+                        // تحديث فوري للعدادات
+                        setTimeout(() => {
+                            this.updateFileCounts();
+                            this.updateOverallProgress();
+                        }, 100);
+                    }
+
+                    updateAllFilesToCompleted() {
+                        console.log('✅ تحديث حالة جميع الملفات إلى "مكتملة" بشكل تدريجي...');
+
+                        // التأكد من أن جميع الملفات انتقلت من "processing" إلى "completed"
+                        const filesArray = Array.from(this.files.values());
+
+                        filesArray.forEach((fileData, index) => {
+                            setTimeout(() => {
+                                // تحديث حالة الملف في الـ Map
+                                fileData.status = 'completed';
+                                this.files.set(fileData.id, fileData);
+
+                                // تحديث العرض البصري
+                                this.updateFileStatus(fileData.id, 'completed');
+
+                                // تحديث البادج مع تأثير بصري
+                                const badge = document.querySelector(`[data-file-id="${fileData.id}"]`);
+                                if (badge) {
+                                    badge.innerHTML = '<i class="fa fa-check-circle text-success"></i> مكتمل';
+                                    badge.className = 'badge badge-success';
+                                    badge.style.animation = 'pulse 0.5s ease-in-out';
+
+                                    // تأثير توهج للنجاح
+                                    setTimeout(() => {
+                                        badge.style.boxShadow = '0 0 15px rgba(40, 167, 69, 0.6)';
+                                        setTimeout(() => {
+                                            badge.style.boxShadow = 'none';
+                                        }, 1000);
+                                    }, 100);
+                                }
+
+                                console.log(`✅ الملف ${fileData.file?.name || 'ملف غير محدد'} تم بنجاح`);
+                            }, index * 150); // تأخير 150ms بين كل ملف
+                        });
+
+                        // تحديث العدادات والتقدم النهائي
+                        setTimeout(() => {
+                            this.updateFileCounts();
+                            this.updateOverallProgress();
+                            console.log(`🎉 تم الانتهاء من رفع جميع الملفات (${filesArray.length} ملف) بنجاح!`);
+                        }, filesArray.length * 150 + 500);
+                    }
+
+                    updateAllFilesToFailed() {
+                        console.log('❌ تحديث حالة جميع الملفات إلى "فاشلة" بشكل تدريجي...');
+                        this.updateFilesGradually('failed');
+                    }
+
+                    // دالة جديدة لتحديث الملفات بشكل تدريجي وسلس
+                    updateFilesGradually(targetStatus) {
+                        const filesArray = Array.from(this.files.values());
+                        let currentIndex = 0;
+
+                        const updateNext = () => {
+                            if (currentIndex < filesArray.length) {
+                                const fileData = filesArray[currentIndex];
+                                fileData.status = targetStatus;
+                                this.updateFileStatus(fileData.id, targetStatus);
+
+                                // تحديث التقدم مع كل ملف
+                                this.updateFileCounts();
+                                this.updateOverallProgress();
+
+                                currentIndex++;
+
+                                // انتظار قصير قبل الملف التالي (للتأثير البصري السلس)
+                                setTimeout(updateNext, 150); // 150ms بين كل ملف
+                            } else {
+                                console.log(`✅ تم الانتهاء من تحديث جميع الملفات إلى "${targetStatus}"`);
+                            }
+                        };
+
+                        updateNext();
                     }
 
                     showAlert(message, type = 'info') {
@@ -1535,26 +1936,47 @@
                         }
 
                         try {
-                            // عرض شريط التقدم
-                            this.showBatchUploadProgress();
+                            // تحديث حالة جميع الملفات إلى "قيد المعالجة"
+                            this.updateAllFilesToProcessing();
+
+                            // عرض شريط التقدم مع تتبع حقيقي
+                            this.showRealTimeUploadProgress(batches.length);
 
                             let totalSuccessful = 0;
                             let totalDuplicates = 0;
                             let totalErrors = 0;
+                            let processedBatches = 0;
 
                             for (let i = 0; i < batches.length; i++) {
-                                this.updateBatchProgress(i, batches.length, `رفع الدفعة ${i + 1}/${batches.length}...`);
+                                this.updateBatchProgress(i, batches.length, `معالجة الدفعة ${i + 1}/${batches.length}...`);
 
-                                const result = await this.uploadSingleBatch(batches[i], i, batches.length, options);
+                                try {
+                                    const result = await this.uploadSingleBatch(batches[i], i, batches.length, options);
 
-                                if (result.success) {
-                                    totalSuccessful += result.statistics?.files_saved || 0;
-                                    totalDuplicates += result.statistics?.duplicates_detected || 0;
-                                    console.log(`✅ تم رفع الدفعة ${i + 1} بنجاح`);
-                                } else {
+                                    if (result.success) {
+                                        totalSuccessful += result.statistics?.files_saved || 0;
+                                        totalDuplicates += result.statistics?.duplicates_detected || 0;
+                                        console.log(`✅ تم رفع الدفعة ${i + 1} بنجاح - الملفات المحفوظة: ${result.statistics?.files_saved || 0}`);
+
+                                        // تحديث تقدم الملفات المكتملة بناءً على النتائج الفعلية
+                                        const updatedFiles = this.updateProcessedFilesStatus(result.statistics?.files_saved || 0, 'completed');
+                                        console.log(`📊 تم تحديث ${updatedFiles} ملف إلى "مكتمل" بناءً على نتائج الدفعة ${i + 1}`);
+                                    } else {
+                                        totalErrors++;
+                                        console.error(`❌ فشل في رفع الدفعة ${i + 1}:`, result.message);
+                                        this.updateProcessedFilesStatus(batches[i].length, 'failed');
+                                    }
+                                } catch (error) {
                                     totalErrors++;
-                                    console.error(`❌ فشل في رفع الدفعة ${i + 1}:`, result.message);
+                                    console.error(`❌ خطأ في رفع الدفعة ${i + 1}:`, error);
+                                    this.updateProcessedFilesStatus(batches[i].length, 'failed');
                                 }
+
+                                processedBatches++;
+
+                                // تحديث شريط التقدم العام بناءً على التقدم الفعلي
+                                const overallProgress = Math.round((processedBatches / batches.length) * 100);
+                                this.updateRealTimeProgress(overallProgress, `مكتمل: ${totalSuccessful}, مكرر: ${totalDuplicates}, أخطاء: ${totalErrors}`);
 
                                 // انتظار قصير بين الدفعات
                                 if (i < batches.length - 1) {
@@ -1563,6 +1985,7 @@
                             }
 
                             this.updateBatchProgress(batches.length, batches.length, 'تم الانتهاء!');
+                            this.updateRealTimeProgress(100, `النهاية: مكتمل ${totalSuccessful}, مكرر ${totalDuplicates}, أخطاء ${totalErrors}`);
 
                             let message = `تم رفع ${totalSuccessful} ملف بنجاح!`;
                             if (totalDuplicates > 0) message += ` (${totalDuplicates} مكرر)`;
@@ -1570,12 +1993,22 @@
 
                             this.showAlert(message, 'success');
 
+                            // تحديث حالة جميع الملفات إلى "مكتملة" بناءً على النتائج الفعلية
+                            if (totalErrors === 0 && totalSuccessful > 0) {
+                                this.updateAllFilesToCompleted();
+                            } else if (totalErrors > 0) {
+                                this.updateAllFilesToFailed();
+                            }
+
                             // تحديث الواجهة
                             this.updateFileCounts();
                             this.loadAnalytics();
 
-                            // إخفاء شريط التقدم
-                            setTimeout(() => this.hideBatchUploadProgress(), 2000);
+                            // إخفاء أشرطة التقدم
+                            setTimeout(() => {
+                                this.hideBatchUploadProgress();
+                                this.hideRealTimeProgress();
+                            }, 3000); // انتظار 3 ثوان لرؤية النتيجة النهائية
 
                             return {
                                 success: totalErrors === 0,
@@ -1587,6 +2020,8 @@
                         } catch (error) {
                             console.error('❌ خطأ في الرفع المتعدد:', error);
                             this.showAlert(`فشل في رفع المجلد: ${error.message}`, 'danger');
+                            // تحديث حالة الملفات إلى "فاشلة" في حالة الخطأ
+                            this.updateAllFilesToFailed();
                             this.hideBatchUploadProgress();
                             throw error;
                         }
@@ -1690,9 +2125,9 @@
                         let progressHtml = `
                         <div class="batch-upload-progress-container" style="margin: 20px 0;">
                             <h5>📊 تقدم الرفع المتعدد</h5>
-                            <div class="progress" style="height: 25px;">
-                                <div class="progress-bar batch-upload-progress bg-success"
-                                     role="progressbar" style="width: 0%"
+                            <div class="progress" style="height: 25px; border-radius: 15px; box-shadow: 0 2px 4px rgba(13,71,161,0.4);">
+                                <div class="progress-bar batch-upload-progress"
+                                     role="progressbar" style="width: 0%; background: linear-gradient(90deg, #0D47A1, #1565C0, #0277BD, #01579B); border-radius: 15px; transition: width 0.5s ease;"
                                      aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                                     0%
                                 </div>
@@ -1714,11 +2149,116 @@
                     }
 
                     /**
-                     * تحديث شريط تقدم الرفع المتعدد
+                     * عرض شريط تقدم متزامن مع الخلفية
+                     */
+                    showRealTimeUploadProgress(totalBatches) {
+                        let progressHtml = `
+                        <div class="real-time-progress-container" style="margin: 20px 0; padding: 15px; background: linear-gradient(135deg, #0D47A1 0%, #01579B 100%); border-radius: 12px; box-shadow: 0 4px 15px rgba(13,71,161,0.5);">
+                            <h5><i class="fa fa-cloud-upload text-white"></i> <span style="color: white;">تقدم الرفع الحقيقي</span></h5>
+                            <div class="progress" style="height: 35px; margin-bottom: 10px; border-radius: 20px; background: rgba(255,255,255,0.2);">
+                                <div class="progress-bar real-time-progress"
+                                     role="progressbar" style="width: 0%; background: linear-gradient(90deg, #0D47A1, #1565C0, #0277BD, #01579B); border-radius: 20px; box-shadow: 0 2px 10px rgba(13,71,161,0.6); transition: width 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);"
+                                     aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                    <span class="progress-percentage" style="color: white; font-weight: bold; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">0%</span>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-6">
+                                    <small class="real-time-status text-muted">جاري بدء العملية...</small>
+                                </div>
+                                <div class="col-6 text-right">
+                                    <small class="batch-counter text-info">0/${totalBatches} دفعات</small>
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <small class="files-stats text-success">مكتمل: 0 | مكرر: 0 | أخطاء: 0</small>
+                            </div>
+                        </div>`;
+
+                        // البحث عن منطقة مناسبة لعرض شريط التقدم
+                        const targetArea = document.querySelector('.upload-status') ||
+                                          document.querySelector('.file-upload-container') ||
+                                          document.querySelector('.modal-body') ||
+                                          document.querySelector('main');
+
+                        if (targetArea) {
+                            // إزالة أي شريط تقدم قديم
+                            const oldProgress = targetArea.querySelector('.real-time-progress-container');
+                            if (oldProgress) oldProgress.remove();
+
+                            targetArea.insertAdjacentHTML('beforeend', progressHtml);
+                        }
+                    }
+
+                    /**
+                     * تحديث التقدم الحقيقي بناءً على نتائج الخلفية
+                     */
+                    updateRealTimeProgress(percentage, statusMessage) {
+                        const progressBar = document.querySelector('.real-time-progress');
+                        const statusElement = document.querySelector('.real-time-status');
+                        const statsElement = document.querySelector('.files-stats');
+                        const percentageElement = document.querySelector('.progress-percentage');
+
+                        if (progressBar) {
+                            progressBar.style.width = percentage + '%';
+                            progressBar.setAttribute('aria-valuenow', percentage);
+                        }
+
+                        if (percentageElement) {
+                            percentageElement.textContent = percentage + '%';
+                        }
+
+                        if (statusElement) {
+                            statusElement.textContent = statusMessage || `تقدم العملية: ${percentage}%`;
+                        }
+
+                        if (statsElement && statusMessage) {
+                            statsElement.textContent = statusMessage;
+                        }
+
+                        console.log(`📊 تحديث التقدم الحقيقي: ${percentage}% - ${statusMessage}`);
+                    }
+
+                    /**
+                     * تحديث حالة الملفات المعالجة بناءً على النتائج الفعلية
+                     */
+                    updateProcessedFilesStatus(processedCount, status) {
+                        let updatedCount = 0;
+
+                        // العثور على الملفات التي ما زالت في حالة "قيد المعالجة" مرتبة حسب الإضافة
+                        const processingFiles = Array.from(this.files.values())
+                            .filter(f => f.status === 'processing')
+                            .sort((a, b) => a.id - b.id); // ترتيب حسب ID للحصول على ترتيب الإضافة
+
+                        console.log(`🔍 العثور على ${processingFiles.length} ملف في حالة المعالجة, سيتم تحديث ${Math.min(processedCount, processingFiles.length)} ملف`);
+
+                        for (let i = 0; i < Math.min(processedCount, processingFiles.length); i++) {
+                            const fileData = processingFiles[i];
+                            const oldStatus = fileData.status;
+                            fileData.status = status;
+                            this.files.set(fileData.id, fileData);
+                            this.updateFileStatus(fileData.id, status);
+                            updatedCount++;
+
+                            console.log(`📄 ملف "${fileData.file?.name || 'ملف غير محدد'}" تم تحديثه من "${oldStatus}" إلى "${status}"`);
+                        }
+
+                        console.log(`✅ تم تحديث ${updatedCount} ملف إلى حالة "${status}" بناءً على النتائج الفعلية`);
+
+                        // تحديث العدادات
+                        this.updateFileCounts();
+                        this.updateOverallProgress();
+
+                        return updatedCount;
+                    }
+
+                    /**
+                     * تحديث شريط تقدم الرفع المتعدد مع التزامن
                      */
                     updateBatchProgress(current, total, message) {
                         const percentage = Math.round((current / total) * 100);
 
+                        // تحديث شريط التقدم القديم (للتوافق)
                         const progressBar = document.querySelector('.batch-upload-progress');
                         const progressText = document.querySelector('.batch-upload-text');
 
@@ -1732,6 +2272,12 @@
                             progressText.textContent = message;
                         }
 
+                        // تحديث العداد في النظام الجديد
+                        const batchCounter = document.querySelector('.batch-counter');
+                        if (batchCounter) {
+                            batchCounter.textContent = `${current}/${total} دفعات`;
+                        }
+
                         console.log(`📊 التقدم: ${percentage}% - ${message}`);
                     }
 
@@ -1742,6 +2288,133 @@
                         const progressContainer = document.querySelector('.batch-upload-progress-container');
                         if (progressContainer) {
                             progressContainer.remove();
+                        }
+                    }
+
+                    /**
+                     * إخفاء شريط التقدم الحقيقي
+                     */
+                    hideRealTimeProgress() {
+                        const progressContainer = document.querySelector('.real-time-progress-container');
+                        if (progressContainer) {
+                            progressContainer.style.transition = 'opacity 0.5s ease';
+                            progressContainer.style.opacity = '0';
+
+                            setTimeout(() => {
+                                progressContainer.remove();
+                            }, 500);
+                        }
+                    }
+
+                    /**
+                     * حذف ملف من القائمة
+                     */
+                    deleteFile(fileId) {
+                        if (confirm('هل تريد حذف هذا الملف من القائمة؟')) {
+                            this.files.delete(fileId);
+
+                            // إزالة العرض البصري للملف
+                            const fileElement = document.getElementById(`preview_${fileId}`);
+                            if (fileElement && fileElement.parentElement) {
+                                fileElement.parentElement.remove();
+                            }
+
+                            // تحديث العدادات
+                            this.updateFileCounts();
+
+                            console.log(`🗑️ تم حذف الملف ${fileId} من القائمة`);
+                        }
+                    }
+
+                    /**
+                     * تحميل ملف
+                     */
+                    downloadFile(fileId) {
+                        const fileData = this.files.get(fileId);
+                        if (fileData && fileData.file) {
+                            const url = URL.createObjectURL(fileData.file);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = fileData.file.name;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+
+                            console.log(`📥 تحميل الملف: ${fileData.file.name}`);
+                        }
+                    }
+
+                    /**
+                     * عرض التنبيه
+                     */
+                    showAlert(message, type = 'info') {
+                        // إنشاء عنصر التنبيه
+                        const alertElement = document.createElement('div');
+                        alertElement.className = `alert alert-${type} alert-dismissible fade show`;
+                        alertElement.style.position = 'fixed';
+                        alertElement.style.top = '20px';
+                        alertElement.style.right = '20px';
+                        alertElement.style.zIndex = '9999';
+                        alertElement.style.maxWidth = '400px';
+
+                        alertElement.innerHTML = `
+                            ${message}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        `;
+
+                        document.body.appendChild(alertElement);
+
+                        // إزالة التنبيه تلقائياً بعد 5 ثوان
+                        setTimeout(() => {
+                            if (alertElement.parentNode) {
+                                alertElement.remove();
+                            }
+                        }, 5000);
+                    }
+
+                    /**
+                     * تنسيق حجم الملف
+                     */
+                    formatFileSize(bytes) {
+                        if (bytes === 0) return '0 Bytes';
+                        const k = 1024;
+                        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+                        const i = Math.floor(Math.log(bytes) / Math.log(k));
+                        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+                    }
+
+                    /**
+                     * تصفية الملفات
+                     */
+                    handleFilterChange(e) {
+                        const filterValue = e.target.value;
+                        console.log('🔍 تطبيق فلتر:', filterValue);
+
+                        // تطبيق الفلتر على الملفات المعروضة
+                        const fileElements = document.querySelectorAll('.file-preview');
+                        fileElements.forEach(element => {
+                            const fileId = element.id.replace('preview_', '');
+                            const fileData = this.files.get(fileId);
+
+                            if (filterValue === 'all' || fileData.type === filterValue) {
+                                element.parentElement.style.display = 'block';
+                            } else {
+                                element.parentElement.style.display = 'none';
+                            }
+                        });
+                    }
+
+                    /**
+                     * تحديث زر الملفات المكررة
+                     */
+                    updateDuplicateFilesButton(duplicatesInfo) {
+                        const duplicateBtn = document.getElementById('showDuplicateFilesBtn');
+                        if (duplicateBtn && duplicatesInfo) {
+                            duplicateBtn.style.display = 'inline-block';
+                            duplicateBtn.innerHTML = `<i class="fas fa-clone me-2"></i>عرض الملفات المكررة (${duplicatesInfo.total_duplicates})`;
+                            duplicateBtn.classList.add('btn-warning');
+                            duplicateBtn.classList.remove('btn-secondary');
                         }
                     }
                 }

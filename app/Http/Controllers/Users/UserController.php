@@ -135,4 +135,13 @@ class UserController extends Controller
         return redirect()->back()
             ->with('success', ' تم حذف المستخدم بنجاح ');
     }
+
+    /**
+     * عرض لوحة تحكم المستخدم
+     */
+    public function dashboard()
+    {
+        $user = auth()->user();
+        return view('user.dashboard', compact('user'));
+    }
 }

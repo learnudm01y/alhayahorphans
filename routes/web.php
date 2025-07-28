@@ -100,7 +100,8 @@ Route::get('/file-manager', function () {
 // حماية جميع مسارات المستخدمين بميدل وير auth و verified
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::group(['prefix' => 'user', 'as' => 'user.'], function () {
-        Route::get('/dashboard', [ShowGeneralRegisrationController::class, 'index'])->name('generalRegistration.index');
+        Route::get('/dashboard', [UserController::class, 'dashboard'])->name('dashboard');
+        Route::get('/general-registration', [ShowGeneralRegisrationController::class, 'index'])->name('generalRegistration.index');
         // profifle management
         Route::get('profile', [UserProfileController::class, 'profile'])->name('index.profile');
         Route::get('settings', [UserProfileController::class, 'settings'])->name('settings');

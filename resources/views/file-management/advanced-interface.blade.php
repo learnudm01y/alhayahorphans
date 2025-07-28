@@ -321,6 +321,127 @@
             box-shadow: 0 4px 8px rgba(0,0,0,0.15);
         }
 
+        /* تحسينات شريط التقدم */
+        .progress {
+            background: linear-gradient(90deg, #0D47A1 0%, #1565C0 100%);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .progress-bar {
+            background: linear-gradient(45deg, #0D47A1, #1565C0, #0277BD, #01579B);
+            background-size: 400% 100%;
+            animation: rainbow-flow 3s infinite linear;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(13, 71, 161, 0.6);
+        }
+
+        .progress-bar::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
+            animation: slide-shine 2s infinite;
+        }
+
+        @keyframes rainbow-flow {
+            0% { background-position: 400% 0; }
+            100% { background-position: -400% 0; }
+        }
+
+        @keyframes slide-shine {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        /* تحسينات العدادات */
+        .h5 {
+            transition: all 0.3s ease;
+        }
+
+        .h5:hover {
+            transform: scale(1.05);
+        }
+
+        /* تحسين حالة الملفات */
+        .badge {
+            transition: all 0.2s ease;
+        }
+
+        .file-preview {
+            transition: all 0.3s ease;
+        }
+
+        .file-preview.processing {
+            animation: pulse-gentle 2s infinite;
+        }
+
+        @keyframes pulse-gentle {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+
+        @keyframes bounce {
+            0%, 20%, 60%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            80% { transform: translateY(-5px); }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-3px); }
+            20%, 40%, 60%, 80% { transform: translateX(3px); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0.5; }
+            to { opacity: 1; }
+        }
+
+        /* Animation styles for progress section transitions */
+        #uploadProgressSection {
+            transition: opacity 0.5s ease, transform 0.3s ease;
+        }
+
+        .badge {
+            transition: all 0.3s ease;
+        }
+
+        /* Pulse animation for completed files */
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
+            }
+            50% {
+                transform: scale(1.05);
+                box-shadow: 0 0 15px 5px rgba(40, 167, 69, 0.3);
+            }
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
+            }
+        }
+
+        /* Processing animation for files being processed */
+        @keyframes pulse-processing {
+            0% {
+                background: linear-gradient(45deg, #007bff, #0056b3) !important;
+                box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.7);
+            }
+            50% {
+                background: linear-gradient(45deg, #0056b3, #007bff) !important;
+                box-shadow: 0 0 10px 3px rgba(0, 123, 255, 0.4);
+            }
+            100% {
+                background: linear-gradient(45deg, #007bff, #0056b3) !important;
+                box-shadow: 0 0 0 0 rgba(0, 123, 255, 0);
+            }
+        }
+
         .card-header .btn-success {
             background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
             border: none;
@@ -765,23 +886,8 @@
             }
         }
     </style>
-    <div class="container-fluid py-4 file-management-container">
-        <!-- Header -->
-        <div class="row mb-4">
-            <div class="col-lg-6 col-md-6 col-12">
-                <h1 class="h3 mb-0">
-                    <i class="fas fa-cloud-upload-alt text-primary me-2"></i>
-                    نظام إدارة الملفات المتقدم
-                </h1>
-                <p class="text-muted">رفع وإدارة ملفات متعددة الأنواع مع التكامل السحابي</p>
-            </div>
-            <div class="col-lg-6 col-md-6 col-12">
-                <div class="d-flex justify-content-end gap-2 flex-wrap">
-                </div>
-            </div>
-
-            <!-- تحسينات للأجهزة المحمولة -->
-            <style>
+       <!-- تحسينات للأجهزة المحمولة -->
+    <style>
                 @media (max-width: 992px) {
                     .speed-test-card {
                         width: 100% !important;
@@ -816,7 +922,22 @@
                         padding-left: 0;
                     }
                 }
-            </style>
+    </style>
+    <div class="container-fluid py-4 file-management-container">
+        <!-- Header -->
+        <div class="row mb-4">
+            <div class="col-lg-6 col-md-6 col-12">
+                <h1 class="h3 mb-0">
+                    <i class="fas fa-cloud-upload-alt text-primary me-2"></i>
+                    نظام إدارة الملفات المتقدم
+                </h1>
+                <p class="text-muted">رفع وإدارة ملفات متعددة الأنواع مع التكامل السحابي</p>
+            </div>
+            <div class="col-lg-6 col-md-6 col-12">
+                <div class="d-flex justify-content-end gap-2 flex-wrap">
+                </div>
+            </div>
+
         </div>
 
         <!-- Analytics Dashboard - Top Position -->
@@ -970,13 +1091,6 @@
                         <i class="fas fa-info-circle"></i> يتم التوليد التلقائي حسب آخر رقم في قاعدة البيانات
                     </div>
                 </div>
-
-                {{-- <div class="col-md-6">
-                    <label for="personId" class="form-label fw-bold">
-                        <i class="fas fa-id-card text-secondary"></i> رقم الهوية (اختياري)
-                    </label>
-                    <input type="text" class="form-control" id="personId" placeholder="رقم الهوية للربط مع الشخص" >
-                </div> --}}
             </div>
 
             <!-- Processing Options and Controls Row -->
@@ -1175,9 +1289,12 @@
                                 </h5>
                             </div>
                             <div class="card-body">
-                                <div class="progress mb-3" style="height: 8px;">
-                                    <div class="progress-bar progress-bar-striped progress-bar-animated"
-                                        id="overallProgress" role="progressbar" style="width: 0%"></div>
+                                <div class="progress mb-3" style="height: 12px; border-radius: 8px; overflow: hidden;">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-gradient"
+                                        id="overallProgress" role="progressbar" style="width: 0%; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);"></div>
+                                </div>
+                                <div class="text-center mb-3">
+                                    <small class="text-muted fw-bold" id="progressText" style="transition: all 0.3s ease;">جاري التحضير...</small>
                                 </div>
                                 <div class="row text-center">
                                     <div class="col-3">
