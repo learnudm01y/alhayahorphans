@@ -143,19 +143,24 @@ check_database_status() {
     print_info "$stats"
 }
 
-# دالة إنشاء نسخة احتياطية سريعة من بنية الجدول
+# دالة إنشاء نسخة احتياطية سريعة من بنية الجدول (معطلة حالياً)
 backup_table_structure() {
     print_message "إنشاء نسخة احتياطية من بنية الجدول..."
 
-    mysqldump -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" \
-        --no-data --routines --triggers \
-        "$DB_NAME" persons > "persons_structure_backup_$(date +%Y%m%d_%H%M%S).sql" 2>/dev/null
+    # تم تعطيل هذه الوظيفة - النسخة الاحتياطية متوفرة مسبقاً
+    print_info "⚠️ النسخة الاحتياطية معطلة - متوفرة مسبقاً"
+    return 0
 
-    if [ $? -eq 0 ]; then
-        print_message "✅ تم إنشاء النسخة الاحتياطية بنجاح"
-    else
-        print_warning "لم يتم إنشاء النسخة الاحتياطية - المتابعة"
-    fi
+    # الكود الأصلي (معطل):
+    # mysqldump -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" \
+    #     --no-data --routines --triggers \
+    #     "$DB_NAME" persons > "persons_structure_backup_$(date +%Y%m%d_%H%M%S).sql" 2>/dev/null
+
+    # if [ $? -eq 0 ]; then
+    #     print_message "✅ تم إنشاء النسخة الاحتياطية بنجاح"
+    # else
+    #     print_warning "لم يتم إنشاء النسخة الاحتياطية - المتابعة"
+    # fi
 }
 
 # ==============================================================
@@ -175,9 +180,9 @@ print_message "بدء عملية إنشاء الفهارس..."
 print_message "المرحلة 1: فحص حالة النظام"
 check_database_status
 
-# المرحلة 2: النسخة الاحتياطية
-print_message "المرحلة 2: إنشاء نسخة احتياطية"
-backup_table_structure
+# المرحلة 2: النسخة الاحتياطية (تم تعطيلها - متوفرة مسبقاً)
+print_message "المرحلة 2: تخطي النسخة الاحتياطية (متوفرة مسبقاً)"
+print_info "✅ النسخة الاحتياطية متوفرة - الانتقال مباشرة للفهرسة"
 
 # المرحلة 3: الفهارس الأساسية (الأكثر أهمية)
 print_message "المرحلة 3: إنشاء الفهارس الأساسية"

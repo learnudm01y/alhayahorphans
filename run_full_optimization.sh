@@ -19,10 +19,9 @@ NC='\033[0m' # No Color
 echo ""
 echo -e "${BLUE}📋 خطوات العملية:${NC}"
 echo "   1️⃣ فحص حالة قاعدة البيانات"
-echo "   2️⃣ إنشاء نسخة احتياطية"
-echo "   3️⃣ تطبيق الفهارس"
-echo "   4️⃣ اختبار الأداء"
-echo "   5️⃣ تقرير النتائج"
+echo "   2️⃣ تطبيق الفهارس (النسخة الاحتياطية متوفرة مسبقاً)"
+echo "   3️⃣ اختبار الأداء"
+echo "   4️⃣ تقرير النتائج"
 echo ""
 
 # طلب تأكيد من المستخدم
@@ -51,35 +50,10 @@ else
 fi
 
 echo ""
-echo -e "${YELLOW}==== الخطوة 2: إنشاء نسخة احتياطية ====${NC}"
+echo -e "${YELLOW}==== الخطوة 2: تطبيق الفهارس (النسخة الاحتياطية متوفرة مسبقاً) ====${NC}"
 
-# معلومات قاعدة البيانات
-DB_HOST="localhost"
-DB_USER="u983550065_benaa101"
-DB_PASS="Benaa_101_109"
-DB_NAME="u983550065_civil_regitry1"
-
-BACKUP_FILE="backup_before_indexing_$(date +%Y%m%d_%H%M%S).sql"
-echo "📦 إنشاء نسخة احتياطية: $BACKUP_FILE"
-
-mysqldump -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" > "$BACKUP_FILE" 2>/dev/null
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✅ تم إنشاء النسخة الاحتياطية بنجاح${NC}"
-    BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
-    echo "   📏 حجم النسخة الاحتياطية: $BACKUP_SIZE"
-else
-    echo -e "${RED}❌ فشل في إنشاء النسخة الاحتياطية${NC}"
-    echo "هل تريد المتابعة بدون نسخة احتياطية؟ (خطر!)"
-    read -p "(y/n): " -n 1 -r
-    echo ""
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo -e "${RED}تم إلغاء العملية${NC}"
-        exit 1
-    fi
-fi
-
-echo ""
-echo -e "${YELLOW}==== الخطوة 3: تطبيق الفهارس ====${NC}"
+# تم تعطيل النسخة الاحتياطية - متوفرة مسبقاً
+echo -e "${GREEN}✅ النسخة الاحتياطية متوفرة مسبقاً - الانتقال مباشرة للفهرسة${NC}"
 
 if [ -f "create_database_indexes.sh" ]; then
     echo "🚀 بدء تطبيق الفهارس..."
@@ -104,7 +78,7 @@ else
 fi
 
 echo ""
-echo -e "${YELLOW}==== الخطوة 4: اختبار الأداء ====${NC}"
+echo -e "${YELLOW}==== الخطوة 3: اختبار الأداء ====${NC}"
 
 if [ -f "test_database_performance.sh" ]; then
     echo "⚡ بدء اختبار الأداء..."
@@ -119,11 +93,17 @@ else
 fi
 
 echo ""
-echo -e "${YELLOW}==== الخطوة 5: تقرير النتائج النهائي ====${NC}"
+echo -e "${YELLOW}==== الخطوة 4: تقرير النتائج النهائي ====${NC}"
 
 # إنشاء تقرير شامل
 REPORT_FILE="database_optimization_report_$(date +%Y%m%d_%H%M%S).txt"
 echo "📊 إنشاء تقرير شامل: $REPORT_FILE"
+
+# معلومات قاعدة البيانات
+DB_HOST="localhost"
+DB_USER="u983550065_benaa101"
+DB_PASS="Benaa_101_109"
+DB_NAME="u983550065_civil_regitry1"
 
 cat > "$REPORT_FILE" << EOF
 =================================================
@@ -138,9 +118,8 @@ cat > "$REPORT_FILE" << EOF
 - تاريخ التنفيذ: $(date '+%Y-%m-%d %H:%M:%S')
 
 📦 النسخة الاحتياطية:
-- اسم الملف: $BACKUP_FILE
-- الحجم: $([ -f "$BACKUP_FILE" ] && du -h "$BACKUP_FILE" | cut -f1 || echo "غير متوفر")
-- الحالة: $([ -f "$BACKUP_FILE" ] && echo "تم الإنشاء بنجاح" || echo "فشل في الإنشاء")
+- الحالة: متوفرة مسبقاً (لم يتم إنشاء نسخة جديدة)
+- ملاحظة: تم تعطيل النسخة الاحتياطية التلقائية
 
 🗂️ الفهارس المُطبقة:
 $(mysql -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" -D"$DB_NAME" -se "SHOW INDEX FROM persons WHERE Key_name LIKE 'idx_%';" 2>/dev/null | awk '{print "- " $3}' || echo "لا توجد فهارس جديدة")
@@ -165,7 +144,7 @@ WHERE table_schema = '$DB_NAME' AND table_name = 'persons';" 2>/dev/null)
 
 ✅ حالة العملية:
 - فحص قاعدة البيانات: مكتمل
-- إنشاء النسخة الاحتياطية: $([ -f "$BACKUP_FILE" ] && echo "مكتمل" || echo "فشل")
+- النسخة الاحتياطية: متوفرة مسبقاً (معطلة)
 - تطبيق الفهارس: $([ $INDEX_RESULT -eq 0 ] && echo "مكتمل" || echo "فشل جزئي")
 - اختبار الأداء: مكتمل
 
@@ -188,7 +167,6 @@ echo -e "${GREEN}✅ تم إنشاء التقرير الشامل: $REPORT_FILE${
 echo ""
 echo -e "${GREEN}🎉 تمت العملية بنجاح!${NC}"
 echo -e "${BLUE}📋 الملفات المُنشأة:${NC}"
-[ -f "$BACKUP_FILE" ] && echo "   📦 $BACKUP_FILE"
 echo "   📊 $REPORT_FILE"
 [ -f "database_indexes_report.txt" ] && echo "   🗂️ database_indexes_report.txt"
 [ -f "performance_test_results.txt" ] && echo "   ⚡ performance_test_results.txt"
