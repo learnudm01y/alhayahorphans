@@ -17,16 +17,16 @@
                                 <i class="bi bi-plus-circle me-1"></i>
                                 إضافة مواطن
                             </a>
-                            <button type="button" class="btn btn-success btn-sm d-flex align-items-center justify-content-center"
+                            {{-- <button type="button" class="btn btn-success btn-sm d-flex align-items-center justify-content-center"
                                     onclick="openAdvancedSearch()">
                                 <i class="bi bi-search me-1"></i>
                                 البحث المتقدم
-                            </button>
-                            <button type="button" class="btn btn-primary btn-sm d-flex align-items-center justify-content-center"
+                            </button> --}}
+                            {{-- <button type="button" class="btn btn-primary btn-sm d-flex align-items-center justify-content-center"
                                     onclick="openScoutSearchModal()">
                                 <i class="fas fa-rocket me-1"></i>
                                 البحث السريع Scout
-                            </button>
+                            </button> --}}
                             <button type="button" class="btn btn-warning btn-sm d-flex align-items-center justify-content-center"
                                     data-bs-toggle="modal" data-bs-target="#civilRegistrySearchModal">
                                 <i class="fas fa-search-plus me-1"></i>

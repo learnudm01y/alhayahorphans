@@ -973,7 +973,6 @@ class FolderDuplicateDetectionService
             $documentType = $this->extractDocumentTypeFromFilename($fileName);
 
             $attachment = Attachment::create([
-                'record_number' => generateUniqueAttachmentRecordNumber(),
                 'person_identity_number' => $this->extractIdentityNumberFromOriginalName($file->getClientOriginalName()),
                 'stored_file_name' => $fileName,
                 'original_file_name' => $file->getClientOriginalName(),
