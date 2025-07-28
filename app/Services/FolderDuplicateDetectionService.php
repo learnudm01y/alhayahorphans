@@ -705,12 +705,7 @@ class FolderDuplicateDetectionService
             try {
                 $mimeType = $file->getMimeType() ?: 'application/octet-stream';
             } catch (\Exception $e) {
-                Log::warning('Could not get MIME type, using fallback', [
-                    'file' => $originalName,
-                    'error' => $e->getMessage()
-                ]);
-
-                // استخدام extension للحصول على MIME type تقريبي
+                // استخدام extension للحصول على MIME type تقريبي (silent fallback)
                 $extension = strtolower($file->getClientOriginalExtension());
                 $mimeType = match($extension) {
                     'jpg', 'jpeg' => 'image/jpeg',
@@ -972,13 +967,32 @@ class FolderDuplicateDetectionService
             // استخراج نوع الوثيقة من اسم الملف الجديد
             $documentType = $this->extractDocumentTypeFromFilename($fileName);
 
+            // الحصول على MIME type بشكل آمن
+            try {
+                $mimeType = $file->getMimeType() ?: 'application/octet-stream';
+            } catch (\Exception $e) {
+                // استخدام extension للحصول على MIME type تقريبي
+                $extension = strtolower($file->getClientOriginalExtension());
+                $mimeType = match($extension) {
+                    'jpg', 'jpeg' => 'image/jpeg',
+                    'png' => 'image/png',
+                    'gif' => 'image/gif',
+                    'pdf' => 'application/pdf',
+                    'doc' => 'application/msword',
+                    'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'xls' => 'application/vnd.ms-excel',
+                    'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    default => 'application/octet-stream'
+                };
+            }
+
             $attachment = Attachment::create([
                 'person_identity_number' => $this->extractIdentityNumberFromOriginalName($file->getClientOriginalName()),
                 'stored_file_name' => $fileName,
                 'original_file_name' => $file->getClientOriginalName(),
                 'file_path' => $filePath,
                 'file_size' => $file->getSize(),
-                'mime_type' => $file->getMimeType(),
+                'mime_type' => $mimeType,
                 'file_type' => $documentType, // استخدام نوع الوثيقة المستخرج من اسم الملف
                 'file_extension' => $extension,
                 'file_hash' => hash_file('md5', $file->getRealPath()),
@@ -1020,7 +1034,13 @@ class FolderDuplicateDetectionService
     protected function determineFileType(UploadedFile $file): string
     {
         $extension = strtolower($file->getClientOriginalExtension());
-        $mimeType = $file->getMimeType();
+
+        // الحصول على MIME type بشكل آمن
+        try {
+            $mimeType = $file->getMimeType() ?: 'application/octet-stream';
+        } catch (\Exception $e) {
+            $mimeType = 'application/octet-stream';
+        }
 
         if (in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp']) ||
             str_starts_with($mimeType, 'image/')) {

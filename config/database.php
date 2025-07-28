@@ -67,13 +67,11 @@ return [
         'civilregistry' => [
             'driver' => 'mysql',
             'url' => env('CIVIL_DATABASE_URL'),
-            'host' => env('CIVIL_DB_HOST', '127.0.0.1'),
+            'host' => env('CIVIL_DB_HOST', 'localhost'),
             'port' => env('CIVIL_DB_PORT', '3306'),
-            'database' => env('CIVIL_DB_DATABASE', 'forge'),
-            'username' => env('CIVIL_DB_USERNAME', 'forge'),
-            // 'database' => env('CIVIL_DB_DATABASE', 'civilregistry'),
-            // 'username' => env('CIVIL_DB_USERNAME', 'root'),
-            'password' => env('CIVIL_DB_PASSWORD', ''),
+            'database' => env('CIVIL_DB_DATABASE', 'u983550065_civil_regitry1'),
+            'username' => env('CIVIL_DB_USERNAME', 'u983550065_benaa101'),
+            'password' => env('CIVIL_DB_PASSWORD', 'Benaa_101_109'),
             'unix_socket' => env('CIVIL_DB_SOCKET', ''),
             'charset' => 'utf8mb4',
             'collation' => 'utf8mb4_unicode_ci',
@@ -83,6 +81,9 @@ return [
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+                PDO::ATTR_EMULATE_PREPARES => false,
+                PDO::ATTR_STRINGIFY_FETCHES => false,
+                PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => true,
             ]) : [],
         ],
 
