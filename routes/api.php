@@ -2,10 +2,12 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\UnifiedFileManagementController;
 use App\Http\Controllers\SimpleFileUploadController;
 use App\Http\Controllers\DuplicateFileController;
 use App\Http\Controllers\Api\FileAnalyticsController;
+use App\Models\City;
 use App\Services\UltraFastSearchService;
 use App\Services\LightningSearchService;
 use App\Services\ExactMatchSearchService;
@@ -369,4 +371,170 @@ Route::get('/search/exact-only', function (Request $request) {
             'engine' => 'Exact Only Search'
         ], 500);
     }
+});
+
+// Route بسيط لجلب اسم الشخص من جدول data
+Route::get('/person-name/{id_number}', function ($id_number) {
+    try {
+        $person = DB::table('data')
+            ->where('data_id_number', $id_number)
+            ->first();
+
+        if ($person) {
+            $fullName = trim(($person->data_first_name ?: '') . ' ' .
+                           ($person->data_father_name ?: '') . ' ' .
+                           ($person->data_grand_father_name ?: '') . ' ' .
+                           ($person->data_family_name ?: ''));
+
+            // جلب اسم المدينة من جدول city
+            $cityName = 'غير محدد';
+            if ($person->data_city) {
+                $city = City::find($person->data_city);
+                if ($city && $city->city && $city->city !== '-' && $city->city !== 'غير معرف') {
+                    $cityName = $city->city;
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'full_name' => $fullName,
+                'first_name' => $person->data_first_name ?: '',
+                'father_name' => $person->data_father_name ?: '',
+                'grand_father_name' => $person->data_grand_father_name ?: '',
+                'family_name' => $person->data_family_name ?: '',
+                'gender' => $person->data_gender ?: '',
+                'city' => $cityName,
+                'city_code' => $person->data_city,
+                'id_number' => $id_number
+            ]);
+        } else {
+            return response()->json([
+                'success' => false,
+                'message' => 'لم يتم العثور على شخص بهذا الرقم'
+            ], 404);
+        }
+    } catch (Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'حدث خطأ: ' . $e->getMessage()
+        ], 500);
+    }
+});
+
+// File Gallery API Routes - لإدارة معاينة وتحميل وحذف الصور
+Route::prefix('gallery')->group(function () {
+    // جلب ملفات مجلد معين
+    Route::get('/folder/{folder_name}', function ($folder_name) {
+        try {
+            $uploadsPath = public_path('uploads/' . $folder_name);
+
+            if (!is_dir($uploadsPath)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'المجلد غير موجود',
+                    'files' => []
+                ]);
+            }
+
+            $files = [];
+            $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'pdf', 'doc', 'docx'];
+
+            foreach (scandir($uploadsPath) as $file) {
+                if ($file === '.' || $file === '..') continue;
+
+                $filePath = $uploadsPath . '/' . $file;
+                if (is_file($filePath)) {
+                    $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+
+                    if (in_array($extension, $allowedExtensions)) {
+                        $fileInfo = [
+                            'name' => $file,
+                            'original_name' => $file,
+                            'size' => filesize($filePath),
+                            'size_formatted' => round(filesize($filePath) / 1024, 2) . ' KB',
+                            'extension' => $extension,
+                            'is_image' => in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp']),
+                            'url' => url('uploads/' . $folder_name . '/' . $file),
+                            'modified_at' => date('Y-m-d H:i:s', filemtime($filePath))
+                        ];
+
+                        $files[] = $fileInfo;
+                    }
+                }
+            }
+
+            // ترتيب الملفات حسب تاريخ التعديل (الأحدث أولاً)
+            usort($files, function($a, $b) {
+                return strtotime($b['modified_at']) - strtotime($a['modified_at']);
+            });
+
+            return response()->json([
+                'success' => true,
+                'folder_name' => $folder_name,
+                'files_count' => count($files),
+                'files' => $files
+            ]);
+
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ: ' . $e->getMessage(),
+                'files' => []
+            ], 500);
+        }
+    });
+
+    // حذف ملف
+    Route::delete('/file/{folder_name}/{file_name}', function ($folder_name, $file_name) {
+        try {
+            $filePath = public_path('uploads/' . $folder_name . '/' . $file_name);
+
+            if (!file_exists($filePath)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'الملف غير موجود'
+                ], 404);
+            }
+
+            if (unlink($filePath)) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'تم حذف الملف بنجاح'
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'فشل في حذف الملف'
+                ], 500);
+            }
+
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ: ' . $e->getMessage()
+            ], 500);
+        }
+    });
+
+    // تنزيل ملف
+    Route::get('/download/{folder_name}/{file_name}', function ($folder_name, $file_name) {
+        try {
+            $filePath = public_path('uploads/' . $folder_name . '/' . $file_name);
+
+            if (!file_exists($filePath)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'الملف غير موجود'
+                ], 404);
+            }
+
+            return response()->download($filePath, $file_name);
+
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ: ' . $e->getMessage()
+            ], 500);
+        }
+    });
 });
