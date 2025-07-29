@@ -2,6 +2,8 @@
 @section('content')
     <!-- إضافة CSRF token -->
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <!-- إضافة animate.css للحصول على انيميشن أفضل -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
     <!-- إضافة النظام الجديد لقياس سرعة الإنترنت -->
     <script src="{{ asset('js/real-speed-test.js') }}"></script>
     <style>
@@ -885,6 +887,156 @@
                 color: #2c3e50;
             }
         }
+
+        /* SweetAlert تحسينات مخصصة للملفات المكررة */
+        .duplicate-alert-popup {
+            border-radius: 15px !important;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3) !important;
+        }
+
+        .duplicate-alert-title {
+            color: #e74c3c !important;
+            font-weight: bold !important;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1) !important;
+        }
+
+        .duplicate-alert-html {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+        }
+
+        .duplicate-alert-content .btn {
+            transition: all 0.3s ease !important;
+            font-weight: 600 !important;
+            border: none !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15) !important;
+        }
+
+        .duplicate-alert-content .btn:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.25) !important;
+        }
+
+        .duplicate-alert-content .btn-warning:hover {
+            background: linear-gradient(45deg, #f39c12, #e67e22) !important;
+        }
+
+        .duplicate-alert-content .btn-success:hover {
+            background: linear-gradient(45deg, #27ae60, #2ecc71) !important;
+        }
+
+        .duplicate-alert-content .alert {
+            background: linear-gradient(135deg, #fff3cd 0%, #fef9e7 100%) !important;
+            border: 1px solid #ffc107 !important;
+        }
+
+        .duplicate-alert-content .badge {
+            font-size: 14px !important;
+            padding: 8px 12px !important;
+            border-radius: 20px !important;
+        }
+
+        /* انيميشن CSS للـ SweetAlert */
+        .swal2-popup.duplicate-alert-popup {
+            animation: duplicateAlertSlideIn 0.5s ease-out;
+        }
+
+        @keyframes duplicateAlertSlideIn {
+            0% {
+                transform: translateY(-50px) scale(0.9);
+                opacity: 0;
+            }
+            100% {
+                transform: translateY(0) scale(1);
+                opacity: 1;
+            }
+        }
+
+        /* تحسينات الأيقونة في SweetAlert */
+        .swal2-icon.swal2-warning .swal2-icon-content {
+            font-size: 3.5rem !important;
+            font-weight: bold !important;
+        }
+
+        .swal2-icon.swal2-error .swal2-icon-content {
+            font-size: 3.5rem !important;
+            font-weight: bold !important;
+        }
+
+        /* انيميشن خاص للملفات المكررة */
+        @keyframes pulse-duplicate {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 2px 8px rgba(255, 193, 7, 0.3);
+            }
+            50% {
+                transform: scale(1.02);
+                box-shadow: 0 4px 16px rgba(255, 193, 7, 0.6);
+            }
+        }
+
+        .duplicate-file {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .duplicate-file::before {
+            content: '⚠️';
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            font-size: 1.2rem;
+            background: rgba(255, 193, 7, 0.9);
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            animation: bounce 2s infinite;
+        }
+
+        .duplicate-file:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(255, 193, 7, 0.4) !important;
+        }
+
+        /* تحسين انيميشن pulse للملفات المكررة */
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.8;
+                transform: scale(1.05);
+            }
+        }
+
+        /* انيميشن shake للفشل */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+            20%, 40%, 60%, 80% { transform: translateX(2px); }
+        }
+
+        /* انيميشن bounce للنجاح */
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        /* انيميشن fadeIn */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        /* انيميشن pulse-processing للمعالجة */
+        @keyframes pulse-processing {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
     </style>
        <!-- تحسينات للأجهزة المحمولة -->
     <style>
@@ -1297,21 +1449,29 @@
                                     <small class="text-muted fw-bold" id="progressText" style="transition: all 0.3s ease;">جاري التحضير...</small>
                                 </div>
                                 <div class="row text-center">
-                                    <div class="col-3">
+                                    <div class="col-2">
                                         <div class="h5 mb-0" id="totalFiles">0</div>
                                         <small class="text-muted">إجمالي الملفات</small>
                                     </div>
-                                    <div class="col-3">
+                                    <div class="col-2">
                                         <div class="h5 mb-0 text-success" id="completedFiles">0</div>
                                         <small class="text-muted">مكتملة</small>
                                     </div>
-                                    <div class="col-3">
+                                    <div class="col-2">
                                         <div class="h5 mb-0 text-warning" id="processingFiles">0</div>
                                         <small class="text-muted">قيد المعالجة</small>
                                     </div>
-                                    <div class="col-3">
+                                    <div class="col-2">
                                         <div class="h5 mb-0 text-danger" id="failedFiles">0</div>
                                         <small class="text-muted">فاشلة</small>
+                                    </div>
+                                    <div class="col-2">
+                                        <div class="h5 mb-0 text-warning" id="duplicateFiles" style="color: #ff8c00 !important;">0</div>
+                                        <small class="text-muted">مكررة</small>
+                                    </div>
+                                    <div class="col-2">
+                                        <div class="h5 mb-0 text-info" id="pendingFiles">0</div>
+                                        <small class="text-muted">في الانتظار</small>
                                     </div>
                                 </div>
                             </div>

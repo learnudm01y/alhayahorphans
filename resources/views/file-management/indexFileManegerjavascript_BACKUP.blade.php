@@ -1535,13 +1535,51 @@ let duplicateManager = null;
 
                         if (status === 'processing') {
                             statusLabel.innerText = 'قيد المعالجة';
+                            statusLabel.className = 'badge bg-primary text-white';
+                            statusLabel.style.background = 'linear-gradient(45deg, #007bff, #0056b3)';
+                            statusLabel.style.fontWeight = 'bold';
+                            statusLabel.style.animation = 'pulse-processing 1.5s infinite';
                             overlay.style.display = 'flex';
+                            if (fileElement) {
+                                fileElement.classList.add('processing');
+                            }
                         } else if (status === 'completed') {
                             statusLabel.innerText = 'مكتملة';
+                            statusLabel.className = 'badge bg-success text-white';
+                            statusLabel.style.background = 'linear-gradient(45deg, #28a745, #20c997)';
+                            statusLabel.style.fontWeight = 'bold';
+                            statusLabel.style.animation = 'bounce 0.5s ease';
                             overlay.style.display = 'none';
+                            if (fileElement) {
+                                fileElement.classList.remove('processing');
+                                fileElement.style.animation = 'fadeIn 0.3s ease';
+                            }
                         } else if (status === 'failed') {
                             statusLabel.innerText = 'فاشلة';
+                            statusLabel.className = 'badge bg-danger text-white';
+                            statusLabel.style.background = 'linear-gradient(45deg, #dc3545, #c82333)';
+                            statusLabel.style.fontWeight = 'bold';
+                            statusLabel.style.animation = 'shake 0.5s ease';
                             overlay.style.display = 'none';
+                            if (fileElement) {
+                                fileElement.classList.remove('processing');
+                            }
+                        } else if (status === 'duplicate') {
+                            statusLabel.innerText = 'مكرر';
+                            statusLabel.className = 'badge bg-warning text-dark';
+                            statusLabel.style.background = 'linear-gradient(45deg, #ffc107, #ff8c00)';
+                            statusLabel.style.fontWeight = 'bold';
+                            statusLabel.style.animation = 'pulse 2s infinite';
+                            statusLabel.style.boxShadow = '0 2px 8px rgba(255, 193, 7, 0.4)';
+                            statusLabel.style.border = '2px solid #ff8c00';
+                            overlay.style.display = 'none';
+                            if (fileElement) {
+                                fileElement.classList.remove('processing');
+                                fileElement.classList.add('duplicate-file');
+                                fileElement.style.border = '2px solid #ffc107';
+                                fileElement.style.background = 'linear-gradient(135deg, #fff3cd 0%, #fef9e7 100%)';
+                                fileElement.style.animation = 'pulse-duplicate 3s infinite';
+                            }
                         }
                     }
 
