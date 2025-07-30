@@ -88,13 +88,16 @@
         }
 
         .file-preview.card {
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
             border: 1px solid #e3e6f0;
+            will-change: transform;
+            backface-visibility: hidden;
+            transform: translateZ(0);
         }
 
         .file-preview.card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            transform: translateY(-2px) translateZ(0);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
             border-color: #5a5c69;
         }
 
@@ -334,11 +337,13 @@
         }
 
         .file-preview img {
-            transition: transform 0.3s ease;
+            transition: transform 0.2s ease;
+            will-change: transform;
+            backface-visibility: hidden;
         }
 
         .file-preview img:hover {
-            transform: scale(1.05);
+            transform: scale(1.02) translateZ(0);
         }
 
         /* Dropdown Styles for File Cards */
@@ -433,11 +438,13 @@
         /* تحسينات معاينة الصور المحلية */
         .file-preview img {
             border-radius: 4px;
-            transition: transform 0.3s ease;
+            transition: transform 0.2s ease;
+            will-change: transform;
+            backface-visibility: hidden;
         }
 
         .file-preview img:hover {
-            transform: scale(1.02);
+            transform: scale(1.01) translateZ(0);
         }
 
         .file-preview .position-relative {
@@ -488,6 +495,38 @@
 
             .folder-controls {
                 margin-top: 0.5rem;
+            }
+        }
+
+        /* تحسينات الأداء لتمرير سلس */
+        * {
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .file-preview.card,
+        .file-preview img,
+        .folder-section {
+            -webkit-transform: translateZ(0);
+            -moz-transform: translateZ(0);
+            -ms-transform: translateZ(0);
+            -o-transform: translateZ(0);
+            transform: translateZ(0);
+        }
+
+        .folder-files-grid {
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            -webkit-perspective: 1000;
+            perspective: 1000;
+        }
+
+        /* تقليل تأثيرات الانتقال للأجهزة الأبطأ */
+        @media (prefers-reduced-motion: reduce) {
+            .file-preview.card,
+            .file-preview img,
+            .folder-section {
+                transition: none !important;
+                animation: none !important;
             }
         }
     </style>
@@ -1544,10 +1583,10 @@
                         try {
                             const response = await fetch(`/api/person-name/${identityNumber}`);
                             const data = await response.json();
-                            
+
                             const nameElement = document.getElementById(`person-name-${folderId}`);
                             const titleElement = document.getElementById(`folder-title-${folderId}`);
-                            
+
                             if (nameElement) {
                                 if (data.success) {
                                     // تحديث عنوان المجلد بالاسم الكامل
@@ -1555,7 +1594,7 @@
                                         titleElement.innerHTML = `<i class="fas fa-user-check text-success me-2"></i>${data.full_name}`;
                                         titleElement.className = 'mb-1 text-success fw-bold';
                                     }
-                                    
+
                                     // عرض ناجح مع معلومات كاملة
                                     nameElement.innerHTML = `
                                         <div class="success-state">
@@ -1565,8 +1604,8 @@
                                                     <strong class="h6 text-primary">${identityNumber}</strong>
                                                 </div>
                                                 <small class="text-muted d-flex align-items-center">
-                                                    ${data.city && data.city !== 'غير محدد' ? 
-                                                        `<i class="fas fa-map-marker-alt me-1 text-info"></i>المدينة: <span class="fw-bold text-dark">${data.city}</span>` : 
+                                                    ${data.city && data.city !== 'غير محدد' ?
+                                                        `<i class="fas fa-map-marker-alt me-1 text-info"></i>المدينة: <span class="fw-bold text-dark">${data.city}</span>` :
                                                         `<i class="fas fa-question-circle me-1 text-secondary"></i><span class="text-secondary">المدينة غير محددة</span>`
                                                     }
                                                 </small>
@@ -1580,7 +1619,7 @@
                                         titleElement.innerHTML = `<i class="fas fa-user-times text-warning me-2"></i>رقم هوية: ${identityNumber}`;
                                         titleElement.className = 'mb-1 text-warning';
                                     }
-                                    
+
                                     // حالة عدم وجود البيانات
                                     nameElement.innerHTML = `
                                         <div class="not-found-state">
@@ -1598,12 +1637,12 @@
                             // حالة خطأ في الشبكة
                             const nameElement = document.getElementById(`person-name-${folderId}`);
                             const titleElement = document.getElementById(`folder-title-${folderId}`);
-                            
+
                             if (titleElement) {
                                 titleElement.innerHTML = `<i class="fas fa-exclamation-triangle text-danger me-2"></i>رقم هوية: ${identityNumber}`;
                                 titleElement.className = 'mb-1 text-danger';
                             }
-                            
+
                             if (nameElement) {
                                 nameElement.innerHTML = `
                                     <div class="error-state">
@@ -1662,7 +1701,7 @@
                                                                 <div class="mb-3">
                                                                     <label class="fw-bold text-primary">الجنس:</label>
                                                                     <p class="mb-0">
-                                                                        ${data.gender == '1' ? '<i class="fas fa-mars text-info me-1"></i>ذكر' : 
+                                                                        ${data.gender == '1' ? '<i class="fas fa-mars text-info me-1"></i>ذكر' :
                                                                           data.gender == '2' ? '<i class="fas fa-venus text-pink me-1"></i>أنثى' : 'غير محدد'}
                                                                     </p>
                                                                 </div>
@@ -1722,7 +1761,7 @@
 
                                 // إضافة المودال الجديد
                                 document.body.appendChild(modal);
-                                
+
                                 // إظهار المودال
                                 const bsModal = new bootstrap.Modal(modal);
                                 bsModal.show();
@@ -1752,7 +1791,7 @@
                         let iconClass = 'fas fa-file';
                         let iconColor = 'text-secondary';
                         const isImage = fileData.type === 'image';
-                        
+
                         if (isImage) {
                             iconClass = 'fas fa-image';
                             iconColor = 'text-success';
@@ -1772,8 +1811,8 @@
                         if (isImage) {
                             const previewUrl = URL.createObjectURL(fileData.file);
                             previewContent = `
-                                <img src="${previewUrl}" alt="${fileData.file.name}" 
-                                     class="img-fluid w-100 h-100" 
+                                <img src="${previewUrl}" alt="${fileData.file.name}"
+                                     class="img-fluid w-100 h-100"
                                      style="object-fit: cover; cursor: pointer;"
                                      onclick="previewLocalFile('${fileData.id}', '${fileData.file.name}', true)">
                             `;
@@ -1809,7 +1848,7 @@
                                             ${this.formatFileSize(fileData.file.size)}
                                         </small>
                                         <div class="btn-group btn-group-sm">
-                                            ${isImage ? 
+                                            ${isImage ?
                                                 `<button class="btn btn-outline-primary btn-sm" onclick="previewLocalFile('${fileData.id}', '${fileData.file.name}', true)" title="معاينة">
                                                     <i class="fas fa-eye"></i>
                                                  </button>` :
@@ -1830,15 +1869,6 @@
                                 </div>
                             </div>
                         `;
-
-                        // تفعيل Bootstrap dropdown بعد إنشاء العنصر
-                        setTimeout(() => {
-                            const dropdownElement = fileElement.querySelector('[data-bs-toggle="dropdown"]');
-                            if (dropdownElement && !dropdownElement.getAttribute('data-bs-initialized')) {
-                                new bootstrap.Dropdown(dropdownElement);
-                                dropdownElement.setAttribute('data-bs-initialized', 'true');
-                            }
-                        }, 100);
 
                         return fileElement;
                     }
@@ -2202,7 +2232,7 @@
                             try {
                                 const result = await this.uploadFolderFile(this.processedFiles, this.currentUploadType);
                                 console.log('🎉 اكتملت عملية الرفع والتحويل بنجاح!', result);
-                                this.showAlert('تم رفع ملفات المجلد بنجاح!', 'success');
+                                // this.showAlert('تم رفع ملفات المجلد بنجاح!', 'success');
 
                                 // تحديث الملفات المعروضة في المجلدات تلقائياً
                                 this.refreshAllFolderFiles();
@@ -2212,7 +2242,7 @@
                                 this.currentUploadType = null;
                             } catch (error) {
                                 console.error('❌ فشلت عملية الرفع:', error);
-                                this.showAlert('فشلت عملية رفع ملفات المجلد: ' + error.message, 'error');
+                                // this.showAlert('فشلت عملية رفع ملفات المجلد: ' + error.message, 'error');
                             } finally {
                                 // إخفاء شريط التقدم بعد الانتهاء من رفع المجلد
                                 setTimeout(() => {
@@ -3898,25 +3928,25 @@
                 /**
                  * File Gallery Functions - وظائف معرض الصور
                  */
-                
+
                 // جلب وعرض ملفات المجلد
                 async function loadFolderFiles(folderName, folderId) {
                     try {
                         console.log(`🔄 جلب ملفات المجلد: ${folderName} (ID: ${folderId})`);
-                        
+
                         // إظهار مؤشر التحميل
                         showFileLoadingIndicator(folderId);
-                        
+
                         const response = await fetch(`/api/gallery/folder/${encodeURIComponent(folderName)}`);
-                        
+
                         if (!response.ok) {
                             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                         }
-                        
+
                         const data = await response.json();
-                        
+
                         console.log(`📁 نتائج API للمجلد ${folderName}:`, data);
-                        
+
                         if (data.success && data.files && data.files.length > 0) {
                             console.log(`✅ تم العثور على ${data.files.length} ملف في المجلد ${folderName}`);
                             showFilesGallery(folderName, data.files, folderId);
@@ -3973,20 +4003,20 @@
                         const isImage = file.is_image;
                         const safeFileName = file.name.replace(/'/g, "\\'").replace(/"/g, '\\"');
                         const safeFolderName = folderName.replace(/'/g, "\\'").replace(/"/g, '\\"');
-                        
+
                         filesHtml += `
                             <div class="col-md-3 col-sm-4 col-6">
                                 <div class="file-card card h-100 position-relative">
                                     <!-- قائمة منسدلة للخيارات -->
                                     <div class="dropdown position-absolute" style="top: 5px; right: 5px; z-index: 10;">
-                                        <button class="btn btn-sm btn-light dropdown-toggle" type="button" 
-                                                id="actionsMenu_file_${file.name.replace(/[^a-zA-Z0-9]/g, '_')}_${folderId}" 
-                                                data-bs-toggle="dropdown" 
+                                        <button class="btn btn-sm btn-light dropdown-toggle" type="button"
+                                                id="actionsMenu_file_${file.name.replace(/[^a-zA-Z0-9]/g, '_')}_${folderId}"
+                                                data-bs-toggle="dropdown"
                                                 aria-expanded="false">
                                             <i class="fas fa-ellipsis-v"></i>
                                         </button>
                                         <ul class="dropdown-menu" aria-labelledby="actionsMenu_file_${file.name.replace(/[^a-zA-Z0-9]/g, '_')}_${folderId}">
-                                            ${isImage ? 
+                                            ${isImage ?
                                                 `<li><a class="dropdown-item" href="#" onclick="previewFile('${file.url}', '${safeFileName}', true); return false;">
                                                     <i class="fas fa-eye me-2"></i>معاينة الصورة
                                                  </a></li>` :
@@ -4003,11 +4033,11 @@
                                             </a></li>
                                         </ul>
                                     </div>
-                                    
+
                                     <div class="file-preview" style="height: 150px; overflow: hidden;">
-                                        ${isImage ? 
-                                            `<img src="${file.url}" alt="${file.name}" 
-                                                 class="img-fluid w-100 h-100" 
+                                        ${isImage ?
+                                            `<img src="${file.url}" alt="${file.name}"
+                                                 class="img-fluid w-100 h-100"
                                                  style="object-fit: cover; cursor: pointer;"
                                                  onclick="previewFile('${file.url}', '${safeFileName}', true)">` :
                                             `<div class="d-flex align-items-center justify-content-center h-100 bg-light">
@@ -4023,7 +4053,7 @@
                                             ${file.size_formatted}
                                         </p>
                                         <div class="btn-group w-100" role="group">
-                                            ${isImage ? 
+                                            ${isImage ?
                                                 `<button class="btn btn-outline-primary btn-sm" onclick="previewFile('${file.url}', '${safeFileName}', true)" title="معاينة">
                                                     <i class="fas fa-eye"></i>
                                                  </button>` :
@@ -4050,7 +4080,7 @@
                     `;
 
                     filesContainer.innerHTML = filesHtml;
-                    
+
                     // تفعيل Bootstrap dropdowns بعد إنشاء HTML
                     setTimeout(() => {
                         const dropdownElements = filesContainer.querySelectorAll('[data-bs-toggle="dropdown"]');
@@ -4147,7 +4177,7 @@
 
                         // إضافة المودال الجديد
                         document.body.insertAdjacentHTML('beforeend', modalHtml);
-                        
+
                         // عرض المودال
                         const modal = new bootstrap.Modal(document.getElementById('filePreviewModal'));
                         modal.show();
@@ -4158,7 +4188,7 @@
                 async function downloadFile(folderName, fileName) {
                     try {
                         const url = `/api/gallery/download/${encodeURIComponent(folderName)}/${encodeURIComponent(fileName)}`;
-                        
+
                         // إنشاء رابط وهمي للتنزيل
                         const link = document.createElement('a');
                         link.href = url;
@@ -4166,7 +4196,7 @@
                         document.body.appendChild(link);
                         link.click();
                         document.body.removeChild(link);
-                        
+
                         showAlert('تم بدء تنزيل الملف', 'success');
                     } catch (error) {
                         console.error('خطأ في تنزيل الملف:', error);
@@ -4212,32 +4242,32 @@
                 // تحديث جميع المجلدات المعروضة
                 function refreshAllFolderFiles() {
                     console.log('🔄 بدء تحديث جميع المجلدات المعروضة...');
-                    
+
                     // البحث عن جميع المجلدات المعروضة وتحديث ملفاتها
                     const folderSections = document.querySelectorAll('[id^="folder-section-"]');
-                    
+
                     if (folderSections.length === 0) {
                         console.log('⚠️ لا توجد مجلدات معروضة للتحديث');
                         return;
                     }
-                    
+
                     console.log(`📁 تم العثور على ${folderSections.length} مجلد للتحديث`);
-                    
+
                     folderSections.forEach((section, index) => {
                         const folderId = section.id.replace('folder-section-', '');
                         const folderNameElement = section.querySelector('.folder-name');
-                        
+
                         if (folderNameElement) {
                             const folderName = folderNameElement.textContent.trim();
                             console.log(`🔄 تحديث ملفات المجلد: ${folderName} (ID: ${folderId})`);
-                            
+
                             // تأخير تدريجي لتجنب الحمولة الزائدة
                             setTimeout(() => {
                                 loadFolderFiles(folderName, folderId);
                             }, index * 200); // تأخير 200ms بين كل مجلد
                         }
                     });
-                    
+
                     console.log('✅ تم بدء تحديث جميع المجلدات');
                 }
 
@@ -4260,15 +4290,15 @@
                 // عرض رسالة تنبيه
                 function showAlert(message, type = 'info') {
                     const alertHtml = `
-                        <div class="alert alert-${type} alert-dismissible fade show position-fixed" 
+                        <div class="alert alert-${type} alert-dismissible fade show position-fixed"
                              style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;">
                             ${message}
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
                     `;
-                    
+
                     document.body.insertAdjacentHTML('beforeend', alertHtml);
-                    
+
                     // إزالة التنبيه تلقائياً بعد 5 ثوان
                     setTimeout(() => {
                         const alerts = document.querySelectorAll('.alert');
@@ -4290,7 +4320,7 @@
                     if (!fileData || !isImage) return;
 
                     const previewUrl = URL.createObjectURL(fileData.file);
-                    
+
                     const modalHtml = `
                         <div class="modal fade" id="localFilePreviewModal" tabindex="-1">
                             <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -4331,7 +4361,7 @@
 
                     // إضافة المودال الجديد
                     document.body.insertAdjacentHTML('beforeend', modalHtml);
-                    
+
                     // عرض المودال
                     const modal = new bootstrap.Modal(document.getElementById('localFilePreviewModal'));
                     modal.show();
@@ -4349,10 +4379,10 @@
                     if (!fileData) return;
 
                     const fileUrl = URL.createObjectURL(fileData.file);
-                    
+
                     // فتح الملف في نافذة جديدة
                     const newWindow = window.open(fileUrl, '_blank');
-                    
+
                     // تنظيف URL بعد فترة
                     setTimeout(() => {
                         URL.revokeObjectURL(fileUrl);
@@ -4371,10 +4401,10 @@
                         if (fileData.previewUrl) {
                             URL.revokeObjectURL(fileData.previewUrl);
                         }
-                        
+
                         // إزالة الملف من الخريطة
                         app.files.delete(fileId);
-                        
+
                         // إزالة العنصر من الواجهة
                         const fileElement = document.querySelector(`[data-file-id="${fileId}"]`);
                         if (fileElement) {
@@ -4383,7 +4413,7 @@
 
                         // تحديث العدادات
                         app.updateFileCounts();
-                        
+
                         console.log(`🗑️ تم إزالة الملف ${fileId} من قائمة الانتظار`);
                         showAlert('تم إزالة الملف من قائمة الانتظار', 'success');
                     }
