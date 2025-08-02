@@ -161,3 +161,110 @@ if (!function_exists('generateUniqueCode')) {
         return substr(str_replace('.', '', microtime(true) * 1000), -6);
     }
 }
+
+if (!function_exists('generateUniqueAttachmentRecordNumber')) {
+    /**
+     * توليد رقم مرفق فريد بالبادئة exc_ للاستخدام في جدول enhanced_attachments
+     * يضمن التفرد مع استخدام طريقة مبسطة للاستضافة المشتركة
+     *
+     * @param string $sessionId معرف الجلسة الفريد
+     * @return string الرقم المولد بصيغة exc_XXXXXX
+     */
+    function generateUniqueAttachmentRecordNumber(string $sessionId = null): string
+    {
+        $sessionId = $sessionId ?: 'attachment_' . session()->getId() . '_' . time();
+
+        return DB::transaction(function () use ($sessionId) {
+            $maxAttempts = 50;
+
+            for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+                // الحصول على أكبر رقم من enhanced_attachments (إزالة البادئة للمقارنة)
+                $maxAttachment = DB::table('enhanced_attachments')
+                    ->where('record_number', 'LIKE', 'exc_%')
+                    ->selectRaw('MAX(CAST(SUBSTRING(record_number, 5) AS UNSIGNED)) as max_num')
+                    ->value('max_num');
+
+                // حساب الرقم التالي
+                $nextNumber = (int)$maxAttachment + 1;
+                $newRecordNumber = 'exc_' . str_pad($nextNumber, 6, '0', STR_PAD_LEFT);
+
+                // التحقق من عدم وجود الرقم في enhanced_attachments
+                $existsInAttachments = DB::table('enhanced_attachments')
+                    ->where('record_number', $newRecordNumber)
+                    ->exists();
+
+                if (!$existsInAttachments) {
+                    Log::info('Generated unique attachment record number', [
+                        'record_number' => $newRecordNumber,
+                        'session_id' => $sessionId,
+                        'attempt' => $attempt,
+                        'max_attachment' => $maxAttachment
+                    ]);
+
+                    return $newRecordNumber;
+                }
+            }
+
+            // إذا فشل في التوليد، استخدم نظام طوارئ
+            $emergencyNumber = 'exc_' . substr(time(), -6) . rand(10, 99);
+            Log::warning('Using emergency attachment record number', [
+                'emergency_number' => $emergencyNumber,
+                'session_id' => $sessionId
+            ]);
+
+            return $emergencyNumber;
+        });
+    }
+}
+
+if (!function_exists('generateFileIdFromDataTable')) {
+    /**
+     * Generate file_id_number using the data table sequence (same algorithm as existing system)
+     *
+     * @return string
+     */
+    function generateFileIdFromDataTable(): string
+    {
+        return DB::transaction(function () {
+            // جلب آخر file_id_number من جدول data
+            $lastFileId = DB::table('data')
+                ->select('file_id_number')
+                ->whereNotNull('file_id_number')
+                ->whereRaw("file_id_number REGEXP '^[0-9]+$'")
+                ->orderByRaw('CAST(file_id_number as UNSIGNED) DESC')
+                ->value('file_id_number');
+
+            // حساب الرقم التالي
+            $nextNumber = $lastFileId ? ((int)$lastFileId + 1) : 1;
+
+            // إرجاع الرقم مع 6 خانات
+            return str_pad($nextNumber, 6, '0', STR_PAD_LEFT);
+        });
+    }
+}
+
+if (!function_exists('getFileIdByIdentityNumber')) {
+    /**
+     * Get file_id_number for a given identity number from data table
+     * If not found, create a new one using the standard algorithm
+     *
+     * @param string $identityNumber
+     * @return string|null
+     */
+    function getFileIdByIdentityNumber(string $identityNumber): ?string
+    {
+        // البحث عن رقم الهوية في جدول data
+        $record = DB::table('data')
+            ->select('file_id_number')
+            ->where('person_id', $identityNumber)
+            ->orWhere('guardian_id', $identityNumber)
+            ->first();
+
+        if ($record && $record->file_id_number) {
+            return $record->file_id_number;
+        }
+
+        // إذا لم يوجد، إنشاء رقم جديد باستخدام الخوارزمية المعتمدة
+        return generateFileIdFromDataTable();
+    }
+}
