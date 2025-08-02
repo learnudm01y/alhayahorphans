@@ -225,6 +225,10 @@ Route::group(['prefix' => 'admin/file'], function() {
     // العرض الآمن للملفات من storage
     Route::get('/show/{filename}', [UnifiedFileManagementController::class, 'showSecureFile'])
         ->name('admin.file.show');
+
+    // اختبار نظام إدارة المجلدات
+    Route::get('/diagnostic/folders', [App\Http\Controllers\Admin\DiagnosticController::class, 'testFolderSystem'])
+        ->name('admin.diagnostic.folders');
 });
 
 // Speedtest Routes - Production Ready

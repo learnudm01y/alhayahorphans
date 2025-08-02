@@ -201,6 +201,25 @@
                     </div>
                 @endif
 
+                @if(isset($debug_info))
+                    <div class="alert alert-light d-flex align-items-center p-5 mb-5">
+                        <i class="ki-duotone ki-information fs-2hx text-primary me-4">
+                            <span class="path1"></span>
+                            <span class="path2"></span>
+                        </i>
+                        <div class="d-flex flex-column">
+                            <h4 class="mb-1 text-dark">معلومات تشخيصية</h4>
+                            <div class="text-muted fs-7">
+                                <div>📁 مجلدات من جدول attachments: {{ $debug_info['attachment_folders_found'] ?? 0 }}</div>
+                                <div>📂 مجلدات من جدول enhanced_attachments: {{ $debug_info['enhanced_folders_found'] ?? 0 }}</div>
+                                <div>📋 إجمالي المجلدات المعالجة: {{ $debug_info['total_processed_folders'] ?? 0 }}</div>
+                                <div>🗂️ مسار storage: {{ $debug_info['storage_path'] ?? 'غير محدد' }}</div>
+                                <div>🔗 مسار public: {{ $debug_info['public_path'] ?? 'غير محدد' }}</div>
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
                 <!--begin::Table-->
                 <div id="files_table_container">
                     @if(request('type', 'images') === 'images')
@@ -229,9 +248,12 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-enhanced btn-secondary" data-bs-dismiss="modal">إغلاق</button>
-                    <button type="button" class="btn btn-enhanced btn-primary" id="downloadFolderBtn">
-                        <i class="ki-duotone ki-down fs-6 me-2"></i>تحميل المجلد كاملاً
+                    <button type="button" class="btn btn-enhanced btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>إغلاق
+                    </button>
+                    <button type="button" class="btn btn-enhanced btn-success" id="downloadFolderBtn"
+                            title="تحميل جميع ملفات المجلد في ملف ZIP مضغوط">
+                        <i class="fas fa-file-archive me-2"></i>� تحميل كـ ZIP
                     </button>
                 </div>
             </div>

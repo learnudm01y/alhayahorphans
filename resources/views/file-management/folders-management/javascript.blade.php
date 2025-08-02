@@ -66,6 +66,27 @@
             }
         });
 
+        // إضافة event listener لزر تحميل المجلد كاملاً
+        document.addEventListener('click', function(e) {
+            if (e.target.id === 'downloadFolderBtn' || e.target.closest('#downloadFolderBtn')) {
+                e.preventDefault();
+                const folderName = document.getElementById('modal-folder-name').textContent;
+                if (folderName && folderName.trim() !== '') {
+                    downloadEntireFolder(folderName.trim());
+                } else {
+                    console.error('❌ اسم المجلد غير محدد');
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            title: 'خطأ',
+                            text: 'لم يتم تحديد اسم المجلد',
+                            icon: 'error',
+                            confirmButtonText: 'موافق'
+                        });
+                    }
+                }
+            }
+        });
+
         // دالة البحث
         function performSearch(query) {
             if (query.length < 2) {
@@ -73,20 +94,29 @@
                 return;
             }
 
+            console.log('🔍 Performing search for:', query);
             showLoadingState();
 
-            fetch(`{{ route('admin.folders.search') }}?search=${encodeURIComponent(query)}&type=${currentType}`)
-                .then(response => response.json())
+            const searchUrl = `{{ route('admin.folders.search') }}?search=${encodeURIComponent(query)}&type=${currentType}`;
+            console.log('🌐 Search URL:', searchUrl);
+
+            fetch(searchUrl)
+                .then(response => {
+                    console.log('📡 Search response status:', response.status);
+                    return response.json();
+                })
                 .then(data => {
+                    console.log('📊 Search response data:', data);
                     if (data.success) {
                         updateTableContent(data.results);
                     } else {
-                        showErrorMessage('حدث خطأ في البحث');
+                        console.error('❌ Search failed:', data.message);
+                        showErrorMessage('حدث خطأ في البحث: ' + (data.message || 'غير محدد'));
                     }
                 })
                 .catch(error => {
-                    console.error('Search error:', error);
-                    showErrorMessage('حدث خطأ في الاتصال');
+                    console.error('🚨 Search error:', error);
+                    showErrorMessage('حدث خطأ في الاتصال: ' + error.message);
                 })
                 .finally(() => {
                     hideLoadingState();
@@ -391,6 +421,93 @@
             }
         }
 
+        // دالة تحميل المجلد كاملاً كملف ZIP
+        function downloadEntireFolder(folderName) {
+            console.log('📁⬇️ Starting ZIP download for folder:', folderName);
+
+            // عرض تأكيد للمستخدم
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    title: 'تحميل المجلد كملف ZIP',
+                    text: `هل تريد تحميل جميع ملفات المجلد "${folderName}" كملف ZIP مضغوط؟`,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: '#28a745',
+                    cancelButtonColor: '#d33',
+                    confirmButtonText: '📦 نعم، حمّل كـ ZIP',
+                    cancelButtonText: 'إلغاء',
+                    showLoaderOnConfirm: true,
+                    preConfirm: () => {
+                        return performZipDownload(folderName);
+                    },
+                    allowOutsideClick: () => !Swal.isLoading()
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        // لا نحتاج لعمل شيء هنا لأن التحميل سيبدأ تلقائياً
+                        console.log('✅ ZIP download initiated');
+                    }
+                });
+            } else {
+                // تحميل مباشر بدون SweetAlert
+                if (confirm(`هل تريد تحميل جميع ملفات المجلد "${folderName}" كملف ZIP؟`)) {
+                    performZipDownload(folderName);
+                }
+            }
+        }
+
+        // تنفيذ تحميل المجلد كـ ZIP
+        async function performZipDownload(folderName) {
+            try {
+                console.log('� Starting ZIP creation for folder:', folderName);
+
+                // إنشاء رابط التحميل
+                const downloadUrl = `{{ route('admin.folders.download.zip') }}?folder=${encodeURIComponent(folderName)}`;
+                console.log('� ZIP download URL:', downloadUrl);
+
+                // إنشاء رابط تحميل مخفي
+                const link = document.createElement('a');
+                link.href = downloadUrl;
+                link.download = `folder_${folderName}_${new Date().toISOString().slice(0,10)}.zip`;
+                link.style.display = 'none';
+
+                // إضافة الرابط للصفحة وتشغيله
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                // عرض رسالة نجاح
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: 'تم بدء التحميل!',
+                        text: `جاري تحضير وتحميل ملف ZIP للمجلد "${folderName}"`,
+                        icon: 'success',
+                        timer: 3000,
+                        showConfirmButton: false,
+                        timerProgressBar: true
+                    });
+                }
+
+                console.log('✅ ZIP download link created and clicked');
+                return { success: true };
+
+            } catch (error) {
+                console.error('❌ Error initiating ZIP download:', error);
+
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        title: 'خطأ في التحميل',
+                        text: 'حدث خطأ أثناء تحضير ملف ZIP: ' + error.message,
+                        icon: 'error',
+                        confirmButtonText: 'موافق'
+                    });
+                } else {
+                    alert('خطأ في تحميل المجلد: ' + error.message);
+                }
+
+                throw error;
+            }
+        }
+
         // فتح صورة في مودال للعرض المحسن
         function openImageModal(imageSrc, imageTitle = 'معاينة الصورة') {
             console.log('🖼️ Opening enhanced image modal:', imageSrc);
@@ -453,6 +570,7 @@
 
         // Make functions globally accessible
         window.downloadFile = downloadFile;
+        window.downloadEntireFolder = downloadEntireFolder;
         window.openImageModal = openImageModal;        // عرض الصورة في نافذة منبثقة
         function showImageModal(imageSrc, imageTitle = 'صورة') {
             console.log('Opening image modal:', imageSrc); // Debug log
@@ -503,6 +621,7 @@
             console.log('loadFolderContents:', typeof window.loadFolderContents);
             console.log('displayFolderContents:', typeof window.displayFolderContents);
             console.log('downloadFile:', typeof window.downloadFile);
+            console.log('downloadEntireFolder:', typeof window.downloadEntireFolder);
             console.log('openImageModal:', typeof window.openImageModal);
         };
 
@@ -514,6 +633,7 @@
             // Additional verification
             console.log('✅ Global functions status:', {
                 downloadFile: typeof window.downloadFile === 'function',
+                downloadEntireFolder: typeof window.downloadEntireFolder === 'function',
                 openImageModal: typeof window.openImageModal === 'function',
                 showImageModal: typeof window.showImageModal === 'function',
                 loadFolderContents: typeof window.loadFolderContents === 'function'
@@ -529,6 +649,7 @@
         // Final verification
         console.log('🔍 Final function verification:', {
             downloadFile: typeof window.downloadFile,
+            downloadEntireFolder: typeof window.downloadEntireFolder,
             openImageModal: typeof window.openImageModal,
             showImageModal: typeof window.showImageModal,
             loadFolderContents: typeof window.loadFolderContents,
@@ -577,89 +698,125 @@
                 return;
             }
 
-            if (!results || results.data.length === 0) {
+            if (!results || !results.data || results.data.length === 0) {
                 container.innerHTML = `
                     <div class="text-center py-5">
-                        <i class="fas fa-images fs-3x text-muted mb-3"></i>
-                        <h4 class="text-muted">لم يتم العثور على ملفات</h4>
-                        <p class="text-muted">جرب كلمات بحث مختلفة</p>
+                        <i class="fas fa-search fs-3x text-muted mb-3"></i>
+                        <h4 class="text-muted">لم يتم العثور على نتائج</h4>
+                        <p class="text-muted">جرب كلمات بحث مختلفة أو تحقق من الإملاء</p>
+                        <button class="btn btn-light btn-sm" onclick="location.reload()">
+                            <i class="fas fa-refresh me-2"></i>إعادة تحميل الصفحة
+                        </button>
                     </div>`;
                 return;
             }
 
+            // إظهار عدد النتائج
+            const resultCount = results.data.length;
+            const totalCount = results.total || resultCount;
+
             let tableHtml = `
+                <div class="alert alert-info d-flex align-items-center mb-4">
+                    <i class="fas fa-info-circle me-3"></i>
+                    <div>
+                        <strong>نتائج البحث:</strong> تم العثور على ${resultCount} نتيجة
+                        ${totalCount > resultCount ? ` من أصل ${totalCount}` : ''}
+                    </div>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-row-dashed table-hover align-middle" id="kt_file_manager_list">
-                        <thead>
+                        <thead style="background-color: #ffffff !important;">
                             <tr class="text-start text-gray-400 fw-bold fs-7 text-uppercase gs-0">
                                 <th class="min-w-250px">اسم الملف</th>
-                                <th class="min-w-150px">الحجم</th>
-                                <th class="min-w-150px">رقم السجل</th>
-                                <th class="min-w-150px">تاريخ الإنشاء</th>
-                                <th class="text-end min-w-70px">الإجراءات</th>
+                                <th class="min-w-100px">الحجم</th>
+                                <th class="min-w-120px">رقم السجل</th>
+                                <th class="min-w-100px">النوع</th>
+                                <th class="min-w-120px">التاريخ</th>
+                                <th class="text-end min-w-100px">الإجراءات</th>
                             </tr>
                         </thead>
                         <tbody>`;
 
             results.data.forEach(file => {
-                const fileSize = file.file_size ? (file.file_size / 1024).toFixed(1) + ' KB' : 'غير معروف';
-                const recordNumber = file.record_number || 'غير محدد';
-                const fileName = file.original_file_name || file.stored_file_name || file.file_name;
+                const fileSize = file.formatted_size || (file.file_size ? formatFileSize(file.file_size) : 'غير معروف');
+                const recordNumber = file.record_number || file.extracted_folder_name || 'غير محدد';
+                const fileName = file.original_file_name || file.stored_file_name || file.file_name || 'ملف غير معروف';
+                const personName = file.person_name || 'غير مسجل';
+                const fileDate = file.formatted_date || file.created_at || file.updated_at || 'غير محدد';
 
-                // التأكد من وجود download_url وتنسيقه بشكل صحيح
-                let downloadUrl = file.download_url || file.file_path || '';
-                if (downloadUrl && !downloadUrl.startsWith('http')) {
-                    // إزالة storage/ المكررة من البداية
-                    downloadUrl = downloadUrl.replace(/^\/?(storage\/)+/, '');
-
-                    // استخدام العرض الآمن للملفات
-                    const filename = downloadUrl.split('/').pop();
-                    downloadUrl = `{{ route('admin.file.show', '') }}/${filename}`;
-                }
-
-                // التحقق من نوع الملف
+                // تحديد نوع الملف وأيقونته
                 const fileExtension = (file.file_extension || file.extension || '').toLowerCase();
                 const mimeType = file.mime_type || '';
                 const isImage = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(fileExtension) ||
                               mimeType.includes('image/');
+                const isPdf = fileExtension === 'pdf' || mimeType.includes('pdf');
 
-                console.log('🔍 File data:', {
-                    name: fileName,
-                    original_url: file.download_url,
-                    processed_url: downloadUrl,
+                let fileTypeIcon = 'fas fa-file';
+                let fileTypeColor = 'text-secondary';
+                let fileTypeLabel = 'ملف';
+
+                if (isImage) {
+                    fileTypeIcon = 'fas fa-image';
+                    fileTypeColor = 'text-success';
+                    fileTypeLabel = 'صورة';
+                } else if (isPdf) {
+                    fileTypeIcon = 'fas fa-file-pdf';
+                    fileTypeColor = 'text-danger';
+                    fileTypeLabel = 'PDF';
+                } else if (['xlsx', 'xls', 'csv'].includes(fileExtension)) {
+                    fileTypeIcon = 'fas fa-file-excel';
+                    fileTypeColor = 'text-warning';
+                    fileTypeLabel = 'Excel';
+                }
+
+                // معالجة رابط التحميل
+                let downloadUrl = file.download_url;
+                if (!downloadUrl && fileName) {
+                    downloadUrl = `{{ route('admin.file.show', '') }}/${fileName}`;
+                }
+
+                console.log('🔍 Processing search result:', {
+                    fileName: fileName,
+                    recordNumber: recordNumber,
+                    downloadUrl: downloadUrl,
                     isImage: isImage,
-                    extension: fileExtension
+                    fileType: fileTypeLabel
                 });
 
                 tableHtml += `
                     <tr>
                         <td>
                             <div class="d-flex align-items-center">
-                                <i class="fas fa-image text-primary fs-2 me-3"></i>
+                                <i class="${fileTypeIcon} ${fileTypeColor} fs-2 me-3"></i>
                                 <div>
-                                    <span class="text-gray-800 fw-bold">${fileName}</span>
-                                    <div class="text-muted fs-7">${file.file_path || ''}</div>
+                                    <span class="text-gray-800 fw-bold d-block">${fileName}</span>
+                                    <small class="text-muted">${personName}</small>
                                 </div>
                             </div>
                         </td>
-                        <td class="text-gray-400">${fileSize}</td>
-                        <td class="text-gray-400">
+                        <td class="text-gray-600">${fileSize}</td>
+                        <td>
                             <span class="badge badge-light-primary">${recordNumber}</span>
                         </td>
-                        <td class="text-gray-400">${file.created_at || file.updated_at || ''}</td>
+                        <td>
+                            <span class="badge badge-light-${fileTypeColor.replace('text-', '')}">${fileTypeLabel}</span>
+                        </td>
+                        <td class="text-gray-600">${fileDate}</td>
                         <td class="text-end">
                             <div class="btn-group" role="group">
                                 ${isImage ? `
                                     <button class="btn btn-sm btn-success image-preview-btn"
                                             data-src="${downloadUrl}"
-                                            data-title="${fileName}">
-                                        <i class="fas fa-eye"></i> معاينة
+                                            data-title="${fileName}"
+                                            title="معاينة الصورة">
+                                        <i class="fas fa-eye"></i>
                                     </button>
                                 ` : ''}
                                 <button class="btn btn-sm btn-primary download-file-btn"
                                         data-url="${downloadUrl}"
-                                        data-filename="${fileName}">
-                                    <i class="fas fa-download"></i> تحميل
+                                        data-filename="${fileName}"
+                                        title="تحميل الملف">
+                                    <i class="fas fa-download"></i>
                                 </button>
                             </div>
                         </td>
@@ -667,6 +824,20 @@
             });
 
             tableHtml += `</tbody></table></div>`;
+
+            // إضافة pagination إذا كان متاحاً
+            if (results.last_page && results.last_page > 1) {
+                tableHtml += `
+                    <div class="d-flex justify-content-between align-items-center mt-4">
+                        <div class="text-muted">
+                            عرض ${results.from || 1} إلى ${results.to || resultCount} من ${results.total || resultCount} نتيجة
+                        </div>
+                        <div class="text-muted">
+                            صفحة ${results.current_page || 1} من ${results.last_page || 1}
+                        </div>
+                    </div>`;
+            }
+
             container.innerHTML = tableHtml;
 
             // إعادة ربط Event Listeners للعناصر الجديدة
@@ -748,6 +919,15 @@
         }
 
         // دوال مساعدة
+        // دوال مساعدة
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
         function showLoadingState() {
             console.log('⏳ عرض حالة التحميل...');
             // يمكن إضافة منطق عرض التحميل هنا

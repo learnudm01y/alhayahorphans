@@ -160,6 +160,7 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::get('manage-folders', [FolderManagementController::class, 'index'])->name('manage.folders.index');
     Route::get('folders/contents', [FolderManagementController::class, 'getFolderContents'])->name('folders.contents');
     Route::get('folders/search', [FolderManagementController::class, 'search'])->name('folders.search');
+    Route::get('folders/download-zip', [FolderManagementController::class, 'downloadFolderAsZip'])->name('folders.download.zip');
 
     // File System Sync Routes
     Route::get('sync-files', [FileSystemSyncController::class, 'syncPhysicalFiles'])->name('sync.files');

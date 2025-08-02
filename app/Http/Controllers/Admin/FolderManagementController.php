@@ -30,17 +30,31 @@ class FolderManagementController extends Controller
             // البحث في جدول attachments (الجدول الأساسي للصور) - استخراج اسم المجلد من file_path
             $attachmentFolders = DB::table('attachments')
                 ->select(DB::raw("
-                    SUBSTRING_INDEX(SUBSTRING_INDEX(file_path, '/', -2), '/', 1) as folder_name,
+                    CASE
+                        WHEN file_path LIKE '%storage/uploads/%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(file_path, '/', -2), '/', 1)
+                        WHEN file_path LIKE '%uploads/%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(file_path, 'uploads/', -1), '/', 1)
+                        ELSE person_identity_number
+                    END as folder_name,
                     COUNT(*) as files_count,
                     SUM(file_size) as total_size,
                     MAX(updated_at) as last_modified,
                     GROUP_CONCAT(DISTINCT file_type) as file_types,
                     'attachments' as source
                 "))
-                ->where('file_path', 'LIKE', '%storage/uploads/%')
+                ->where(function($query) {
+                    $query->where('file_path', 'LIKE', '%storage/uploads/%')
+                          ->orWhere('file_path', 'LIKE', '%uploads/%')
+                          ->orWhereNotNull('person_identity_number');
+                })
                 ->whereNotNull('file_path')
                 ->where('file_path', '!=', '')
-                ->groupBy(DB::raw("SUBSTRING_INDEX(SUBSTRING_INDEX(file_path, '/', -2), '/', 1)"))
+                ->groupBy(DB::raw("
+                    CASE
+                        WHEN file_path LIKE '%storage/uploads/%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(file_path, '/', -2), '/', 1)
+                        WHEN file_path LIKE '%uploads/%' THEN SUBSTRING_INDEX(SUBSTRING_INDEX(file_path, 'uploads/', -1), '/', 1)
+                        ELSE person_identity_number
+                    END
+                "))
                 ->get();
 
             // البحث في enhanced_attachments كنسخة احتياطية
@@ -117,6 +131,12 @@ class FolderManagementController extends Controller
 
             // إذا لم نجد مجلدات، جرب المسح الفيزيائي
             if ($folders->isEmpty()) {
+                Log::info('No folders found in database, attempting physical scan', [
+                    'attachment_folders_count' => $attachmentFolders->count(),
+                    'enhanced_folders_count' => $enhancedFolders->count(),
+                    'storage_path' => storage_path('app/public/uploads'),
+                    'public_path' => public_path('storage/uploads')
+                ]);
                 return $this->scanPhysicalFolders();
             }
 
@@ -140,7 +160,10 @@ class FolderManagementController extends Controller
                 $folder->formatted_date = date('Y-m-d H:i', strtotime($folder->last_modified));
                 $folder->file_types_array = !empty($folder->file_types) ? explode(',', $folder->file_types) : [];
                 $folder->mime_types_array = !empty($folder->mime_types) ? explode(',', $folder->mime_types) : [];
-                $folder->folder_path = "storage/uploads/{$folder->folder_name}";
+
+                // تحديد مسار المجلد - استخدام المسار الآمن
+                $folder->folder_path = "uploads/{$folder->folder_name}";
+
                 $folder->has_images = !empty(array_intersect($folder->file_types_array, ['image', 'photo']));
                 $folder->has_documents = !empty(array_intersect($folder->file_types_array, ['document', 'pdf']));
 
@@ -151,7 +174,14 @@ class FolderManagementController extends Controller
 
             return view('file-management.folders-management.index', compact('paginatedFolders'))
                 ->with('type', 'images')
-                ->with('folders', $paginatedFolders);
+                ->with('folders', $paginatedFolders)
+                ->with('debug_info', [
+                    'attachment_folders_found' => $attachmentFolders->count(),
+                    'enhanced_folders_found' => $enhancedFolders->count(),
+                    'total_processed_folders' => count($processedFolders),
+                    'storage_path' => storage_path('app/public/uploads'),
+                    'public_path' => public_path('storage/uploads')
+                ]);
 
         } catch (\Exception $e) {
             Log::error('Error fetching folders: ' . $e->getMessage());
@@ -263,6 +293,7 @@ class FolderManagementController extends Controller
                         $query->where('file_path', 'LIKE', "%/{$folderName}/%")
                               ->orWhere('file_path', 'LIKE', "%uploads/{$folderName}/%")
                               ->orWhere('file_path', 'LIKE', "storage/uploads/{$folderName}/%")
+                              ->orWhere('file_path', 'LIKE', "storage/app/public/uploads/{$folderName}/%")
                               ->orWhere('person_identity_number', $folderName);
                     })
                     ->whereNotNull('file_path')
@@ -402,24 +433,45 @@ class FolderManagementController extends Controller
         $query = $request->get('search');
         $type = $request->get('type', 'images');
 
+        Log::info("Search request", [
+            'query' => $query,
+            'type' => $type,
+            'request_url' => $request->fullUrl()
+        ]);
+
+        // التحقق من صحة البحث
+        if (empty($query) || strlen($query) < 2) {
+            return response()->json([
+                'success' => false,
+                'message' => 'يجب أن تكون كلمة البحث على الأقل حرفين'
+            ]);
+        }
+
         try {
             if ($type === 'images') {
-                // البحث المحسن مع الخوارزمية الجديدة
+                // البحث المحسن والموسع
                 $results = collect();
 
-                // 1. البحث في جدول attachments بالخوارزمية الجديدة
+                // 1. البحث في جدول attachments - تحسين البحث
                 $attachmentResults = DB::table('attachments')
                     ->where(function($q) use ($query) {
                         // البحث في اسم الملف
                         $q->where('stored_file_name', 'LIKE', "%{$query}%")
                           ->orWhere('file_path', 'LIKE', "%{$query}%")
-                          // البحث برقم الهوية في person_identity_number
+                          // البحث برقم الهوية
                           ->orWhere('person_identity_number', 'LIKE', "%{$query}%")
-                          // البحث في اسم المجلد المستخرج من file_path
-                          ->orWhereRaw('SUBSTRING_INDEX(SUBSTRING_INDEX(file_path, "/", -2), "/", 1) LIKE ?', ["%{$query}%"]);
+                          // البحث بدون أصفار بادئة للأرقام
+                          ->orWhere('person_identity_number', intval($query))
+                          // البحث في اسم المجلد المستخرج
+                          ->orWhereRaw('SUBSTRING_INDEX(SUBSTRING_INDEX(file_path, "/", -2), "/", 1) LIKE ?', ["%{$query}%"])
+                          ->orWhereRaw('SUBSTRING_INDEX(SUBSTRING_INDEX(file_path, "/", -2), "/", 1) = ?', [intval($query)]);
                     })
-                    ->where('file_path', 'LIKE', '%storage/uploads/%')
+                    ->where(function($query) {
+                        $query->where('file_path', 'LIKE', '%storage/uploads/%')
+                              ->orWhere('file_path', 'LIKE', '%uploads/%');
+                    })
                     ->whereNotNull('file_path')
+                    ->where('file_path', '!=', '')
                     ->select([
                         'id',
                         'stored_file_name as original_file_name',
@@ -435,64 +487,94 @@ class FolderManagementController extends Controller
                         DB::raw('"attachments" as source_table')
                     ])
                     ->orderBy('updated_at', 'desc')
+                    ->limit(50) // تحديد عدد النتائج
                     ->get();
+
+                Log::info("Attachment search results", [
+                    'query' => $query,
+                    'count' => $attachmentResults->count(),
+                    'sample_results' => $attachmentResults->take(3)->pluck('stored_file_name')->toArray()
+                ]);
 
                 // إضافة النتائج من attachments
                 foreach ($attachmentResults as $result) {
                     $result->record_number = $result->extracted_folder_name;
-                    $result->file_extension = pathinfo($result->stored_file_name, PATHINFO_EXTENSION);
+                    $result->file_extension = pathinfo($result->stored_file_name ?: '', PATHINFO_EXTENSION);
                     $results->push($result);
                 }
 
                 // 2. البحث في enhanced_attachments (إضافي)
-                $enhancedResults = DB::table('enhanced_attachments')
-                    ->where(function($q) use ($query) {
-                        $q->where('original_file_name', 'LIKE', "%{$query}%")
-                          ->orWhere('stored_file_name', 'LIKE', "%{$query}%")
-                          ->orWhere('file_path', 'LIKE', "%{$query}%")
-                          ->orWhere('record_number', 'LIKE', "%{$query}%");
-                    })
-                    ->whereIn('file_type', ['image', 'photo', 'document', 'pdf'])
-                    ->whereNotIn('file_type', ['excel'])
-                    ->whereNull('deleted_at')
-                    ->select([
-                        'id',
-                        'original_file_name',
-                        'stored_file_name',
-                        'file_path',
-                        'file_size',
-                        'file_type',
-                        'mime_type',
-                        'record_number',
-                        'updated_at',
-                        'created_at',
-                        'file_extension',
-                        DB::raw('"enhanced_attachments" as source_table')
-                    ])
-                    ->orderBy('updated_at', 'desc')
-                    ->get();
+                if (DB::getSchemaBuilder()->hasTable('enhanced_attachments')) {
+                    $enhancedResults = DB::table('enhanced_attachments')
+                        ->where(function($q) use ($query) {
+                            $q->where('original_file_name', 'LIKE', "%{$query}%")
+                              ->orWhere('stored_file_name', 'LIKE', "%{$query}%")
+                              ->orWhere('file_path', 'LIKE', "%{$query}%")
+                              ->orWhere('record_number', 'LIKE', "%{$query}%")
+                              ->orWhere('record_number', intval($query));
+                        })
+                        ->whereIn('file_type', ['image', 'photo', 'document', 'pdf'])
+                        ->whereNotIn('file_type', ['excel'])
+                        ->whereNull('deleted_at')
+                        ->select([
+                            'id',
+                            'original_file_name',
+                            'stored_file_name',
+                            'file_path',
+                            'file_size',
+                            'file_type',
+                            'mime_type',
+                            'record_number',
+                            'updated_at',
+                            'created_at',
+                            'file_extension',
+                            DB::raw('"enhanced_attachments" as source_table')
+                        ])
+                        ->orderBy('updated_at', 'desc')
+                        ->limit(25)
+                        ->get();
 
-                // إضافة النتائج من enhanced_attachments
-                foreach ($enhancedResults as $result) {
-                    $results->push($result);
+                    Log::info("Enhanced attachment search results", [
+                        'query' => $query,
+                        'count' => $enhancedResults->count()
+                    ]);
+
+                    // إضافة النتائج من enhanced_attachments
+                    foreach ($enhancedResults as $result) {
+                        $results->push($result);
+                    }
                 }
 
-                // 3. البحث بأسماء الأشخاص من جدول data
+                // 3. البحث بأسماء الأشخاص من جدول data - محسن
                 $personResults = DB::table('data')
                     ->where(function($q) use ($query) {
                         $q->where('data_first_name', 'LIKE', "%{$query}%")
                           ->orWhere('data_father_name', 'LIKE', "%{$query}%")
                           ->orWhere('data_grand_father_name', 'LIKE', "%{$query}%")
                           ->orWhere('data_family_name', 'LIKE', "%{$query}%")
+                          ->orWhere('file_id_number', 'LIKE', "%{$query}%")
+                          ->orWhere('file_id_number', intval($query))
                           ->orWhereRaw('CONCAT(data_first_name, " ", data_father_name, " ", data_grand_father_name, " ", data_family_name) LIKE ?', ["%{$query}%"]);
                     })
+                    ->limit(10)
                     ->get();
+
+                Log::info("Person search results", [
+                    'query' => $query,
+                    'count' => $personResults->count()
+                ]);
 
                 // للأشخاص الموجودين، ابحث عن ملفاتهم
                 foreach ($personResults as $person) {
                     $personFiles = DB::table('attachments')
-                        ->where('file_path', 'LIKE', '%storage/uploads/%')
-                        ->whereRaw('SUBSTRING_INDEX(SUBSTRING_INDEX(file_path, "/", -2), "/", 1) = ?', [$person->file_id_number])
+                        ->where(function($query) use ($person) {
+                            $query->where('person_identity_number', $person->file_id_number)
+                                  ->orWhereRaw('SUBSTRING_INDEX(SUBSTRING_INDEX(file_path, "/", -2), "/", 1) = ?', [$person->file_id_number]);
+                        })
+                        ->where(function($query) {
+                            $query->where('file_path', 'LIKE', '%storage/uploads/%')
+                                  ->orWhere('file_path', 'LIKE', '%uploads/%');
+                        })
                         ->select([
                             'id',
                             'stored_file_name as original_file_name',
@@ -507,20 +589,24 @@ class FolderManagementController extends Controller
                             DB::raw('SUBSTRING_INDEX(SUBSTRING_INDEX(file_path, "/", -2), "/", 1) as extracted_folder_name'),
                             DB::raw('"attachments_person_search" as source_table')
                         ])
+                        ->limit(5) // حد أقصى 5 ملفات لكل شخص
                         ->get();
 
                     foreach ($personFiles as $file) {
                         $file->record_number = $file->extracted_folder_name;
-                        $file->file_extension = pathinfo($file->stored_file_name, PATHINFO_EXTENSION);
-                        $file->person_name_match = trim($person->data_first_name . ' ' . $person->data_father_name . ' ' . $person->data_grand_father_name . ' ' . $person->data_family_name);
+                        $file->file_extension = pathinfo($file->stored_file_name ?: '', PATHINFO_EXTENSION);
+                        $file->person_name_match = trim(($person->data_first_name ?? '') . ' ' .
+                                                       ($person->data_father_name ?? '') . ' ' .
+                                                       ($person->data_grand_father_name ?? '') . ' ' .
+                                                       ($person->data_family_name ?? ''));
                         $results->push($file);
                     }
                 }
 
                 // إزالة التكرار وترتيب النتائج
-                $results = $results->unique('id')->sortByDesc('updated_at')->take(20);
+                $results = $results->unique('id')->sortByDesc('updated_at')->take(30);
 
-                // تحويل إلى pagination format
+                // تحويل إلى pagination format محسن
                 $enhancedData = $results->map(function ($file) {
                     // استخدام النظام الآمن للعرض
                     $fileName = $file->stored_file_name ?: $file->original_file_name;
@@ -529,31 +615,55 @@ class FolderManagementController extends Controller
                     }
 
                     // إضافة اسم الشخص
-                    if (empty($file->person_name_match)) {
+                    if (empty($file->person_name_match ?? '')) {
                         $file->person_name = $this->getPersonName($file->record_number ?? $file->extracted_folder_name ?? '');
                     } else {
                         $file->person_name = $file->person_name_match;
                     }
 
                     // إضافة formatted size
-                    if (isset($file->file_size)) {
+                    if (isset($file->file_size) && $file->file_size > 0) {
                         $file->formatted_size = $this->formatFileSize($file->file_size);
+                    } else {
+                        $file->formatted_size = 'غير معروف';
                     }
 
                     // إضافة formatted date
                     if (isset($file->created_at)) {
-                        $file->formatted_date = date('Y-m-d', strtotime($file->created_at));
+                        $file->formatted_date = date('Y-m-d H:i', strtotime($file->created_at));
+                    } else if (isset($file->updated_at)) {
+                        $file->formatted_date = date('Y-m-d H:i', strtotime($file->updated_at));
+                    } else {
+                        $file->formatted_date = 'غير محدد';
+                    }
+
+                    // تحديد نوع الملف
+                    $extension = strtolower($file->file_extension ?? '');
+                    if (in_array($extension, ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'])) {
+                        $file->file_type_display = 'صورة';
+                    } else if ($extension === 'pdf') {
+                        $file->file_type_display = 'PDF';
+                    } else if (in_array($extension, ['doc', 'docx'])) {
+                        $file->file_type_display = 'مستند';
+                    } else {
+                        $file->file_type_display = 'ملف';
                     }
 
                     return $file;
                 });
+
+                Log::info("Final search results processed", [
+                    'query' => $query,
+                    'total_results' => $enhancedData->count(),
+                    'sample_files' => $enhancedData->take(3)->pluck('stored_file_name')->toArray()
+                ]);
 
                 // إنشاء pagination response محسن
                 $paginationData = [
                     'data' => $enhancedData->toArray(),
                     'current_page' => 1,
                     'last_page' => 1,
-                    'per_page' => 20,
+                    'per_page' => 30,
                     'total' => $enhancedData->count(),
                     'from' => 1,
                     'to' => $enhancedData->count()
@@ -758,13 +868,19 @@ class FolderManagementController extends Controller
     private function scanPhysicalFolders()
     {
         try {
-            $uploadsPath = public_path('storage/uploads');
+            // البحث في المسار الفيزيائي الصحيح
+            $uploadsPath = storage_path('app/public/uploads');
 
             if (!is_dir($uploadsPath)) {
-                return view('file-management.folders-management.index')
-                    ->with('folders', $this->createEmptyPaginator())
-                    ->with('type', 'images')
-                    ->with('error', 'مجلد التحميلات غير موجود');
+                // جرب المسار البديل
+                $uploadsPath = public_path('storage/uploads');
+
+                if (!is_dir($uploadsPath)) {
+                    return view('file-management.folders-management.index')
+                        ->with('folders', $this->createEmptyPaginator())
+                        ->with('type', 'images')
+                        ->with('error', 'مجلد التحميلات غير موجود في: ' . $uploadsPath);
+                }
             }
 
             $foldersData = [];
@@ -807,11 +923,12 @@ class FolderManagementController extends Controller
                     'formatted_size' => $this->formatFileSize($totalSize),
                     'last_modified' => date('Y-m-d H:i:s', $lastModified),
                     'formatted_date' => date('Y-m-d H:i', $lastModified),
-                    'folder_path' => "storage/uploads/{$folderName}",
+                    'folder_path' => "uploads/{$folderName}",
                     'has_images' => $hasImages,
                     'has_documents' => $hasDocuments,
                     'file_types_array' => [],
-                    'mime_types_array' => []
+                    'mime_types_array' => [],
+                    'person_name' => $this->getPersonName($folderName)
                 ];
             }
 
@@ -993,14 +1110,20 @@ class FolderManagementController extends Controller
     private function getFolderContentsFromPhysical($folderName)
     {
         try {
-            $physicalPath = public_path("storage/uploads/{$folderName}");
+            // البحث في المسار الفيزيائي الصحيح
+            $physicalPath = storage_path("app/public/uploads/{$folderName}");
+
+            // إذا لم يوجد، جرب المسار البديل
+            if (!is_dir($physicalPath)) {
+                $physicalPath = public_path("storage/uploads/{$folderName}");
+            }
 
             if (!is_dir($physicalPath)) {
                 return response()->json([
                     'success' => true,
                     'files' => [],
                     'folder_name' => $folderName,
-                    'message' => 'المجلد غير موجود فيزيائياً'
+                    'message' => 'المجلد غير موجود فيزيائياً في: ' . $physicalPath
                 ]);
             }
 
@@ -1021,7 +1144,7 @@ class FolderManagementController extends Controller
                     'id' => 'physical_' . md5($fileName),
                     'original_file_name' => $fileName,
                     'stored_file_name' => $fileName,
-                    'file_path' => "storage/uploads/{$folderName}/{$fileName}",
+                    'file_path' => "uploads/{$folderName}/{$fileName}",
                     'file_size' => filesize($filePath),
                     'file_extension' => $extension,
                     'mime_type' => $mimeType,
@@ -1158,5 +1281,166 @@ class FolderManagementController extends Controller
             Log::error('Error getting person name for folder ' . $folderName . ': ' . $e->getMessage());
             return 'خطأ في البيانات';
         }
+    }
+
+    /**
+     * تحميل المجلد كملف ZIP
+     */
+    public function downloadFolderAsZip(Request $request)
+    {
+        try {
+            $folderName = $request->get('folder');
+
+            if (!$folderName) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'اسم المجلد مطلوب'
+                ], 400);
+            }
+
+            Log::info('📁 Starting ZIP download for folder: ' . $folderName);
+
+            // جلب ملفات المجلد باستخدام نفس منطق getFolderContents
+            $files = $this->getFolderFiles($folderName);
+
+            if (empty($files)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'المجلد فارغ أو غير موجود'
+                ], 404);
+            }
+
+            // إنشاء ملف ZIP مؤقت
+            $zipFileName = 'folder_' . $folderName . '_' . date('Y-m-d_H-i-s') . '.zip';
+            $zipPath = storage_path('app/temp/' . $zipFileName);
+
+            // التأكد من وجود مجلد temp
+            if (!file_exists(dirname($zipPath))) {
+                mkdir(dirname($zipPath), 0755, true);
+            }
+
+            $zip = new \ZipArchive();
+            $result = $zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+
+            if ($result !== TRUE) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'فشل في إنشاء ملف ZIP: ' . $result
+                ], 500);
+            }
+
+            $addedFiles = 0;
+            foreach ($files as $file) {
+                // تحويل object إلى array إذا لزم الأمر
+                $fileData = is_array($file) ? $file : (array) $file;
+
+                $filePath = storage_path('app/public/uploads/' . $folderName . '/' . ($fileData['stored_file_name'] ?? $fileData['original_file_name']));
+
+                if (file_exists($filePath)) {
+                    $fileName = $fileData['original_file_name'] ?? $fileData['stored_file_name'] ?? ('file_' . $addedFiles);
+                    $zip->addFile($filePath, $fileName);
+                    $addedFiles++;
+                    Log::info("✅ Added file to ZIP: {$fileName}");
+                } else {
+                    Log::warning('File not found for ZIP: ' . $filePath);
+                }
+            }
+
+            $zip->close();
+
+            if ($addedFiles === 0) {
+                if (file_exists($zipPath)) {
+                    unlink($zipPath);
+                }
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لم يتم العثور على أي ملفات صالحة للتحميل'
+                ], 404);
+            }
+
+            Log::info("✅ ZIP created successfully with {$addedFiles} files: {$zipPath}");
+
+            // إرجاع ملف ZIP للتحميل
+            return response()->download($zipPath, $zipFileName)->deleteFileAfterSend(true);
+
+        } catch (\Exception $e) {
+            Log::error('❌ Error creating folder ZIP: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ في إنشاء ملف ZIP: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * دالة مساعدة لجلب ملفات المجلد (مستخرجة من getFolderContents)
+     */
+    private function getFolderFiles($folderName)
+    {
+        // إزالة كلمة أي أرقام أو أحرف غير ضرورية من اسم المجلد
+        $cleanFolderName = preg_replace('/[^0-9]/', '', $folderName);
+
+        Log::info("Getting files for folder: {$folderName}", [
+            'original_folder' => $folderName,
+            'clean_folder' => $cleanFolderName
+        ]);
+
+        // البحث في جدول attachments - استخدام نفس منطق getFolderContents
+        $attachmentFiles = DB::table('attachments')
+            ->where(function($query) use ($folderName, $cleanFolderName) {
+                $query->where('file_path', 'LIKE', "%/{$folderName}/%")
+                      ->orWhere('file_path', 'LIKE', "%uploads/{$folderName}/%")
+                      ->orWhere('file_path', 'LIKE', "storage/uploads/{$folderName}/%")
+                      ->orWhere('file_path', 'LIKE', "storage/app/public/uploads/{$folderName}/%")
+                      ->orWhere('person_identity_number', $folderName)
+                      ->orWhere('person_identity_number', $cleanFolderName);
+            })
+            ->whereNotNull('file_path')
+            ->where('file_path', '!=', '')
+            ->select([
+                'stored_file_name as original_file_name', // استخدام stored_file_name كـ original_file_name
+                'stored_file_name',
+                'file_path',
+                'file_size',
+                'file_type',
+                'mime_type',
+                'created_at',
+                'updated_at',
+                DB::raw("'attachments' as source_table")
+            ])
+            ->get();
+
+        // البحث في جدول enhanced_attachments - استخدام الأعمدة الصحيحة
+        $enhancedFiles = DB::table('enhanced_attachments')
+            ->where(function($query) use ($folderName, $cleanFolderName) {
+                $query->where('original_folder_name', $folderName)
+                      ->orWhere('original_folder_name', $cleanFolderName)
+                      ->orWhere('person_identity_number', $cleanFolderName)
+                      ->orWhere('person_identity_number', $folderName)
+                      ->orWhere('file_path', 'LIKE', "%/{$folderName}/%")
+                      ->orWhere('file_path', 'LIKE', "%uploads/{$folderName}/%");
+            })
+            ->select([
+                'original_file_name',
+                'stored_file_name',
+                'file_path',
+                'file_size',
+                'file_extension as file_type', // استخدام file_extension موجود
+                'mime_type',
+                'created_at',
+                'updated_at',
+                DB::raw("'enhanced_attachments' as source_table")
+            ])
+            ->get();
+
+        Log::info("Files found in getFolderFiles", [
+            'folder' => $folderName,
+            'attachments_count' => $attachmentFiles->count(),
+            'enhanced_count' => $enhancedFiles->count(),
+            'attachments_sample_paths' => $attachmentFiles->take(3)->pluck('file_path')->toArray(),
+            'enhanced_sample_paths' => $enhancedFiles->take(3)->pluck('file_path')->toArray()
+        ]);
+
+        return array_merge($attachmentFiles->toArray(), $enhancedFiles->toArray());
     }
 }
