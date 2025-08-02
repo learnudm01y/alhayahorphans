@@ -522,9 +522,12 @@ class RecordsManagementEditController extends Controller
     public function deleteFamilyMember(Request $request, $id)
     {
         try {
+            Log::info("🗑️ Starting family member deletion for ID: {$id}");
+
             // حاول إيجاد العضو
             $member = RePeople::find($id);
             if (!$member) {
+                Log::warning("⚠️ Family member not found", ['id' => $id]);
                 // إذا لم يُعثر على العضو
                 if ($request->ajax() || $request->wantsJson()) {
                     return response()->json([
@@ -537,16 +540,95 @@ class RecordsManagementEditController extends Controller
                     ->with('error', 'فرد الأسرة غير موجود');
             }
 
-            // حذف العضو
+            Log::info("👤 Family member found", [
+                'person_id' => $member->person_id,
+                'registration_id' => $member->registration_id
+            ]);
+
+            // البحث عن المرفقات المرتبطة بهذا الفرد وحذفها
+            if ($member->person_id && preg_match('/^\d+$/', $member->person_id)) {
+                $attachments = Attachment::where('person_identity_number', $member->person_id)->get();
+                Log::info("📎 Found attachments for family member", ['count' => $attachments->count()]);
+
+                $deletedFiles = 0;
+                $failedFiles = 0;
+
+                foreach ($attachments as $attachment) {
+                    try {
+                        // محاولة حذف الملف الفيزيائي
+                        $possiblePaths = [
+                            str_replace('storage/', '', $attachment->file_path ?? ''),
+                            'uploads/' . $attachment->person_identity_number . '/' . $attachment->stored_file_name,
+                            ltrim($attachment->file_path ?? '', '/'),
+                        ];
+
+                        $fileDeleted = false;
+                        foreach ($possiblePaths as $path) {
+                            if ($path && Storage::disk('public')->exists($path)) {
+                                Storage::disk('public')->delete($path);
+                                Log::info("✅ Deleted attachment file", [
+                                    'path' => $path,
+                                    'attachment_id' => $attachment->id
+                                ]);
+                                $deletedFiles++;
+                                $fileDeleted = true;
+                                break;
+                            }
+                        }
+
+                        if (!$fileDeleted) {
+                            Log::warning("⚠️ Attachment file not found", [
+                                'attachment_id' => $attachment->id,
+                                'tried_paths' => $possiblePaths
+                            ]);
+                            $failedFiles++;
+                        }
+
+                        // حذف المرفق من قاعدة البيانات
+                        $attachment->delete();
+
+                    } catch (\Exception $e) {
+                        Log::error("❌ Error deleting attachment: " . $e->getMessage());
+                        $failedFiles++;
+                    }
+                }
+
+                // محاولة حذف مجلد الفرد إذا كان فارغاً
+                $memberFolderPath = 'uploads/' . $member->person_id;
+                if (Storage::disk('public')->exists($memberFolderPath)) {
+                    try {
+                        $files = Storage::disk('public')->files($memberFolderPath);
+                        if (empty($files)) {
+                            Storage::disk('public')->deleteDirectory($memberFolderPath);
+                            Log::info("📁 Deleted empty member folder", ['folder' => $memberFolderPath]);
+                        }
+                    } catch (\Exception $e) {
+                        Log::warning("⚠️ Could not delete member folder: " . $e->getMessage());
+                    }
+                }
+
+                Log::info("📊 Family member attachments deletion summary", [
+                    'deleted_files' => $deletedFiles,
+                    'failed_files' => $failedFiles,
+                    'total_attachments' => $attachments->count()
+                ]);
+            }
+
+            // حذف العضو من قاعدة البيانات
             $member->delete();
+            Log::info("✅ Family member deleted successfully");
 
             // الرد بنجاح
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json(['success' => true]);
             }
             return redirect()->back()
-                ->with('success', 'تم حذف فرد الأسرة بنجاح');
+                ->with('success', 'تم حذف فرد الأسرة وجميع مرفقاته بنجاح');
+
         } catch (\Exception $e) {
+            Log::error("❌ Error deleting family member: " . $e->getMessage());
+            Log::error("📍 Error trace: " . $e->getTraceAsString());
+
             // في حال حدوث استثناء أثناء الحذف
             $message = 'حدث خطأ أثناء حذف فرد الأسرة: ' . $e->getMessage();
             if ($request->ajax() || $request->wantsJson()) {
@@ -594,53 +676,211 @@ class RecordsManagementEditController extends Controller
 
     public function delete($id)
     {
-        $record = \App\Models\Data::findOrFail($id);
+        try {
+            Log::info("🗑️ Starting deletion process for record ID: {$id}");
 
-        // حذف جميع أفراد الأسرة المرتبطين
-        $familyMembers = \App\Models\RePeople::where('registration_id', $record->file_id_number)->get();
-        $familyPeopleIds = $familyMembers->pluck('person_id')
-            ->filter(function($id) {
-                return preg_match('/^\d+$/', $id);
-            })
-            ->map(function($id) { return (string) $id; })
-            ->values()
-            ->all();
+            $record = \App\Models\Data::findOrFail($id);
+            Log::info("📋 Record found", ['file_id' => $record->file_id_number, 'name' => $record->data_first_name]);
 
-        // حذف جميع أفراد الأسرة
-        \App\Models\RePeople::where('registration_id', $record->file_id_number)->delete();
+            // جمع جميع أرقام الهوية المرتبطة بالسجل
+            $allIdentityNumbers = [];
 
-        // حذف جميع بيانات المتوفين المرتبطة
-        $dead = \App\Models\DeadPepole::where('re_file_id', $record->file_id_number)->first();
-        $deadIds = [];
-        if ($dead) {
-            if (preg_match('/^\d+$/', $dead->father_id)) {
-                $deadIds[] = (string) $dead->father_id;
+            // إضافة رقم الهوية الرئيسي ورقم الملف
+            if (preg_match('/^\d+$/', $record->data_id_number)) {
+                $allIdentityNumbers[] = (string) $record->data_id_number;
             }
-            if (preg_match('/^\d+$/', $dead->mother_id)) {
-                $deadIds[] = (string) $dead->mother_id;
+            if (preg_match('/^\d+$/', $record->file_id_number)) {
+                $allIdentityNumbers[] = (string) $record->file_id_number;
             }
-        }
-        \App\Models\DeadPepole::where('re_file_id', $record->file_id_number)->delete();
 
-        // جميع أرقام الهوية المرتبطة بالمرفقات (السجل الرئيسي + الأسرة + المتوفين)
-        $mainIds = [];
-        if (preg_match('/^\d+$/', $record->data_id_number)) {
-            $mainIds[] = (string) $record->data_id_number;
-        }
-        if (preg_match('/^\d+$/', $record->file_id_number)) {
-            $mainIds[] = (string) $record->file_id_number;
-        }
-        $allAttachmentIds = array_merge($mainIds, $familyPeopleIds, $deadIds);
+            // جلب جميع أفراد الأسرة المرتبطين
+            $familyMembers = \App\Models\RePeople::where('registration_id', $record->file_id_number)->get();
+            $familyPeopleIds = $familyMembers->pluck('person_id')
+                ->filter(function($id) {
+                    return preg_match('/^\d+$/', $id);
+                })
+                ->map(function($id) { return (string) $id; })
+                ->values()
+                ->all();
 
-        // حذف جميع المرفقات المرتبطة بهذه الأرقام (حتى لو كان هناك أكثر من مرفق لنفس الرقم)
-        if (!empty($allAttachmentIds)) {
-            \App\Models\Attachment::whereIn('person_identity_number', $allAttachmentIds)->delete();
+            $allIdentityNumbers = array_merge($allIdentityNumbers, $familyPeopleIds);
+            Log::info("👨‍👩‍👧‍👦 Family members IDs", $familyPeopleIds);
+
+            // جلب بيانات المتوفين المرتبطة
+            $dead = \App\Models\DeadPepole::where('re_file_id', $record->file_id_number)->first();
+            $deadIds = [];
+            if ($dead) {
+                if (preg_match('/^\d+$/', $dead->father_id)) {
+                    $deadIds[] = (string) $dead->father_id;
+                }
+                if (preg_match('/^\d+$/', $dead->mother_id)) {
+                    $deadIds[] = (string) $dead->mother_id;
+                }
+                $allIdentityNumbers = array_merge($allIdentityNumbers, $deadIds);
+            }
+            Log::info("⚰️ Deceased IDs", $deadIds);
+
+            // جلب جميع المرفقات المرتبطة بهذه الأرقام قبل الحذف
+            $attachments = [];
+            if (!empty($allIdentityNumbers)) {
+                $attachments = \App\Models\Attachment::whereIn('person_identity_number', $allIdentityNumbers)->get();
+                Log::info("📎 Found attachments", ['count' => $attachments->count()]);
+            }
+
+            // إضافة: البحث عن المرفقات بناءً على file_id_number في file_path أيضاً
+            $additionalAttachments = \App\Models\Attachment::where('file_path', 'LIKE', "%{$record->file_id_number}%")
+                ->orWhere('stored_file_name', 'LIKE', "%{$record->file_id_number}%")
+                ->get();
+
+            if ($additionalAttachments->count() > 0) {
+                Log::info("📎 Found additional attachments by file_id", ['count' => $additionalAttachments->count()]);
+                $attachments = $attachments->merge($additionalAttachments)->unique('id');
+                Log::info("📎 Total unique attachments", ['count' => $attachments->count()]);
+            }
+
+            // حذف الملفات الفيزيائية من التخزين أولاً
+            $deletedFiles = 0;
+            $failedFiles = 0;
+            foreach ($attachments as $attachment) {
+                try {
+                    // بناء مسار الملف بطرق مختلفة للتأكد من العثور عليه
+                    $possiblePaths = [
+                        // المسار الصحيح الأكثر احتمالاً بناءً على file_id_number
+                        'uploads/' . $record->file_id_number . '/' . $attachment->stored_file_name,
+                        // المسار المباشر من file_path
+                        str_replace('storage/', '', $attachment->file_path ?? ''),
+                        // مسار بناءً على person_identity_number و stored_file_name (احتياطي)
+                        'uploads/' . $attachment->person_identity_number . '/' . $attachment->stored_file_name,
+                        // مسار بناءً على file_path الكامل
+                        ltrim($attachment->file_path ?? '', '/'),
+                    ];
+
+                    $fileDeleted = false;
+                    foreach ($possiblePaths as $path) {
+                        if ($path && Storage::disk('public')->exists($path)) {
+                            Storage::disk('public')->delete($path);
+                            Log::info("✅ Deleted file", ['path' => $path, 'attachment_id' => $attachment->id]);
+                            $deletedFiles++;
+                            $fileDeleted = true;
+                            break;
+                        }
+                    }
+
+                    if (!$fileDeleted) {
+                        // محاولة حذف مجلد كامل بناءً على file_id_number (الطريقة الصحيحة)
+                        $folderPath = 'uploads/' . $record->file_id_number;
+                        if (Storage::disk('public')->exists($folderPath)) {
+                            Storage::disk('public')->deleteDirectory($folderPath);
+                            Log::info("📁 Deleted entire folder using file_id", ['folder' => $folderPath]);
+                            $deletedFiles++;
+                        } else {
+                            // محاولة أخيرة بناءً على person_identity_number كخطة احتياطية
+                            $fallbackFolderPath = 'uploads/' . $attachment->person_identity_number;
+                            if (Storage::disk('public')->exists($fallbackFolderPath)) {
+                                Storage::disk('public')->deleteDirectory($fallbackFolderPath);
+                                Log::info("📁 Deleted entire folder using person_identity_number", ['folder' => $fallbackFolderPath]);
+                                $deletedFiles++;
+                            } else {
+                                Log::warning("⚠️ File not found in any expected path", [
+                                    'attachment_id' => $attachment->id,
+                                    'file_path' => $attachment->file_path,
+                                    'stored_file_name' => $attachment->stored_file_name,
+                                    'person_identity_number' => $attachment->person_identity_number,
+                                    'file_id_number' => $record->file_id_number,
+                                    'tried_paths' => $possiblePaths,
+                                    'tried_folders' => [$folderPath, $fallbackFolderPath]
+                                ]);
+                                $failedFiles++;
+                            }
+                        }
+                    }
+                } catch (\Exception $e) {
+                    Log::error("❌ Error deleting file for attachment ID {$attachment->id}: " . $e->getMessage());
+                    $failedFiles++;
+                }
+            }
+
+            Log::info("📊 File deletion summary", [
+                'deleted_files' => $deletedFiles,
+                'failed_files' => $failedFiles,
+                'total_attachments' => $attachments->count()
+            ]);
+
+            // محاولة أخيرة لحذف مجلد السجل الرئيسي إذا كان موجوداً وفارغاً
+            $mainFolderPath = 'uploads/' . $record->file_id_number;
+            if (Storage::disk('public')->exists($mainFolderPath)) {
+                try {
+                    $remainingFiles = Storage::disk('public')->allFiles($mainFolderPath);
+                    if (empty($remainingFiles)) {
+                        Storage::disk('public')->deleteDirectory($mainFolderPath);
+                        Log::info("📁 Final cleanup: Deleted main record folder", ['folder' => $mainFolderPath]);
+                    } else {
+                        // إذا كانت هناك ملفات متبقية، احذفها بالقوة
+                        Log::warning("📁 Forcing deletion of remaining files", [
+                            'folder' => $mainFolderPath,
+                            'remaining_files' => $remainingFiles
+                        ]);
+
+                        foreach ($remainingFiles as $file) {
+                            try {
+                                Storage::disk('public')->delete($file);
+                                Log::info("🗑️ Force deleted file", ['file' => $file]);
+                                $deletedFiles++;
+                            } catch (\Exception $e) {
+                                Log::error("❌ Could not force delete file: {$file} - " . $e->getMessage());
+                                $failedFiles++;
+                            }
+                        }
+
+                        // محاولة حذف المجلد مرة أخيرة
+                        if (Storage::disk('public')->exists($mainFolderPath)) {
+                            Storage::disk('public')->deleteDirectory($mainFolderPath);
+                            Log::info("📁 Force deleted main record folder after cleanup", ['folder' => $mainFolderPath]);
+                        }
+                    }
+                } catch (\Exception $e) {
+                    Log::warning("⚠️ Could not perform final folder cleanup: " . $e->getMessage());
+                }
+            } else {
+                Log::info("📁 Main record folder already deleted or not found", ['folder' => $mainFolderPath]);
+            }
+
+            // حذف المرفقات من قاعدة البيانات (بما في ذلك الإضافية التي وُجدت)
+            if ($attachments->count() > 0) {
+                $attachmentIds = $attachments->pluck('id')->toArray();
+                $deletedAttachmentsCount = \App\Models\Attachment::whereIn('id', $attachmentIds)->delete();
+                Log::info("🗄️ Deleted all related attachments from database", ['count' => $deletedAttachmentsCount]);
+            }
+
+            // الآن حذف البيانات من قاعدة البيانات
+            DB::beginTransaction();
+
+            // حذف أفراد الأسرة
+            $deletedFamilyCount = \App\Models\RePeople::where('registration_id', $record->file_id_number)->delete();
+            Log::info("👥 Deleted family members", ['count' => $deletedFamilyCount]);
+
+            // حذف بيانات المتوفين
+            $deletedDeadCount = \App\Models\DeadPepole::where('re_file_id', $record->file_id_number)->delete();
+            Log::info("⚰️ Deleted deceased records", ['count' => $deletedDeadCount]);
+
+            // حذف السجل الرئيسي
+            $record->delete();
+            Log::info("📋 Deleted main record");
+
+            DB::commit();
+            Log::info("✅ Deletion process completed successfully");
+
+            return redirect()->route('admin.records.management')->with('success', "تم حذف السجل وجميع البيانات المرتبطة به بنجاح. تم حذف {$deletedFiles} ملف من التخزين.");
+
+        } catch (\Exception $e) {
+            if (isset($record)) {
+                DB::rollBack();
+            }
+            Log::error("❌ Error during deletion process: " . $e->getMessage());
+            Log::error("📍 Error trace: " . $e->getTraceAsString());
+
+            return redirect()->route('admin.records.management')->with('error', 'حدث خطأ أثناء حذف السجل: ' . $e->getMessage());
         }
-
-        // حذف السجل الرئيسي
-        $record->delete();
-
-        return redirect()->route('admin.records.management')->with('success', 'تم حذف السجل وجميع البيانات المرتبطة به بنجاح');
     }
 
     /**
