@@ -28,6 +28,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use PhpParser\Comment\Doc;
+use App\Services\RecordsExportService;
 
 class RecordsManagementController extends Controller
 {
@@ -35,10 +36,17 @@ class RecordsManagementController extends Controller
     {
         return $dataTable->render('admin.dashboard.records_management.index');
     }
+
+    // Export all records into a single Excel file with three sheets
+    public function exportAll(RecordsExportService $exportService)
+    {
+        return $exportService->exportAll();
+    }
        public function create()
     {
         $generalSection = GeneralCategory::all();
-        $file_id_number = generateFiveDigitCode(Data::class, 'file_id_number');
+        // $file_id_number = generateFiveDigitCode(Data::class, 'file_id_number');
+        $file_id_number = generateUniqueReservedCode('data', 'file_id_number');
         $category_of_relationship = CategoryOfRelation::all();
         $marital_status = MaritalStatus::all();
         $academic_qualification = AcademicDegree::all();

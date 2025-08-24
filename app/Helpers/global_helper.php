@@ -9,54 +9,108 @@ if (!function_exists('generateUniqueReservedCode')) {
      * Generate unique 6-digit code without reserved_codes table for shared hosting
      * يولد رقم فريد من 6 أرقام بدون استخدام جدول reserved_codes للاستضافة المشتركة
      */
-    function generateUniqueReservedCode(string $table, string $column, ?string $sessionId = null): ?string
-    {
-        // استخدام Static variable لضمان زيادة الأرقام في نفس الجلسة
-        static $lastGenerated = [];
-        $tableKey = "{$table}.{$column}";
+    // function generateUniqueReservedCode(string $table, string $column, ?string $sessionId = null): ?string
+    // {
+    //     // استخدام Static variable لضمان زيادة الأرقام في نفس الجلسة
+    //     static $lastGenerated = [];
+    //     $tableKey = "{$table}.{$column}";
 
-        return DB::transaction(function () use ($table, $column, $sessionId, $tableKey, &$lastGenerated) {
+    //     return DB::transaction(function () use ($table, $column, $sessionId, $tableKey, &$lastGenerated) {
+    //         // جلب أكبر رقم رقمي فقط من الجدول الأساسي
+    //         $maxMain = DB::table($table)
+    //             ->select(DB::raw("MAX(CAST($column as UNSIGNED)) as max_code"))
+    //             ->whereRaw("LENGTH($column) = 6 AND $column REGEXP '^[0-9]+$'")
+    //             ->value('max_code');
+
+    //         // استخدام الرقم الأخير المولد أو الأكبر من الجدول
+    //         $lastGenerated[$tableKey] = $lastGenerated[$tableKey] ?? (int)$maxMain;
+    //         $next = max($lastGenerated[$tableKey], (int)$maxMain) + 1;
+
+    //         $attempts = 0;
+    //         $maxAttempts = 50;
+
+    //         while ($attempts < $maxAttempts) {
+    //             $code = str_pad($next, 6, '0', STR_PAD_LEFT);
+
+    //             // فحص عدم وجود الرقم في الجدول
+    //             $exists = DB::table($table)->where($column, $code)->exists();
+
+    //             if (!$exists) {
+    //                 $lastGenerated[$tableKey] = $next; // حفظ الرقم المولد
+    //                 Log::info("✅ تم توليد رقم فريد: {$code} للجدول {$table}");
+    //                 return $code;
+    //             }
+
+    //             $next++;
+    //             $attempts++;
+    //         }
+
+    //         // في حالة فشل التوليد التسلسلي، استخدم رقم عشوائي
+    //         for ($i = 0; $i < 20; $i++) {
+    //             $randomCode = str_pad(rand(100000, 999999), 6, '0', STR_PAD_LEFT);
+    //             $exists = DB::table($table)->where($column, $randomCode)->exists();
+
+    //             if (!$exists) {
+    //                 Log::warning("⚠️ تم استخدام رقم عشوائي: {$randomCode} بعد فشل التوليد التسلسلي");
+    //                 return $randomCode;
+    //             }
+    //         }
+
+    //         Log::error("❌ فشل في توليد رقم فريد للجدول {$table}");
+    //         return null;
+    //     });
+    // }
+     function generateUniqueReservedCode(string $table, string $column, ?string $sessionId = null): ?string
+    {
+        return DB::transaction(function () use ($table, $column, $sessionId) {
             // جلب أكبر رقم رقمي فقط من الجدول الأساسي
             $maxMain = DB::table($table)
                 ->select(DB::raw("MAX(CAST($column as UNSIGNED)) as max_code"))
                 ->whereRaw("LENGTH($column) = 6 AND $column REGEXP '^[0-9]+$'")
                 ->value('max_code');
 
-            // استخدام الرقم الأخير المولد أو الأكبر من الجدول
-            $lastGenerated[$tableKey] = $lastGenerated[$tableKey] ?? (int)$maxMain;
-            $next = max($lastGenerated[$tableKey], (int)$maxMain) + 1;
+            // جلب أكبر رقم رقمي فقط من جدول reserved_codes مع قفل للكتابة
+            $maxReserved = DB::table('reserved_codes')
+                ->select(DB::raw("MAX(CAST(code as UNSIGNED)) as max_code"))
+                ->whereRaw("LENGTH(code) = 6 AND code REGEXP '^[0-9]+$'")
+                ->lockForUpdate()
+                ->value('max_code');
 
-            $attempts = 0;
-            $maxAttempts = 50;
+            // احسب الرقم التالي
+            $next = max((int)$maxMain, (int)$maxReserved) + 1;
+            $code = str_pad($next, 6, '0', STR_PAD_LEFT);
 
-            while ($attempts < $maxAttempts) {
+            // تحقق من عدم وجود الرقم في reserved_codes (داخل نفس المعاملة)
+            $exists = DB::table('reserved_codes')->where('code', $code)->lockForUpdate()->exists();
+            if (!$exists) {
+                DB::table('reserved_codes')->insert([
+                    'code' => $code,
+                    'session_id' => $sessionId ?? Str::uuid(),
+                    'reserved_at' => now(),
+                    'used' => false,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                return $code;
+            }
+            // إذا كان الرقم مستخدم بالفعل (حالة نادرة)، كرر حتى تجد رقم غير مستخدم
+            for ($i = 1; $i <= 10; $i++) {
+                $next++;
                 $code = str_pad($next, 6, '0', STR_PAD_LEFT);
-
-                // فحص عدم وجود الرقم في الجدول
-                $exists = DB::table($table)->where($column, $code)->exists();
-
+                $exists = DB::table('reserved_codes')->where('code', $code)->lockForUpdate()->exists();
                 if (!$exists) {
-                    $lastGenerated[$tableKey] = $next; // حفظ الرقم المولد
-                    Log::info("✅ تم توليد رقم فريد: {$code} للجدول {$table}");
+                    DB::table('reserved_codes')->insert([
+                        'code' => $code,
+                        'session_id' => $sessionId ?? Str::uuid(),
+                        'reserved_at' => now(),
+                        'used' => false,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
                     return $code;
                 }
-
-                $next++;
-                $attempts++;
             }
-
-            // في حالة فشل التوليد التسلسلي، استخدم رقم عشوائي
-            for ($i = 0; $i < 20; $i++) {
-                $randomCode = str_pad(rand(100000, 999999), 6, '0', STR_PAD_LEFT);
-                $exists = DB::table($table)->where($column, $randomCode)->exists();
-
-                if (!$exists) {
-                    Log::warning("⚠️ تم استخدام رقم عشوائي: {$randomCode} بعد فشل التوليد التسلسلي");
-                    return $randomCode;
-                }
-            }
-
-            Log::error("❌ فشل في توليد رقم فريد للجدول {$table}");
+            // إذا لم يتمكن من توليد رقم فريد
             return null;
         });
     }

@@ -83,6 +83,8 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::get('user/user-role-management', [UserController::class, 'index102'])->name('role.management102');
     // records management
     Route::get('records-management', [RecordsManagementController::class, 'index'])->name('records.management');
+    // Export all records (Data, DeadPepole, RePeople) into one Excel
+    Route::get('records-management/export-all', [\App\Http\Controllers\Admin\RecordsManagementController::class, 'exportAll'])->name('records.management.exportAll');
     Route::get('records-management/create', [RecordsManagementController::class, 'create'])->name('records.management.create');
     Route::post('records-management/store', [RecordsManagementController::class, 'store'])->name('records.management.store');
     Route::post('records-management/upload', [RecordsManagementController::class, 'upload'])->name('documents.upload');
@@ -201,6 +203,14 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
             ->middleware('large.upload')
             ->name('file.process.excel');
         Route::get('php-diagnostic', [UnifiedFileManagementController::class, 'showPhpDiagnostic'])->name('file.php.diagnostic');
+    });
+
+    // Duplicate records AJAX endpoints (protected)
+    Route::prefix('duplicates')->middleware(['auth'])->group(function () {
+        Route::post('find', [\App\Http\Controllers\Admin\DuplicateRecordsController::class, 'findDbDuplicates'])->name('duplicates.find');
+        Route::post('check-existing', [\App\Http\Controllers\Admin\DuplicateRecordsController::class, 'checkExisting'])->name('duplicates.checkExisting');
+        Route::post('process-insert', [\App\Http\Controllers\Admin\DuplicateRecordsController::class, 'processInsert'])->name('duplicates.processInsert');
+        Route::get('export/{cacheKey}', [\App\Http\Controllers\Admin\DuplicateRecordsController::class, 'exportDuplicates'])->name('duplicates.export');
     });
 
     // Files Processing Routes

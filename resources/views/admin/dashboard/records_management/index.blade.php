@@ -63,9 +63,14 @@
                     <div class="card-header">
                         <h3 class="card-title">سجل الإدارة</h3>
                         <div class="card-tools">
-                            <button type="button" class="btn btn-info btn-sm mt-4" data-bs-toggle="modal" data-bs-target="#searchModal">
-                                <i class="fas fa-search"></i> البحث الشامل في السجلات
-                            </button>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-info btn-sm mt-4" data-bs-toggle="modal" data-bs-target="#searchModal">
+                                    <i class="fas fa-search"></i> البحث الشامل في السجلات
+                                </button>
+                                <a href="{{ route('admin.records.management.exportAll') }}" class="btn btn-success btn-sm mt-4">
+                                    <i class="fas fa-file-export"></i> استخراج الكل (Excel)
+                                </a>
+                            </div>
                         </div>
                     </div>
                     <div class="card-body">

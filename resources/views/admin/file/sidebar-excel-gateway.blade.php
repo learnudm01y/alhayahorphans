@@ -407,7 +407,24 @@
             <p>نظام رفع ملفات Excel المتقدم مع الربط التلقائي للبيانات</p>
         </div>
 
-        <div class="content">
+    <div class="content">
+            <!-- Top controls: table selector, counters and single button to open duplicates modal -->
+            <div style="display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:18px;">
+                <div style="display:flex;gap:10px;align-items:center;">
+                    <div class="success" style="padding:8px 12px;border-radius:6px;">تمت الإضافة: <span id="insertedCount">0</span></div>
+                    <div class="error" style="padding:8px 12px;border-radius:6px;">تم تجاهل المكرر: <span id="skippedCount">0</span></div>
+                </div>
+
+                <div style="display:flex;gap:10px;align-items:center;">
+                    <label style="font-weight:600;margin-right:6px;">الجدول: </label>
+                    <select id="dupTableSelect" name="dup_table" style="padding:8px;border-radius:6px;border:1px solid #ccc;">
+                        <option value="data">جدول البيانات (data)</option>
+                        <option value="dead_people">dead_people</option>
+                        <option value="re_people">re_people</option>
+                    </select>
+                    <button id="openDuplicatesModalBtn" class="btn">فتح المكرر</button>
+                </div>
+            </div>
             <!-- Remove the old error display as we'll use SweetAlert -->
 
             <div class="upload-section">
@@ -446,6 +463,21 @@
                     <button type="submit" class="btn">🚀 رفع الملفات</button>
                 </form>
             </div>
+
+                <!-- duplicate UI moved to top controls -->
+
+                <!-- Duplicates Modal -->
+                <div id="duplicatesModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;">
+                    <div style="background:white;padding:20px;border-radius:8px;max-width:900px;margin:40px auto;">
+                        <h3>قائمة أرقام الهوية المكررة</h3>
+                        <p>يمكنك تنزيلها كملف Excel أو استعراضها هنا.</p>
+                        <div style="max-height:300px;overflow:auto;border:1px solid #eee;padding:10px;" id="duplicatesList"></div>
+                        <div style="text-align:left;margin-top:10px;">
+                            <button id="exportDuplicatesBtn" class="btn">تصدير إلى Excel</button>
+                            <button id="closeDuplicatesModalBtn" class="btn">إغلاق</button>
+                        </div>
+                    </div>
+                </div>
 
             <div class="button-group">
                 <a href="/admin/file/php-diagnostic" class="btn">🔧 تشخيص النظام</a>
@@ -748,5 +780,107 @@
                 }
             });
         }
+
+        // --- Duplicate detection JS ---
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    const openModalBtn = document.getElementById('openDuplicatesModalBtn');
+        const duplicatesModalEl = document.getElementById('duplicatesModal');
+        const duplicatesList = document.getElementById('duplicatesList');
+        const exportBtn = document.getElementById('exportDuplicatesBtn');
+        const closeModalBtn = document.getElementById('closeDuplicatesModalBtn');
+        const insertedCountEl = document.getElementById('insertedCount');
+        const skippedCountEl = document.getElementById('skippedCount');
+
+        function showModal() { duplicatesModalEl.style.display = 'block'; }
+        function hideModal() { duplicatesModalEl.style.display = 'none'; }
+
+        // When user clicks the single "فتح المكرر" button: detect duplicates for the currently selected table and open modal
+        openModalBtn && openModalBtn.addEventListener('click', async function() {
+            const table = document.getElementById('dupTableSelect')?.value || 'data';
+            try {
+                const res = await fetch('/admin/duplicates/find', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ table })
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    Swal.fire({ icon: 'error', title: 'خطأ', text: data.message || 'فشل في الفحص' });
+                    return;
+                }
+
+                const ids = (data.duplicates || []).map(d => d.id).filter(Boolean);
+                duplicatesList.innerHTML = '';
+                if (ids.length === 0) {
+                    duplicatesList.innerHTML = '<div class="success" style="text-align:center;">لا توجد سجلات مكررة</div>';
+                } else {
+                    ids.forEach(id => {
+                        const el = document.createElement('div');
+                        el.textContent = id;
+                        duplicatesList.appendChild(el);
+                    });
+                }
+
+                // update counters
+                insertedCountEl && (insertedCountEl.textContent = '0');
+                skippedCountEl && (skippedCountEl.textContent = ids.length);
+
+                // store ids for export
+                exportBtn.dataset.ids = JSON.stringify(ids);
+
+                showModal();
+            } catch (err) {
+                console.error(err);
+                Swal.fire({ icon: 'error', title: 'خطأ', text: err.message || 'فشل الاتصال' });
+            }
+        });
+        closeModalBtn && closeModalBtn.addEventListener('click', function() { hideModal(); });
+
+    // removed separate detect button: open button runs detection based on top selector
+
+        exportBtn && exportBtn.addEventListener('click', async function () {
+            const raw = this.dataset.ids || '[]';
+            const ids = JSON.parse(raw);
+            if (!ids || ids.length === 0) {
+                Swal.fire({ icon: 'info', title: 'لا يوجد', text: 'لا توجد أرقام مكررة للتصدير' });
+                return;
+            }
+
+            const table = document.getElementById('dupTableSelect')?.value || 'data';
+            try {
+                // call process-insert with cache_ids to store ids server-side and get cache key
+                const res = await fetch('/admin/duplicates/process-insert', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrfToken,
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ table, rows: [], cache_ids: ids })
+                });
+
+                const result = await res.json();
+                if (!result.success) {
+                    Swal.fire({ icon: 'error', title: 'خطأ', text: result.message || 'فشل إنشاء الملف' });
+                    return;
+                }
+
+                const cacheKey = result.cache_key;
+                if (!cacheKey) {
+                    Swal.fire({ icon: 'error', title: 'خطأ', text: 'لم يتم استلام مفتاح للتصدير' });
+                    return;
+                }
+
+                // download exported file
+                window.location.href = '/admin/duplicates/export/' + encodeURIComponent(cacheKey);
+            } catch (err) {
+                console.error(err);
+                Swal.fire({ icon: 'error', title: 'خطأ', text: err.message || 'فشل الاتصال' });
+            }
+        });
     </script>
 @endpush
