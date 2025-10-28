@@ -229,7 +229,7 @@
         transition: box-shadow 0.3s, transform 0.6s cubic-bezier(.77,0,.18,1.01);
     }
     .slider-card.active {
-        box-shadow: 0 8px 32px 0 rgba(13,110,253,0.18), 0 1.5px 8px 0 rgba(0,0,0,0.08);
+        
         transform: scale(1.04);
         z-index: 2;
     }
