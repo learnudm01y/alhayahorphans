@@ -26,7 +26,7 @@ WORKDIR /var/www
 COPY composer.json composer.lock ./
 
 # تثبيت Composer dependencies
-RUN composer install --no-dev --no-scripts --no-interaction --prefer-dist --optimize-autoloader
+RUN composer install --no-scripts --no-interaction --prefer-dist --optimize-autoloader
 
 # نسخ باقي ملفات المشروع
 COPY . .
