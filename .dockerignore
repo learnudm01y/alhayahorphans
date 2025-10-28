@@ -1,0 +1,6 @@
+# Ignore Docker volumes and temp files
+mysql/data/
+mysql/*.log
+
+# Ignore env file backup
+.env.backup

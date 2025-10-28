@@ -1,79 +1,84 @@
 <style>
-    /* Responsive styles for category and admin statistics cards */
+    /* ========== CLEAN RESPONSIVE STYLES FOR CARDS ========== */
+
+    /* Mobile screens: Single card carousel */
     @media (max-width: 767.98px) {
         .category-stats-responsive {
-            padding-left: 0.5rem !important;
-            padding-right: 0.5rem !important;
+            padding-left: 0.75rem;
+            padding-right: 0.75rem;
         }
-        .category-cards-row-responsive {
-            min-width: 0 !important;
-            flex-wrap: nowrap !important;
-        }
-        .category-carousel-card-responsive {
-            min-width: 90vw !important;
-            max-width: 95vw !important;
-            flex: 0 0 90vw !important;
-        }
-        .admin-cards-carousel-wrapper-responsive {
-            padding-left: 0.5rem !important;
-            padding-right: 0.5rem !important;
-        }
+
+        .category-cards-row-responsive,
         .admin-cards-row-responsive {
-            min-width: 0 !important;
-            flex-wrap: nowrap !important;
+            flex-wrap: nowrap;
         }
+
+        .category-carousel-card-responsive,
         .admin-carousel-card-responsive {
-            min-width: 90vw !important;
-            max-width: 95vw !important;
-            flex: 0 0 90vw !important;
+            flex: 0 0 100%;
+            max-width: 100%;
         }
-    }
-    @media (min-width: 1200px) {
-        /* Show 4 cards per row on large screens */
-        .category-cards-row-responsive, .admin-cards-row-responsive {
-            min-width: 0 !important;
-            flex-wrap: wrap !important;
-        }
-        .category-carousel-card-responsive, .admin-carousel-card-responsive {
-            min-width: 0 !important;
-            max-width: 25% !important;
-            flex: 0 0 25% !important;
-        }
-    }
-    @media (min-width: 768px) and (max-width: 1199.98px) {
-        /* 2 cards per row on medium screens */
-        .category-cards-row-responsive, .admin-cards-row-responsive {
-            min-width: 0 !important;
-            flex-wrap: wrap !important;
-        }
-        .category-carousel-card-responsive, .admin-carousel-card-responsive {
-            min-width: 0 !important;
-            max-width: 50% !important;
-            flex: 0 0 50% !important;
+
+        .admin-cards-carousel-wrapper-responsive {
+            padding-left: 0.75rem;
+            padding-right: 0.75rem;
         }
     }
 
-    /* تحسين حجم وعرض رسم معدل التسجيل الشهري */
+    /* Tablet screens: 2 cards per row */
+    @media (min-width: 768px) and (max-width: 1199.98px) {
+        .category-cards-row-responsive,
+        .admin-cards-row-responsive {
+            flex-wrap: nowrap;
+        }
+
+        .category-carousel-card-responsive,
+        .admin-carousel-card-responsive {
+            flex: 0 0 50%;
+            max-width: 50%;
+        }
+    }
+
+    /* Desktop screens: 4 cards per row with proper centering */
+    @media (min-width: 1200px) {
+        .category-cards-row-responsive,
+        .admin-cards-row-responsive {
+            flex-wrap: nowrap;
+            justify-content: center;
+            align-items: stretch;
+        }
+
+        .category-carousel-card-responsive,
+        .admin-carousel-card-responsive {
+            flex: 0 0 25%;
+            max-width: 25%;
+        }
+    }
+
+    /* Chart responsive wrapper for better visualization */
     .chart-responsive-wrapper {
         width: 100%;
-        min-height: 260px;
+        min-height: 280px;
         display: flex;
         align-items: center;
         justify-content: center;
+        padding: 1rem 0;
     }
+
     .chart-container-enhanced {
-        min-height: 350px;
+        min-height: 380px;
     }
+
     @media (max-width: 991.98px) {
         .chart-container-enhanced {
-            min-height: 280px;
+            min-height: 300px;
         }
         .chart-responsive-wrapper {
-            min-height: 200px;
+            min-height: 220px;
         }
     }
 
-    /* لمعان متحرك للأرقام عند انتهاء العد */
+    /* Shine effect for animated counters */
     .shine {
         position: relative;
         overflow: hidden;
@@ -85,16 +90,15 @@
         right: -60%;
         width: 60%;
         height: 100%;
-        background: linear-gradient(120deg, rgba(255,255,255,0.0) 0%, rgba(255,255,255,0.7) 50%, rgba(255,255,255,0.0) 100%);
-        animation: shine-move 0.9s cubic-bezier(0.4,0.0,0.2,1);
+        background: linear-gradient(120deg,
+            rgba(255,255,255,0.0) 0%,
+            rgba(255,255,255,0.8) 50%,
+            rgba(255,255,255,0.0) 100%);
+        animation: shine-move 0.8s cubic-bezier(0.4, 0.0, 0.2, 1);
         pointer-events: none;
     }
     @keyframes shine-move {
-        0% {
-            right: -60%;
-        }
-        100% {
-            right: 110%;
-        }
+        0% { right: -60%; }
+        100% { right: 110%; }
     }
 </style>

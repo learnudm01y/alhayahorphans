@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('death_reasons', function (Blueprint $table) {
-            $table->unsignedBigInteger('id');
+            $table->id();
             $table->string('description');
             $table->timestamps();
         });

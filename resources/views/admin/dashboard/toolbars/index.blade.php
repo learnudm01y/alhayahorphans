@@ -167,7 +167,7 @@
                     <!--begin::Mobile logo-->
                     <div class="d-flex align-items-center flex-grow-1 flex-lg-grow-0">
                         <a href="{{ route('admin.dashboard') }}" class="d-lg-none">
-                            <img alt="Logo" src="{{ asset('uploads/small-logo.png') }}" class="h-30px" />
+                            <img alt="Logo" src="{{ asset('uploads/logo02small.png') }}" class="h-30px" />
                         </a>
                     </div>
                     <!--end::Mobile logo-->
@@ -437,9 +437,9 @@
                     <div class="app-sidebar-logo px-6" id="kt_app_sidebar_logo">
                         <!--begin::Logo image-->
                         <a href="{{ route('admin.dashboard') }}">
-                            <img alt="Logo" src="{{ asset('uploads/logo.png') }}"
+                            <img alt="Logo" src="{{ asset('uploads/logo01.png') }}"
                                 class="h-35px app-sidebar-logo-default" />
-                            <img alt="Logo" src="{{ asset('uploads/small-logo.png') }}"
+                            <img alt="Logo" src="{{ asset('uploads/logo02small.png') }}"
                                 class="h-20px app-sidebar-logo-minimize" />
                         </a>
                         <!--end::Logo image-->

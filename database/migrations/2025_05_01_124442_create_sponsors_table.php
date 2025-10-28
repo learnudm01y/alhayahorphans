@@ -57,7 +57,7 @@ return new class extends Migration
 
             $table->foreign('country_code')
                 ->references('code')
-                ->on('ci_birth_cd')
+                ->on('CI_BIRTH_CD')
                 ->onUpdate('cascade')
                 ->onDelete('set null');
         });

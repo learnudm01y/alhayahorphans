@@ -9,7 +9,6 @@
                     <div class="mb-2">
                         <i class="bi bi-people-fill fs-1 text-primary"></i>
                     </div>
-            @include('admin.dashboard.component.sliderScript')
                     <h5 class="card-title">عدد الأفراد</h5>
                     <p class="card-text fs-3 fw-bold"><span class="animated-counter-en"
                             data-target="{{ \App\Models\RePeople::count() }}">0</span></p>
@@ -64,11 +63,11 @@
     $month = now()->format('Y-m');
     $year = now()->format('Y');
     @endphp
-    <div class="container my-4 category-stats-responsive" style="max-width: 1200px;">
+    <div class="container my-4 category-stats-responsive">
         <h4 class="mb-3">إحصائيات التصنيفات العامة</h4>
         <div id="category-cards-slider-wrapper" class="slider-wrapper">
-            <button id="category-slider-prev-btn" class="slider-nav-btn d-md-none d-lg-none" style="display:none;left:0.5rem;position:absolute;" aria-label="السابق">&#8592;</button>
-            <button id="category-slider-next-btn" class="slider-nav-btn d-md-none d-lg-none" style="display:none;right:0.5rem;position:absolute;" aria-label="التالي">&#8594;</button>
+            <button id="category-slider-prev-btn" class="slider-nav-btn" style="left:0.5rem;" aria-label="السابق">&#8592;</button>
+            <button id="category-slider-next-btn" class="slider-nav-btn" style="right:0.5rem;" aria-label="التالي">&#8594;</button>
             <div class="row category-cards-row-responsive slider-row" id="category-cards-row">
                 @forelse($categories as $category)
                     @php
@@ -129,8 +128,8 @@
      <h4 class="mb-3">تقرير نشاط الموظفين (Admins)</h4>
     <div id="admin-cards-carousel-wrapper" class="admin-cards-carousel-wrapper-responsive">
         <div id="admin-cards-slider-wrapper" class="slider-wrapper">
-            <button id="admin-slider-prev-btn" class="slider-nav-btn d-md-none d-lg-none" style="display:none;left:0.5rem;position:absolute;" aria-label="السابق">&#8592;</button>
-            <button id="admin-slider-next-btn" class="slider-nav-btn d-md-none d-lg-none" style="display:none;right:0.5rem;position:absolute;" aria-label="التالي">&#8594;</button>
+            <button id="admin-slider-prev-btn" class="slider-nav-btn" style="left:0.5rem;" aria-label="السابق">&#8592;</button>
+            <button id="admin-slider-next-btn" class="slider-nav-btn" style="right:0.5rem;" aria-label="التالي">&#8594;</button>
             <div class="admin-cards-row-responsive slider-row" id="admin-cards-row">
             @forelse($admins as $admin)
                 @php
@@ -188,92 +187,175 @@
     </div>
 
     <style>
+    /* ========== CLEAN SLIDER STYLES - FIXED VERSION ========== */
+
+    /* Slider dots pagination */
     .slider-dots {
         display: flex;
         justify-content: center;
         align-items: center;
-        gap: 0.4rem;
-        margin: 0.5rem 0 0.7rem 0;
+        gap: 0.5rem;
+        margin: 1rem 0;
         flex-direction: row-reverse;
+        padding: 0.5rem 0;
     }
     .slider-dot {
-        width: 10px;
-        height: 10px;
+        width: 12px;
+        height: 12px;
         border-radius: 50%;
-        background: #ccc;
-        transition: background 0.2s;
+        background: #d0d0d0;
+        transition: all 0.3s ease;
         cursor: pointer;
+        border: 2px solid transparent;
+    }
+    .slider-dot:hover {
+        background: #a0a0a0;
+        transform: scale(1.1);
     }
     .slider-dot.active {
         background: #0d6efd;
+        border-color: #0a58ca;
+        transform: scale(1.2);
     }
-    @media (max-width: 767.98px) {
-        .slider-nav-btn { display: none !important; }
-        .slider-dots { margin-bottom: 1.2rem; }
-    }
+
+    /* Slider wrapper - with overflow hidden for carousel effect */
     .slider-wrapper {
         position: relative;
-        overflow: hidden;
         width: 100%;
-        min-height: 220px;
+        padding: 2rem 0;
+        margin: 0 auto;
+        overflow: hidden;
+        min-height: 300px;
     }
+
+    @media (min-width: 768px) {
+        .slider-wrapper {
+            min-height: 350px;
+        }
+    }
+
+    @media (min-width: 1200px) {
+        .slider-wrapper {
+            min-height: 380px;
+            padding: 2.5rem 0;
+        }
+    }
+
+    /* Slider row container - CLEAN FLEX */
     .slider-row {
         display: flex;
         flex-direction: row-reverse;
-        transition: transform 0.6s cubic-bezier(.77,0,.18,1.01);
+        transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
         will-change: transform;
         touch-action: pan-y;
+        align-items: stretch;
     }
+
+    /* Base slider card - REMOVED PROBLEMATIC SCALE */
     .slider-card {
-        /* إضافة ظل متغير عند التفعيل */
-        transition: box-shadow 0.3s, transform 0.6s cubic-bezier(.77,0,.18,1.01);
+        flex-shrink: 0;
+        box-sizing: border-box;
+        transition: opacity 0.3s ease;
     }
+
+    /* REMOVED: Active card transform scale that was causing clipping */
     .slider-card.active {
-        
-        transform: scale(1.04);
-        z-index: 2;
+        opacity: 1;
     }
+
+    /* Mobile: 1 card full width */
     .slider-card {
         flex: 0 0 100%;
         max-width: 100%;
-        transition: box-shadow 0.3s;
+        padding: 0.5rem 0.75rem;
     }
+
+    /* Tablet: 2 cards per view */
     @media (min-width: 768px) {
         .slider-card {
             flex: 0 0 50%;
             max-width: 50%;
+            padding: 0.75rem 1rem;
         }
     }
+
+    /* Desktop: 4 cards per view with proper spacing */
     @media (min-width: 1200px) {
         .slider-card {
             flex: 0 0 25%;
             max-width: 25%;
+            padding: 1rem 1.25rem;
         }
     }
+
     /* Slider navigation buttons */
     .slider-nav-btn {
         position: absolute;
         top: 50%;
         transform: translateY(-50%);
-        z-index: 10;
-        background: #fff;
-        border: 1px solid #ddd;
+        z-index: 15;
+        background: #ffffff;
+        border: 2px solid #dee2e6;
         border-radius: 50%;
-        width: 36px;
-        height: 36px;
+        width: 42px;
+        height: 42px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.5rem;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        font-size: 1.4rem;
+        color: #495057;
+        box-shadow: 0 3px 12px rgba(0,0,0,0.15);
         cursor: pointer;
+        transition: all 0.3s ease;
     }
-    /* تقليل المسافة حول سلايدر الموظفين */
+    .slider-nav-btn:hover {
+        background: #0d6efd;
+        color: #ffffff;
+        border-color: #0d6efd;
+        transform: translateY(-50%) scale(1.1);
+    }
+    .slider-nav-btn:active {
+        transform: translateY(-50%) scale(0.95);
+    }
+
+    @media (max-width: 767.98px) {
+        .slider-nav-btn { display: none !important; }
+        .slider-dots { margin: 0.5rem 0 1rem; }
+    }
+
+    /* Category stats container - wider on large screens */
+    @media (min-width: 992px) {
+        .category-stats-responsive.container {
+            max-width: 1800px !important;
+        }
+    }
+
+    /* Admin cards specific adjustments */
     .admin-cards-row-responsive.slider-row {
-        margin-top: 0 !important;
-        margin-bottom: 0 !important;
-        padding-top: 0 !important;
-        padding-bottom: 0 !important;
+        margin-top: 0;
+        margin-bottom: 0;
+        padding-top: 0;
+        padding-bottom: 0;
+    }
+
+    /* Ensure cards display properly with proper centering */
+    .category-carousel-card, .admin-carousel-card {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+
+    .category-carousel-card .card,
+    .admin-carousel-card .card {
+        height: 100%;
+        border-radius: 0.5rem;
+        overflow: hidden;
+        transition: transform 0.3s ease;
+    }
+
+    .category-carousel-card .card:hover,
+    .admin-carousel-card .card:hover {
+        transform: translateY(-2px);
     }
     </style>
         </div>
@@ -508,5 +590,6 @@
         </div>
     </div>
     </div>
+@include('admin.dashboard.component.sliderScript')
 @include('admin.dashboard.javascript.chartsComponent')
 @endsection
