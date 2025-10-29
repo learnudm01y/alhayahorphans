@@ -168,7 +168,11 @@ return [
         // App\Providers\BroadcastServiceProvider::class,
         App\Providers\EventServiceProvider::class,
         App\Providers\RouteServiceProvider::class,
-        App\Providers\TelescopeServiceProvider::class,
+        // Telescope - يتم تحميله فقط في بيئة التطوير أو إذا كانت الحزمة مثبتة
+        ...(class_exists(\Laravel\Telescope\TelescopeServiceProvider::class)
+            ? [App\Providers\TelescopeServiceProvider::class]
+            : []
+        ),
         App\Providers\DataObserverServiceProvider::class, // Observer للتأكد من حالة Excel
         Spatie\Permission\PermissionServiceProvider::class,
         Collective\Html\HtmlServiceProvider::class,
