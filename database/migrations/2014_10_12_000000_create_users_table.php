@@ -31,7 +31,7 @@ return new class extends Migration
             // إضافة العلاقة Foreign Key
             $table->foreign('country_code')
                 ->references('code')
-                ->on('CI_BIRTH_CD')
+                ->on('ci_birth_cd')
                 ->onUpdate('cascade');
         });
 

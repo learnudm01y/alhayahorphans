@@ -29,9 +29,9 @@ return new class extends Migration
             $table->string('STREET',255);
             $table->string('HOUSE_NO',255);
             $table->timestamps();
-            $table->foreign('CI_BIRTH_TB_CD')->references('id')->on('CI_BIRTH_TB_CD');
-            $table->foreign('CI_BIRTH_CD')->references('id')->on('CI_BIRTH_CD');
-            $table->foreign('CI_PERSONAL_CD')->references('id')->on('CI_PERSONAL_CD');
+            $table->foreign('CI_BIRTH_TB_CD')->references('id')->on('ci_birth_tb_cd');
+            $table->foreign('CI_BIRTH_CD')->references('id')->on('ci_birth_cd');
+            $table->foreign('CI_PERSONAL_CD')->references('id')->on('ci_personal_cd');
             $table->foreign('CITY')->references('id')->on('city');
         });
 
