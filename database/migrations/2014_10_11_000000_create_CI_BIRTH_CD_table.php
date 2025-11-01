@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('CI_BIRTH_CD', function (Blueprint $table) {
+        Schema::create('ci_birth_cd', function (Blueprint $table) {
             $table->id();
             $table->string('ci_birth_cd')->unique();
             $table->string('flag');
@@ -25,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('CI_BIRTH_CD');
+        Schema::dropIfExists('ci_birth_cd');
     }
 };

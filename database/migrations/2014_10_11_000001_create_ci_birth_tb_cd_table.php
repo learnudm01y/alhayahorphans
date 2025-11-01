@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('CI_BIRTH_TB_CD', function (Blueprint $table) {
+        Schema::create('ci_birth_tb_cd', function (Blueprint $table) {
             $table->id();
             $table->string('CI_BIRTH_TB_CD', 255);
             $table->timestamps();
@@ -23,6 +23,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('CI_BIRTH_TB_CD');
+        Schema::dropIfExists('ci_birth_tb_cd');
     }
 };

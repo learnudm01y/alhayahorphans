@@ -24,6 +24,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('type_of_guarantees');
+        Schema::dropIfExists('type_of_guarantee');
     }
 };
