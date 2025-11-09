@@ -6,7 +6,7 @@ $app = require_once __DIR__.'/bootstrap/app.php';
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
 
 echo "\n=================================================================\n";
-echo "        حذف جميع Foreign Keys من جدول data\n";
+echo "        حذف جميع Foreign Keys من جدول data (ماعدا file_id_number)\n";
 echo "=================================================================\n\n";
 
 // الحصول على اسم قاعدة البيانات
@@ -15,7 +15,7 @@ $database = DB::connection()->getDatabaseName();
 echo "🔍 البحث عن Foreign Keys في جدول data...\n";
 echo "-----------------------------------------------------------------\n";
 
-// الحصول على جميع Foreign Keys في جدول data
+// الحصول على جميع Foreign Keys في جدول data (ماعدا file_id_number)
 $foreignKeys = DB::select("
     SELECT
         CONSTRAINT_NAME,
@@ -28,9 +28,8 @@ $foreignKeys = DB::select("
         TABLE_SCHEMA = ?
         AND TABLE_NAME = 'data'
         AND REFERENCED_TABLE_NAME IS NOT NULL
-", [$database]);
-
-if (empty($foreignKeys)) {
+        AND COLUMN_NAME != 'file_id_number'
+", [$database]);if (empty($foreignKeys)) {
     echo "   ✅ لا توجد Foreign Keys في جدول data\n\n";
     exit;
 }
@@ -84,5 +83,6 @@ echo "\n=================================================================\n";
 echo "✅ انتهى - الآن يمكنك إدخال أي قيمة في جدول data بدون قيود\n";
 echo "=================================================================\n\n";
 
-echo "⚠️  ملاحظة: هذا سيسمح بإدخال بيانات غير صحيحة (قيم غير موجودة في الجداول المرجعية)\n";
+echo "✅ تم الاحتفاظ بـ Foreign Key لـ file_id_number (رقم الهوية)\n";
+echo "⚠️  ملاحظة: باقي الحقول لن يتم التحقق منها (marital_status, academic_qualification, إلخ)\n";
 echo "          تأكد من صحة البيانات المدخلة يدوياً\n\n";
