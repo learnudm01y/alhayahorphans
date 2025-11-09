@@ -327,6 +327,7 @@ class FamilyRelationController extends Controller
             $startTime = microtime(true);
 
             // استعلام محسّن - فقط العلاقات المباشرة (بدون عكسية)
+            // استخدام LEFT JOIN لأن بعض CF_ID_RELATIVE قد لا يكون موجوداً في persons (25% من البيانات)
             $directRelations = DB::connection('civilregistry')
                 ->table('relations as r')
                 ->select(
@@ -342,7 +343,7 @@ class FamilyRelationController extends Controller
                     'p.CI_SEX_CD',
                     'p.CI_DEAD_DT'
                 )
-                ->join('persons as p', 'r.CF_ID_RELATIVE', '=', 'p.CI_ID_NUM')
+                ->leftJoin('persons as p', 'r.CF_ID_RELATIVE', '=', 'p.CI_ID_NUM')
                 ->leftJoin('category_of_relations as cat', 'r.CF_RELATIVE_CD', '=', 'cat.id')
                 ->where('r.CF_ID_NUM', $idNumber)
                 ->get();
@@ -354,12 +355,19 @@ class FamilyRelationController extends Controller
             foreach ($directRelations as $relation) {
                 $memberId = $relation->CF_ID_RELATIVE;
 
-                $fullName = trim(implode(' ', [
-                    $relation->CI_FIRST_ARB ?? '',
-                    $relation->CI_FATHER_ARB ?? '',
-                    $relation->CI_GRAND_FATHER_ARB ?? '',
-                    $relation->CI_FAMILY_ARB ?? ''
-                ]));
+                // إذا كانت البيانات موجودة في persons، استخدمها
+                // إذا كانت مفقودة، اعرض رقم الهوية فقط مع ملاحظة
+                if (!empty($relation->CI_FIRST_ARB)) {
+                    $fullName = trim(implode(' ', [
+                        $relation->CI_FIRST_ARB ?? '',
+                        $relation->CI_FATHER_ARB ?? '',
+                        $relation->CI_GRAND_FATHER_ARB ?? '',
+                        $relation->CI_FAMILY_ARB ?? ''
+                    ]));
+                } else {
+                    // البيانات مفقودة من persons
+                    $fullName = "رقم الهوية: {$memberId} (بيانات غير متوفرة)";
+                }
 
                 $age = $this->calculateAge($relation->CI_BIRTH_DT);
                 $isAlive = empty($relation->CI_DEAD_DT);
@@ -367,10 +375,10 @@ class FamilyRelationController extends Controller
                 $member = [
                     'id_number' => $memberId,
                     'full_name' => $fullName,
-                    'first_name' => $relation->CI_FIRST_ARB,
-                    'father_name' => $relation->CI_FATHER_ARB,
-                    'grand_father_name' => $relation->CI_GRAND_FATHER_ARB,
-                    'family_name' => $relation->CI_FAMILY_ARB,
+                    'first_name' => $relation->CI_FIRST_ARB ?? null,
+                    'father_name' => $relation->CI_FATHER_ARB ?? null,
+                    'grand_father_name' => $relation->CI_GRAND_FATHER_ARB ?? null,
+                    'family_name' => $relation->CI_FAMILY_ARB ?? null,
                     'relation_type' => $relation->relation_type,
                     'relation_code' => $relation->CF_RELATIVE_CD,
                     'birth_date' => $relation->CI_BIRTH_DT,
@@ -378,11 +386,14 @@ class FamilyRelationController extends Controller
                     'gender' => $this->getGenderText($relation->CI_SEX_CD),
                     'is_alive' => $isAlive,
                     'status' => $isAlive ? 'حي' : 'متوفي',
+                    'data_available' => !empty($relation->CI_FIRST_ARB), // علامة توفر البيانات
                     'children' => [] // سيتم ملؤها بأبناء هذا الشخص
                 ];
 
-                // جلب أبناء هذا الشخص بشكل هرمي
-                $member['children'] = $this->getDirectChildren($memberId);
+                // جلب أبناء هذا الشخص بشكل هرمي (فقط إذا كانت بياناته متوفرة)
+                if (!empty($relation->CI_FIRST_ARB)) {
+                    $member['children'] = $this->getDirectChildren($memberId);
+                }
 
                 $familyMembers[] = $member;
 
@@ -431,19 +442,24 @@ class FamilyRelationController extends Controller
                 'p.CI_SEX_CD',
                 'p.CI_DEAD_DT'
             )
-            ->join('persons as p', 'r.CF_ID_RELATIVE', '=', 'p.CI_ID_NUM')
+            ->leftJoin('persons as p', 'r.CF_ID_RELATIVE', '=', 'p.CI_ID_NUM')
             ->leftJoin('category_of_relations as cat', 'r.CF_RELATIVE_CD', '=', 'cat.id')
             ->where('r.CF_ID_NUM', $idNumber)
             ->get();
 
         $childrenArray = [];
         foreach ($children as $child) {
-            $fullName = trim(implode(' ', [
-                $child->CI_FIRST_ARB ?? '',
-                $child->CI_FATHER_ARB ?? '',
-                $child->CI_GRAND_FATHER_ARB ?? '',
-                $child->CI_FAMILY_ARB ?? ''
-            ]));
+            // التعامل مع البيانات المفقودة
+            if (!empty($child->CI_FIRST_ARB)) {
+                $fullName = trim(implode(' ', [
+                    $child->CI_FIRST_ARB ?? '',
+                    $child->CI_FATHER_ARB ?? '',
+                    $child->CI_GRAND_FATHER_ARB ?? '',
+                    $child->CI_FAMILY_ARB ?? ''
+                ]));
+            } else {
+                $fullName = "رقم الهوية: {$child->CF_ID_RELATIVE} (بيانات غير متوفرة)";
+            }
 
             $childrenArray[] = [
                 'id_number' => $child->CF_ID_RELATIVE,
@@ -452,7 +468,8 @@ class FamilyRelationController extends Controller
                 'age' => $this->calculateAge($child->CI_BIRTH_DT),
                 'gender' => $this->getGenderText($child->CI_SEX_CD),
                 'is_alive' => empty($child->CI_DEAD_DT),
-                'status' => empty($child->CI_DEAD_DT) ? 'حي' : 'متوفي'
+                'status' => empty($child->CI_DEAD_DT) ? 'حي' : 'متوفي',
+                'data_available' => !empty($child->CI_FIRST_ARB)
             ];
         }
 
