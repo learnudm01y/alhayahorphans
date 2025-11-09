@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار واجهة العلاقات العائلية</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .table-info {
+            background-color: #d1ecf1 !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 class="mb-4"><i class="fas fa-users"></i> اختبار واجهة العلاقات العائلية</h2>
+        
+        <div class="card">
+            <div class="card-body">
+                <button class="btn btn-primary" onclick="simulateSearch()">
+                    <i class="fas fa-search"></i> محاكاة البحث عن الرقم 407015692
+                </button>
+            </div>
+        </div>
+
+        <div id="results" class="mt-4"></div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // بيانات تجريبية تحاكي استجابة الـ API
+        const mockData = {
+            person: {
+                id_number: '407015692',
+                full_name: 'نصرالله عبد الناصر رفيق الفرا',
+                birth_date: '1990-01-01',
+                age: '34 سنة',
+                gender: 'ذكر',
+                is_alive: true,
+                status: 'حي'
+            },
+            family_members: [
+                {
+                    id_number: '937097657',
+                    full_name: 'عبد الناصر رفيق جباره الفرا',
+                    relation_type: 'اب',
+                    gender: 'ذكر',
+                    age: '65 سنة',
+                    is_alive: true,
+                    status: 'حي',
+                    children: [
+                        { id_number: '400609038', full_name: 'رفيق عبد الناصر رفيق الفرا', relation_type: 'ابن', gender: 'ذكر', age: '30 سنة', is_alive: true, status: 'حي' },
+                        { id_number: '800790768', full_name: 'جمال عبد الناصر رفيق الفرا', relation_type: 'ابن', gender: 'ذكر', age: '38 سنة', is_alive: true, status: 'حي' },
+                        { id_number: '801448911', full_name: 'محمد عبد الناصر رفيق الفرا', relation_type: 'ابن', gender: 'ذكر', age: '39 سنة', is_alive: true, status: 'حي' },
+                        { id_number: '802226522', full_name: 'خالد عبد الناصر رفيق الفرا', relation_type: 'ابن', gender: 'ذكر', age: '36 سنة', is_alive: true, status: 'حي' },
+                        { id_number: '802911560', full_name: 'نور عبد الناصر رفيق الفرا', relation_type: 'ابن', gender: 'أنثى', age: '35 سنة', is_alive: true, status: 'حي' },
+                        { id_number: '803824069', full_name: 'عمرو عبد الناصر رفيق الفرا', relation_type: 'ابن', gender: 'ذكر', age: '32 سنة', is_alive: true, status: 'حي' },
+                        { id_number: '407015692', full_name: 'نصرالله عبد الناصر رفيق الفرا', relation_type: 'ابن', gender: 'ذكر', age: '24 سنة', is_alive: true, status: 'حي' },
+                        { id_number: '407015668', full_name: 'سلمى عبد الناصر رفيق الفرا', relation_type: 'ابن', gender: 'أنثى', age: '24 سنة', is_alive: true, status: 'حي' },
+                        { id_number: '437407919', full_name: 'وسيم عبد الناصر رفيق الفرا', relation_type: 'ابن', gender: 'ذكر', age: '9 سنة', is_alive: true, status: 'حي' },
+                        { id_number: '937340867', full_name: 'هدى حمزه سليمان الفرا', relation_type: 'زوج/ة', gender: 'أنثى', age: '61 سنة', is_alive: false, status: 'متوفي' },
+                        { id_number: '801525130', full_name: 'ميسره طلعت حامد الفرا', relation_type: 'زوج/ة', gender: 'أنثى', age: '39 سنة', is_alive: true, status: 'حي' }
+                    ]
+                },
+                {
+                    id_number: '937340867',
+                    full_name: 'هدى حمزه سليمان الفرا',
+                    relation_type: 'ام',
+                    gender: 'أنثى',
+                    age: '61 سنة',
+                    is_alive: false,
+                    status: 'متوفي',
+                    children: [
+                        { id_number: '400609038', full_name: 'رفيق عبد الناصر رفيق الفرا', relation_type: 'ابن', gender: 'ذكر', age: '30 سنة', is_alive: true, status: 'حي' },
+                        { id_number: '800790768', full_name: 'جمال عبد الناصر رفيق الفرا', relation_type: 'ابن', gender: 'ذكر', age: '38 سنة', is_alive: true, status: 'حي' },
+                        { id_number: '801448911', full_name: 'محمد عبد الناصر رفيق الفرا', relation_type: 'ابن', gender: 'ذكر', age: '39 سنة', is_alive: true, status: 'حي' },
+                        { id_number: '802226522', full_name: 'خالد عبد الناصر رفيق الفرا', relation_type: 'ابن', gender: 'ذكر', age: '36 سنة', is_alive: true, status: 'حي' },
+                        { id_number: '802911560', full_name: 'نور عبد الناصر رفيق الفرا', relation_type: 'ابن', gender: 'أنثى', age: '35 سنة', is_alive: true, status: 'حي' },
+                        { id_number: '803824069', full_name: 'عمرو عبد الناصر رفيق الفرا', relation_type: 'ابن', gender: 'ذكر', age: '32 سنة', is_alive: true, status: 'حي' },
+                        { id_number: '407015692', full_name: 'نصرالله عبد الناصر رفيق الفرا', relation_type: 'ابن', gender: 'ذكر', age: '24 سنة', is_alive: true, status: 'حي' },
+                        { id_number: '407015668', full_name: 'سلمى عبد الناصر رفيق الفرا', relation_type: 'ابن', gender: 'أنثى', age: '24 سنة', is_alive: true, status: 'حي' },
+                        { id_number: '937097657', full_name: 'عبد الناصر رفيق جباره الفرا', relation_type: 'زوج/ة', gender: 'ذكر', age: '62 سنة', is_alive: true, status: 'حي' }
+                    ]
+                }
+            ],
+            statistics: {
+                total_relations: 2,
+                direct_relations: 2,
+                relation_types: { 'اب': 1, 'ام': 1 },
+                execution_time_ms: 106.69
+            }
+        };
+
+        function simulateSearch() {
+            displayFamilyRelationsInModal(mockData, '0.11');
+        }
+
+        function displayFamilyRelationsInModal(data, searchDuration) {
+            const person = data.person;
+            const familyMembers = data.family_members;
+            const stats = data.statistics;
+
+            let html = `
+                <div class="alert alert-success">
+                    <h5><i class="fas fa-user-circle"></i> معلومات الشخص المبحوث عنه:</h5>
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <p><strong>رقم الهوية:</strong> <span class="badge bg-primary fs-6">${person.id_number}</span></p>
+                            <p><strong>الاسم الكامل:</strong> ${person.full_name}</p>
+                            <p><strong>تاريخ الميلاد:</strong> ${person.birth_date ? new Date(person.birth_date).toLocaleDateString('ar-EG') : 'غير محدد'}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>العمر:</strong> ${person.age}</p>
+                            <p><strong>الجنس:</strong> ${person.gender}</p>
+                            <p><strong>الحالة:</strong> <span class="badge ${person.is_alive ? 'bg-success' : 'bg-danger'}">${person.status}</span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center py-2">
+                                <h4 class="mb-0">${stats.total_relations}</h4>
+                                <small>إجمالي العلاقات</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center py-2">
+                                <h4 class="mb-0">${Object.keys(stats.relation_types).length}</h4>
+                                <small>أنواع العلاقات</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-warning text-dark">
+                            <div class="card-body text-center py-2">
+                                <h4 class="mb-0">${searchDuration} ثانية</h4>
+                                <small>وقت البحث</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            if (familyMembers.length === 0) {
+                html += `
+                    <div class="alert alert-warning text-center">
+                        <i class="fas fa-info-circle"></i>
+                        <h5>لا توجد علاقات عائلية</h5>
+                        <p>لم يتم العثور على أي أفراد عائلة مرتبطين بهذا الشخص.</p>
+                    </div>
+                `;
+            } else {
+                // جمع كل الأفراد في جدول واحد مع إزالة التكرار
+                let allMembers = [];
+                let addedIds = new Set(); // لتتبع الأرقام المضافة وتجنب التكرار
+                
+                // إضافة الأشخاص الرئيسيين (الأب، الأم، إلخ)
+                familyMembers.forEach(member => {
+                    if (!addedIds.has(member.id_number)) {
+                        allMembers.push({
+                            id_number: member.id_number,
+                            full_name: member.full_name,
+                            relation_type: member.relation_type,
+                            gender: member.gender,
+                            age: member.age,
+                            is_alive: member.is_alive,
+                            status: member.status,
+                            level: 0 // المستوى الأول (الأب، الأم)
+                        });
+                        addedIds.add(member.id_number);
+                    }
+                    
+                    // إضافة الأبناء
+                    if (member.children && member.children.length > 0) {
+                        member.children.forEach(child => {
+                            // تجنب إضافة نفس الشخص الرئيسي كابن
+                            if (!addedIds.has(child.id_number)) {
+                                allMembers.push({
+                                    id_number: child.id_number,
+                                    full_name: child.full_name,
+                                    relation_type: child.relation_type,
+                                    gender: child.gender,
+                                    age: child.age,
+                                    is_alive: child.is_alive,
+                                    status: child.status,
+                                    level: 1, // المستوى الثاني (الأبناء)
+                                    parent_name: member.full_name // اسم الوالد
+                                });
+                                addedIds.add(child.id_number);
+                            }
+                        });
+                    }
+                });
+
+                html += `
+                    <h5 class="mb-3">
+                        <i class="fas fa-users"></i> الشجرة العائلية (${allMembers.length} فرد):
+                    </h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover table-bordered table-striped">
+                            <thead class="table-primary">
+                                <tr>
+                                    <th>#</th>
+                                    <th>رقم الهوية</th>
+                                    <th>الاسم الكامل</th>
+                                    <th>العلاقة</th>
+                                    <th>الجنس</th>
+                                    <th>العمر</th>
+                                    <th>الحالة</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+
+                allMembers.forEach((member, index) => {
+                    const statusBadge = member.is_alive 
+                        ? '<span class="badge bg-success">حي</span>' 
+                        : '<span class="badge bg-danger">متوفي</span>';
+                    
+                    // تنسيق خاص للمستوى الأول (الأب، الأم)
+                    const rowClass = member.level === 0 ? 'table-info fw-bold' : '';
+                    const namePrefix = member.level === 1 ? '&nbsp;&nbsp;&nbsp;↳ ' : '';
+                    
+                    html += `
+                        <tr class="${rowClass}">
+                            <td>${index + 1}</td>
+                            <td><strong>${member.id_number}</strong></td>
+                            <td>${namePrefix}${member.full_name}</td>
+                            <td><span class="badge ${member.level === 0 ? 'bg-primary' : 'bg-secondary'}">${member.relation_type}</span></td>
+                            <td>${member.gender}</td>
+                            <td>${member.age}</td>
+                            <td>${statusBadge}</td>
+                        </tr>
+                    `;
+                });
+
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="alert alert-info mt-3">
+                        <small>
+                            <i class="fas fa-info-circle"></i>
+                            <strong>ملاحظة:</strong> 
+                            الصفوف الملونة بالأزرق تمثل الأشخاص الرئيسيين (الأب، الأم)، 
+                            والصفوف التي تحتوي على (↳) تمثل الأبناء والمرتبطين.
+                        </small>
+                    </div>
+                `;
+            }
+
+            $('#results').html(html);
+        }
+    </script>
+</body>
+</html>

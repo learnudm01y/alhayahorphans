@@ -91,7 +91,11 @@
                                         <option value="comprehensive">البحث الشامل</option>
                                         <option value="id_only">البحث برقم الهوية فقط</option>
                                         <option value="name_only">البحث بالاسم فقط</option>
+                                        <option value="family_relations" style="background-color: #d4edda; font-weight: bold;">🌳 البحث العائلي (عرض العائلة كاملة)</option>
                                     </select>
+                                    <small class="form-text text-success" id="familySearchHint" style="display: none;">
+                                        <i class="fas fa-info-circle"></i> البحث العائلي: سيتم عرض جميع أفراد العائلة المرتبطين بالشخص
+                                    </small>
                                 </div>
 
                                 <!-- الجنس -->
@@ -237,6 +241,15 @@
     <!-- JavaScript للتحكم في البحث في السجل المدني -->
     <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // إظهار/إخفاء تلميح البحث العائلي
+        $('#civil_search_type').on('change', function() {
+            if ($(this).val() === 'family_relations') {
+                $('#familySearchHint').show();
+            } else {
+                $('#familySearchHint').hide();
+            }
+        });
+
         // تحميل إحصائيات قاعدة البيانات عند فتح المودال
         $('#civilRegistrySearchModal').on('shown.bs.modal', function () {
             // التأكد من إخفاء الـ spinner عند فتح المودال
@@ -339,6 +352,12 @@
 
             const searchType = $('#civil_search_type').val();
             let endpoint = '/api/civil-registry/search';
+
+            // التحقق من نوع البحث العائلي
+            if (searchType === 'family_relations') {
+                performFamilyRelationsSearchInModal();
+                return;
+            }
 
             switch(searchType) {
                 case 'quick':
@@ -479,6 +498,329 @@
             return age + ' سنة';
         }
 
+        // ==================== دالة البحث العائلي داخل Modal السجل المدني ====================
+        function performFamilyRelationsSearchInModal() {
+            const searchText = $('#civil_search_text').val().trim();
+            
+            if (!searchText) {
+                alert('يرجى إدخال رقم الهوية أو الاسم للبحث العائلي');
+                showCivilRegistryLoading(false);
+                return;
+            }
+
+            updateSearchInfo('جاري البحث عن العلاقات العائلية...');
+            
+            const startTime = Date.now();
+
+            // تحديد نوع البحث: رقم أم اسم
+            const isIdNumber = /^\d+$/.test(searchText);
+            const endpoint = isIdNumber 
+                ? '/admin/family-relations/search' 
+                : '/admin/family-relations/search-by-name';
+            const requestBody = isIdNumber 
+                ? { id_number: searchText } 
+                : { name: searchText };
+
+            fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify(requestBody)
+            })
+            .then(response => response.json())
+            .then(data => {
+                const endTime = Date.now();
+                const searchDuration = ((endTime - startTime) / 1000).toFixed(2);
+
+                showCivilRegistryLoading(false);
+
+                if (data.success) {
+                    // التحقق من وجود نتائج متعددة
+                    if (data.data.multiple_results) {
+                        displayMultiplePersonsSelection(data.data.persons, searchDuration);
+                    } else {
+                        displayFamilyRelationsInModal(data.data, searchDuration);
+                        updateSearchInfo(`تم العثور على ${data.data.family_members.length} فرد من العائلة في ${searchDuration} ثانية`);
+                    }
+                } else {
+                    $('#civilRegistryResults').hide();
+                    updateSearchInfo(`خطأ: ${data.message}`);
+                    alert(`خطأ: ${data.message}`);
+                }
+            })
+            .catch(error => {
+                showCivilRegistryLoading(false);
+                console.error('خطأ في البحث العائلي:', error);
+                $('#civilRegistryResults').hide();
+                updateSearchInfo('خطأ في الاتصال بالخادم');
+                alert('حدث خطأ في البحث العائلي. يرجى المحاولة مرة أخرى.');
+            });
+        }
+
+        // عرض قائمة الأشخاص المتعددين للاختيار
+        function displayMultiplePersonsSelection(persons, searchDuration) {
+            let html = `
+                <div class="alert alert-warning">
+                    <h5><i class="fas fa-exclamation-triangle"></i> تم العثور على ${persons.length} شخص مطابق!</h5>
+                    <p>يرجى اختيار الشخص المناسب من القائمة أدناه:</p>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover table-bordered">
+                        <thead class="table-warning">
+                            <tr>
+                                <th>اختيار</th>
+                                <th>رقم الهوية</th>
+                                <th>الاسم الكامل</th>
+                                <th>الجنس</th>
+                                <th>العمر</th>
+                                <th>الحالة</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            persons.forEach(person => {
+                const statusBadge = person.is_alive 
+                    ? '<span class="badge bg-success">حي</span>' 
+                    : '<span class="badge bg-danger">متوفي</span>';
+                
+                html += `
+                    <tr style="cursor: pointer;" onclick="selectPersonAndSearch('${person.id_number}')">
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-primary" onclick="selectPersonAndSearch('${person.id_number}'); event.stopPropagation();">
+                                <i class="fas fa-hand-pointer"></i> اختيار
+                            </button>
+                        </td>
+                        <td><strong>${person.id_number}</strong></td>
+                        <td>${person.full_name}</td>
+                        <td>${person.gender}</td>
+                        <td>${person.age}</td>
+                        <td>${statusBadge}</td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                        </tbody>
+                    </table>
+                </div>
+                <div class="alert alert-info mt-3">
+                    <small>
+                        <i class="fas fa-info-circle"></i>
+                        <strong>ملاحظة:</strong> اضغط على أي صف أو زر "اختيار" لعرض العائلة الكاملة للشخص المختار.
+                    </small>
+                </div>
+            `;
+
+            $('#civilRegistryResultsContent').html(html);
+            $('#civilRegistryResults').show();
+            updateSearchInfo(`تم العثور على ${persons.length} شخص مطابق في ${searchDuration} ثانية`);
+        }
+
+        // اختيار شخص من القائمة والبحث عن عائلته
+        function selectPersonAndSearch(idNumber) {
+            showCivilRegistryLoading(true);
+            updateSearchInfo('جاري تحميل بيانات العائلة...');
+            
+            const startTime = Date.now();
+
+            fetch('/admin/family-relations/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify({ id_number: idNumber })
+            })
+            .then(response => response.json())
+            .then(data => {
+                const endTime = Date.now();
+                const searchDuration = ((endTime - startTime) / 1000).toFixed(2);
+
+                showCivilRegistryLoading(false);
+
+                if (data.success) {
+                    displayFamilyRelationsInModal(data.data, searchDuration);
+                    updateSearchInfo(`تم العثور على ${data.data.family_members.length} فرد من العائلة في ${searchDuration} ثانية`);
+                } else {
+                    alert(`خطأ: ${data.message}`);
+                }
+            })
+            .catch(error => {
+                showCivilRegistryLoading(false);
+                console.error('خطأ:', error);
+                alert('حدث خطأ في تحميل بيانات العائلة');
+            });
+        }
+
+        // عرض نتائج البحث العائلي في Modal السجل المدني
+        function displayFamilyRelationsInModal(data, searchDuration) {
+            showCivilRegistryLoading(false);
+
+            const person = data.person;
+            const familyMembers = data.family_members;
+            const stats = data.statistics;
+
+            let html = `
+                <div class="alert alert-success">
+                    <h5><i class="fas fa-user-circle"></i> معلومات الشخص المبحوث عنه:</h5>
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <p><strong>رقم الهوية:</strong> <span class="badge bg-primary fs-6">${person.id_number}</span></p>
+                            <p><strong>الاسم الكامل:</strong> ${person.full_name}</p>
+                            <p><strong>تاريخ الميلاد:</strong> ${person.birth_date ? new Date(person.birth_date).toLocaleDateString('ar-EG') : 'غير محدد'}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>العمر:</strong> ${person.age}</p>
+                            <p><strong>الجنس:</strong> ${person.gender}</p>
+                            <p><strong>الحالة:</strong> <span class="badge ${person.is_alive ? 'bg-success' : 'bg-danger'}">${person.status}</span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <div class="card bg-success text-white">
+                            <div class="card-body text-center py-2">
+                                <h4 class="mb-0">${stats.total_relations}</h4>
+                                <small>إجمالي العلاقات</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-info text-white">
+                            <div class="card-body text-center py-2">
+                                <h4 class="mb-0">${Object.keys(stats.relation_types).length}</h4>
+                                <small>أنواع العلاقات</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card bg-warning text-dark">
+                            <div class="card-body text-center py-2">
+                                <h4 class="mb-0">${searchDuration} ثانية</h4>
+                                <small>وقت البحث</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            if (familyMembers.length === 0) {
+                html += `
+                    <div class="alert alert-warning text-center">
+                        <i class="fas fa-info-circle"></i>
+                        <h5>لا توجد علاقات عائلية</h5>
+                        <p>لم يتم العثور على أي أفراد عائلة مرتبطين بهذا الشخص.</p>
+                    </div>
+                `;
+            } else {
+                // جمع كل الأفراد في جدول واحد مع إزالة التكرار
+                let allMembers = [];
+                let addedIds = new Set(); // لتتبع الأرقام المضافة وتجنب التكرار
+                
+                // إضافة الأشخاص الرئيسيين (الأب، الأم، إلخ)
+                familyMembers.forEach(member => {
+                    if (!addedIds.has(member.id_number)) {
+                        allMembers.push({
+                            id_number: member.id_number,
+                            full_name: member.full_name,
+                            relation_type: member.relation_type,
+                            gender: member.gender,
+                            age: member.age,
+                            is_alive: member.is_alive,
+                            status: member.status,
+                            level: 0 // المستوى الأول (الأب، الأم)
+                        });
+                        addedIds.add(member.id_number);
+                    }
+                    
+                    // إضافة الأبناء
+                    if (member.children && member.children.length > 0) {
+                        member.children.forEach(child => {
+                            // تجنب إضافة نفس الشخص الرئيسي كابن
+                            if (!addedIds.has(child.id_number)) {
+                                allMembers.push({
+                                    id_number: child.id_number,
+                                    full_name: child.full_name,
+                                    relation_type: child.relation_type,
+                                    gender: child.gender,
+                                    age: child.age,
+                                    is_alive: child.is_alive,
+                                    status: child.status,
+                                    level: 1, // المستوى الثاني (الأبناء)
+                                    parent_name: member.full_name // اسم الوالد
+                                });
+                                addedIds.add(child.id_number);
+                            }
+                        });
+                    }
+                });
+
+                html += `
+                    <h5 class="mb-3">
+                        <i class="fas fa-users"></i> الشجرة العائلية (${allMembers.length} فرد):
+                    </h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover table-bordered table-striped">
+                            <thead class="table-primary">
+                                <tr>
+                                    <th>#</th>
+                                    <th>رقم الهوية</th>
+                                    <th>الاسم الكامل</th>
+                                    <th>العلاقة</th>
+                                    <th>الجنس</th>
+                                    <th>العمر</th>
+                                    <th>الحالة</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+
+                allMembers.forEach((member, index) => {
+                    const statusBadge = member.is_alive 
+                        ? '<span class="badge bg-success">حي</span>' 
+                        : '<span class="badge bg-danger">متوفي</span>';
+                    
+                    // تنسيق خاص للمستوى الأول (الأب، الأم)
+                    const rowClass = member.level === 0 ? 'table-info fw-bold' : '';
+                    const namePrefix = member.level === 1 ? '&nbsp;&nbsp;&nbsp;↳ ' : '';
+                    
+                    html += `
+                        <tr class="${rowClass}">
+                            <td>${index + 1}</td>
+                            <td><strong>${member.id_number}</strong></td>
+                            <td>${namePrefix}${member.full_name}</td>
+                            <td><span class="badge ${member.level === 0 ? 'bg-primary' : 'bg-secondary'}">${member.relation_type}</span></td>
+                            <td>${member.gender}</td>
+                            <td>${member.age}</td>
+                            <td>${statusBadge}</td>
+                        </tr>
+                    `;
+                });
+
+                html += `
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="alert alert-info mt-3">
+                        <small>
+                            <i class="fas fa-info-circle"></i>
+                            <strong>ملاحظة:</strong> 
+                            الصفوف الملونة بالأزرق تمثل الأشخاص الرئيسيين (الأب، الأم)، 
+                            والصفوف التي تحتوي على (↳) تمثل الأبناء والمرتبطين.
+                        </small>
+                    </div>
+                `;
+            }
+
+            $('#civilRegistryResultsContent').html(html);
+            $('#civilRegistryResults').show();
+        }
+
         // إظهار/إخفاء شاشة التحميل
         function showCivilRegistryLoading(show) {
             const overlay = $('#civilRegistryLoadingOverlay');
@@ -578,5 +920,6 @@
             alert(`عرض تفاصيل الشخص رقم: ${personId}\n(هذه الميزة قيد التطوير)`);
         };
     });
+
     </script>
 @endpush

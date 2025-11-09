@@ -1,0 +1,170 @@
+{
+  "info": {
+    "name": "Family Relations API",
+    "description": "مجموعة اختبارات لواجهة برمجة التطبيقات الخاصة بنظام البحث عن العلاقات العائلية",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. البحث عن العلاقات العائلية",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf_token}}",
+            "description": "يجب الحصول عليه من صفحة تسجيل الدخول"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"id_number\": \"1000000003\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/admin/family-relations/search",
+          "host": ["{{base_url}}"],
+          "path": ["admin", "family-relations", "search"]
+        },
+        "description": "البحث عن جميع أفراد العائلة المرتبطين برقم هوية معين"
+      },
+      "response": [
+        {
+          "name": "Success Response",
+          "originalRequest": {
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id_number\": \"1000000003\"\n}"
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [],
+          "body": "{\n  \"success\": true,\n  \"message\": \"تم العثور على العلاقات العائلية بنجاح\",\n  \"data\": {\n    \"person\": {\n      \"id_number\": \"1000000003\",\n      \"full_name\": \"أحمد محمد عبدالله السعيد\",\n      \"first_name\": \"أحمد\",\n      \"father_name\": \"محمد\",\n      \"grand_father_name\": \"عبدالله\",\n      \"family_name\": \"السعيد\",\n      \"birth_date\": \"1990-05-15\",\n      \"age\": \"34 سنة\",\n      \"gender\": \"ذكر\",\n      \"is_alive\": true,\n      \"status\": \"حي\"\n    },\n    \"family_members\": [\n      {\n        \"id_number\": \"1000000001\",\n        \"full_name\": \"محمد عبدالله السعيد\",\n        \"relation_type\": \"أب\",\n        \"direction\": \"direct\",\n        \"gender\": \"ذكر\",\n        \"age\": \"65 سنة\",\n        \"is_alive\": true,\n        \"status\": \"حي\"\n      }\n    ],\n    \"statistics\": {\n      \"total_relations\": 10,\n      \"direct_relations\": 6,\n      \"reverse_relations\": 4,\n      \"relation_types\": {\n        \"أب\": 1,\n        \"أم\": 1,\n        \"أخ\": 2,\n        \"أخت\": 1\n      },\n      \"execution_time_ms\": 45.32\n    }\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "2. الحصول على شجرة العائلة",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"id_number\": \"1000000003\",\n  \"depth\": 3\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/admin/family-relations/family-tree",
+          "host": ["{{base_url}}"],
+          "path": ["admin", "family-relations", "family-tree"]
+        },
+        "description": "الحصول على شجرة العائلة الكاملة بعمق محدد (1-5 مستويات)"
+      },
+      "response": []
+    },
+    {
+      "name": "3. إحصائيات العلاقات",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/admin/family-relations/statistics",
+          "host": ["{{base_url}}"],
+          "path": ["admin", "family-relations", "statistics"]
+        },
+        "description": "الحصول على إحصائيات عامة عن العلاقات وأنواعها"
+      },
+      "response": [
+        {
+          "name": "Success Response",
+          "originalRequest": {
+            "method": "GET"
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [],
+          "body": "{\n  \"success\": true,\n  \"data\": {\n    \"total_relations\": 15000,\n    \"total_persons\": 5000,\n    \"relation_types\": [\n      {\n        \"id\": 1,\n        \"attribute\": \"أب\"\n      },\n      {\n        \"id\": 2,\n        \"attribute\": \"أم\"\n      },\n      {\n        \"id\": 3,\n        \"attribute\": \"ابن\"\n      }\n    ]\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "4. مسح الكاش",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "X-CSRF-TOKEN",
+            "value": "{{csrf_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/admin/family-relations/clear-cache",
+          "host": ["{{base_url}}"],
+          "path": ["admin", "family-relations", "clear-cache"]
+        },
+        "description": "مسح الكاش الخاص بالعلاقات العائلية"
+      },
+      "response": [
+        {
+          "name": "Success Response",
+          "originalRequest": {
+            "method": "POST"
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [],
+          "body": "{\n  \"success\": true,\n  \"message\": \"تم مسح الكاش بنجاح\"\n}"
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "csrf_token",
+      "value": "YOUR_CSRF_TOKEN_HERE",
+      "type": "string"
+    }
+  ]
+}

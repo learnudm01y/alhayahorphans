@@ -45,4 +45,20 @@ class Persons extends Model
         return $this->belongsTo(CI_BIRTH_CD::class, 'CI_BIRTH_CD', 'id');
     }
 
+    /**
+     * العلاقات العائلية المباشرة (الشخص كصاحب الهوية الأساسي)
+     */
+    public function relations()
+    {
+        return $this->hasMany(Relation::class, 'CF_ID_NUM', 'CI_ID_NUM');
+    }
+
+    /**
+     * العلاقات العائلية العكسية (الشخص كقريب)
+     */
+    public function reverseRelations()
+    {
+        return $this->hasMany(Relation::class, 'CF_ID_RELATIVE', 'CI_ID_NUM');
+    }
+
 }
