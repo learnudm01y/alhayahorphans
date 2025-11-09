@@ -20,7 +20,14 @@ $person = DB::connection('civilregistry')
 
 if ($person) {
     echo "   ✅ موجود في جدول persons\n";
-    echo "   📋 الاسم: {$person->CI_FIRST_NAME_AR} {$person->CI_SECOND_NAME_AR} {$person->CI_THIRD_NAME_AR} {$person->CI_LAST_NAME_AR}\n";
+    
+    // طباعة بعض البيانات المتاحة
+    $fields = get_object_vars($person);
+    echo "   📋 عدد الحقول: " . count($fields) . "\n";
+    
+    // محاولة طباعة بعض الحقول الشائعة
+    if (isset($person->name)) echo "   📋 الاسم: {$person->name}\n";
+    if (isset($person->full_name)) echo "   📋 الاسم: {$person->full_name}\n";
 } else {
     echo "   ❌ غير موجود في جدول persons!\n";
 }
