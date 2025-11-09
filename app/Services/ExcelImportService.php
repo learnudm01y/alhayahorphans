@@ -157,7 +157,7 @@ class ExcelImportService
             'الجنس' => 'person_gender',
             'الحالة الصحية' => 'person_health_status',
             'نوع الضمان' => 'person_type_of_guarantee',
-            'المؤهل الأكاديمي' => 'acadimic_degree',
+            'المؤهل الأكاديمي' => 'academic_qualification',
             'ملاحظة' => 'person_note',
             // English versions
             'registration_id' => 'registration_id',
@@ -172,7 +172,7 @@ class ExcelImportService
             'gender' => 'person_gender',
             'health_status' => 'person_health_status',
             'guarantee_type' => 'person_type_of_guarantee',
-            'academic_degree' => 'acadimic_degree',
+            'academic_degree' => 'academic_qualification',
             'note' => 'person_note',
         ],
     ];
@@ -442,6 +442,19 @@ class ExcelImportService
         }
 
         $value = trim($value);
+        
+        // تحويل القيم غير الصالحة (مثل "؟" أو "فجأة") إلى null
+        if ($value === '?' || $value === '؟' || mb_strlen($value) > 50) {
+            return null;
+        }
+        
+        // إذا كانت القيمة نصية ولكنها لا تحتوي على أرقام على الإطلاق، تحويلها إلى null
+        if (!is_numeric($value) && !preg_match('/\d/', $value) && mb_strlen($value) < 20) {
+            // التحقق من أنها ليست تاريخاً قبل التحويل
+            if (!$this->isDate($value)) {
+                return null;
+            }
+        }
 
         // تحويل التواريخ
         if ($this->isDate($value)) {
@@ -549,6 +562,24 @@ class ExcelImportService
                     // إذا لم يتم العثور على تطابق، رمي خطأ أو تحذير
                     throw new \Exception("لم يتم العثور على رقم ملف مطابق في جدول Data لرقم الهوية: {$originalReFileId}");
                 }
+                
+                // تنظيف الحقول الرقمية (تحويل القيم غير الصالحة إلى null)
+                $numericFields = [
+                    'father_death_reason',
+                    'mother_death_reason',
+                    'father_id',
+                    'mother_id'
+                ];
+                
+                foreach ($numericFields as $field) {
+                    if (isset($data[$field]) && !is_numeric($data[$field])) {
+                        Log::warning("Invalid numeric value in dead_people field: {$field}", [
+                            'original_value' => $data[$field],
+                            're_file_id' => $data['re_file_id']
+                        ]);
+                        $data[$field] = null;
+                    }
+                }
                 break;
 
             case 're_people':
@@ -585,6 +616,25 @@ class ExcelImportService
                 } else {
                     // إذا لم يتم العثور على تطابق، رمي خطأ أو تحذير
                     throw new \Exception("لم يتم العثور على رقم ملف مطابق في جدول Data لرقم الهوية: {$originalRegistrationId}");
+                }
+                
+                // تنظيف الحقول الرقمية (تحويل القيم غير الصالحة إلى null)
+                $numericFields = [
+                    'person_id',
+                    'person_age',
+                    'person_gender',
+                    'person_health_status',
+                    'academic_qualification'
+                ];
+                
+                foreach ($numericFields as $field) {
+                    if (isset($data[$field]) && !is_numeric($data[$field])) {
+                        Log::warning("Invalid numeric value in re_people field: {$field}", [
+                            'original_value' => $data[$field],
+                            'registration_id' => $data['registration_id']
+                        ]);
+                        $data[$field] = null;
+                    }
                 }
                 break;
         }
