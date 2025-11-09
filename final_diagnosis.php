@@ -72,23 +72,23 @@ foreach ($relations as $i => $rel) {
     foreach (get_object_vars($rel) as $key => $value) {
         echo "      • {$key}: {$value}\n";
     }
-    
+
     // فحص إذا كان CF_ID_RELATIVE موجود في persons
     echo "      🔍 فحص CF_ID_RELATIVE ({$rel->CF_ID_RELATIVE}) في persons:\n";
-    
+
     $relativeExists = DB::connection('civilregistry')
         ->table('persons')
         ->where('CI_ID_NUM', $rel->CF_ID_RELATIVE)
         ->exists();
-    
+
     if ($relativeExists) {
         echo "         ✅ موجود في persons\n";
-        
+
         $relativePerson = DB::connection('civilregistry')
             ->table('persons')
             ->where('CI_ID_NUM', $rel->CF_ID_RELATIVE)
             ->first();
-        
+
         echo "         📋 بيانات القريب:\n";
         $count = 0;
         foreach (get_object_vars($relativePerson) as $key => $value) {

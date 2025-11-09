@@ -21,16 +21,29 @@ try {
     // إنشاء request مزيف
     $request = new \Illuminate\Http\Request();
     $request->merge(['id_number' => $testId]);
-    
+
     $response = $controller->searchFamilyRelations($request);
     $data = $response->getData(true);
-    
+
     if ($data['success']) {
         echo "✅ API نجح!\n\n";
+
+        // طباعة جميع البيانات المتاحة
+        echo "📋 البيانات المسترجعة:\n";
+        echo json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) . "\n\n";
+
         echo "📊 إحصائيات:\n";
-        echo "   • عدد أفراد العائلة: " . $data['data']['total_members'] . "\n";
-        echo "   • وقت التنفيذ: " . $data['data']['execution_time'] . " ثانية\n\n";
-        
+        if (isset($data['data']['total_members'])) {
+            echo "   • عدد أفراد العائلة: " . $data['data']['total_members'] . "\n";
+        }
+        if (isset($data['data']['execution_time'])) {
+            echo "   • وقت التنفيذ: " . $data['data']['execution_time'] . " ثانية\n";
+        }
+        if (isset($data['data']['family_members'])) {
+            echo "   • عدد الأفراد: " . count($data['data']['family_members']) . "\n";
+        }
+        echo "\n";
+
         if (!empty($data['data']['family_members'])) {
             echo "👥 أفراد العائلة:\n";
             echo "-----------------------------------------------------------------\n";
@@ -38,11 +51,11 @@ try {
                 echo "\n" . ($i + 1) . ". {$member['relation_type']}:\n";
                 echo "   • رقم الهوية: {$member['id_number']}\n";
                 echo "   • الاسم: {$member['full_name']}\n";
-                
+
                 if (isset($member['data_available'])) {
                     echo "   • توفر البيانات: " . ($member['data_available'] ? '✅ متوفرة' : '❌ غير متوفرة') . "\n";
                 }
-                
+
                 if (!empty($member['children'])) {
                     echo "   • عدد الأبناء: " . count($member['children']) . "\n";
                     foreach ($member['children'] as $child) {
@@ -51,7 +64,7 @@ try {
                 }
             }
         }
-        
+
         if (!empty($data['data']['relation_types'])) {
             echo "\n\n📈 إحصائيات أنواع العلاقات:\n";
             echo "-----------------------------------------------------------------\n";
@@ -59,12 +72,12 @@ try {
                 echo "   • {$type}: {$count}\n";
             }
         }
-        
+
     } else {
         echo "❌ API فشل!\n";
         echo "   الرسالة: {$data['message']}\n";
     }
-    
+
 } catch (\Exception $e) {
     echo "❌ خطأ في التنفيذ:\n";
     echo "   {$e->getMessage()}\n";

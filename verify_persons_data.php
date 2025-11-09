@@ -20,11 +20,11 @@ $person = DB::connection('civilregistry')
 
 if ($person) {
     echo "   ✅ موجود في جدول persons\n";
-    
+
     // طباعة بعض البيانات المتاحة
     $fields = get_object_vars($person);
     echo "   📋 عدد الحقول: " . count($fields) . "\n";
-    
+
     // محاولة طباعة بعض الحقول الشائعة
     if (isset($person->name)) echo "   📋 الاسم: {$person->name}\n";
     if (isset($person->full_name)) echo "   📋 الاسم: {$person->full_name}\n";
@@ -42,17 +42,17 @@ foreach ($testIds as $id) {
         ->table('relations')
         ->where('CF_ID_NUM', $id)
         ->exists();
-    
+
     if ($exists) {
         echo "   ✅ {$id}: موجود كـ CF_ID_NUM في relations\n";
-        
+
         // جلب أقاربه
         $relatives = DB::connection('civilregistry')
             ->table('relations')
             ->where('CF_ID_NUM', $id)
             ->select('CF_ID_RELATIVE', 'CF_RELATIVE_CD')
             ->get();
-        
+
         echo "      📊 عدد أقاربه: " . count($relatives) . "\n";
     } else {
         echo "   ❌ {$id}: غير موجود\n";
@@ -73,13 +73,13 @@ echo "   📊 عدد الأشخاص الذين 407015692 قريب لهم: " . co
 
 foreach ($reverseRelations as $rel) {
     echo "   • CF_ID_NUM: {$rel->CF_ID_NUM}, CF_RELATIVE_CD: {$rel->CF_RELATIVE_CD}\n";
-    
+
     // فحص إذا كان هذا الشخص موجود في persons
     $personExists = DB::connection('civilregistry')
         ->table('persons')
         ->where('CI_ID_NUM', $rel->CF_ID_NUM)
         ->exists();
-    
+
     echo "     " . ($personExists ? "✅ موجود في persons" : "❌ غير موجود في persons") . "\n\n";
 }
 

@@ -42,20 +42,20 @@ foreach ($relations as $rel) {
         ->table('persons')
         ->where('CI_ID_NUM', $rel->CF_ID_RELATIVE)
         ->exists();
-    
+
     if ($exists) {
         $person = DB::connection('civilregistry')
             ->table('persons')
             ->where('CI_ID_NUM', $rel->CF_ID_RELATIVE)
             ->first();
-        
+
         $fullName = trim(implode(' ', [
             $person->CI_FIRST_ARB ?? '',
             $person->CI_FATHER_ARB ?? '',
             $person->CI_GRAND_FATHER_ARB ?? '',
             $person->CI_FAMILY_ARB ?? ''
         ]));
-        
+
         echo "   ✅ {$rel->CF_ID_RELATIVE}: موجود - {$fullName}\n";
     } else {
         echo "   ❌ {$rel->CF_ID_RELATIVE}: غير موجود!\n";
@@ -103,10 +103,10 @@ try {
         ->join('persons as p', DB::raw('CAST(r.CF_ID_RELATIVE AS CHAR)'), '=', DB::raw('CAST(p.CI_ID_NUM AS CHAR)'))
         ->where('r.CF_ID_NUM', $testId)
         ->get();
-    
+
     echo "   ✅ JOIN مع CAST نجح\n";
     echo "   📊 عدد النتائج: " . count($result) . "\n\n";
-    
+
     if (count($result) > 0) {
         foreach ($result as $row) {
             $fullName = trim(implode(' ', [
@@ -115,11 +115,11 @@ try {
                 $row->CI_GRAND_FATHER_ARB ?? '',
                 $row->CI_FAMILY_ARB ?? ''
             ]));
-            
+
             echo "      ✅ {$row->CF_ID_RELATIVE}: {$fullName}\n";
         }
     }
-    
+
 } catch (\Exception $e) {
     echo "   ❌ خطأ: " . $e->getMessage() . "\n";
 }
