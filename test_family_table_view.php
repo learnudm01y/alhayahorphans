@@ -1,7 +1,7 @@
 <?php
 /**
  * اختبار عرض العلاقات العائلية في جدول واحد (بدون تكرار)
- * 
+ *
  * يختبر:
  * 1. عرض جدول واحد بدلاً من البطاقات
  * 2. عدم تكرار الأشخاص (الأب لا يظهر كابن)
@@ -72,7 +72,7 @@ try {
     // إضافة الأشخاص الرئيسيين
     foreach ($directRelations as $relation) {
         $memberId = $relation->CF_ID_RELATIVE;
-        
+
         if (!in_array($memberId, $addedIds)) {
             $memberFullName = trim(implode(' ', [
                 $relation->CI_FIRST_ARB ?? '',
@@ -88,7 +88,7 @@ try {
                 'gender' => $relation->CI_SEX_CD == 1 ? 'ذكر' : 'أنثى',
                 'level' => 0
             ];
-            
+
             $addedIds[] = $memberId;
 
             // جلب أبناء هذا الشخص
@@ -110,7 +110,7 @@ try {
 
             foreach ($children as $child) {
                 $childId = $child->CF_ID_RELATIVE;
-                
+
                 // تجنب التكرار
                 if (!in_array($childId, $addedIds)) {
                     $childFullName = trim(implode(' ', [
@@ -128,7 +128,7 @@ try {
                         'level' => 1,
                         'parent' => $memberFullName
                     ];
-                    
+
                     $addedIds[] = $childId;
                 }
             }
@@ -143,7 +143,7 @@ try {
     foreach ($allMembers as $index => $member) {
         $prefix = $member['level'] === 1 ? '  ↳ ' : '';
         $marker = $member['level'] === 0 ? '★' : ' ';
-        
+
         printf(
             "│ %2s%s │ %-12s │ %-30s │ %-8s │ %-4s │\n",
             $index + 1,
@@ -182,7 +182,7 @@ try {
     echo "\n🔍 التحقق من عدم ظهور الأب/الأم كأبناء:\n";
     $parents = array_filter($allMembers, fn($m) => $m['level'] === 0);
     $children = array_filter($allMembers, fn($m) => $m['level'] === 1);
-    
+
     foreach ($parents as $parent) {
         $foundAsChild = false;
         foreach ($children as $child) {

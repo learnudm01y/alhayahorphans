@@ -52,14 +52,14 @@ CREATE TABLE IF NOT EXISTS relations (
     CF_ID_NUM BIGINT UNSIGNED NOT NULL COMMENT 'رقم هوية الشخص الأساسي',
     CF_RELATIVE_CD BIGINT UNSIGNED NOT NULL COMMENT 'نوع العلاقة (Foreign Key to category_of_relations)',
     CF_ID_RELATIVE BIGINT UNSIGNED NOT NULL COMMENT 'رقم هوية الشخص المرتبط (القريب)',
-    
+
     -- الفهارس المضافة لتسريع البحث (B-Tree Indexes)
     INDEX idx_cf_id_num (CF_ID_NUM),
     INDEX idx_cf_id_relative (CF_ID_RELATIVE),
     INDEX idx_cf_relative_cd (CF_RELATIVE_CD),
     INDEX idx_cf_id_num_relative_cd (CF_ID_NUM, CF_RELATIVE_CD),
     INDEX idx_cf_id_relative_relative_cd (CF_ID_RELATIVE, CF_RELATIVE_CD),
-    
+
     -- Foreign Keys (اختياري - يمكن تفعيله حسب الحاجة)
     -- FOREIGN KEY (CF_ID_NUM) REFERENCES persons(CI_ID_NUM) ON DELETE CASCADE,
     -- FOREIGN KEY (CF_ID_RELATIVE) REFERENCES persons(CI_ID_NUM) ON DELETE CASCADE,
@@ -100,7 +100,7 @@ INSERT INTO relations (CF_ID_NUM, CF_RELATIVE_CD, CF_ID_RELATIVE) VALUES
 -- ===========================================================
 
 -- البحث عن جميع أفراد عائلة شخص معين (العلاقات المباشرة)
-SELECT 
+SELECT
     r.CF_ID_NUM as 'رقم_الهوية_الأساسي',
     r.CF_ID_RELATIVE as 'رقم_هوية_القريب',
     c.attribute as 'نوع_العلاقة',
@@ -113,7 +113,7 @@ JOIN category_of_relations c ON r.CF_RELATIVE_CD = c.id
 WHERE r.CF_ID_NUM = 1000000003;
 
 -- البحث عن جميع الأشخاص المرتبطين بشخص معين (العلاقات العكسية)
-SELECT 
+SELECT
     r.CF_ID_NUM as 'رقم_الهوية',
     r.CF_ID_RELATIVE as 'رقم_هوية_الشخص_المبحوث',
     c.attribute as 'نوع_العلاقة',
@@ -126,7 +126,7 @@ JOIN category_of_relations c ON r.CF_RELATIVE_CD = c.id
 WHERE r.CF_ID_RELATIVE = 1000000003;
 
 -- البحث الشامل (العلاقات في الاتجاهين)
-(SELECT 
+(SELECT
     r.CF_ID_NUM as id_number,
     r.CF_ID_RELATIVE as relative_id,
     c.attribute as relation_type,
@@ -139,7 +139,7 @@ JOIN persons p ON r.CF_ID_RELATIVE = p.CI_ID_NUM
 JOIN category_of_relations c ON r.CF_RELATIVE_CD = c.id
 WHERE r.CF_ID_NUM = 1000000003)
 UNION ALL
-(SELECT 
+(SELECT
     r.CF_ID_RELATIVE as id_number,
     r.CF_ID_NUM as relative_id,
     c.attribute as relation_type,
@@ -157,7 +157,7 @@ WHERE r.CF_ID_RELATIVE = 1000000003);
 -- ===========================================================
 
 -- عدد العلاقات لكل شخص
-SELECT 
+SELECT
     p.CI_ID_NUM,
     CONCAT(p.CI_FIRST_ARB, ' ', p.CI_FATHER_ARB, ' ', p.CI_FAMILY_ARB) as full_name,
     COUNT(r.id) as total_relations
@@ -167,7 +167,7 @@ GROUP BY p.CI_ID_NUM
 ORDER BY total_relations DESC;
 
 -- توزيع أنواع العلاقات
-SELECT 
+SELECT
     c.attribute as relation_type,
     COUNT(r.id) as count
 FROM relations r

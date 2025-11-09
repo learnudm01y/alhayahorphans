@@ -1,7 +1,7 @@
 <?php
 /**
  * اختبار البحث العائلي الهرمي (بدون بحث عكسي)
- * 
+ *
  * يختبر:
  * 1. البحث يجلب العلاقات المباشرة فقط (CF_ID_NUM)
  * 2. كل شخص يظهر مع أبنائه أسفله مباشرة
@@ -98,7 +98,7 @@ try {
 
         // جلب أبناء هذا الشخص
         echo "   ↓ جاري البحث عن الأبناء...\n";
-        
+
         $children = DB::connection('civilregistry')
             ->table('relations as r')
             ->select(
@@ -117,7 +117,7 @@ try {
 
         if ($children->count() > 0) {
             echo "   ✅ لديه {$children->count()} أبناء/مرتبطين:\n\n";
-            
+
             foreach ($children as $childIndex => $child) {
                 $childFullName = trim(implode(' ', [
                     $child->CI_FIRST_ARB ?? '',
@@ -148,7 +148,7 @@ try {
         ->table('relations')
         ->where('CF_ID_RELATIVE', $testId)
         ->count();
-    
+
     echo "   ℹ️  عدد العلاقات العكسية الموجودة: {$reverseCheck}\n";
     echo "   ✅ هذه العلاقات لم يتم عرضها (تم تجاهلها)\n\n";
 

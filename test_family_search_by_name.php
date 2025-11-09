@@ -1,7 +1,7 @@
 <?php
 /**
  * اختبار البحث العائلي بالاسم
- * 
+ *
  * يختبر:
  * 1. البحث بـ 4 أسماء (الاسم + الأب + الجد + العائلة)
  * 2. البحث بـ 3 أسماء
@@ -35,14 +35,14 @@ $testNames = [
 foreach ($testNames as $index => $testName) {
     echo "\n" . ($index + 1) . ". البحث عن: \"{$testName}\"\n";
     echo "   عدد الأسماء: " . count(explode(' ', $testName)) . "\n";
-    
+
     $request = new \Illuminate\Http\Request();
     $request->merge(['name' => $testName]);
-    
+
     try {
         $response = $controller->searchFamilyRelationsByName($request);
         $data = json_decode($response->getContent(), true);
-        
+
         if ($data['success']) {
             if (isset($data['data']['multiple_results']) && $data['data']['multiple_results']) {
                 echo "   ✅ نتائج متعددة: " . $data['data']['count'] . " شخص\n";
@@ -56,7 +56,7 @@ foreach ($testNames as $index => $testName) {
             } else {
                 echo "   ✅ شخص واحد مطابق: {$data['data']['person']['full_name']}\n";
                 echo "   👥 عدد أفراد العائلة: " . count($data['data']['family_members']) . "\n";
-                
+
                 // عرض العائلة
                 if (count($data['data']['family_members']) > 0) {
                     echo "   🌳 العائلة:\n";
@@ -69,11 +69,11 @@ foreach ($testNames as $index => $testName) {
         } else {
             echo "   ❌ لم يتم العثور على نتائج\n";
         }
-        
+
     } catch (\Exception $e) {
         echo "   ❌ خطأ: " . $e->getMessage() . "\n";
     }
-    
+
     echo "\n";
 }
 
@@ -91,14 +91,14 @@ $diverseTests = [
 
 foreach ($diverseTests as $name => $description) {
     echo "🔍 {$description}: \"{$name}\"\n";
-    
+
     $request = new \Illuminate\Http\Request();
     $request->merge(['name' => $name]);
-    
+
     try {
         $response = $controller->searchFamilyRelationsByName($request);
         $data = json_decode($response->getContent(), true);
-        
+
         if ($data['success']) {
             if (isset($data['data']['multiple_results'])) {
                 echo "   ✅ {$data['data']['count']} شخص مطابق\n";
@@ -111,7 +111,7 @@ foreach ($diverseTests as $name => $description) {
     } catch (\Exception $e) {
         echo "   ❌ خطأ: " . $e->getMessage() . "\n";
     }
-    
+
     echo "\n";
 }
 

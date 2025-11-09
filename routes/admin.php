@@ -79,7 +79,7 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
         Route::post('/index-data', [ScoutSearchController::class, 'indexData'])->name('index.data');
         Route::post('/clear-cache', [ScoutSearchController::class, 'clearCache'])->name('clear.cache');
     });
-    
+
     // Family Relations Routes - مسارات العلاقات العائلية
     Route::prefix('family-relations')->name('family.relations.')->group(function () {
         Route::post('/search', [\App\Http\Controllers\Admin\FamilyRelationController::class, 'searchFamilyRelations'])->name('search');
@@ -88,7 +88,7 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
         Route::get('/statistics', [\App\Http\Controllers\Admin\FamilyRelationController::class, 'getRelationsStatistics'])->name('statistics');
         Route::post('/clear-cache', [\App\Http\Controllers\Admin\FamilyRelationController::class, 'clearRelationsCache'])->name('clear.cache');
     });
-    
+
     // user role management
     Route::get('admin/user-role-management', [UserController::class, 'index101'])->name('role.management101');
     Route::get('user/user-role-management', [UserController::class, 'index102'])->name('role.management102');

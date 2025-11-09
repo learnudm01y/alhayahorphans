@@ -24,14 +24,14 @@ $tests = [
 
 foreach ($tests as $name => $description) {
     echo "🔍 {$description}: \"{$name}\"\n";
-    
+
     $request = new \Illuminate\Http\Request();
     $request->merge(['name' => $name]);
-    
+
     try {
         $response = $controller->searchFamilyRelationsByName($request);
         $data = json_decode($response->getContent(), true);
-        
+
         if ($data['success']) {
             if (isset($data['data']['multiple_results'])) {
                 echo "   ✅ {$data['data']['count']} شخص مطابق\n";
@@ -42,7 +42,7 @@ foreach ($tests as $name => $description) {
                 echo "   ✅ شخص واحد: {$data['data']['person']['full_name']}\n";
                 echo "   📋 رقم الهوية: {$data['data']['person']['id_number']}\n";
                 echo "   👥 عدد أفراد العائلة: " . count($data['data']['family_members']) . "\n\n";
-                
+
                 // عرض العائلة بالتفصيل
                 foreach ($data['data']['family_members'] as $member) {
                     $childrenCount = isset($member['children']) ? count($member['children']) : 0;
@@ -56,7 +56,7 @@ foreach ($tests as $name => $description) {
     } catch (\Exception $e) {
         echo "   ❌ خطأ: " . $e->getMessage() . "\n";
     }
-    
+
     echo "\n" . str_repeat('-', 65) . "\n\n";
 }
 

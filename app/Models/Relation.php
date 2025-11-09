@@ -35,7 +35,7 @@ class Relation extends Model
 
     /**
      * العلاقة مع الشخص الأساسي (صاحب الهوية)
-     * 
+     *
      * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
      */
     public function person()
@@ -45,7 +45,7 @@ class Relation extends Model
 
     /**
      * العلاقة مع الشخص القريب (الشخص المرتبط)
-     * 
+     *
      * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
      */
     public function relativePerson()
@@ -55,7 +55,7 @@ class Relation extends Model
 
     /**
      * العلاقة مع نوع القرابة
-     * 
+     *
      * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
      */
     public function relationType()
@@ -65,7 +65,7 @@ class Relation extends Model
 
     /**
      * الحصول على جميع علاقات شخص معين برقم هويته
-     * 
+     *
      * @param string|int $idNum رقم الهوية
      * @return \Illuminate\Database\Eloquent\Collection
      */
@@ -78,7 +78,7 @@ class Relation extends Model
 
     /**
      * الحصول على جميع العلاقات العائلية لشخص معين (في الاتجاهين)
-     * 
+     *
      * @param string|int $idNum رقم الهوية
      * @return array
      */
@@ -102,7 +102,7 @@ class Relation extends Model
 
     /**
      * البحث عن علاقات محددة حسب نوع القرابة
-     * 
+     *
      * @param string|int $idNum رقم الهوية
      * @param int $relationType نوع القرابة
      * @return \Illuminate\Database\Eloquent\Collection
@@ -117,7 +117,7 @@ class Relation extends Model
 
     /**
      * الحصول على الوالدين
-     * 
+     *
      * @param string|int $idNum رقم الهوية
      * @return \Illuminate\Database\Eloquent\Collection
      */
@@ -133,7 +133,7 @@ class Relation extends Model
 
     /**
      * الحصول على الأبناء
-     * 
+     *
      * @param string|int $idNum رقم الهوية
      * @return \Illuminate\Database\Eloquent\Collection
      */

@@ -29,7 +29,7 @@ if ($person) {
         $person->CI_GRAND_FATHER_ARB ?? '',
         $person->CI_FAMILY_ARB ?? ''
     ]));
-    
+
     echo "✅ تم العثور على الشخص:\n";
     echo "   - الاسم: {$fullName}\n";
     echo "   - رقم الهوية: {$person->CI_ID_NUM}\n";

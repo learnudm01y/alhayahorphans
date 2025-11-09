@@ -20,7 +20,7 @@ class FamilyRelationController extends Controller
 
     /**
      * البحث عن العلاقات العائلية برقم الهوية
-     * 
+     *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
@@ -32,10 +32,10 @@ class FamilyRelationController extends Controller
             ]);
 
             $idNumber = trim($request->input('id_number'));
-            
+
             // التحقق من صحة رقم الهوية
             $person = $this->findPerson($idNumber);
-            
+
             if (!$person) {
                 return response()->json([
                     'success' => false,
@@ -66,7 +66,7 @@ class FamilyRelationController extends Controller
             ], 422);
         } catch (\Exception $e) {
             Log::error('خطأ في البحث عن العلاقات العائلية: ' . $e->getMessage());
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'حدث خطأ أثناء البحث عن العلاقات العائلية',
@@ -77,7 +77,7 @@ class FamilyRelationController extends Controller
 
     /**
      * البحث عن العلاقات العائلية بالاسم
-     * 
+     *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
@@ -89,10 +89,10 @@ class FamilyRelationController extends Controller
             ]);
 
             $name = trim($request->input('name'));
-            
+
             // البحث عن الأشخاص المطابقين للاسم
             $persons = $this->searchPersonsByName($name);
-            
+
             if ($persons->isEmpty()) {
                 return response()->json([
                     'success' => false,
@@ -137,7 +137,7 @@ class FamilyRelationController extends Controller
             ], 422);
         } catch (\Exception $e) {
             Log::error('خطأ في البحث عن العلاقات العائلية بالاسم: ' . $e->getMessage());
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'حدث خطأ أثناء البحث عن العلاقات العائلية',
@@ -148,7 +148,7 @@ class FamilyRelationController extends Controller
 
     /**
      * البحث عن أشخاص بالاسم (نفس طريقة البحث السريع الناجحة)
-     * 
+     *
      * @param string $name
      * @return \Illuminate\Support\Collection
      */
@@ -315,7 +315,7 @@ class FamilyRelationController extends Controller
     /**
      * الحصول على العلاقات العائلية بطريقة محسّنة باستخدام الفهارس
      * (بدون بحث عكسي - فقط العلاقات المباشرة)
-     * 
+     *
      * @param string $idNumber
      * @return array
      */
@@ -333,7 +333,7 @@ class FamilyRelationController extends Controller
                     'r.CF_ID_NUM',
                     'r.CF_ID_RELATIVE',
                     'r.CF_RELATIVE_CD',
-                    'cat.attribute as relation_type',
+                    DB::raw('COALESCE(cat.attribute, CONCAT("علاقة ", r.CF_RELATIVE_CD)) as relation_type'),
                     'p.CI_FIRST_ARB',
                     'p.CI_FATHER_ARB',
                     'p.CI_GRAND_FATHER_ARB',
@@ -343,7 +343,7 @@ class FamilyRelationController extends Controller
                     'p.CI_DEAD_DT'
                 )
                 ->join('persons as p', 'r.CF_ID_RELATIVE', '=', 'p.CI_ID_NUM')
-                ->join('category_of_relations as cat', 'r.CF_RELATIVE_CD', '=', 'cat.id')
+                ->leftJoin('category_of_relations as cat', 'r.CF_RELATIVE_CD', '=', 'cat.id')
                 ->where('r.CF_ID_NUM', $idNumber)
                 ->get();
 
@@ -411,7 +411,7 @@ class FamilyRelationController extends Controller
 
     /**
      * الحصول على الأبناء المباشرين لشخص معين
-     * 
+     *
      * @param string $idNumber
      * @return array
      */
@@ -421,7 +421,8 @@ class FamilyRelationController extends Controller
             ->table('relations as r')
             ->select(
                 'r.CF_ID_RELATIVE',
-                'cat.attribute as relation_type',
+                'r.CF_RELATIVE_CD',
+                DB::raw('COALESCE(cat.attribute, CONCAT("علاقة ", r.CF_RELATIVE_CD)) as relation_type'),
                 'p.CI_FIRST_ARB',
                 'p.CI_FATHER_ARB',
                 'p.CI_GRAND_FATHER_ARB',
@@ -431,7 +432,7 @@ class FamilyRelationController extends Controller
                 'p.CI_DEAD_DT'
             )
             ->join('persons as p', 'r.CF_ID_RELATIVE', '=', 'p.CI_ID_NUM')
-            ->join('category_of_relations as cat', 'r.CF_RELATIVE_CD', '=', 'cat.id')
+            ->leftJoin('category_of_relations as cat', 'r.CF_RELATIVE_CD', '=', 'cat.id')
             ->where('r.CF_ID_NUM', $idNumber)
             ->get();
 
@@ -460,7 +461,7 @@ class FamilyRelationController extends Controller
 
     /**
      * البحث عن شخص برقم الهوية
-     * 
+     *
      * @param string $idNumber
      * @return object|null
      */
@@ -503,7 +504,7 @@ class FamilyRelationController extends Controller
 
     /**
      * الحصول على شجرة العائلة الكاملة
-     * 
+     *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
      */
@@ -528,7 +529,7 @@ class FamilyRelationController extends Controller
 
         } catch (\Exception $e) {
             Log::error('خطأ في إنشاء شجرة العائلة: ' . $e->getMessage());
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'حدث خطأ أثناء إنشاء شجرة العائلة',
@@ -539,7 +540,7 @@ class FamilyRelationController extends Controller
 
     /**
      * بناء شجرة العائلة بعمق محدد
-     * 
+     *
      * @param string $idNumber
      * @param int $depth
      * @param int $currentDepth
@@ -568,9 +569,9 @@ class FamilyRelationController extends Controller
 
         foreach ($familyData['family_members'] as $member) {
             $tree['children'][] = $this->buildFamilyTree(
-                $member['id_number'], 
-                $depth, 
-                $currentDepth + 1, 
+                $member['id_number'],
+                $depth,
+                $currentDepth + 1,
                 $visited
             );
         }
@@ -580,7 +581,7 @@ class FamilyRelationController extends Controller
 
     /**
      * الحصول على إحصائيات العلاقات
-     * 
+     *
      * @return \Illuminate\Http\JsonResponse
      */
     public function getRelationsStatistics()
@@ -606,7 +607,7 @@ class FamilyRelationController extends Controller
 
         } catch (\Exception $e) {
             Log::error('خطأ في جلب إحصائيات العلاقات: ' . $e->getMessage());
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'حدث خطأ أثناء جلب الإحصائيات'
@@ -616,7 +617,7 @@ class FamilyRelationController extends Controller
 
     /**
      * مسح الكاش الخاص بالعلاقات
-     * 
+     *
      * @return \Illuminate\Http\JsonResponse
      */
     public function clearRelationsCache()
@@ -631,7 +632,7 @@ class FamilyRelationController extends Controller
 
         } catch (\Exception $e) {
             Log::error('خطأ في مسح الكاش: ' . $e->getMessage());
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'حدث خطأ أثناء مسح الكاش'
@@ -641,7 +642,7 @@ class FamilyRelationController extends Controller
 
     /**
      * حساب العمر من تاريخ الميلاد
-     * 
+     *
      * @param string|null $birthDate
      * @return string
      */
@@ -663,7 +664,7 @@ class FamilyRelationController extends Controller
 
     /**
      * تحويل رمز الجنس إلى نص
-     * 
+     *
      * @param int|null $sexCode
      * @return string
      */

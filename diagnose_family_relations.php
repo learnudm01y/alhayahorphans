@@ -1,7 +1,7 @@
 <?php
 /**
  * تشخيص مشكلة "لا توجد علاقات عائلية"
- * 
+ *
  * يفحص:
  * 1. الاتصال بقاعدة البيانات
  * 2. وجود البيانات في جدول relations
@@ -31,7 +31,7 @@ try {
     $connection = DB::connection('civilregistry');
     $connection->getPdo();
     echo "   ✅ الاتصال ناجح\n";
-    
+
     // اسم قاعدة البيانات
     $dbName = $connection->getDatabaseName();
     echo "   📋 اسم القاعدة: {$dbName}\n\n";
@@ -46,10 +46,10 @@ echo "-----------------------------------------------------------------\n";
 try {
     $tableExists = DB::connection('civilregistry')
         ->select("SHOW TABLES LIKE 'relations'");
-    
+
     if (count($tableExists) > 0) {
         echo "   ✅ الجدول موجود\n";
-        
+
         // عدد السجلات
         $count = DB::connection('civilregistry')->table('relations')->count();
         echo "   📊 عدد السجلات: " . number_format($count) . "\n\n";
@@ -70,7 +70,7 @@ try {
         ->table('persons')
         ->where('CI_ID_NUM', $testId)
         ->first();
-    
+
     if ($person) {
         echo "   ✅ الشخص موجود في جدول persons\n";
         $fullName = trim(implode(' ', [
@@ -83,25 +83,25 @@ try {
     } else {
         echo "   ❌ الشخص غير موجود في جدول persons\n";
     }
-    
+
     // فحص العلاقات المباشرة
     $directRelations = DB::connection('civilregistry')
         ->table('relations')
         ->where('CF_ID_NUM', $testId)
         ->count();
-    
+
     echo "   📊 عدد العلاقات المباشرة (CF_ID_NUM): {$directRelations}\n";
-    
+
     if ($directRelations > 0) {
         echo "   ✅ توجد علاقات مباشرة\n";
-        
+
         // عرض أول 3 علاقات
         $relations = DB::connection('civilregistry')
             ->table('relations')
             ->where('CF_ID_NUM', $testId)
             ->limit(3)
             ->get();
-        
+
         echo "   📋 أول 3 علاقات:\n";
         foreach ($relations as $rel) {
             echo "      - CF_ID_RELATIVE: {$rel->CF_ID_RELATIVE}, CF_RELATIVE_CD: {$rel->CF_RELATIVE_CD}\n";
@@ -109,7 +109,7 @@ try {
     } else {
         echo "   ⚠️  لا توجد علاقات مباشرة!\n";
     }
-    
+
     echo "\n";
 } catch (\Exception $e) {
     echo "   ❌ خطأ: " . $e->getMessage() . "\n\n";
@@ -122,22 +122,22 @@ try {
     $controller = new \App\Http\Controllers\Admin\FamilyRelationController();
     $request = new \Illuminate\Http\Request();
     $request->merge(['id_number' => $testId]);
-    
+
     $response = $controller->searchFamilyRelations($request);
     $data = json_decode($response->getContent(), true);
-    
+
     if ($data['success']) {
         echo "   ✅ API يعمل بنجاح\n";
         echo "   📊 عدد أفراد العائلة: " . count($data['data']['family_members']) . "\n";
         echo "   📊 إجمالي العلاقات: " . $data['data']['statistics']['total_relations'] . "\n";
-        
+
         if (count($data['data']['family_members']) === 0) {
             echo "   ⚠️  API يرجع 0 أفراد (هذه هي المشكلة!)\n";
         }
     } else {
         echo "   ❌ API فشل: " . $data['message'] . "\n";
     }
-    
+
     echo "\n";
 } catch (\Exception $e) {
     echo "   ❌ خطأ في API: " . $e->getMessage() . "\n\n";
@@ -148,17 +148,17 @@ echo "5️⃣ فحص Cache\n";
 echo "-----------------------------------------------------------------\n";
 try {
     $cacheKey = "family_relations_{$testId}";
-    
+
     if (Cache::has($cacheKey)) {
         echo "   ⚠️  Cache موجود للرقم {$testId}\n";
         echo "   💡 الحل: مسح Cache\n";
-        
+
         Cache::forget($cacheKey);
         echo "   ✅ تم مسح Cache للرقم {$testId}\n";
     } else {
         echo "   ✅ لا يوجد Cache (جيد)\n";
     }
-    
+
     echo "\n";
 } catch (\Exception $e) {
     echo "   ❌ خطأ: " . $e->getMessage() . "\n\n";
@@ -171,21 +171,21 @@ try {
     $controller = new \App\Http\Controllers\Admin\FamilyRelationController();
     $request = new \Illuminate\Http\Request();
     $request->merge(['id_number' => $testId]);
-    
+
     $response = $controller->searchFamilyRelations($request);
     $data = json_decode($response->getContent(), true);
-    
+
     if ($data['success']) {
         $membersCount = count($data['data']['family_members']);
         echo "   📊 عدد أفراد العائلة: {$membersCount}\n";
-        
+
         if ($membersCount > 0) {
             echo "   ✅ المشكلة محلولة!\n";
         } else {
             echo "   ❌ المشكلة مازالت موجودة\n";
         }
     }
-    
+
     echo "\n";
 } catch (\Exception $e) {
     echo "   ❌ خطأ: " . $e->getMessage() . "\n\n";
@@ -201,7 +201,7 @@ try {
         ->table('relations')
         ->where('CF_ID_NUM', $testId)
         ->count();
-    
+
     if ($directCount === 0) {
         echo "❌ المشكلة: لا توجد بيانات في جدول relations\n";
         echo "💡 الحل:\n";

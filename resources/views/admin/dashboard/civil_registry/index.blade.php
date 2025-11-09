@@ -501,7 +501,7 @@
         // ==================== دالة البحث العائلي داخل Modal السجل المدني ====================
         function performFamilyRelationsSearchInModal() {
             const searchText = $('#civil_search_text').val().trim();
-            
+
             if (!searchText) {
                 alert('يرجى إدخال رقم الهوية أو الاسم للبحث العائلي');
                 showCivilRegistryLoading(false);
@@ -509,16 +509,16 @@
             }
 
             updateSearchInfo('جاري البحث عن العلاقات العائلية...');
-            
+
             const startTime = Date.now();
 
             // تحديد نوع البحث: رقم أم اسم
             const isIdNumber = /^\d+$/.test(searchText);
-            const endpoint = isIdNumber 
-                ? '/admin/family-relations/search' 
+            const endpoint = isIdNumber
+                ? '/admin/family-relations/search'
                 : '/admin/family-relations/search-by-name';
-            const requestBody = isIdNumber 
-                ? { id_number: searchText } 
+            const requestBody = isIdNumber
+                ? { id_number: searchText }
                 : { name: searchText };
 
             fetch(endpoint, {
@@ -583,10 +583,10 @@
             `;
 
             persons.forEach(person => {
-                const statusBadge = person.is_alive 
-                    ? '<span class="badge bg-success">حي</span>' 
+                const statusBadge = person.is_alive
+                    ? '<span class="badge bg-success">حي</span>'
                     : '<span class="badge bg-danger">متوفي</span>';
-                
+
                 html += `
                     <tr style="cursor: pointer;" onclick="selectPersonAndSearch('${person.id_number}')">
                         <td class="text-center">
@@ -624,7 +624,7 @@
         function selectPersonAndSearch(idNumber) {
             showCivilRegistryLoading(true);
             updateSearchInfo('جاري تحميل بيانات العائلة...');
-            
+
             const startTime = Date.now();
 
             fetch('/admin/family-relations/search', {
@@ -721,7 +721,7 @@
                 // جمع كل الأفراد في جدول واحد مع إزالة التكرار
                 let allMembers = [];
                 let addedIds = new Set(); // لتتبع الأرقام المضافة وتجنب التكرار
-                
+
                 // إضافة الأشخاص الرئيسيين (الأب، الأم، إلخ)
                 familyMembers.forEach(member => {
                     if (!addedIds.has(member.id_number)) {
@@ -737,7 +737,7 @@
                         });
                         addedIds.add(member.id_number);
                     }
-                    
+
                     // إضافة الأبناء
                     if (member.children && member.children.length > 0) {
                         member.children.forEach(child => {
@@ -781,14 +781,14 @@
                 `;
 
                 allMembers.forEach((member, index) => {
-                    const statusBadge = member.is_alive 
-                        ? '<span class="badge bg-success">حي</span>' 
+                    const statusBadge = member.is_alive
+                        ? '<span class="badge bg-success">حي</span>'
                         : '<span class="badge bg-danger">متوفي</span>';
-                    
+
                     // تنسيق خاص للمستوى الأول (الأب، الأم)
                     const rowClass = member.level === 0 ? 'table-info fw-bold' : '';
                     const namePrefix = member.level === 1 ? '&nbsp;&nbsp;&nbsp;↳ ' : '';
-                    
+
                     html += `
                         <tr class="${rowClass}">
                             <td>${index + 1}</td>
@@ -809,8 +809,8 @@
                     <div class="alert alert-info mt-3">
                         <small>
                             <i class="fas fa-info-circle"></i>
-                            <strong>ملاحظة:</strong> 
-                            الصفوف الملونة بالأزرق تمثل الأشخاص الرئيسيين (الأب، الأم)، 
+                            <strong>ملاحظة:</strong>
+                            الصفوف الملونة بالأزرق تمثل الأشخاص الرئيسيين (الأب، الأم)،
                             والصفوف التي تحتوي على (↳) تمثل الأبناء والمرتبطين.
                         </small>
                     </div>
