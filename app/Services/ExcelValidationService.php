@@ -612,7 +612,8 @@ class ExcelValidationService
     {
         $uniqueFields = [
             'data' => [
-                'file_id_number'       // رقم الملف - يجب أن يكون فريد (هو نفسه رقم الهوية)
+                // فقط نفحص رقم الهوية - رقم الملف سيتم توليده تلقائياً من النظام
+                'data_id_number'       // رقم الهوية - يجب أن يكون فريد
             ],
             'dead_people' => [
                 're_file_id',          // رقم الملف - يجب أن يكون فريد
