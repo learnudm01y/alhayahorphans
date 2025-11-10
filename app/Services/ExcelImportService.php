@@ -195,6 +195,11 @@ class ExcelImportService
             'preview' => [],
             'column_mapping' => [],
             'file_id_replacements' => [], // إحصائيات استبدال أرقام الملفات
+            'duplicates' => [], // السجلات المكررة
+            'failed_records' => [], // السجلات الفاشلة مع التفاصيل
+            'successful_records' => [], // السجلات الناجحة
+            'duplicate_count' => 0,
+            'failed_count' => 0,
         ];
 
         // التحقق من دعم الموديل
@@ -262,16 +267,28 @@ class ExcelImportService
 
             // حفظ البيانات في قاعدة البيانات
             if (!empty($processedData) && !($options['preview_only'] ?? false)) {
-                $savedCount = $this->saveToDatabase($processedData, $modelClass, $options);
-                $results['imported_rows'] = $savedCount;
+                $saveResults = $this->saveToDatabase($processedData, $modelClass, $options);
+
+                $results['imported_rows'] = $saveResults['saved_count'];
+                $results['duplicate_count'] = $saveResults['duplicate_count'];
+                $results['failed_count'] = $saveResults['failed_count'];
+                $results['duplicates'] = $saveResults['duplicates'];
+                $results['failed_records'] = $saveResults['failed_records'];
+                $results['successful_records'] = $saveResults['successful_records'];
 
                 // تسجيل ملخص العملية
                 if ($modelKey === 'data' && !empty($this->fileIdReplacements)) {
                     Log::info('Excel import completed with file ID replacements', [
-                        'total_imported' => $savedCount,
+                        'total_imported' => $saveResults['saved_count'],
                         'file_id_replacements_count' => count($this->fileIdReplacements),
                         'replacement_summary' => array_slice($this->fileIdReplacements, 0, 10) // أول 10 استبدالات للعرض
                     ]);
+                }
+
+                // إذا فشلت جميع السجلات، إرجاع خطأ
+                if ($saveResults['saved_count'] === 0 && $saveResults['failed_count'] > 0) {
+                    $results['errors'][] = 'فشل استيراد جميع السجلات';
+                    throw new \Exception('فشل استيراد جميع السجلات');
                 }
             }
 
@@ -442,12 +459,12 @@ class ExcelImportService
         }
 
         $value = trim($value);
-        
+
         // تحويل القيم غير الصالحة (مثل "؟" أو "فجأة") إلى null
         if ($value === '?' || $value === '؟' || mb_strlen($value) > 50) {
             return null;
         }
-        
+
         // إذا كانت القيمة نصية ولكنها لا تحتوي على أرقام على الإطلاق، تحويلها إلى null
         if (!is_numeric($value) && !preg_match('/\d/', $value) && mb_strlen($value) < 20) {
             // التحقق من أنها ليست تاريخاً قبل التحويل
@@ -562,7 +579,7 @@ class ExcelImportService
                     // إذا لم يتم العثور على تطابق، رمي خطأ أو تحذير
                     throw new \Exception("لم يتم العثور على رقم ملف مطابق في جدول Data لرقم الهوية: {$originalReFileId}");
                 }
-                
+
                 // تنظيف الحقول الرقمية (تحويل القيم غير الصالحة إلى null)
                 $numericFields = [
                     'father_death_reason',
@@ -570,7 +587,7 @@ class ExcelImportService
                     'father_id',
                     'mother_id'
                 ];
-                
+
                 foreach ($numericFields as $field) {
                     if (isset($data[$field]) && !is_numeric($data[$field])) {
                         Log::warning("Invalid numeric value in dead_people field: {$field}", [
@@ -617,7 +634,7 @@ class ExcelImportService
                     // إذا لم يتم العثور على تطابق، رمي خطأ أو تحذير
                     throw new \Exception("لم يتم العثور على رقم ملف مطابق في جدول Data لرقم الهوية: {$originalRegistrationId}");
                 }
-                
+
                 // تنظيف الحقول الرقمية (تحويل القيم غير الصالحة إلى null)
                 $numericFields = [
                     'person_id',
@@ -626,7 +643,7 @@ class ExcelImportService
                     'person_health_status',
                     'academic_qualification'
                 ];
-                
+
                 foreach ($numericFields as $field) {
                     if (isset($data[$field]) && !is_numeric($data[$field])) {
                         Log::warning("Invalid numeric value in re_people field: {$field}", [
@@ -692,11 +709,16 @@ class ExcelImportService
     }
 
     /**
-     * حفظ البيانات في قاعدة البيانات
+     * حفظ البيانات في قاعدة البيانات مع تتبع السجلات المكررة والفاشلة
      */
-    private function saveToDatabase(array $data, string $modelClass, array $options): int
+    private function saveToDatabase(array $data, string $modelClass, array $options): array
     {
         $savedCount = 0;
+        $duplicateCount = 0;
+        $failedCount = 0;
+        $duplicates = [];
+        $failedRecords = [];
+        $successfulRecords = [];
         $batchSize = $options['batch_size'] ?? 100;
 
         try {
@@ -719,34 +741,149 @@ class ExcelImportService
                 }
             }
 
-            // حفظ البيانات في دفعات
-            $chunks = array_chunk($data, $batchSize);
+            // حفظ البيانات سجل تلو الآخر لتتبع المكررات والفاشلة
+            foreach ($data as $rowIndex => $record) {
+                try {
+                    // الحصول على المفاتيح الفريدة
+                    $uniqueFields = $this->getUniqueFields($record, $modelClass);
 
-            foreach ($chunks as $chunk) {
-                if ($options['update_existing'] ?? false) {
-                    // حفظ مع إمكانية التحديث
-                    foreach ($chunk as $record) {
-                        $modelClass::updateOrCreate(
-                            $this->getUniqueFields($record, $modelClass),
-                            $record
-                        );
-                        $savedCount++;
+                    // التحقق من وجود سجل مكرر
+                    $existingRecord = null;
+                    if (!empty($uniqueFields)) {
+                        $query = $modelClass::query();
+                        foreach ($uniqueFields as $field => $value) {
+                            $query->where($field, $value);
+                        }
+                        $existingRecord = $query->first();
                     }
-                } else {
-                    // إدراج جماعي
-                    $modelClass::insert($chunk);
-                    $savedCount += count($chunk);
+
+                    if ($existingRecord) {
+                        // سجل مكرر
+                        $duplicateCount++;
+                        $duplicates[] = [
+                            'row' => $rowIndex + 2, // Excel row number
+                            'identifier' => $this->getRecordIdentifier($record, $modelClass),
+                            'data' => $this->getPreviewData($record, $modelClass),
+                            'reason' => 'سجل موجود مسبقاً في قاعدة البيانات'
+                        ];
+
+                        // تحديث السجل إذا كان مطلوباً
+                        if ($options['update_existing'] ?? false) {
+                            $existingRecord->update($record);
+                            $savedCount++;
+                            $successfulRecords[] = [
+                                'row' => $rowIndex + 2,
+                                'identifier' => $this->getRecordIdentifier($record, $modelClass),
+                                'data' => $this->getPreviewData($record, $modelClass),
+                                'action' => 'محدّث'
+                            ];
+                        }
+                    } else {
+                        // سجل جديد
+                        $modelClass::create($record);
+                        $savedCount++;
+                        $successfulRecords[] = [
+                            'row' => $rowIndex + 2,
+                            'identifier' => $this->getRecordIdentifier($record, $modelClass),
+                            'data' => $this->getPreviewData($record, $modelClass),
+                            'action' => 'مضاف'
+                        ];
+                    }
+
+                } catch (\Exception $e) {
+                    // سجل فاشل
+                    $failedCount++;
+                    $failedRecords[] = [
+                        'row' => $rowIndex + 2,
+                        'identifier' => $this->getRecordIdentifier($record, $modelClass),
+                        'data' => $this->getPreviewData($record, $modelClass),
+                        'error' => $e->getMessage(),
+                        'sql_code' => $e->getCode()
+                    ];
+
+                    Log::warning('Failed to import record', [
+                        'row' => $rowIndex + 2,
+                        'error' => $e->getMessage(),
+                        'record' => $record
+                    ]);
                 }
             }
 
+            // إذا فشلت جميع السجلات، إلغاء التراجع
+            if ($savedCount === 0 && $failedCount > 0) {
+                DB::rollBack();
+                throw new \Exception("فشل استيراد جميع السجلات ({$failedCount} سجل فاشل)");
+            }
+
             DB::commit();
+
+            return [
+                'saved_count' => $savedCount,
+                'duplicate_count' => $duplicateCount,
+                'failed_count' => $failedCount,
+                'duplicates' => $duplicates,
+                'failed_records' => $failedRecords,
+                'successful_records' => $successfulRecords
+            ];
+
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Database save error: ' . $e->getMessage());
             throw $e;
         }
+    }
 
-        return $savedCount;
+    /**
+     * الحصول على معرف السجل لعرضه
+     */
+    private function getRecordIdentifier(array $record, string $modelClass): string
+    {
+        if ($modelClass === Data::class) {
+            return $record['data_id_number'] ?? $record['file_id_number'] ?? 'غير معروف';
+        } elseif ($modelClass === DeadPepole::class) {
+            return $record['father_id'] ?? $record['mother_id'] ?? 'غير معروف';
+        } elseif ($modelClass === RePeople::class) {
+            return $record['person_id'] ?? 'غير معروف';
+        }
+        return 'غير معروف';
+    }
+
+    /**
+     * الحصول على بيانات معاينة للسجل
+     */
+    private function getPreviewData(array $record, string $modelClass): array
+    {
+        if ($modelClass === Data::class) {
+            return [
+                'رقم الهوية' => $record['data_id_number'] ?? '',
+                'الاسم' => trim(
+                    ($record['data_first_name'] ?? '') . ' ' .
+                    ($record['data_father_name'] ?? '') . ' ' .
+                    ($record['data_family_name'] ?? '')
+                ),
+                'رقم الهاتف' => $record['data_phone_number'] ?? ''
+            ];
+        } elseif ($modelClass === RePeople::class) {
+            return [
+                'رقم الهوية' => $record['person_id'] ?? '',
+                'الاسم' => trim(
+                    ($record['first_name'] ?? '') . ' ' .
+                    ($record['second_name'] ?? '') . ' ' .
+                    ($record['last_name'] ?? '')
+                ),
+                'العمر' => $record['person_age'] ?? ''
+            ];
+        } elseif ($modelClass === DeadPepole::class) {
+            return [
+                'رقم هوية الأب' => $record['father_id'] ?? '',
+                'اسم الأب' => trim(
+                    ($record['father_first_name'] ?? '') . ' ' .
+                    ($record['father_last_name'] ?? '')
+                ),
+                'رقم هوية الأم' => $record['mother_id'] ?? ''
+            ];
+        }
+        return [];
     }
 
     /**

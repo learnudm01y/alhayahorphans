@@ -1,156 +1,63 @@
 @extends('admin.dashboard.toolbars.index')
 
 @push('styles')
-    <!-- SweetAlert2 CDN -->
-
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
-
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
-        /* حاوية Excel Gateway - معزولة التصميم */
+        /* تصميم بسيط ومصغر */
         .excel-gateway-wrapper {
-            font-family: 'Poppins', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             width: 100%;
-            max-width: 1200px;
-            margin: 20px auto;
-            padding: 20px;
-            background: linear-gradient(-45deg, #1e3c72, #2a5298, #0f4c75, #3282b8);
-            background-size: 400% 400%;
-            animation: gradientShift 15s ease infinite;
-            border-radius: 25px;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 0 15px 50px rgba(0,0,0,0.2);
-            min-height: 600px;
-        }
-
-        /* خلفية متحركة معزولة داخل الحاوية */
-        .excel-gateway-wrapper::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: url("data:image/svg+xml,%3Csvg width='100' height='20' viewBox='0 0 100 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpolygon points='50 0 60 40 100 50 60 60 50 100 40 60 0 50 40 40'/%3E%3C/g%3E%3C/svg%3E");
-            animation: floatPattern 20s linear infinite;
-            pointer-events: none;
-            border-radius: 25px;
-        }
-
-        @keyframes gradientShift {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
-
-        @keyframes floatPattern {
-            0% { transform: translateX(-100px); }
-            100% { transform: translateX(100px); }
-        }
-
-        @keyframes slideInFromTop {
-            0% { opacity: 0; transform: translateY(-50px); }
-            100% { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes scaleIn {
-            0% { opacity: 0; transform: scale(0.9); }
-            100% { opacity: 1; transform: scale(1); }
-        }
-
-        @keyframes pulseGlow {
-            0%, 100% { box-shadow: 0 0 20px rgba(255, 255, 255, 0.3); }
-            50% { box-shadow: 0 0 40px rgba(255, 255, 255, 0.5); }
+            max-width: 900px;
+            margin: 15px auto;
+            padding: 0;
         }
 
         .excel-gateway-wrapper .container {
-            max-width: 100%;
-            width: 100%;
-            margin: 0;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(20px);
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            overflow: hidden;
-            animation: slideInFromTop 0.8s ease-out;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            position: relative;
-            z-index: 1;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
 
         .excel-gateway-wrapper .header {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #3282b8 100%);
+            background: #2196f3;
             color: white;
-            padding: 40px 30px;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .excel-gateway-wrapper .header::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: repeating-linear-gradient(
-                45deg,
-                transparent,
-                transparent 10px,
-                rgba(255,255,255,0.03) 10px,
-                rgba(255,255,255,0.03) 20px
-            );
-            animation: slidePattern 20s linear infinite;
-        }
-
-        @keyframes slidePattern {
-            0% { transform: translateX(-20px) translateY(-20px); }
-            100% { transform: translateX(20px) translateY(20px); }
+            padding: 15px 20px;
+            border-radius: 8px 8px 0 0;
         }
 
         .excel-gateway-wrapper .header h1 {
             margin: 0;
-            font-size: 3em;
-            font-weight: 700;
-            text-shadow: 2px 2px 8px rgba(0,0,0,0.3);
-            position: relative;
-            z-index: 2;
-            background: linear-gradient(45deg, #ffffff, #e8f4f8);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
+            font-size: 20px;
+            font-weight: 600;
         }
 
         .excel-gateway-wrapper .header p {
-            position: relative;
-            z-index: 2;
-            font-size: 1.1em;
-            margin-top: 10px;
-            opacity: 0.9;
+            font-size: 13px;
+            margin: 5px 0 0 0;
+            opacity: 0.95;
         }
 
         .excel-gateway-wrapper .content {
-            padding: 40px;
-            animation: scaleIn 0.8s ease-out 0.2s both;
+            padding: 20px;
         }
 
         .excel-gateway-wrapper .upload-section {
-            background: linear-gradient(135deg, #f8fbff 0%, #e8f4f8 100%);
-            border-radius: 15px;
-            padding: 40px;
-            margin: 30px 0;
-            border: 3px solid transparent;
-            background-clip: padding-box;
-            position: relative;
-            animation: pulseGlow 3s ease-in-out infinite;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            background: #f9f9f9;
+            border: 2px dashed #ddd;
+            border-radius: 6px;
+            padding: 25px;
+            margin: 15px 0;
+            text-align: center;
+        }
+
+        animation: pulseGlow 3s ease-in-out infinite;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
         }
 
         .excel-gateway-wrapper .upload-section::before {
@@ -206,7 +113,8 @@
 
         .excel-gateway-wrapper .processing-options {
             background: rgba(255, 255, 255, 0.7);
-            padding: 25px;
+            padding-right: 6px;
+            padding-left: 6px;
             border-radius: 12px;
             margin: 25px 0;
             border: 1px solid rgba(50, 130, 184, 0.2);
@@ -241,106 +149,92 @@
             animation: scaleIn 0.5s ease-out;
         }
 
-        .excel-gateway-wrapper #importOptions select {
+        .excel-gateway-wrapper .upload-section h2,
+        .excel-gateway-wrapper .upload-section h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .excel-gateway-wrapper .upload-section p {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        /* تحسين حقل رفع الملف */
+        .file-input-wrapper input[type="file"] {
             width: 100%;
             padding: 12px;
-            border: 2px solid #3282b8;
-            border-radius: 8px;
-            font-size: 1.1em;
+            border: 2px dashed #2196f3;
+            border-radius: 6px;
+            font-size: 13px;
             background: white;
-            margin: 15px 0;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .file-input-wrapper input[type="file"]:hover {
+            background: #f5f5f5;
+            border-color: #1976d2;
+        }
+
+        /* تحسين الخيارات */
+        .processing-options label:hover {
+            background: #e3f2fd !important;
+            border-color: #2196f3 !important;
+        }
+
+        .processing-options input[type="radio"]:checked+span {
+            color: #2196f3;
+            font-weight: 600;
+        }
+
+        .processing-options label:has(input:checked) {
+            background: #e3f2fd !important;
+            border-color: #2196f3 !important;
         }
 
         .excel-gateway-wrapper .btn {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #3282b8 100%);
+            background: #2196f3;
             color: white;
             border: none;
-            padding: 18px 40px;
-            border-radius: 30px;
-            font-size: 1.2em;
+            padding: 10px 24px;
+            border-radius: 4px;
+            font-size: 14px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.4s ease;
-            text-decoration: none;
-            display: inline-block;
-            margin: 15px;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 0 8px 25px rgba(30, 60, 114, 0.3);
-        }
-
-        .excel-gateway-wrapper .btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
-            transition: left 0.6s ease;
-        }
-
-        .excel-gateway-wrapper .btn:hover::before {
-            left: 100%;
+            transition: background 0.3s;
         }
 
         .excel-gateway-wrapper .btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 15px 35px rgba(30, 60, 114, 0.4);
-        }
-
-        .excel-gateway-wrapper .btn:active {
-            transform: translateY(-1px);
+            background: #1976d2;
         }
 
         .excel-gateway-wrapper .button-group {
             text-align: center;
-            margin: 40px 0;
-            animation: slideInFromTop 0.8s ease-out 0.4s both;
+            margin: 20px 0;
         }
 
         .excel-gateway-wrapper .error {
-            background: linear-gradient(135deg, #ffebee 0%, #fce4ec 100%);
+            background: #ffebee;
             color: #c62828;
-            padding: 20px;
-            border-radius: 12px;
-            margin: 25px 0;
-            border-left: 5px solid #f44336;
-            box-shadow: 0 5px 15px rgba(244, 67, 54, 0.2);
-            animation: scaleIn 0.5s ease-out;
+            padding: 12px;
+            border-radius: 4px;
+            margin: 15px 0;
+            border-left: 3px solid #f44336;
+            font-size: 13px;
         }
 
         .excel-gateway-wrapper .success {
-            background: linear-gradient(135deg, #e8f5e8 0%, #f1f8e9 100%);
+            background: #e8f5e9;
             color: #2e7d32;
-            padding: 20px;
-            border-radius: 12px;
-            margin: 25px 0;
-            border-left: 5px solid #4caf50;
-            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.2);
-            animation: scaleIn 0.5s ease-out;
-        }
-
-        /* Excel-themed icons and decorations - معزولة */
-        .excel-gateway-wrapper .excel-icon {
-            display: inline-block;
-            width: 30px;
-            height: 30px;
-            background: linear-gradient(135deg, #107c41 0%, #0e6b37 100%);
-            border-radius: 6px;
-            position: relative;
-            margin-left: 10px;
-        }
-
-        .excel-gateway-wrapper .excel-icon::before {
-            content: 'X';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: white;
-            font-weight: bold;
-            font-size: 18px;
+            padding: 12px;
+            border-radius: 4px;
+            margin: 15px 0;
+            border-left: 3px solid #4caf50;
+            font-size: 13px;
         }
 
         /* Loading animation - معزولة */
@@ -348,149 +242,1234 @@
             display: inline-block;
             width: 20px;
             height: 20px;
-            border: 3px solid rgba(255,255,255,0.3);
-            border-radius: 50%;
-            border-top-color: #fff;
-            animation: spin 1s ease-in-out infinite;
-            margin-left: 10px;
-            vertical-align: middle;
+
+            /* Loading Spinner - بسيط */
+            .loading-spinner {
+                display: inline-block;
+                width: 24px;
+                height: 24px;
+                border: 3px solid rgba(33, 150, 243, 0.3);
+                border-radius: 50%;
+                border-top-color: #2196f3;
+                animation: spin 1s ease-in-out infinite;
+            }
+
+            @keyframes spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+
+            /* Import Stats - مصغر */
+            .import-stats-container {
+                display: flex;
+                gap: 10px;
+                margin: 15px 0;
+                flex-wrap: wrap;
+            }
+
+            .import-stat-card {
+                padding: 8px 12px;
+                border-radius: 4px;
+                font-size: 13px;
+                font-weight: 600;
+                border-left: 3px solid;
+            }
+
+            .import-stat-card.success-card {
+                background: #e8f5e9;
+                color: #2e7d32;
+                border-color: #4caf50;
+            }
+
+            .import-stat-card.duplicate-card {
+                background: #fff3e0;
+                color: #e65100;
+                border-color: #ff9800;
+            }
+
+            .import-stat-card.failed-card {
+                background: #ffebee;
+                color: #c62828;
+                border-color: #f44336;
+            }
+
+            .import-stat-card.total-card {
+                background: #e3f2fd;
+                color: #1565c0;
+                border-color: #2196f3;
+            }
+
+            .stat-number-inline {
+                font-weight: 700;
+            }
+
+            .view-details-btn-inline {
+                background: #2196f3;
+                color: white;
+                border: none;
+                padding: 6px 12px;
+                border-radius: 4px;
+                font-size: 12px;
+                cursor: pointer;
+            }
+
+            .view-details-btn-inline:hover {
+                background: #1976d2;
+            }
+
+            /* Modal Styles - معزول بالكامل */
+            .modal {
+                display: none;
+                position: fixed;
+                z-index: 99999;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.7);
+                align-items: center;
+                justify-content: center;
+                overflow: hidden;
+                /* منع scroll الخلفية */
+            }
+
+            /* منع التفاعل مع العناصر خلف المودال */
+            body.modal-open {
+                overflow: hidden !important;
+                position: fixed;
+                width: 100%;
+            }
+
+            .validation-modal-content {
+                background: white;
+                border-radius: 6px;
+                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+                position: relative;
+                z-index: 100000;
+                width: 90%;
+                max-width: 1200px;
+                max-height: 90vh;
+                margin: auto;
+            }
+
+            /* Responsive Modal Sizing */
+            @media (min-width: 1920px) {
+                .validation-modal-content {
+                    width: 70%;
+                    max-width: 1600px;
+                }
+            }
+
+            @media (min-width: 1400px) and (max-width: 1919px) {
+                .validation-modal-content {
+                    width: 75%;
+                    max-width: 1400px;
+                }
+            }
+
+            @media (min-width: 1200px) and (max-width: 1399px) {
+                .validation-modal-content {
+                    width: 85%;
+                    max-width: 1200px;
+                }
+            }
+
+            @media (min-width: 992px) and (max-width: 1199px) {
+                .validation-modal-content {
+                    width: 90%;
+                    max-width: 1000px;
+                }
+            }
+
+            @media (min-width: 768px) and (max-width: 991px) {
+                .validation-modal-content {
+                    width: 92%;
+                    max-width: 750px;
+                }
+            }
+
+            @media (max-width: 767px) {
+                .validation-modal-content {
+                    width: 95%;
+                    max-width: 100%;
+                    max-height: 95vh;
+                    border-radius: 4px;
+                }
+            }
+
+            @media (max-width: 480px) {
+                .validation-modal-content {
+                    width: 98%;
+                    max-height: 98vh;
+                    border-radius: 2px;
+                }
+            }
+
+            /* Custom Scrollbar */
+            #warningsList::-webkit-scrollbar,
+            #invalidRowsList::-webkit-scrollbar {
+                width: 6px;
+            }
+
+            #warningsList::-webkit-scrollbar-thumb,
+            #invalidRowsList::-webkit-scrollbar-thumb {
+                background: #bbb;
+                border-radius: 3px;
+            }
+
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
+            padding: 10px;
+            background: #fafafa;
+            border-radius: 8px;
         }
 
-        /* Keyframes للحركة - معزولة داخل الحاوية */
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .invalid-row-item {
+            padding: 10px;
+            margin-bottom: 8px;
+            background: white;
+            border-radius: 6px;
+            border-right: 3px solid #f44336;
         }
 
-        /* SweetAlert2 RTL Support */
-        .rtl-popup {
-            text-align: right !important;
-            direction: rtl !important;
+        .invalid-row-item .row-number {
+            font-weight: 700;
+            color: #c62828;
+            margin-bottom: 5px;
         }
 
-        .swal2-popup {
-            border-radius: 15px !important;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1) !important;
+        .invalid-row-item .error-detail {
+            font-size: 0.9em;
+            color: #666;
+            margin-right: 15px;
         }
 
-        .swal2-title {
-            font-family: 'Poppins', sans-serif !important;
-            font-weight: 600 !important;
+        .validation-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
         }
 
-        .swal2-html-container {
-            font-family: 'Poppins', sans-serif !important;
-            line-height: 1.6 !important;
+        .validation-actions .btn {
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.3s ease;
         }
 
-        .swal2-confirm {
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%) !important;
-            border: none !important;
-            border-radius: 8px !important;
-            padding: 12px 24px !important;
-            font-weight: 600 !important;
-            box-shadow: 0 5px 15px rgba(30, 60, 114, 0.3) !important;
+        .validation-actions .btn-secondary {
+            background: #757575;
+            color: white;
         }
 
-        .swal2-confirm:hover {
-            transform: translateY(-2px) !important;
-            box-shadow: 0 8px 25px rgba(30, 60, 114, 0.4) !important;
+        .validation-actions .btn-secondary:hover {
+            background: #616161;
+        }
+
+        /* Details Modal - معزول بالكامل */
+        .details-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 99999;
+            overflow: hidden;
+            /* منع scroll الخلفية */
+        }
+
+        .modal-content {
+            background: white;
+            max-width: 1000px;
+            width: 90%;
+            max-height: 85vh;
+            margin: auto;
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            position: relative;
+            z-index: 100000;
+        }
+
+        /* Responsive Modal Sizing for Details Modal */
+        @media (min-width: 1920px) {
+            .modal-content {
+                width: 70%;
+                max-width: 1600px;
+            }
+        }
+
+        @media (min-width: 1400px) and (max-width: 1919px) {
+            .modal-content {
+                width: 75%;
+                max-width: 1400px;
+            }
+        }
+
+        @media (min-width: 1200px) and (max-width: 1399px) {
+            .modal-content {
+                width: 85%;
+                max-width: 1200px;
+            }
+        }
+
+        @media (min-width: 992px) and (max-width: 1199px) {
+            .modal-content {
+                width: 90%;
+                max-width: 1000px;
+            }
+        }
+
+        @media (min-width: 768px) and (max-width: 991px) {
+            .modal-content {
+                width: 92%;
+                max-width: 750px;
+            }
+        }
+
+        @media (max-width: 767px) {
+            .modal-content {
+                width: 95%;
+                max-width: 100%;
+                max-height: 95vh;
+                border-radius: 4px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .modal-content {
+                width: 98%;
+                max-height: 98vh;
+                border-radius: 2px;
+                margin: 5px auto;
+            }
+        }
+
+        .modal-header {
+            background: #2196f3;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .close-modal {
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 28px;
+            cursor: pointer;
+        }
+
+        .modal-tabs {
+            display: flex;
+            background: #f5f5f5;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .modal-tab {
+            flex: 1;
+            padding: 12px 16px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .modal-tab:hover {
+            background: rgba(33, 150, 243, 0.1);
+        }
+
+        .modal-tab.active {
+            background: white;
+            color: #2196f3;
+            border-bottom: 2px solid #2196f3;
+        }
+
+        .modal-body {
+            padding: 20px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .records-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .records-table th {
+            background: #f5f5f5;
+            padding: 10px;
+            text-align: right;
+            font-weight: 600;
+            border-bottom: 2px solid #ddd;
+        }
+
+        .records-table td {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            text-align: right;
+        }
+
+        .records-table tr:hover {
+            background: #fafafa;
+        }
+
+        .badge {
+            padding: 4px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .badge.duplicate {
+            background: #fff3e0;
+            color: #e65100;
+        }
+
+        .badge.failed {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .no-records {
+            text-align: center;
+            padding: 30px;
+            color: #999;
+            font-size: 14px;
+        }
+
+        .record-preview {
+            background: #f9f9f9;
+            padding: 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            max-width: 250px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
     </style>
 @endpush
 
 @section('content')
-<div class="excel-gateway-wrapper">
-    <div class="container">
-        <div class="header">
-            <h1>🚀 Excel Upload Gateway <span class="excel-icon"></span></h1>
-            <p>نظام رفع ملفات Excel المتقدم مع الربط التلقائي للبيانات</p>
-        </div>
+    <div class="excel-gateway-wrapper">
+        <div class="container">
+            <div class="content">
+                <!-- Remove old duplicate detection controls -->
+                <div class="upload-section">
+                    <h3>📊 رفع ملفات Excel</h3>
+                    <p>قم برفع ملفات Excel الخاصة بك مع إمكانية الربط التلقائي بين الجداول. الصيغ المدعومة: .xlsx, .xls,
+                        .csv</p>
 
-    <div class="content">
-            <!-- Top controls: table selector, counters and single button to open duplicates modal -->
-            <div style="display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:18px;">
-                <div style="display:flex;gap:10px;align-items:center;">
-                    <div class="success" style="padding:8px 12px;border-radius:6px;">تمت الإضافة: <span id="insertedCount">0</span></div>
-                    <div class="error" style="padding:8px 12px;border-radius:6px;">تم تجاهل المكرر: <span id="skippedCount">0</span></div>
+                    <form id="excelUploadForm" action="/admin/file/process-excel" method="POST"
+                        enctype="multipart/form-data">
+                        @csrf
+
+                        <!-- صف واحد: حقل الرفع + الخيارات -->
+                        <div style="display: flex; gap: 15px; align-items: flex-start; margin: 20px 0;">
+                            <!-- حقل رفع الملف - 40% -->
+                            <div style="flex: 0 0 40%;">
+                                <div class="file-input-wrapper">
+                                    <input type="file" name="files[]" multiple accept=".xlsx,.xls,.csv"
+                                        style="font-size: 12px; padding: 30px;">
+                                </div>
+                            </div>
+
+                            <!-- الخيارات - 55% - صف واحد أفقي -->
+                            <div style="flex: 0 0 55%;">
+                                <div class="processing-options" style="display: flex; gap: 10px;">
+                                    <label
+                                        style="flex: 1; display: flex; align-items: center; padding: 8px 12px; background: #f9f9f9; border-radius: 4px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s;">
+                                        <input type="radio" name="processing_mode" value="file-only" checked
+                                            style="margin-left: 6px;">
+                                        <span style="font-size: 13px; font-weight: 500;">💾 حفظ الملف فقط</span>
+                                    </label>
+                                    <label
+                                        style="flex: 1; display: flex; align-items: center; padding: 8px 12px; background: #f9f9f9; border-radius: 4px; cursor: pointer; border: 2px solid transparent; transition: all 0.2s;">
+                                        <input type="radio" name="processing_mode" value="import-data"
+                                            style="margin-left: 6px;">
+                                        <span style="font-size: 13px; font-weight: 500;">🔄 حفظ الملف + استيراد البيانات مع
+                                            الربط التلقائي</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="importOptions" style="display: none; margin-top: 15px;">
+                            <label style="display: block; margin-bottom: 10px; font-size: 13px;">
+                                <input type="checkbox" name="enable_excel_import" value="1" checked>
+                                ✅ تفعيل استيراد البيانات مع الربط التلقائي
+                            </label>
+                            <select name="target_table"
+                                style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+                                <option value="data">📋 جدول البيانات الرئيسي</option>
+                                <option value="dead_people">⚰️ جدول المتوفين (مع ربط تلقائي)</option>
+                                <option value="re_people">👥 جدول افراد الاسرة (مع ربط تلقائي)</option>
+                            </select>
+                        </div>
+
+                    <div style="display: flex; gap: 12px; margin-top: 20px; justify-content: center;">
+                        <button type="submit" class="btn" style="flex: 0 0 200px; margin: 0;">🚀 رفع الملفات</button>
+                        <a href="/admin/file/php-diagnostic" class="btn" style="flex: 0 0 200px; margin: 0; display: flex; align-items: center; justify-content: center; text-decoration: none;">🔧 تشخيص النظام</a>
+                    </div>
+                    </form>
                 </div>
+                <!-- Details Modal -->
+                <div id="detailsModal" class="details-modal">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2>📊 تفاصيل عملية الاستيراد</h2>
+                            <button onclick="closeDetailsModal()" class="close-modal">&times;</button>
+                        </div>
 
-                <div style="display:flex;gap:10px;align-items:center;">
-                    <label style="font-weight:600;margin-right:6px;">الجدول: </label>
-                    <select id="dupTableSelect" name="dup_table" style="padding:8px;border-radius:6px;border:1px solid #ccc;">
-                        <option value="data">جدول البيانات (data)</option>
-                        <option value="dead_people">dead_people</option>
-                        <option value="re_people">re_people</option>
-                    </select>
-                    <button id="openDuplicatesModalBtn" class="btn">فتح المكرر</button>
-                </div>
-            </div>
-            <!-- Remove the old error display as we'll use SweetAlert -->
+                        <div class="modal-tabs">
+                            <button class="modal-tab active" data-tab="successful">✅ السجلات الناجحة</button>
+                            <button class="modal-tab" data-tab="duplicates">📋 السجلات المكررة</button>
+                            <button class="modal-tab" data-tab="failed">❌ السجلات الفاشلة</button>
+                        </div>
 
-            <div class="upload-section">
-                <h3>📊 رفع ملفات Excel <span class="excel-icon"></span></h3>
-                <p>قم برفع ملفات Excel الخاصة بك مع إمكانية الربط التلقائي بين الجداول. الصيغ المدعومة: .xlsx, .xls, .csv</p>
-
-                <form id="excelUploadForm" action="/admin/file/process-excel" method="POST" enctype="multipart/form-data">
-                    @csrf
-                    <div class="file-input-wrapper">
-                        <input type="file" name="files[]" multiple accept=".xlsx,.xls,.csv">
-                    </div>
-
-                    <div class="processing-options">
-                        <label>
-                            <input type="radio" name="processing_mode" value="file-only" checked>
-                            💾 حفظ الملف فقط
-                        </label>
-                        <label>
-                            <input type="radio" name="processing_mode" value="import-data">
-                            🔄 حفظ الملف + استيراد البيانات مع الربط التلقائي
-                        </label>
-                    </div>
-
-                    <div id="importOptions" style="display: none;">
-                        <label>
-                            <input type="checkbox" name="enable_excel_import" value="1">
-                            ✅ تفعيل استيراد البيانات مع الربط التلقائي
-                        </label>
-                        <select name="target_table">
-                            <option value="data">📋 جدول البيانات الرئيسي</option>
-                            <option value="dead_people">⚰️ جدول المتوفين (مع ربط تلقائي)</option>
-                            <option value="re_people">👥 جدول افراد الاسرة  (مع ربط تلقائي)</option>
-                        </select>
-                    </div>
-
-                    <button type="submit" class="btn">🚀 رفع الملفات</button>
-                </form>
-            </div>
-
-                <!-- duplicate UI moved to top controls -->
-
-                <!-- Duplicates Modal -->
-                <div id="duplicatesModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;">
-                    <div style="background:white;padding:20px;border-radius:8px;max-width:900px;margin:40px auto;">
-                        <h3>قائمة أرقام الهوية المكررة</h3>
-                        <p>يمكنك تنزيلها كملف Excel أو استعراضها هنا.</p>
-                        <div style="max-height:300px;overflow:auto;border:1px solid #eee;padding:10px;" id="duplicatesList"></div>
-                        <div style="text-align:left;margin-top:10px;">
-                            <button id="exportDuplicatesBtn" class="btn">تصدير إلى Excel</button>
-                            <button id="closeDuplicatesModalBtn" class="btn">إغلاق</button>
+                        <div class="modal-body">
+                            <div id="tab-successful" class="tab-content active">
+                                <!-- Will be populated by JavaScript -->
+                            </div>
+                            <div id="tab-duplicates" class="tab-content">
+                                <!-- Will be populated by JavaScript -->
+                            </div>
+                            <div id="tab-failed" class="tab-content">
+                                <!-- Will be populated by JavaScript -->
+                            </div>
                         </div>
                     </div>
                 </div>
 
-            <div class="button-group">
-                <a href="/admin/file/php-diagnostic" class="btn">🔧 تشخيص النظام</a>
-                <a href="/admin/dashboard" class="btn">🏠 العودة للوحة التحكم</a>
+                <!-- Validation Results Modal - نافذة نتائج التحقق من الملف -->
+                <div id="validationModal" class="modal">
+                    <div class="modal-content validation-modal-content"
+                        style="max-width: 900px; height: 90vh; max-height: 600px;">
+                        <!-- Header - مبسط جداً -->
+                        <div
+                            style="padding: 12px 20px; background: #f5f5f5; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 15px; font-weight: 600;">🔍 نتائج الفحص</span>
+                            <button onclick="closeValidationModal()"
+                                style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">&times;</button>
+                        </div>
+
+                        <!-- Body - Layout جانبي -->
+                        <div style="display: flex; height: calc(100% - 110px); overflow: hidden;">
+                            <!-- Main Content - 60% -->
+                            <div
+                                style="flex: 0 0 60%; padding: 15px; overflow: hidden; border-left: 1px solid #ddd; display: flex; flex-direction: column;">
+                                <!-- Statistics - مصغرة -->
+                                <div
+                                    style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 15px;">
+                                    <div style="background: #e3f2fd; padding: 8px; border-radius: 4px; text-align: center;">
+                                        <div style="font-size: 11px; color: #666;">إجمالي</div>
+                                        <div style="font-size: 18px; font-weight: 600;" id="val-total-rows">0</div>
+                                    </div>
+                                    <div style="background: #e8f5e9; padding: 8px; border-radius: 4px; text-align: center;">
+                                        <div style="font-size: 11px; color: #666;">صحيحة</div>
+                                        <div style="font-size: 18px; font-weight: 600; color: #4caf50;" id="val-valid-rows">
+                                            0</div>
+                                    </div>
+                                    <div style="background: #ffebee; padding: 8px; border-radius: 4px; text-align: center;">
+                                        <div style="font-size: 11px; color: #666;">خاطئة</div>
+                                        <div style="font-size: 18px; font-weight: 600; color: #f44336;"
+                                            id="val-invalid-rows">0</div>
+                                    </div>
+                                    <div style="background: #fff3e0; padding: 8px; border-radius: 4px; text-align: center;">
+                                        <div style="font-size: 11px; color: #666;">تحذيرات</div>
+                                        <div style="font-size: 18px; font-weight: 600; color: #ff9800;" id="val-warnings">
+                                            0</div>
+                                    </div>
+                                </div>
+
+                                <!-- Message -->
+                                <div id="validationMessage"
+                                    style="padding: 10px; border-radius: 4px; font-size: 13px; margin-bottom: 15px;"></div>
+
+                                <!-- Invalid Rows with Pagination -->
+                                <div id="invalidRowsContainer"
+                                    style="display: none; flex: 1; overflow: hidden; display: flex; flex-direction: column;">
+                                    <h5 style="font-size: 13px; margin: 0 0 8px 0; color: #f44336;">❌ الصفوف الخاطئة:</h5>
+                                    <div id="invalidRowsList"
+                                        style="flex: 1; overflow-y: auto; font-size: 12px; margin-bottom: 8px;"></div>
+
+                                    <!-- Pagination Controls for Errors -->
+                                    <div id="errorsPagination"
+                                        style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px solid #ddd; font-size: 11px;">
+                                        <button onclick="prevErrorsPage()" id="prevErrorsBtn"
+                                            style="padding: 4px 10px; border: 1px solid #ddd; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">السابق</button>
+                                        <span id="errorsPaginationInfo" style="color: #666;">صفحة 1 من 1</span>
+                                        <button onclick="nextErrorsPage()" id="nextErrorsBtn"
+                                            style="padding: 4px 10px; border: 1px solid #ddd; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">التالي</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Warnings Sidebar - 40% -->
+                            <div id="warningsSidebar"
+                                style="flex: 0 0 40%; padding: 15px; overflow: hidden; display: flex; flex-direction: column; background: #fafafa;">
+                                <h5 style="font-size: 13px; margin: 0 0 10px 0; color: #ff9800;">⚠️ التحذيرات</h5>
+
+                                <!-- Warnings List with Pagination -->
+                                <div id="warningsList"
+                                    style="flex: 1; overflow-y: auto; margin-bottom: 10px; font-size: 11px;">
+                                    <!-- سيتم ملؤها بـ JavaScript -->
+                                </div>
+
+                                <!-- Pagination Controls -->
+                                <div id="warningsPagination"
+                                    style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px solid #ddd; font-size: 11px;">
+                                    <button onclick="prevWarningsPage()" id="prevWarningsBtn"
+                                        style="padding: 4px 10px; border: 1px solid #ddd; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">السابق</button>
+                                    <span id="warningsPaginationInfo" style="color: #666;">صفحة 1 من 1</span>
+                                    <button onclick="nextWarningsPage()" id="nextWarningsBtn"
+                                        style="padding: 4px 10px; border: 1px solid #ddd; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">التالي</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Footer - Action Buttons -->
+                        <div
+                            style="padding: 12px 20px; background: #f5f5f5; border-top: 1px solid #ddd; display: flex; justify-content: flex-end; gap: 10px;">
+                            <button onclick="closeValidationModal()"
+                                style="padding: 6px 16px; background: #9e9e9e; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                                إلغاء
+                            </button>
+                            <button onclick="proceedWithImport()" id="proceedImportBtn"
+                                style="display: none; padding: 6px 16px; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                                ✅ متابعة الإدخال
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-</div>
 @endsection
 
 @push('scriptsCode')
     <!-- SweetAlert2 CDN -->
     <script>
+        // Global variables
+        let importResults = null;
+        let validationResults = null;
+        let pendingFormData = null;
+
+        // Pagination للتحذيرات
+        let allWarnings = [];
+        let currentWarningsPage = 1;
+        const warningsPerPage = 10; // عدد التحذيرات لكل صفحة
+
+        // Pagination للأخطاء
+        let allErrors = [];
+        let currentErrorsPage = 1;
+        const errorsPerPage = 10; // عدد الأخطاء لكل صفحة
+
+        // Validation Modal Functions
+        function showValidationModal() {
+            const modal = document.getElementById('validationModal');
+            modal.style.display = 'flex';
+            // منع scroll الخلفية
+            document.body.classList.add('modal-open');
+            // منع التفاعل مع الخلفية
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeValidationModal() {
+            const modal = document.getElementById('validationModal');
+            modal.style.display = 'none';
+            // إعادة تفعيل scroll الخلفية
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+
+            validationResults = null;
+            pendingFormData = null;
+            allWarnings = [];
+            currentWarningsPage = 1;
+            allErrors = [];
+            currentErrorsPage = 1;
+        }
+
+        // Functions للتنقل بين صفحات التحذيرات
+        function prevWarningsPage() {
+            if (currentWarningsPage > 1) {
+                currentWarningsPage--;
+                displayWarningsPage();
+            }
+        }
+
+        function nextWarningsPage() {
+            const totalPages = Math.ceil(allWarnings.length / warningsPerPage);
+            if (currentWarningsPage < totalPages) {
+                currentWarningsPage++;
+                displayWarningsPage();
+            }
+        }
+
+        // Functions للتنقل بين صفحات الأخطاء
+        function prevErrorsPage() {
+            if (currentErrorsPage > 1) {
+                currentErrorsPage--;
+                displayErrorsPage();
+            }
+        }
+
+        function nextErrorsPage() {
+            const totalPages = Math.ceil(allErrors.length / errorsPerPage);
+            if (currentErrorsPage < totalPages) {
+                currentErrorsPage++;
+                displayErrorsPage();
+            }
+        }
+
+        function displayWarningsPage() {
+            const warningsList = document.getElementById('warningsList');
+
+            // عرض التحذيرات
+            warningsList.innerHTML = '';
+
+            if (allWarnings.length === 0) {
+                warningsList.innerHTML =
+                    '<div style="text-align: center; color: #999; padding: 20px;">لا توجد تحذيرات</div>';
+            } else {
+                // تجميع التحذيرات المتشابهة
+                const groupedWarnings = {};
+
+                allWarnings.forEach((warning) => {
+                    // تنظيف رسالة التحذير من رقم الصف والأيقونات
+                    let cleanMessage = warning.message || 'تحذير';
+                    // إزالة الأيقونات (⚠️ وغيرها)
+                    cleanMessage = cleanMessage.replace(/[⚠️❌🚫✅✓💡📍🔔]+/g, '').trim();
+                    // إزالة "الصف X:" من البداية
+                    cleanMessage = cleanMessage.replace(/^الصف\s+\d+:\s*/i, '').trim();
+
+                    // تجاهل التحذيرات الفارغة
+                    if (!cleanMessage || cleanMessage === 'تحذير') {
+                        return;
+                    }
+
+                    // إنشاء مفتاح فريد بناءً على الرسالة النظيفة + action + solution
+                    const warningKey = `${cleanMessage}_${warning.action || ''}_${warning.solution || ''}`;
+
+                    if (!groupedWarnings[warningKey]) {
+                        groupedWarnings[warningKey] = {
+                            message: cleanMessage,
+                            action: warning.action || '',
+                            solution: warning.solution || '',
+                            rows: []
+                        };
+                    }
+
+                    // إضافة رقم الصف للمجموعة
+                    const rowNum = warning.row_number || warning.row;
+                    if (rowNum && !groupedWarnings[warningKey].rows.includes(rowNum)) {
+                        groupedWarnings[warningKey].rows.push(rowNum);
+                    }
+                });
+
+                // عرض التحذيرات المجمعة
+                Object.values(groupedWarnings).forEach(group => {
+                    const warningDiv = document.createElement('div');
+                    warningDiv.style.cssText =
+                        'background: white; padding: 8px; margin-bottom: 6px; border-radius: 4px; border-right: 3px solid #ff9800;';
+
+                    // ترتيب وتنسيق أرقام الصفوف
+                    let rowsDisplay = '';
+                    if (group.rows.length > 0) {
+                        const sortedRows = group.rows.sort((a, b) => a - b);
+                        if (sortedRows.length <= 10) {
+                            rowsDisplay = `<div style="font-size: 10px; color: #666; background: #fff3e0; padding: 4px 6px; border-radius: 2px; margin-top: 4px;">
+                                📍 الصفوف: <strong>${sortedRows.join(', ')}</strong>
+                            </div>`;
+                        } else {
+                            rowsDisplay = `<div style="font-size: 10px; color: #666; background: #fff3e0; padding: 4px 6px; border-radius: 2px; margin-top: 4px;">
+                                📍 الصفوف: <strong>${sortedRows.slice(0, 10).join(', ')} ... (+${sortedRows.length - 10} صف آخر)</strong>
+                            </div>`;
+                        }
+                        rowsDisplay += `<div style="font-size: 9px; color: #999; margin-top: 3px;">
+                            عدد الصفوف المتأثرة: <strong>${sortedRows.length}</strong>
+                        </div>`;
+                    }
+
+                    warningDiv.innerHTML = `
+                        <div style="font-weight: 600; font-size: 11px; margin-bottom: 4px; color: #e65100;">
+                            ⚠️ ${group.message}
+                        </div>
+                        ${group.action ? `<div style="font-size: 10px; color: #666; margin-bottom: 2px;">✓ ${group.action}</div>` : ''}
+                        ${group.solution ? `<div style="font-size: 10px; color: #1976d2; margin-bottom: 2px;">💡 ${group.solution}</div>` : ''}
+                        ${rowsDisplay}
+                    `;
+                    warningsList.appendChild(warningDiv);
+                });
+            }
+
+            // إخفاء pagination للتحذيرات حيث أصبحنا نعرض كل شيء مجمعاً
+            const warningsPagination = document.getElementById('warningsPagination');
+            if (warningsPagination) {
+                warningsPagination.style.display = 'none';
+            }
+        }
+
+        function displayErrorsPage() {
+            const errorsList = document.getElementById('invalidRowsList');
+
+            // عرض الأخطاء
+            errorsList.innerHTML = '';
+
+            if (allErrors.length === 0) {
+                errorsList.innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">لا توجد أخطاء</div>';
+            } else {
+                // تجميع الأخطاء المتشابهة
+                const groupedErrors = {};
+
+                allErrors.forEach(row => {
+                    if (row.errors && row.errors.length > 0) {
+                        row.errors.forEach(error => {
+                            // تنظيف رسالة الخطأ من رقم الصف
+                            let cleanMessage = error.error || error.message || 'خطأ';
+                            // إزالة "الصف X:" من البداية
+                            cleanMessage = cleanMessage.replace(/^الصف\s+\d+:\s*/i, '');
+                            // إزالة " في الصف X" من النهاية
+                            cleanMessage = cleanMessage.replace(/\s+في الصف\s+\d+\s*$/i, '');
+                            cleanMessage = cleanMessage.trim();
+
+                            // تجاهل الأخطاء الفارغة
+                            if (!cleanMessage || cleanMessage === 'خطأ') {
+                                return;
+                            }
+
+                            // إنشاء مفتاح فريد للخطأ بناءً على الرسالة النظيفة والشدة
+                            const errorKey = `${cleanMessage}_${error.severity || 'normal'}`;
+
+                            if (!groupedErrors[errorKey]) {
+                                groupedErrors[errorKey] = {
+                                    message: cleanMessage,
+                                    severity: error.severity || 'normal',
+                                    rows: []
+                                };
+                            }
+
+                            // إضافة رقم الصف للمجموعة (بدون تكرار)
+                            if (!groupedErrors[errorKey].rows.includes(row.row_number)) {
+                                groupedErrors[errorKey].rows.push(row.row_number);
+                            }
+                        });
+                    }
+                });
+
+                // عرض الأخطاء المجمعة
+                Object.values(groupedErrors).forEach(group => {
+                    const groupDiv = document.createElement('div');
+
+                    const isCritical = group.severity === 'critical';
+                    const borderColor = isCritical ? '#d32f2f' : '#f44336';
+                    const bgColor = isCritical ? '#ffcdd2' : '#ffebee';
+
+                    groupDiv.style.cssText = `background: ${bgColor}; padding: 8px; margin-bottom: 6px; border-radius: 4px; border-right: 3px solid ${borderColor};`;
+
+                    // ترتيب وتنسيق أرقام الصفوف
+                    const sortedRows = group.rows.sort((a, b) => a - b);
+                    let rowsText = '';
+                    if (sortedRows.length <= 10) {
+                        rowsText = sortedRows.join(', ');
+                    } else {
+                        rowsText = `${sortedRows.slice(0, 10).join(', ')} ... (+${sortedRows.length - 10} صف آخر)`;
+                    }
+
+                    groupDiv.innerHTML = `
+                        <div style="font-weight: 600; font-size: 11px; margin-bottom: 4px; color: ${isCritical ? '#b71c1c' : '#c62828'};">
+                            ${isCritical ? '🚫' : '❌'} ${group.message}
+                        </div>
+                        <div style="font-size: 10px; color: #666; background: white; padding: 4px 6px; border-radius: 2px; margin-top: 4px;">
+                            📍 الصفوف: <strong>${rowsText}</strong>
+                        </div>
+                        <div style="font-size: 9px; color: #999; margin-top: 3px;">
+                            عدد الصفوف المتأثرة: <strong>${sortedRows.length}</strong>
+                        </div>
+                    `;
+                    errorsList.appendChild(groupDiv);
+                });
+            }
+
+            // إخفاء pagination للأخطاء حيث أصبحنا نعرض كل شيء مجمعاً
+            const errorsPagination = document.getElementById('errorsPagination');
+            if (errorsPagination) {
+                errorsPagination.style.display = 'none';
+            }
+        }
+
+        function proceedWithImport() {
+            if (!validationResults || !pendingFormData) {
+                Swal.fire({
+                    icon: 'error',
+                    title: '❌ خطأ',
+                    text: 'لا توجد بيانات التحقق متاحة',
+                });
+                return;
+            }
+
+            closeValidationModal();
+
+            // إنشاء FormData جديد من الـ form الأصلي (لضمان CSRF token جديد)
+            const form = document.getElementById('excelUploadForm');
+            const freshFormData = new FormData(form);
+
+            // عرض رسالة معالجة
+            Swal.fire({
+                icon: 'info',
+                title: '⏳ جاري الإدخال...',
+                html: `
+                    <div style="text-align: right; direction: rtl;">
+                        <p>جاري إدخال الصفوف الصحيحة فقط...</p>
+                        <div style="margin: 15px 0;">
+                            <div class="loading-spinner" style="margin: 0 auto;"></div>
+                        </div>
+                    </div>
+                `,
+                showConfirmButton: false,
+                allowOutsideClick: false
+            });
+
+            // إرسال طلب الإدخال
+            fetch('/admin/file/import-validated-excel', {
+                    method: 'POST',
+                    body: freshFormData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    handleImportResponse(data);
+                })
+                .catch(error => {
+                    console.error('Import error:', error);
+                    Swal.fire({
+                        icon: 'error',
+                        title: '❌ خطأ في الإدخال',
+                        text: error.message || 'حدث خطأ أثناء إدخال البيانات'
+                    });
+                });
+        }
+
+        function displayValidationResults(result) {
+            validationResults = result;
+
+            // Extract data from nested structure
+            const report = result.validation_result || result;
+
+            // Update statistics
+            const statistics = report.statistics || {};
+            document.getElementById('val-total-rows').textContent = statistics.total_rows || 0;
+            document.getElementById('val-valid-rows').textContent = statistics.valid_rows || 0;
+            document.getElementById('val-invalid-rows').textContent = statistics.invalid_rows || 0;
+
+            // عرض عدد التحذيرات
+            const warningsCount = (report.warnings && Array.isArray(report.warnings)) ? report.warnings.length : 0;
+            document.getElementById('val-warnings').textContent = warningsCount;
+
+            // Determine message type and content
+            const validRows = statistics.valid_rows || 0;
+            const invalidRows = statistics.invalid_rows || 0;
+            const canProceed = result.can_proceed || false;
+
+            const messageDiv = document.getElementById('validationMessage');
+
+            // التحقق من وجود أخطاء حرجة
+            let hasCriticalErrors = false;
+            let criticalErrorsCount = 0;
+            if (report.invalid_rows) {
+                report.invalid_rows.forEach(row => {
+                    if (row.errors && row.errors.some(e => e.severity === 'critical')) {
+                        hasCriticalErrors = true;
+                        criticalErrorsCount++;
+                    }
+                });
+            }
+
+            if (invalidRows === 0 && validRows > 0) {
+                messageDiv.style.cssText = 'background: #e8f5e9; color: #2e7d32; border-right: 3px solid #4caf50;';
+                let message = `✅ جميع الصفوف صحيحة! يمكنك المتابعة بإدخال ${validRows} صف.`;
+                if (warningsCount > 0) {
+                    message += ` (${warningsCount} تحذير)`;
+                }
+                messageDiv.textContent = message;
+            } else if (validRows === 0 && invalidRows > 0) {
+                messageDiv.style.cssText = 'background: #ffebee; color: #c62828; border-right: 3px solid #f44336;';
+                let message = `❌ جميع الصفوف تحتوي على أخطاء!`;
+                if (hasCriticalErrors) {
+                    message += ` يوجد ${criticalErrorsCount} صف بأخطاء حرجة (حقول إلزامية مفقودة).`;
+                }
+                messageDiv.textContent = message;
+            } else if (validRows > 0 && invalidRows > 0) {
+                messageDiv.style.cssText = 'background: #fff3e0; color: #e65100; border-right: 3px solid #ff9800;';
+                let message = `⚠️ ${validRows} صف صحيح، ${invalidRows} صف خاطئ.`;
+                if (hasCriticalErrors) {
+                    message += ` (${criticalErrorsCount} صف بأخطاء حرجة)`;
+                }
+                if (warningsCount > 0) {
+                    message += ` (${warningsCount} تحذير)`;
+                }
+                messageDiv.textContent = message;
+            } else {
+                messageDiv.style.cssText = 'background: #ffebee; color: #c62828; border-right: 3px solid #f44336;';
+                messageDiv.textContent = `❌ لا توجد بيانات صحيحة للإدخال`;
+            }
+
+            // Display warnings with pagination
+            if (warningsCount > 0 && report.warnings) {
+                allWarnings = report.warnings;
+                currentWarningsPage = 1;
+                displayWarningsPage();
+                document.getElementById('warningsSidebar').style.display = 'flex';
+
+                // إظهار رسالة إذا كان هناك المزيد من التحذيرات
+                if (report.has_more_warnings && report.total_warnings_count) {
+                    const moreWarningsMsg = document.createElement('div');
+                    moreWarningsMsg.style.cssText =
+                        'background: #fff3e0; padding: 6px; margin: 8px 0; border-radius: 3px; font-size: 10px; text-align: center; color: #e65100;';
+                    moreWarningsMsg.textContent = `⚠️ يوجد ${report.total_warnings_count} تحذير إجمالي (عرض أول 1000 فقط)`;
+                    document.getElementById('warningsList').parentElement.insertBefore(
+                        moreWarningsMsg,
+                        document.getElementById('warningsList')
+                    );
+                }
+            } else {
+                allWarnings = [];
+                document.getElementById('warningsList').innerHTML =
+                    '<div style="text-align: center; color: #999; padding: 20px;">لا توجد تحذيرات</div>';
+                document.getElementById('warningsPagination').style.display = 'none';
+            }
+
+            // Display invalid rows with pagination
+            const invalidRowsContainer = document.getElementById('invalidRowsContainer');
+
+            if (invalidRows > 0 && report.invalid_rows) {
+                invalidRowsContainer.style.display = 'flex';
+                allErrors = report.invalid_rows;
+                currentErrorsPage = 1;
+                displayErrorsPage();
+                document.getElementById('errorsPagination').style.display = 'flex';
+
+                // إظهار رسالة إذا كان هناك المزيد من الأخطاء
+                if (report.has_more_errors && report.total_errors_count) {
+                    const moreErrorsMsg = document.createElement('div');
+                    moreErrorsMsg.style.cssText =
+                        'background: #ffebee; padding: 6px; margin: 8px 0; border-radius: 3px; font-size: 10px; text-align: center; color: #c62828;';
+                    moreErrorsMsg.textContent = `⚠️ يوجد ${report.total_errors_count} صف خاطئ إجمالي (عرض أول 1000 فقط)`;
+                    document.getElementById('invalidRowsList').parentElement.insertBefore(
+                        moreErrorsMsg,
+                        document.getElementById('invalidRowsList')
+                    );
+                }
+            } else {
+                invalidRowsContainer.style.display = 'none';
+            }
+
+            // Show/Hide proceed button
+            if (canProceed && validRows > 0) {
+                document.getElementById('proceedImportBtn').style.display = 'block';
+            } else {
+                document.getElementById('proceedImportBtn').style.display = 'none';
+            }
+
+            // Show modal
+            showValidationModal();
+        }
+
+        // Modal management functions
+        function showDetailsModal() {
+            const modal = document.getElementById('detailsModal');
+            modal.style.display = 'block';
+            // منع scroll الخلفية
+            document.body.classList.add('modal-open');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeDetailsModal() {
+            const modal = document.getElementById('detailsModal');
+            modal.style.display = 'none';
+            // إعادة تفعيل scroll الخلفية
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+        }
+
+        // Close modal when clicking outside - معطل لمنع الإغلاق العرضي
+        document.addEventListener('click', function(e) {
+            const detailsModal = document.getElementById('detailsModal');
+            // تم تعطيل الإغلاق بالضغط على الخلفية لعزل المودال
+            // if (e.target === detailsModal) {
+            //     closeDetailsModal();
+            // }
+
+            const validationModal = document.getElementById('validationModal');
+            // تم تعطيل الإغلاق بالضغط على الخلفية لعزل المودال
+            // if (e.target === validationModal) {
+            //     closeValidationModal();
+            // }
+        });
+
+        // منع إغلاق المودال بمفتاح ESC (اختياري - يمكن تفعيله إذا أردت)
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                // تم تعطيل الإغلاق بمفتاح ESC لعزل المودال
+                // يمكن إزالة التعليق للسماح بالإغلاق بـ ESC
+                // if (document.getElementById('validationModal').style.display === 'flex') {
+                //     closeValidationModal();
+                // }
+                // if (document.getElementById('detailsModal').style.display === 'block') {
+                //     closeDetailsModal();
+                // }
+            }
+        });
+
+        // منع wheel scroll على الخلفية عندما المودال مفتوح
+        document.addEventListener('wheel', function(e) {
+            if (document.body.classList.contains('modal-open')) {
+                // السماح بـ scroll داخل المودال فقط
+                const modal = document.getElementById('validationModal');
+                const detailsModal = document.getElementById('detailsModal');
+
+                if (!modal?.contains(e.target) && !detailsModal?.contains(e.target)) {
+                    e.preventDefault();
+                }
+            }
+        }, {
+            passive: false
+        });
+
+        // Tab switching
+        document.querySelectorAll('.modal-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                // Remove active class from all tabs and contents
+                document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+                // Add active class to clicked tab and corresponding content
+                this.classList.add('active');
+                const tabName = this.getAttribute('data-tab');
+                document.getElementById('tab-' + tabName).classList.add('active');
+            });
+        });
+
+        // Function to update stats card
+        function updateStatsCard(importResult) {
+            if (!importResult) return;
+
+            // استخراج البيانات الحقيقية من import_result
+            const successCount = importResult.imported_rows || 0;
+            const duplicateCount = importResult.duplicate_count || 0;
+            const failedCount = importResult.failed_count || 0;
+            const totalCount = successCount + duplicateCount + failedCount;
+
+            // Update numbers in inline cards
+            document.getElementById('successCount').textContent = successCount;
+            document.getElementById('duplicateCount').textContent = duplicateCount;
+            document.getElementById('failedCount').textContent = failedCount;
+            document.getElementById('totalCount').textContent = totalCount;
+
+            // Show view details button
+            const viewDetailsBtn = document.getElementById('viewDetailsBtn');
+            if (viewDetailsBtn && totalCount > 0) {
+                viewDetailsBtn.style.display = 'inline-block';
+            }
+        }
+
+        // Render records table
+        function renderRecordsTable(records, type) {
+            if (!records || records.length === 0) {
+                return '<div class="no-records">لا توجد سجلات</div>';
+            }
+
+            let html = '<table class="records-table"><thead><tr>';
+            html += '<th>#</th>';
+            html += '<th>معرف السجل</th>';
+            html += '<th>معاينة البيانات</th>';
+
+            if (type === 'duplicates') {
+                html += '<th>سبب التكرار</th>';
+            } else if (type === 'failed') {
+                html += '<th>سبب الفشل</th>';
+            }
+
+            html += '<th>الحالة</th>';
+            html += '</tr></thead><tbody>';
+
+            records.forEach((record, index) => {
+                html += '<tr>';
+                html += `<td>${index + 1}</td>`;
+                html += `<td>${record.identifier || 'N/A'}</td>`;
+                html += `<td><div class="record-preview">${record.preview || 'لا توجد معاينة'}</div></td>`;
+
+                if (type === 'duplicates') {
+                    html += `<td>${record.reason || 'مكرر'}</td>`;
+                } else if (type === 'failed') {
+                    html += `<td style="color: #c62828;">${record.error || 'خطأ غير معروف'}</td>`;
+                }
+
+                let badgeClass = type === 'successful' ? 'success' : (type === 'duplicates' ? 'duplicate' :
+                    'failed');
+                let badgeText = type === 'successful' ? '✅ ناجح' : (type === 'duplicates' ? '📋 مكرر' : '❌ فشل');
+                html += `<td><span class="badge ${badgeClass}">${badgeText}</span></td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            return html;
+        }
+
+        // Populate modal with data
+        function populateModal(results) {
+            if (!results) return;
+
+            importResults = results;
+
+            // Populate successful records
+            const successfulRecords = results.successful_records || [];
+            document.getElementById('tab-successful').innerHTML = renderRecordsTable(successfulRecords, 'successful');
+
+            // Populate duplicate records
+            const duplicateRecords = results.duplicates || [];
+            document.getElementById('tab-duplicates').innerHTML = renderRecordsTable(duplicateRecords, 'duplicates');
+
+            // Populate failed records
+            const failedRecords = results.failed_records || [];
+            document.getElementById('tab-failed').innerHTML = renderRecordsTable(failedRecords, 'failed');
+        }
+
         // SweetAlert configuration for RTL
         Swal.mixin({
             customClass: {
@@ -500,9 +1479,9 @@
             },
             buttonsStyling: false,
             reverseButtons: true
-        });        // Check for any server-side messages (fallback)
+        }); // Check for any server-side messages (fallback)
         document.addEventListener('DOMContentLoaded', function() {
-            @if(isset($error))
+            @if (isset($error))
                 Swal.fire({
                     icon: 'error',
                     title: '❌ خطأ في العملية',
@@ -520,7 +1499,7 @@
                 });
             @endif
 
-            @if(session('warning'))
+            @if (session('warning'))
                 Swal.fire({
                     icon: 'warning',
                     title: '⚠️ تحذير',
@@ -548,7 +1527,9 @@
                     importOptions.style.display = 'none';
                 }
             });
-        });        // Handle form submission with Ajax and SweetAlert
+        });
+
+        // Handle form submission with Ajax and SweetAlert
         document.getElementById('excelUploadForm').addEventListener('submit', function(e) {
             e.preventDefault(); // منع الإرسال العادي للنموذج
 
@@ -573,161 +1554,379 @@
             // إعداد بيانات النموذج
             const formData = new FormData(this);
             const processingMode = this.querySelector('input[name="processing_mode"]:checked').value;
-            const targetTable = this.querySelector('select[name="target_table"]')?.value || 'غير محدد';
+            const targetTable = this.querySelector('select[name="target_table"]')?.value || 'data';
             const importEnabled = this.querySelector('input[name="enable_excel_import"]')?.checked || false;
 
-            let processingText = processingMode === 'file-only' ? 'حفظ الملف فقط' : 'حفظ الملف + استيراد البيانات';
+            console.log('📋 Form Data:', {
+                processingMode,
+                targetTable,
+                importEnabled,
+                filesCount: fileInput.files.length
+            });
 
-            // عرض رسالة المعالجة
+            // إذا كان الوضع "حفظ الملف فقط" - استخدام المسار القديم
+            if (processingMode === 'file-only' || !importEnabled) {
+                // Use old flow for file-only mode
+                let processingText = 'حفظ الملف فقط';
+
+                Swal.fire({
+                    icon: 'info',
+                    title: '⏳ جاري المعالجة...',
+                    html: `
+                        <div style="text-align: right; direction: rtl;">
+                            <p><strong>🔄 وضع المعالجة:</strong> ${processingText}</p>
+                            <p><strong>� عدد الملفات:</strong> ${fileInput.files.length}</p>
+                            <div style="margin: 15px 0;">
+                                <div class="loading-spinner" style="margin: 0 auto;"></div>
+                            </div>
+                        </div>
+                    `,
+                    showConfirmButton: false,
+                    allowOutsideClick: false
+                });
+
+                // تعطيل النموذج
+                const submitBtn = this.querySelector('button[type="submit"]');
+                const originalText = submitBtn.innerHTML;
+                submitBtn.innerHTML = '⏳ جاري الرفع...';
+                submitBtn.disabled = true;
+
+                fetch(this.action, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'application/json'
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        submitBtn.innerHTML = originalText;
+                        submitBtn.disabled = false;
+
+                        Swal.fire({
+                            icon: data.success ? 'success' : 'error',
+                            title: data.success ? '✅ تم حفظ الملف' : '❌ فشل حفظ الملف',
+                            text: data.message
+                        });
+
+                        if (data.success) {
+                            this.reset();
+                        }
+                    })
+                    .catch(error => {
+                        submitBtn.innerHTML = originalText;
+                        submitBtn.disabled = false;
+
+                        Swal.fire({
+                            icon: 'error',
+                            title: '❌ خطأ',
+                            text: error.message || 'حدث خطأ أثناء معالجة الطلب'
+                        });
+                    });
+
+                return;
+            }
+
+            // استخدام مسار التحقق الجديد لوضع الاستيراد
             Swal.fire({
                 icon: 'info',
-                title: '⏳ جاري المعالجة...',
+                title: '🔍 جاري فحص الملف...',
                 html: `
                     <div style="text-align: right; direction: rtl;">
-                        <p><strong>🔄 وضع المعالجة:</strong> ${processingText}</p>
-                        ${processingMode === 'import-data' ? `<p><strong>🗃️ الجدول المستهدف:</strong> ${targetTable}</p>` : ''}
-                        ${processingMode === 'import-data' ? `<p><strong>📊 الاستيراد:</strong> ${importEnabled ? 'مفعل' : 'غير مفعل'}</p>` : ''}
-                        <p><strong>📁 عدد الملفات:</strong> ${fileInput.files.length}</p>
+                        <p>جاري قراءة وتحليل ملف Excel...</p>
+                        <p style="font-size: 13px; color: #666;">سيتم التحقق من صحة البيانات قبل الإدخال</p>
                         <div style="margin: 15px 0;">
                             <div class="loading-spinner" style="margin: 0 auto;"></div>
-                            <p style="margin-top: 10px;">يرجى الانتظار...</p>
+                        </div>
+                        <div style="font-size: 12px; color: #999; margin-top: 10px;">
+                            💡 قد تستغرق العملية بضع دقائق للملفات الكبيرة
                         </div>
                     </div>
                 `,
                 showConfirmButton: false,
-                allowOutsideClick: false,
-                allowEscapeKey: false,
-                background: '#fff',
-                color: '#1e3c72'
+                allowOutsideClick: false
             });
 
-            // تعطيل النموذج أثناء المعالجة
+            // تعطيل النموذج
             const submitBtn = this.querySelector('button[type="submit"]');
             const originalText = submitBtn.innerHTML;
-            submitBtn.innerHTML = '⏳ جاري الرفع... <span class="loading-spinner"></span>';
+            submitBtn.innerHTML = '⏳ جاري الفحص...';
             submitBtn.disabled = true;
             this.style.opacity = '0.7';
-            this.style.pointerEvents = 'none';
 
-            // إرسال الطلب باستخدام Ajax
-            fetch(this.action, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Accept': 'application/json'
+            // حفظ FormData للاستخدام لاحقاً
+            pendingFormData = formData;
+
+            // خطوة 1: التحقق من الملف
+            fetch('/admin/file/validate-excel', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // إعادة تفعيل النموذج
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.disabled = false;
+                    this.style.opacity = '1';
+
+                    Swal.close();
+
+                    console.log('📊 Validation Response:', data);
+
+                    if (data.success) {
+                        // عرض نتائج التحقق
+                        displayValidationResults(data);
+                    } else {
+                        // عرض رسالة الخطأ مع التفاصيل
+                        let errorDetails = data.message || 'حدث خطأ أثناء التحقق من الملف';
+
+                        if (data.errors) {
+                            errorDetails +=
+                                '<br><br><ul style="text-align: right; list-style: none; padding: 0;">';
+                            Object.keys(data.errors).forEach(key => {
+                                if (Array.isArray(data.errors[key])) {
+                                    data.errors[key].forEach(error => {
+                                        errorDetails += `<li>⚠️ ${error}</li>`;
+                                    });
+                                }
+                            });
+                            errorDetails += '</ul>';
+                        }
+
+                        Swal.fire({
+                            icon: 'error',
+                            title: '❌ فشل التحقق',
+                            html: `
+                            <div style="text-align: right; direction: rtl;">
+                                ${errorDetails}
+                            </div>
+                        `,
+                            confirmButtonText: 'حسناً'
+                        });
+                    }
+                })
+                .catch(error => {
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.disabled = false;
+                    this.style.opacity = '1';
+
+                    console.error('Validation error:', error);
+                    Swal.fire({
+                        icon: 'error',
+                        title: '❌ خطأ في التحقق',
+                        text: error.message || 'حدث خطأ أثناء التحقق من الملف'
+                    });
+                });
+        });
+
+        // Handle import response
+        function handleImportResponse(data) {
+            console.log('📊 Import Response:', data);
+
+            if (data.success) {
+                // استخراج البيانات الحقيقية من import_result
+                let importedRows = 0;
+                let duplicateRows = 0;
+                let failedRows = 0;
+                let hasImportResult = false;
+
+                if (data.files && data.files.length > 0) {
+                    const firstFile = data.files[0];
+                    console.log('📁 First File:', firstFile); // Debug log
+
+                    if (firstFile.import_result) {
+                        hasImportResult = true;
+                        importedRows = firstFile.import_result.imported_rows || 0;
+                        duplicateRows = firstFile.import_result.duplicate_count || 0;
+                        failedRows = firstFile.import_result.failed_count || 0;
+
+                        console.log('✅ Import Result:', {
+                            imported: importedRows,
+                            duplicates: duplicateRows,
+                            failed: failedRows
+                        }); // Debug log
+
+                        // تحديث الكروت بالبيانات الحقيقية
+                        updateStatsCard(firstFile.import_result);
+                        populateModal(firstFile.import_result);
+                    }
                 }
-            })
-            .then(response => response.json())
-            .then(data => {
-                // إعادة تفعيل النموذج
-                submitBtn.innerHTML = originalText;
-                submitBtn.disabled = false;
-                this.style.opacity = '1';
-                this.style.pointerEvents = 'auto';
 
-                if (data.success) {
-                    // عرض رسالة النجاح باستخدام SweetAlert
-                    let responseHtml = `
+                // إذا لم يكن هناك بيانات استيراد، استخدم import_summary
+                if (!hasImportResult && data.import_summary) {
+                    importedRows = data.import_summary.imported_rows || 0;
+                    duplicateRows = data.import_summary.duplicate_rows || 0;
+                    failedRows = data.import_summary.failed_rows || 0;
+
+                    // تحديث الكروت من import_summary
+                    document.getElementById('successCount').textContent = importedRows;
+                    document.getElementById('duplicateCount').textContent = duplicateRows;
+                    document.getElementById('failedCount').textContent = failedRows;
+                    document.getElementById('totalCount').textContent = importedRows + duplicateRows + failedRows;
+                }
+
+                // تحديد نوع الرسالة بناءً على النتائج الفعلية الحقيقية
+                const totalProcessed = importedRows + duplicateRows + failedRows;
+                const allFailed = totalProcessed > 0 && importedRows === 0 && failedRows > 0;
+                const allDuplicates = totalProcessed > 0 && importedRows === 0 && duplicateRows > 0 && failedRows === 0;
+                const partialSuccess = importedRows > 0 && (failedRows > 0 || duplicateRows > 0);
+                const fullSuccess = importedRows > 0 && failedRows === 0;
+                const fileOnlyMode = data.processing_mode === 'file-only';
+
+                let alertIcon = 'success';
+                let alertTitle = '🎉 نجحت العملية';
+                let alertColor = '#2e7d32';
+
+                // منطق صادق 100% بناءً على البيانات الحقيقية
+                if (allFailed) {
+                    alertIcon = 'error';
+                    alertTitle = '❌ فشل الاستيراد - جميع السجلات فشلت';
+                    alertColor = '#c62828';
+                } else if (allDuplicates) {
+                    alertIcon = 'warning';
+                    alertTitle = '⚠️ جميع السجلات مكررة - لم يتم إدخال أي سجل جديد';
+                    alertColor = '#ff9800';
+                } else if (partialSuccess) {
+                    alertIcon = 'warning';
+                    alertTitle = `⚠️ نجحت جزئياً - تم إدخال ${importedRows} من ${totalProcessed} سجل`;
+                    alertColor = '#ff9800';
+                } else if (fullSuccess && totalProcessed > 0) {
+                    alertIcon = 'success';
+                    alertTitle = `✅ نجحت تماماً - تم إدخال ${importedRows} سجل بنجاح`;
+                    alertColor = '#2e7d32';
+                } else if (fileOnlyMode) {
+                    alertIcon = 'info';
+                    alertTitle = '📁 تم حفظ الملف فقط';
+                    alertColor = '#2196f3';
+                }
+
+                // عرض رسالة صادقة باستخدام SweetAlert
+                let responseHtml = `
                         <div style="text-align: right; direction: rtl; font-family: 'Poppins', sans-serif;">
-                            <h4 style="color: #2e7d32; margin-bottom: 15px;">✅ تمت العملية بنجاح</h4>
-                            <div style="background: #f1f8e9; padding: 15px; border-radius: 8px; margin: 10px 0;">
+                            <h4 style="color: ${alertColor}; margin-bottom: 15px;">${alertTitle}</h4>
+                            <div style="background: ${allFailed ? '#ffebee' : (allDuplicates ? '#fff3e0' : '#f1f8e9')}; padding: 15px; border-radius: 8px; margin: 10px 0;">
                                 <p><strong>📊 الرسالة:</strong> ${data.message}</p>
                     `;
 
-                    if (data.files && Array.isArray(data.files)) {
-                        responseHtml += `<h5 style="margin: 15px 0 10px 0;">📁 الملفات المعالجة:</h5>`;
-                        data.files.forEach(file => {
-                            responseHtml += `
-                                <div style="background: white; padding: 10px; margin: 5px 0; border-radius: 5px; border-right: 4px solid #4caf50;">
-                                    <p><strong>📄 اسم الملف:</strong> ${file.original_name || 'غير محدد'}</p>
-                                    <p><strong>📊 حالة العملية:</strong> ${file.success ? '✅ نجحت' : '❌ فشلت'}</p>
-                                    ${file.message ? `<p><strong>💬 الرسالة:</strong> ${file.message}</p>` : ''}
-                                    ${file.file_size ? `<p><strong>📏 حجم الملف:</strong> ${(file.file_size / 1024).toFixed(2)} KB</p>` : ''}
-                                    ${file.storage_table ? `<p><strong>🗃️ جدول التخزين:</strong> ${file.storage_table}</p>` : ''}
+                // عرض ملخص الاستيراد إذا كان موجوداً
+                if (totalProcessed > 0) {
+                    const summaryColor = allFailed ? '#f44336' : (allDuplicates ? '#ff9800' : (fullSuccess ? '#4caf50' :
+                        '#ff9800'));
+                    const summaryBg = allFailed ? '#ffebee' : (allDuplicates ? '#fff3e0' : (fullSuccess ? '#e8f5e9' :
+                        '#fff8e1'));
+
+                    responseHtml += `
+                            <div style="background: ${summaryBg}; padding: 15px; margin: 15px 0; border-radius: 8px; border-right: 4px solid ${summaryColor};">
+                                <h5 style="color: #1e3c72; margin-bottom: 10px;">📈 النتائج الفعلية للاستيراد:</h5>
+                                <p style="font-size: 1.1em;"><strong>✅ سجلات نجحت:</strong> <span style="color: #4caf50; font-weight: bold;">${importedRows}</span></p>
+                                <p style="font-size: 1.1em;"><strong>📋 سجلات مكررة (تم تجاهلها):</strong> <span style="color: #ff9800; font-weight: bold;">${duplicateRows}</span></p>
+                                <p style="font-size: 1.1em;"><strong>❌ سجلات فشلت:</strong> <span style="color: #f44336; font-weight: bold;">${failedRows}</span></p>
+                                <p style="font-size: 1.1em;"><strong>� الإجمالي:</strong> <span style="font-weight: bold;">${totalProcessed}</span></p>
+                                ${data.import_summary?.target_table ? `<p style="margin-top: 10px;"><strong>�🗃️ الجدول المستهدف:</strong> ${data.import_summary.target_table}</p>` : ''}
+                            </div>
+                        `;
+
+                    // إضافة زر لعرض التفاصيل
+                    if (totalProcessed > 0) {
+                        responseHtml += `
+                                <div style="text-align: center; margin: 15px 0;">
+                                    <button onclick="showDetailsModal()" style="background: #1e3c72; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 1.1em; transition: all 0.3s ease;">
+                                        🔍 عرض التفاصيل الكاملة لجميع السجلات
+                                    </button>
                                 </div>
                             `;
-                        });
                     }
+                }
 
-                    if (data.total_files) {
-                        responseHtml += `<p style="margin-top: 15px;"><strong>📈 إجمالي الملفات:</strong> ${data.total_files}</p>`;
-                    }
-                    if (data.processing_mode) {
-                        responseHtml += `<p><strong>⚙️ وضع المعالجة:</strong> ${data.processing_mode === 'file-only' ? 'حفظ الملف فقط' : 'حفظ + استيراد البيانات'}</p>`;
-                    }
+                // عرض معلومات الملفات
+                if (data.files && Array.isArray(data.files)) {
+                    responseHtml += `<h5 style="margin: 15px 0 10px 0;">📁 الملفات المعالجة:</h5>`;
+                    data.files.forEach(file => {
+                        const fileSuccess = file.success && (file.import_result ? file.import_result.imported_rows >
+                            0 : true);
+                        const statusIcon = fileSuccess ? '✅' : '❌';
+                        const statusColor = fileSuccess ? '#4caf50' : '#f44336';
+                        const statusText = fileSuccess ? 'نجحت' : 'فشلت';
 
-                    responseHtml += `</div></div>`;
-
-                    Swal.fire({
-                        icon: 'success',
-                        title: '🎉 نجحت العملية',
-                        html: responseHtml,
-                        confirmButtonText: 'ممتاز!',
-                        background: '#fff',
-                        color: '#2e7d32',
-                        showConfirmButton: true,
-                        width: '600px',
-                        timer: false
+                        responseHtml += `
+                                <div style="background: white; padding: 10px; margin: 5px 0; border-radius: 5px; border-right: 4px solid ${statusColor};">
+                                    <p><strong>📄 اسم الملف:</strong> ${file.original_name || 'غير محدد'}</p>
+                                    <p><strong>📊 حالة العملية:</strong> ${statusIcon} ${statusText}</p>
+                                    ${file.message ? `<p><strong>💬 التفاصيل:</strong> ${file.message}</p>` : ''}
+                                    ${file.file_size ? `<p><strong>📏 حجم الملف:</strong> ${(file.file_size / 1024).toFixed(2)} KB</p>` : ''}
+                                </div>
+                            `;
                     });
+                }
 
-                    // إعادة تعيين النموذج
-                    this.reset();
-                    document.getElementById('importOptions').style.display = 'none';
+                if (data.processing_mode) {
+                    const modeText = data.processing_mode === 'file-only' ? ' حفظ الملف فقط (بدون استيراد)' :
+                        ' حفظ + استيراد البيانات';
+                    responseHtml += `<p style="margin-top: 10px;"><strong>⚙️ وضع المعالجة:</strong> ${modeText}</p>`;
+                }
 
-                } else {
-                    // عرض رسالة الخطأ
-                    let errorHtml = `
+                responseHtml += `</div></div>`;
+
+                Swal.fire({
+                    icon: alertIcon,
+                    title: alertTitle,
+                    html: responseHtml,
+                    confirmButtonText: 'حسناً، فهمت',
+                    background: '#fff',
+                    color: alertColor,
+                    showConfirmButton: true,
+                    width: '750px',
+                    timer: false,
+                    allowOutsideClick: false
+                });
+
+                // إعادة تعيين النموذج فقط إذا نجحت العملية فعلاً
+                if (!allFailed) {
+                    const form = document.getElementById('excelUploadForm');
+                    if (form) {
+                        form.reset();
+                        const importOptions = document.getElementById('importOptions');
+                        if (importOptions) {
+                            importOptions.style.display = 'none';
+                        }
+                    }
+                }
+
+            } else {
+                // عرض رسالة الخطأ
+                let errorHtml = `
                         <div style="text-align: right; direction: rtl;">
                             <h4>تفاصيل الخطأ:</h4>
                             <p>${data.message}</p>
                     `;
 
-                    if (data.errors && Array.isArray(data.errors)) {
-                        errorHtml += `<ul style="text-align: right;">`;
-                        data.errors.forEach(error => {
-                            errorHtml += `<li>${error}</li>`;
-                        });
-                        errorHtml += `</ul>`;
-                    }
-
-                    errorHtml += `</div>`;
-
-                    Swal.fire({
-                        icon: 'error',
-                        title: '❌ خطأ في العملية',
-                        html: errorHtml,
-                        confirmButtonText: 'حسناً',
-                        background: '#fff',
-                        color: '#c62828',
-                        showConfirmButton: true,
-                        timer: false
+                if (data.errors && Array.isArray(data.errors)) {
+                    errorHtml += `<ul style="text-align: right;">`;
+                    data.errors.forEach(error => {
+                        errorHtml += `<li>${error}</li>`;
                     });
+                    errorHtml += `</ul>`;
                 }
-            })
-            .catch(error => {
-                // إعادة تفعيل النموذج في حالة الخطأ
-                submitBtn.innerHTML = originalText;
-                submitBtn.disabled = false;
-                this.style.opacity = '1';
-                this.style.pointerEvents = 'auto';
 
-                console.error('Error:', error);
+                errorHtml += `</div>`;
+
                 Swal.fire({
                     icon: 'error',
-                    title: '❌ خطأ في الاتصال',
-                    html: `
-                        <div style="text-align: right; direction: rtl;">
-                            <p>حدث خطأ في الاتصال بالخادم. يرجى المحاولة مرة أخرى.</p>
-                            <p style="color: #666; font-size: 0.9em;">تفاصيل الخطأ: ${error.message}</p>
-                        </div>
-                    `,
+                    title: '❌ خطأ في العملية',
+                    html: errorHtml,
                     confirmButtonText: 'حسناً',
                     background: '#fff',
-                    color: '#c62828'
+                    color: '#c62828',
+                    showConfirmButton: true,
+                    timer: false
                 });
-            });
-        });
+            }
+        }
 
         // Add hover effects to file input - معزول داخل الحاوية
         const excelGateway = document.querySelector('.excel-gateway-wrapper');
@@ -780,107 +1979,5 @@
                 }
             });
         }
-
-        // --- Duplicate detection JS ---
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-    const openModalBtn = document.getElementById('openDuplicatesModalBtn');
-        const duplicatesModalEl = document.getElementById('duplicatesModal');
-        const duplicatesList = document.getElementById('duplicatesList');
-        const exportBtn = document.getElementById('exportDuplicatesBtn');
-        const closeModalBtn = document.getElementById('closeDuplicatesModalBtn');
-        const insertedCountEl = document.getElementById('insertedCount');
-        const skippedCountEl = document.getElementById('skippedCount');
-
-        function showModal() { duplicatesModalEl.style.display = 'block'; }
-        function hideModal() { duplicatesModalEl.style.display = 'none'; }
-
-        // When user clicks the single "فتح المكرر" button: detect duplicates for the currently selected table and open modal
-        openModalBtn && openModalBtn.addEventListener('click', async function() {
-            const table = document.getElementById('dupTableSelect')?.value || 'data';
-            try {
-                const res = await fetch('/admin/duplicates/find', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({ table })
-                });
-                const data = await res.json();
-                if (!data.success) {
-                    Swal.fire({ icon: 'error', title: 'خطأ', text: data.message || 'فشل في الفحص' });
-                    return;
-                }
-
-                const ids = (data.duplicates || []).map(d => d.id).filter(Boolean);
-                duplicatesList.innerHTML = '';
-                if (ids.length === 0) {
-                    duplicatesList.innerHTML = '<div class="success" style="text-align:center;">لا توجد سجلات مكررة</div>';
-                } else {
-                    ids.forEach(id => {
-                        const el = document.createElement('div');
-                        el.textContent = id;
-                        duplicatesList.appendChild(el);
-                    });
-                }
-
-                // update counters
-                insertedCountEl && (insertedCountEl.textContent = '0');
-                skippedCountEl && (skippedCountEl.textContent = ids.length);
-
-                // store ids for export
-                exportBtn.dataset.ids = JSON.stringify(ids);
-
-                showModal();
-            } catch (err) {
-                console.error(err);
-                Swal.fire({ icon: 'error', title: 'خطأ', text: err.message || 'فشل الاتصال' });
-            }
-        });
-        closeModalBtn && closeModalBtn.addEventListener('click', function() { hideModal(); });
-
-    // removed separate detect button: open button runs detection based on top selector
-
-        exportBtn && exportBtn.addEventListener('click', async function () {
-            const raw = this.dataset.ids || '[]';
-            const ids = JSON.parse(raw);
-            if (!ids || ids.length === 0) {
-                Swal.fire({ icon: 'info', title: 'لا يوجد', text: 'لا توجد أرقام مكررة للتصدير' });
-                return;
-            }
-
-            const table = document.getElementById('dupTableSelect')?.value || 'data';
-            try {
-                // call process-insert with cache_ids to store ids server-side and get cache key
-                const res = await fetch('/admin/duplicates/process-insert', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken,
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({ table, rows: [], cache_ids: ids })
-                });
-
-                const result = await res.json();
-                if (!result.success) {
-                    Swal.fire({ icon: 'error', title: 'خطأ', text: result.message || 'فشل إنشاء الملف' });
-                    return;
-                }
-
-                const cacheKey = result.cache_key;
-                if (!cacheKey) {
-                    Swal.fire({ icon: 'error', title: 'خطأ', text: 'لم يتم استلام مفتاح للتصدير' });
-                    return;
-                }
-
-                // download exported file
-                window.location.href = '/admin/duplicates/export/' + encodeURIComponent(cacheKey);
-            } catch (err) {
-                console.error(err);
-                Swal.fire({ icon: 'error', title: 'خطأ', text: err.message || 'فشل الاتصال' });
-            }
-        });
     </script>
 @endpush

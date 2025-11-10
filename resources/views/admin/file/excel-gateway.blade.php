@@ -385,6 +385,362 @@
             transform: translateY(-2px) !important;
             box-shadow: 0 8px 25px rgba(30, 60, 114, 0.4) !important;
         }
+
+        /* Stats Card Styles */
+        .stats-card {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+            animation: slideInFromTop 0.6s ease-out;
+        }
+
+        .stat-item {
+            background: linear-gradient(135deg, #fff 0%, #f8fbff 100%);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            text-align: center;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .stat-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        }
+
+        .stat-item.success {
+            border-color: #4caf50;
+        }
+
+        .stat-item.success .stat-icon {
+            color: #4caf50;
+            background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+        }
+
+        .stat-item.duplicate {
+            border-color: #ff9800;
+        }
+
+        .stat-item.duplicate .stat-icon {
+            color: #ff9800;
+            background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+        }
+
+        .stat-item.failed {
+            border-color: #f44336;
+        }
+
+        .stat-item.failed .stat-icon {
+            color: #f44336;
+            background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+        }
+
+        .stat-item.total {
+            border-color: #2196f3;
+        }
+
+        .stat-item.total .stat-icon {
+            color: #2196f3;
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        }
+
+        .stat-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 15px;
+            font-size: 28px;
+        }
+
+        .stat-number {
+            font-size: 2.5em;
+            font-weight: 700;
+            margin: 10px 0;
+            background: linear-gradient(135deg, #1e3c72, #3282b8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .stat-label {
+            color: #5a6c7d;
+            font-size: 1.1em;
+            font-weight: 500;
+        }
+
+        /* Modal Styles */
+        .details-modal {
+            display: none;
+            position: fixed;
+            z-index: 10000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .details-modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            width: 90%;
+            max-width: 1000px;
+            max-height: 90vh;
+            overflow: hidden;
+            animation: slideInFromTop 0.4s ease-out;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #3282b8 100%);
+            color: white;
+            padding: 25px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 1.8em;
+        }
+
+        .modal-close {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            font-size: 28px;
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .modal-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: rotate(90deg);
+        }
+
+        .modal-tabs {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .modal-tab {
+            flex: 1;
+            padding: 20px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #5a6c7d;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .modal-tab:hover {
+            background: rgba(50, 130, 184, 0.1);
+        }
+
+        .modal-tab.active {
+            color: #1e3c72;
+            background: white;
+        }
+
+        .modal-tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #1e3c72, #3282b8);
+        }
+
+        .modal-tab .badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #1e3c72, #3282b8);
+            color: white;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            margin-right: 8px;
+        }
+
+        .modal-body {
+            padding: 30px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .records-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        .records-table th {
+            background: linear-gradient(135deg, #f8fbff 0%, #e8f4f8 100%);
+            padding: 15px;
+            text-align: right;
+            font-weight: 600;
+            color: #1e3c72;
+            border-bottom: 2px solid #3282b8;
+        }
+
+        .records-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e0e0e0;
+            text-align: right;
+        }
+
+        .records-table tr:hover {
+            background: #f8fbff;
+        }
+
+        .record-identifier {
+            font-weight: 600;
+            color: #2a5298;
+            font-family: monospace;
+            font-size: 1.1em;
+        }
+
+        .record-action {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+
+        .record-action.added {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .record-action.updated {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .error-message {
+            color: #c62828;
+            font-size: 0.9em;
+            padding: 8px;
+            background: #ffebee;
+            border-radius: 5px;
+            margin-top: 5px;
+        }
+
+        .no-records {
+            text-align: center;
+            padding: 40px;
+            color: #9e9e9e;
+            font-size: 1.2em;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Import Stats Styles - نفس تصميم الكروت الموجودة */
+        .import-stats-container {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 18px;
+            flex-wrap: wrap;
+        }
+
+        .import-stat-card {
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.95em;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .import-stat-card.success-card {
+            background: linear-gradient(135deg, #e8f5e8 0%, #f1f8e9 100%);
+            color: #2e7d32;
+            border-left: 4px solid #4caf50;
+        }
+
+        .import-stat-card.duplicate-card {
+            background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+            color: #e65100;
+            border-left: 4px solid #ff9800;
+        }
+
+        .import-stat-card.failed-card {
+            background: linear-gradient(135deg, #ffebee 0%, #fce4ec 100%);
+            color: #c62828;
+            border-left: 4px solid #f44336;
+        }
+
+        .import-stat-card.total-card {
+            background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+            color: #1565c0;
+            border-left: 4px solid #2196f3;
+        }
+
+        .stat-number-inline {
+            font-size: 1.1em;
+            font-weight: 700;
+        }
+
+        .view-details-btn-inline {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.95em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 3px 10px rgba(30, 60, 114, 0.3);
+        }
+
+        .view-details-btn-inline:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(30, 60, 114, 0.4);
+        }
     </style>
 </head>
 <body>
@@ -395,7 +751,24 @@
         </div>
 
         <div class="content">
-            <!-- Remove the old error display as we'll use SweetAlert -->
+            <!-- Import Statistics Cards - في الأعلى -->
+            <div class="import-stats-container">
+                <div class="import-stat-card success-card">
+                    ✅ ناجحة: <span class="stat-number-inline" id="successCount">0</span>
+                </div>
+                <div class="import-stat-card duplicate-card">
+                    📋 مكررة: <span class="stat-number-inline" id="duplicateCount">0</span>
+                </div>
+                <div class="import-stat-card failed-card">
+                    ❌ فاشلة: <span class="stat-number-inline" id="failedCount">0</span>
+                </div>
+                <div class="import-stat-card total-card">
+                    📊 الإجمالي: <span class="stat-number-inline" id="totalCount">0</span>
+                </div>
+                <button onclick="showDetailsModal()" class="view-details-btn-inline" id="viewDetailsBtn" style="display: none;">
+                    🔍 عرض التفاصيل
+                </button>
+            </div>
 
             <div class="upload-section">
                 <h3>📊 رفع ملفات Excel <span class="excel-icon"></span></h3>
@@ -441,7 +814,215 @@
         </div>
     </div>
 
+    <!-- Stats Card (Hidden by default, shown after import) -->
+    <div id="statsCard" style="display: none; max-width: 900px; margin: 30px auto;">
+        <div class="container">
+            <div class="content">
+                <h3 style="text-align: center; color: #1e3c72; margin-bottom: 20px;">📊 إحصائيات الاستيراد</h3>
+                <div class="stats-card">
+                    <div class="stat-item success">
+                        <div class="stat-icon">✅</div>
+                        <div class="stat-number" id="successCount">0</div>
+                        <div class="stat-label">سجل ناجح</div>
+                    </div>
+                    <div class="stat-item duplicate">
+                        <div class="stat-icon">📋</div>
+                        <div class="stat-number" id="duplicateCount">0</div>
+                        <div class="stat-label">سجل مكرر</div>
+                    </div>
+                    <div class="stat-item failed">
+                        <div class="stat-icon">❌</div>
+                        <div class="stat-number" id="failedCount">0</div>
+                        <div class="stat-label">سجل فاشل</div>
+                    </div>
+                    <div class="stat-item total">
+                        <div class="stat-icon">📄</div>
+                        <div class="stat-number" id="totalCount">0</div>
+                        <div class="stat-label">إجمالي السجلات</div>
+                    </div>
+                </div>
+                <div style="text-align: center; margin-top: 20px;">
+                    <button class="btn" onclick="showDetailsModal()">🔍 عرض التفاصيل الكاملة</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Details Modal -->
+    <div id="detailsModal" class="details-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>📋 تفاصيل عملية الاستيراد</h3>
+                <button class="modal-close" onclick="closeDetailsModal()">×</button>
+            </div>
+            <div class="modal-tabs">
+                <button class="modal-tab active" data-tab="successful">
+                    <span class="badge" id="successBadge">0</span>
+                    ✅ السجلات الناجحة
+                </button>
+                <button class="modal-tab" data-tab="duplicates">
+                    <span class="badge" id="duplicateBadge">0</span>
+                    📋 السجلات المكررة
+                </button>
+                <button class="modal-tab" data-tab="failed">
+                    <span class="badge" id="failedBadge">0</span>
+                    ❌ السجلات الفاشلة
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="successfulTab" class="tab-content active">
+                    <h4 style="color: #2e7d32; margin-bottom: 15px;">✅ السجلات التي تم إدخالها بنجاح</h4>
+                    <div id="successfulRecords"></div>
+                </div>
+                <div id="duplicatesTab" class="tab-content">
+                    <h4 style="color: #ff9800; margin-bottom: 15px;">📋 السجلات المكررة (موجودة مسبقاً)</h4>
+                    <div id="duplicateRecords"></div>
+                </div>
+                <div id="failedTab" class="tab-content">
+                    <h4 style="color: #c62828; margin-bottom: 15px;">❌ السجلات التي فشل إدخالها</h4>
+                    <div id="failedRecords"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
+        // Global variable to store import results
+        let importResults = null;
+
+        // Modal functions
+        function showDetailsModal() {
+            document.getElementById('detailsModal').classList.add('show');
+        }
+
+        function closeDetailsModal() {
+            document.getElementById('detailsModal').classList.remove('show');
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('detailsModal')?.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeDetailsModal();
+            }
+        });
+
+        // Tab switching
+        document.querySelectorAll('.modal-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                // Remove active class from all tabs
+                document.querySelectorAll('.modal-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+                // Add active class to clicked tab
+                this.classList.add('active');
+                const tabName = this.getAttribute('data-tab');
+                document.getElementById(tabName + 'Tab').classList.add('active');
+            });
+        });
+
+        // Function to update stats card
+        function updateStatsCard(importResult) {
+            if (!importResult) return;
+
+            // استخراج البيانات الحقيقية من import_result
+            const successCount = importResult.imported_rows || 0;
+            const duplicateCount = importResult.duplicate_count || 0;
+            const failedCount = importResult.failed_count || 0;
+            const totalCount = successCount + duplicateCount + failedCount;
+
+            // Update numbers in inline cards
+            document.getElementById('successCount').textContent = successCount;
+            document.getElementById('duplicateCount').textContent = duplicateCount;
+            document.getElementById('failedCount').textContent = failedCount;
+            document.getElementById('totalCount').textContent = totalCount;
+
+            // Show view details button
+            const viewDetailsBtn = document.getElementById('viewDetailsBtn');
+            if (viewDetailsBtn && totalCount > 0) {
+                viewDetailsBtn.style.display = 'inline-block';
+            }
+        }
+
+        // Function to render records table
+        function renderRecordsTable(records, type) {
+            if (!records || records.length === 0) {
+                return '<div class="no-records">📭 لا توجد سجلات من هذا النوع</div>';
+            }
+
+            let html = '<table class="records-table">';
+            html += '<thead><tr>';
+            html += '<th>رقم الصف</th>';
+            html += '<th>المعرف</th>';
+            html += '<th>البيانات</th>';
+
+            if (type === 'successful') {
+                html += '<th>الإجراء</th>';
+            } else if (type === 'duplicate') {
+                html += '<th>السبب</th>';
+            } else if (type === 'failed') {
+                html += '<th>الخطأ</th>';
+            }
+
+            html += '</tr></thead><tbody>';
+
+            records.forEach(record => {
+                html += '<tr>';
+                html += `<td><strong>#${record.row}</strong></td>`;
+                html += `<td><span class="record-identifier">${record.identifier || 'غير محدد'}</span></td>`;
+
+                // Display record data
+                html += '<td>';
+                if (record.data && typeof record.data === 'object') {
+                    for (let [key, value] of Object.entries(record.data)) {
+                        if (value) {
+                            html += `<div><strong>${key}:</strong> ${value}</div>`;
+                        }
+                    }
+                } else {
+                    html += 'لا توجد بيانات';
+                }
+                html += '</td>';
+
+                // Add action/reason/error column
+                if (type === 'successful') {
+                    const actionClass = record.action === 'مضاف' ? 'added' : 'updated';
+                    html += `<td><span class="record-action ${actionClass}">${record.action || 'مضاف'}</span></td>`;
+                } else if (type === 'duplicate') {
+                    html += `<td><small>${record.reason || 'سجل موجود مسبقاً'}</small></td>`;
+                } else if (type === 'failed') {
+                    html += `<td><div class="error-message">${record.error || 'خطأ غير معروف'}</div>`;
+                    if (record.sql_code) {
+                        html += `<small style="color: #666;">كود الخطأ: ${record.sql_code}</small>`;
+                    }
+                    html += '</td>';
+                }
+
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            return html;
+        }
+
+        // Function to populate modal with data
+        function populateModal(importResult) {
+            if (!importResult) return;
+
+            importResults = importResult;
+
+            // Populate successful records
+            document.getElementById('successfulRecords').innerHTML =
+                renderRecordsTable(importResult.successful_records, 'successful');
+
+            // Populate duplicate records
+            document.getElementById('duplicateRecords').innerHTML =
+                renderRecordsTable(importResult.duplicates, 'duplicate');
+
+            // Populate failed records
+            document.getElementById('failedRecords').innerHTML =
+                renderRecordsTable(importResult.failed_records, 'failed');
+        }
+
         // SweetAlert configuration for RTL
         Swal.mixin({
             customClass: {
@@ -571,6 +1152,8 @@
             })
             .then(response => response.json())
             .then(data => {
+                console.log('📊 Server Response:', data); // Debug log
+
                 // إعادة تفعيل النموذج
                 submitBtn.innerHTML = originalText;
                 submitBtn.disabled = false;
@@ -578,53 +1161,163 @@
                 this.style.pointerEvents = 'auto';
 
                 if (data.success) {
-                    // عرض رسالة النجاح باستخدام SweetAlert
+                    // استخراج البيانات الحقيقية من import_result
+                    let importedRows = 0;
+                    let duplicateRows = 0;
+                    let failedRows = 0;
+                    let hasImportResult = false;
+
+                    if (data.files && data.files.length > 0) {
+                        const firstFile = data.files[0];
+                        console.log('📁 First File:', firstFile); // Debug log
+
+                        if (firstFile.import_result) {
+                            hasImportResult = true;
+                            importedRows = firstFile.import_result.imported_rows || 0;
+                            duplicateRows = firstFile.import_result.duplicate_count || 0;
+                            failedRows = firstFile.import_result.failed_count || 0;
+
+                            console.log('✅ Import Result:', {
+                                imported: importedRows,
+                                duplicates: duplicateRows,
+                                failed: failedRows
+                            }); // Debug log
+
+                            // تحديث الكروت بالبيانات الحقيقية
+                            updateStatsCard(firstFile.import_result);
+                            populateModal(firstFile.import_result);
+                        }
+                    }
+
+                    // إذا لم يكن هناك بيانات استيراد، استخدم import_summary
+                    if (!hasImportResult && data.import_summary) {
+                        importedRows = data.import_summary.imported_rows || 0;
+                        duplicateRows = data.import_summary.duplicate_rows || 0;
+                        failedRows = data.import_summary.failed_rows || 0;
+
+                        // تحديث الكروت من import_summary
+                        document.getElementById('successCount').textContent = importedRows;
+                        document.getElementById('duplicateCount').textContent = duplicateRows;
+                        document.getElementById('failedCount').textContent = failedRows;
+                        document.getElementById('totalCount').textContent = importedRows + duplicateRows + failedRows;
+                    }
+
+                    // تحديد نوع الرسالة بناءً على النتائج الفعلية الحقيقية
+                    const totalProcessed = importedRows + duplicateRows + failedRows;
+                    const allFailed = totalProcessed > 0 && importedRows === 0 && failedRows > 0;
+                    const allDuplicates = totalProcessed > 0 && importedRows === 0 && duplicateRows > 0 && failedRows === 0;
+                    const partialSuccess = importedRows > 0 && (failedRows > 0 || duplicateRows > 0);
+                    const fullSuccess = importedRows > 0 && failedRows === 0;
+                    const fileOnlyMode = data.processing_mode === 'file-only';
+
+                    let alertIcon = 'success';
+                    let alertTitle = '🎉 نجحت العملية';
+                    let alertColor = '#2e7d32';
+
+                    // منطق صادق 100% بناءً على البيانات الحقيقية
+                    if (allFailed) {
+                        alertIcon = 'error';
+                        alertTitle = '❌ فشل الاستيراد - جميع السجلات فشلت';
+                        alertColor = '#c62828';
+                    } else if (allDuplicates) {
+                        alertIcon = 'warning';
+                        alertTitle = '⚠️ جميع السجلات مكررة - لم يتم إدخال أي سجل جديد';
+                        alertColor = '#ff9800';
+                    } else if (partialSuccess) {
+                        alertIcon = 'warning';
+                        alertTitle = `⚠️ نجحت جزئياً - تم إدخال ${importedRows} من ${totalProcessed} سجل`;
+                        alertColor = '#ff9800';
+                    } else if (fullSuccess && totalProcessed > 0) {
+                        alertIcon = 'success';
+                        alertTitle = `✅ نجحت تماماً - تم إدخال ${importedRows} سجل بنجاح`;
+                        alertColor = '#2e7d32';
+                    } else if (fileOnlyMode) {
+                        alertIcon = 'info';
+                        alertTitle = '📁 تم حفظ الملف فقط';
+                        alertColor = '#2196f3';
+                    }
+
+                    // عرض رسالة صادقة باستخدام SweetAlert
                     let responseHtml = `
                         <div style="text-align: right; direction: rtl; font-family: 'Poppins', sans-serif;">
-                            <h4 style="color: #2e7d32; margin-bottom: 15px;">✅ تمت العملية بنجاح</h4>
-                            <div style="background: #f1f8e9; padding: 15px; border-radius: 8px; margin: 10px 0;">
+                            <h4 style="color: ${alertColor}; margin-bottom: 15px;">${alertTitle}</h4>
+                            <div style="background: ${allFailed ? '#ffebee' : (allDuplicates ? '#fff3e0' : '#f1f8e9')}; padding: 15px; border-radius: 8px; margin: 10px 0;">
                                 <p><strong>📊 الرسالة:</strong> ${data.message}</p>
                     `;
 
+                    // عرض ملخص الاستيراد إذا كان موجوداً
+                    if (totalProcessed > 0) {
+                        const summaryColor = allFailed ? '#f44336' : (allDuplicates ? '#ff9800' : (fullSuccess ? '#4caf50' : '#ff9800'));
+                        const summaryBg = allFailed ? '#ffebee' : (allDuplicates ? '#fff3e0' : (fullSuccess ? '#e8f5e9' : '#fff8e1'));
+
+                        responseHtml += `
+                            <div style="background: ${summaryBg}; padding: 15px; margin: 15px 0; border-radius: 8px; border-right: 4px solid ${summaryColor};">
+                                <h5 style="color: #1e3c72; margin-bottom: 10px;">📈 النتائج الفعلية للاستيراد:</h5>
+                                <p style="font-size: 1.1em;"><strong>✅ سجلات نجحت:</strong> <span style="color: #4caf50; font-weight: bold;">${importedRows}</span></p>
+                                <p style="font-size: 1.1em;"><strong>📋 سجلات مكررة (تم تجاهلها):</strong> <span style="color: #ff9800; font-weight: bold;">${duplicateRows}</span></p>
+                                <p style="font-size: 1.1em;"><strong>❌ سجلات فشلت:</strong> <span style="color: #f44336; font-weight: bold;">${failedRows}</span></p>
+                                <p style="font-size: 1.1em;"><strong>� الإجمالي:</strong> <span style="font-weight: bold;">${totalProcessed}</span></p>
+                                ${data.import_summary?.target_table ? `<p style="margin-top: 10px;"><strong>�🗃️ الجدول المستهدف:</strong> ${data.import_summary.target_table}</p>` : ''}
+                            </div>
+                        `;
+
+                        // إضافة زر لعرض التفاصيل
+                        if (totalProcessed > 0) {
+                            responseHtml += `
+                                <div style="text-align: center; margin: 15px 0;">
+                                    <button onclick="showDetailsModal()" style="background: #1e3c72; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 1.1em; transition: all 0.3s ease;">
+                                        🔍 عرض التفاصيل الكاملة لجميع السجلات
+                                    </button>
+                                </div>
+                            `;
+                        }
+                    }
+
+                    // عرض معلومات الملفات
                     if (data.files && Array.isArray(data.files)) {
                         responseHtml += `<h5 style="margin: 15px 0 10px 0;">📁 الملفات المعالجة:</h5>`;
                         data.files.forEach(file => {
+                            const fileSuccess = file.success && (file.import_result ? file.import_result.imported_rows > 0 : true);
+                            const statusIcon = fileSuccess ? '✅' : '❌';
+                            const statusColor = fileSuccess ? '#4caf50' : '#f44336';
+                            const statusText = fileSuccess ? 'نجحت' : 'فشلت';
+
                             responseHtml += `
-                                <div style="background: white; padding: 10px; margin: 5px 0; border-radius: 5px; border-right: 4px solid #4caf50;">
+                                <div style="background: white; padding: 10px; margin: 5px 0; border-radius: 5px; border-right: 4px solid ${statusColor};">
                                     <p><strong>📄 اسم الملف:</strong> ${file.original_name || 'غير محدد'}</p>
-                                    <p><strong>📊 حالة العملية:</strong> ${file.success ? '✅ نجحت' : '❌ فشلت'}</p>
-                                    ${file.message ? `<p><strong>💬 الرسالة:</strong> ${file.message}</p>` : ''}
+                                    <p><strong>📊 حالة العملية:</strong> ${statusIcon} ${statusText}</p>
+                                    ${file.message ? `<p><strong>💬 التفاصيل:</strong> ${file.message}</p>` : ''}
                                     ${file.file_size ? `<p><strong>📏 حجم الملف:</strong> ${(file.file_size / 1024).toFixed(2)} KB</p>` : ''}
-                                    ${file.storage_table ? `<p><strong>🗃️ جدول التخزين:</strong> ${file.storage_table}</p>` : ''}
                                 </div>
                             `;
                         });
                     }
 
-                    if (data.total_files) {
-                        responseHtml += `<p style="margin-top: 15px;"><strong>📈 إجمالي الملفات:</strong> ${data.total_files}</p>`;
-                    }
                     if (data.processing_mode) {
-                        responseHtml += `<p><strong>⚙️ وضع المعالجة:</strong> ${data.processing_mode === 'file-only' ? 'حفظ الملف فقط' : 'حفظ + استيراد البيانات'}</p>`;
+                        const modeText = data.processing_mode === 'file-only' ? '💾 حفظ الملف فقط (بدون استيراد)' : '🔄 حفظ + استيراد البيانات';
+                        responseHtml += `<p style="margin-top: 10px;"><strong>⚙️ وضع المعالجة:</strong> ${modeText}</p>`;
                     }
 
                     responseHtml += `</div></div>`;
 
                     Swal.fire({
-                        icon: 'success',
-                        title: '🎉 نجحت العملية',
+                        icon: alertIcon,
+                        title: alertTitle,
                         html: responseHtml,
-                        confirmButtonText: 'ممتاز!',
+                        confirmButtonText: 'حسناً، فهمت',
                         background: '#fff',
-                        color: '#2e7d32',
+                        color: alertColor,
                         showConfirmButton: true,
-                        width: '600px',
-                        timer: false
+                        width: '750px',
+                        timer: false,
+                        allowOutsideClick: false
                     });
 
-                    // إعادة تعيين النموذج
-                    this.reset();
-                    document.getElementById('importOptions').style.display = 'none';
+                    // إعادة تعيين النموذج فقط إذا نجحت العملية فعلاً
+                    if (!allFailed) {
+                        this.reset();
+                        document.getElementById('importOptions').style.display = 'none';
+                    }
 
                 } else {
                     // عرض رسالة الخطأ

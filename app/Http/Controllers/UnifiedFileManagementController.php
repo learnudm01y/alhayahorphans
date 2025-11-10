@@ -8,6 +8,7 @@ use App\Services\ImageProcessingService;
 use App\Services\ExcelManagementService;
 use App\Services\PdfManagementService;
 use App\Services\ExcelImportService;
+use App\Services\ExcelValidationService;
 use App\Services\FolderDuplicateDetectionService;
 use App\Models\Attachment;
 use App\Models\EnhancedAttachment;
@@ -19,6 +20,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 
 class UnifiedFileManagementController extends Controller
 {
@@ -28,6 +30,7 @@ class UnifiedFileManagementController extends Controller
     protected $excelManager;
     protected $pdfManager;
     protected $excelImportService;
+    protected $excelValidationService;
     protected $duplicateDetectionService;
 
     public function __construct(
@@ -37,6 +40,7 @@ class UnifiedFileManagementController extends Controller
         ?ExcelManagementService $excelManager = null,
         ?PdfManagementService $pdfManager = null,
         ?ExcelImportService $excelImportService = null,
+        ?ExcelValidationService $excelValidationService = null,
         ?FolderDuplicateDetectionService $duplicateDetectionService = null
     ) {
         $this->fileOrganizer = $fileOrganizer;
@@ -45,6 +49,7 @@ class UnifiedFileManagementController extends Controller
         $this->excelManager = $excelManager;
         $this->pdfManager = $pdfManager;
         $this->excelImportService = $excelImportService ?: new ExcelImportService();
+        $this->excelValidationService = $excelValidationService ?: new ExcelValidationService();
         $this->duplicateDetectionService = $duplicateDetectionService ?: new FolderDuplicateDetectionService();
     }
 
@@ -1434,26 +1439,26 @@ class UnifiedFileManagementController extends Controller
             DB::beginTransaction();
 
             foreach ($files as $file) {
-                // 1. حفظ الملف في مجلد documents/excel
-                $filePath = $this->storeExcelFile($file);
-
-                // 2. حفظ معلومات الملف في جدول enhanced_attachments
-                $fileRecord = $this->saveExcelFileRecord($file, $filePath);
-
                 $fileResult = [
-                    'success' => true,
+                    'success' => false,
                     'original_name' => $file->getClientOriginalName(),
-                    'file_path' => $filePath,
+                    'file_path' => null,
                     'file_size' => $file->getSize(),
                     'file_type' => 'excel',
-                    'storage_table' => 'enhanced_attachments',
-                    'file_id' => $fileRecord['id'],
-                    'status' => $fileRecord['status'], // created أو updated
-                    'message' => $fileRecord['message']
+                    'storage_table' => null,
+                    'file_id' => null,
+                    'status' => 'pending',
+                    'message' => ''
                 ];
 
-                // 3. إذا كان مطلوب استيراد البيانات
+                $filePath = null;
+                $fileRecord = null;
+
+                // 1. إذا كان مطلوب استيراد البيانات، نجرب الاستيراد أولاً
                 if ($processingMode === 'import-data' && $enableImport) {
+                    // حفظ مؤقت للملف
+                    $tempPath = $file->store('temp/excel', 'public');
+
                     $importOptions = [
                         'target_table' => $request->input('target_table', 'data'),
                         'header_row' => filter_var($request->input('header_row', true), FILTER_VALIDATE_BOOLEAN),
@@ -1461,40 +1466,98 @@ class UnifiedFileManagementController extends Controller
                         'validate_data' => filter_var($request->input('validate_data', true), FILTER_VALIDATE_BOOLEAN)
                     ];
 
-                    $importResult = $this->importExcelToDatabase($filePath, $importOptions);
-                    $fileResult['import_result'] = $importResult;
+                    try {
+                        $importResult = $this->importExcelToDatabase($tempPath, $importOptions);
 
-                    if (!$importSummary) {
-                        $importSummary = [
-                            'target_table' => $importOptions['target_table'],
-                            'imported_rows' => 0,
-                            'total_files' => 0,
-                            'errors' => [],
-                            'file_id_replacements' => [
-                                'total_replacements' => 0,
-                                'files_with_replacements' => 0,
-                                'replacement_details' => []
-                            ]
-                        ];
+                        // التحقق من نجاح الاستيراد
+                        if (isset($importResult['imported_rows']) && $importResult['imported_rows'] > 0) {
+                            // الاستيراد نجح، الآن نحفظ الملف بشكل دائم
+                            Storage::disk('public')->delete($tempPath);
+                            $filePath = $this->storeExcelFile($file);
+                            $fileRecord = $this->saveExcelFileRecord($file, $filePath);
+
+                            $fileResult = [
+                                'success' => true,
+                                'original_name' => $file->getClientOriginalName(),
+                                'file_path' => $filePath,
+                                'file_size' => $file->getSize(),
+                                'file_type' => 'excel',
+                                'storage_table' => 'enhanced_attachments',
+                                'file_id' => $fileRecord['id'],
+                                'status' => $fileRecord['status'],
+                                'message' => $fileRecord['message'],
+                                'import_result' => $importResult
+                            ];
+
+                            if (!$importSummary) {
+                                $importSummary = [
+                                    'target_table' => $importOptions['target_table'],
+                                    'imported_rows' => 0,
+                                    'duplicate_rows' => 0,
+                                    'failed_rows' => 0,
+                                    'total_files' => 0,
+                                    'errors' => [],
+                                    'file_id_replacements' => [
+                                        'total_replacements' => 0,
+                                        'files_with_replacements' => 0,
+                                        'replacement_details' => []
+                                    ]
+                                ];
+                            }
+
+                            $importSummary['imported_rows'] += $importResult['imported_rows'] ?? 0;
+                            $importSummary['duplicate_rows'] += $importResult['duplicate_count'] ?? 0;
+                            $importSummary['failed_rows'] += $importResult['failed_count'] ?? 0;
+                            $importSummary['total_files']++;
+
+                            if (isset($importResult['errors'])) {
+                                $importSummary['errors'] = array_merge($importSummary['errors'], $importResult['errors']);
+                            }
+
+                            // إضافة معلومات استبدال أرقام الملفات
+                            if (isset($importResult['file_id_report']) && $importResult['file_id_report']['total_replacements'] > 0) {
+                                $importSummary['file_id_replacements']['total_replacements'] += $importResult['file_id_report']['total_replacements'];
+                                $importSummary['file_id_replacements']['files_with_replacements']++;
+                                $importSummary['file_id_replacements']['replacement_details'][] = [
+                                    'file_name' => $file->getClientOriginalName(),
+                                    'replacements_count' => $importResult['file_id_report']['total_replacements'],
+                                    'replacement_methods' => $importResult['detailed_stats']['file_id_management']['replacement_methods_used'] ?? []
+                                ];
+                            }
+                        } else {
+                            // الاستيراد فشل، لا نحفظ الملف
+                            Storage::disk('public')->delete($tempPath);
+                            $fileResult = [
+                                'success' => false,
+                                'original_name' => $file->getClientOriginalName(),
+                                'file_path' => null,
+                                'file_size' => $file->getSize(),
+                                'file_type' => 'excel',
+                                'message' => 'فشل استيراد الملف - لم يتم حفظ الملف',
+                                'import_result' => $importResult
+                            ];
+                        }
+                    } catch (\Exception $e) {
+                        // حدث خطأ، حذف الملف المؤقت
+                        Storage::disk('public')->delete($tempPath);
+                        throw $e;
                     }
+                } else {
+                    // حفظ الملف فقط بدون استيراد
+                    $filePath = $this->storeExcelFile($file);
+                    $fileRecord = $this->saveExcelFileRecord($file, $filePath);
 
-                    $importSummary['imported_rows'] += $importResult['imported_rows'] ?? 0;
-                    $importSummary['total_files']++;
-
-                    if (isset($importResult['errors'])) {
-                        $importSummary['errors'] = array_merge($importSummary['errors'], $importResult['errors']);
-                    }
-
-                    // إضافة معلومات استبدال أرقام الملفات
-                    if (isset($importResult['file_id_report']) && $importResult['file_id_report']['total_replacements'] > 0) {
-                        $importSummary['file_id_replacements']['total_replacements'] += $importResult['file_id_report']['total_replacements'];
-                        $importSummary['file_id_replacements']['files_with_replacements']++;
-                        $importSummary['file_id_replacements']['replacement_details'][] = [
-                            'file_name' => $file->getClientOriginalName(),
-                            'replacements_count' => $importResult['file_id_report']['total_replacements'],
-                            'replacement_methods' => $importResult['detailed_stats']['file_id_management']['replacement_methods_used'] ?? []
-                        ];
-                    }
+                    $fileResult = [
+                        'success' => true,
+                        'original_name' => $file->getClientOriginalName(),
+                        'file_path' => $filePath,
+                        'file_size' => $file->getSize(),
+                        'file_type' => 'excel',
+                        'storage_table' => 'enhanced_attachments',
+                        'file_id' => $fileRecord['id'],
+                        'status' => $fileRecord['status'],
+                        'message' => $fileRecord['message']
+                    ];
                 }
 
                 $results[] = $fileResult;
@@ -5186,6 +5249,227 @@ class UnifiedFileManagementController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'فشل في جلب بيانات أنواع الوثائق: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * التحقق من صحة ملف Excel قبل الإدخال
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function validateExcelBeforeImport(Request $request)
+    {
+        try {
+            // التحقق من الملف
+            $request->validate([
+                'files' => 'required|array|min:1',
+                'files.*' => 'file|mimes:xlsx,xls,csv|max:10240',
+                'target_table' => 'required|string|in:data,dead_people,re_people'
+            ], [
+                'files.required' => 'يرجى اختيار ملف Excel',
+                'files.*.file' => 'الملف المرفوع غير صالح',
+                'files.*.mimes' => 'صيغة الملف غير مدعومة. الصيغ المدعومة: xlsx, xls, csv',
+                'files.*.max' => 'حجم الملف كبير جداً. الحد الأقصى: 10 ميجابايت',
+                'target_table.required' => 'يرجى اختيار الجدول المستهدف',
+                'target_table.in' => 'الجدول المستهدف غير صالح'
+            ]);
+
+            // أخذ الملف الأول فقط (التحقق المسبق يعمل على ملف واحد)
+            $files = $request->file('files');
+            $file = $files[0];
+            $targetTable = $request->input('target_table');
+
+            // حفظ الملف مؤقتاً
+            $tempPath = $file->store('temp/excel_validation', 'public');
+            $fullPath = storage_path('app/public/' . $tempPath);
+
+            // تنفيذ الفحص الشامل
+            $validationResult = $this->excelValidationService->validateExcelFile(
+                $fullPath,
+                $targetTable,
+                [
+                    'header_row' => $request->input('header_row', true),
+                    'skip_empty_rows' => $request->input('skip_empty_rows', true)
+                ]
+            );
+
+            // حذف الملف المؤقت
+            Storage::disk('public')->delete($tempPath);
+
+            // إرجاع النتائج
+            return response()->json([
+                'success' => $validationResult['success'],
+                'can_proceed' => $validationResult['can_proceed'] ?? false,
+                'validation_result' => $validationResult,
+                'message' => $validationResult['message'] ?? 'تم الفحص بنجاح',
+                'file_name' => $file->getClientOriginalName()
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'can_proceed' => false,
+                'message' => 'خطأ في بيانات الطلب',
+                'errors' => $e->errors()
+            ], 422);
+
+        } catch (\Exception $e) {
+            Log::error('خطأ في التحقق من ملف Excel', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'can_proceed' => false,
+                'message' => 'حدث خطأ أثناء فحص الملف: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * إدخال البيانات بعد التحقق منها
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function importValidatedExcel(Request $request)
+    {
+        try {
+            $request->validate([
+                'files' => 'required|array|min:1',
+                'files.*' => 'file|mimes:xlsx,xls,csv|max:10240',
+                'target_table' => 'required|string|in:data,dead_people,re_people',
+                'force_import' => 'boolean'
+            ], [
+                'files.required' => 'يرجى اختيار ملف Excel',
+                'files.*.file' => 'الملف المرفوع غير صالح',
+                'files.*.mimes' => 'صيغة الملف غير مدعومة. الصيغ المدعومة: xlsx, xls, csv',
+                'files.*.max' => 'حجم الملف كبير جداً. الحد الأقصى: 10 ميجابايت',
+                'target_table.required' => 'يرجى اختيار الجدول المستهدف',
+                'target_table.in' => 'الجدول المستهدف غير صالح'
+            ]);
+
+            // أخذ الملف الأول فقط
+            $files = $request->file('files');
+            $file = $files[0];
+            $targetTable = $request->input('target_table');
+            $forceImport = $request->input('force_import', false);
+
+            // حفظ الملف مؤقتاً
+            $tempPath = $file->store('temp/excel_import', 'public');
+            $fullPath = storage_path('app/public/' . $tempPath);
+
+            // الفحص أولاً
+            $validationResult = $this->excelValidationService->validateExcelFile(
+                $fullPath,
+                $targetTable,
+                [
+                    'header_row' => $request->input('header_row', true),
+                    'skip_empty_rows' => $request->input('skip_empty_rows', true)
+                ]
+            );
+
+            // إذا كانت هناك أخطاء ولم يتم إجبار الإدخال
+            if (!$validationResult['can_proceed'] && !$forceImport) {
+                Storage::disk('public')->delete($tempPath);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لا يمكن إدخال الملف بسبب وجود أخطاء',
+                    'validation_result' => $validationResult
+                ], 422);
+            }
+
+            // إدخال الصفوف الصحيحة فقط
+            $validRows = $this->excelValidationService->getValidRowsForInsertion();
+
+            if (empty($validRows)) {
+                Storage::disk('public')->delete($tempPath);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لا توجد صفوف صحيحة للإدخال',
+                    'validation_result' => $validationResult
+                ], 422);
+            }
+
+            // بدء المعاملة
+            DB::beginTransaction();
+
+            $insertedCount = 0;
+            $failedInserts = [];
+
+            foreach ($validRows as $rowData) {
+                try {
+                    DB::table($targetTable)->insert($rowData);
+                    $insertedCount++;
+                } catch (\Exception $e) {
+                    $failedInserts[] = [
+                        'data' => $rowData,
+                        'error' => $e->getMessage()
+                    ];
+                }
+            }
+
+            // إذا نجح الإدخال، نحفظ الملف بشكل دائم
+            if ($insertedCount > 0) {
+                $permanentPath = $file->store('excel_files', 'public');
+                $fileRecord = $this->saveExcelFileRecord($file, $permanentPath);
+
+                DB::commit();
+                Storage::disk('public')->delete($tempPath);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => "تم إدخال {$insertedCount} صف بنجاح",
+                    'import_result' => [
+                        'imported_rows' => $insertedCount,
+                        'failed_rows' => count($failedInserts),
+                        'duplicate_count' => $validationResult['statistics']['duplicate_rows'] ?? 0,
+                        'total_rows' => $validationResult['statistics']['total_rows'] ?? 0,
+                        'successful_records' => $validRows,
+                        'failed_records' => array_merge($validationResult['invalid_rows'] ?? [], $failedInserts),
+                        'duplicates' => array_filter($validationResult['invalid_rows'] ?? [], function($row) {
+                            return isset($row['errors'][0]['type']) && $row['errors'][0]['type'] === 'duplicate';
+                        })
+                    ],
+                    'validation_result' => $validationResult,
+                    'file_info' => [
+                        'id' => $fileRecord['id'] ?? null,
+                        'path' => $permanentPath,
+                        'original_name' => $file->getClientOriginalName()
+                    ]
+                ]);
+            } else {
+                DB::rollBack();
+                Storage::disk('public')->delete($tempPath);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'فشل إدخال جميع الصفوف',
+                    'validation_result' => $validationResult,
+                    'failed_inserts' => $failedInserts
+                ], 422);
+            }
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            if (isset($tempPath)) {
+                Storage::disk('public')->delete($tempPath);
+            }
+
+            Log::error('خطأ في إدخال Excel بعد التحقق', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء إدخال البيانات: ' . $e->getMessage()
             ], 500);
         }
     }

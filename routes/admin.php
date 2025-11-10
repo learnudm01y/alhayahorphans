@@ -213,6 +213,15 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
         Route::post('process-excel', [UnifiedFileManagementController::class, 'processExcelUpload'])
             ->middleware('large.upload')
             ->name('file.process.excel');
+
+        // Excel Validation Routes - فحص الملفات قبل الإدخال
+        Route::post('validate-excel', [UnifiedFileManagementController::class, 'validateExcelBeforeImport'])
+            ->middleware('large.upload')
+            ->name('file.validate.excel');
+        Route::post('import-validated-excel', [UnifiedFileManagementController::class, 'importValidatedExcel'])
+            ->middleware('large.upload')
+            ->name('file.import.validated.excel');
+
         Route::get('php-diagnostic', [UnifiedFileManagementController::class, 'showPhpDiagnostic'])->name('file.php.diagnostic');
     });
 
