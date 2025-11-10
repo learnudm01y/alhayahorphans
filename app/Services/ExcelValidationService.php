@@ -202,6 +202,7 @@ class ExcelValidationService
                 'ملاحظات' => 'notes'
             ],
             're_people' => [
+                'رقم هوية المعيل' => 'registration_id',  // رقم هوية الأب/المعيل الذي سيتم البحث عنه في data
                 'رقم الهوية' => 'id',
                 'رقم هوية الشخص الرئيسي' => 'person_id',
                 'الاسم' => 'person_name',
@@ -544,17 +545,19 @@ class ExcelValidationService
         }
 
         if ($tableName === 're_people') {
-            // التحقق من registration_id (file_id)
+            // التحقق من registration_id (رقم هوية المعيل/الأب)
+            // ملاحظة: registration_id يحتوي على رقم هوية المعيل وليس رقم الملف
+            // سيتم البحث عنه في data_id_number وليس file_id_number
             if (isset($rowData['registration_id']) && !empty($rowData['registration_id'])) {
-                $exists = DB::table('data')->where('file_id_number', $rowData['registration_id'])->exists();
+                $exists = DB::table('data')->where('data_id_number', $rowData['registration_id'])->exists();
                 if (!$exists) {
                     $errors[] = [
                         'valid' => false,
                         'column' => 'registration_id',
                         'value' => $rowData['registration_id'],
-                        'error' => "رقم الملف '{$rowData['registration_id']}' غير موجود في جدول البيانات الرئيسي",
+                        'error' => "رقم هوية المعيل '{$rowData['registration_id']}' غير موجود في جدول البيانات الرئيسي",
                         'row' => $rowNumber,
-                        'solution' => 'يجب أن يكون رقم الملف موجوداً في جدول البيانات الرئيسي أولاً'
+                        'solution' => 'يجب أن يكون رقم هوية المعيل موجوداً في جدول البيانات الرئيسي أولاً'
                     ];
                 }
             }
