@@ -574,18 +574,29 @@ class ExcelValidationService
         $errors = [];
         $uniqueFields = $this->getUniqueFields($tableName);
 
+        // أسماء الحقول بالعربية للرسائل
+        $fieldNames = [
+            'file_id_number' => 'رقم الملف',
+            'data_id_number' => 'رقم الهوية',
+            're_file_id' => 'رقم الملف',
+            'mother_id' => 'رقم هوية الأم',
+            'person_id' => 'رقم هوية الشخص'
+        ];
+
         foreach ($uniqueFields as $field) {
             if (isset($rowData[$field]) && !empty($rowData[$field])) {
                 $exists = DB::table($tableName)->where($field, $rowData[$field])->exists();
                 if ($exists) {
+                    $fieldNameAr = $fieldNames[$field] ?? $field;
                     $errors[] = [
                         'valid' => false,
                         'column' => $field,
                         'value' => $rowData[$field],
-                        'error' => "القيمة '{$rowData[$field]}' في العمود '{$field}' موجودة مسبقاً في قاعدة البيانات",
+                        'error' => "❌ {$fieldNameAr} '{$rowData[$field]}' موجود مسبقاً في قاعدة البيانات",
                         'row' => $rowNumber,
                         'type' => 'duplicate',
-                        'solution' => 'يجب استخدام قيمة فريدة غير مكررة'
+                        'severity' => 'critical',
+                        'solution' => '⚠️ لا يمكن إدخال قيمة مكررة. يجب استخدام قيمة فريدة غير موجودة مسبقاً في النظام'
                     ];
                 }
             }
@@ -600,9 +611,16 @@ class ExcelValidationService
     protected function getUniqueFields($tableName)
     {
         $uniqueFields = [
-            'data' => ['id_number'],
-            'dead_people' => ['id'],
-            're_people' => ['id']
+            'data' => [
+                'file_id_number'       // رقم الملف - يجب أن يكون فريد (هو نفسه رقم الهوية)
+            ],
+            'dead_people' => [
+                're_file_id',          // رقم الملف - يجب أن يكون فريد
+                'mother_id'            // رقم هوية الأم - يجب أن يكون فريد
+            ],
+            're_people' => [
+                'person_id'            // رقم هوية الشخص - يجب أن يكون فريد
+            ]
         ];
 
         return $uniqueFields[$tableName] ?? [];
@@ -616,12 +634,36 @@ class ExcelValidationService
         $uniqueFields = $this->getUniqueFields($tableName);
         $seen = [];
 
+        Log::info('🔍 فحص التكرار داخل الملف', [
+            'table' => $tableName,
+            'unique_fields' => $uniqueFields,
+            'valid_rows_count' => count($this->validRows)
+        ]);
+
+        // أسماء الحقول بالعربية للرسائل
+        $fieldNames = [
+            'file_id_number' => 'رقم الملف',
+            'data_id_number' => 'رقم الهوية',
+            're_file_id' => 'رقم الملف',
+            'mother_id' => 'رقم هوية الأم',
+            'person_id' => 'رقم هوية الشخص'
+        ];
+
         foreach ($this->validRows as $index => $row) {
             foreach ($uniqueFields as $field) {
                 if (isset($row['data'][$field])) {
                     $value = $row['data'][$field];
 
                     if (isset($seen[$field][$value])) {
+                        $fieldNameAr = $fieldNames[$field] ?? $field;
+
+                        Log::warning('🔴 اكتشاف تكرار', [
+                            'field' => $field,
+                            'value' => $value,
+                            'current_row' => $row['row_number'],
+                            'first_seen_row' => $seen[$field][$value]
+                        ]);
+
                         // نقل الصف من valid إلى invalid
                         $this->invalidRows[] = [
                             'row_number' => $row['row_number'],
@@ -630,10 +672,11 @@ class ExcelValidationService
                                 'valid' => false,
                                 'column' => $field,
                                 'value' => $value,
-                                'error' => "القيمة '{$value}' مكررة داخل الملف (موجودة في الصف {$seen[$field][$value]})",
+                                'error' => "❌ {$fieldNameAr} '{$value}' مكرر داخل الملف (موجود في الصف {$seen[$field][$value]})",
                                 'row' => $row['row_number'],
                                 'type' => 'duplicate_in_file',
-                                'solution' => 'يجب أن تكون جميع القيم فريدة في هذا العمود'
+                                'severity' => 'critical',
+                                'solution' => '⚠️ تم اكتشاف تكرار داخل نفس الملف. يجب أن تكون جميع القيم فريدة'
                             ]]
                         ];
 
@@ -650,6 +693,12 @@ class ExcelValidationService
 
         // إعادة فهرسة المصفوفة
         $this->validRows = array_values($this->validRows);
+
+        Log::info('✅ انتهى فحص التكرار', [
+            'duplicates_found' => $this->statistics['duplicate_rows'] ?? 0,
+            'remaining_valid_rows' => count($this->validRows),
+            'total_invalid_rows' => count($this->invalidRows)
+        ]);
     }
 
     /**

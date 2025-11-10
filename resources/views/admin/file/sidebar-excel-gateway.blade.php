@@ -851,10 +851,10 @@
                                 <!-- Pagination Controls -->
                                 <div id="warningsPagination"
                                     style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px solid #ddd; font-size: 11px;">
-                                    <button onclick="prevWarningsPage()" id="prevWarningsBtn"
+                                    <button onclick="prevWarningsPage()" class="prev-btn"
                                         style="padding: 4px 10px; border: 1px solid #ddd; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">السابق</button>
-                                    <span id="warningsPaginationInfo" style="color: #666;">صفحة 1 من 1</span>
-                                    <button onclick="nextWarningsPage()" id="nextWarningsBtn"
+                                    <span class="page-info" style="color: #666;">صفحة 1 من 1</span>
+                                    <button onclick="nextWarningsPage()" class="next-btn"
                                         style="padding: 4px 10px; border: 1px solid #ddd; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">التالي</button>
                                 </div>
                             </div>
@@ -999,8 +999,18 @@
                     }
                 });
 
-                // عرض التحذيرات المجمعة
-                Object.values(groupedWarnings).forEach(group => {
+                // تحويل المجموعات إلى مصفوفة للـ pagination
+                const groupedArray = Object.values(groupedWarnings);
+                const totalGroups = groupedArray.length;
+                const totalPages = Math.ceil(totalGroups / warningsPerPage);
+
+                // حساب البداية والنهاية للصفحة الحالية
+                const startIndex = (currentWarningsPage - 1) * warningsPerPage;
+                const endIndex = Math.min(startIndex + warningsPerPage, totalGroups);
+                const currentPageGroups = groupedArray.slice(startIndex, endIndex);
+
+                // عرض التحذيرات المجمعة للصفحة الحالية
+                currentPageGroups.forEach(group => {
                     const warningDiv = document.createElement('div');
                     warningDiv.style.cssText =
                         'background: white; padding: 8px; margin-bottom: 6px; border-radius: 4px; border-right: 3px solid #ff9800;';
@@ -1033,12 +1043,36 @@
                     `;
                     warningsList.appendChild(warningDiv);
                 });
-            }
 
-            // إخفاء pagination للتحذيرات حيث أصبحنا نعرض كل شيء مجمعاً
-            const warningsPagination = document.getElementById('warningsPagination');
-            if (warningsPagination) {
-                warningsPagination.style.display = 'none';
+                // إظهار/إخفاء pagination للتحذيرات
+                const warningsPagination = document.getElementById('warningsPagination');
+                if (warningsPagination) {
+                    if (totalPages > 1) {
+                        warningsPagination.style.display = 'flex';
+
+                        // تحديث معلومات الصفحة
+                        const pageInfo = warningsPagination.querySelector('.page-info');
+                        if (pageInfo) {
+                            pageInfo.textContent = `صفحة ${currentWarningsPage} من ${totalPages} (${totalGroups} تحذير)`;
+                        }
+
+                        // تحديث أزرار التنقل
+                        const prevBtn = warningsPagination.querySelector('.prev-btn');
+                        const nextBtn = warningsPagination.querySelector('.next-btn');
+
+                        if (prevBtn) {
+                            prevBtn.disabled = currentWarningsPage === 1;
+                            prevBtn.style.opacity = currentWarningsPage === 1 ? '0.5' : '1';
+                        }
+
+                        if (nextBtn) {
+                            nextBtn.disabled = currentWarningsPage === totalPages;
+                            nextBtn.style.opacity = currentWarningsPage === totalPages ? '0.5' : '1';
+                        }
+                    } else {
+                        warningsPagination.style.display = 'none';
+                    }
+                }
             }
         }
 
