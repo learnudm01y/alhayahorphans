@@ -829,21 +829,21 @@ class ExcelImportService
                     $healthStatusId = is_numeric($data['person_health_status']) ? (int)$data['person_health_status'] : null;
 
                     if ($healthStatusId !== null && !in_array($healthStatusId, $validHealthStatuses)) {
-                        Log::info("ℹ️ حالة صحية غير موجودة في الجدول - استبدال بـ null", [
+                        Log::info("ℹ️ حالة صحية غير موجودة في الجدول - استبدال بـ 0 (غير معروف)", [
                             'field' => 'person_health_status',
                             'original_value' => $data['person_health_status'],
                             'health_status_id' => $healthStatusId,
                             'registration_id' => $data['registration_id'],
                             'valid_health_statuses' => $validHealthStatuses
                         ]);
-                        $data['person_health_status'] = null;
+                        $data['person_health_status'] = 0;
                     } else if ($healthStatusId === null) {
-                        $data['person_health_status'] = null;
+                        $data['person_health_status'] = 0;
                     } else {
                         $data['person_health_status'] = $healthStatusId;
                     }
                 } else {
-                    $data['person_health_status'] = null;
+                    $data['person_health_status'] = 0;
                 }
 
                 // ✅ تحويل تاريخ الميلاد من DD-MM-YYYY إلى YYYY-MM-DD
