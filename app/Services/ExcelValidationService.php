@@ -175,7 +175,7 @@ class ExcelValidationService
                 'data_academic_qualification' => 'data_academic_qualification',
                 'data_displacement_status' => 'data_displacement_status',
                 'data_address_before_displacement' => 'data_address_before_displacement',
-                'data_current_adress' => 'data_current_address',
+                'data_current_address' => 'data_current_address',
                 'data_city' => 'data_city',
                 'data_province' => 'data_province',
                 'data_health_status' => 'data_health_status',
@@ -189,27 +189,59 @@ class ExcelValidationService
                 'data_current_housing_type' => 'data_current_housing_type'
             ],
             'dead_people' => [
-                'رقم الهوية' => 'id',
-                'رقم هوية الشخص المرتبط' => 'person_id',
-                'نوع العلاقة' => 'relationship_type',
+                // رقم الهوية (سيتم البحث عنه في جدول data)
+                'رقم الهوية' => 're_file_id',
+                'file_id' => 're_file_id',  // العمود الأول في Excel
                 'سبب وفاة الأب' => 'father_death_reason',
                 'سبب وفاة الأم' => 'mother_death_reason',
                 'رقم هوية الأب' => 'father_id',
                 'رقم هوية الأم' => 'mother_id',
-                'ملاحظات' => 'notes'
+                // English column names (must match EXACT column names in database)
+                're_file_id' => 're_file_id',
+                'father_first_name' => 'father_first_name',
+                'father_second_name' => 'father_second_name',
+                'father_third_name' => 'father_third_name',
+                'father_last_name' => 'father_last_name',
+                'father_id' => 'father_id',
+                'father_death_date' => 'father_death_date',
+                'father_death_reason' => 'father_death_reason',
+                'mother_first_name' => 'mother_first_name',
+                'mother_second_name' => 'mother_second_name',
+                'mother_third_name' => 'mother_third_name',
+                'mother_last_name' => 'mother_last_name',
+                'mother_id' => 'mother_id',
+                'mother_death_date' => 'mother_death_date',
+                'mother_death_reason' => 'mother_death_reason'
             ],
             're_people' => [
-                'رقم هوية المعيل' => 'registration_id',  // رقم هوية الأب/المعيل الذي سيتم البحث عنه في data
-                'رقم الهوية' => 'id',
-                'رقم هوية الشخص الرئيسي' => 'person_id',
-                'الاسم' => 'person_name',
+                // رقم هوية المعيل (سيتم البحث عنه في data.data_id_number → data.file_id_number)
+                'رقم هوية المعيل' => 'registration_id',
+                'registration_id' => 'registration_id',
+                // معلومات الطفل
+                'رقم الهوية' => 'person_id',
+                'person_id' => 'person_id',
+                'الاسم الأول' => 'first_name',
+                'first_name' => 'first_name',
+                'الاسم الثاني' => 'second_name',
+                'second_name' => 'second_name',
+                'الاسم الثالث' => 'third_name',
+                'third_name' => 'third_name',
+                'اسم العائلة' => 'last_name',
+                'last_name' => 'last_name',
+                'تاريخ الميلاد' => 'person_birth_date',
+                'person_birth_date' => 'person_birth_date',
                 'العمر' => 'person_age',
+                'person_age' => 'person_age',
                 'الجنس' => 'person_gender',
-                'العلاقة' => 'person_relationship',
+                'person_gender' => 'person_gender',
                 'الحالة الصحية' => 'person_health_status',
-                'المؤهل العلمي' => 'academic_qualification',
-                'الحالة الوظيفية' => 'person_work_status',
-                'ملاحظات' => 'notes'
+                'person_health_status' => 'person_health_status',
+                'نوع الكفالة' => 'person_type_of_guarantee',
+                'person_type_of_guarantee' => 'person_type_of_guarantee',
+                'ملاحظات' => 'person_note',
+                'person_note' => 'person_note',
+                'حالة الكفالة' => 'sponsorship_status',
+                'sponsorship_status' => 'sponsorship_status'
             ]
         ];
 

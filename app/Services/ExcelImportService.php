@@ -620,46 +620,55 @@ class ExcelImportService
                     'new_file_id' => $newFileId,
                     'identity_number' => $data['data_id_number'] ?? 'Unknown'
                 ]);
-                break;            case 'dead_people':
-                // التأكد من أن re_file_id موجود
+                break;
+
+            case 'dead_people':
+                // ✅ الخطوة 1: التحقق من وجود re_file_id (رقم الهوية المدخل)
                 if (empty($data['re_file_id'])) {
-                    throw new \Exception('رقم الملف (re_file_id) مطلوب');
+                    throw new \Exception('⚠️ رقم الهوية (file_id) مطلوب في الصف');
                 }
 
-                // حفظ re_file_id الأصلي للمرجعية
-                $originalReFileId = $data['re_file_id'];
+                // ✅ الخطوة 2: حفظ رقم الهوية الأصلي (من العمود الأول في Excel)
+                $originalIdentityNumber = $data['re_file_id'];
 
-                // البحث عن file_id_number المطابق في جدول Data
-                $matchingFileId = $this->findMatchingFileIdFromData($originalReFileId);
+                // ✅ الخطوة 3: البحث عن ولي الأمر في جدول data برقم الهوية
+                $guardian = DB::table('data')
+                    ->where('data_id_number', $originalIdentityNumber)
+                    ->select('file_id_number', 'data_first_name', 'data_family_name')
+                    ->first();
 
-                if ($matchingFileId) {
-                    // استبدال re_file_id بـ file_id_number المطابق من جدول Data
-                    $data['re_file_id'] = $matchingFileId;
-
-                    // تسجيل عملية الاستبدال
-                    $this->fileIdReplacements[] = [
-                        'original_re_file_id' => $originalReFileId,
-                        'new_re_file_id' => $matchingFileId,
-                        'father_id' => $data['father_id'] ?? 'غير محدد',
-                        'mother_id' => $data['mother_id'] ?? 'غير محدد',
-                        'replacement_method' => 'data_table_lookup'
-                    ];
-
-                    Log::info('Dead people re_file_id replacement', [
-                        'original_re_file_id' => $originalReFileId,
-                        'new_re_file_id' => $matchingFileId,
-                        'father_id' => $data['father_id'] ?? null,
-                        'mother_id' => $data['mother_id'] ?? null
-                    ]);
-                } else {
-                    // إذا لم يتم العثور على تطابق، رمي خطأ أو تحذير
-                    throw new \Exception("لم يتم العثور على رقم ملف مطابق في جدول Data لرقم الهوية: {$originalReFileId}");
+                if (!$guardian) {
+                    // ❌ لا يوجد ولي أمر مطابق - رفض السطر
+                    throw new \Exception(
+                        "❌ لا يوجد ولي أمر مطابق لرقم الهوية ({$originalIdentityNumber}). "
+                        . "يجب إدخال بيانات ولي الأمر في جدول 'data' أولاً قبل ربط المتوفين."
+                    );
                 }
+
+                // ✅ الخطوة 4: استبدال رقم الهوية برقم الملف من جدول data
+                $matchingFileId = $guardian->file_id_number;
+                $data['re_file_id'] = $matchingFileId;
+
+                // ✅ الخطوة 5: تسجيل عملية الاستبدال الناجحة
+                $this->fileIdReplacements[] = [
+                    'original_identity_number' => $originalIdentityNumber,
+                    'matched_file_id' => $matchingFileId,
+                    'guardian_name' => ($guardian->data_first_name ?? '') . ' ' . ($guardian->data_family_name ?? ''),
+                    'father_id' => $data['father_id'] ?? null,
+                    'mother_id' => $data['mother_id'] ?? null,
+                    'replacement_method' => 'identity_to_file_id_lookup'
+                ];
+
+                Log::info('✅ Dead people: تم ربط المتوفى بولي الأمر', [
+                    'original_identity_number' => $originalIdentityNumber,
+                    'matched_file_id' => $matchingFileId,
+                    'guardian_name' => ($guardian->data_first_name ?? '') . ' ' . ($guardian->data_family_name ?? ''),
+                    'father_id' => $data['father_id'] ?? null,
+                    'mother_id' => $data['mother_id'] ?? null
+                ]);
 
                 // تنظيف الحقول الرقمية (تحويل القيم غير الصالحة إلى null)
                 $numericFields = [
-                    'father_death_reason',
-                    'mother_death_reason',
                     'father_id',
                     'mother_id'
                 ];
@@ -673,60 +682,199 @@ class ExcelImportService
                         $data[$field] = null;
                     }
                 }
+
+                // ✅ فحص أسباب الوفاة - التحقق من وجودها في جدول death_reasons
+                $validDeathReasons = DB::table('death_reasons')->pluck('id')->toArray();
+
+                foreach (['father_death_reason', 'mother_death_reason'] as $field) {
+                    if (isset($data[$field]) && $data[$field] !== '' && $data[$field] !== null) {
+                        $reasonId = is_numeric($data[$field]) ? (int)$data[$field] : null;
+
+                        if ($reasonId !== null && !in_array($reasonId, $validDeathReasons)) {
+                            Log::warning("⚠️ سبب وفاة غير موجود - استبدال بـ Unknown", [
+                                'field' => $field,
+                                'original_value' => $data[$field],
+                                'reason_id' => $reasonId,
+                                're_file_id' => $data['re_file_id']
+                            ]);
+                            $data[$field] = 0;
+                        } else if ($reasonId === null) {
+                            $data[$field] = 0;
+                        } else {
+                            $data[$field] = $reasonId;
+                        }
+                    } else {
+                        $data[$field] = 0;
+                    }
+                }
+
+                // ✅ تحويل التواريخ من DD-MM-YYYY إلى YYYY-MM-DD
+                $dateFields = ['father_death_date', 'mother_death_date'];
+
+                foreach ($dateFields as $field) {
+                    if (isset($data[$field]) && $data[$field] !== '' && $data[$field] !== null) {
+                        $dateValue = $data[$field];
+
+                        // DD-MM-YYYY format (مثل: 15-10-2023)
+                        if (preg_match('/^\d{2}-\d{2}-\d{4}$/', $dateValue)) {
+                            try {
+                                $dateObj = \DateTime::createFromFormat('d-m-Y', $dateValue);
+                                if ($dateObj) {
+                                    $data[$field] = $dateObj->format('Y-m-d');
+                                    Log::info("✅ تحويل تاريخ", [
+                                        'field' => $field,
+                                        'from' => $dateValue,
+                                        'to' => $data[$field]
+                                    ]);
+                                }
+                            } catch (\Exception $e) {
+                                Log::warning("⚠️ فشل تحويل التاريخ", [
+                                    'field' => $field,
+                                    'value' => $dateValue,
+                                    'error' => $e->getMessage()
+                                ]);
+                                $data[$field] = null;
+                            }
+                        }
+                        // DD/MM/YYYY format (مثل: 15/10/2023)
+                        elseif (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $dateValue)) {
+                            try {
+                                $dateObj = \DateTime::createFromFormat('d/m/Y', $dateValue);
+                                if ($dateObj) {
+                                    $data[$field] = $dateObj->format('Y-m-d');
+                                }
+                            } catch (\Exception $e) {
+                                $data[$field] = null;
+                            }
+                        }
+                    }
+                }
                 break;
 
             case 're_people':
-                // التأكد من أن registration_id موجود
+                // ✅ Step 1: التحقق من وجود registration_id (رقم هوية ولي الأمر)
                 if (empty($data['registration_id'])) {
-                    throw new \Exception('رقم التسجيل (registration_id) مطلوب');
+                    throw new \Exception('⚠️ رقم هوية المعيل (registration_id) مطلوب في الصف');
                 }
 
-                // حفظ registration_id الأصلي للمرجعية
-                $originalRegistrationId = $data['registration_id'];
+                // ✅ Step 2: حفظ رقم هوية ولي الأمر الأصلي
+                $originalGuardianIdentity = $data['registration_id'];
 
-                // البحث عن file_id_number المطابق في جدول Data
-                $matchingFileId = $this->findMatchingFileIdFromData($originalRegistrationId);
+                // ✅ Step 3: البحث عن ولي الأمر في جدول data
+                $guardian = DB::table('data')
+                    ->where('data_id_number', $originalGuardianIdentity)
+                    ->select('file_id_number', 'data_first_name', 'data_family_name')
+                    ->first();
 
-                if ($matchingFileId) {
-                    // استبدال registration_id بـ file_id_number المطابق من جدول Data
-                    $data['registration_id'] = $matchingFileId;
-
-                    // تسجيل عملية الاستبدال
-                    $this->fileIdReplacements[] = [
-                        'original_registration_id' => $originalRegistrationId,
-                        'new_registration_id' => $matchingFileId,
-                        'person_id' => $data['person_id'] ?? 'غير محدد',
-                        'person_name' => trim(($data['first_name'] ?? '') . ' ' . ($data['last_name'] ?? '')),
-                        'replacement_method' => 'data_table_lookup'
-                    ];
-
-                    Log::info('RePeople registration_id replacement', [
-                        'original_registration_id' => $originalRegistrationId,
-                        'new_registration_id' => $matchingFileId,
-                        'person_id' => $data['person_id'] ?? null,
-                        'person_name' => trim(($data['first_name'] ?? '') . ' ' . ($data['last_name'] ?? ''))
-                    ]);
-                } else {
-                    // إذا لم يتم العثور على تطابق، رمي خطأ أو تحذير
-                    throw new \Exception("لم يتم العثور على رقم ملف مطابق في جدول Data لرقم الهوية: {$originalRegistrationId}");
+                if (!$guardian) {
+                    // ❌ لا يوجد ولي أمر - رفض الصف
+                    throw new \Exception(
+                        "❌ لا يوجد ولي أمر مطابق لرقم الهوية ({$originalGuardianIdentity}). "
+                        . "يجب إدخال بيانات ولي الأمر في جدول 'data' أولاً قبل إضافة الأطفال."
+                    );
                 }
+
+                // ✅ Step 4: استبدال رقم الهوية برقم الملف
+                $matchingFileId = $guardian->file_id_number;
+                $data['registration_id'] = $matchingFileId;
+
+                // ✅ Step 5: تسجيل عملية الربط
+                $this->fileIdReplacements[] = [
+                    'original_guardian_identity' => $originalGuardianIdentity,
+                    'matched_file_id' => $matchingFileId,
+                    'guardian_name' => ($guardian->data_first_name ?? '') . ' ' . ($guardian->data_family_name ?? ''),
+                    'person_id' => $data['person_id'] ?? null,
+                    'person_name' => trim(($data['first_name'] ?? '') . ' ' . ($data['last_name'] ?? '')),
+                    'replacement_method' => 'identity_to_file_id_lookup'
+                ];
+
+                Log::info('✅ Re_people: تم ربط الطفل بولي الأمر', [
+                    'original_guardian_identity' => $originalGuardianIdentity,
+                    'matched_file_id' => $matchingFileId,
+                    'guardian_name' => ($guardian->data_first_name ?? '') . ' ' . ($guardian->data_family_name ?? ''),
+                    'child_person_id' => $data['person_id'] ?? null,
+                    'child_name' => trim(($data['first_name'] ?? '') . ' ' . ($data['last_name'] ?? ''))
+                ]);
 
                 // تنظيف الحقول الرقمية (تحويل القيم غير الصالحة إلى null)
                 $numericFields = [
                     'person_id',
                     'person_age',
                     'person_gender',
-                    'person_health_status',
-                    'academic_qualification'
+                    'person_type_of_guarantee',
+                    'sponsorship_status'
                 ];
 
                 foreach ($numericFields as $field) {
-                    if (isset($data[$field]) && !is_numeric($data[$field])) {
-                        Log::warning("Invalid numeric value in re_people field: {$field}", [
-                            'original_value' => $data[$field],
-                            'registration_id' => $data['registration_id']
-                        ]);
+                    if (isset($data[$field]) && $data[$field] !== '' && $data[$field] !== null) {
+                        // تحويل القيمة إلى رقم إذا كانت رقمية
+                        if (is_numeric($data[$field])) {
+                            $data[$field] = is_float($data[$field]) ? (float)$data[$field] : (int)$data[$field];
+                        } else {
+                            Log::warning("Invalid numeric value in re_people field: {$field}", [
+                                'original_value' => $data[$field],
+                                'registration_id' => $data['registration_id']
+                            ]);
+                            $data[$field] = null;
+                        }
+                    } else {
+                        // الحقل غير موجود أو فارغ
                         $data[$field] = null;
+                    }
+                }
+
+                // ✅ فحص الحالة الصحية - التحقق من وجودها في جدول health_statuses
+                if (isset($data['person_health_status']) && $data['person_health_status'] !== '' && $data['person_health_status'] !== null) {
+                    $validHealthStatuses = DB::table('health_statuses')->pluck('id')->toArray();
+                    $healthStatusId = is_numeric($data['person_health_status']) ? (int)$data['person_health_status'] : null;
+
+                    if ($healthStatusId !== null && !in_array($healthStatusId, $validHealthStatuses)) {
+                        Log::info("ℹ️ حالة صحية غير موجودة في الجدول - استبدال بـ null", [
+                            'field' => 'person_health_status',
+                            'original_value' => $data['person_health_status'],
+                            'health_status_id' => $healthStatusId,
+                            'registration_id' => $data['registration_id'],
+                            'valid_health_statuses' => $validHealthStatuses
+                        ]);
+                        $data['person_health_status'] = null;
+                    } else if ($healthStatusId === null) {
+                        $data['person_health_status'] = null;
+                    } else {
+                        $data['person_health_status'] = $healthStatusId;
+                    }
+                } else {
+                    $data['person_health_status'] = null;
+                }
+
+                // ✅ تحويل تاريخ الميلاد من DD-MM-YYYY إلى YYYY-MM-DD
+                if (isset($data['person_birth_date']) && $data['person_birth_date'] !== '' && $data['person_birth_date'] !== null) {
+                    $dateValue = $data['person_birth_date'];
+
+                    // DD-MM-YYYY format
+                    if (preg_match('/^\d{2}-\d{2}-\d{4}$/', $dateValue)) {
+                        try {
+                            $dateObj = \DateTime::createFromFormat('d-m-Y', $dateValue);
+                            if ($dateObj) {
+                                $data['person_birth_date'] = $dateObj->format('Y-m-d');
+                                Log::info("✅ تحويل تاريخ الميلاد", [
+                                    'from' => $dateValue,
+                                    'to' => $data['person_birth_date']
+                                ]);
+                            }
+                        } catch (\Exception $e) {
+                            $data['person_birth_date'] = null;
+                        }
+                    }
+                    // DD/MM/YYYY format
+                    elseif (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $dateValue)) {
+                        try {
+                            $dateObj = \DateTime::createFromFormat('d/m/Y', $dateValue);
+                            if ($dateObj) {
+                                $data['person_birth_date'] = $dateObj->format('Y-m-d');
+                            }
+                        } catch (\Exception $e) {
+                            $data['person_birth_date'] = null;
+                        }
                     }
                 }
                 break;
@@ -789,17 +937,23 @@ class ExcelImportService
                 break;
 
             case 'dead_people':
-                // جدول dead_people - إضافة user_id إذا كان موجوداً
-                if ($userId) {
-                    $data['user_id'] = $userId;
-                }
+                // ✅ جدول dead_people ليس لديه عمود user_id
+                // البيانات جاهزة للإدخال (re_file_id تم استبداله برقم الملف)
+                Log::info('✅ Dead people row ready for insert', [
+                    're_file_id' => $data['re_file_id'] ?? 'unknown',
+                    'father_id' => $data['father_id'] ?? null,
+                    'mother_id' => $data['mother_id'] ?? null
+                ]);
                 break;
 
             case 're_people':
-                // جدول re_people - إضافة user_id إذا كان موجوداً
-                if ($userId) {
-                    $data['user_id'] = $userId;
-                }
+                // ✅ re_people table has no user_id column
+                // Data already fully processed (registration_id replaced with file_id_number)
+                Log::info('✅ Re_people row ready for insert', [
+                    'registration_id' => $data['registration_id'] ?? 'unknown',
+                    'person_id' => $data['person_id'] ?? null,
+                    'child_name' => trim(($data['first_name'] ?? '') . ' ' . ($data['last_name'] ?? ''))
+                ]);
                 break;
         }
 
@@ -1359,8 +1513,8 @@ class ExcelImportService
      */
     private function getAcceptedStatusId(): int
     {
-        // القيمة الافتراضية لحالة الطلب هي 2 دائمًا
-        return 2;
+        // القيمة الافتراضية لحالة الطلب هي 4 دائمًا
+        return 4;
     }
 
     /**
