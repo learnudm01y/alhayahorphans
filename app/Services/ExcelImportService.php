@@ -518,6 +518,82 @@ class ExcelImportService
     {
         switch ($modelKey) {
             case 'data':
+                // *** تنظيف data_id_number لكي يكون رقماً صحيحاً ***
+                // إزالة أي أحرف غير رقمية وتحويل إلى رقم صحيح
+                if (isset($data['data_id_number'])) {
+                    $cleanIdNumber = preg_replace('/[^0-9]/', '', $data['data_id_number']);
+                    if (!empty($cleanIdNumber) && is_numeric($cleanIdNumber)) {
+                        $data['data_id_number'] = (int)$cleanIdNumber;
+                    } else {
+                        // إذا كانت القيمة فارغة أو غير رقمية، نضع null
+                        $data['data_id_number'] = null;
+                    }
+                }
+
+                // *** تحويل القيم غير الموجودة إلى 0 (غير معروف) ***
+                // قائمة الحقول المرجعية (Foreign Keys) التي يجب التحقق منها
+                $foreignKeyFields = [
+                    'data_marital_status' => 'marital_status',
+                    'data_academic_qualification' => 'academic_degrees',
+                    'data_displacement_status' => 'displacement_statuses',
+                    'data_city' => 'city',
+                    'data_province' => 'provinces',
+                    'data_employment_status_breadwinner' => 'employment',
+                    'data_housing_status' => 'housing_status',
+                    'data_current_housing_type' => 'type_of_accommodation',
+                    'data_health_status' => 'health_statuses',
+                    'data_relationship' => 'category_of_relations',
+                ];
+
+                foreach ($foreignKeyFields as $field => $table) {
+                    if (isset($data[$field]) && !empty($data[$field])) {
+                        $value = $data[$field];
+
+                        // التحقق من وجود القيمة في الجدول المرجعي
+                        $exists = DB::table($table)->where('id', $value)->exists();
+
+                        if (!$exists) {
+                            // القيمة غير موجودة، نستبدلها بـ 0 (غير معروف)
+                            Log::info("Excel Import: Converting non-existent value to 0 (Unknown)", [
+                                'field' => $field,
+                                'table' => $table,
+                                'original_value' => $value,
+                                'new_value' => 0
+                            ]);
+                            $data[$field] = 0;
+                        }
+                    }
+                }
+
+                // *** تحويل تنسيق التاريخ ***
+                // التحقق من data_birth_date وتحويله إلى YYYY-MM-DD إذا لزم الأمر
+                if (isset($data['data_birth_date']) && !empty($data['data_birth_date'])) {
+                    $birthDate = $data['data_birth_date'];
+
+                    // DD-MM-YYYY format
+                    if (preg_match('/^\d{2}-\d{2}-\d{4}$/', $birthDate)) {
+                        try {
+                            $dateObj = \DateTime::createFromFormat('d-m-Y', $birthDate);
+                            if ($dateObj) {
+                                $data['data_birth_date'] = $dateObj->format('Y-m-d');
+                            }
+                        } catch (\Exception $e) {
+                            // إذا فشل التحويل، نترك القيمة كما هي
+                        }
+                    }
+                    // DD/MM/YYYY format
+                    elseif (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $birthDate)) {
+                        try {
+                            $dateObj = \DateTime::createFromFormat('d/m/Y', $birthDate);
+                            if ($dateObj) {
+                                $data['data_birth_date'] = $dateObj->format('Y-m-d');
+                            }
+                        } catch (\Exception $e) {
+                            // إذا فشل التحويل، نترك القيمة كما هي
+                        }
+                    }
+                }
+
                 // حفظ file_id_number الأصلي كمرجع إذا كان موجوداً
                 $originalFileId = $data['file_id_number'] ?? null;
 
@@ -667,42 +743,64 @@ class ExcelImportService
         $data['created_at'] = now();
         $data['updated_at'] = now();
 
-        // إضافة user_id حسب نوع الموديل
-        if (auth()->check()) {
-            switch ($modelKey) {
-                case 'data':
-                    // جدول data يستخدم data_user_insert_data
-                    $data['data_user_insert_data'] = auth()->id();
+        // إضافة بيانات المستخدم (الاسم بدلاً من ID)
+        $userName = auth()->check() ? auth()->user()->name : null;
+        $userId = auth()->check() ? auth()->id() : null;
 
-                    // === ضمانة إجبارية لتعيين حالة "مقبول" ===
-                    // هذا التعيين إجباري لجميع السجلات المستوردة من Excel
-                    $acceptedStatusId = $this->getAcceptedStatusId();
-                    $data['data_request_status'] = $acceptedStatusId;
+        // التحقق من وجود المستخدم
+        if (!$userName) {
+            Log::warning('⚠️ تحذير: لا يوجد مستخدم مسجل دخول عند إدخال البيانات!', [
+                'model' => $modelKey,
+                'auth_check' => auth()->check(),
+                'auth_user' => auth()->user() ? auth()->user()->name : null,
+                'session_id' => session()->getId()
+            ]);
+        }
 
-                    // إضافة علامة للتعرف على السجلات المستوردة من Excel
-                    if (!isset($data['original_file_id_from_excel'])) {
-                        $data['original_file_id_from_excel'] = $data['file_id_number'] ?? 'excel_import_' . time();
-                    }
+        switch ($modelKey) {
+            case 'data':
+                // جدول data يستخدم data_user_insert_data - إجباري!
+                if (!$userName) {
+                    throw new \Exception('❌ خطأ: يجب تسجيل الدخول لرفع البيانات. data_user_insert_data مطلوب!');
+                }
 
-                    Log::info('Excel import: Force-assigned accepted status', [
-                        'file_id' => $data['file_id_number'] ?? 'unknown',
-                        'assigned_status_id' => $acceptedStatusId,
-                        'method' => 'force_assignment',
-                        'environment' => app()->environment(),
-                        'excel_marker' => $data['original_file_id_from_excel']
-                    ]);
-                    break;
+                // ✅ حفظ اسم المستخدم بدلاً من ID
+                $data['data_user_insert_data'] = $userName;
 
-                case 'dead_people':
-                    // جدول dead_people لا يحتوي على حقل المستخدم حالياً
-                    // يمكن إضافة حقل user_id إذا لزم الأمر
-                    break;
+                // === ضمانة إجبارية لتعيين حالة "مقبول" ===
+                // هذا التعيين إجباري لجميع السجلات المستوردة من Excel
+                $acceptedStatusId = $this->getAcceptedStatusId();
+                $data['data_request_status'] = $acceptedStatusId;
 
-                case 're_people':
-                    // جدول re_people لا يحتوي على حقل المستخدم حالياً
-                    // يمكن إضافة حقل user_id إذا لزم الأمر
-                    break;
-            }
+                // إضافة علامة للتعرف على السجلات المستوردة من Excel
+                if (!isset($data['original_file_id_from_excel'])) {
+                    $data['original_file_id_from_excel'] = $data['file_id_number'] ?? 'excel_import_' . time();
+                }
+
+                Log::info('✅ Excel import: تم تعيين المستخدم والحالة', [
+                    'file_id' => $data['file_id_number'] ?? 'unknown',
+                    'user_name' => $userName,
+                    'user_id' => $userId,
+                    'assigned_status_id' => $acceptedStatusId,
+                    'method' => 'force_assignment',
+                    'environment' => app()->environment(),
+                    'excel_marker' => $data['original_file_id_from_excel']
+                ]);
+                break;
+
+            case 'dead_people':
+                // جدول dead_people - إضافة user_id إذا كان موجوداً
+                if ($userId) {
+                    $data['user_id'] = $userId;
+                }
+                break;
+
+            case 're_people':
+                // جدول re_people - إضافة user_id إذا كان موجوداً
+                if ($userId) {
+                    $data['user_id'] = $userId;
+                }
+                break;
         }
 
         return $data;
@@ -1261,81 +1359,22 @@ class ExcelImportService
      */
     private function getAcceptedStatusId(): int
     {
-        try {
-            // المحاولة الأولى: البحث المباشر
-            $acceptedStatusId = DB::table('request_status')
-                ->where('description', 'مقبول')
-                ->value('id');
+        // القيمة الافتراضية لحالة الطلب هي 2 دائمًا
+        return 2;
+    }
 
-            if ($acceptedStatusId) {
-                Log::info('Excel import: Found accepted status', [
-                    'status_id' => $acceptedStatusId,
-                    'method' => 'direct_search'
-                ]);
-                return (int) $acceptedStatusId;
-            }
+    /**
+     * معالجة صف واحد من البيانات (للاستخدام بعد التحقق)
+     * تطبيق جميع المعالجات: تحويل القيم المفقودة، تنظيف البيانات، إضافة الحقول النظامية
+     */
+    public function processRowData(array $rowData, string $modelKey): array
+    {
+        // تطبيق المعالجة الخاصة بالموديل
+        $rowData = $this->applyModelSpecificProcessing($rowData, $modelKey, []);
 
-            // المحاولة الثانية: البحث مع تجاهل الحالة
-            $acceptedStatusId = DB::table('request_status')
-                ->whereRaw('LOWER(description) = ?', ['مقبول'])
-                ->value('id');
+        // إضافة الحقول النظامية
+        $rowData = $this->addSystemFields($rowData, $modelKey, []);
 
-            if ($acceptedStatusId) {
-                Log::info('Excel import: Found accepted status with case insensitive search', [
-                    'status_id' => $acceptedStatusId,
-                    'method' => 'case_insensitive_search'
-                ]);
-                return (int) $acceptedStatusId;
-            }
-
-            // المحاولة الثالثة: البحث في جميع السجلات للعثور على أقرب تطابق
-            $allStatuses = DB::table('request_status')->get();
-            foreach ($allStatuses as $status) {
-                if (strpos($status->description, 'مقبول') !== false ||
-                    strpos($status->description, 'موافق') !== false ||
-                    strpos($status->description, 'accepted') !== false) {
-
-                    Log::warning('Excel import: Found similar status to accepted', [
-                        'status_id' => $status->id,
-                        'description' => $status->description,
-                        'method' => 'partial_match'
-                    ]);
-                    return (int) $status->id;
-                }
-            }
-
-            // المحاولة الأخيرة: استخدام أعلى ID (غالباً ما يكون الأحدث)
-            $fallbackStatusId = DB::table('request_status')
-                ->orderBy('id', 'desc')
-                ->value('id');
-
-            if ($fallbackStatusId) {
-                Log::warning('Excel import: Using fallback status (highest ID)', [
-                    'status_id' => $fallbackStatusId,
-                    'method' => 'fallback_highest_id'
-                ]);
-                return (int) $fallbackStatusId;
-            }
-
-            // إذا فشل كل شيء، استخدم القيم الافتراضية حسب البيئة
-            $defaultStatusId = app()->environment('production') ? 4 : 2;
-
-            Log::error('Excel import: No status found, using environment default', [
-                'default_status_id' => $defaultStatusId,
-                'environment' => app()->environment(),
-                'method' => 'environment_default'
-            ]);
-
-            return $defaultStatusId;
-
-        } catch (\Exception $e) {
-            Log::error('Excel import: Error finding accepted status', [
-                'error' => $e->getMessage(),
-                'fallback_status' => 2
-            ]);
-
-            // في حالة الخطأ، استخدم 2 كافتراضي
-            return 2;
-        }
+        return $rowData;
     }
 }

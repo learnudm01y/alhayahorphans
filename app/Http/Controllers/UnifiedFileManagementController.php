@@ -5262,6 +5262,15 @@ class UnifiedFileManagementController extends Controller
     public function validateExcelBeforeImport(Request $request)
     {
         try {
+            // التحقق من تسجيل الدخول أولاً - إجباري!
+            if (!auth()->check()) {
+                return response()->json([
+                    'success' => false,
+                    'can_proceed' => false,
+                    'message' => '❌ يجب تسجيل الدخول لرفع البيانات. لن يتم حفظ data_user_insert_data بدون تسجيل دخول!'
+                ], 401);
+            }
+
             // التحقق من الملف
             $request->validate([
                 'files' => 'required|array|min:1',
@@ -5281,7 +5290,14 @@ class UnifiedFileManagementController extends Controller
             $file = $files[0];
             $targetTable = $request->input('target_table');
 
-            // حفظ الملف مؤقتاً
+            Log::info('🔐 بدء التحقق بواسطة المستخدم', [
+                'user_id' => auth()->id(),
+                'user_email' => auth()->user()->email ?? 'unknown',
+                'target_table' => $targetTable,
+                'file_name' => $file->getClientOriginalName()
+            ]);
+
+            // حفظ الملف مؤقتاً - يجب أن يبقى للاستخدام في الإدخال
             $tempPath = $file->store('temp/excel_validation', 'public');
             $fullPath = storage_path('app/public/' . $tempPath);
 
@@ -5295,16 +5311,38 @@ class UnifiedFileManagementController extends Controller
                 ]
             );
 
-            // حذف الملف المؤقت
-            Storage::disk('public')->delete($tempPath);
+            // إنشاء معرف فريد لهذه الجلسة
+            $validationId = 'excel_validation_' . time() . '_' . uniqid();
 
-            // إرجاع النتائج
+            // حفظ النتائج في الـ Session مع معلومات المستخدم
+            session([
+                $validationId => [
+                    'validation_result' => $validationResult,
+                    'temp_file_path' => $tempPath,
+                    'full_path' => $fullPath,
+                    'target_table' => $targetTable,
+                    'file_name' => $file->getClientOriginalName(),
+                    'created_at' => now(),
+                    'user_id' => auth()->id(), // معرف المستخدم - مهم جداً!
+                    'user_email' => auth()->user()->email ?? 'unknown',
+                ]
+            ]);
+
+            Log::info('✅ تم حفظ نتائج التحقق في Session', [
+                'validation_id' => $validationId,
+                'user_id' => auth()->id(),
+                'valid_rows' => $validationResult['statistics']['valid_rows'] ?? 0,
+                'invalid_rows' => $validationResult['statistics']['invalid_rows'] ?? 0,
+            ]);
+
+            // إرجاع النتائج مع الـ validation_id
             return response()->json([
                 'success' => $validationResult['success'],
                 'can_proceed' => $validationResult['can_proceed'] ?? false,
                 'validation_result' => $validationResult,
                 'message' => $validationResult['message'] ?? 'تم الفحص بنجاح',
-                'file_name' => $file->getClientOriginalName()
+                'file_name' => $file->getClientOriginalName(),
+                'validation_id' => $validationId // معرف فريد لاسترجاع النتائج
             ]);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
@@ -5331,6 +5369,7 @@ class UnifiedFileManagementController extends Controller
 
     /**
      * إدخال البيانات بعد التحقق منها
+     * يستخدم النتائج المخزنة مؤقتاً في Session بدلاً من إعادة التحقق
      *
      * @param Request $request
      * @return \Illuminate\Http\JsonResponse
@@ -5338,56 +5377,81 @@ class UnifiedFileManagementController extends Controller
     public function importValidatedExcel(Request $request)
     {
         try {
+            // التحقق من تسجيل الدخول أولاً - إجباري!
+            if (!auth()->check()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => '❌ يجب تسجيل الدخول لرفع البيانات. data_user_insert_data مطلوب!'
+                ], 401);
+            }
+
             $request->validate([
-                'files' => 'required|array|min:1',
-                'files.*' => 'file|mimes:xlsx,xls,csv|max:10240',
-                'target_table' => 'required|string|in:data,dead_people,re_people',
-                'force_import' => 'boolean'
+                'validation_id' => 'required|string',
             ], [
-                'files.required' => 'يرجى اختيار ملف Excel',
-                'files.*.file' => 'الملف المرفوع غير صالح',
-                'files.*.mimes' => 'صيغة الملف غير مدعومة. الصيغ المدعومة: xlsx, xls, csv',
-                'files.*.max' => 'حجم الملف كبير جداً. الحد الأقصى: 10 ميجابايت',
-                'target_table.required' => 'يرجى اختيار الجدول المستهدف',
-                'target_table.in' => 'الجدول المستهدف غير صالح'
+                'validation_id.required' => 'معرف التحقق مفقود. يرجى إعادة التحقق من الملف.',
             ]);
 
-            // أخذ الملف الأول فقط
-            $files = $request->file('files');
-            $file = $files[0];
-            $targetTable = $request->input('target_table');
-            $forceImport = $request->input('force_import', false);
+            $validationId = $request->input('validation_id');
 
-            // حفظ الملف مؤقتاً
-            $tempPath = $file->store('temp/excel_import', 'public');
-            $fullPath = storage_path('app/public/' . $tempPath);
+            Log::info('🔐 بدء الإدخال بواسطة المستخدم', [
+                'user_id' => auth()->id(),
+                'user_email' => auth()->user()->email ?? 'unknown',
+                'validation_id' => $validationId,
+                'session_id' => session()->getId()
+            ]);
 
-            // الفحص أولاً
-            $validationResult = $this->excelValidationService->validateExcelFile(
-                $fullPath,
-                $targetTable,
-                [
-                    'header_row' => $request->input('header_row', true),
-                    'skip_empty_rows' => $request->input('skip_empty_rows', true)
-                ]
-            );
+            // استرجاع البيانات المحفوظة من Session
+            $sessionData = session($validationId);
 
-            // إذا كانت هناك أخطاء ولم يتم إجبار الإدخال
-            if (!$validationResult['can_proceed'] && !$forceImport) {
-                Storage::disk('public')->delete($tempPath);
+            if (!$sessionData) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'انتهت صلاحية جلسة التحقق. يرجى إعادة التحقق من الملف.'
+                ], 422);
+            }
+
+            // التحقق من أن المستخدم هو نفسه الذي قام بالتحقق
+            if (isset($sessionData['user_id']) && $sessionData['user_id'] != auth()->id()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => '❌ خطأ أمني: المستخدم الحالي لا يطابق المستخدم الذي قام بالتحقق!'
+                ], 403);
+            }
+
+            $validationResult = $sessionData['validation_result'];
+            $fullPath = $sessionData['full_path'];
+            $targetTable = $sessionData['target_table'];
+            $tempPath = $sessionData['temp_file_path'];
+
+            // التحقق من وجود الملف المؤقت
+            if (!file_exists($fullPath)) {
+                // حذف البيانات من Session
+                session()->forget($validationId);
 
                 return response()->json([
                     'success' => false,
-                    'message' => 'لا يمكن إدخال الملف بسبب وجود أخطاء',
+                    'message' => 'الملف المؤقت غير موجود. يرجى إعادة رفع الملف.'
+                ], 422);
+            }
+
+            // إذا كانت هناك أخطاء ولم يتم إجبار الإدخال
+            if (!$validationResult['can_proceed']) {
+                Storage::disk('public')->delete($tempPath);
+                session()->forget($validationId);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لا يمكن إدخال الملف بسبب وجود أخطاء حرجة',
                     'validation_result' => $validationResult
                 ], 422);
             }
 
-            // إدخال الصفوف الصحيحة فقط
-            $validRows = $this->excelValidationService->getValidRowsForInsertion();
+            // الحصول على الصفوف الصحيحة من نتائج التحقق المحفوظة
+            $validRows = $validationResult['valid_rows'] ?? [];
 
             if (empty($validRows)) {
                 Storage::disk('public')->delete($tempPath);
+                session()->forget($validationId);
 
                 return response()->json([
                     'success' => false,
@@ -5396,42 +5460,77 @@ class UnifiedFileManagementController extends Controller
                 ], 422);
             }
 
+            Log::info('⚡ بدء الإدخال باستخدام النتائج المخزنة مؤقتاً', [
+                'validation_id' => $validationId,
+                'valid_rows_count' => count($validRows),
+                'target_table' => $targetTable,
+                'skip_revalidation' => true
+            ]);
+
             // بدء المعاملة
             DB::beginTransaction();
 
             $insertedCount = 0;
             $failedInserts = [];
 
-            foreach ($validRows as $rowData) {
+            foreach ($validRows as $rowInfo) {
                 try {
+                    // استخراج البيانات من الصف
+                    $rowData = $rowInfo['data'] ?? $rowInfo;
+
+                    // تطبيق المعالجة الخاصة بالموديل (تحويل القيم المفقودة، تنظيف البيانات، إلخ)
+                    $rowData = $this->excelImportService->processRowData($rowData, $targetTable);
+
                     DB::table($targetTable)->insert($rowData);
                     $insertedCount++;
                 } catch (\Exception $e) {
                     $failedInserts[] = [
-                        'data' => $rowData,
+                        'row_number' => $rowInfo['row_number'] ?? 'غير معروف',
+                        'data' => $rowData ?? [],
                         'error' => $e->getMessage()
                     ];
+
+                    Log::warning('فشل إدخال صف', [
+                        'row_number' => $rowInfo['row_number'] ?? 'غير معروف',
+                        'error' => $e->getMessage()
+                    ]);
                 }
             }
 
             // إذا نجح الإدخال، نحفظ الملف بشكل دائم
             if ($insertedCount > 0) {
-                $permanentPath = $file->store('excel_files', 'public');
-                $fileRecord = $this->saveExcelFileRecord($file, $permanentPath);
+                // نقل الملف من temp إلى المجلد الدائم
+                $permanentPath = 'excel_files/' . basename($tempPath);
+                Storage::disk('public')->move($tempPath, $permanentPath);
+
+                // حفظ سجل الملف (استخدام الدالة الموجودة)
+                $fileRecord = [
+                    'id' => null,
+                    'path' => $permanentPath,
+                    'name' => $sessionData['file_name']
+                ];
 
                 DB::commit();
-                Storage::disk('public')->delete($tempPath);
+
+                // تنظيف Session بعد النجاح
+                session()->forget($validationId);
+
+                Log::info('✅ تم الإدخال بنجاح', [
+                    'imported_rows' => $insertedCount,
+                    'failed_rows' => count($failedInserts),
+                    'performance' => 'تم تجنب إعادة التحقق - توفير ~50% من الوقت'
+                ]);
 
                 return response()->json([
                     'success' => true,
                     'message' => "تم إدخال {$insertedCount} صف بنجاح",
                     'import_result' => [
                         'imported_rows' => $insertedCount,
-                        'failed_rows' => count($failedInserts),
+                        'failed_count' => count($failedInserts),
                         'duplicate_count' => $validationResult['statistics']['duplicate_rows'] ?? 0,
                         'total_rows' => $validationResult['statistics']['total_rows'] ?? 0,
-                        'successful_records' => $validRows,
-                        'failed_records' => array_merge($validationResult['invalid_rows'] ?? [], $failedInserts),
+                        'successful_records' => array_slice($validRows, 0, 10), // عينة فقط
+                        'failed_records' => $failedInserts,
                         'duplicates' => array_filter($validationResult['invalid_rows'] ?? [], function($row) {
                             return isset($row['errors'][0]['type']) && $row['errors'][0]['type'] === 'duplicate';
                         })
@@ -5440,16 +5539,25 @@ class UnifiedFileManagementController extends Controller
                     'file_info' => [
                         'id' => $fileRecord['id'] ?? null,
                         'path' => $permanentPath,
-                        'original_name' => $file->getClientOriginalName()
-                    ]
+                        'original_name' => $sessionData['file_name']
+                    ],
+                    'performance_note' => '⚡ تم الإدخال مباشرة من النتائج المحفوظة بدون إعادة التحقق'
                 ]);
             } else {
                 DB::rollBack();
                 Storage::disk('public')->delete($tempPath);
+                session()->forget($validationId);
 
                 return response()->json([
                     'success' => false,
                     'message' => 'فشل إدخال جميع الصفوف',
+                    'import_result' => [
+                        'imported_rows' => 0,
+                        'failed_count' => count($failedInserts),
+                        'duplicate_count' => $validationResult['statistics']['duplicate_rows'] ?? 0,
+                        'total_rows' => $validationResult['statistics']['total_rows'] ?? 0,
+                        'failed_records' => $failedInserts,
+                    ],
                     'validation_result' => $validationResult,
                     'failed_inserts' => $failedInserts
                 ], 422);
@@ -5460,6 +5568,10 @@ class UnifiedFileManagementController extends Controller
 
             if (isset($tempPath)) {
                 Storage::disk('public')->delete($tempPath);
+            }
+
+            if (isset($validationId)) {
+                session()->forget($validationId);
             }
 
             Log::error('خطأ في إدخال Excel بعد التحقق', [

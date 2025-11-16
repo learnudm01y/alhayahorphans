@@ -133,6 +133,7 @@
             <div class="admin-cards-row-responsive slider-row" id="admin-cards-row">
             @forelse($admins as $admin)
                 @php
+                    // ✅ استخدام اسم المستخدم لأن data_user_insert_data يحتوي على الاسم الآن
                     $userName = $admin->name;
                     $countToday = \App\Models\Data::where('data_user_insert_data', $userName)
                         ->whereDate('created_at', $today)->count();

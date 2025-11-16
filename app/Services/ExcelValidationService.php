@@ -32,7 +32,7 @@ class ExcelValidationService
                 throw new \Exception('الملف غير موجود: ' . $filePath);
             }
 
-            \Log::info('📂 بدء قراءة ملف Excel', ['path' => $filePath, 'table' => $targetTable]);
+            Log::info('📂 بدء قراءة ملف Excel', ['path' => $filePath, 'table' => $targetTable]);
 
             // 2. قراءة الملف
             $spreadsheet = IOFactory::load($filePath);
@@ -150,7 +150,6 @@ class ExcelValidationService
                 'رقم الهاتف' => 'data_phone_number',
                 'العنوان' => 'data_current_address',
                 'المحافظة' => 'data_province',
-                'المديرية' => 'data_district',
                 'الحالة الاجتماعية' => 'data_marital_status',
                 'الحالة الصحية' => 'data_health_status',
                 'المؤهل العلمي' => 'data_academic_qualification',
@@ -179,11 +178,9 @@ class ExcelValidationService
                 'data_current_adress' => 'data_current_address',
                 'data_city' => 'data_city',
                 'data_province' => 'data_province',
-                'data_district' => 'data_district',
                 'data_health_status' => 'data_health_status',
                 'data_description_needs' => 'data_description_needs',
                 'data_number_mail' => 'data_number_mail',
-                'data_number_male' => 'data_number_male',
                 'data_number_female' => 'data_number_female',
                 'data_number_of_individuals_with_chronic_diseases' => 'data_number_of_individuals_with_chronic_diseases',
                 'data_number_of_people_with_special_needs' => 'data_number_of_people_with_special_needs',
@@ -468,13 +465,13 @@ class ExcelValidationService
         $foreignKeyRelations = [
             'data' => [
                 'data_section_id' => ['table' => 'general_category', 'column' => 'id', 'name' => 'القسم', 'default' => 0],
-                'data_relationship' => ['table' => 'category_of_relation', 'column' => 'id', 'name' => 'العلاقة', 'default' => 0],
+                'data_relationship' => ['table' => 'category_of_relations', 'column' => 'id', 'name' => 'العلاقة', 'default' => 0],
                 'data_marital_status' => ['table' => 'marital_status', 'column' => 'id', 'name' => 'الحالة الاجتماعية', 'default' => 0],
-                'data_academic_qualification' => ['table' => 'academic_degree', 'column' => 'id', 'name' => 'المؤهل العلمي', 'default' => 0],
+                'data_academic_qualification' => ['table' => 'academic_degrees', 'column' => 'id', 'name' => 'المؤهل العلمي', 'default' => 0],
                 'data_displacement_status' => ['table' => 'general_category', 'column' => 'id', 'name' => 'حالة النزوح', 'default' => 0],
                 'data_city' => ['table' => 'city', 'column' => 'id', 'name' => 'المدينة', 'default' => 0],
-                'data_province' => ['table' => 'province', 'column' => 'id', 'name' => 'المحافظة', 'default' => 0],
-                'data_health_status' => ['table' => 'health_status', 'column' => 'id', 'name' => 'الحالة الصحية', 'default' => 0],
+                'data_province' => ['table' => 'provinces', 'column' => 'id', 'name' => 'المحافظة', 'default' => 0],
+                'data_health_status' => ['table' => 'health_statuses', 'column' => 'id', 'name' => 'الحالة الصحية', 'default' => 0],
                 'data_employment_status_breadwinner' => ['table' => 'employment', 'column' => 'id', 'name' => 'حالة العمل', 'default' => 0],
                 'data_housing_status' => ['table' => 'housing_status', 'column' => 'id', 'name' => 'حالة السكن', 'default' => 0],
                 'data_current_housing_type' => ['table' => 'type_of_accommodation', 'column' => 'id', 'name' => 'نوع السكن', 'default' => 0],

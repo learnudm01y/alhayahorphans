@@ -328,10 +328,14 @@
                 width: 100%;
                 height: 100%;
                 background-color: rgba(0, 0, 0, 0.7);
-                align-items: center;
-                justify-content: center;
                 overflow: hidden;
                 /* منع scroll الخلفية */
+            }
+
+            .modal.show {
+                display: flex !important;
+                align-items: center;
+                justify-content: center;
             }
 
             /* منع التفاعل مع العناصر خلف المودال */
@@ -339,6 +343,7 @@
                 overflow: hidden !important;
                 position: fixed;
                 width: 100%;
+                height: 100%;
             }
 
             .validation-modal-content {
@@ -411,14 +416,43 @@
 
             /* Custom Scrollbar */
             #warningsList::-webkit-scrollbar,
-            #invalidRowsList::-webkit-scrollbar {
-                width: 6px;
+            #invalidRowsList::-webkit-scrollbar,
+            #failedRowsList::-webkit-scrollbar,
+            #validationInvalidList::-webkit-scrollbar {
+                width: 8px;
+                height: 8px;
             }
 
             #warningsList::-webkit-scrollbar-thumb,
-            #invalidRowsList::-webkit-scrollbar-thumb {
+            #invalidRowsList::-webkit-scrollbar-thumb,
+            #failedRowsList::-webkit-scrollbar-thumb,
+            #validationInvalidList::-webkit-scrollbar-thumb {
                 background: #bbb;
-                border-radius: 3px;
+                border-radius: 4px;
+            }
+
+            #warningsList::-webkit-scrollbar-thumb:hover,
+            #invalidRowsList::-webkit-scrollbar-thumb:hover,
+            #failedRowsList::-webkit-scrollbar-thumb:hover,
+            #validationInvalidList::-webkit-scrollbar-thumb:hover {
+                background: #999;
+            }
+
+            #warningsList::-webkit-scrollbar-track,
+            #invalidRowsList::-webkit-scrollbar-track,
+            #failedRowsList::-webkit-scrollbar-track,
+            #validationInvalidList::-webkit-scrollbar-track {
+                background: #f1f1f1;
+                border-radius: 4px;
+            }
+
+            /* ضمان عمل السكرول في منطقة الأخطاء */
+            #failedRowsList,
+            #validationInvalidList {
+                overflow-y: auto !important;
+                overflow-x: hidden;
+                scroll-behavior: smooth;
+                -webkit-overflow-scrolling: touch;
             }
 
             max-height: 300px;
@@ -874,6 +908,91 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Import Results Modal - نافذة نتائج الإدخال -->
+                <div id="importResultsModal" class="modal" onclick="event.target === this && closeImportResultsModal()">
+                    <div class="modal-content validation-modal-content" onclick="event.stopPropagation()"
+                        style="max-width: 900px; height: 90vh; max-height: 600px;">
+                        <!-- Header -->
+                        <div style="padding: 12px 20px; background: #f5f5f5; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 15px; font-weight: 600;" id="import-modal-title">📊 نتائج الإدخال</span>
+                            <button onclick="closeImportResultsModal()"
+                                style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999;">&times;</button>
+                        </div>
+
+                        <!-- Body - Layout جانبي -->
+                        <div style="display: flex; height: calc(100% - 110px); overflow: hidden;">
+                            <!-- Main Content - 60% -->
+                            <div style="flex: 0 0 60%; padding: 15px; overflow: hidden; border-left: 1px solid #ddd; display: flex; flex-direction: column;">
+                                <!-- Statistics -->
+                                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 15px; flex-shrink: 0;">
+                                    <div style="background: #e3f2fd; padding: 8px; border-radius: 4px; text-align: center;">
+                                        <div style="font-size: 11px; color: #666;">إجمالي</div>
+                                        <div style="font-size: 18px; font-weight: 600;" id="imp-total-rows">0</div>
+                                    </div>
+                                    <div style="background: #e8f5e9; padding: 8px; border-radius: 4px; text-align: center;">
+                                        <div style="font-size: 11px; color: #666;">تم إدخالها</div>
+                                        <div style="font-size: 18px; font-weight: 600; color: #4caf50;" id="imp-success-rows">0</div>
+                                    </div>
+                                    <div style="background: #ffebee; padding: 8px; border-radius: 4px; text-align: center;">
+                                        <div style="font-size: 11px; color: #666;">فشلت</div>
+                                        <div style="font-size: 18px; font-weight: 600; color: #f44336;" id="imp-failed-rows">0</div>
+                                    </div>
+                                    <div style="background: #fff3e0; padding: 8px; border-radius: 4px; text-align: center;">
+                                        <div style="font-size: 11px; color: #666;">مكررة</div>
+                                        <div style="font-size: 18px; font-weight: 600; color: #ff9800;" id="imp-duplicate-rows">0</div>
+                                    </div>
+                                </div>
+
+                                <!-- Message -->
+                                <div id="importResultMessage" style="padding: 10px; border-radius: 4px; font-size: 13px; margin-bottom: 15px; flex-shrink: 0;"></div>
+
+                                <!-- Failed Rows with Details -->
+                                <div id="failedRowsContainer" style="display: none; flex: 1; min-height: 0; display: flex; flex-direction: column;">
+                                    <h5 style="font-size: 13px; margin: 0 0 8px 0; color: #f44336; flex-shrink: 0;">❌ الصفوف الفاشلة:</h5>
+                                    <div id="failedRowsList" style="flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; font-size: 12px; margin-bottom: 8px;"></div>
+
+                                    <!-- Pagination Controls -->
+                                    <div id="failedPagination"
+                                        style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px solid #ddd; font-size: 11px; flex-shrink: 0;">
+                                        <button onclick="prevFailedPage()" id="prevFailedBtn"
+                                            style="padding: 4px 10px; border: 1px solid #ddd; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">السابق</button>
+                                        <span id="failedPaginationInfo" style="color: #666;">صفحة 1 من 1</span>
+                                        <button onclick="nextFailedPage()" id="nextFailedBtn"
+                                            style="padding: 4px 10px; border: 1px solid #ddd; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">التالي</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Invalid Rows from Validation Sidebar - 40% -->
+                            <div id="validationErrorsSidebar"
+                                style="flex: 0 0 40%; padding: 15px; overflow: hidden; display: flex; flex-direction: column; background: #fafafa; min-height: 0;">
+                                <h5 style="font-size: 13px; margin: 0 0 10px 0; color: #ff5722; flex-shrink: 0;">⚠️ الأخطاء من التحقق</h5>
+
+                                <!-- Invalid Rows List with Pagination -->
+                                <div id="validationInvalidList" style="flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; margin-bottom: 10px; font-size: 11px;"></div>
+
+                                <!-- Pagination Controls -->
+                                <div id="validationInvalidPagination"
+                                    style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px solid #ddd; font-size: 11px; flex-shrink: 0;">
+                                    <button onclick="prevValidationInvalidPage()"
+                                        style="padding: 4px 10px; border: 1px solid #ddd; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">السابق</button>
+                                    <span id="validationInvalidInfo" style="color: #666;">صفحة 1 من 1</span>
+                                    <button onclick="nextValidationInvalidPage()"
+                                        style="padding: 4px 10px; border: 1px solid #ddd; background: white; border-radius: 3px; cursor: pointer; font-size: 11px;">التالي</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Footer -->
+                        <div style="padding: 12px 20px; background: #f5f5f5; border-top: 1px solid #ddd; display: flex; justify-content: flex-end; gap: 10px; flex-shrink: 0;">
+                            <button onclick="closeImportResultsModal()"
+                                style="padding: 6px 16px; background: #2196f3; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">
+                                حسناً، فهمت
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -885,6 +1004,7 @@
         // Global variables
         let importResults = null;
         let validationResults = null;
+        let validationId = null; // معرف فريد لاسترجاع نتائج التحقق من Session
         let pendingFormData = null;
 
         // Pagination للتحذيرات
@@ -896,6 +1016,14 @@
         let allErrors = [];
         let currentErrorsPage = 1;
         const errorsPerPage = 10; // عدد الأخطاء لكل صفحة
+
+        // Import Results Modal Variables
+        let allFailedRows = [];
+        let currentFailedPage = 1;
+        const failedPerPage = 10;
+        let allValidationInvalid = [];
+        let currentValidationInvalidPage = 1;
+        const validationInvalidPerPage = 10;
 
         // Validation Modal Functions
         function showValidationModal() {
@@ -920,6 +1048,348 @@
             currentWarningsPage = 1;
             allErrors = [];
             currentErrorsPage = 1;
+        }
+
+        // Import Results Modal Functions
+        function showImportResultsModal() {
+            const modal = document.getElementById('importResultsModal');
+            modal.classList.add('show');
+            modal.style.display = 'flex';
+            document.body.classList.add('modal-open');
+            document.body.style.overflow = 'hidden';
+            document.body.style.position = 'fixed';
+            document.body.style.width = '100%';
+        }
+
+        function closeImportResultsModal() {
+            const modal = document.getElementById('importResultsModal');
+            modal.classList.remove('show');
+            modal.style.display = 'none';
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.position = '';
+            document.body.style.width = '';
+
+            allFailedRows = [];
+            currentFailedPage = 1;
+            allValidationInvalid = [];
+            currentValidationInvalidPage = 1;
+        }
+
+        // Display Import Results in Modal
+        function displayImportResults(data) {
+            // Extract data
+            const importResult = data.import_result || {};
+            const validationResult = data.validation_result || {};
+            const statistics = validationResult.statistics || {};
+
+            // الحصول على الأعداد الصحيحة
+            const totalRows = statistics.total_rows || 0; // الإجمالي من الملف
+            const importedRows = importResult.imported_rows || 0; // المدخلة بنجاح
+            const failedImportRows = (importResult.failed_records || []).length; // فشلت أثناء الإدخال
+            const invalidRows = (validationResult.invalid_rows || []).length; // فشلت في التحقق
+            const duplicateRows = (validationResult.invalid_rows || []).filter(row =>
+                row.errors && row.errors.some(e => e.type === 'duplicate')
+            ).length; // المكررة
+
+            // إجمالي الفاشل = فشل التحقق + فشل الإدخال
+            const totalFailedRows = invalidRows + failedImportRows;
+
+            // Update statistics
+            document.getElementById('imp-total-rows').textContent = totalRows;
+            document.getElementById('imp-success-rows').textContent = importedRows;
+            document.getElementById('imp-failed-rows').textContent = totalFailedRows;
+            document.getElementById('imp-duplicate-rows').textContent = duplicateRows;
+
+            // Update title and message
+            const messageDiv = document.getElementById('importResultMessage');
+            const titleSpan = document.getElementById('import-modal-title');
+
+            if (totalFailedRows === 0 && importedRows > 0) {
+                titleSpan.textContent = '✅ نجحت العملية';
+                messageDiv.style.cssText = 'background: #e8f5e9; color: #2e7d32; border-right: 3px solid #4caf50;';
+                messageDiv.textContent = `✅ تم إدخال ${importedRows} صف بنجاح من ${totalRows} صف بدون أي أخطاء!`;
+            } else if (importedRows === 0 && totalFailedRows > 0) {
+                titleSpan.textContent = '❌ فشلت العملية';
+                messageDiv.style.cssText = 'background: #ffebee; color: #c62828; border-right: 3px solid #f44336;';
+                messageDiv.textContent = `❌ فشل إدخال جميع الصفوف! (${totalFailedRows} صف فاشل من ${totalRows})`;
+            } else {
+                titleSpan.textContent = '⚠️ نجحت جزئياً';
+                messageDiv.style.cssText = 'background: #fff3e0; color: #e65100; border-right: 3px solid #ff9800;';
+                messageDiv.textContent = `⚠️ تم إدخال ${importedRows} صف بنجاح، ${totalFailedRows} صف فشل من إجمالي ${totalRows} صف`;
+            }
+
+            // Display failed rows from import (فشل أثناء الإدخال)
+            const failedContainer = document.getElementById('failedRowsContainer');
+            if (failedImportRows > 0) {
+                allFailedRows = importResult.failed_records || [];
+                currentFailedPage = 1;
+                displayFailedPage();
+                failedContainer.style.display = 'flex';
+            } else {
+                failedContainer.style.display = 'none';
+            }
+
+            // Display invalid rows from validation (فشل في التحقق + المكررة)
+            const validationSidebar = document.getElementById('validationErrorsSidebar');
+            if (invalidRows > 0) {
+                allValidationInvalid = validationResult.invalid_rows || [];
+                currentValidationInvalidPage = 1;
+                displayValidationInvalidPage();
+                validationSidebar.style.display = 'flex';
+            } else {
+                validationSidebar.style.display = 'none';
+                document.getElementById('validationInvalidList').innerHTML =
+                    '<div style="text-align: center; color: #999; padding: 20px;">لا توجد أخطاء من التحقق</div>';
+            }
+
+            showImportResultsModal();
+        }
+
+        // Display Failed Rows Page (عرض الأخطاء من الإدخال بشكل مجمّع)
+        function displayFailedPage() {
+            const failedList = document.getElementById('failedRowsList');
+
+            if (allFailedRows.length === 0) {
+                failedList.innerHTML = '<div style="text-align: center; color: #999;">لا توجد صفوف فاشلة</div>';
+                document.getElementById('failedPagination').style.display = 'none';
+                return;
+            }
+
+            // تجميع الأخطاء المتشابهة
+            const groupedErrors = {};
+
+            allFailedRows.forEach(failed => {
+                // تنظيف رسالة الخطأ
+                let errorMsg = failed.error || 'خطأ غير محدد';
+
+                // استخراج السبب الرئيسي من رسالة SQL
+                let cleanMessage = errorMsg;
+                if (errorMsg.includes('SQLSTATE')) {
+                    // استخراج الرسالة الأساسية
+                    const match = errorMsg.match(/SQLSTATE\[\d+\]:\s*([^(]+)/);
+                    if (match) {
+                        cleanMessage = match[1].trim();
+                    }
+                }
+
+                const groupKey = cleanMessage;
+
+                if (!groupedErrors[groupKey]) {
+                    groupedErrors[groupKey] = {
+                        message: cleanMessage,
+                        fullError: errorMsg,
+                        rows: [],
+                        identities: [],
+                        sqlCode: failed.sql_code || null
+                    };
+                }
+
+                const rowNum = failed.row || null;
+                const identity = failed.identifier || failed.data?.data_id_number || null;
+
+                if (rowNum && !groupedErrors[groupKey].rows.includes(rowNum)) {
+                    groupedErrors[groupKey].rows.push(rowNum);
+                    if (identity) {
+                        groupedErrors[groupKey].identities.push(identity);
+                    }
+                }
+            });
+
+            // عرض الأخطاء المجمّعة
+            let html = '';
+            Object.values(groupedErrors).forEach(group => {
+                const sortedRows = group.rows.sort((a, b) => a - b);
+                let rowsText = '';
+                if (sortedRows.length <= 10) {
+                    rowsText = sortedRows.join(', ');
+                } else {
+                    rowsText = `${sortedRows.slice(0, 10).join(', ')} ... (+${sortedRows.length - 10} صف)`;
+                }
+
+                html += `
+                    <div style="background: #ffebee; padding: 8px; margin-bottom: 6px; border-radius: 4px; border-right: 3px solid #d32f2f;">
+                        <div style="font-weight: 600; font-size: 11px; margin-bottom: 4px; color: #b71c1c;">
+                            🚫 فشل الإدخال: ${group.message}
+                        </div>
+                        <div style="font-size: 10px; color: #666; background: white; padding: 4px 6px; border-radius: 2px; margin-top: 4px;">
+                            📍 الصفوف المتأثرة: <strong>${rowsText}</strong>
+                        </div>
+                        ${group.identities.length > 0 ? `
+                            <div style="font-size: 9px; color: #666; background: white; padding: 4px 6px; border-radius: 2px; margin-top: 3px;">
+                                🆔 أرقام الهوية: <strong>${group.identities.slice(0, 5).join(', ')}${group.identities.length > 5 ? ' ...' : ''}</strong>
+                            </div>
+                        ` : ''}
+                        <div style="font-size: 9px; color: #999; margin-top: 3px;">
+                            إجمالي الصفوف المتأثرة: <strong>${sortedRows.length}</strong>
+                        </div>
+                        ${group.sqlCode ? `
+                            <div style="font-size: 9px; color: #999; margin-top: 3px;">
+                                كود الخطأ: <code style="background: #f5f5f5; padding: 2px 4px; border-radius: 2px;">${group.sqlCode}</code>
+                            </div>
+                        ` : ''}
+                        <details style="margin-top: 4px;">
+                            <summary style="cursor: pointer; font-size: 9px; color: #1976d2;">
+                                📋 عرض تفاصيل الخطأ الكاملة
+                            </summary>
+                            <div style="font-size: 9px; color: #666; margin-top: 4px; padding: 6px; background: white; border-radius: 2px; max-height: 100px; overflow-y: auto;">
+                                ${group.fullError}
+                            </div>
+                        </details>
+                        <div style="font-size: 9px; color: #c62828; margin-top: 4px; padding: 3px 6px; background: rgba(211,47,47,0.1); border-radius: 2px;">
+                            ⚠️ <strong>الحل:</strong> تأكد من صحة البيانات في هذه الصفوف وتوافقها مع قاعدة البيانات
+                        </div>
+                    </div>
+                `;
+            });
+
+            failedList.innerHTML = html;
+
+            // إخفاء pagination لأننا نعرض كل شيء مجمعاً
+            document.getElementById('failedPagination').style.display = 'none';
+        }
+
+        // Display Validation Invalid Page (عرض الأخطاء من التحقق بشكل مجمّع)
+        function displayValidationInvalidPage() {
+            const invalidList = document.getElementById('validationInvalidList');
+
+            if (allValidationInvalid.length === 0) {
+                invalidList.innerHTML = '<div style="text-align: center; color: #999; padding: 20px;">لا توجد أخطاء من التحقق</div>';
+                document.getElementById('validationInvalidPagination').style.display = 'none';
+                return;
+            }
+
+            // تجميع الأخطاء المتشابهة
+            const groupedErrors = {};
+
+            allValidationInvalid.forEach(row => {
+                if (row.errors && row.errors.length > 0) {
+                    row.errors.forEach(error => {
+                        // تحديد نوع الخطأ
+                        const errorType = error.type || 'error';
+                        const isDuplicate = errorType === 'duplicate';
+
+                        // تنظيف رسالة الخطأ
+                        let cleanMessage = error.error || error.message || 'خطأ غير محدد';
+                        cleanMessage = cleanMessage.replace(/^الصف\s+\d+:\s*/i, '');
+                        cleanMessage = cleanMessage.replace(/\s+في الصف\s+\d+\s*$/i, '');
+                        cleanMessage = cleanMessage.trim();
+
+                        if (!cleanMessage) return;
+
+                        // مفتاح فريد للمجموعة
+                        const groupKey = `${errorType}_${cleanMessage}`;
+
+                        if (!groupedErrors[groupKey]) {
+                            groupedErrors[groupKey] = {
+                                message: cleanMessage,
+                                type: errorType,
+                                severity: error.severity || 'normal',
+                                isDuplicate: isDuplicate,
+                                rows: [],
+                                identities: []
+                            };
+                        }
+
+                        // إضافة رقم الصف ورقم الهوية
+                        const rowNum = row.row || row.row_number;
+                        const identity = row.data?.data_id_number || null;
+
+                        if (rowNum && !groupedErrors[groupKey].rows.includes(rowNum)) {
+                            groupedErrors[groupKey].rows.push(rowNum);
+                            if (identity) {
+                                groupedErrors[groupKey].identities.push(identity);
+                            }
+                        }
+                    });
+                }
+            });
+
+            // عرض الأخطاء المجمّعة
+            let html = '';
+            Object.values(groupedErrors).forEach(group => {
+                const isDuplicate = group.isDuplicate;
+                const isCritical = group.severity === 'critical';
+
+                // تحديد الألوان
+                const borderColor = isDuplicate ? '#ff9800' : (isCritical ? '#d32f2f' : '#f44336');
+                const bgColor = isDuplicate ? '#fff3e0' : (isCritical ? '#ffcdd2' : '#ffebee');
+                const textColor = isDuplicate ? '#e65100' : (isCritical ? '#b71c1c' : '#c62828');
+                const icon = isDuplicate ? '🔁' : (isCritical ? '🔴' : '❌');
+
+                // ترتيب الصفوف
+                const sortedRows = group.rows.sort((a, b) => a - b);
+                let rowsText = '';
+                if (sortedRows.length <= 10) {
+                    rowsText = sortedRows.join(', ');
+                } else {
+                    rowsText = `${sortedRows.slice(0, 10).join(', ')} ... (+${sortedRows.length - 10} صف)`;
+                }
+
+                html += `
+                    <div style="background: ${bgColor}; padding: 8px; margin-bottom: 6px; border-radius: 4px; border-right: 3px solid ${borderColor};">
+                        <div style="font-weight: 600; font-size: 11px; margin-bottom: 4px; color: ${textColor};">
+                            ${icon} ${group.message}
+                        </div>
+                        <div style="font-size: 10px; color: #666; background: white; padding: 4px 6px; border-radius: 2px; margin-top: 4px;">
+                            📍 الصفوف المتأثرة: <strong>${rowsText}</strong>
+                        </div>
+                        ${group.identities.length > 0 ? `
+                            <div style="font-size: 9px; color: #666; background: white; padding: 4px 6px; border-radius: 2px; margin-top: 3px;">
+                                🆔 ${isDuplicate ? 'أرقام الهوية المكررة' : 'أرقام الهوية'}: <strong>${group.identities.slice(0, 5).join(', ')}${group.identities.length > 5 ? ' ...' : ''}</strong>
+                            </div>
+                        ` : ''}
+                        <div style="font-size: 9px; color: #999; margin-top: 3px;">
+                            إجمالي الصفوف المتأثرة: <strong>${sortedRows.length}</strong>
+                        </div>
+                        ${isDuplicate ? `
+                            <div style="font-size: 9px; color: #e65100; margin-top: 3px; padding: 3px 6px; background: rgba(255,152,0,0.1); border-radius: 2px;">
+                                💡 <strong>الحل:</strong> هذه السجلات موجودة مسبقاً في قاعدة البيانات ولن يتم إدخالها
+                            </div>
+                        ` : isCritical ? `
+                            <div style="font-size: 9px; color: #c62828; margin-top: 3px; padding: 3px 6px; background: rgba(211,47,47,0.1); border-radius: 2px;">
+                                ⚠️ <strong>الحل:</strong> يجب تصحيح هذه الأخطاء في ملف Excel قبل إعادة المحاولة
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+
+            invalidList.innerHTML = html;
+
+            // إخفاء pagination لأننا نعرض كل شيء مجمعاً
+            document.getElementById('validationInvalidPagination').style.display = 'none';
+        }
+
+        // Pagination Functions
+        function prevFailedPage() {
+            if (currentFailedPage > 1) {
+                currentFailedPage--;
+                displayFailedPage();
+            }
+        }
+
+        function nextFailedPage() {
+            const totalPages = Math.ceil(allFailedRows.length / failedPerPage);
+            if (currentFailedPage < totalPages) {
+                currentFailedPage++;
+                displayFailedPage();
+            }
+        }
+
+        function prevValidationInvalidPage() {
+            if (currentValidationInvalidPage > 1) {
+                currentValidationInvalidPage--;
+                displayValidationInvalidPage();
+            }
+        }
+
+        function nextValidationInvalidPage() {
+            const totalPages = Math.ceil(allValidationInvalid.length / validationInvalidPerPage);
+            if (currentValidationInvalidPage < totalPages) {
+                currentValidationInvalidPage++;
+                displayValidationInvalidPage();
+            }
         }
 
         // Functions للتنقل بين صفحات التحذيرات
@@ -1165,20 +1635,21 @@
         }
 
         function proceedWithImport() {
-            if (!validationResults || !pendingFormData) {
+            if (!validationResults || !validationId) {
                 Swal.fire({
                     icon: 'error',
                     title: '❌ خطأ',
-                    text: 'لا توجد بيانات التحقق متاحة',
+                    text: 'لا توجد بيانات التحقق متاحة. يرجى إعادة التحقق من الملف.',
                 });
                 return;
             }
 
             closeValidationModal();
 
-            // إنشاء FormData جديد من الـ form الأصلي (لضمان CSRF token جديد)
-            const form = document.getElementById('excelUploadForm');
-            const freshFormData = new FormData(form);
+            // إنشاء FormData بسيط يحتوي فقط على validation_id (بدون إعادة رفع الملف!)
+            const formData = new FormData();
+            formData.append('_token', document.querySelector('input[name="_token"]').value);
+            formData.append('validation_id', validationId);
 
             // عرض رسالة معالجة
             Swal.fire({
@@ -1186,10 +1657,8 @@
                 title: '⏳ جاري الإدخال...',
                 html: `
                     <div style="text-align: right; direction: rtl;">
-                        <p>جاري إدخال الصفوف الصحيحة فقط...</p>
-                        <div style="margin: 15px 0;">
-                            <div class="loading-spinner" style="margin: 0 auto;"></div>
-                        </div>
+                        <p>جاري إدخال الصفوف الصحيحة فقط من النتائج المحفوظة...</p>
+                        <p style="color: #4caf50; font-size: 12px;"></p>
                     </div>
                 `,
                 showConfirmButton: false,
@@ -1199,7 +1668,7 @@
             // إرسال طلب الإدخال
             fetch('/admin/file/import-validated-excel', {
                     method: 'POST',
-                    body: freshFormData,
+                    body: formData,
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest',
                         'Accept': 'application/json'
@@ -1515,6 +1984,28 @@
             reverseButtons: true
         }); // Check for any server-side messages (fallback)
         document.addEventListener('DOMContentLoaded', function() {
+            // منع scroll الخلفية عند فتح المودال
+            const importModal = document.getElementById('importResultsModal');
+            const validationModal = document.getElementById('validationModal');
+
+            // منع النقر على overlay من إغلاق المودال
+            [importModal, validationModal].forEach(modal => {
+                if (modal) {
+                    modal.addEventListener('click', function(e) {
+                        if (e.target === modal) {
+                            // لا تفعل شيء - المستخدم نقر على الخلفية
+                            e.preventDefault();
+                            e.stopPropagation();
+                        }
+                    });
+
+                    // منع scroll الخلفية
+                    modal.addEventListener('wheel', function(e) {
+                        e.stopPropagation();
+                    }, { passive: false });
+                }
+            });
+
             @if (isset($error))
                 Swal.fire({
                     icon: 'error',
@@ -1713,6 +2204,10 @@
                     console.log('📊 Validation Response:', data);
 
                     if (data.success) {
+                        // حفظ validation_id من الاستجابة
+                        validationId = data.validation_id;
+                        console.log('✅ Saved validation_id:', validationId);
+
                         // عرض نتائج التحقق
                         displayValidationResults(data);
                     } else {
@@ -1761,6 +2256,9 @@
         // Handle import response
         function handleImportResponse(data) {
             console.log('📊 Import Response:', data);
+
+            // إغلاق رسالة "جاري الإدخال..." أولاً
+            Swal.close();
 
             if (data.success) {
                 // استخراج البيانات الحقيقية من import_result
@@ -1839,85 +2337,8 @@
                     alertColor = '#2196f3';
                 }
 
-                // عرض رسالة صادقة باستخدام SweetAlert
-                let responseHtml = `
-                        <div style="text-align: right; direction: rtl; font-family: 'Poppins', sans-serif;">
-                            <h4 style="color: ${alertColor}; margin-bottom: 15px;">${alertTitle}</h4>
-                            <div style="background: ${allFailed ? '#ffebee' : (allDuplicates ? '#fff3e0' : '#f1f8e9')}; padding: 15px; border-radius: 8px; margin: 10px 0;">
-                                <p><strong>📊 الرسالة:</strong> ${data.message}</p>
-                    `;
-
-                // عرض ملخص الاستيراد إذا كان موجوداً
-                if (totalProcessed > 0) {
-                    const summaryColor = allFailed ? '#f44336' : (allDuplicates ? '#ff9800' : (fullSuccess ? '#4caf50' :
-                        '#ff9800'));
-                    const summaryBg = allFailed ? '#ffebee' : (allDuplicates ? '#fff3e0' : (fullSuccess ? '#e8f5e9' :
-                        '#fff8e1'));
-
-                    responseHtml += `
-                            <div style="background: ${summaryBg}; padding: 15px; margin: 15px 0; border-radius: 8px; border-right: 4px solid ${summaryColor};">
-                                <h5 style="color: #1e3c72; margin-bottom: 10px;">📈 النتائج الفعلية للاستيراد:</h5>
-                                <p style="font-size: 1.1em;"><strong>✅ سجلات نجحت:</strong> <span style="color: #4caf50; font-weight: bold;">${importedRows}</span></p>
-                                <p style="font-size: 1.1em;"><strong>📋 سجلات مكررة (تم تجاهلها):</strong> <span style="color: #ff9800; font-weight: bold;">${duplicateRows}</span></p>
-                                <p style="font-size: 1.1em;"><strong>❌ سجلات فشلت:</strong> <span style="color: #f44336; font-weight: bold;">${failedRows}</span></p>
-                                <p style="font-size: 1.1em;"><strong>� الإجمالي:</strong> <span style="font-weight: bold;">${totalProcessed}</span></p>
-                                ${data.import_summary?.target_table ? `<p style="margin-top: 10px;"><strong>�🗃️ الجدول المستهدف:</strong> ${data.import_summary.target_table}</p>` : ''}
-                            </div>
-                        `;
-
-                    // إضافة زر لعرض التفاصيل
-                    if (totalProcessed > 0) {
-                        responseHtml += `
-                                <div style="text-align: center; margin: 15px 0;">
-                                    <button onclick="showDetailsModal()" style="background: #1e3c72; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 1.1em; transition: all 0.3s ease;">
-                                        🔍 عرض التفاصيل الكاملة لجميع السجلات
-                                    </button>
-                                </div>
-                            `;
-                    }
-                }
-
-                // عرض معلومات الملفات
-                if (data.files && Array.isArray(data.files)) {
-                    responseHtml += `<h5 style="margin: 15px 0 10px 0;">📁 الملفات المعالجة:</h5>`;
-                    data.files.forEach(file => {
-                        const fileSuccess = file.success && (file.import_result ? file.import_result.imported_rows >
-                            0 : true);
-                        const statusIcon = fileSuccess ? '✅' : '❌';
-                        const statusColor = fileSuccess ? '#4caf50' : '#f44336';
-                        const statusText = fileSuccess ? 'نجحت' : 'فشلت';
-
-                        responseHtml += `
-                                <div style="background: white; padding: 10px; margin: 5px 0; border-radius: 5px; border-right: 4px solid ${statusColor};">
-                                    <p><strong>📄 اسم الملف:</strong> ${file.original_name || 'غير محدد'}</p>
-                                    <p><strong>📊 حالة العملية:</strong> ${statusIcon} ${statusText}</p>
-                                    ${file.message ? `<p><strong>💬 التفاصيل:</strong> ${file.message}</p>` : ''}
-                                    ${file.file_size ? `<p><strong>📏 حجم الملف:</strong> ${(file.file_size / 1024).toFixed(2)} KB</p>` : ''}
-                                </div>
-                            `;
-                    });
-                }
-
-                if (data.processing_mode) {
-                    const modeText = data.processing_mode === 'file-only' ? ' حفظ الملف فقط (بدون استيراد)' :
-                        ' حفظ + استيراد البيانات';
-                    responseHtml += `<p style="margin-top: 10px;"><strong>⚙️ وضع المعالجة:</strong> ${modeText}</p>`;
-                }
-
-                responseHtml += `</div></div>`;
-
-                Swal.fire({
-                    icon: alertIcon,
-                    title: alertTitle,
-                    html: responseHtml,
-                    confirmButtonText: 'حسناً، فهمت',
-                    background: '#fff',
-                    color: alertColor,
-                    showConfirmButton: true,
-                    width: '750px',
-                    timer: false,
-                    allowOutsideClick: false
-                });
+                // عرض النتائج في المودال الجديد
+                displayImportResults(data);
 
                 // إعادة تعيين النموذج فقط إذا نجحت العملية فعلاً
                 if (!allFailed) {
