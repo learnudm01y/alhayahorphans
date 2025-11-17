@@ -85,12 +85,14 @@ Route::prefix('public-api/duplicate-files')->group(function () {
 |
 */
 
-Route::get('users/generalRegistration',[GeneralRegistrationController::class,'index'])->name('generalRegistration.index');
+// المسار الرئيسي - صفحة التسجيل العام
+Route::get('/',[GeneralRegistrationController::class,'index'])->name('generalRegistration.index');
 Route::post('users/generalRegistration/store',[GeneralRegistrationController::class,'store'])->name('store.generalRegistration');
 
-Route::get('/', function () {
+// مسار صفحة تسجيل الدخول
+Route::get('/login', function () {
     return view('auth/login');
-});
+})->name('login.page');
 
 // Route for testing the advanced file manager
 Route::get('/file-manager', function () {
