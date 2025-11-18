@@ -103,10 +103,10 @@
                         @foreach($mainAttachments as $att)
                             @php $isImage = Str::endsWith(strtolower($att->stored_file_name), ['jpg','jpeg','png','gif']); @endphp
                             <a href="javascript:void(0);" class="open-attachments-modal"
-                                data-attachments='@json($mainAttachments->map(function($a){return ["file_path" => asset($a->file_path), "stored_file_name" => $a->stored_file_name ];}))'
+                                data-attachments='@json($mainAttachments->map(function($a){return ["file_path" => route("admin.file.show", ["filename" => $a->stored_file_name ?: basename($a->file_path)]), "stored_file_name" => $a->stored_file_name ];}))'
                                 data-index="{{ $loop->index }}">
                                 @if($isImage)
-                                    <img src="{{ asset($att->file_path) }}" class="attachment-thumb" alt="مرفق">
+                                    <img src="{{ route('admin.file.show', ['filename' => $att->stored_file_name ?: basename($att->file_path)]) }}" class="attachment-thumb" alt="مرفق">
                                 @else
                                     <span class="attachment-thumb d-flex align-items-center justify-content-center bg-light">
                                         <i class="bi bi-file-earmark-pdf" style="font-size: 1.5rem; color: #d9534f;"></i>
@@ -140,10 +140,10 @@
                                                 @foreach($memberAttachments as $att)
                                                     @php $isImage = Str::endsWith(strtolower($att->stored_file_name), ['jpg','jpeg','png','gif']); @endphp
                                                     <a href="javascript:void(0);" class="open-attachments-modal"
-                                                        data-attachments='@json($memberAttachments->map(function($a){return ["file_path" => asset($a->file_path), "stored_file_name" => $a->stored_file_name ];}))'
+                                                        data-attachments='@json($memberAttachments->map(function($a){return ["file_path" => route("admin.file.show", ["filename" => $a->stored_file_name ?: basename($a->file_path)]), "stored_file_name" => $a->stored_file_name ];}))'
                                                         data-index="{{ $loop->index }}">
                                                         @if($isImage)
-                                                            <img src="{{ asset($att->file_path) }}" class="attachment-thumb" alt="مرفق">
+                                                            <img src="{{ route('admin.file.show', ['filename' => $att->stored_file_name ?: basename($att->file_path)]) }}" class="attachment-thumb" alt="مرفق">
                                                         @else
                                                             <span class="attachment-thumb d-flex align-items-center justify-content-center bg-light">
                                                                 <i class="bi bi-file-earmark-pdf" style="font-size: 1.5rem; color: #d9534f;"></i>
@@ -193,10 +193,10 @@
                                                 @foreach($fatherAttachments as $att)
                                                     @php $isImage = Str::endsWith(strtolower($att->stored_file_name), ['jpg','jpeg','png','gif']); @endphp
                                                     <a href="javascript:void(0);" class="open-attachments-modal"
-                                                        data-attachments='@json($fatherAttachments->map(function($a){return ["file_path" => asset($a->file_path), "stored_file_name" => $a->stored_file_name ];}))'
+                                                        data-attachments='@json($fatherAttachments->map(function($a){return ["file_path" => route("admin.file.show", ["filename" => $a->stored_file_name ?: basename($a->file_path)]), "stored_file_name" => $a->stored_file_name ];}))'
                                                         data-index="{{ $loop->index }}">
                                                         @if($isImage)
-                                                            <img src="{{ asset($att->file_path) }}" class="attachment-thumb" alt="مرفق">
+                                                            <img src="{{ route('admin.file.show', ['filename' => $att->stored_file_name ?: basename($att->file_path)]) }}" class="attachment-thumb" alt="مرفق">
                                                         @else
                                                             <span class="attachment-thumb d-flex align-items-center justify-content-center bg-light">
                                                                 <i class="bi bi-file-earmark-pdf" style="font-size: 1.5rem; color: #d9534f;"></i>
@@ -226,10 +226,10 @@
                                                 @foreach($motherAttachments as $att)
                                                     @php $isImage = Str::endsWith(strtolower($att->stored_file_name), ['jpg','jpeg','png','gif']); @endphp
                                                     <a href="javascript:void(0);" class="open-attachments-modal"
-                                                        data-attachments='@json($motherAttachments->map(function($a){return ["file_path" => asset($a->file_path), "stored_file_name" => $a->stored_file_name ];}))'
+                                                        data-attachments='@json($motherAttachments->map(function($a){return ["file_path" => route("admin.file.show", ["filename" => $a->stored_file_name ?: basename($a->file_path)]), "stored_file_name" => $a->stored_file_name ];}))'
                                                         data-index="{{ $loop->index }}">
                                                         @if($isImage)
-                                                            <img src="{{ asset($att->file_path) }}" class="attachment-thumb" alt="مرفق">
+                                                            <img src="{{ route('admin.file.show', ['filename' => $att->stored_file_name ?: basename($att->file_path)]) }}" class="attachment-thumb" alt="مرفق">
                                                         @else
                                                             <span class="attachment-thumb d-flex align-items-center justify-content-center bg-light">
                                                                 <i class="bi bi-file-earmark-pdf" style="font-size: 1.5rem; color: #d9534f;"></i>

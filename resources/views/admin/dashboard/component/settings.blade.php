@@ -29,7 +29,7 @@
 
                             <!--begin::Preview existing avatar-->
                             <div class="image-input-wrapper w-125px h-125px" id="avatar-preview"
-                                style="background-image: url('{{ $user->avatar_url ?? Auth::user()->avatar }}')">
+                                style="background-image: url('{{ asset($user->avatar_url ?? Auth::user()->avatar) }}')">
                             </div>
                             <!--end::Preview existing avatar-->
 

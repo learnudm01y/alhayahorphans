@@ -102,13 +102,13 @@
                                                             <div class="card-header d-flex justify-content-between align-items-center">
                                                                 <h6>{{ $attachment->file_type }}</h6>
                                                                 <div>
-                                                                    <a href="{{ asset($attachment->file_path) }}" target="_blank" class="btn btn-sm btn-primary">عرض</a>
+                                                                    <a href="{{ route('admin.file.show', ['filename' => $attachment->stored_file_name ?: basename($attachment->file_path)]) }}" target="_blank" class="btn btn-sm btn-primary">عرض</a>
                                                                     <button type="button" class="btn btn-sm btn-danger delete-attachment" data-id="{{ $attachment->id }}">حذف</button>
                                                                 </div>
                                                             </div>
                                                             <div class="card-body text-center">
                                                                 @if(Str::endsWith($attachment->file_path, ['jpg','jpeg','png']))
-                                                                    <img src="{{ asset($attachment->file_path) }}" class="img-fluid" style="max-height:120px;">
+                                                                    <img src="{{ route('admin.file.show', ['filename' => $attachment->stored_file_name ?: basename($attachment->file_path)]) }}" class="img-fluid" style="max-height:120px;">
                                                                 @else
                                                                     <span class="text-muted">{{ $attachment->stored_file_name }}</span>
                                                                 @endif
