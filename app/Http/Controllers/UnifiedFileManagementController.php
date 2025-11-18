@@ -4568,11 +4568,33 @@ class UnifiedFileManagementController extends Controller
 
     /**
      * عرض آمن للملفات من storage مع دعم مسارات متعددة ونظام بحث محسن
+     * مع التحقق من صلاحيات المستخدم وحماية من الوصول المباشر
      */
     public function showSecureFile($filename)
     {
         try {
-            Log::info("طلب عرض ملف آمن: {$filename}");
+            // التحقق من أن الطلب قادم من نفس الموقع وليس وصول مباشر
+            $referer = request()->headers->get('referer');
+            $appUrl = config('app.url');
+            $currentHost = request()->getHost();
+
+            // إذا لم يكن هناك referer أو الـ referer ليس من نفس الموقع، نرفض الطلب
+            if (empty($referer) ||
+                (!str_contains($referer, $currentHost) && !str_contains($referer, 'localhost') && !str_contains($referer, '127.0.0.1'))) {
+                Log::warning("محاولة وصول مباشر مرفوضة للملف", [
+                    'user_id' => auth()->id(),
+                    'filename' => $filename,
+                    'referer' => $referer ?? 'none',
+                    'ip' => request()->ip()
+                ]);
+                abort(403, 'الوصول المباشر للملفات غير مسموح. يجب الوصول من خلال صفحات الموقع فقط.');
+            }
+
+            Log::info("طلب عرض ملف آمن: {$filename}", [
+                'user_id' => auth()->id(),
+                'user_email' => auth()->user()->email ?? 'unknown',
+                'referer' => $referer
+            ]);
 
             // تنظيف اسم الملف من المسارات الضارة
             $cleanFilename = basename($filename);
@@ -4585,8 +4607,27 @@ class UnifiedFileManagementController extends Controller
                     'filename' => $cleanFilename,
                     'stored_name' => $fileRecord->stored_file_name ?? 'unknown',
                     'file_path' => $fileRecord->file_path ?? 'unknown',
-                    'table' => $fileRecord->table_source ?? 'unknown'
+                    'table' => $fileRecord->table_source ?? 'unknown',
+                    'person_identity' => $fileRecord->person_identity_number ?? 'unknown'
                 ]);
+
+                // التحقق من صلاحية المستخدم للوصول إلى هذا الملف
+                if (!$this->userCanAccessFile($fileRecord)) {
+                    Log::warning("محاولة وصول غير مصرح بها للملف", [
+                        'user_id' => auth()->id(),
+                        'user_email' => auth()->user()->email,
+                        'filename' => $cleanFilename,
+                        'person_identity' => $fileRecord->person_identity_number ?? 'unknown'
+                    ]);
+                    abort(403, 'غير مصرح لك بالوصول إلى هذا الملف');
+                }
+            } else {
+                // إذا لم يتم العثور على الملف في قاعدة البيانات، نرفض الوصول
+                Log::warning("محاولة الوصول إلى ملف غير موجود في قاعدة البيانات", [
+                    'user_id' => auth()->id(),
+                    'filename' => $cleanFilename
+                ]);
+                abort(404, 'الملف غير موجود');
             }
 
             // مجموعة شاملة من مسارات البحث
@@ -4613,14 +4654,19 @@ class UnifiedFileManagementController extends Controller
 
             Log::info("عرض الملف: {$foundPath} بنوع MIME: {$mimeType}");
 
-            // إرجاع الملف مع العناوين المناسبة
+            // إرجاع الملف مع العناوين الأمنية المشددة
             return response()->file($foundPath, [
                 'Content-Type' => $mimeType,
-                'Cache-Control' => 'no-cache, no-store, must-revalidate',
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0, private',
                 'Pragma' => 'no-cache',
                 'Expires' => '0',
                 'X-Content-Type-Options' => 'nosniff',
-                'X-Frame-Options' => 'SAMEORIGIN'
+                'X-Frame-Options' => 'SAMEORIGIN',
+                'Content-Security-Policy' => "default-src 'self'",
+                'X-XSS-Protection' => '1; mode=block',
+                'Referrer-Policy' => 'strict-origin-when-cross-origin',
+                'Content-Disposition' => 'inline; filename="' . $cleanFilename . '"',
+                'X-Robots-Tag' => 'noindex, nofollow'
             ]);
 
         } catch (\Exception $e) {
@@ -4772,6 +4818,60 @@ class UnifiedFileManagementController extends Controller
         }
 
         return null;
+    }
+
+    /**
+     * التحقق من صلاحية المستخدم للوصول إلى الملف
+     */
+    private function userCanAccessFile($fileRecord): bool
+    {
+        $user = auth()->user();
+
+        // إذا كان المستخدم أدمن، يمكنه الوصول إلى كل الملفات
+        if (isset($user->role) && in_array($user->role, ['admin', 'super-admin'])) {
+            return true;
+        }
+
+        // استخراج رقم الهوية من البريد الإلكتروني للمستخدم
+        $userIdNumber = preg_replace('/[^0-9]/', '', $user->email);
+
+        // التحقق من أن الملف يخص هذا المستخدم
+        if (isset($fileRecord->person_identity_number)) {
+            $fileIdNumber = preg_replace('/[^0-9]/', '', $fileRecord->person_identity_number);
+
+            // التحقق من التطابق
+            if ($fileIdNumber === $userIdNumber) {
+                return true;
+            }
+
+            // التحقق من أن الملف يخص أحد أفراد أسرة المستخدم
+            $data = \App\Models\Data::where('data_id_number', $userIdNumber)->first();
+
+            if ($data) {
+                // التحقق من أفراد الأسرة - استخدام registration_id
+                $familyMembers = \App\Models\RePeople::where('registration_id', $data->file_id_number)->get();
+
+                foreach ($familyMembers as $member) {
+                    $memberIdNumber = preg_replace('/[^0-9]/', '', $member->person_id ?? '');
+                    if ($memberIdNumber === $fileIdNumber) {
+                        return true;
+                    }
+                }
+
+                // التحقق من الوالدين المتوفين
+                if ($data->deadPepole) {
+                    $fatherIdNumber = preg_replace('/[^0-9]/', '', $data->deadPepole->father_id ?? '');
+                    $motherIdNumber = preg_replace('/[^0-9]/', '', $data->deadPepole->mother_id ?? '');
+
+                    if ($fileIdNumber === $fatherIdNumber || $fileIdNumber === $motherIdNumber) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // إذا لم يتطابق أي شرط، الوصول مرفوض
+        return false;
     }
 
     /**

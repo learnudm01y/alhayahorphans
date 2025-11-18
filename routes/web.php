@@ -217,20 +217,23 @@ Route::prefix('api/files')->withoutMiddleware(['auth', 'verified'])->group(funct
 });
 
 // Excel Gateway Routes
-Route::group(['prefix' => 'admin/file'], function() {
-    Route::get('/excel-gateway', [UnifiedFileManagementController::class, 'showExcelGateway'])
-        ->name('admin.file.excel.gateway');
+// Excel Gateway Routes - محمية بمصادقة المستخدم
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::group(['prefix' => 'admin/file'], function() {
+        Route::get('/excel-gateway', [UnifiedFileManagementController::class, 'showExcelGateway'])
+            ->name('admin.file.excel.gateway');
 
-    Route::get('/php-diagnostic', [UnifiedFileManagementController::class, 'showPhpDiagnostic'])
-        ->name('admin.file.php.diagnostic');
+        Route::get('/php-diagnostic', [UnifiedFileManagementController::class, 'showPhpDiagnostic'])
+            ->name('admin.file.php.diagnostic');
 
-    // العرض الآمن للملفات من storage
-    Route::get('/show/{filename}', [UnifiedFileManagementController::class, 'showSecureFile'])
-        ->name('admin.file.show');
+        // العرض الآمن للملفات من storage - محمي بمصادقة المستخدم
+        Route::get('/show/{filename}', [UnifiedFileManagementController::class, 'showSecureFile'])
+            ->name('admin.file.show');
 
-    // اختبار نظام إدارة المجلدات
-    Route::get('/diagnostic/folders', [App\Http\Controllers\Admin\DiagnosticController::class, 'testFolderSystem'])
-        ->name('admin.diagnostic.folders');
+        // اختبار نظام إدارة المجلدات
+        Route::get('/diagnostic/folders', [App\Http\Controllers\Admin\DiagnosticController::class, 'testFolderSystem'])
+            ->name('admin.diagnostic.folders');
+    });
 });
 
 // Speedtest Routes - Production Ready
