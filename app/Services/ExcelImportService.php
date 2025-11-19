@@ -1034,6 +1034,12 @@ class ExcelImportService
                         // سجل جديد
                         $modelClass::create($record);
                         $savedCount++;
+
+                        // وضع علامة على file_id_number كمستخدم في reserved_codes
+                        if ($modelClass === Data::class && isset($record['file_id_number'])) {
+                            markCodeAsUsed($record['file_id_number']);
+                        }
+
                         $successfulRecords[] = [
                             'row' => $rowIndex + 2,
                             'identifier' => $this->getRecordIdentifier($record, $modelClass),
@@ -1166,8 +1172,9 @@ class ExcelImportService
      */
     private function generateFileId(): string
     {
-        if (function_exists('generateFileIdFromDataTable')) {
-            return generateFileIdFromDataTable();
+        // استخدام generateUniqueReservedCode لحجز الرقم
+        if (function_exists('generateUniqueReservedCode')) {
+            return generateUniqueReservedCode('data', 'file_id_number') ?? str_pad(substr(time(), -6), 6, '0', STR_PAD_LEFT);
         }
 
         // fallback method

@@ -12,11 +12,19 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
+        // تنظيف الأكواد القديمة غير المستخدمة كل دقيقة
         $schedule->call(function () {
             if (function_exists('cleanupOldReservedCodes')) {
                 cleanupOldReservedCodes(1);
             }
         })->everyMinute();
+
+        // مزامنة جدول reserved_codes مع جدول data كل 5 دقائق
+        $schedule->call(function () {
+            if (function_exists('syncReservedCodesWithData')) {
+                syncReservedCodesWithData();
+            }
+        })->everyFiveMinutes();
 
         // مهمة اختبارية للتأكد من عمل الجدولة
         $schedule->call(function () {

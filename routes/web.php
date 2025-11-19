@@ -11,6 +11,7 @@ use App\Http\Controllers\Users\UserLoginContoller;
 use App\Http\Controllers\UnifiedFileManagementController;
 use App\Http\Controllers\Users\UserProfileController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\DuplicateFileController;
 use App\Http\Controllers\SpeedTestController;
 use App\Http\Controllers\ScoutSearchController;
@@ -134,6 +135,115 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/check-id-number', [GeneralRegistrationController::class, 'check'])->name('check.id');
 
 
+// Reserved Codes Management Routes (Admin Only)
+Route::middleware(['auth', 'verified'])->prefix('admin/reserved-codes')->group(function () {
+    // مزامنة جدول reserved_codes مع جدول data
+    Route::post('/sync', function () {
+        if (function_exists('syncReservedCodesWithData')) {
+            $stats = syncReservedCodesWithData();
+            return response()->json([
+                'success' => true,
+                'message' => 'تمت المزامنة بنجاح',
+                'stats' => $stats
+            ]);
+        }
+        return response()->json([
+            'success' => false,
+            'message' => 'الدالة غير موجودة'
+        ], 500);
+    })->name('admin.reserved-codes.sync');
+
+    // تنظيف الأكواد القديمة يدوياً
+    Route::post('/cleanup', function () {
+        if (function_exists('cleanupOldReservedCodes')) {
+            $deleted = cleanupOldReservedCodes(1);
+            return response()->json([
+                'success' => true,
+                'message' => "تم حذف {$deleted} كود غير مستخدم",
+                'deleted_count' => $deleted
+            ]);
+        }
+        return response()->json([
+            'success' => false,
+            'message' => 'الدالة غير موجودة'
+        ], 500);
+    })->name('admin.reserved-codes.cleanup');
+
+    // إحصائيات جدول reserved_codes
+    Route::get('/stats', function () {
+        $stats = [
+            'total' => DB::table('reserved_codes')->count(),
+            'used' => DB::table('reserved_codes')->where('used', true)->count(),
+            'unused' => DB::table('reserved_codes')->where('used', false)->count(),
+            'old_unused' => DB::table('reserved_codes')
+                ->where('used', false)
+                ->where('reserved_at', '<', now()->subMinutes(1))
+                ->count(),
+        ];
+        return response()->json([
+            'success' => true,
+            'stats' => $stats
+        ]);
+    })->name('admin.reserved-codes.stats');
+
+    // إحصائيات الفجوات في جدول data
+    Route::get('/gaps', function () {
+        try {
+            // جلب جميع الأرقام المستخدمة
+            $usedCodes = DB::table('data')
+                ->select(DB::raw("CAST(file_id_number as UNSIGNED) as code_num"))
+                ->whereRaw("LENGTH(file_id_number) = 6 AND file_id_number REGEXP '^[0-9]+$'")
+                ->orderBy('code_num', 'asc')
+                ->pluck('code_num')
+                ->toArray();
+
+            if (empty($usedCodes)) {
+                return response()->json([
+                    'success' => true,
+                    'gaps' => [],
+                    'total_gaps' => 0,
+                    'message' => 'لا توجد أرقام مستخدمة بعد'
+                ]);
+            }
+
+            // البحث عن الفجوات
+            $gaps = [];
+            $expectedNext = 1;
+
+            foreach ($usedCodes as $usedCode) {
+                if ($usedCode > $expectedNext) {
+                    // وجدنا فجوة
+                    $gapStart = $expectedNext;
+                    $gapEnd = $usedCode - 1;
+                    $gapSize = $gapEnd - $gapStart + 1;
+
+                    $gaps[] = [
+                        'start' => str_pad($gapStart, 6, '0', STR_PAD_LEFT),
+                        'end' => str_pad($gapEnd, 6, '0', STR_PAD_LEFT),
+                        'size' => $gapSize
+                    ];
+                }
+                $expectedNext = $usedCode + 1;
+            }
+
+            return response()->json([
+                'success' => true,
+                'gaps' => $gaps,
+                'total_gaps' => array_sum(array_column($gaps, 'size')),
+                'gap_ranges' => count($gaps),
+                'min_code' => str_pad(min($usedCodes), 6, '0', STR_PAD_LEFT),
+                'max_code' => str_pad(max($usedCodes), 6, '0', STR_PAD_LEFT),
+                'total_used' => count($usedCodes)
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    })->name('admin.reserved-codes.gaps');
+});
 
 
 // File Management Routes

@@ -180,8 +180,8 @@ class GeneralRegistrationController extends Controller
                 'data_request_status' => 1, // تأكد من وجود هذا السطر دائماً
             ]);
 
-            // تم إزالة الاعتماد على reserved_codes بسبب قيود الاستضافة المشتركة
-            // الرقم محجوز مؤقتاً بنجاح في جدول البيانات الرئيسي
+            // وضع علامة على الرقم كمستخدم في جدول reserved_codes
+            markCodeAsUsed($fileIdNumber);
             Log::info('✅ تم حفظ الرقم بنجاح: ' . $fileIdNumber);
 
             // إضافة بيانات الحساب البنكي إذا وُجدت أي قيمة بنكية

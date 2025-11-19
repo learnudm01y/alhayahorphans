@@ -4,83 +4,124 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
 
+if (!function_exists('findSmallestGap')) {
+    /**
+     * البحث عن أصغر فجوة (رقم غير مستخدم) في التسلسل
+     * Find the smallest gap (unused number) in the sequence
+     */
+    function findSmallestGap(string $table, string $column): ?int
+    {
+        try {
+            // التحقق من تفعيل ميزة ملء الفجوات
+            $fillGapsEnabled = config('code_generation.fill_gaps', true);
+            if (!$fillGapsEnabled) {
+                return null; // الميزة معطلة، استخدم MAX + 1
+            }
+
+            // جلب جميع الأرقام المستخدمة من الجدول الرئيسي
+            $usedCodesInTable = DB::table($table)
+                ->select(DB::raw("CAST($column as UNSIGNED) as code_num"))
+                ->whereRaw("LENGTH($column) = 6 AND $column REGEXP '^[0-9]+$'")
+                ->orderBy('code_num', 'asc')
+                ->pluck('code_num')
+                ->toArray();
+
+            // التحقق من الحد الأقصى للبحث (لتحسين الأداء)
+            $searchLimit = config('code_generation.gap_search_limit', 10000);
+            if (count($usedCodesInTable) > $searchLimit) {
+                Log::info("⚠️ تجاوز حد البحث عن الفجوات ({$searchLimit})، استخدام MAX + 1");
+                return null;
+            }
+
+            // جلب الأرقام المحجوزة في reserved_codes
+            $reservedCodes = DB::table('reserved_codes')
+                ->select(DB::raw("CAST(code as UNSIGNED) as code_num"))
+                ->whereRaw("LENGTH(code) = 6 AND code REGEXP '^[0-9]+$'")
+                ->pluck('code_num')
+                ->toArray();
+
+            // دمج القوائم
+            $allUsedCodes = array_unique(array_merge($usedCodesInTable, $reservedCodes));
+            sort($allUsedCodes);
+
+            // إذا لم يوجد أي أرقام، ابدأ من 1
+            if (empty($allUsedCodes)) {
+                return 1;
+            }
+
+            // البحث عن أول فجوة في التسلسل
+            $expectedNext = 1;
+            foreach ($allUsedCodes as $usedCode) {
+                if ($usedCode > $expectedNext) {
+                    // وجدنا فجوة!
+                    Log::info("🔍 وجدت فجوة في التسلسل", [
+                        'gap_number' => $expectedNext,
+                        'next_used' => $usedCode,
+                        'gap_size' => $usedCode - $expectedNext
+                    ]);
+                    return $expectedNext;
+                }
+                $expectedNext = $usedCode + 1;
+            }
+
+            // لا توجد فجوات
+            return null;
+
+        } catch (\Exception $e) {
+            Log::error("❌ خطأ في البحث عن الفجوات: " . $e->getMessage());
+            return null;
+        }
+    }
+}
+
 if (!function_exists('generateUniqueReservedCode')) {
     /**
-     * Generate unique 6-digit code without reserved_codes table for shared hosting
-     * يولد رقم فريد من 6 أرقام بدون استخدام جدول reserved_codes للاستضافة المشتركة
+     * Generate unique 6-digit code with gap filling support
+     * يولد رقم فريد من 6 أرقام مع إعادة استخدام الفجوات
      */
-    // function generateUniqueReservedCode(string $table, string $column, ?string $sessionId = null): ?string
-    // {
-    //     // استخدام Static variable لضمان زيادة الأرقام في نفس الجلسة
-    //     static $lastGenerated = [];
-    //     $tableKey = "{$table}.{$column}";
-
-    //     return DB::transaction(function () use ($table, $column, $sessionId, $tableKey, &$lastGenerated) {
-    //         // جلب أكبر رقم رقمي فقط من الجدول الأساسي
-    //         $maxMain = DB::table($table)
-    //             ->select(DB::raw("MAX(CAST($column as UNSIGNED)) as max_code"))
-    //             ->whereRaw("LENGTH($column) = 6 AND $column REGEXP '^[0-9]+$'")
-    //             ->value('max_code');
-
-    //         // استخدام الرقم الأخير المولد أو الأكبر من الجدول
-    //         $lastGenerated[$tableKey] = $lastGenerated[$tableKey] ?? (int)$maxMain;
-    //         $next = max($lastGenerated[$tableKey], (int)$maxMain) + 1;
-
-    //         $attempts = 0;
-    //         $maxAttempts = 50;
-
-    //         while ($attempts < $maxAttempts) {
-    //             $code = str_pad($next, 6, '0', STR_PAD_LEFT);
-
-    //             // فحص عدم وجود الرقم في الجدول
-    //             $exists = DB::table($table)->where($column, $code)->exists();
-
-    //             if (!$exists) {
-    //                 $lastGenerated[$tableKey] = $next; // حفظ الرقم المولد
-    //                 Log::info("✅ تم توليد رقم فريد: {$code} للجدول {$table}");
-    //                 return $code;
-    //             }
-
-    //             $next++;
-    //             $attempts++;
-    //         }
-
-    //         // في حالة فشل التوليد التسلسلي، استخدم رقم عشوائي
-    //         for ($i = 0; $i < 20; $i++) {
-    //             $randomCode = str_pad(rand(100000, 999999), 6, '0', STR_PAD_LEFT);
-    //             $exists = DB::table($table)->where($column, $randomCode)->exists();
-
-    //             if (!$exists) {
-    //                 Log::warning("⚠️ تم استخدام رقم عشوائي: {$randomCode} بعد فشل التوليد التسلسلي");
-    //                 return $randomCode;
-    //             }
-    //         }
-
-    //         Log::error("❌ فشل في توليد رقم فريد للجدول {$table}");
-    //         return null;
-    //     });
-    // }
      function generateUniqueReservedCode(string $table, string $column, ?string $sessionId = null): ?string
     {
         return DB::transaction(function () use ($table, $column, $sessionId) {
-            // جلب أكبر رقم رقمي فقط من الجدول الأساسي
+            // الخطوة 1: البحث عن أصغر رقم غير مستخدم (ملء الفجوات أولاً)
+            $smallestGap = findSmallestGap($table, $column);
+
+            if ($smallestGap !== null) {
+                // وجدنا فجوة! استخدمها
+                $code = str_pad($smallestGap, 6, '0', STR_PAD_LEFT);
+
+                // التحقق من عدم وجود الرقم في reserved_codes
+                $exists = DB::table('reserved_codes')->where('code', $code)->lockForUpdate()->exists();
+
+                if (!$exists) {
+                    DB::table('reserved_codes')->insert([
+                        'code' => $code,
+                        'session_id' => $sessionId ?? Str::uuid(),
+                        'reserved_at' => now(),
+                        'used' => false,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+
+                    Log::info("🔄 إعادة استخدام رقم من فجوة: {$code}");
+                    return $code;
+                }
+            }
+
+            // الخطوة 2: إذا لم توجد فجوات، استخدم MAX + 1
             $maxMain = DB::table($table)
                 ->select(DB::raw("MAX(CAST($column as UNSIGNED)) as max_code"))
                 ->whereRaw("LENGTH($column) = 6 AND $column REGEXP '^[0-9]+$'")
                 ->value('max_code');
 
-            // جلب أكبر رقم رقمي فقط من جدول reserved_codes مع قفل للكتابة
             $maxReserved = DB::table('reserved_codes')
                 ->select(DB::raw("MAX(CAST(code as UNSIGNED)) as max_code"))
                 ->whereRaw("LENGTH(code) = 6 AND code REGEXP '^[0-9]+$'")
                 ->lockForUpdate()
                 ->value('max_code');
 
-            // احسب الرقم التالي
             $next = max((int)$maxMain, (int)$maxReserved) + 1;
             $code = str_pad($next, 6, '0', STR_PAD_LEFT);
 
-            // تحقق من عدم وجود الرقم في reserved_codes (داخل نفس المعاملة)
             $exists = DB::table('reserved_codes')->where('code', $code)->lockForUpdate()->exists();
             if (!$exists) {
                 DB::table('reserved_codes')->insert([
@@ -91,9 +132,11 @@ if (!function_exists('generateUniqueReservedCode')) {
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
+                Log::info("➕ استخدام رقم جديد تسلسلي: {$code}");
                 return $code;
             }
-            // إذا كان الرقم مستخدم بالفعل (حالة نادرة)، كرر حتى تجد رقم غير مستخدم
+
+            // الخطوة 3: إذا فشل كل شيء، حاول أرقام تالية
             for ($i = 1; $i <= 10; $i++) {
                 $next++;
                 $code = str_pad($next, 6, '0', STR_PAD_LEFT);
@@ -110,7 +153,7 @@ if (!function_exists('generateUniqueReservedCode')) {
                     return $code;
                 }
             }
-            // إذا لم يتمكن من توليد رقم فريد
+
             return null;
         });
     }
@@ -143,6 +186,7 @@ if (!function_exists('cleanupOldReservedCodes')) {
     /**
      * Delete old, unused reserved codes older than given minutes.
      * حذف الأكواد القديمة غير المستخدمة الأقدم من عدد الدقائق المحدد
+     * مع التحقق الذكي من جدول data قبل الحذف
      *
      * @param int $minutes عدد الدقائق
      * @return int عدد السجلات المحذوفة
@@ -150,13 +194,48 @@ if (!function_exists('cleanupOldReservedCodes')) {
     function cleanupOldReservedCodes(int $minutes = 1): int
     {
         try {
-            $deleted = DB::table('reserved_codes')
+            // الخطوة 1: جلب الأكواد المحجوزة القديمة غير المستخدمة
+            $oldCodes = DB::table('reserved_codes')
                 ->where('used', false)
                 ->where('reserved_at', '<', now()->subMinutes($minutes))
-                ->delete();
+                ->pluck('code')
+                ->toArray();
 
-            if ($deleted > 0) {
-                Log::info("🧹 تم حذف {$deleted} كود غير مستخدم من جدول reserved_codes");
+            if (empty($oldCodes)) {
+                return 0;
+            }
+
+            // الخطوة 2: التحقق من وجود هذه الأكواد في جدول data (الأكواد المستخدمة فعلياً)
+            $usedCodesInData = DB::table('data')
+                ->whereIn('file_id_number', $oldCodes)
+                ->pluck('file_id_number')
+                ->toArray();
+
+            $markedAsUsedCount = 0;
+
+            // الخطوة 3: تحديث الأكواد الموجودة في data إلى used = true بدلاً من حذفها
+            if (!empty($usedCodesInData)) {
+                $markedAsUsedCount = DB::table('reserved_codes')
+                    ->whereIn('code', $usedCodesInData)
+                    ->update(['used' => true, 'updated_at' => now()]);
+
+                Log::info("✅ تم وضع علامة على {$markedAsUsedCount} كود كمستخدم بعد التحقق من جدول data");
+            }
+
+            // الخطوة 4: حذف الأكواد المحجوزة القديمة التي لم تُستخدم فعلياً
+            $codesToDelete = array_diff($oldCodes, $usedCodesInData);
+            $deleted = 0;
+
+            if (!empty($codesToDelete)) {
+                $deleted = DB::table('reserved_codes')
+                    ->whereIn('code', $codesToDelete)
+                    ->where('used', false)
+                    ->where('reserved_at', '<', now()->subMinutes($minutes))
+                    ->delete();
+
+                if ($deleted > 0) {
+                    Log::info("🧹 تم حذف {$deleted} كود غير مستخدم من جدول reserved_codes");
+                }
             }
 
             return $deleted;
@@ -165,9 +244,7 @@ if (!function_exists('cleanupOldReservedCodes')) {
             return 0;
         }
     }
-}
-
-if (!function_exists('generateExcCode')) {
+}if (!function_exists('generateExcCode')) {
     /**
      * Generate unique exception code without reserved_codes table
      * يولد رقم استثناء فريد بدون استخدام جدول reserved_codes
@@ -305,6 +382,81 @@ if (!function_exists('generateUniqueAttachmentRecordNumber')) {
 
             return $emergencyNumber;
         });
+    }
+}
+
+if (!function_exists('syncReservedCodesWithData')) {
+    /**
+     * Synchronize reserved_codes table with actual data usage
+     * مزامنة جدول reserved_codes مع الاستخدام الفعلي في جدول data
+     * تُستخدم هذه الدالة لإصلاح أي تناقضات بين الجدولين
+     *
+     * @return array إحصائيات المزامنة
+     */
+    function syncReservedCodesWithData(): array
+    {
+        try {
+            // جلب جميع file_id_number من جدول data
+            $usedCodes = DB::table('data')
+                ->select('file_id_number')
+                ->whereNotNull('file_id_number')
+                ->whereRaw("file_id_number REGEXP '^[0-9]+$'")
+                ->pluck('file_id_number')
+                ->toArray();
+
+            // التحقق من وجود هذه الأكواد في reserved_codes وتحديثها
+            $updated = 0;
+            $added = 0;
+
+            foreach ($usedCodes as $code) {
+                $exists = DB::table('reserved_codes')
+                    ->where('code', $code)
+                    ->exists();
+
+                if ($exists) {
+                    // تحديث الكود الموجود إلى used = true
+                    $result = DB::table('reserved_codes')
+                        ->where('code', $code)
+                        ->where('used', false) // فقط إذا لم يكن محدثاً من قبل
+                        ->update([
+                            'used' => true,
+                            'updated_at' => now()
+                        ]);
+
+                    if ($result > 0) {
+                        $updated++;
+                    }
+                } else {
+                    // إضافة الكود المفقود إلى reserved_codes
+                    DB::table('reserved_codes')->insert([
+                        'code' => $code,
+                        'session_id' => 'sync_' . time(),
+                        'reserved_at' => now(),
+                        'used' => true,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    $added++;
+                }
+            }
+
+            $stats = [
+                'total_codes_in_data' => count($usedCodes),
+                'updated_in_reserved' => $updated,
+                'added_to_reserved' => $added,
+                'timestamp' => now()->toDateTimeString()
+            ];
+
+            Log::info("🔄 مزامنة جدول reserved_codes مع data", $stats);
+
+            return $stats;
+        } catch (\Exception $e) {
+            Log::error("❌ خطأ في مزامنة reserved_codes: " . $e->getMessage());
+            return [
+                'error' => $e->getMessage(),
+                'timestamp' => now()->toDateTimeString()
+            ];
+        }
     }
 }
 

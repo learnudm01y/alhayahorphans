@@ -600,8 +600,8 @@ class UnifiedFileManagementController extends Controller
     public function generateRecordNumber()
     {
         try {
-            // استخدام الخوارزمية المعتمدة من global_helper
-            $newRecordNumber = generateFileIdFromDataTable();
+            // استخدام الخوارزمية المعتمدة من global_helper مع حجز الرقم
+            $newRecordNumber = generateUniqueReservedCode('data', 'file_id_number');
 
             return response()->json([
                 'success' => true,
@@ -625,12 +625,12 @@ class UnifiedFileManagementController extends Controller
     private function autoGenerateRecordNumber(): string
     {
         try {
-            // استخدام الخوارزمية المعتمدة من global_helper
-            return generateFileIdFromDataTable();
+            // استخدام الخوارزمية المعتمدة مع حجز الرقم في reserved_codes
+            return generateUniqueReservedCode('data', 'file_id_number') ?? str_pad(substr(time(), -6), 6, '0', STR_PAD_LEFT);
         } catch (\Exception $e) {
             Log::warning('Auto record generation failed, using fallback: ' . $e->getMessage());
-            // استخدام fallback من generateUniqueReservedCode
-            return generateUniqueReservedCode('data', 'file_id_number') ?? str_pad(substr(time(), -6), 6, '0', STR_PAD_LEFT);
+            // استخدام fallback
+            return str_pad(substr(time(), -6), 6, '0', STR_PAD_LEFT);
         }
     }
 

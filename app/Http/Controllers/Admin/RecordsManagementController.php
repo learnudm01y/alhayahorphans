@@ -171,6 +171,9 @@ class RecordsManagementController extends Controller
                 'data_request_status' => 2, // تأكد من وجود هذا السطر دائماً
             ]);
 
+            // وضع علامة على الرقم كمستخدم في جدول reserved_codes
+            markCodeAsUsed($fileIdNumber);
+
             // 3. Store deceased only إذا كان القسم أيتام ويوجد بيانات للأب أو الأم
             if ($request->input('data_section_id') == 1) {
                 $fatherFilled = $request->filled('father_first_name') || $request->filled('father_last_name') || $request->filled('father_id');
