@@ -602,6 +602,23 @@ class ExcelImportService
                 $newFileId = $this->generateNewFileId();
                 $data['file_id_number'] = $newFileId;
 
+                // ✅ وضع علامة على الكود كمستخدم فوراً بعد الحجز
+                if (function_exists('markCodeAsUsed')) {
+                    try {
+                        markCodeAsUsed($newFileId);
+                        Log::info("✅ Excel Import: وضع علامة على الكود المحجوز كمستخدم", [
+                            'code' => $newFileId,
+                            'original_file_id' => $originalFileId,
+                            'location' => 'processRow - after generateNewFileId'
+                        ]);
+                    } catch (\Exception $e) {
+                        Log::error("❌ Excel Import: فشل في وضع علامة على الكود المحجوز", [
+                            'code' => $newFileId,
+                            'error' => $e->getMessage()
+                        ]);
+                    }
+                }
+
                 // حفظ الرقم الأصلي في حقل منفصل للمرجعية
                 if ($originalFileId) {
                     $data['original_file_id_from_excel'] = $originalFileId;
@@ -1032,13 +1049,12 @@ class ExcelImportService
                         }
                     } else {
                         // سجل جديد
-                        $modelClass::create($record);
+                        $created = $modelClass::create($record);
                         $savedCount++;
 
-                        // وضع علامة على file_id_number كمستخدم في reserved_codes
-                        if ($modelClass === Data::class && isset($record['file_id_number'])) {
-                            markCodeAsUsed($record['file_id_number']);
-                        }
+                        // ملاحظة: تم نقل استدعاء markCodeAsUsed() إلى processRow()
+                        // ليتم تنفيذه مباشرة بعد generateNewFileId() وقبل الحفظ
+                        // هذا يضمن وضع العلامة حتى لو كان السجل مكرراً
 
                         $successfulRecords[] = [
                             'row' => $rowIndex + 2,
