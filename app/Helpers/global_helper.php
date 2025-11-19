@@ -123,10 +123,47 @@ if (!function_exists('markCodeAsUsed')) {
      */
     function markCodeAsUsed($code)
     {
-        // لا حاجة لعمل شيء عند عدم وجود reserved_codes
-        // الرقم محمي بالفعل في الجدول الرئيسي
-        Log::info("✅ تم وضع علامة على الرقم {$code} كمستخدم");
+        // وضع علامة على الكود كمستخدم في جدول reserved_codes
+        try {
+            DB::table('reserved_codes')
+                ->where('code', $code)
+                ->update([
+                    'used' => true,
+                    'updated_at' => now()
+                ]);
+            Log::info("✅ تم وضع علامة على الرقم {$code} كمستخدم");
+        } catch (\Exception $e) {
+            Log::warning("⚠️ خطأ في تحديث الكود: " . $e->getMessage());
+        }
         return true;
+    }
+}
+
+if (!function_exists('cleanupOldReservedCodes')) {
+    /**
+     * Delete old, unused reserved codes older than given minutes.
+     * حذف الأكواد القديمة غير المستخدمة الأقدم من عدد الدقائق المحدد
+     *
+     * @param int $minutes عدد الدقائق
+     * @return int عدد السجلات المحذوفة
+     */
+    function cleanupOldReservedCodes(int $minutes = 1): int
+    {
+        try {
+            $deleted = DB::table('reserved_codes')
+                ->where('used', false)
+                ->where('reserved_at', '<', now()->subMinutes($minutes))
+                ->delete();
+
+            if ($deleted > 0) {
+                Log::info("🧹 تم حذف {$deleted} كود غير مستخدم من جدول reserved_codes");
+            }
+
+            return $deleted;
+        } catch (\Exception $e) {
+            Log::error("❌ خطأ في تنظيف الأكواد القديمة: " . $e->getMessage());
+            return 0;
+        }
     }
 }
 
