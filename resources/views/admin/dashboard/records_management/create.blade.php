@@ -258,7 +258,7 @@
                                             <select name="data_marital_status" class="form-select">
                                                 <option value="">اختر الحالة</option>
                                                 @foreach ($marital_status as $marital)
-                                                    <option value="{{ $marital->id }}">{{ $marital->description }}
+                                                    <option value="{{ $marital->id }}">{{ $marital->CI_PERSONAL_CD }}
                                                     </option>
                                                 @endforeach
                                             </select>

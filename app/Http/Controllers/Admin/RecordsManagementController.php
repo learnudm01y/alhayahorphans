@@ -49,7 +49,7 @@ class RecordsManagementController extends Controller
         // $file_id_number = generateFiveDigitCode(Data::class, 'file_id_number');
         $file_id_number = generateUniqueReservedCode('data', 'file_id_number');
         $category_of_relationship = CategoryOfRelation::all();
-        $ci_personal_cd = CI_PERSONAL_CD::all(); // الحالة الاجتماعية
+        $marital_status = CI_PERSONAL_CD::all(); // الحالة الاجتماعية
         $academic_qualification = AcademicDegree::all();
         $displacement_status = DisplacementStatus::all();
         $city = City::all();
@@ -68,7 +68,7 @@ class RecordsManagementController extends Controller
                 'generalSection',
                 'file_id_number',
                 'category_of_relationship',
-                'ci_personal_cd',
+                'marital_status',
                 'academic_qualification',
                 'displacement_status',
                 'city',
