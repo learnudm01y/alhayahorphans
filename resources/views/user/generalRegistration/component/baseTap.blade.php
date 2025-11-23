@@ -121,8 +121,8 @@
             <label class="form-label">الحالة الاجتماعية<span class="text-danger">*</span></label>
             <select name="data_marital_status" class="form-select">
                 <option value="">اختر الحالة</option>
-                @foreach ($marital_status as $marital)
-                    <option value="{{ $marital->id }}">{{ $marital->description }}
+                @foreach ($ci_personal_cd as $status)
+                    <option value="{{ $status->id }}">{{ $status->CI_PERSONAL_CD }}
                     </option>
                 @endforeach
             </select>

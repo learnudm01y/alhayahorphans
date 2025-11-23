@@ -685,6 +685,9 @@
                         this.processedFiles = null;
                         this.currentUploadType = null;
 
+                        // حالة كشف الملفات المكررة (مفعل افتراضياً)
+                        this.duplicateDetectionEnabled = true;
+
                         this.initializeEventListeners();
                         this.loadAnalytics();
                         this.checkForExistingDuplicates();
@@ -831,6 +834,38 @@
                                 const excelTargetOptions = document.getElementById('excelTargetOptions');
                                 if (excelTargetOptions) {
                                     excelTargetOptions.style.display = e.target.checked ? 'block' : 'none';
+                                }
+                            });
+                        }
+
+                        // مستمع للتحكم في تشغيل/إيقاف كشف الملفات المكررة
+                        const enableDuplicateDetection = document.getElementById('enableDuplicateDetection');
+                        if (enableDuplicateDetection) {
+                            enableDuplicateDetection.addEventListener('change', (e) => {
+                                this.duplicateDetectionEnabled = e.target.checked;
+                                console.log('🔍 تم تغيير حالة كشف الملفات المكررة:', this.duplicateDetectionEnabled ? 'مفعل' : 'معطل');
+
+                                // عرض رسالة للمستخدم
+                                if (this.duplicateDetectionEnabled) {
+                                    Swal.fire({
+                                        icon: 'success',
+                                        title: 'تم تفعيل كشف الملفات المكررة',
+                                        text: 'سيتم الآن كشف جميع الملفات المكررة أثناء الرفع',
+                                        timer: 2000,
+                                        showConfirmButton: false,
+                                        toast: true,
+                                        position: 'top-end'
+                                    });
+                                } else {
+                                    Swal.fire({
+                                        icon: 'warning',
+                                        title: 'تم إيقاف كشف الملفات المكررة',
+                                        text: 'سيتم تجاهل جميع الملفات المكررة وقبول الملفات الجديدة',
+                                        timer: 2000,
+                                        showConfirmButton: false,
+                                        toast: true,
+                                        position: 'top-end'
+                                    });
                                 }
                             });
                         }
@@ -1780,6 +1815,299 @@
                     }
 
                     /**
+                     * عرض مودال مقارنة الملف المكرر (الجديد والقديم)
+                     */
+                    async showDuplicateComparisonModal(fileId) {
+                        try {
+                            console.log('🔍 عرض مقارنة الملف المكرر، File ID:', fileId);
+
+                            // الحصول على بيانات الملف الجديد من الذاكرة
+                            const newFileData = this.files.get(fileId);
+
+                            console.log('📦 بيانات الملف المسترجعة:', newFileData);
+                            console.log('📊 حالة الملف:', newFileData?.status);
+                            console.log('🔗 معلومات التكرار:', newFileData?.duplicateInfo);
+
+                            if (!newFileData) {
+                                console.error('❌ لم يتم العثور على بيانات الملف في files Map');
+                                console.log('📋 محتويات files Map:', Array.from(this.files.entries()));
+                                return;
+                            }
+
+                            // التحقق من وجود معلومات الملف القديم المخزنة
+                            if (!newFileData.duplicateInfo || !newFileData.duplicateInfo.existing_file_name) {
+                                console.error('❌ لا توجد معلومات عن الملف المكرر');
+                                console.log('🔍 التفاصيل المتاحة:', {
+                                    hasDuplicateInfo: !!newFileData.duplicateInfo,
+                                    duplicateInfo: newFileData.duplicateInfo,
+                                    fileName: newFileData.file?.name,
+                                    status: newFileData.status
+                                });
+                                Swal.fire({
+                                    icon: 'error',
+                                    title: 'خطأ',
+                                    text: 'لا توجد معلومات كافية عن الملف المكرر',
+                                    confirmButtonText: 'حسناً'
+                                });
+                                return;
+                            }
+
+                            const oldFile = newFileData.duplicateInfo;
+                            console.log('📋 معلومات الملف المكرر:', oldFile);
+
+                            // إنشاء URL للمعاينة المحلية للملف الجديد
+                            const newFileUrl = URL.createObjectURL(newFileData.file);
+                            const isImage = newFileData.type === 'image';
+                            const isPdf = newFileData.type === 'pdf';
+
+                            // إعداد محتوى الملف الجديد
+                            let newFilePreviewHTML = '';
+                            if (isImage) {
+                                newFilePreviewHTML = `
+                                    <img src="${newFileUrl}" alt="${newFileData.file.name}"
+                                         class="img-fluid" style="max-height: 400px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+                                `;
+                            } else if (isPdf) {
+                                newFilePreviewHTML = `
+                                    <div class="text-center p-4 bg-light" style="border-radius: 8px;">
+                                        <i class="fas fa-file-pdf fa-5x text-danger mb-3"></i>
+                                        <p class="mb-0">ملف PDF - لا يمكن معاينته قبل الرفع</p>
+                                    </div>
+                                `;
+                            } else {
+                                newFilePreviewHTML = `
+                                    <div class="text-center p-4 bg-light" style="border-radius: 8px;">
+                                        <i class="fas fa-file fa-5x text-secondary mb-3"></i>
+                                        <p class="mb-0">لا يمكن معاينة هذا النوع من الملفات</p>
+                                    </div>
+                                `;
+                            }
+
+                            const newFileInfoHTML = `
+                                <p><strong><i class="fas fa-tag me-2 text-primary"></i>اسم الملف:</strong> ${newFileData.file.name}</p>
+                                <p><strong><i class="fas fa-hdd me-2 text-info"></i>الحجم:</strong> ${this.formatFileSize(newFileData.file.size)}</p>
+                                <p><strong><i class="fas fa-file-alt me-2 text-success"></i>النوع:</strong> ${newFileData.type}</p>
+                                <p><strong><i class="fas fa-clock me-2 text-warning"></i>آخر تعديل:</strong> ${new Date(newFileData.file.lastModified).toLocaleString('ar-EG')}</p>
+                            `;
+
+                            // إعداد محتوى الملف القديم
+                            let oldFilePreviewHTML = '';
+
+                            // استخدام الرابط الآمن لعرض الملفات
+                            const oldFileUrl = oldFile.existing_file_name
+                                ? `/admin/file/show/${encodeURIComponent(oldFile.existing_file_name)}`
+                                : null;
+
+                            console.log('🖼️ URL الملف القديم (آمن):', oldFileUrl);
+                            console.log('📁 اسم الملف:', oldFile.existing_file_name);
+
+                            const oldFileName = oldFile.existing_file_name || 'غير متوفر';
+                            const oldFileExtension = oldFileName.split('.').pop().toLowerCase();
+                            const oldFileIsImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(oldFileExtension);
+                            const oldFileIsPdf = oldFileExtension === 'pdf';
+
+                            if (oldFileUrl && oldFileIsImage) {
+                                oldFilePreviewHTML = `
+                                    <img src="${oldFileUrl}" alt="${oldFileName}"
+                                         class="img-fluid" style="max-height: 400px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);"
+                                         onerror="this.parentElement.innerHTML='<div class=\\'text-center p-4 bg-danger text-white\\' style=\\'border-radius: 8px;\\'><i class=\\'fas fa-exclamation-triangle fa-5x mb-3\\'></i><p class=\\'mb-0\\'>تعذر تحميل الصورة</p><small class=\\'d-block mt-2 text-white-50\\'>المسار: ${oldFileUrl}</small></div>'">
+                                `;
+                            } else if (oldFileUrl && oldFileIsPdf) {
+                                oldFilePreviewHTML = `
+                                    <div class="text-center p-4 bg-light" style="border-radius: 8px;">
+                                        <i class="fas fa-file-pdf fa-5x text-danger mb-3"></i>
+                                        <a href="${oldFileUrl}" target="_blank" class="btn btn-primary mt-2">
+                                            <i class="fas fa-external-link-alt me-1"></i>فتح ملف PDF
+                                        </a>
+                                    </div>
+                                `;
+                            } else if (oldFileUrl) {
+                                oldFilePreviewHTML = `
+                                    <div class="text-center p-4 bg-light" style="border-radius: 8px;">
+                                        <i class="fas fa-file fa-5x text-secondary mb-3"></i>
+                                        <a href="${oldFileUrl}" target="_blank" class="btn btn-primary mt-2">
+                                            <i class="fas fa-download me-1"></i>تحميل الملف
+                                        </a>
+                                    </div>
+                                `;
+                            } else {
+                                oldFilePreviewHTML = `
+                                    <div class="text-center p-4 bg-warning text-dark" style="border-radius: 8px;">
+                                        <i class="fas fa-exclamation-triangle fa-5x mb-3"></i>
+                                        <p class="mb-0">لا يمكن معاينة الملف - المسار غير متوفر</p>
+                                    </div>
+                                `;
+                            }
+
+                            const oldFileInfoHTML = `
+                                <p><strong><i class="fas fa-tag me-2 text-primary"></i>اسم الملف:</strong> ${oldFileName}</p>
+                                <p><strong><i class="fas fa-fingerprint me-2 text-danger"></i>السبب:</strong> ${oldFile.reason || 'ملف مكرر'}</p>
+                                <p><strong><i class="fas fa-info-circle me-2 text-info"></i>الرسالة:</strong> ${oldFile.message || 'تم اكتشاف ملف مطابق في النظام'}</p>
+                            `;
+
+                            // تحديث محتوى المودال
+                            document.getElementById('newFilePreview').innerHTML = newFilePreviewHTML;
+                            document.getElementById('newFileInfo').innerHTML = newFileInfoHTML;
+                            document.getElementById('oldFilePreview').innerHTML = oldFilePreviewHTML;
+                            document.getElementById('oldFileInfo').innerHTML = oldFileInfoHTML;
+
+                            // عرض المودال
+                            const modalElement = document.getElementById('duplicateComparisonModal');
+                            const modal = new bootstrap.Modal(modalElement);
+                            modal.show();
+
+                            // إضافة معالجات الأزرار
+                            const ignoreBtn = document.getElementById('ignoreDuplicateBtn');
+                            const replaceBtn = document.getElementById('replaceDuplicateBtn');
+
+                            // زر تجاهل - حذف الملف من القائمة
+                            ignoreBtn.onclick = () => {
+                                this.handleIgnoreDuplicate(fileId);
+                                modal.hide();
+                            };
+
+                            // زر استبدال - استبدال الملف القديم بالجديد
+                            replaceBtn.onclick = async () => {
+                                await this.handleReplaceDuplicate(fileId, oldFile);
+                                modal.hide();
+                            };
+
+                            // تنظيف URL المؤقت عند إغلاق المودال
+                            modalElement.addEventListener('hidden.bs.modal', () => {
+                                URL.revokeObjectURL(newFileUrl);
+                            }, { once: true });
+
+                        } catch (error) {
+                            console.error('خطأ في عرض مقارنة الملف المكرر:', error);
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'خطأ',
+                                text: 'حدث خطأ أثناء جلب معلومات الملف القديم',
+                                confirmButtonText: 'حسناً'
+                            });
+                        }
+                    }
+
+                    /**
+                     * معالجة تجاهل الملف المكرر - حذفه من القائمة
+                     */
+                    handleIgnoreDuplicate(fileId) {
+                        console.log('🚫 تجاهل الملف المكرر:', fileId);
+
+                        // حذف الملف من الذاكرة
+                        this.files.delete(fileId);
+
+                        // حذف عنصر الملف من الواجهة
+                        const fileElement = document.querySelector(`[data-file-id="${fileId}"]`);
+                        if (fileElement) {
+                            fileElement.remove();
+                        }
+
+                        // تحديث العدادات
+                        this.updateFileCounts();
+
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'تم التجاهل',
+                            text: 'تم تجاهل الملف المكرر وحذفه من القائمة',
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                    }
+
+                    /**
+                     * معالجة استبدال الملف القديم بالجديد
+                     */
+                    async handleReplaceDuplicate(fileId, oldFile) {
+                        console.log('🔄 استبدال الملف القديم بالجديد:', fileId);
+
+                        try {
+                            const fileData = this.files.get(fileId);
+                            if (!fileData) {
+                                throw new Error('لم يتم العثور على بيانات الملف');
+                            }
+
+                            // عرض رسالة تأكيد
+                            const confirm = await Swal.fire({
+                                icon: 'warning',
+                                title: 'تأكيد الاستبدال',
+                                html: `
+                                    <p>هل أنت متأكد من استبدال الملف القديم؟</p>
+                                    <p class="text-danger"><strong>هذا الإجراء لا يمكن التراجع عنه!</strong></p>
+                                `,
+                                showCancelButton: true,
+                                confirmButtonText: 'نعم، استبدل',
+                                cancelButtonText: 'إلغاء',
+                                confirmButtonColor: '#28a745',
+                                cancelButtonColor: '#6c757d'
+                            });
+
+                            if (!confirm.isConfirmed) {
+                                return;
+                            }
+
+                            // إظهار رسالة التحميل
+                            Swal.fire({
+                                title: 'جاري الاستبدال...',
+                                text: 'يرجى الانتظار',
+                                allowOutsideClick: false,
+                                didOpen: () => {
+                                    Swal.showLoading();
+                                }
+                            });
+
+                            // إعداد FormData للرفع
+                            const formData = new FormData();
+                            formData.append('file', fileData.file);
+                            formData.append('old_file_name', oldFile.existing_file_name);
+                            formData.append('old_file_path', oldFile.existing_file_path);
+                            formData.append('replace_mode', 'true');
+
+                            // إرسال الطلب للخادم
+                            const response = await fetch('/api/replace-duplicate-file', {
+                                method: 'POST',
+                                body: formData,
+                                headers: {
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || ''
+                                }
+                            });
+
+                            const result = await response.json();
+
+                            if (result.success) {
+                                // تحديث حالة الملف إلى مكتمل
+                                fileData.status = 'completed';
+                                this.updateFileStatus(fileId, 'completed');
+
+                                // حذف الملف من قائمة المكررات
+                                this.files.delete(fileId);
+
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'تم الاستبدال بنجاح!',
+                                    text: 'تم استبدال الملف القديم بالملف الجديد',
+                                    timer: 3000,
+                                    showConfirmButton: false
+                                });
+
+                                // تحديث العدادات
+                                this.updateFileCounts();
+                            } else {
+                                throw new Error(result.message || 'فشل الاستبدال');
+                            }
+
+                        } catch (error) {
+                            console.error('خطأ في استبدال الملف:', error);
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'فشل الاستبدال',
+                                text: error.message || 'حدث خطأ أثناء استبدال الملف',
+                                confirmButtonText: 'حسناً'
+                            });
+                        }
+                    }
+
+                    /**
                      * إنشاء عنصر ملف منفرد مع معاينة فورية للصور
                      */
                     createFileElement(fileData) {
@@ -2060,6 +2388,8 @@
                         formData.append('compress_images', document.getElementById('compressImages').checked);
                         formData.append('auto_organize', document.getElementById('autoOrganize').checked);
                         formData.append('cloud_sync', document.getElementById('cloudSync').checked);
+                        formData.append('enable_duplicate_detection', this.duplicateDetectionEnabled);
+                        formData.append('enable_duplicate_detection', this.duplicateDetectionEnabled);
 
                         // إضافة ملف Excel إذا كان موجود
                         const excelFile = document.getElementById('excelFileInput').files[0];
@@ -2113,38 +2443,38 @@
                                 if (result.duplicates_info && result.duplicates_info.total_duplicates > 0) {
                                     console.log('🔍 تم اكتشاف ملفات مكررة جديدة:', result.duplicates_info);
 
-                                    // حفظ session_id للملفات المكررة
-                                    window.CURRENT_DUPLICATE_SESSION_ID = result.session_id;
-                                    sessionStorage.setItem('duplicate_files_session_id', result.session_id);
+                                    // إذا كان كشف التكرار معطلاً، قم بإخفاء الملفات المكررة
+                                    if (!this.duplicateDetectionEnabled) {
+                                        console.log('🚫 كشف التكرار معطّل - سيتم إخفاء جميع الملفات المكررة');
 
-                                    // تحديث زر عرض الملفات المكررة
-                                    this.updateDuplicateFilesButton(result.duplicates_info);
+                                        // إذا كانت هناك معلومات تفصيلية، استخدم updateSpecificDuplicateFiles
+                                        if (result.results && result.results.duplicate_files) {
+                                            this.updateSpecificDuplicateFiles(result.results.duplicate_files);
+                                        }
+                                    } else {
+                                        // إذا كان كشف التكرار مفعلاً، عرض المعلومات والأزرار
+                                        console.log('⚠️ كشف التكرار مفعّل - سيتم عرض معلومات الملفات المكررة');
 
-                                    // عرض SweetAlert للملفات المكررة
-                                    this.showDuplicateFilesAlert(result.duplicates_info, result.session_id);
+                                        // حفظ session_id للملفات المكررة
+                                        window.CURRENT_DUPLICATE_SESSION_ID = result.session_id;
+                                        sessionStorage.setItem('duplicate_files_session_id', result.session_id);
 
-                                    // عرض تنبيه للمستخدم (backup alert)
-                                    this.showAlert(
-                                        `تم اكتشاف ${result.duplicates_info.total_duplicates} ملف مكرر. تم حفظهم في مجلد مؤقت.`,
-                                        'warning');
-                                } else {
-                                    // إشعار إيجابي عند عدم وجود ملفات مكررة
-                                    console.log('✅ لا توجد ملفات مكررة - العملية نظيفة');
+                                        // تحديث زر عرض الملفات المكررة
+                                        this.updateDuplicateFilesButton(result.duplicates_info);
+
+                                        // عرض SweetAlert للملفات المكررة
+                                        this.showDuplicateFilesAlert(result.duplicates_info, result.session_id);
+
+                                        // تحديث معلومات الملفات المكررة في الواجهة
+                                        if (result.results && result.results.duplicate_files) {
+                                            this.updateSpecificDuplicateFiles(result.results.duplicate_files);
+                                        }
+                                    }
                                 }
 
-                                // عرض ملخص العملية
+                                // تسجيل ملخص العملية فقط في console
                                 if (result.summary) {
                                     console.log('📊 ملخص العملية:', result.summary);
-
-                                    let summaryMessage = `تم معالجة ${result.summary.total_files} ملف: `;
-                                    summaryMessage += `${result.summary.files_saved} محفوظ، `;
-                                    summaryMessage += `${result.summary.duplicates_found} مكرر`;
-
-                                    if (result.summary.errors_count > 0) {
-                                        summaryMessage += `، ${result.summary.errors_count} خطأ`;
-                                    }
-
-                                    this.showAlert(summaryMessage, 'success');
                                 }
 
                                 // تحديث الملفات المعروضة في المجلدات تلقائياً
@@ -2178,11 +2508,6 @@
                                 // تحديث الواجهة
                                 this.updateFileCounts();
                                 this.loadAnalytics();
-
-                                // تحديث حالة جميع الملفات إلى "مكتملة" مع تأخير واقعي
-                                setTimeout(() => {
-                                    this.updateAllFilesToCompleted();
-                                }, 1000); // تأخير ثانية واحدة للتأثير البصري
 
                                 return result;
                             } else {
@@ -2231,8 +2556,7 @@
 
                             try {
                                 const result = await this.uploadFolderFile(this.processedFiles, this.currentUploadType);
-                                console.log('🎉 اكتملت عملية الرفع والتحويل بنجاح!', result);
-                                // this.showAlert('تم رفع ملفات المجلد بنجاح!', 'success');
+                                console.log('✅ اكتملت عملية الرفع', result);
 
                                 // تحديث الملفات المعروضة في المجلدات تلقائياً
                                 this.refreshAllFolderFiles();
@@ -2242,9 +2566,8 @@
                                 this.currentUploadType = null;
                             } catch (error) {
                                 console.error('❌ فشلت عملية الرفع:', error);
-                                // this.showAlert('فشلت عملية رفع ملفات المجلد: ' + error.message, 'error');
                             } finally {
-                                // إخفاء شريط التقدم بعد الانتهاء من رفع المجلد
+                                // إخفاء شريط التقدم بعد الانتهاء
                                 setTimeout(() => {
                                     const progressSection = document.getElementById('uploadProgressSection');
                                     if (progressSection) {
@@ -2256,7 +2579,7 @@
                                             progressSection.style.opacity = '1';
                                         }, 500);
                                     }
-                                }, 2000);
+                                }, 1000);
                             }
                             return;
                         }
@@ -2267,13 +2590,42 @@
                             return;
                         }
 
-                        const pendingFiles = Array.from(this.files.values()).filter(f => f.status === 'pending');
-                        if (pendingFiles.length === 0) {
-                            this.showAlert('لا توجد ملفات جديدة للرفع.', 'info');
+                        // ⛔ التحقق من عدم وجود ملفات مكررة - إيقاف العملية تماماً
+                        const duplicateFiles = Array.from(this.files.values()).filter(f => f.status === 'duplicate');
+                        if (duplicateFiles.length > 0) {
+                            console.error('⛔ تم العثور على', duplicateFiles.length, 'ملف مكرر - يجب إزالتها أولاً!');
+
+                            Swal.fire({
+                                icon: 'error',
+                                title: '⛔ لا يمكن المتابعة!',
+                                html: `
+                                    <p><strong>${duplicateFiles.length}</strong> ملف مكرر موجود في القائمة.</p>
+                                    <p class="text-danger"><strong>يجب إزالة جميع الملفات المكررة قبل المتابعة!</strong></p>
+                                    <p>استخدم زر "🗑️ حذف" لإزالة الملفات المكررة من القائمة.</p>
+                                `,
+                                confirmButtonText: 'فهمت',
+                                confirmButtonColor: '#dc3545',
+                                allowOutsideClick: false
+                            });
+
+                            // ⛔ إيقاف العملية بشكل قاطع
                             return;
                         }
 
-                        this.showAlert('بدء رفع الملفات...', 'info');
+                        // تصفية الملفات - فقط الملفات المعلقة
+                        const pendingFiles = Array.from(this.files.values()).filter(f => f.status === 'pending');
+
+                        if (pendingFiles.length === 0) {
+                            console.warn('⚠️ لا توجد ملفات جديدة للرفع');
+                            Swal.fire({
+                                icon: 'info',
+                                title: 'لا توجد ملفات',
+                                text: 'لا توجد ملفات جديدة للرفع.',
+                                confirmButtonText: 'حسناً'
+                            });
+                            return;
+                        }
+
                         this.updateFileCounts();
 
                         // رفع الملفات بشكل تدريجي ومتسلسل
@@ -2312,11 +2664,10 @@
                                 // انتظار قصير قبل الملف التالي
                                 setTimeout(uploadNext, 300);
                             } else {
-                                // انتهت جميع الملفات - تحديث نهائي
+                                // انتهت جميع الملفات - تحديث نهائي فقط
                                 this.updateFileCounts();
-                                this.showAlert('تمت معالجة جميع الملفات.', 'success');
 
-                                // إخفاء شريط التقدم بعد الانتهاء بطريقة أنيقة
+                                // إخفاء شريط التقدم بعد الانتهاء
                                 setTimeout(() => {
                                     const progressSection = document.getElementById('uploadProgressSection');
                                     if (progressSection) {
@@ -2325,12 +2676,10 @@
 
                                         setTimeout(() => {
                                             progressSection.style.display = 'none';
-                                            progressSection.style.opacity = '1'; // إعادة تعيين للمرة القادمة
+                                            progressSection.style.opacity = '1';
                                         }, 500);
                                     }
-
-                                    console.log('🎉 تم الانتهاء من رفع جميع الملفات بنجاح!');
-                                }, 2000); // انتظار ثانيتين قبل الإخفاء
+                                }, 1000);
                             }
                         };
 
@@ -2388,7 +2737,7 @@
                                 statusLabel.className = 'badge bg-primary text-white small';
                                 statusLabel.style.background = 'linear-gradient(45deg, #007bff, #0056b3)';
                                 statusLabel.style.fontWeight = 'bold';
-                                statusLabel.style.animation = 'pulse-processing 1.5s infinite';
+                                statusLabel.style.animation = 'none';
                             }
                             if (overlay) {
                                 overlay.style.display = 'flex';
@@ -2402,7 +2751,7 @@
                                 statusLabel.innerText = 'مكتملة';
                                 statusLabel.className = 'badge bg-success text-white small';
                                 statusLabel.style.background = 'linear-gradient(45deg, #28a745, #20c997)';
-                                statusLabel.style.animation = 'bounce 0.5s ease';
+                                statusLabel.style.animation = 'none';
                             }
                             if (overlay) {
                                 overlay.style.display = 'none';
@@ -2410,14 +2759,14 @@
                             }
                             if (fileElement) {
                                 fileElement.classList.remove('processing');
-                                fileElement.style.animation = 'fadeIn 0.3s ease';
+                                fileElement.style.animation = 'none';
                             }
                         } else if (status === 'failed') {
                             if (statusLabel) {
                                 statusLabel.innerText = 'فاشلة';
                                 statusLabel.className = 'badge bg-danger text-white small';
                                 statusLabel.style.background = 'linear-gradient(45deg, #dc3545, #c82333)';
-                                statusLabel.style.animation = 'shake 0.5s ease';
+                                statusLabel.style.animation = 'none';
                             }
                             if (overlay) {
                                 overlay.style.display = 'none';
@@ -2429,13 +2778,16 @@
                             }
                         } else if (status === 'duplicate') {
                             if (statusLabel) {
-                                statusLabel.innerText = 'مكرر';
-                                statusLabel.className = 'badge bg-warning text-dark small';
-                                statusLabel.style.background = 'linear-gradient(45deg, #ffc107, #ff8c00)';
+                                statusLabel.innerText = '⚠️ مكرر - ممنوع الرفع';
+                                statusLabel.className = 'badge bg-danger text-white small';
+                                statusLabel.style.background = '#dc3545';
                                 statusLabel.style.fontWeight = 'bold';
-                                statusLabel.style.animation = 'pulse 2s infinite';
-                                statusLabel.style.boxShadow = '0 2px 8px rgba(255, 193, 7, 0.4)';
-                                statusLabel.style.border = '2px solid #ff8c00';
+                                statusLabel.style.boxShadow = '0 2px 8px rgba(220, 53, 69, 0.4)';
+                                statusLabel.style.border = '2px solid #bd2130';
+                                statusLabel.style.fontSize = '0.85rem';
+                                // ⛔ لا توجد animations على الإطلاق للملفات المكررة
+                                statusLabel.style.animation = 'none';
+                                statusLabel.style.transition = 'none';
                             }
                             if (overlay) {
                                 overlay.style.display = 'none';
@@ -2444,6 +2796,27 @@
                             if (fileElement) {
                                 fileElement.classList.remove('processing');
                                 fileElement.classList.add('duplicate-file');
+                                fileElement.style.border = '3px solid #dc3545';
+                                fileElement.style.boxShadow = '0 4px 15px rgba(220, 53, 69, 0.6)';
+                                // ⛔ لا توجد animations أو حركات على الكرت المكرر
+                                fileElement.style.animation = 'none';
+                                fileElement.style.transition = 'none';
+                                fileElement.style.transform = 'none';
+
+                                // إضافة زر عرض المقارنة داخل الكرت
+                                const cardBody = fileElement.querySelector('.card-body');
+                                if (cardBody && !cardBody.querySelector('.compare-duplicate-btn')) {
+                                    const compareBtn = document.createElement('button');
+                                    compareBtn.className = 'btn btn-danger btn-sm w-100 mt-2 compare-duplicate-btn';
+                                    compareBtn.innerHTML = '<i class="fas fa-exclamation-triangle me-1"></i> عرض الملف القديم والجديد';
+                                    compareBtn.onclick = () => {
+                                        const fileId = fileElement.closest('[data-file-id]')?.getAttribute('data-file-id');
+                                        if (fileId) {
+                                            app.showDuplicateComparisonModal(fileId);
+                                        }
+                                    };
+                                    cardBody.appendChild(compareBtn);
+                                }
                             }
                         } else if (status === 'pending') {
                             if (statusLabel) {
@@ -2538,10 +2911,14 @@
 
                     // دوال مساعدة لتحديث حالة جميع الملفات
                     updateAllFilesToProcessing() {
-                        console.log('🔄 تحديث حالة جميع الملفات إلى "قيد المعالجة"...');
+                        console.log('🔄 تحديث حالة الملفات الجديدة إلى "قيد المعالجة"...');
+
+                        // ⛔ فقط الملفات التي ليست مكررة
                         this.files.forEach(fileData => {
-                            fileData.status = 'processing';
-                            this.updateFileStatus(fileData.id, 'processing');
+                            if (fileData.status !== 'duplicate') {
+                                fileData.status = 'processing';
+                                this.updateFileStatus(fileData.id, 'processing');
+                            }
                         });
 
                         // تحديث فوري للعدادات
@@ -2551,53 +2928,9 @@
                         }, 100);
                     }
 
-                    updateAllFilesToCompleted() {
-                        console.log('✅ تحديث حالة جميع الملفات إلى "مكتملة" بشكل تدريجي...');
 
-                        // التأكد من أن جميع الملفات انتقلت من "processing" إلى "completed"
-                        const filesArray = Array.from(this.files.values());
 
-                        filesArray.forEach((fileData, index) => {
-                            setTimeout(() => {
-                                // تحديث حالة الملف في الـ Map
-                                fileData.status = 'completed';
-                                this.files.set(fileData.id, fileData);
 
-                                // تحديث العرض البصري
-                                this.updateFileStatus(fileData.id, 'completed');
-
-                                // تحديث البادج مع تأثير بصري
-                                const badge = document.querySelector(`[data-file-id="${fileData.id}"]`);
-                                if (badge) {
-                                    badge.innerHTML = '<i class="fa fa-check-circle text-success"></i> مكتمل';
-                                    badge.className = 'badge badge-success';
-                                    badge.style.animation = 'pulse 0.5s ease-in-out';
-
-                                    // تأثير توهج للنجاح
-                                    setTimeout(() => {
-                                        badge.style.boxShadow = '0 0 15px rgba(40, 167, 69, 0.6)';
-                                        setTimeout(() => {
-                                            badge.style.boxShadow = 'none';
-                                        }, 1000);
-                                    }, 100);
-                                }
-
-                                console.log(`✅ الملف ${fileData.file?.name || 'ملف غير محدد'} تم بنجاح`);
-                            }, index * 150); // تأخير 150ms بين كل ملف
-                        });
-
-                        // تحديث العدادات والتقدم النهائي
-                        setTimeout(() => {
-                            this.updateFileCounts();
-                            this.updateOverallProgress();
-                            console.log(`🎉 تم الانتهاء من رفع جميع الملفات (${filesArray.length} ملف) بنجاح!`);
-                        }, filesArray.length * 150 + 500);
-                    }
-
-                    updateAllFilesToFailed() {
-                        console.log('❌ تحديث حالة جميع الملفات إلى "فاشلة" بشكل تدريجي...');
-                        this.updateFilesGradually('failed');
-                    }
 
                     // دالة جديدة لتحديث الملفات المكررة
                     updateFilesToDuplicate(fileIds) {
@@ -3205,6 +3538,7 @@
                             compress_images: document.getElementById('compressImages')?.checked || false,
                             auto_organize: document.getElementById('autoOrganize')?.checked || true,
                             cloud_sync: document.getElementById('cloudSync')?.checked || false,
+                            enable_duplicate_detection: this.duplicateDetectionEnabled
                         };
 
                         // إضافة ملف Excel إذا كان موجود
@@ -3247,14 +3581,27 @@
 
                                         console.log(`✅ تم رفع الدفعة ${i + 1} بنجاح - الملفات المحفوظة: ${result.statistics?.files_saved || 0}, مكررة: ${batchDuplicates}`);
 
-                                        // تحديث حالة الملفات المكررة في الواجهة
+                                        // ⚠️ تحديث حالة الملفات المكررة في الواجهة
                                         if (batchDuplicates > 0) {
-                                            this.updateProcessedFilesStatus(batchDuplicates, 'duplicate');
-                                            console.log(`⚠️ تم تحديث ${batchDuplicates} ملف إلى "مكرر" في الدفعة ${i + 1}`);
+                                            // إذا كان كشف التكرار معطلاً، قم بإخفاء الملفات المكررة
+                                            if (!this.duplicateDetectionEnabled) {
+                                                console.log(`🚫 كشف التكرار معطّل - سيتم إخفاء ${batchDuplicates} ملف مكرر في الدفعة ${i + 1}`);
 
-                                            // إذا كانت هناك معلومات تفصيلية عن الملفات المكررة، استخدمها
-                                            if (result.duplicate_results && result.duplicate_results.duplicate_files) {
-                                                this.updateSpecificDuplicateFiles(result.duplicate_results.duplicate_files);
+                                                // إذا كانت هناك معلومات تفصيلية عن الملفات المكررة، استخدمها
+                                                if (result.duplicate_results && result.duplicate_results.duplicate_files) {
+                                                    this.updateSpecificDuplicateFiles(result.duplicate_results.duplicate_files);
+                                                }
+                                            } else {
+                                                // إذا كان كشف التكرار مفعلاً، عرض الملفات كمكررة
+                                                console.log(`⚠️ كشف التكرار مفعّل - سيتم عرض ${batchDuplicates} ملف كمكرر في الدفعة ${i + 1}`);
+
+                                                this.updateProcessedFilesStatus(batchDuplicates, 'duplicate');
+                                                console.log(`⛔ الملفات المكررة لن يتم رفعها - ستبقى معروضة للمستخدم`);
+
+                                                // إذا كانت هناك معلومات تفصيلية عن الملفات المكررة، استخدمها
+                                                if (result.duplicate_results && result.duplicate_results.duplicate_files) {
+                                                    this.updateSpecificDuplicateFiles(result.duplicate_results.duplicate_files);
+                                                }
                                             }
                                         }
 
@@ -3287,14 +3634,8 @@
                             this.updateBatchProgress(batches.length, batches.length, 'تم الانتهاء!');
                             this.updateRealTimeProgress(100, `النهاية: مكتمل ${totalSuccessful}, مكرر ${totalDuplicates}, أخطاء ${totalErrors}`);
 
-                            let message = `تم رفع ${totalSuccessful} ملف بنجاح!`;
-                            if (totalDuplicates > 0) message += ` (${totalDuplicates} مكرر)`;
-                            if (totalErrors > 0) message += ` (${totalErrors} خطأ)`;
-
-                            this.showAlert(message, 'success');
-
-                            // عرض SweetAlert للملفات المكررة إذا تم اكتشاف أي منها
-                            if (totalDuplicates > 0 && duplicateSessionId) {
+                            // عرض SweetAlert للملفات المكررة إذا تم اكتشاف أي منها وكان كشف التكرار مفعلاً
+                            if (totalDuplicates > 0 && duplicateSessionId && this.duplicateDetectionEnabled) {
                                 console.log('🔍 تم اكتشاف ملفات مكررة في الرفع المتعدد:', {
                                     totalDuplicates,
                                     sessionId: duplicateSessionId
@@ -3315,14 +3656,9 @@
                                         total_duplicates: totalDuplicates,
                                         total_size: 0 // سيتم تحديدها من السيرفر
                                     }, duplicateSessionId);
-                                }, 1000); // تأخير قصير للسماح بتحديث الواجهة
-                            } else {
-                                console.log('✅ لا توجد ملفات مكررة في الرفع المتعدد - العملية نظيفة');
-                            }                            // تحديث حالة جميع الملفات إلى "مكتملة" بناءً على النتائج الفعلية
-                            if (totalErrors === 0 && totalSuccessful > 0) {
-                                this.updateAllFilesToCompleted();
-                            } else if (totalErrors > 0) {
-                                this.updateAllFilesToFailed();
+                                }, 1000);
+                            } else if (totalDuplicates > 0 && !this.duplicateDetectionEnabled) {
+                                console.log('🚫 تم تجاهل وإخفاء الملفات المكررة لأن كشف التكرار معطّل');
                             }
 
                             // تحديث الواجهة
@@ -3393,11 +3729,13 @@
                     async uploadSingleBatch(files, batchIndex, totalBatches, options = {}) {
                         const formData = new FormData();
 
-                        // إضافة الملفات
+                        // إضافة جميع الملفات
                         files.forEach((file, index) => {
                             formData.append(`files[${index}]`, file);
                             formData.append(`paths[${index}]`, file.webkitRelativePath || file.name);
                         });
+
+                        console.log(`📤 رفع ${files.length} ملف`);
 
                         // إضافة معلومات الدفعة
                         formData.append('batch_index', batchIndex);
@@ -3409,6 +3747,7 @@
                         if (options.compress_images) formData.append('compress_images', options.compress_images);
                         if (options.auto_organize) formData.append('auto_organize', options.auto_organize);
                         if (options.cloud_sync) formData.append('cloud_sync', options.cloud_sync);
+                        if (options.enable_duplicate_detection !== undefined) formData.append('enable_duplicate_detection', options.enable_duplicate_detection);
 
                         // إضافة ملف Excel فقط في الدفعة الأولى
                         if (batchIndex === 0 && options.excelFile) {
@@ -3587,6 +3926,7 @@
                         }
 
                         console.log('🎯 تحديث ملفات مكررة محددة:', duplicateFilesList);
+                        console.log('🔍 حالة كشف التكرار:', this.duplicateDetectionEnabled ? 'مفعّل' : 'معطّل');
 
                         duplicateFilesList.forEach(duplicateInfo => {
                             const originalName = duplicateInfo.original_name || duplicateInfo.name;
@@ -3600,9 +3940,41 @@
                                     const [fileId, fileData] = fileEntry;
                                     console.log(`🔄 تحديث ملف مكرر محدد: ${originalName} (ID: ${fileId})`);
 
-                                    fileData.status = 'duplicate';
-                                    this.files.set(fileId, fileData);
-                                    this.updateFileStatus(fileId, 'duplicate');
+                                    // إذا كان كشف التكرار معطلاً، قم بإخفاء الملف (تجاهله)
+                                    if (!this.duplicateDetectionEnabled) {
+                                        console.log(`🚫 كشف التكرار معطّل - سيتم إخفاء الملف: ${originalName}`);
+
+                                        // حذف الملف من files Map
+                                        this.files.delete(fileId);
+
+                                        // إخفاء عنصر الملف من الواجهة
+                                        const fileElement = document.querySelector(`[data-file-id="${fileId}"]`);
+                                        if (fileElement) {
+                                            fileElement.style.display = 'none';
+                                            // أو حذفه تماماً
+                                            fileElement.remove();
+                                            console.log(`✅ تم إخفاء/حذف الملف من الواجهة: ${originalName}`);
+                                        }
+                                    } else {
+                                        // إذا كان كشف التكرار مفعلاً، عرض الملف كمكرر
+                                        console.log(`⚠️ كشف التكرار مفعّل - سيتم عرض الملف كمكرر: ${originalName}`);
+
+                                        // ⭐ حفظ معلومات الملف المكرر للاستخدام لاحقاً في المقارنة
+                                        fileData.status = 'duplicate';
+                                        fileData.duplicateInfo = {
+                                            original_name: duplicateInfo.original_name,
+                                            existing_file_name: duplicateInfo.existing_file_name,
+                                            existing_file_path: duplicateInfo.existing_file_path,
+                                            target_folder: duplicateInfo.target_folder,
+                                            reason: duplicateInfo.reason || 'same_identity_number',
+                                            message: duplicateInfo.message || 'الملف مكرر'
+                                        };
+
+                                        this.files.set(fileId, fileData);
+                                        this.updateFileStatus(fileId, 'duplicate');
+
+                                        console.log(`✅ تم حفظ معلومات الملف المكرر:`, fileData.duplicateInfo);
+                                    }
                                 } else {
                                     console.log(`❓ لم يتم العثور على الملف المكرر في الواجهة: ${originalName}`);
                                 }

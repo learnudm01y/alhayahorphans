@@ -562,4 +562,204 @@ class DuplicateFileController extends Controller
         $result = implode(' | ', $messages);
         return "{$result} من أصل {$total} ملف";
     }
+
+    /**
+     * Get duplicate file info for comparison modal
+     */
+    public function getDuplicateFileInfo($fileId)
+    {
+        try {
+            Log::info('Getting duplicate file info', ['file_id' => $fileId]);
+
+            // البحث عن الملف في جدول الملفات المؤقتة المكررة
+            $duplicateFile = DuplicateFileTemp::where('id', $fileId)
+                ->orWhere('original_name', 'LIKE', "%{$fileId}%")
+                ->first();
+
+            if (!$duplicateFile) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لم يتم العثور على معلومات الملف المكرر'
+                ], 404);
+            }
+
+            // جلب معلومات الملف القديم من جدول attachments
+            $oldFile = DB::table('attachments')
+                ->where('hash', $duplicateFile->hash)
+                ->orWhere('file_path', 'LIKE', "%{$duplicateFile->original_name}%")
+                ->first();
+
+            if (!$oldFile) {
+                // محاولة البحث بالـ hash في جدول الملفات المؤقتة
+                $oldFile = DuplicateFileTemp::where('hash', $duplicateFile->hash)
+                    ->where('id', '!=', $fileId)
+                    ->orderBy('created_at', 'asc')
+                    ->first();
+            }
+
+            if (!$oldFile) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لم يتم العثور على الملف القديم في النظام'
+                ], 404);
+            }
+
+            // تحضير URL للملف القديم
+            $oldFileUrl = null;
+            if (isset($oldFile->stored_file_name)) {
+                $oldFileUrl = route('admin.file.show', ['filename' => $oldFile->stored_file_name]);
+            } elseif (isset($oldFile->file_path)) {
+                $oldFileUrl = asset('storage/' . $oldFile->file_path);
+            }
+
+            return response()->json([
+                'success' => true,
+                'oldFile' => [
+                    'id' => $oldFile->id ?? null,
+                    'original_name' => $oldFile->original_name ?? $oldFile->file_name ?? 'غير متوفر',
+                    'file_size' => $oldFile->file_size ?? null,
+                    'mime_type' => $oldFile->mime_type ?? $oldFile->file_type ?? null,
+                    'hash' => $oldFile->hash ?? null,
+                    'url' => $oldFileUrl,
+                    'created_at' => $oldFile->created_at ?? null,
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error getting duplicate file info', [
+                'file_id' => $fileId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء جلب معلومات الملف: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Replace duplicate file - استبدال الملف القديم بالجديد
+     */
+    public function replaceDuplicateFile(Request $request)
+    {
+        try {
+            $request->validate([
+                'file' => 'required|file',
+                'old_file_name' => 'required|string',
+                'old_file_path' => 'required|string'
+            ]);
+
+            Log::info('Replacing duplicate file', [
+                'old_file_name' => $request->old_file_name,
+                'old_file_path' => $request->old_file_path
+            ]);
+
+            // استخراج folder_id من old_file_path (مثال: uploads/123/file.jpg -> 123)
+            $pathParts = explode('/', $request->old_file_path);
+            $folderId = null;
+
+            // البحث عن رقم المجلد في المسار
+            if (count($pathParts) >= 2 && $pathParts[0] === 'uploads') {
+                $folderId = $pathParts[1];
+            }
+
+            if (!$folderId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لا يمكن تحديد المجلد من المسار المعطى'
+                ], 400);
+            }
+
+            // البحث عن الملف القديم في جدول attachments
+            $oldFile = DB::table('attachments')
+                ->where('stored_file_name', $request->old_file_name)
+                ->where('file_path', $request->old_file_path)
+                ->first();
+
+            $tableName = 'attachments';
+
+            // إذا لم يوجد في attachments، ابحث في enhanced_attachments
+            if (!$oldFile) {
+                $oldFile = DB::table('enhanced_attachments')
+                    ->where('stored_file_name', $request->old_file_name)
+                    ->where('file_path', $request->old_file_path)
+                    ->first();
+                $tableName = 'enhanced_attachments';
+            }
+
+            if (!$oldFile) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لم يتم العثور على الملف القديم في قاعدة البيانات'
+                ], 404);
+            }
+
+            // التحقق من وجود الملف الفعلي في التخزين
+            $oldFilePath = storage_path('app/public/' . $request->old_file_path);
+            if (!File::exists($oldFilePath)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'الملف القديم غير موجود في التخزين: ' . $request->old_file_path
+                ], 404);
+            }
+
+            // رفع الملف الجديد
+            $newFile = $request->file('file');
+
+            // استخدام نفس اسم الملف القديم
+            $newFileName = $request->old_file_name;
+            $uploadPath = "uploads/{$folderId}";
+
+            // حذف الملف القديم من التخزين أولاً
+            File::delete($oldFilePath);
+            Log::info('Old file deleted from storage', ['path' => $oldFilePath]);
+
+            // رفع الملف الجديد في نفس المكان بنفس الاسم
+            $newFilePath = $newFile->storeAs($uploadPath, $newFileName, 'public');
+            Log::info('New file uploaded to replace old file', [
+                'new_path' => $newFilePath,
+                'folder_id' => $folderId
+            ]);
+
+            // تحديث السجل في قاعدة البيانات
+            DB::table($tableName)
+                ->where('id', $oldFile->id)
+                ->update([
+                    'stored_file_name' => $newFileName,
+                    'file_path' => $newFilePath,
+                    'updated_at' => now()
+                ]);
+
+            Log::info('File replaced successfully', [
+                'old_file_id' => $oldFile->id,
+                'new_file_name' => $newFileName,
+                'new_file_path' => $newFilePath,
+                'table' => $tableName
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم استبدال الملف بنجاح',
+                'new_file' => [
+                    'id' => $oldFile->id,
+                    'name' => $newFileName,
+                    'path' => $newFilePath
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error replacing duplicate file', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء استبدال الملف: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }
+

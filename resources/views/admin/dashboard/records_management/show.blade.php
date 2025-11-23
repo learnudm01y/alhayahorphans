@@ -218,7 +218,7 @@
             </div>
             <div class="col-md-4 col-6 mb-2">
                 <div class="info-label">الحالة الاجتماعية</div>
-                <div class="info-value">{{ optional($data->maritalStatus)->description }}</div>
+                <div class="info-value">{{ optional($data->ciPersonalCd)->CI_PERSONAL_CD }}</div>
             </div>
             <div class="col-md-4 col-6 mb-2">
                 <div class="info-label">المؤهل العلمي</div>

@@ -192,6 +192,10 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
         Route::get('download-duplicate', [UnifiedFileManagementController::class, 'downloadSingleDuplicateFile'])->name('file.download.duplicate.single');
         Route::get('duplicate-statistics', [UnifiedFileManagementController::class, 'getFolderDuplicateStatistics'])->name('file.duplicate.statistics');
 
+        // Single File Duplicate Detection Routes
+        Route::post('check-single-duplicate', [UnifiedFileManagementController::class, 'checkSingleDuplicate'])->name('file.check.single.duplicate');
+        Route::post('handle-duplicate', [UnifiedFileManagementController::class, 'handleDuplicate'])->name('file.handle.duplicate');
+
         // Bulk Folder Upload with Duplicate Detection
         Route::post('process-bulk-folder-upload', [UnifiedFileManagementController::class, 'processBulkFolderUploadWithDuplicateDetection'])->name('file.process.bulk.folder.upload');
 
@@ -247,7 +251,12 @@ Route::prefix('admin/file')->withoutMiddleware(['web'])->group(function () {
     Route::get('download-duplicates', [DuplicateFileController::class, 'downloadDuplicateFiles'])->name('admin.file.download.duplicates');
     Route::get('download-duplicate/{session_id}/{file_id}', [DuplicateFileController::class, 'downloadDuplicateFile'])->name('admin.file.download.duplicate');
     Route::post('process-folder-duplicates', [DuplicateFileController::class, 'processFolderForDuplicates'])->name('admin.file.process.folder.duplicates');
+    Route::get('duplicate-info/{fileId}', [DuplicateFileController::class, 'getDuplicateFileInfo'])->name('admin.file.duplicate.info');
+    Route::get('view/{filename}', [UnifiedFileManagementController::class, 'viewFileSecure'])->name('admin.file.view');
 });
+
+// Replace duplicate file API
+Route::post('/api/replace-duplicate-file', [DuplicateFileController::class, 'replaceDuplicateFile'])->name('api.replace.duplicate.file');
 
 // Test API Routes - بدون أي middleware
 Route::prefix('test/api/file')->group(function () {

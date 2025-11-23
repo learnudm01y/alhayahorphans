@@ -3373,7 +3373,8 @@ class UnifiedFileManagementController extends Controller
             Log::info('Starting bulk folder upload with duplicate detection', [
                 'user_id' => auth()->id(),
                 'files_count' => $request->hasFile('files') ? count($request->file('files')) : 0,
-                'paths_count' => $request->has('paths') ? count($request->input('paths')) : 0
+                'paths_count' => $request->has('paths') ? count($request->input('paths')) : 0,
+                'duplicate_detection_enabled' => $request->input('enable_duplicate_detection', true)
             ]);
 
             // التحقق من صحة البيانات
@@ -3382,7 +3383,8 @@ class UnifiedFileManagementController extends Controller
                 'paths.*' => 'nullable|string',
                 'enable_excel_import' => 'nullable|boolean',
                 'excel_file' => 'nullable|file|mimes:xlsx,xls,csv',
-                'target_table' => 'nullable|string|in:data,dead_people,guardian_bank_accounts,re_people'
+                'target_table' => 'nullable|string|in:data,dead_people,guardian_bank_accounts,re_people',
+                'enable_duplicate_detection' => 'nullable|in:true,false,1,0'
             ]);
 
             $files = $request->file('files');
@@ -3407,11 +3409,18 @@ class UnifiedFileManagementController extends Controller
                 ], 422);
             }
 
-            // كشف الملفات المكررة باستخدام الخدمة المخصصة
+            // التحقق من حالة كشف التكرار
+            $duplicateDetectionEnabled = filter_var(
+                $request->input('enable_duplicate_detection', true),
+                FILTER_VALIDATE_BOOLEAN
+            );
+
+            // كشف الملفات المكررة باستخدام الخدمة المخصصة (أو تجاهلها)
             $duplicateResults = $this->duplicateDetectionService->processFolderFilesForDuplicates(
                 $files,
                 $folderAnalysis['validated_folders'],
-                $folderAnalysis['path_to_folder_mapping']
+                $folderAnalysis['path_to_folder_mapping'],
+                $duplicateDetectionEnabled
             );
 
             // معالجة ملف Excel إذا تم رفعه
@@ -5113,7 +5122,8 @@ class UnifiedFileManagementController extends Controller
                 'files_count' => $request->hasFile('files') ? count($request->file('files')) : 0,
                 'batch_index' => $request->input('batch_index', 0),
                 'total_batches' => $request->input('total_batches', 1),
-                'is_final_batch' => $request->boolean('is_final_batch', false)
+                'is_final_batch' => $request->boolean('is_final_batch', false),
+                'duplicate_detection_enabled' => $request->input('enable_duplicate_detection', true)
             ]);
 
             // التحقق من صحة البيانات مع حدود أقل للدفعات
@@ -5125,7 +5135,8 @@ class UnifiedFileManagementController extends Controller
                 'is_final_batch' => 'sometimes|boolean',
                 'enable_excel_import' => 'sometimes|boolean',
                 'excel_file' => 'nullable|file|mimes:xlsx,xls,csv|max:10240', // فقط في الدفعة الأولى
-                'target_table' => 'nullable|string|in:data,dead_people,guardian_bank_accounts,re_people'
+                'target_table' => 'nullable|string|in:data,dead_people,guardian_bank_accounts,re_people',
+                'enable_duplicate_detection' => 'nullable|in:true,false,1,0'
             ]);
 
             $files = $request->file('files');
@@ -5152,12 +5163,19 @@ class UnifiedFileManagementController extends Controller
             // استخراج وتحليل المجلدات من هذه الدفعة
             $folderAnalysis = $this->analyzeFolderStructure($files, $paths);
 
-            // كشف الملفات المكررة باستخدام الخدمة المخصصة
+            // التحقق من حالة كشف التكرار
+            $duplicateDetectionEnabled = filter_var(
+                $request->input('enable_duplicate_detection', true),
+                FILTER_VALIDATE_BOOLEAN
+            );
+
+            // كشف الملفات المكررة باستخدام الخدمة المخصصة (أو تجاهلها)
             $duplicateResults = $this->duplicateDetectionService->processFolderFilesForDuplicates(
                 $files,
                 $folderAnalysis['validated_folders'],
                 $folderAnalysis['path_to_folder_mapping'],
-                $sessionId . '_batch_' . $batchIndex
+                $sessionId . '_batch_' . $batchIndex,
+                $duplicateDetectionEnabled
             );
 
             // معالجة ملف Excel فقط في الدفعة الأولى
@@ -5683,6 +5701,240 @@ class UnifiedFileManagementController extends Controller
                 'success' => false,
                 'message' => 'حدث خطأ أثناء إدخال البيانات: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Check single file for duplicates
+     */
+    public function checkSingleDuplicate(Request $request)
+    {
+        try {
+            $request->validate([
+                'file' => 'required|file',
+                'file_name' => 'required|string',
+                'file_size' => 'required|integer'
+            ]);
+
+            $uploadedFile = $request->file('file');
+            $fileName = $request->input('file_name');
+            $fileSize = $request->input('file_size');
+
+            // حساب hash للملف
+            $fileHash = hash_file('sha256', $uploadedFile->getPathname());
+
+            Log::info('🔍 Checking file for duplicates', [
+                'file_name' => $fileName,
+                'file_size' => $fileSize,
+                'file_hash' => $fileHash
+            ]);
+
+            // البحث عن ملفات مطابقة في جدول enhanced_attachments فقط
+            $existingFile = EnhancedAttachment::where(function($query) use ($fileHash, $fileName, $fileSize) {
+                $query->where('file_hash', $fileHash)
+                      ->orWhere(function($q) use ($fileName, $fileSize) {
+                          $q->where('original_file_name', $fileName)
+                            ->where('file_size', $fileSize);
+                      });
+            })->first();
+
+            Log::info('📊 Search result', [
+                'found' => $existingFile ? 'yes' : 'no',
+                'existing_file_id' => $existingFile ? $existingFile->id : null,
+                'existing_file_name' => $existingFile ? $existingFile->original_file_name : null
+            ]);
+
+            if ($existingFile) {
+                // ملف مكرر تم اكتشافه
+                Log::warning('⚠️ Duplicate file detected', [
+                    'new_file' => $fileName,
+                    'existing_file' => $existingFile->original_file_name,
+                    'hash' => $fileHash
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'is_duplicate' => true,
+                    'message' => 'تم العثور على ملف مكرر',
+                    'existing_file' => [
+                        'id' => $existingFile->id,
+                        'original_name' => $existingFile->original_file_name,
+                        'size' => $existingFile->file_size,
+                        'path' => $existingFile->file_path,
+                        'url' => Storage::url($existingFile->file_path),
+                        'created_at' => $existingFile->created_at,
+                    ]
+                ]);
+            }
+
+            // الملف غير مكرر
+            Log::info('✅ File is unique (not duplicate)', [
+                'file_name' => $fileName,
+                'file_size' => $fileSize,
+                'file_hash' => $fileHash
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'is_duplicate' => false,
+                'message' => 'الملف فريد - لا يوجد تكرار'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error checking single file duplicate', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء فحص التكرار: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Handle duplicate file action (replace or skip)
+     */
+    public function handleDuplicate(Request $request)
+    {
+        try {
+            $request->validate([
+                'file' => 'required|file',
+                'existing_file_id' => 'required|integer',
+                'action' => 'required|in:replace,skip'
+            ]);
+
+            $action = $request->input('action');
+            $existingFileId = $request->input('existing_file_id');
+            $newFile = $request->file('file');
+
+            if ($action === 'skip') {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'تم تجاهل الملف الجديد'
+                ]);
+            }
+
+            if ($action === 'replace') {
+                DB::beginTransaction();
+
+                try {
+                    // البحث عن الملف القديم
+                    $existingFile = Attachment::find($existingFileId);
+
+                    if (!$existingFile) {
+                        $existingFile = EnhancedAttachment::find($existingFileId);
+                    }
+
+                    if (!$existingFile) {
+                        throw new \Exception('الملف القديم غير موجود');
+                    }
+
+                    // حذف الملف القديم من التخزين
+                    if (isset($existingFile->file_path) && Storage::exists($existingFile->file_path)) {
+                        Storage::delete($existingFile->file_path);
+                    } elseif (isset($existingFile->stored_file_name)) {
+                        $oldPath = 'public/attachments/' . $existingFile->stored_file_name;
+                        if (Storage::exists($oldPath)) {
+                            Storage::delete($oldPath);
+                        }
+                    }
+
+                    // رفع الملف الجديد
+                    $fileName = time() . '_' . $newFile->getClientOriginalName();
+                    $filePath = $newFile->storeAs('public/attachments', $fileName);
+
+                    // تحديث سجل الملف
+                    $existingFile->original_file_name = $newFile->getClientOriginalName();
+                    $existingFile->stored_file_name = $fileName;
+                    $existingFile->file_path = $filePath;
+                    $existingFile->file_size = $newFile->getSize();
+                    $existingFile->file_hash = hash_file('sha256', $newFile->getPathname());
+                    $existingFile->updated_at = now();
+                    $existingFile->save();
+
+                    DB::commit();
+
+                    Log::info('File replaced successfully', [
+                        'file_id' => $existingFileId,
+                        'new_file' => $newFile->getClientOriginalName()
+                    ]);
+
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'تم استبدال الملف بنجاح',
+                        'file' => [
+                            'id' => $existingFile->id,
+                            'name' => $existingFile->original_file_name,
+                            'size' => $existingFile->file_size,
+                            'path' => $existingFile->file_path
+                        ]
+                    ]);
+
+                } catch (\Exception $e) {
+                    DB::rollBack();
+                    throw $e;
+                }
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Error handling duplicate file', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء معالجة الملف المكرر: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * عرض الملف بشكل آمن
+     */
+    public function viewFileSecure($filename)
+    {
+        try {
+            // البحث عن الملف في جدول attachments
+            $attachment = \App\Models\Attachment::where('stored_file_name', $filename)
+                ->orWhere('original_file_name', $filename)
+                ->first();
+
+            if (!$attachment) {
+                // البحث في EnhancedAttachment
+                $attachment = \App\Models\EnhancedAttachment::where('stored_file_name', $filename)
+                    ->orWhere('original_file_name', $filename)
+                    ->first();
+            }
+
+            if (!$attachment) {
+                abort(404, 'الملف غير موجود');
+            }
+
+            // بناء المسار الكامل للملف
+            $filePath = storage_path('app/public/' . $attachment->file_path);
+
+            if (!file_exists($filePath)) {
+                abort(404, 'الملف غير موجود على الخادم');
+            }
+
+            // تحديد MIME type
+            $mimeType = $attachment->mime_type ?? mime_content_type($filePath);
+
+            // إرجاع الملف مع headers صحيحة
+            return response()->file($filePath, [
+                'Content-Type' => $mimeType,
+                'Content-Disposition' => 'inline; filename="' . $attachment->original_file_name . '"'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error viewing file securely', [
+                'filename' => $filename,
+                'error' => $e->getMessage()
+            ]);
+            abort(500, 'خطأ في عرض الملف');
         }
     }
 

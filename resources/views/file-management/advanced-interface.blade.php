@@ -993,7 +993,6 @@
             align-items: center;
             justify-content: center;
             z-index: 10;
-            animation: bounce 2s infinite;
         }
 
         .duplicate-file:hover {
@@ -1001,42 +1000,29 @@
             box-shadow: 0 6px 20px rgba(255, 193, 7, 0.4) !important;
         }
 
-        /* تحسين انيميشن pulse للملفات المكررة */
-        @keyframes pulse {
-            0%, 100% {
-                opacity: 1;
-                transform: scale(1);
-            }
-            50% {
-                opacity: 0.8;
-                transform: scale(1.05);
-            }
+        /* تصميم الملفات المكررة بدون انيميشن - لا حركة نهائياً */
+        .duplicate-file {
+            border: 3px solid #dc3545 !important;
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.6) !important;
+            /* ⛔ لا توجد animations على الإطلاق */
+            animation: none !important;
+            transition: none !important;
+            transform: none !important;
         }
 
-        /* انيميشن shake للفشل */
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
-            20%, 40%, 60%, 80% { transform: translateX(2px); }
+        /* تحسين مظهر زر المقارنة */
+        .compare-duplicate-btn {
+            font-weight: bold;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.4);
         }
 
-        /* انيميشن bounce للنجاح */
-        @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-5px); }
+        .compare-duplicate-btn:hover {
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.6);
         }
 
-        /* انيميشن fadeIn */
-        @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.9); }
-            to { opacity: 1; transform: scale(1); }
-        }
-
-        /* انيميشن pulse-processing للمعالجة */
-        @keyframes pulse-processing {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
-        }
+        /* ⛔ تم حذف جميع animations للملفات المكررة */
+        /* لا توجد حركات أو تأثيرات على الملفات المكررة */
     </style>
        <!-- تحسينات للأجهزة المحمولة -->
     <style>
@@ -1252,6 +1238,12 @@
                         <i class="fas fa-cogs text-success"></i> خيارات المعالجة
                     </label>
                     <div class="d-flex gap-3 flex-wrap">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="enableDuplicateDetection" checked>
+                            <label class="form-check-label" for="enableDuplicateDetection">
+                                <i class="fas fa-shield-alt"></i> كشف الملفات المكررة
+                            </label>
+                        </div>
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" id="compressImages" checked>
                             <label class="form-check-label" for="compressImages">
@@ -1514,6 +1506,77 @@
                                 </div>
                             </div>
                         </div>                </div>
+            </div>
+
+            <!-- Duplicate Comparison Modal -->
+            <div class="modal fade" id="duplicateComparisonModal" tabindex="-1" aria-labelledby="duplicateComparisonModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-xl modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-danger text-white">
+                            <h5 class="modal-title" id="duplicateComparisonModalLabel">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                مقارنة الملف المكرر
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-danger" role="alert">
+                                <h6 class="alert-heading"><i class="fas fa-ban me-2"></i>تحذير: هذا الملف مكرر ولن يتم رفعه!</h6>
+                                <hr>
+                                <p class="mb-0">تم اكتشاف أن هذا الملف موجود مسبقاً في النظام. يرجى مراجعة الملف القديم والجديد أدناه.</p>
+                            </div>
+
+                            <div class="row">
+                                <!-- الملف الجديد (المرفوض) -->
+                                <div class="col-md-6 mb-3">
+                                    <div class="card border-warning">
+                                        <div class="card-header bg-warning text-dark" style="padding-top: 1.5rem; padding-bottom: 1.5rem;">
+                                            <h6 class="mb-0" style="padding-top: 0.5rem;"><i class="fas fa-file-upload me-2"></i>الملف الجديد (مرفوض)</h6>
+                                        </div>
+                                        <div class="card-body text-center">
+                                            <div id="newFilePreview" class="mb-3">
+                                                <!-- سيتم إدراج معاينة الملف الجديد هنا -->
+                                            </div>
+                                            <div id="newFileInfo" class="text-start">
+                                                <!-- معلومات الملف الجديد -->
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- الملف القديم (الموجود) -->
+                                <div class="col-md-6 mb-3">
+                                    <div class="card border-success">
+                                        <div class="card-header bg-success text-white" style="padding-top: 1.5rem; padding-bottom: 1.5rem;">
+                                            <h6 class="mb-0" style="padding-top: 0.5rem;"><i class="fas fa-check-circle me-2"></i>الملف القديم (الموجود في النظام)</h6>
+                                        </div>
+                                        <div class="card-body text-center">
+                                            <div id="oldFilePreview" class="mb-3">
+                                                <!-- سيتم إدراج معاينة الملف القديم هنا -->
+                                            </div>
+                                            <div id="oldFileInfo" class="text-start">
+                                                <!-- معلومات الملف القديم -->
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer d-flex justify-content-between">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                <i class="fas fa-times me-1"></i>إغلاق
+                            </button>
+                            <div>
+                                <button type="button" class="btn btn-warning me-2" id="ignoreDuplicateBtn">
+                                    <i class="fas fa-ban me-1"></i>تجاهل
+                                </button>
+                                <button type="button" class="btn btn-success" id="replaceDuplicateBtn">
+                                    <i class="fas fa-sync-alt me-1"></i>استبدال
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- File Preview Modal -->

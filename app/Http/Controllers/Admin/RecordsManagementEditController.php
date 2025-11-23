@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Storage;
 use App\Models\Data;
 use App\Models\GeneralCategory;
 use App\Models\CategoryOfRelation;
-use App\Models\MaritalStatus;
+use App\Models\CI_PERSONAL_CD;
 use App\Models\AcademicDegree;
 use App\Models\DisplacementStatus;
 use App\Models\City;
@@ -81,7 +81,7 @@ class RecordsManagementEditController extends Controller
         // جلب نفس البيانات المساعدة كما في create
         $generalSection = GeneralCategory::all();
         $category_of_relationship = CategoryOfRelation::all();
-        $marital_status = MaritalStatus::all();
+        $ci_personal_cd = CI_PERSONAL_CD::all(); // الحالة الاجتماعية
         $academic_qualification = AcademicDegree::all();
         $displacement_status = DisplacementStatus::all();
         $city = City::all();
@@ -98,7 +98,7 @@ class RecordsManagementEditController extends Controller
             'data',
             'generalSection',
             'category_of_relationship',
-            'marital_status',
+            'ci_personal_cd',
             'academic_qualification',
             'displacement_status',
             'city',

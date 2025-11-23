@@ -538,3 +538,9 @@ Route::prefix('gallery')->group(function () {
         }
     });
 });
+
+// ====================================================================
+// API للكشف عن الملفات المكررة - نظام التسجيل
+// ====================================================================
+Route::post('/check-duplicate-file', [UnifiedFileManagementController::class, 'checkSingleDuplicate']);
+Route::post('/replace-duplicate-file', [UnifiedFileManagementController::class, 'handleDuplicate']);

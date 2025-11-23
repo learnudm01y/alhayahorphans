@@ -73,8 +73,8 @@
         <label class="form-label">الحالة الاجتماعية<span class="text-danger">*</span></label>
         <select name="data_marital_status" class="form-select">
             <option value="">اختر الحالة</option>
-            @foreach ($marital_status as $marital)
-                <option value="{{ $marital->id }}" {{ (isset($data) && $data->data_marital_status == $marital->id) ? 'selected' : '' }}>{{ $marital->description }}</option>
+            @foreach ($ci_personal_cd as $status)
+                <option value="{{ $status->id }}" {{ (isset($data) && $data->data_marital_status == $status->id) ? 'selected' : '' }}>{{ $status->CI_PERSONAL_CD }}</option>
             @endforeach
         </select>
     </div>

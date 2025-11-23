@@ -7,6 +7,7 @@ use App\Models\AcademicDegree;
 use App\Models\Attachment;
 use App\Models\BankName;
 use App\Models\CategoryOfRelation;
+use App\Models\CI_PERSONAL_CD;
 use App\Models\City;
 use App\Models\Data;
 use App\Models\DeadPepole;
@@ -37,7 +38,7 @@ class GeneralRegistrationController extends Controller
         // $file_id_number = generateFiveDigitCode(Data::class, 'file_id_number');
         $file_id_number = generateUniqueReservedCode('data', 'file_id_number');
         $category_of_relationship = CategoryOfRelation::all();
-        $marital_status = MaritalStatus::all();
+        $ci_personal_cd = CI_PERSONAL_CD::all(); // الحالة الاجتماعية
         $academic_qualification = AcademicDegree::all();
         $displacement_status = DisplacementStatus::all();
         $city = City::all();
@@ -57,7 +58,7 @@ class GeneralRegistrationController extends Controller
                 'generalSection',
                 'file_id_number',
                 'category_of_relationship',
-                'marital_status',
+                'ci_personal_cd',
                 'academic_qualification',
                 'displacement_status',
                 'city',
@@ -184,6 +185,30 @@ class GeneralRegistrationController extends Controller
             markCodeAsUsed($fileIdNumber);
             Log::info('✅ تم حفظ الرقم بنجاح: ' . $fileIdNumber);
 
+            // التحقق من وجود رقم الهوية في جدول persons (السجل المدني)
+            // إذا لم يكن موجوداً، يتم إضافته
+            $guardianIdNumber = $request->input('data_id_number');
+            $existsInPersons = \App\Models\Persons::where('CI_ID_NUM', $guardianIdNumber)->exists();
+
+            if (!$existsInPersons) {
+                try {
+                    \App\Models\Persons::create([
+                        'CI_ID_NUM' => $guardianIdNumber,
+                        'CI_FIRST_ARB' => $request->input('data_first_name'),
+                        'CI_FATHER_ARB' => $request->input('data_father_name'),
+                        'CI_GRAND_FATHER_ARB' => $request->input('data_grand_father_name'),
+                        'CI_FAMILY_ARB' => $request->input('data_family_name'),
+                        'CI_BIRTH_DT' => $request->input('data_birth_date'),
+                        'CI_SEX_CD' => $request->input('data_gender'),
+                        'CITY' => $request->input('data_city'),
+                        'STREET' => $request->input('data_current_address'),
+                    ]);
+                    Log::info('✅ تم إضافة رقم الهوية ' . $guardianIdNumber . ' إلى جدول persons');
+                } catch (\Exception $e) {
+                    Log::warning('⚠️ لم يتم إضافة رقم الهوية إلى persons: ' . $e->getMessage());
+                }
+            }
+
             // إضافة بيانات الحساب البنكي إذا وُجدت أي قيمة بنكية
             $bankAccounts = $request->input('bank_accounts', []);
             Log::info('🟢 بيانات الحسابات البنكية المستلمة من الواجهة:', ['bank_accounts' => $bankAccounts]);
@@ -252,6 +277,7 @@ class GeneralRegistrationController extends Controller
 
             if (is_array($familyMembers)) {
                 foreach ($familyMembers as $member) {
+                    // حفظ في جدول re_people
                     RePeople::create([
                         'registration_id' => $fileIdNumber,
                         'sponsorship_status' => $member['sponsorship_status'] ?? null,
@@ -267,9 +293,77 @@ class GeneralRegistrationController extends Controller
                         'person_type_of_guarantee' => $member['person_type_of_guarantee'] ?? null,
                         'person_note' => $member['person_note'] ?? null,
                     ]);
+
+                    // إضافة إلى جدول persons إذا لم يكن موجوداً
+                    $memberIdNumber = $member['person_id'] ?? null;
+                    if ($memberIdNumber) {
+                        $existsInPersons = \App\Models\Persons::where('CI_ID_NUM', $memberIdNumber)->exists();
+                        if (!$existsInPersons) {
+                            try {
+                                \App\Models\Persons::create([
+                                    'CI_ID_NUM' => $memberIdNumber,
+                                    'CI_FIRST_ARB' => $member['first_name'] ?? null,
+                                    'CI_FATHER_ARB' => $member['second_name'] ?? null,
+                                    'CI_GRAND_FATHER_ARB' => $member['third_name'] ?? null,
+                                    'CI_FAMILY_ARB' => $member['last_name'] ?? null,
+                                    'CI_BIRTH_DT' => $member['person_birth_date'] ?? null,
+                                    'CI_SEX_CD' => $member['person_gender'] ?? null,
+                                ]);
+                                Log::info('✅ تم إضافة فرد الأسرة (رقم الهوية: ' . $memberIdNumber . ') إلى جدول persons');
+                            } catch (\Exception $e) {
+                                Log::warning('⚠️ لم يتم إضافة فرد الأسرة إلى persons: ' . $e->getMessage());
+                            }
+                        }
+                    }
                 }
             }
 
+            // إضافة المتوفى (الأب/الأم) إلى جدول persons إذا لم يكن موجوداً
+            if ($request->input('data_section_id') == 1) {
+                // إضافة الأب
+                $fatherId = $request->input('father_id');
+                if ($fatherId) {
+                    $existsInPersons = \App\Models\Persons::where('CI_ID_NUM', $fatherId)->exists();
+                    if (!$existsInPersons) {
+                        try {
+                            \App\Models\Persons::create([
+                                'CI_ID_NUM' => $fatherId,
+                                'CI_FIRST_ARB' => $request->input('father_first_name'),
+                                'CI_FATHER_ARB' => $request->input('father_second_name'),
+                                'CI_GRAND_FATHER_ARB' => $request->input('father_third_name'),
+                                'CI_FAMILY_ARB' => $request->input('father_last_name'),
+                                'CI_DEAD_DT' => $request->input('father_death_date'),
+                                'CI_SEX_CD' => 1, // ذكر
+                            ]);
+                            Log::info('✅ تم إضافة الأب المتوفى (رقم الهوية: ' . $fatherId . ') إلى جدول persons');
+                        } catch (\Exception $e) {
+                            Log::warning('⚠️ لم يتم إضافة الأب المتوفى إلى persons: ' . $e->getMessage());
+                        }
+                    }
+                }
+
+                // إضافة الأم
+                $motherId = $request->input('mother_id');
+                if ($motherId) {
+                    $existsInPersons = \App\Models\Persons::where('CI_ID_NUM', $motherId)->exists();
+                    if (!$existsInPersons) {
+                        try {
+                            \App\Models\Persons::create([
+                                'CI_ID_NUM' => $motherId,
+                                'CI_FIRST_ARB' => $request->input('mother_first_name'),
+                                'CI_FATHER_ARB' => $request->input('mother_second_name'),
+                                'CI_GRAND_FATHER_ARB' => $request->input('mother_third_name'),
+                                'CI_FAMILY_ARB' => $request->input('mother_last_name'),
+                                'CI_DEAD_DT' => $request->input('mother_death_date'),
+                                'CI_SEX_CD' => 2, // أنثى
+                            ]);
+                            Log::info('✅ تم إضافة الأم المتوفاة (رقم الهوية: ' . $motherId . ') إلى جدول persons');
+                        } catch (\Exception $e) {
+                            Log::warning('⚠️ لم يتم إضافة الأم المتوفاة إلى persons: ' . $e->getMessage());
+                        }
+                    }
+                }
+            }
 
 
 
@@ -418,6 +512,318 @@ class GeneralRegistrationController extends Controller
         if (RePeople::where('person_id', $id)->exists()) $exists = true;
 
         return response()->json(['exists' => $exists]);
+    }
+
+    /**
+     * البحث الشامل في جميع الجداول
+     */
+    public function searchAllTables(Request $request)
+    {
+        try {
+            $searchTerm = $request->input('search_term');
+
+            if (empty($searchTerm)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'الرجاء إدخال كلمة البحث'
+                ]);
+            }
+
+            $results = [
+                'found' => false,
+                'has_account' => false,
+                'data' => [],
+                'message' => ''
+            ];
+
+            // 1. البحث في جدول data (قاعدة بيانات aso) - المعيل
+            // البحث برقم الهوية أو رقم الملف أو الاسم الكامل أو الاسم الجزئي
+            $dataResult = Data::where('data_id_number', $searchTerm)
+                ->orWhere('file_id_number', $searchTerm)
+                ->orWhere('data_first_name', 'LIKE', "%{$searchTerm}%")
+                ->orWhere('data_father_name', 'LIKE', "%{$searchTerm}%")
+                ->orWhere('data_grand_father_name', 'LIKE', "%{$searchTerm}%")
+                ->orWhere('data_family_name', 'LIKE', "%{$searchTerm}%")
+                ->orWhere(function($query) use ($searchTerm) {
+                    // البحث بالاسم الكامل
+                    $query->whereRaw("CONCAT(IFNULL(data_first_name, ''), ' ', IFNULL(data_father_name, ''), ' ', IFNULL(data_grand_father_name, ''), ' ', IFNULL(data_family_name, '')) LIKE ?", ["%{$searchTerm}%"]);
+                })
+                ->first();
+
+            if ($dataResult) {
+                $results['found'] = true;
+                $results['has_account'] = true;
+                $results['source'] = 'data';
+                $results['data'] = [
+                    'file_id_number' => $dataResult->file_id_number,
+                    'id_number' => $dataResult->data_id_number,
+                    'full_name' => trim(
+                        ($dataResult->data_first_name ?? '') . ' ' .
+                        ($dataResult->data_father_name ?? '') . ' ' .
+                        ($dataResult->data_grand_father_name ?? '') . ' ' .
+                        ($dataResult->data_family_name ?? '')
+                    ),
+                    'phone' => $dataResult->data_phone_number,
+                    'type' => 'معيل أسرة'
+                ];
+                $results['message'] = 'تم العثور على سجل موجود مسبقاً. يرجى تسجيل الدخول.';
+                return response()->json($results);
+            }
+
+            // 2. البحث في جدول re_people (أفراد الأسرة / الأيتام)
+            $rePeopleResult = RePeople::where('person_id', $searchTerm)
+                ->orWhere('first_name', 'LIKE', "%{$searchTerm}%")
+                ->orWhere('second_name', 'LIKE', "%{$searchTerm}%")
+                ->orWhere('third_name', 'LIKE', "%{$searchTerm}%")
+                ->orWhere('last_name', 'LIKE', "%{$searchTerm}%")
+                ->orWhere(function($query) use ($searchTerm) {
+                    // البحث بالاسم الكامل
+                    $query->whereRaw("CONCAT(IFNULL(first_name, ''), ' ', IFNULL(second_name, ''), ' ', IFNULL(third_name, ''), ' ', IFNULL(last_name, '')) LIKE ?", ["%{$searchTerm}%"]);
+                })
+                ->first();
+
+            if ($rePeopleResult) {
+                $results['found'] = true;
+                $results['has_account'] = true;
+                $results['source'] = 're_people';
+                $results['data'] = [
+                    'file_id_number' => $rePeopleResult->registration_id,
+                    'id_number' => $rePeopleResult->person_id,
+                    'full_name' => trim(
+                        ($rePeopleResult->first_name ?? '') . ' ' .
+                        ($rePeopleResult->second_name ?? '') . ' ' .
+                        ($rePeopleResult->third_name ?? '') . ' ' .
+                        ($rePeopleResult->last_name ?? '')
+                    ),
+                    'type' => 'يتيم / فرد من الأسرة'
+                ];
+                $results['message'] = 'تم العثور على سجل موجود مسبقاً. يرجى تسجيل الدخول.';
+                return response()->json($results);
+            }
+
+            // 3. البحث في جدول dead_people (المتوفى - الأب أو الأم)
+            $deadPeopleResult = DeadPepole::where('father_id', $searchTerm)
+                ->orWhere('mother_id', $searchTerm)
+                ->orWhere('father_first_name', 'LIKE', "%{$searchTerm}%")
+                ->orWhere('father_second_name', 'LIKE', "%{$searchTerm}%")
+                ->orWhere('father_third_name', 'LIKE', "%{$searchTerm}%")
+                ->orWhere('father_last_name', 'LIKE', "%{$searchTerm}%")
+                ->orWhere('mother_first_name', 'LIKE', "%{$searchTerm}%")
+                ->orWhere('mother_second_name', 'LIKE', "%{$searchTerm}%")
+                ->orWhere('mother_third_name', 'LIKE', "%{$searchTerm}%")
+                ->orWhere('mother_last_name', 'LIKE', "%{$searchTerm}%")
+                ->orWhere(function($query) use ($searchTerm) {
+                    // البحث بالاسم الكامل للأب
+                    $query->whereRaw("CONCAT(IFNULL(father_first_name, ''), ' ', IFNULL(father_second_name, ''), ' ', IFNULL(father_third_name, ''), ' ', IFNULL(father_last_name, '')) LIKE ?", ["%{$searchTerm}%"]);
+                })
+                ->orWhere(function($query) use ($searchTerm) {
+                    // البحث بالاسم الكامل للأم
+                    $query->whereRaw("CONCAT(IFNULL(mother_first_name, ''), ' ', IFNULL(mother_second_name, ''), ' ', IFNULL(mother_third_name, ''), ' ', IFNULL(mother_last_name, '')) LIKE ?", ["%{$searchTerm}%"]);
+                })
+                ->first();
+
+            if ($deadPeopleResult) {
+                $results['found'] = true;
+                $results['has_account'] = true;
+                $results['source'] = 'dead_people';
+
+                // تحديد إذا كان الأب أو الأم
+                $isFather = ($deadPeopleResult->father_id == $searchTerm ||
+                            stripos($deadPeopleResult->father_first_name ?? '', $searchTerm) !== false ||
+                            stripos($deadPeopleResult->father_last_name ?? '', $searchTerm) !== false);
+
+                $results['data'] = [
+                    'file_id_number' => $deadPeopleResult->re_file_id,
+                    'id_number' => $isFather ? $deadPeopleResult->father_id : $deadPeopleResult->mother_id,
+                    'full_name' => $isFather ?
+                        trim(
+                            ($deadPeopleResult->father_first_name ?? '') . ' ' .
+                            ($deadPeopleResult->father_second_name ?? '') . ' ' .
+                            ($deadPeopleResult->father_third_name ?? '') . ' ' .
+                            ($deadPeopleResult->father_last_name ?? '')
+                        ) :
+                        trim(
+                            ($deadPeopleResult->mother_first_name ?? '') . ' ' .
+                            ($deadPeopleResult->mother_second_name ?? '') . ' ' .
+                            ($deadPeopleResult->mother_third_name ?? '') . ' ' .
+                            ($deadPeopleResult->mother_last_name ?? '')
+                        ),
+                    'type' => 'متوفى'
+                ];
+                $results['message'] = 'تم العثور على سجل موجود مسبقاً. يرجى تسجيل الدخول.';
+                return response()->json($results);
+            }
+
+            // 4. البحث في جدول persons (السجل المدني - قاعدة بيانات civilregistry)
+            $personsResult = \App\Models\CivilRegistryPerson::where('CI_ID_NUM', $searchTerm)
+                ->orWhere('CI_FIRST_ARB', 'LIKE', "%{$searchTerm}%")
+                ->orWhere('CI_FATHER_ARB', 'LIKE', "%{$searchTerm}%")
+                ->orWhere('CI_FAMILY_ARB', 'LIKE', "%{$searchTerm}%")
+                ->orWhere(function($query) use ($searchTerm) {
+                    // البحث بالاسم الكامل
+                    $query->whereRaw("CONCAT(CI_FIRST_ARB, ' ', CI_FATHER_ARB, ' ', CI_GRAND_FATHER_ARB, ' ', CI_FAMILY_ARB) LIKE ?", ["%{$searchTerm}%"]);
+                })
+                ->first();
+
+            if ($personsResult) {
+                $results['found'] = true;
+                $results['has_account'] = false; // موجود في السجل المدني فقط
+                $results['source'] = 'civil_registry';
+
+                // تحويل تاريخ الميلاد بشكل صحيح بالميلادي
+                $birthDate = null;
+                $birthDateDisplay = null;
+                if ($personsResult->CI_BIRTH_DT) {
+                    try {
+                        $carbonDate = null;
+                        if ($personsResult->CI_BIRTH_DT instanceof \Carbon\Carbon) {
+                            $carbonDate = $personsResult->CI_BIRTH_DT;
+                        } elseif (is_string($personsResult->CI_BIRTH_DT)) {
+                            $carbonDate = \Carbon\Carbon::parse($personsResult->CI_BIRTH_DT);
+                        }
+
+                        if ($carbonDate) {
+                            $birthDate = $carbonDate->format('Y-m-d'); // للإدخال في الحقل
+                            $birthDateDisplay = $carbonDate->format('Y/m/d'); // للعرض
+                        }
+                    } catch (\Exception $e) {
+                        Log::warning('خطأ في تحويل تاريخ الميلاد: ' . $e->getMessage());
+                    }
+                }
+
+                // جلب اسم المدينة
+                $cityName = null;
+                if ($personsResult->CITY) {
+                    $city = City::find($personsResult->CITY);
+                    $cityName = $city ? $city->city : null;
+                }
+
+                // جلب الحالة الاجتماعية
+                $maritalStatusName = null;
+                if ($personsResult->CI_PERSONAL_CD) {
+                    $maritalStatus = CI_PERSONAL_CD::find($personsResult->CI_PERSONAL_CD);
+                    $maritalStatusName = $maritalStatus ? $maritalStatus->CI_PERSONAL_CD : null;
+                }
+
+                $results['data'] = [
+                    'id_number' => $personsResult->CI_ID_NUM,
+                    'first_name' => $personsResult->CI_FIRST_ARB,
+                    'father_name' => $personsResult->CI_FATHER_ARB,
+                    'grand_father_name' => $personsResult->CI_GRAND_FATHER_ARB,
+                    'family_name' => $personsResult->CI_FAMILY_ARB,
+                    'mother_name' => $personsResult->MOTHER_NAME1,
+                    'birth_date' => $birthDate, // بصيغة Y-m-d
+                    'birth_date_display' => $birthDateDisplay, // بصيغة Y/m/d للعرض
+                    'birth_date_raw' => $personsResult->CI_BIRTH_DT,
+                    'gender' => $personsResult->CI_SEX_CD,
+                    'marital_status' => $personsResult->CI_PERSONAL_CD, // رقم الحالة الاجتماعية
+                    'marital_status_name' => $maritalStatusName, // اسم الحالة الاجتماعية
+                    'city' => $personsResult->CITY, // رقم المدينة
+                    'city_name' => $cityName, // اسم المدينة
+                    'street' => $personsResult->STREET,
+                    'house_no' => $personsResult->HOUSE_NO,
+                    'full_name' => trim(
+                        ($personsResult->CI_FIRST_ARB ?? '') . ' ' .
+                        ($personsResult->CI_FATHER_ARB ?? '') . ' ' .
+                        ($personsResult->CI_GRAND_FATHER_ARB ?? '') . ' ' .
+                        ($personsResult->CI_FAMILY_ARB ?? '')
+                    ),
+                    'type' => 'موجود في السجل المدني'
+                ];
+                $results['message'] = 'تم العثور علم بيانات في السجل المدني. يمكنك المتابعة لإنشاء حساب جديد.';
+                return response()->json($results);
+            }
+
+            // إذا لم يتم العثور على نتائج
+            $results['message'] = 'لم يتم العثور على أي بيانات مطابقة. يرجى التأكد من رقم الهوية والمحاولة مرة أخرى.';
+            return response()->json($results);
+
+        } catch (\Exception $e) {
+            Log::error('خطأ في البحث: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء البحث: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * ملء الحقول تلقائياً من السجل المدني
+     */
+    public function fillFromCivilRegistry(Request $request)
+    {
+        try {
+            $idNumber = $request->input('id_number');
+
+            if (empty($idNumber)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'الرجاء إدخال رقم الهوية'
+                ]);
+            }
+
+            // البحث في السجل المدني
+            $person = \App\Models\CivilRegistryPerson::where('CI_ID_NUM', $idNumber)->first();
+
+            if (!$person) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لم يتم العثور على بيانات في السجل المدني'
+                ]);
+            }
+
+            // تحويل تاريخ الميلاد بشكل صحيح بالميلادي
+            $birthDate = null;
+            if ($person->CI_BIRTH_DT) {
+                try {
+                    $carbonDate = null;
+                    if ($person->CI_BIRTH_DT instanceof \Carbon\Carbon) {
+                        $carbonDate = $person->CI_BIRTH_DT;
+                    } elseif (is_string($person->CI_BIRTH_DT)) {
+                        $carbonDate = \Carbon\Carbon::parse($person->CI_BIRTH_DT);
+                    }
+
+                    if ($carbonDate) {
+                        $birthDate = $carbonDate->format('Y-m-d'); // بصيغة YYYY-MM-DD للحقل
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('خطأ في تحويل تاريخ الميلاد: ' . $e->getMessage());
+                }
+            }
+
+            // جلب اسم المدينة
+            $cityName = null;
+            if ($person->CITY) {
+                $city = City::find($person->CITY);
+                $cityName = $city ? $city->city : null;
+            }
+
+            // إرجاع البيانات
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'data_id_number' => $person->CI_ID_NUM,
+                    'data_first_name' => $person->CI_FIRST_ARB,
+                    'data_father_name' => $person->CI_FATHER_ARB,
+                    'data_grand_father_name' => $person->CI_GRAND_FATHER_ARB,
+                    'data_family_name' => $person->CI_FAMILY_ARB,
+                    'data_birth_date' => $birthDate, // بصيغة Y-m-d
+                    'data_gender' => $person->CI_SEX_CD,
+                    'data_marital_status' => $person->CI_PERSONAL_CD, // رقم الحالة الاجتماعية
+                    'data_city' => $person->CITY,
+                    'data_city_name' => $cityName, // اسم المدينة
+                    'data_current_address' => $person->STREET,
+                    'mother_name' => $person->MOTHER_NAME1,
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('خطأ في جلب البيانات من السجل المدني: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء جلب البيانات: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }
 

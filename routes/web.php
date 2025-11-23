@@ -133,6 +133,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('admin/general-category/toggle-status', [GeneralCategoryCotroller::class, 'toggleStatus'])->name('admin.general-category.toggle-status');
 
     Route::post('/check-id-number', [GeneralRegistrationController::class, 'check'])->name('check.id');
+    Route::post('/search-all-tables', [GeneralRegistrationController::class, 'searchAllTables'])->name('search.all.tables');
+    Route::post('/fill-from-civil-registry', [GeneralRegistrationController::class, 'fillFromCivilRegistry'])->name('fill.civil.registry');
 
 
 // Reserved Codes Management Routes (Admin Only)

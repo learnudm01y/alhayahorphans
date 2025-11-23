@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Attachment;
 use App\Models\EnhancedAttachment;
-use App\Models\DuplicateFileTemp;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\File;
@@ -19,25 +18,24 @@ use Illuminate\Support\Str;
  */
 class FolderDuplicateDetectionService
 {
-    protected $tempStoragePath;
     protected $sessionId;
     protected $currentBatch = [];
     protected $detectionResults = [];
 
     public function __construct()
     {
-        $this->tempStoragePath = storage_path('app/public/temp/duplicates');
-        $this->ensureTempDirectoryExists();
+        // تم إزالة tempStoragePath - لم نعد نحفظ الملفات المكررة
     }
 
     /**
      * إنشاء جلسة جديدة للكشف عن الملفات المكررة
      */
-    public function initializeSession(): string
+    public function initializeSession(string $customSessionId = null): string
     {
-        $this->sessionId = 'dup_folder_' . time() . '_' . Str::random(8);
+        $this->sessionId = $customSessionId ?: ('dup_folder_' . time() . '_' . Str::random(8));
         Log::info('Folder duplicate detection session initialized', [
-            'session_id' => $this->sessionId
+            'session_id' => $this->sessionId,
+            'is_custom' => $customSessionId !== null
         ]);
         return $this->sessionId;
     }
@@ -53,10 +51,16 @@ class FolderDuplicateDetectionService
     /**
      * معالجة مجموعة ملفات للكشف عن التكرار مع دعم معمارية المجلدات
      */
-    public function processFolderFilesForDuplicates(array $files, array $validatedFolders, array $pathToFolderMapping): array
+    public function processFolderFilesForDuplicates(
+        array $files,
+        array $validatedFolders,
+        array $pathToFolderMapping,
+        string $customSessionId = null,
+        bool $duplicateDetectionEnabled = true
+    ): array
     {
         if (!$this->sessionId) {
-            $this->initializeSession();
+            $this->initializeSession($customSessionId);
         }
 
         $results = [
@@ -69,13 +73,15 @@ class FolderDuplicateDetectionService
             'warnings' => [],
             'duplicate_files' => [],
             'saved_files' => [],
-            'folder_analysis' => []
+            'folder_analysis' => [],
+            'duplicate_detection_enabled' => $duplicateDetectionEnabled
         ];
 
         Log::info('Starting folder duplicate detection', [
             'session_id' => $this->sessionId,
             'total_files' => count($files),
-            'validated_folders' => array_keys($validatedFolders)
+            'validated_folders' => array_keys($validatedFolders),
+            'duplicate_detection_enabled' => $duplicateDetectionEnabled
         ]);
 
         // إضافة حماية من timeout للحلقة الرئيسية
@@ -123,7 +129,7 @@ class FolderDuplicateDetectionService
                     continue;
                 }
 
-                // كشف التكرار للملف
+                // ⭐ كشف التكرار للملف (يعمل دائماً - حتى لو كان الزر OFF)
                 $duplicateInfo = $this->checkFileForDuplicateInFolder($file, $targetFolderId, $originalFolderName);
 
                 if ($duplicateInfo['is_duplicate']) {
@@ -134,8 +140,21 @@ class FolderDuplicateDetectionService
                         'file_name' => $file->getClientOriginalName(),
                         'target_folder' => $targetFolderId,
                         'existing_file' => $duplicateInfo['existing_file_name'],
-                        'session_id' => $this->sessionId
+                        'session_id' => $this->sessionId,
+                        'auto_ignore' => !$duplicateDetectionEnabled
                     ]);
+
+                    // ⚠️ إذا كان كشف التكرار معطلاً (OFF)، يتم تجاهل الملف تلقائياً
+                    if (!$duplicateDetectionEnabled) {
+                        Log::warning('Duplicate detection is OFF - File will be auto-ignored (not uploaded)', [
+                            'file_name' => $file->getClientOriginalName(),
+                            'target_folder' => $targetFolderId,
+                            'existing_file' => $duplicateInfo['existing_file_name']
+                        ]);
+                        // ⛔ لا يتم رفع الملف المكرر - يتم تجاهله تماماً
+                        // لا نفعل شيء - الملف لن يُحفظ
+                    }
+                    // إذا كان كشف التكرار مفعلاً (ON)، سيتم عرض الملف للمستخدم
                 } else {
                     // حفظ الملف إذا لم يكن مكرراً
                     $savedFile = $this->saveNonDuplicateFileToFolder($file, $targetFolderId, $originalFolderName);
@@ -604,170 +623,44 @@ class FolderDuplicateDetectionService
         try {
             $originalName = $file->getClientOriginalName();
 
-            // التحقق من صحة الملف قبل معالجته
-            if (!$file->isValid()) {
-                throw new \Exception('Invalid uploaded file: ' . $file->getErrorMessage());
-            }
-
-            // تسجيل بداية العملية مع timestamp
-            $startTime = microtime(true);
-            Log::info('Starting duplicate file handling', [
+            // ⛔ لا يتم رفع أو حفظ الملفات المكررة - فقط تسجيلها
+            Log::info('⛔ ملف مكرر تم رفضه - لن يتم حفظه', [
                 'original_name' => $originalName,
                 'target_folder' => $targetFolderId,
-                'start_time' => $startTime
+                'existing_file' => $existingFile->stored_file_name ?? $existingFile->file_name ?? 'unknown'
             ]);
 
-            // محاولة حفظ الملف المكرر في مسار مؤقت للمراجعة اللاحقة مع timeout
-            $tempPath = null;
-            // التحقق من حجم الملف بأمان قبل نقله
+            // الحصول على معلومات الملف الأساسية فقط
+            $fileSize = 0;
             try {
                 $fileSize = $file->getSize();
             } catch (\Exception $e) {
-                Log::warning('Could not get file size, trying alternative methods', [
-                    'file' => $originalName,
-                    'error' => $e->getMessage()
-                ]);
-
-                // محاولة الحصول على الحجم بطرق بديلة
                 $fileSize = 0;
-
-                // الطريقة البديلة الأولى: getPathname
-                try {
-                    $filePath = $file->getPathname();
-                    if (file_exists($filePath)) {
-                        $fileSize = filesize($filePath) ?: 0;
-                    }
-                } catch (\Exception $e2) {
-                    Log::warning('getPathname failed', [
-                        'file' => $originalName,
-                        'error' => $e2->getMessage()
-                    ]);
-                }
-
-                // الطريقة البديلة الثانية: getRealPath
-                if ($fileSize === 0) {
-                    try {
-                        $realPath = $file->getRealPath();
-                        if ($realPath && file_exists($realPath)) {
-                            $fileSize = filesize($realPath) ?: 0;
-                        }
-                    } catch (\Exception $e3) {
-                        Log::warning('getRealPath failed', [
-                            'file' => $originalName,
-                            'error' => $e3->getMessage()
-                        ]);
-                    }
-                }
-
-                // إذا فشلت جميع الطرق، سنحاول الحصول على الحجم من الملف المحفوظ لاحقاً
-                if ($fileSize === 0) {
-                    Log::warning('All file size detection methods failed, will try from saved file', [
-                        'file' => $originalName
-                    ]);
-                }
             }
 
-            // حفظ الملف في التخزين المؤقت بعد الحصول على حجمه
-            try {
-                $tempPath = $this->saveTempFile($file);
-
-                // إذا لم نحصل على حجم الملف من قبل، نحاول الحصول عليه من الملف المحفوظ
-                if ($fileSize === 0 && !empty($tempPath)) {
-                    try {
-                        $fullTempPath = storage_path('app/public/' . $tempPath);
-                        if (file_exists($fullTempPath)) {
-                            $fileSize = filesize($fullTempPath) ?: 0;
-                            Log::info('Got file size from saved temp file', [
-                                'file' => $originalName,
-                                'file_size' => $fileSize,
-                                'temp_path' => $tempPath,
-                                'full_path' => $fullTempPath
-                            ]);
-                        }
-                    } catch (\Exception $e) {
-                        Log::warning('Could not get size from temp file either', [
-                            'file' => $originalName,
-                            'temp_path' => $tempPath,
-                            'error' => $e->getMessage()
-                        ]);
-                    }
-                }
-            } catch (\Exception $e) {
-                Log::error('Failed to save duplicate file to temp storage', [
-                    'original_name' => $originalName,
-                    'error' => $e->getMessage()
-                ]);
-                // نستمر بدون حفظ مؤقت إذا فشل
-                $tempPath = null;
-            }
-
-            // الحصول على MIME type بشكل آمن
+            $mimeType = 'application/octet-stream';
             try {
                 $mimeType = $file->getMimeType() ?: 'application/octet-stream';
             } catch (\Exception $e) {
-                // استخدام extension للحصول على MIME type تقريبي (silent fallback)
+                // استخدام extension
                 $extension = strtolower($file->getClientOriginalExtension());
                 $mimeType = match($extension) {
                     'jpg', 'jpeg' => 'image/jpeg',
                     'png' => 'image/png',
                     'gif' => 'image/gif',
                     'pdf' => 'application/pdf',
-                    'doc' => 'application/msword',
-                    'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                    'xls' => 'application/vnd.ms-excel',
-                    'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                     default => 'application/octet-stream'
                 };
             }
 
-            // التحقق من الوقت المنقضي لتجنب timeout
-            $currentTime = microtime(true);
-            if (($currentTime - $startTime) > 10) { // أكثر من 10 ثواني
-                Log::warning('Duplicate file processing taking too long', [
-                    'original_name' => $originalName,
-                    'elapsed_time' => $currentTime - $startTime
-                ]);
-            }
-
-            // إنشاء سجل للملف المكرر مع حفظ مسار التخزين المؤقت
-            $duplicateRecord = DuplicateFileTemp::create([
-                'session_id' => $this->sessionId,
-                'original_name' => $originalName,
-                'duplicate_name' => $preparedFileName,
-                'temp_path' => $tempPath, // قد يكون null إذا فشل الحفظ
-                'target_folder' => $targetFolderId,
-                'original_folder' => $originalFolderName,
-                'existing_file_name' => $existingFile->stored_file_name ?? $existingFile->file_name ?? basename($existingFile->file_path ?? ''),
-                'existing_file_id' => $existingFile->id ?? null,
-                'file_size' => $fileSize,
-                'mime_type' => $mimeType,
-                'created_at' => Carbon::now(),
-                'expires_at' => Carbon::now()->addDays(7)
-            ]);
-
-            $endTime = microtime(true);
-            $totalTime = $endTime - $startTime;
-
-            Log::info('تم تسجيل ملف مكرر وحفظه في مسار مؤقت', [
-                'original_name' => $originalName,
-                'target_folder' => $targetFolderId,
-                'existing_file' => $existingFile->stored_file_name ?? $existingFile->file_name,
-                'duplicate_id' => $duplicateRecord->id,
-                'temp_path' => $tempPath,
-                'reason' => 'same_identity_number',
-                'processing_time' => $totalTime
-            ]);
-
             return [
                 'is_duplicate' => true,
-                'duplicate_id' => $duplicateRecord->id,
                 'original_name' => $originalName,
                 'existing_file_name' => $existingFile->stored_file_name ?? $existingFile->file_name ?? basename($existingFile->file_path ?? ''),
                 'existing_file_path' => $existingFile->file_path ?? 'uploads/' . $targetFolderId . '/' . ($existingFile->stored_file_name ?? $existingFile->file_name),
-                'temp_path' => $tempPath, // إرجاع مسار الملف المؤقت (قد يكون null)
                 'target_folder' => $targetFolderId,
                 'reason' => 'same_identity_number',
-                'message' => $tempPath ? 'الملف مكرر - تم حفظه في مسار مؤقت للمراجعة' : 'الملف مكرر - فشل حفظه مؤقتاً'
+                'message' => 'الملف مكرر - لم يتم رفعه أو حفظه'
             ];
 
         } catch (\Exception $e) {
@@ -784,155 +677,6 @@ class FolderDuplicateDetectionService
                 'existing_file_name' => isset($existingFile) ? ($existingFile->stored_file_name ?? $existingFile->file_name ?? 'unknown') : 'unknown',
                 'target_folder' => $targetFolderId
             ];
-        }
-    }
-
-    /**
-     * حفظ ملف مؤقت مع آليات حماية من الحلقات اللا نهائية
-     */
-    protected function saveTempFile(UploadedFile $file): string
-    {
-        try {
-            // التحقق من صحة الملف أولاً
-            if (!$file->isValid()) {
-                throw new \Exception('Invalid file for temp storage: ' . $file->getErrorMessage());
-            }
-
-            // التحقق من حجم الملف لتجنب المشاكل - مع fallback
-            try {
-                $fileSize = $file->getSize();
-                if ($fileSize === false || $fileSize <= 0) {
-                    throw new \Exception('getSize() returned invalid value: ' . var_export($fileSize, true));
-                }
-            } catch (\Exception $e) {
-                Log::warning('getSize() failed in saveTempFile, trying alternatives', [
-                    'file' => $file->getClientOriginalName(),
-                    'error' => $e->getMessage()
-                ]);
-
-                // محاولة الحصول على الحجم بطرق بديلة
-                $fileSize = 0;
-                try {
-                    $filePath = $file->getPathname();
-                    if ($filePath && file_exists($filePath)) {
-                        $fileSize = filesize($filePath) ?: 0;
-                    }
-                } catch (\Exception $e2) {
-                    // تجاهل الخطأ والمحاولة التالية
-                }
-
-                if ($fileSize <= 0) {
-                    try {
-                        $realPath = $file->getRealPath();
-                        if ($realPath && file_exists($realPath)) {
-                            $fileSize = filesize($realPath) ?: 0;
-                        }
-                    } catch (\Exception $e3) {
-                        // تجاهل الخطأ
-                    }
-                }
-
-                if ($fileSize <= 0) {
-                    throw new \Exception('Could not determine file size using any method');
-                }
-
-                Log::info('Got file size using fallback method', [
-                    'file' => $file->getClientOriginalName(),
-                    'size' => $fileSize
-                ]);
-            }
-
-            // حد أقصى لحجم الملف (100MB)
-            $maxFileSize = 100 * 1024 * 1024; // 100MB
-            if ($fileSize > $maxFileSize) {
-                $fileSizeFormatted = round($fileSize / (1024 * 1024), 2) . 'MB';
-                throw new \Exception('File size too large: ' . $fileSizeFormatted);
-            }
-
-            $tempFileName = $this->generateTempFileName($file);
-            $sessionTempPath = $this->tempStoragePath . '/' . $this->sessionId;
-            $tempFilePath = $sessionTempPath . '/' . $tempFileName;
-
-            // التحقق من صحة المسارات
-            if (empty($this->sessionId) || empty($tempFileName)) {
-                throw new \Exception('Invalid session ID or temp filename');
-            }
-
-            // إنشاء مجلد الجلسة إذا لم يكن موجوداً مع آلية حماية
-            if (!File::exists($sessionTempPath)) {
-                $created = File::makeDirectory($sessionTempPath, 0755, true);
-                if (!$created) {
-                    throw new \Exception('Failed to create temp directory: ' . $sessionTempPath);
-                }
-
-                // التحقق من إنشاء المجلد فعلياً
-                if (!is_dir($sessionTempPath)) {
-                    throw new \Exception('Temp directory was not created properly');
-                }
-            }
-
-            // التحقق من إمكانية الكتابة في المجلد
-            if (!is_writable($sessionTempPath)) {
-                throw new \Exception('Temp directory is not writable: ' . $sessionTempPath);
-            }
-
-            // التحقق من وجود ملف بنفس الاسم وحذفه إذا وُجد
-            if (file_exists($tempFilePath)) {
-                unlink($tempFilePath);
-            }
-
-            Log::info('Attempting to save temp file', [
-                'original_name' => $file->getClientOriginalName(),
-                'temp_name' => $tempFileName,
-                'temp_path' => $tempFilePath,
-                'file_size' => $fileSize,
-                'session_id' => $this->sessionId
-            ]);
-
-            // محاولة نقل الملف مع timeout
-            $startTime = microtime(true);
-            $moved = $file->move($sessionTempPath, $tempFileName);
-            $endTime = microtime(true);
-
-            $moveTime = $endTime - $startTime;
-            if ($moveTime > 30) { // إذا استغرق أكثر من 30 ثانية
-                Log::warning('File move took too long', [
-                    'move_time' => $moveTime,
-                    'file' => $file->getClientOriginalName()
-                ]);
-            }
-
-            // التحقق من نجاح عملية النقل
-            if (!$moved) {
-                throw new \Exception('Failed to move file - move() returned false');
-            }
-
-            if (!file_exists($tempFilePath)) {
-                throw new \Exception('File was not created at expected path: ' . $tempFilePath);
-            }
-
-            // التحقق من سلامة الملف المنقول
-            $newFileSize = filesize($tempFilePath);
-            if ($newFileSize !== $fileSize) {
-                throw new \Exception("File size mismatch after move. Expected: {$fileSize}, Got: {$newFileSize}");
-            }
-
-            Log::info('Temp file saved successfully', [
-                'temp_path' => $tempFilePath,
-                'file_size' => $newFileSize,
-                'move_time' => $moveTime
-            ]);
-
-            return $tempFilePath;
-
-        } catch (\Exception $e) {
-            Log::error('Error saving temp file', [
-                'file' => $file->getClientOriginalName(),
-                'error' => $e->getMessage(),
-                'session_id' => $this->sessionId,
-                'temp_storage_path' => $this->tempStoragePath ?? 'not_set'
-            ]);
-            throw $e;
         }
     }
 
@@ -1072,196 +816,15 @@ class FolderDuplicateDetectionService
         return 'other';
     }
 
-    /**
-     * إنشاء اسم ملف مؤقت فريد
-     */
-    protected function generateTempFileName(UploadedFile $file): string
-    {
-        $extension = $file->getClientOriginalExtension();
-        $baseName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
-        $timestamp = time();
-        $random = Str::random(6);
 
-        return "dup_{$baseName}_{$timestamp}_{$random}.{$extension}";
-    }
 
-    /**
-     * الحصول على ملخص الملفات المكررة للجلسة
-     */
-    public function getDuplicateFilesSummary(string $sessionId): array
-    {
-        try {
-            $duplicates = DuplicateFileTemp::where('session_id', $sessionId)
-                ->orderBy('created_at', 'desc')
-                ->get();
 
-            if ($duplicates->isEmpty()) {
-                return [
-                    'total_duplicates' => 0,
-                    'total_size' => 0,
-                    'files' => [],
-                    'session_id' => $sessionId,
-                    'folders_analysis' => []
-                ];
-            }
 
-            $summary = [
-                'total_duplicates' => $duplicates->count(),
-                'total_size' => 0,
-                'session_id' => $sessionId,
-                'files' => [],
-                'folders_analysis' => []
-            ];
 
-            foreach ($duplicates as $duplicate) {
-                // حساب حجم الملف
-                if ($duplicate->temp_path && file_exists($duplicate->temp_path)) {
-                    $fileSize = filesize($duplicate->temp_path);
-                    $summary['total_size'] += $fileSize;
-                } else {
-                    $fileSize = $duplicate->file_size ?? 0;
-                }
 
-                $summary['files'][] = [
-                    'id' => $duplicate->id,
-                    'original_name' => $duplicate->original_name,
-                    'prepared_name' => $duplicate->duplicate_name,
-                    'existing_file_name' => $duplicate->existing_file_name,
-                    'existing_file_id' => $duplicate->existing_file_id,
-                    'original_folder' => $duplicate->original_folder,
-                    'target_folder' => $duplicate->target_folder,
-                    'file_size' => $fileSize,
-                    'created_at' => $duplicate->created_at,
-                    'can_download' => $duplicate->temp_path && file_exists($duplicate->temp_path),
-                    'download_url' => $duplicate->temp_path && file_exists($duplicate->temp_path) ?
-                        route('admin.file.download.duplicate', ['session_id' => $sessionId, 'file_id' => $duplicate->id]) : null
-                ];
 
-                // تحليل المجلدات
-                $targetFolder = $duplicate->target_folder;
-                if (!isset($summary['folders_analysis'][$targetFolder])) {
-                    $summary['folders_analysis'][$targetFolder] = [
-                        'folder_id' => $targetFolder,
-                        'duplicates_count' => 0,
-                        'total_size' => 0,
-                        'files' => []
-                    ];
-                }
 
-                $summary['folders_analysis'][$targetFolder]['duplicates_count']++;
-                $summary['folders_analysis'][$targetFolder]['total_size'] += $fileSize;
-                $summary['folders_analysis'][$targetFolder]['files'][] = $duplicate->original_name;
-            }
 
-            return $summary;
-
-        } catch (\Exception $e) {
-            Log::error('Error getting duplicate files summary for folders', [
-                'session_id' => $sessionId,
-                'error' => $e->getMessage()
-            ]);
-
-            return [
-                'total_duplicates' => 0,
-                'total_size' => 0,
-                'files' => [],
-                'session_id' => $sessionId,
-                'error' => $e->getMessage()
-            ];
-        }
-    }
-
-    /**
-     * حذف الملفات المكررة للجلسة
-     */
-    public function deleteDuplicateFiles(string $sessionId): int
-    {
-        try {
-            $duplicates = DuplicateFileTemp::where('session_id', $sessionId)->get();
-            $deletedCount = 0;
-
-            foreach ($duplicates as $duplicate) {
-                // حذف الملف المؤقت إذا كان موجوداً
-                if ($duplicate->temp_path && file_exists($duplicate->temp_path)) {
-                    unlink($duplicate->temp_path);
-                }
-
-                // حذف السجل من قاعدة البيانات
-                $duplicate->delete();
-                $deletedCount++;
-            }
-
-            // حذف مجلد الجلسة إذا كان فارغاً
-            $sessionDir = $this->tempStoragePath . '/' . $sessionId;
-            if (is_dir($sessionDir) && count(scandir($sessionDir)) <= 2) {
-                rmdir($sessionDir);
-            }
-
-            Log::info('Folder duplicate files deleted', [
-                'session_id' => $sessionId,
-                'deleted_count' => $deletedCount
-            ]);
-
-            return $deletedCount;
-
-        } catch (\Exception $e) {
-            Log::error('Error deleting folder duplicate files', [
-                'session_id' => $sessionId,
-                'error' => $e->getMessage()
-            ]);
-
-            return 0;
-        }
-    }
-
-    /**
-     * التأكد من وجود مجلد التخزين المؤقت
-     */
-    protected function ensureTempDirectoryExists(): void
-    {
-        if (!File::exists($this->tempStoragePath)) {
-            File::makeDirectory($this->tempStoragePath, 0755, true);
-        }
-    }
-
-    /**
-     * إنشاء ملف ZIP للملفات المكررة
-     */
-    public function createDuplicatesZip(string $sessionId): ?string
-    {
-        try {
-            $duplicates = DuplicateFileTemp::where('session_id', $sessionId)->get();
-
-            if ($duplicates->isEmpty()) {
-                return null;
-            }
-
-            $zipFileName = "folder_duplicates_{$sessionId}.zip";
-            $zipPath = $this->tempStoragePath . '/' . $zipFileName;
-
-            $zip = new \ZipArchive();
-            if ($zip->open($zipPath, \ZipArchive::CREATE) !== TRUE) {
-                throw new \Exception('فشل في إنشاء ملف ZIP');
-            }
-
-            foreach ($duplicates as $duplicate) {
-                if ($duplicate->temp_path && file_exists($duplicate->temp_path)) {
-                    $folderName = "folder_" . $duplicate->target_folder;
-                    $zip->addFile($duplicate->temp_path, $folderName . '/' . $duplicate->original_name);
-                }
-            }
-
-            $zip->close();
-            return $zipPath;
-
-        } catch (\Exception $e) {
-            Log::error('Error creating folder duplicates ZIP', [
-                'session_id' => $sessionId,
-                'error' => $e->getMessage()
-            ]);
-            return null;
-        }
-    }
 
     /**
      * إنشاء اسم ملف صحيح حسب النمط القديم

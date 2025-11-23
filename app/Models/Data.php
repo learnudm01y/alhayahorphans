@@ -170,6 +170,11 @@ class Data extends Model
         return $this->belongsTo(MaritalStatus::class, 'data_marital_status');
     }
 
+    public function ciPersonalCd()
+    {
+        return $this->belongsTo(CI_PERSONAL_CD::class, 'data_marital_status');
+    }
+
     public function academicQualification()
     {
         return $this->belongsTo(AcademicDegree::class, 'data_academic_qualification');
