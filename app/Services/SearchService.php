@@ -14,6 +14,38 @@ class SearchService
 {
     private $config;
 
+    /**
+     * تطبيع النص العربي (بما في ذلك المسافات)
+     */
+    private function normalizeArabic($text)
+    {
+        return normalizeArabicText($text);
+    }
+
+    /**
+     * بناء SQL expression لتطبيع الأعمدة (بما في ذلك المسافات)
+     */
+    private function buildNormalizationSQL($column)
+    {
+        return "TRIM(
+            REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+                {$column},
+                'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ة', 'ه'), 'ى', 'ي'), 'ـ', ''),
+                '  ', ' '), '   ', ' '))";
+    }
+
+    /**
+     * بناء SQL expression لإزالة كل المسافات (للكلمات المركبة)
+     */
+    private function buildNoSpacesSQL($column)
+    {
+        return "REPLACE(TRIM(
+            REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+                {$column},
+                'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ة', 'ه'), 'ى', 'ي'), 'ـ', '')),
+                ' ', '')";
+    }
+
     public function __construct()
     {
         $this->config = config('search');
@@ -389,9 +421,16 @@ class SearchService
             }
         }
 
-        // 3. البحث التقليدي في كل حقل منفصل
+        // 3. البحث التقليدي في كل حقل منفصل (مع التطبيع والمسافات)
+        $normalizedSearch = $this->normalizeArabic($searchText);
         foreach ($searchFields as $field) {
-            $query->orWhere($field, 'LIKE', "%{$searchText}%");
+            // البحث المطبع في حقول النصوص العربية
+            if (str_contains($field, 'name') || str_contains($field, 'Name')) {
+                $normalizedField = $this->buildNormalizationSQL($field);
+                $query->orWhereRaw("{$normalizedField} LIKE ?", ['%' . $normalizedSearch . '%']);
+            } else {
+                $query->orWhere($field, 'LIKE', "%{$searchText}%");
+            }
         }
 
         // 4. البحث المرن: محاولة العثور على تطابقات جزئية
@@ -410,7 +449,7 @@ class SearchService
             $this->addNameCombinationSearch($query, $nameFields, $searchTerms);
         }
 
-        // 6. بحث بدون مسافات للأرقام
+        // 6. بحث بدون مسافات للأرقام (بدون تطبيع للأرقام)
         if (is_numeric(str_replace(' ', '', $searchText))) {
             $numericSearch = str_replace(' ', '', $searchText);
             foreach ($searchFields as $field) {
@@ -479,45 +518,51 @@ class SearchService
             return;
         }
 
-        // البحث المرن: يكفي أن توجد معظم الكلمات أو تركيبة منها
+        // البحث المرن: يكفي أن توجد معظم الكلمات أو تركيبة منها (مع التطبيع والمسافات)
         $query->orWhere(function($subQuery) use ($searchTerms, $nameFields) {
             // محاولة 1: البحث عن كل كلمة في أي حقل (مرن جداً)
             foreach ($searchTerms as $term) {
-                $subQuery->orWhere(function($termQuery) use ($term, $nameFields) {
+                $normalizedTerm = $this->normalizeArabic($term);
+                $subQuery->orWhere(function($termQuery) use ($normalizedTerm, $nameFields) {
                     foreach ($nameFields as $field) {
-                        $termQuery->orWhere($field, 'LIKE', "%{$term}%");
+                        $normalizedField = $this->buildNormalizationSQL($field);
+                        $termQuery->orWhereRaw("{$normalizedField} LIKE ?", ['%' . $normalizedTerm . '%']);
                     }
                 });
             }
 
-            // محاولة 2: البحث عن تركيبات من كلمتين
+            // محاولة 2: البحث عن تركيبات من كلمتين (مع التطبيع والمسافات)
             if (count($searchTerms) >= 2) {
                 for ($i = 0; $i < count($searchTerms) - 1; $i++) {
                     $word1 = $searchTerms[$i];
                     $word2 = $searchTerms[$i + 1];
                     $twoWords = $word1 . ' ' . $word2;
+                    $normalizedTwoWords = $this->normalizeArabic($twoWords);
 
                     // البحث عن الكلمتين المتتاليتين في أي حقل
                     foreach ($nameFields as $field) {
-                        $subQuery->orWhere($field, 'LIKE', "%{$twoWords}%");
+                        $normalizedField = $this->buildNormalizationSQL($field);
+                        $subQuery->orWhereRaw("{$normalizedField} LIKE ?", ['%' . $normalizedTwoWords . '%']);
                     }
                 }
             }
 
-            // محاولة 3: البحث عن أول وآخر كلمة
+            // محاولة 3: البحث عن أول وآخر كلمة (مع التطبيع والمسافات)
             if (count($searchTerms) >= 2) {
-                $firstWord = $searchTerms[0];
-                $lastWord = $searchTerms[count($searchTerms) - 1];
+                $firstWord = $this->normalizeArabic($searchTerms[0]);
+                $lastWord = $this->normalizeArabic($searchTerms[count($searchTerms) - 1]);
 
                 $subQuery->orWhere(function($pairQuery) use ($nameFields, $firstWord, $lastWord) {
                     // الأول في أي حقل والأخير في أي حقل
                     $pairQuery->where(function($firstQuery) use ($nameFields, $firstWord) {
                         foreach ($nameFields as $field) {
-                            $firstQuery->orWhere($field, 'LIKE', "%{$firstWord}%");
+                            $normalizedField = $this->buildNormalizationSQL($field);
+                            $firstQuery->orWhereRaw("{$normalizedField} LIKE ?", ['%' . $firstWord . '%']);
                         }
                     })->where(function($lastQuery) use ($nameFields, $lastWord) {
                         foreach ($nameFields as $field) {
-                            $lastQuery->orWhere($field, 'LIKE', "%{$lastWord}%");
+                            $normalizedField = $this->buildNormalizationSQL($field);
+                            $lastQuery->orWhereRaw("{$normalizedField} LIKE ?", ['%' . $lastWord . '%']);
                         }
                     });
                 });
@@ -535,24 +580,29 @@ class SearchService
         }
 
         $query->orWhere(function($combQuery) use ($nameFields, $searchTerms) {
-            // جرب تركيبات مختلفة من الكلمات
+            // جرب تركيبات مختلفة من الكلمات (مع التطبيع والمسافات)
             for ($i = 0; $i < count($searchTerms) - 1; $i++) {
                 for ($j = $i + 1; $j < count($searchTerms); $j++) {
-                    $term1 = $searchTerms[$i];
-                    $term2 = $searchTerms[$j];
+                    $term1 = $this->normalizeArabic($searchTerms[$i]);
+                    $term2 = $this->normalizeArabic($searchTerms[$j]);
 
                     // البحث في أي حقلين مختلفين
                     for ($fieldIndex1 = 0; $fieldIndex1 < count($nameFields); $fieldIndex1++) {
                         for ($fieldIndex2 = $fieldIndex1 + 1; $fieldIndex2 < count($nameFields); $fieldIndex2++) {
-                            $combQuery->orWhere(function($pairQuery) use ($nameFields, $fieldIndex1, $fieldIndex2, $term1, $term2) {
-                                $pairQuery->where($nameFields[$fieldIndex1], 'LIKE', "%{$term1}%")
-                                         ->where($nameFields[$fieldIndex2], 'LIKE', "%{$term2}%");
+                            $field1 = $nameFields[$fieldIndex1];
+                            $field2 = $nameFields[$fieldIndex2];
+                            $normalizedField1 = $this->buildNormalizationSQL($field1);
+                            $normalizedField2 = $this->buildNormalizationSQL($field2);
+
+                            $combQuery->orWhere(function($pairQuery) use ($normalizedField1, $normalizedField2, $term1, $term2) {
+                                $pairQuery->whereRaw("{$normalizedField1} LIKE ?", ['%' . $term1 . '%'])
+                                         ->whereRaw("{$normalizedField2} LIKE ?", ['%' . $term2 . '%']);
                             });
 
                             // عكس الترتيب
-                            $combQuery->orWhere(function($pairQuery) use ($nameFields, $fieldIndex1, $fieldIndex2, $term1, $term2) {
-                                $pairQuery->where($nameFields[$fieldIndex1], 'LIKE', "%{$term2}%")
-                                         ->where($nameFields[$fieldIndex2], 'LIKE', "%{$term1}%");
+                            $combQuery->orWhere(function($pairQuery) use ($normalizedField1, $normalizedField2, $term1, $term2) {
+                                $pairQuery->whereRaw("{$normalizedField1} LIKE ?", ['%' . $term2 . '%'])
+                                         ->whereRaw("{$normalizedField2} LIKE ?", ['%' . $term1 . '%']);
                             });
                         }
                     }
@@ -624,7 +674,14 @@ class SearchService
         foreach ($exactFields as $field) {
             $filterKey = $this->getFilterKey($field);
             if (!empty($filters[$filterKey])) {
-                $query->where($field, 'LIKE', "%{$filters[$filterKey]}%");
+                // تطبيع للحقول النصية فقط، وليس للأرقام
+                if (str_contains($field, 'name') || str_contains($field, 'Name')) {
+                    $normalizedFilter = $this->normalizeArabic($filters[$filterKey]);
+                    $normalizedField = $this->buildNormalizationSQL($field);
+                    $query->whereRaw("{$normalizedField} LIKE ?", ['%' . $normalizedFilter . '%']);
+                } else {
+                    $query->where($field, 'LIKE', "%{$filters[$filterKey]}%");
+                }
             }
         }
 
@@ -1151,11 +1208,15 @@ class SearchService
 
         $suggestions = [];
 
-        // اقتراحات من الأسماء
+        // اقتراحات من الأسماء (مع التطبيع والمسافات)
+        $normalizedQuery = $this->normalizeArabic($query);
+        $fullNameExpr = $this->buildNormalizationSQL(
+            "CONCAT(data_first_name, ' ', data_father_name, ' ', data_grand_father_name, ' ', data_family_name)"
+        );
         $nameSuggestions = Data::select(
                 DB::raw("CONCAT(data_first_name, ' ', data_father_name, ' ', data_grand_father_name, ' ', data_family_name) as suggestion")
             )
-            ->whereRaw("CONCAT(data_first_name, ' ', data_father_name, ' ', data_grand_father_name, ' ', data_family_name) LIKE ?", ["%{$query}%"])
+            ->whereRaw("{$fullNameExpr} LIKE ?", ['%' . $normalizedQuery . '%'])
             ->limit($limit)
             ->pluck('suggestion')
             ->toArray();

@@ -484,6 +484,7 @@ class RecordsManagementEditController extends Controller
                                 'stored_file_name' => $storedFileName,
                                 'file_path' => $filePath,
                                 'file_type' => $fileType,
+                                'file_size' => $uploadedFile->getSize(),
                             ]);
                             Log::info("Created new attachment for person {$personIdentityNumber}", [
                                 'file_type' => $fileType,

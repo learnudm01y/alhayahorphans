@@ -276,6 +276,9 @@
             const template = document.querySelector('.family-member-form').cloneNode(true);
             const parentForm = document.querySelector('.family-member-form');
 
+            // إظهار النموذج المستنسخ
+            template.style.display = 'block';
+
             // تحديث هيكل النموذج
             template.className = 'family-member-form card border-0 shadow-sm mb-4';
             template.innerHTML = `
@@ -299,6 +302,14 @@
             template.querySelectorAll('input, select').forEach(input => {
                 if (input.name) {
                     input.name = input.name.replace('[0]', `[${familyMemberCount}]`);
+
+                    // إضافة required للحقول المطلوبة
+                    if (input.name.includes('[first_name]') || 
+                        input.name.includes('[last_name]') || 
+                        input.name.includes('[person_birth_date]') || 
+                        input.name.includes('[person_gender]')) {
+                        input.required = true;
+                    }
 
                     // التعامل مع رقم التسجيل
                     if (input.name.includes('[registration_id]')) {

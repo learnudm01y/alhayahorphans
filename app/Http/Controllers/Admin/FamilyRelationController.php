@@ -10,13 +10,21 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use App\Services\NormalizedSearchService;
 
 class FamilyRelationController extends Controller
 {
+    protected $searchService;
+
     /**
      * مدة التخزين المؤقت (Cache) بالدقائق
      */
     private const CACHE_DURATION = 60;
+
+    public function __construct(NormalizedSearchService $searchService)
+    {
+        $this->searchService = $searchService;
+    }
 
     /**
      * البحث عن العلاقات العائلية برقم الهوية
@@ -147,169 +155,15 @@ class FamilyRelationController extends Controller
     }
 
     /**
-     * البحث عن أشخاص بالاسم (نفس طريقة البحث السريع الناجحة)
+     * البحث عن أشخاص بالاسم (مع التطبيع)
      *
      * @param string $name
      * @return \Illuminate\Support\Collection
      */
     private function searchPersonsByName($name)
     {
-        $query = DB::connection('civilregistry')->table('persons');
-        $cleanQuery = trim($name);
-        $words = preg_split('/\s+/', $cleanQuery);
-
-        if (count($words) > 1) {
-            // استراتيجية سريعة للبحث بالاسم الكامل (نفس طريقة البحث السريع)
-            $firstWord = $words[0];
-            $secondWord = $words[1] ?? '';
-
-            if (strlen($firstWord) >= 3 && strlen($secondWord) >= 3) {
-                // بحث محسن مع ترتيب بالأولوية
-                $results = $query->select(
-                    'CI_ID_NUM as id_number',
-                    'CI_FIRST_ARB',
-                    'CI_FATHER_ARB',
-                    'CI_GRAND_FATHER_ARB',
-                    'CI_FAMILY_ARB',
-                    'CI_BIRTH_DT',
-                    'CI_SEX_CD',
-                    'CI_DEAD_DT'
-                )
-                ->selectRaw('
-                    CASE
-                        WHEN CONCAT_WS(" ", CI_FIRST_ARB, CI_FATHER_ARB, CI_GRAND_FATHER_ARB, CI_FAMILY_ARB) LIKE ? THEN 1
-                        WHEN CI_FIRST_ARB LIKE ? AND CI_FATHER_ARB LIKE ? THEN 2
-                        WHEN CI_FIRST_ARB LIKE ? AND CI_FAMILY_ARB LIKE ? THEN 3
-                        ELSE 4
-                    END as match_priority
-                ', [
-                    '%' . $cleanQuery . '%',
-                    $firstWord . '%', '%' . $secondWord . '%',
-                    $firstWord . '%', '%' . $secondWord . '%'
-                ])
-                ->where(function($q) use ($firstWord, $secondWord) {
-                    $q->where('CI_FIRST_ARB', 'LIKE', $firstWord . '%')
-                      ->where(function($subQ) use ($secondWord) {
-                          $subQ->where('CI_FATHER_ARB', 'LIKE', '%' . $secondWord . '%')
-                               ->orWhere('CI_GRAND_FATHER_ARB', 'LIKE', '%' . $secondWord . '%')
-                               ->orWhere('CI_FAMILY_ARB', 'LIKE', '%' . $secondWord . '%');
-                      });
-                })
-                ->orderBy('match_priority')
-                ->limit(50)
-                ->get();
-
-                // إذا لم نجد نتائج، ابحث بطريقة أوسع
-                if ($results->isEmpty()) {
-                    $results = $query->select(
-                        'CI_ID_NUM as id_number',
-                        'CI_FIRST_ARB',
-                        'CI_FATHER_ARB',
-                        'CI_GRAND_FATHER_ARB',
-                        'CI_FAMILY_ARB',
-                        'CI_BIRTH_DT',
-                        'CI_SEX_CD',
-                        'CI_DEAD_DT'
-                    )
-                    ->where(function($q) use ($firstWord, $secondWord) {
-                        $q->where('CI_FIRST_ARB', 'LIKE', '%' . $firstWord . '%')
-                          ->orWhere('CI_FATHER_ARB', 'LIKE', '%' . $firstWord . '%')
-                          ->orWhere('CI_FAMILY_ARB', 'LIKE', '%' . $firstWord . '%');
-                    })
-                    ->where(function($q) use ($secondWord) {
-                        $q->where('CI_FIRST_ARB', 'LIKE', '%' . $secondWord . '%')
-                          ->orWhere('CI_FATHER_ARB', 'LIKE', '%' . $secondWord . '%')
-                          ->orWhere('CI_FAMILY_ARB', 'LIKE', '%' . $secondWord . '%');
-                    })
-                    ->limit(50)
-                    ->get();
-                }
-            } else {
-                // إذا كانت الكلمات قصيرة، استخدم البحث البسيط
-                $results = $query->select(
-                    'CI_ID_NUM as id_number',
-                    'CI_FIRST_ARB',
-                    'CI_FATHER_ARB',
-                    'CI_GRAND_FATHER_ARB',
-                    'CI_FAMILY_ARB',
-                    'CI_BIRTH_DT',
-                    'CI_SEX_CD',
-                    'CI_DEAD_DT'
-                )
-                ->where(function($q) use ($cleanQuery) {
-                    $q->where('CI_FIRST_ARB', 'LIKE', '%' . $cleanQuery . '%')
-                      ->orWhere('CI_FATHER_ARB', 'LIKE', '%' . $cleanQuery . '%')
-                      ->orWhere('CI_FAMILY_ARB', 'LIKE', '%' . $cleanQuery . '%');
-                })
-                ->limit(50)
-                ->get();
-            }
-        } else {
-            // البحث بكلمة واحدة
-            $results = $query->select(
-                'CI_ID_NUM as id_number',
-                'CI_FIRST_ARB',
-                'CI_FATHER_ARB',
-                'CI_GRAND_FATHER_ARB',
-                'CI_FAMILY_ARB',
-                'CI_BIRTH_DT',
-                'CI_SEX_CD',
-                'CI_DEAD_DT'
-            )
-            ->where(function($q) use ($name) {
-                $q->where('CI_FIRST_ARB', 'LIKE', $name . '%')  // بداية الاسم (أسرع)
-                  ->orWhere('CI_FATHER_ARB', 'LIKE', $name . '%')
-                  ->orWhere('CI_GRAND_FATHER_ARB', 'LIKE', $name . '%')
-                  ->orWhere('CI_FAMILY_ARB', 'LIKE', $name . '%');
-            })
-            ->limit(50)
-            ->get();
-
-            // إذا لم نجد نتائج، ابحث في أي مكان في النص
-            if ($results->isEmpty() && strlen($name) >= 3) {
-                $results = $query->select(
-                    'CI_ID_NUM as id_number',
-                    'CI_FIRST_ARB',
-                    'CI_FATHER_ARB',
-                    'CI_GRAND_FATHER_ARB',
-                    'CI_FAMILY_ARB',
-                    'CI_BIRTH_DT',
-                    'CI_SEX_CD',
-                    'CI_DEAD_DT'
-                )
-                ->where(function($q) use ($name) {
-                    $q->where('CI_FIRST_ARB', 'LIKE', '%' . $name . '%')
-                      ->orWhere('CI_FATHER_ARB', 'LIKE', '%' . $name . '%')
-                      ->orWhere('CI_GRAND_FATHER_ARB', 'LIKE', '%' . $name . '%')
-                      ->orWhere('CI_FAMILY_ARB', 'LIKE', '%' . $name . '%');
-                })
-                ->limit(50)
-                ->get();
-            }
-        }
-
-        return $results->map(function($person) {
-            $fullName = trim(implode(' ', [
-                $person->CI_FIRST_ARB ?? '',
-                $person->CI_FATHER_ARB ?? '',
-                $person->CI_GRAND_FATHER_ARB ?? '',
-                $person->CI_FAMILY_ARB ?? ''
-            ]));
-
-            return [
-                'id_number' => $person->id_number,
-                'full_name' => $fullName,
-                'first_name' => $person->CI_FIRST_ARB,
-                'father_name' => $person->CI_FATHER_ARB,
-                'grand_father_name' => $person->CI_GRAND_FATHER_ARB,
-                'family_name' => $person->CI_FAMILY_ARB,
-                'birth_date' => $person->CI_BIRTH_DT,
-                'age' => $this->calculateAge($person->CI_BIRTH_DT),
-                'gender' => $this->getGenderText($person->CI_SEX_CD),
-                'is_alive' => empty($person->CI_DEAD_DT),
-                'status' => empty($person->CI_DEAD_DT) ? 'حي' : 'متوفي'
-            ];
-        });
+        // استخدام خدمة البحث المطبع
+        return $this->searchService->searchCivilRegistry($name, 50);
     }
 
     /**

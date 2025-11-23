@@ -694,21 +694,6 @@
                     };
                 }
 
-                // تحديد حقول كلمة المرور
-                const passwordInput = document.querySelector('input[name="user_password"]');
-                const passwordConfirmInput = document.querySelector('input[name="user_password_confirmation"]');
-
-                // منع إدخال غير الأرقام وتحديد الطول بـ 4 فقط
-                [passwordInput, passwordConfirmInput].forEach(function(input) {
-                    if (!input) return;
-                    input.setAttribute('maxlength', '4');
-                    input.setAttribute('inputmode', 'numeric');
-                    input.setAttribute('pattern', '\\d{4}');
-                    input.addEventListener('input', function(e) {
-                        this.value = this.value.replace(/[^0-9]/g, '').slice(0, 4);
-                    });
-                });
-
                 // منع الخروج من أي بوابة دون تعبئة البيانات والوثائق الإجبارية باستخدام حدث show.bs.tab (الأكثر أمانًا)
                 $('#formTabs button[data-bs-toggle="tab"]').on('show.bs.tab', function(e) {
                     updateTabStates(); // تحديث حالة التبويبات عند محاولة الانتقال
@@ -716,25 +701,9 @@
                     const currentActive = document.querySelector('#formTabs .nav-link.active');
                     const currentTarget = currentActive ? currentActive.getAttribute('data-bs-target') : null;
 
-                    const password = document.querySelector('[name="user_password"]')?.value || '';
-                    const passwordConfirm = document.querySelector('[name="user_password_confirmation"]')?.value || '';
-                    if (
-                        password.length === 4 &&
-                        passwordConfirm.length === 4 &&
-                        password !== passwordConfirm
-                    ) {
-                        e.preventDefault && e.preventDefault();
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'تنبيه',
-                            text: 'كلمة المرور وتأكيد كلمة المرور غير متطابقتين!'
-                        });
-                        return false;
-                    }
-
                     function validateBasicTab() {
                         const requiredFields = [
-                            'data_section_id', 'data_id_number', 'user_password', 'user_password_confirmation',
+                            'data_section_id', 'data_id_number',
                             'data_first_name', 'data_father_name', 'data_grand_father_name', 'data_family_name',
                             'data_relationship', 'data_birth_date', 'data_gender', 'data_phone_number',
                             'data_marital_status', 'data_displacement_status', 'data_current_address',
@@ -906,8 +875,6 @@
                         const fieldLabels = {
                             data_section_id: 'القسم',
                             data_id_number: 'رقم الهوية',
-                            user_password: 'كلمة المرور',
-                            user_password_confirmation: 'تأكيد كلمة المرور',
                             data_first_name: 'الاسم الأول',
                             data_father_name: 'اسم الأب',
                             data_grand_father_name: 'اسم الجد',

@@ -511,3 +511,110 @@ if (!function_exists('getFileIdByIdentityNumber')) {
         return generateFileIdFromDataTable();
     }
 }
+
+if (!function_exists('normalizeArabicText')) {
+    /**
+     * تطبيع النص العربي للبحث
+     * Normalize Arabic text for search purposes
+     *
+     * @param string $text
+     * @return string
+     */
+    function normalizeArabicText(string $text): string
+    {
+        if (empty($text)) {
+            return '';
+        }
+
+        // تحويل الحروف المتشابهة إلى صورة موحدة
+        $text = str_replace(['أ', 'إ', 'آ'], 'ا', $text);
+        $text = str_replace('ة', 'ه', $text);
+        $text = str_replace('ى', 'ي', $text);
+
+        // إزالة التشكيل والحركات
+        $text = preg_replace('/[\x{064B}-\x{065F}]/u', '', $text);
+
+        // إزالة الكشيدة (tatweel)
+        $text = str_replace('ـ', '', $text);
+
+        // توحيد جميع أنواع المسافات (عادية، غير قابلة للكسر، عرض صفري، إلخ)
+        $text = preg_replace('/[\x{00A0}\x{1680}\x{2000}-\x{200B}\x{202F}\x{205F}\x{3000}\x{FEFF}]/u', ' ', $text);
+
+        // إزالة المسافات المتعددة وتحويلها لمسافة واحدة
+        $text = preg_replace('/\s+/', ' ', $text);
+
+        // إزالة المسافات من البداية والنهاية
+        $text = trim($text);
+
+        return $text;
+    }
+}
+
+if (!function_exists('normalizeArabicForFlexibleSearch')) {
+    /**
+     * تطبيع النص العربي للبحث المرن (يزيل المسافات من الكلمات المركبة)
+     * Normalize Arabic text for flexible search (removes spaces from compound words)
+     *
+     * @param string $text
+     * @return array يرجع النص الأصلي والنص بدون مسافات
+     */
+    function normalizeArabicForFlexibleSearch(string $text): array
+    {
+        $normalized = normalizeArabicText($text);
+
+        // نسخة بدون مسافات للبحث عن الكلمات المركبة مثل عبدالناصر / عبد الناصر
+        $noSpaces = str_replace(' ', '', $normalized);
+
+        return [
+            'with_spaces' => $normalized,
+            'without_spaces' => $noSpaces
+        ];
+    }
+}
+
+if (!function_exists('buildNormalizedSearchQuery')) {
+    /**
+     * بناء استعلام بحث مع تطبيع النص العربي
+     * Build search query with Arabic text normalization
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param string|array $columns
+     * @param string $searchTerm
+     * @param string $operator ('and' or 'or')
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    function buildNormalizedSearchQuery($query, $columns, string $searchTerm, string $operator = 'or')
+    {
+        if (empty($searchTerm)) {
+            return $query;
+        }
+
+        $columns = is_array($columns) ? $columns : [$columns];
+        $normalizedSearch = normalizeArabicText($searchTerm);
+
+        $method = $operator === 'and' ? 'where' : 'orWhere';
+
+        return $query->where(function($q) use ($columns, $normalizedSearch, $method) {
+            foreach ($columns as $column) {
+                // البحث في النص الأصلي
+                $q->{$method}($column, 'LIKE', "%{$normalizedSearch}%");
+
+                // البحث مع استبدال الحروف المختلفة
+                $q->{$method}(function($subQ) use ($column, $normalizedSearch) {
+                    // البحث مع أ/إ/آ
+                    $subQ->whereRaw("REPLACE(REPLACE(REPLACE($column, 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا') LIKE ?", ["%{$normalizedSearch}%"]);
+                });
+
+                $q->{$method}(function($subQ) use ($column, $normalizedSearch) {
+                    // البحث مع ة/ه
+                    $subQ->whereRaw("REPLACE($column, 'ة', 'ه') LIKE ?", ["%{$normalizedSearch}%"]);
+                });
+
+                $q->{$method}(function($subQ) use ($column, $normalizedSearch) {
+                    // البحث مع ى/ي
+                    $subQ->whereRaw("REPLACE($column, 'ى', 'ي') LIKE ?", ["%{$normalizedSearch}%"]);
+                });
+            }
+        });
+    }
+}

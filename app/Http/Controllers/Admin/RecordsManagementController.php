@@ -265,6 +265,7 @@ class RecordsManagementController extends Controller
                         'stored_file_name' => $storedFileName,
                         'file_path' => 'storage/' . $path,
                         'file_type' => $type,
+                        'file_size' => $file->getSize(),
                     ]);
                 }
             }
@@ -326,6 +327,7 @@ class RecordsManagementController extends Controller
                         'stored_file_name' => $newFileName,
                         'file_path' => 'storage/' . $path,
                         'file_type' => $fileType,
+                        'file_size' => $file->getSize(),
                     ]);
                 }
             }

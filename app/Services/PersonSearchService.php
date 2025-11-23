@@ -14,6 +14,38 @@ class PersonSearchService
     {
         $this->cacheService = $cacheService;
     }
+
+    /**
+     * تطبيع النص العربي (بما في ذلك المسافات)
+     */
+    private function normalizeArabic($text)
+    {
+        return normalizeArabicText($text);
+    }
+
+    /**
+     * بناء SQL expression لتطبيع الأعمدة (بما في ذلك المسافات)
+     */
+    private function buildNormalizationSQL($column)
+    {
+        return "TRIM(
+            REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+                {$column},
+                'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ة', 'ه'), 'ى', 'ي'), 'ـ', ''),
+                '  ', ' '), '   ', ' '))";
+    }
+
+    /**
+     * بناء SQL expression لإزالة كل المسافات (للكلمات المركبة)
+     */
+    private function buildNoSpacesSQL($column)
+    {
+        return "REPLACE(TRIM(
+            REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+                {$column},
+                'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ة', 'ه'), 'ى', 'ي'), 'ـ', '')),
+                ' ', '')";
+    }
     /**
      * البحث الشامل في جدول الأشخاص
      *
@@ -44,7 +76,7 @@ class PersonSearchService
     }
 
     /**
-     * البحث بالنص الكامل محسن
+     * البحث بالنص الكامل محسن (مع التطبيع والمسافات والكلمات المركبة)
      *
      * @param Builder $query
      * @param string $searchTerm
@@ -53,45 +85,63 @@ class PersonSearchService
     {
         $searchTerms = $this->prepareSearchTerms($searchTerm);
         $fullSearchTerm = trim($searchTerm);
+        $normalizedTerm = $this->normalizeArabic($fullSearchTerm);
+        $noSpacesTerm = str_replace(' ', '', $normalizedTerm);
 
-        $query->where(function ($q) use ($searchTerms, $fullSearchTerm) {
-            // استخدام البحث النصي الكامل للنصوص الطويلة
-            if (strlen($fullSearchTerm) >= 3) {
-                $q->whereRaw('MATCH(CI_FIRST_ARB, CI_FATHER_ARB, CI_GRAND_FATHER_ARB, CI_FAMILY_ARB, MOTHER_NAME1) AGAINST(? IN BOOLEAN MODE)', [$fullSearchTerm . '*']);
-            }
+        $query->where(function ($q) use ($searchTerms, $fullSearchTerm, $normalizedTerm, $noSpacesTerm) {
+            // البحث المطبع - تطبيع الأعمدة والبحث (بما في ذلك المسافات)
+            $firstNameExpr = $this->buildNormalizationSQL('CI_FIRST_ARB');
+            $fatherNameExpr = $this->buildNormalizationSQL('CI_FATHER_ARB');
+            $familyNameExpr = $this->buildNormalizationSQL('CI_FAMILY_ARB');
 
-            // البحث التقليدي المحسن
-            $q->orWhere('CI_ID_NUM', 'LIKE', $fullSearchTerm . '%')
-              ->orWhere('CI_FIRST_ARB', 'LIKE', $fullSearchTerm . '%')
-              ->orWhere('CI_FATHER_ARB', 'LIKE', $fullSearchTerm . '%')
-              ->orWhere('CI_FAMILY_ARB', 'LIKE', $fullSearchTerm . '%');
+            $q->whereRaw("{$firstNameExpr} LIKE ?", ['%' . $normalizedTerm . '%'])
+              ->orWhereRaw("{$fatherNameExpr} LIKE ?", ['%' . $normalizedTerm . '%'])
+              ->orWhereRaw("{$familyNameExpr} LIKE ?", ['%' . $normalizedTerm . '%']);
+
+            // البحث بدون مسافات (للكلمات المركبة مثل عبدالناصر / عبد الناصر)
+            $firstNameNoSpaces = $this->buildNoSpacesSQL('CI_FIRST_ARB');
+            $fatherNameNoSpaces = $this->buildNoSpacesSQL('CI_FATHER_ARB');
+            $familyNameNoSpaces = $this->buildNoSpacesSQL('CI_FAMILY_ARB');
+
+            $q->orWhereRaw("{$firstNameNoSpaces} LIKE ?", ['%' . $noSpacesTerm . '%'])
+              ->orWhereRaw("{$fatherNameNoSpaces} LIKE ?", ['%' . $noSpacesTerm . '%'])
+              ->orWhereRaw("{$familyNameNoSpaces} LIKE ?", ['%' . $noSpacesTerm . '%']);
+
+            // البحث برقم الهوية (بدون تطبيع)
+            $q->orWhere('CI_ID_NUM', 'LIKE', $fullSearchTerm . '%');
 
             // البحث بالاسم الكامل المحسن
-            $this->addOptimizedFullNameSearches($q, $searchTerms, $fullSearchTerm);
+            $this->addOptimizedFullNameSearches($q, $searchTerms, $normalizedTerm, $noSpacesTerm);
         });
     }
 
     /**
-     * البحث بتركيبات الاسم الكامل محسن
+     * البحث بتركيبات الاسم الكامل محسن (مع التطبيع والمسافات والكلمات المركبة)
      *
      * @param Builder $query
      * @param array $searchTerms
-     * @param string $fullSearchTerm
+     * @param string $normalizedTerm
+     * @param string $noSpacesTerm
      */
-    private function addOptimizedFullNameSearches(Builder $query, $searchTerms, $fullSearchTerm)
+    private function addOptimizedFullNameSearches(Builder $query, $searchTerms, $normalizedTerm, $noSpacesTerm = null)
     {
         if (count($searchTerms) >= 2) {
-            // استخدام فهرس مركب للبحث السريع
-            $nameVariations = [
-                'CONCAT(CI_FIRST_ARB, " ", CI_FATHER_ARB)',
-                'CONCAT(CI_FIRST_ARB, " ", CI_FAMILY_ARB)',
-                'CONCAT(CI_FIRST_ARB, " ", CI_FATHER_ARB, " ", CI_GRAND_FATHER_ARB)',
-                'CONCAT(CI_FIRST_ARB, " ", CI_FATHER_ARB, " ", CI_FAMILY_ARB)',
-            ];
+            // استخدام فهرس مركب للبحث السريع مع التطبيع
+            $normalizedFullName = $this->buildNormalizationSQL(
+                "CONCAT(COALESCE(CI_FIRST_ARB, ''), ' ', COALESCE(CI_FATHER_ARB, ''), ' ',
+                       COALESCE(CI_GRAND_FATHER_ARB, ''), ' ', COALESCE(CI_FAMILY_ARB, ''))"
+            );
 
-            foreach ($nameVariations as $variation) {
-                $query->orWhereRaw("{$variation} LIKE ?", [$fullSearchTerm . '%']);
-                $query->orWhereRaw("{$variation} LIKE ?", ['%' . $fullSearchTerm . '%']);
+            $query->orWhereRaw("{$normalizedFullName} LIKE ?", [$normalizedTerm . '%'])
+                  ->orWhereRaw("{$normalizedFullName} LIKE ?", ['%' . $normalizedTerm . '%']);
+
+            // البحث بدون مسافات (للكلمات المركبة)
+            if ($noSpacesTerm) {
+                $noSpacesFullName = $this->buildNoSpacesSQL(
+                    "CONCAT(COALESCE(CI_FIRST_ARB, ''), COALESCE(CI_FATHER_ARB, ''),
+                           COALESCE(CI_GRAND_FATHER_ARB, ''), COALESCE(CI_FAMILY_ARB, ''))"
+                );
+                $query->orWhereRaw("{$noSpacesFullName} LIKE ?", ['%' . $noSpacesTerm . '%']);
             }
         }
     }
@@ -154,41 +204,51 @@ class PersonSearchService
     }
 
     /**
-     * تطبيق الفلاتر المحددة
+     * تطبيق الفلاتر المحددة (مع التطبيع)
      *
      * @param Builder $query
      * @param array $filters
      */
     private function applyFilters(Builder $query, $filters)
     {
-        // فلتر رقم الهوية
+        // فلتر رقم الهوية (بدون تطبيع)
         if (!empty($filters['ci_id_num'])) {
             $query->where('CI_ID_NUM', 'LIKE', "%{$filters['ci_id_num']}%");
         }
 
-        // فلتر الاسم الأول
+        // فلتر الاسم الأول (مع التطبيع والمسافات)
         if (!empty($filters['first_name'])) {
-            $query->where('CI_FIRST_ARB', 'LIKE', "%{$filters['first_name']}%");
+            $normalized = $this->normalizeArabic($filters['first_name']);
+            $firstNameExpr = $this->buildNormalizationSQL('CI_FIRST_ARB');
+            $query->whereRaw("{$firstNameExpr} LIKE ?", ['%' . $normalized . '%']);
         }
 
-        // فلتر اسم الأب
+        // فلتر اسم الأب (مع التطبيع والمسافات)
         if (!empty($filters['father_name'])) {
-            $query->where('CI_FATHER_ARB', 'LIKE', "%{$filters['father_name']}%");
+            $normalized = $this->normalizeArabic($filters['father_name']);
+            $fatherNameExpr = $this->buildNormalizationSQL('CI_FATHER_ARB');
+            $query->whereRaw("{$fatherNameExpr} LIKE ?", ['%' . $normalized . '%']);
         }
 
-        // فلتر اسم الجد
+        // فلتر اسم الجد (مع التطبيع والمسافات)
         if (!empty($filters['grandfather_name'])) {
-            $query->where('CI_GRAND_FATHER_ARB', 'LIKE', "%{$filters['grandfather_name']}%");
+            $normalized = $this->normalizeArabic($filters['grandfather_name']);
+            $grandNameExpr = $this->buildNormalizationSQL('CI_GRAND_FATHER_ARB');
+            $query->whereRaw("{$grandNameExpr} LIKE ?", ['%' . $normalized . '%']);
         }
 
-        // فلتر اسم العائلة
+        // فلتر اسم العائلة (مع التطبيع والمسافات)
         if (!empty($filters['family_name'])) {
-            $query->where('CI_FAMILY_ARB', 'LIKE', "%{$filters['family_name']}%");
+            $normalized = $this->normalizeArabic($filters['family_name']);
+            $familyNameExpr = $this->buildNormalizationSQL('CI_FAMILY_ARB');
+            $query->whereRaw("{$familyNameExpr} LIKE ?", ['%' . $normalized . '%']);
         }
 
-        // فلتر اسم الأم
+        // فلتر اسم الأم (مع التطبيع والمسافات)
         if (!empty($filters['mother_name'])) {
-            $query->where('MOTHER_NAME1', 'LIKE', "%{$filters['mother_name']}%");
+            $normalized = $this->normalizeArabic($filters['mother_name']);
+            $motherNameExpr = $this->buildNormalizationSQL('MOTHER_NAME1');
+            $query->whereRaw("{$motherNameExpr} LIKE ?", ['%' . $normalized . '%']);
         }
 
         // فلتر الجنس
@@ -237,7 +297,7 @@ class PersonSearchService
     }
 
     /**
-     * البحث السريع (للاستخدام في AJAX) مع الكاش
+     * البحث السريع (للاستخدام في AJAX) مع الكاش والتطبيع
      *
      * @param string $searchTerm
      * @param int $limit
@@ -247,21 +307,22 @@ class PersonSearchService
     {
         // استخدام الكاش للبحث السريع
         return $this->cacheService->getQuickSearchResults($searchTerm, $limit, function() use ($searchTerm, $limit) {
-            // تحسين الاستعلام للاستفادة من الفهارس
             $query = Persons::query();
+            $normalizedTerm = $this->normalizeArabic($searchTerm);
 
-            // استخدام الفهرس النصي الكامل للبحث السريع
-            if (strlen($searchTerm) >= 3) {
-                $query->whereRaw('MATCH(CI_FIRST_ARB, CI_FATHER_ARB, CI_GRAND_FATHER_ARB, CI_FAMILY_ARB, MOTHER_NAME1) AGAINST(? IN BOOLEAN MODE)', [$searchTerm . '*']);
-            } else {
-                // للنصوص القصيرة، استخدام الفهارس العادية
-                $query->where(function($q) use ($searchTerm) {
-                    $q->where('CI_ID_NUM', 'LIKE', $searchTerm . '%')
-                      ->orWhere('CI_FIRST_ARB', 'LIKE', $searchTerm . '%')
-                      ->orWhere('CI_FATHER_ARB', 'LIKE', $searchTerm . '%')
-                      ->orWhere('CI_FAMILY_ARB', 'LIKE', $searchTerm . '%');
-                });
-            }
+            // البحث المطبع (مع المسافات)
+            $query->where(function($q) use ($searchTerm, $normalizedTerm) {
+                $firstNameExpr = $this->buildNormalizationSQL('CI_FIRST_ARB');
+                $fatherNameExpr = $this->buildNormalizationSQL('CI_FATHER_ARB');
+                $familyNameExpr = $this->buildNormalizationSQL('CI_FAMILY_ARB');
+
+                // البحث برقم الهوية (بدون تطبيع)
+                $q->where('CI_ID_NUM', 'LIKE', $searchTerm . '%')
+                  // البحث في الأسماء مع التطبيع والمسافات
+                  ->orWhereRaw("{$firstNameExpr} LIKE ?", [$normalizedTerm . '%'])
+                  ->orWhereRaw("{$fatherNameExpr} LIKE ?", [$normalizedTerm . '%'])
+                  ->orWhereRaw("{$familyNameExpr} LIKE ?", [$normalizedTerm . '%']);
+            });
 
             // ترتيب محسن للنتائج
             $query->orderByRaw('

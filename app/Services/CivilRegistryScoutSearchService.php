@@ -11,22 +11,28 @@ class CivilRegistryScoutSearchService
 {
     protected $cachePrefix = 'civil_scout_search_';
     protected $cacheTimeout = 300; // 5 دقائق
+    protected $normalizedSearchService;
+
+    public function __construct(NormalizedSearchService $normalizedSearchService)
+    {
+        $this->normalizedSearchService = $normalizedSearchService;
+    }
 
     /**
-     * البحث السريع باستخدام Scout في قاعدة بيانات السجل المدني
+     * البحث السريع باستخدام Scout في قاعدة بيانات السجل المدني مع التطبيع
      */
     public function quickScoutSearch(string $query, int $limit = 50): array
     {
-        $cacheKey = $this->cachePrefix . 'quick_v2_' . md5($query . $limit);
+        $cacheKey = $this->cachePrefix . 'quick_v3_normalized_' . md5($query . $limit);
 
         return Cache::remember($cacheKey, $this->cacheTimeout, function () use ($query, $limit, $cacheKey) {
             $startTime = microtime(true);
 
             try {
-                $queryBuilder = DB::connection('civilregistry')->table('persons');
-
-                // إذا كان البحث رقمي، ابحث في رقم الهوية فقط (الأسرع)
+                // إذا كان البحث رقمي، ابحث في رقم الهوية فقط (بدون تطبيع)
                 if (is_numeric($query)) {
+                    $queryBuilder = DB::connection('civilregistry')->table('persons');
+
                     if (strlen($query) >= 9) {
                         // رقم هوية كامل أو شبه كامل
                         $results = $queryBuilder->where('CI_ID_NUM', $query)->limit($limit)->get();
@@ -40,95 +46,8 @@ class CivilRegistryScoutSearchService
                         $results = $queryBuilder->where('CI_ID_NUM', 'LIKE', $query . '%')->limit($limit)->get();
                     }
                 } else {
-                    // البحث النصي في الأسماء - محسن للسرعة القصوى
-
-                    // تنظيف الاستعلام وتقسيمه إلى كلمات
-                    $cleanQuery = trim($query);
-                    $words = preg_split('/\s+/', $cleanQuery);
-
-                    if (count($words) > 1) {
-                        // استراتيجية سريعة للبحث بالاسم الكامل
-                        // البحث بأول كلمتين فقط لتسريع العملية
-                        $firstWord = $words[0];
-                        $secondWord = $words[1] ?? '';
-
-                        if (strlen($firstWord) >= 3 && strlen($secondWord) >= 3) {
-                            // بحث محسن مع ترتيب بالأولوية
-                            $results = $queryBuilder->select('*')
-                                ->selectRaw('
-                                    CASE
-                                        WHEN CONCAT_WS(" ", CI_FIRST_ARB, CI_FATHER_ARB, CI_GRAND_FATHER_ARB, CI_FAMILY_ARB) LIKE ? THEN 1
-                                        WHEN CI_FIRST_ARB LIKE ? AND CI_FATHER_ARB LIKE ? THEN 2
-                                        WHEN CI_FIRST_ARB LIKE ? AND CI_FAMILY_ARB LIKE ? THEN 3
-                                        ELSE 4
-                                    END as match_priority
-                                ', [
-                                    '%' . $cleanQuery . '%',
-                                    $firstWord . '%', '%' . $secondWord . '%',
-                                    $firstWord . '%', '%' . $secondWord . '%'
-                                ])
-                                ->where(function($q) use ($firstWord, $secondWord) {
-                                    $q->where('CI_FIRST_ARB', 'LIKE', $firstWord . '%')
-                                      ->where(function($subQ) use ($secondWord) {
-                                          $subQ->where('CI_FATHER_ARB', 'LIKE', '%' . $secondWord . '%')
-                                               ->orWhere('CI_GRAND_FATHER_ARB', 'LIKE', '%' . $secondWord . '%')
-                                               ->orWhere('CI_FAMILY_ARB', 'LIKE', '%' . $secondWord . '%');
-                                      });
-                                })
-                                ->orderBy('match_priority')
-                                ->limit($limit)
-                                ->get();
-
-                            // إذا لم نجد نتائج، ابحث بطريقة أوسع
-                            if ($results->isEmpty()) {
-                                $results = $queryBuilder->where(function($q) use ($firstWord, $secondWord) {
-                                    $q->where('CI_FIRST_ARB', 'LIKE', '%' . $firstWord . '%')
-                                      ->orWhere('CI_FATHER_ARB', 'LIKE', '%' . $firstWord . '%')
-                                      ->orWhere('CI_FAMILY_ARB', 'LIKE', '%' . $firstWord . '%');
-                                })
-                                ->where(function($q) use ($secondWord) {
-                                    $q->where('CI_FIRST_ARB', 'LIKE', '%' . $secondWord . '%')
-                                      ->orWhere('CI_FATHER_ARB', 'LIKE', '%' . $secondWord . '%')
-                                      ->orWhere('CI_FAMILY_ARB', 'LIKE', '%' . $secondWord . '%');
-                                })
-                                ->limit($limit)
-                                ->get();
-                            }
-                        } else {
-                            // إذا كانت الكلمات قصيرة، استخدم البحث البسيط
-                            $results = $queryBuilder->where(function($q) use ($cleanQuery) {
-                                $q->where('CI_FIRST_ARB', 'LIKE', '%' . $cleanQuery . '%')
-                                  ->orWhere('CI_FATHER_ARB', 'LIKE', '%' . $cleanQuery . '%')
-                                  ->orWhere('CI_FAMILY_ARB', 'LIKE', '%' . $cleanQuery . '%');
-                            })
-                            ->limit($limit)
-                            ->get();
-                        }
-                    } else {
-                        // البحث بكلمة واحدة
-                        $results = $queryBuilder->where(function($q) use ($query) {
-                            $q->where('CI_FIRST_ARB', 'LIKE', $query . '%')  // بداية الاسم (أسرع)
-                              ->orWhere('CI_FATHER_ARB', 'LIKE', $query . '%')
-                              ->orWhere('CI_GRAND_FATHER_ARB', 'LIKE', $query . '%')
-                              ->orWhere('CI_FAMILY_ARB', 'LIKE', $query . '%')
-                              ->orWhere('MOTHER_NAME1', 'LIKE', $query . '%');
-                        })
-                        ->limit($limit)
-                        ->get();
-
-                        // إذا لم نجد نتائج، ابحث في أي مكان في النص
-                        if ($results->isEmpty() && strlen($query) >= 3) {
-                            $results = $queryBuilder->where(function($q) use ($query) {
-                                $q->where('CI_FIRST_ARB', 'LIKE', '%' . $query . '%')
-                                  ->orWhere('CI_FATHER_ARB', 'LIKE', '%' . $query . '%')
-                                  ->orWhere('CI_GRAND_FATHER_ARB', 'LIKE', '%' . $query . '%')
-                                  ->orWhere('CI_FAMILY_ARB', 'LIKE', '%' . $query . '%')
-                                  ->orWhere('MOTHER_NAME1', 'LIKE', '%' . $query . '%');
-                            })
-                            ->limit($limit)
-                            ->get();
-                        }
-                    }
+                    // البحث النصي في الأسماء - مع التطبيع
+                    $results = $this->normalizedSearchService->searchCivilRegistry($query, $limit);
                 }
 
                 $endTime = microtime(true);
@@ -138,11 +57,11 @@ class CivilRegistryScoutSearchService
                     'data' => $results->toArray(),
                     'total_count' => $results->count(),
                     'execution_time' => round(($endTime - $startTime) * 1000, 2) . ' ms',
-                    'engine' => 'Civil Registry Direct DB (Ultra Fast v2)',
+                    'engine' => 'Civil Registry with Arabic Normalization v3',
                     'cache_key' => $cacheKey,
                     'search_query' => $query,
                     'limit' => $limit,
-                    'query_type' => is_numeric($query) ? 'numeric' : 'text'
+                    'query_type' => is_numeric($query) ? 'numeric' : 'text_normalized'
                 ];
 
             } catch (\Exception $e) {

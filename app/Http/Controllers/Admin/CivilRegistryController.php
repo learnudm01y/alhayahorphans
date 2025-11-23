@@ -4,12 +4,19 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\DataTables\PersonsDataTable;
+use App\Services\NormalizedSearchService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class CivilRegistryController extends Controller
 {
+    protected $searchService;
+
+    public function __construct(NormalizedSearchService $searchService)
+    {
+        $this->searchService = $searchService;
+    }
     /**
      * عرض قائمة السجلات
      */
@@ -279,7 +286,7 @@ class CivilRegistryController extends Controller
     }
 
     /**
-     * البحث في السجلات
+     * البحث في السجلات (مع التطبيع)
      */
     public function search(Request $request)
     {
@@ -293,15 +300,8 @@ class CivilRegistryController extends Controller
         }
 
         try {
-            $results = DB::connection('civilregistry')->table('persons')
-                ->where(function($q) use ($query) {
-                    $q->where('CI_ID_NUM', 'LIKE', '%' . $query . '%')
-                      ->orWhere('CI_FIRST_ARB', 'LIKE', '%' . $query . '%')
-                      ->orWhere('CI_FATHER_ARB', 'LIKE', '%' . $query . '%')
-                      ->orWhere('CI_FAMILY_ARB', 'LIKE', '%' . $query . '%');
-                })
-                ->limit(20)
-                ->get();
+            // استخدام خدمة البحث المطبع
+            $results = $this->searchService->searchCivilRegistry($query, 20);
 
             return response()->json([
                 'success' => true,

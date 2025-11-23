@@ -423,8 +423,8 @@
                                                         </button>
                                                     </div>
                                                     <div id="familyMembersContainer">
-                                                        <!-- نموذج إضافة فرد -->
-                                                        <div class="family-member-form border rounded p-3 mb-3">
+                                                        <!-- نموذج إضافة فرد (مخفي - يستخدم كقالب فقط) -->
+                                                        <div class="family-member-form border rounded p-3 mb-3" style="display: none;">
                                                             <div class="row g-3">
                                                                 <input type="hidden" name="family_members[0][file_id]"
                                                                     value="{{ $file_id_number ?? '' }}">
@@ -452,7 +452,7 @@
                                                                             class="text-danger">*</span></label>
                                                                     <input type="text"
                                                                         name="family_members[0][first_name]"
-                                                                        class="form-control" required>
+                                                                        class="form-control">
                                                                 </div>
                                                                 <div class="col-md-3">
                                                                     <label class="form-label">الاسم الثاني</label>
@@ -471,7 +471,7 @@
                                                                             class="text-danger">*</span></label>
                                                                     <input type="text"
                                                                         name="family_members[0][last_name]"
-                                                                        class="form-control" required>
+                                                                        class="form-control">
                                                                 </div>
                                                                 <div class="col-md-4">
                                                                     <label class="form-label">رقم هوية اليتيم</label>
@@ -486,7 +486,7 @@
                                                                             class="text-danger">*</span></label>
                                                                     <input type="date"
                                                                         name="family_members[0][person_birth_date]"
-                                                                        class="form-control" required>
+                                                                        class="form-control">
                                                                 </div>
                                                                 <div class="col-md-4">
                                                                     <label class="form-label">العمر</label>
@@ -498,7 +498,7 @@
                                                                     <label class="form-label">الجنس <span
                                                                             class="text-danger">*</span></label>
                                                                     <select name="family_members[0][person_gender]"
-                                                                        class="form-select" required>
+                                                                        class="form-select">
                                                                         <option value="">اختر الجنس</option>
                                                                         <option value="1">ذكر</option>
                                                                         <option value="2">أنثى</option>

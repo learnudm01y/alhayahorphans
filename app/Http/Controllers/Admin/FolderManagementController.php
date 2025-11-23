@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Attachment;
 use App\Models\EnhancedAttachment;
+use App\Services\NormalizedSearchService;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -13,6 +14,12 @@ use Illuminate\Pagination\LengthAwarePaginator;
 
 class FolderManagementController extends Controller
 {
+    protected $searchService;
+
+    public function __construct(NormalizedSearchService $searchService)
+    {
+        $this->searchService = $searchService;
+    }
     public function index(Request $request)
     {
         $type = $request->get('type', 'images'); // 'images' or 'excel'
@@ -449,115 +456,31 @@ class FolderManagementController extends Controller
 
         try {
             if ($type === 'images') {
-                // البحث المحسن والموسع
+                // البحث المحسن والموسع باستخدام خدمة البحث المطبع
                 $results = collect();
 
-                // 1. البحث في جدول attachments - تحسين البحث
-                $attachmentResults = DB::table('attachments')
-                    ->where(function($q) use ($query) {
-                        // البحث في اسم الملف
-                        $q->where('stored_file_name', 'LIKE', "%{$query}%")
-                          ->orWhere('file_path', 'LIKE', "%{$query}%")
-                          // البحث برقم الهوية
-                          ->orWhere('person_identity_number', 'LIKE', "%{$query}%")
-                          // البحث بدون أصفار بادئة للأرقام
-                          ->orWhere('person_identity_number', intval($query))
-                          // البحث في اسم المجلد المستخرج
-                          ->orWhereRaw('SUBSTRING_INDEX(SUBSTRING_INDEX(file_path, "/", -2), "/", 1) LIKE ?', ["%{$query}%"])
-                          ->orWhereRaw('SUBSTRING_INDEX(SUBSTRING_INDEX(file_path, "/", -2), "/", 1) = ?', [intval($query)]);
-                    })
-                    ->where(function($query) {
-                        $query->where('file_path', 'LIKE', '%storage/uploads/%')
-                              ->orWhere('file_path', 'LIKE', '%uploads/%');
-                    })
-                    ->whereNotNull('file_path')
-                    ->where('file_path', '!=', '')
-                    ->select([
-                        'id',
-                        'stored_file_name as original_file_name',
-                        'stored_file_name',
-                        'file_path',
-                        'file_size',
-                        'file_type',
-                        'mime_type',
-                        'person_identity_number',
-                        'updated_at',
-                        'created_at',
-                        DB::raw('SUBSTRING_INDEX(SUBSTRING_INDEX(file_path, "/", -2), "/", 1) as extracted_folder_name'),
-                        DB::raw('"attachments" as source_table')
-                    ])
-                    ->orderBy('updated_at', 'desc')
-                    ->limit(50) // تحديد عدد النتائج
-                    ->get();
+                // 1. البحث في جدول attachments و enhanced_attachments - مع التطبيع
+                $fileResults = $this->searchService->searchFiles($query, 50);
 
-                Log::info("Attachment search results", [
+                Log::info("File search results", [
                     'query' => $query,
-                    'count' => $attachmentResults->count(),
-                    'sample_results' => $attachmentResults->take(3)->pluck('stored_file_name')->toArray()
+                    'attachments_count' => $fileResults['attachments']->count(),
+                    'enhanced_count' => $fileResults['enhanced_attachments']->count()
                 ]);
 
                 // إضافة النتائج من attachments
-                foreach ($attachmentResults as $result) {
-                    $result->record_number = $result->extracted_folder_name;
+                foreach ($fileResults['attachments'] as $result) {
                     $result->file_extension = pathinfo($result->stored_file_name ?: '', PATHINFO_EXTENSION);
                     $results->push($result);
                 }
 
-                // 2. البحث في enhanced_attachments (إضافي)
-                if (DB::getSchemaBuilder()->hasTable('enhanced_attachments')) {
-                    $enhancedResults = DB::table('enhanced_attachments')
-                        ->where(function($q) use ($query) {
-                            $q->where('original_file_name', 'LIKE', "%{$query}%")
-                              ->orWhere('stored_file_name', 'LIKE', "%{$query}%")
-                              ->orWhere('file_path', 'LIKE', "%{$query}%")
-                              ->orWhere('record_number', 'LIKE', "%{$query}%")
-                              ->orWhere('record_number', intval($query));
-                        })
-                        ->whereIn('file_type', ['image', 'photo', 'document', 'pdf'])
-                        ->whereNotIn('file_type', ['excel'])
-                        ->whereNull('deleted_at')
-                        ->select([
-                            'id',
-                            'original_file_name',
-                            'stored_file_name',
-                            'file_path',
-                            'file_size',
-                            'file_type',
-                            'mime_type',
-                            'record_number',
-                            'updated_at',
-                            'created_at',
-                            'file_extension',
-                            DB::raw('"enhanced_attachments" as source_table')
-                        ])
-                        ->orderBy('updated_at', 'desc')
-                        ->limit(25)
-                        ->get();
-
-                    Log::info("Enhanced attachment search results", [
-                        'query' => $query,
-                        'count' => $enhancedResults->count()
-                    ]);
-
-                    // إضافة النتائج من enhanced_attachments
-                    foreach ($enhancedResults as $result) {
-                        $results->push($result);
-                    }
+                // إضافة النتائج من enhanced_attachments
+                foreach ($fileResults['enhanced_attachments'] as $result) {
+                    $results->push($result);
                 }
 
-                // 3. البحث بأسماء الأشخاص من جدول data - محسن
-                $personResults = DB::table('data')
-                    ->where(function($q) use ($query) {
-                        $q->where('data_first_name', 'LIKE', "%{$query}%")
-                          ->orWhere('data_father_name', 'LIKE', "%{$query}%")
-                          ->orWhere('data_grand_father_name', 'LIKE', "%{$query}%")
-                          ->orWhere('data_family_name', 'LIKE', "%{$query}%")
-                          ->orWhere('file_id_number', 'LIKE', "%{$query}%")
-                          ->orWhere('file_id_number', intval($query))
-                          ->orWhereRaw('CONCAT(data_first_name, " ", data_father_name, " ", data_grand_father_name, " ", data_family_name) LIKE ?', ["%{$query}%"]);
-                    })
-                    ->limit(10)
-                    ->get();
+                // 2. البحث بأسماء الأشخاص من جدول data - مع التطبيع
+                $personResults = $this->searchService->searchDataTable($query, 10);
 
                 Log::info("Person search results", [
                     'query' => $query,

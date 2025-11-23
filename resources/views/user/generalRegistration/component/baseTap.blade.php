@@ -18,46 +18,7 @@
             <label class="form-label">رقم الهوية <span class="text-danger">*</span></label>
             <input type="text" name="data_id_number" id="data_id_number" class="form-control" inputmode="numeric" minlength="9" maxlength="10" pattern="[0-9]{9,10}" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
         </div>
-        <div class="col-md-8">
-            <div class="row g-2 align-items-end">
-                <div class="col-md-12 mb-2">
 
-                    <span class="text-primary fw-bold" style="font-size: 1rem;">تتكون كلمة المرور من 4 أرقام فقط، وتكون
-                        متطابقة مثلا (1234) ,(1234).</span><br>
-                </div>
-                <div class="col-12 d-flex flex-row gap-3">
-                    <div class="flex-fill position-relative">
-                        <label class="form-label">كلمة المرور <span class="text-danger">*</span></label>
-                        <input type="text" name="user_password" class="form-control" autocomplete="new-password"
-                            maxlength="4" inputmode="numeric" pattern="\d{4}" required>
-                        <div class="d-flex align-items-center mt-1">
-                            <span class=" fw-bold" style="font-size: 0.95rem; color: #5d5d5d;">ننصحك بأخذ لقطة شاشة أو
-                                حفظ كلمة المرور في كلمات مرور جوجل حتى لا تفقدها.</span>
-                            <button type="button"
-                                class="btn btn-outline-primary btn-sm ms-2 position-relative screenshot-pulse-btn"
-                                id="screenshotPasswordBtn" title="التقاط لقطة شاشة لكلمة المرور">
-                                <span class="pulse-circle"></span>
-                                <i class="fas fa-camera"></i>
-                            </button>
-
-                        </div>
-                        <div class="screenshot-hint text-primary fw-bold mt-1 d-none" style="font-size:0.95rem;">
-                            <i class="fas fa-hand-pointer"></i> اضغط على أيقونة الكاميرا لتصوير كلمة المرور
-                        </div>
-                    </div>
-                    <div class="flex-fill">
-                        <label class="form-label">تأكيد كلمة المرور <span class="text-danger">*</span></label>
-                        <input type="text" name="user_password_confirmation" class="form-control"
-                            autocomplete="new-password" maxlength="4" inputmode="numeric" pattern="\d{4}" required>
-                        <button type="button" class="btn btn-success btn-sm ms-2 mt-2" id="saveToGoogleBtn"
-                            title="حفظ كلمة المرور في جوجل"
-                            style="white-space: nowrap; font-size: 0.92rem; padding: 0.35rem 0.7rem; min-width: 90px;">
-                            <i class="fab fa-google me-1"></i> حفظ في جوجل
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
         <div class="col-12">
             <div class="row g-3">
                 <div class="col-md-3">

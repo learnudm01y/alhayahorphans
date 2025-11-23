@@ -84,7 +84,6 @@ class GeneralRegistrationController extends Controller
                 'file_id_number' => 'required|string',
                 'data_section_id' => 'required|integer',
                 'data_id_number' => 'required|string',
-                'user_password' => 'required|digits:4|confirmed',
                 'data_first_name' => 'required|string|max:255',
                 'data_father_name' => 'nullable|string|max:255',
                 'data_grand_father_name' => 'nullable|string|max:255',
@@ -120,9 +119,6 @@ class GeneralRegistrationController extends Controller
                 'file_id_number.required' => 'رقم الملف الموحد مطلوب.',
                 'document_file.*.mimes' => 'يجب أن تكون صيغة الملف jpg أو jpeg أو png أو pdf.',
                 'document_file.*.max' => 'حجم الملف لا يجوز أن يتجاوز 5 ميغابايت.',
-                'user_password.required' => 'كلمة المرور مطلوبة.',
-                'user_password.digits' => 'يجب أن تتكون كلمة المرور من 4 أرقام فقط.',
-                'user_password.confirmed' => 'تأكيد كلمة المرور غير متطابق.',
             ]);
 
 
@@ -457,6 +453,7 @@ class GeneralRegistrationController extends Controller
                         'stored_file_name' => $newFileName,
                         'file_path' => 'storage/' . $path,
                         'file_type' => $fileType,
+                        'file_size' => $file->getSize(),
                     ]);
                     Log::info('🟢 تم تخزين مرفق بنجاح', ['index' => $index, 'file' => $file, 'data' => $data, 'newFileName' => $newFileName]);
                 } else {
@@ -466,11 +463,13 @@ class GeneralRegistrationController extends Controller
 
 
             // إضافة مستخدم جديد عند التسجيل العام
+            // توليد كلمة مرور عشوائية من 8 أحرف
+            $randomPassword = substr(str_shuffle('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'), 0, 8);
             $user = \App\Models\User::create([
                 'name' => $request->input('data_first_name'),
                 'phone' => $request->input('data_phone_number'),
                 'email' => $request->input('data_id_number'), // تخزين رقم الهوية مباشرة في عمود البريد الإلكتروني
-                'password' => bcrypt($request->input('user_password')),
+                'password' => bcrypt($randomPassword),
                 'role' => 'user',
             ]);
 
@@ -529,6 +528,11 @@ class GeneralRegistrationController extends Controller
                 ]);
             }
 
+            // تطبيع كلمة البحث
+            $normalizedSearches = normalizeArabicForFlexibleSearch($searchTerm);
+            $normalizedQuery = $normalizedSearches['with_spaces'];
+            $noSpacesQuery = $normalizedSearches['without_spaces'];
+
             $results = [
                 'found' => false,
                 'has_account' => false,
@@ -537,18 +541,28 @@ class GeneralRegistrationController extends Controller
             ];
 
             // 1. البحث في جدول data (قاعدة بيانات aso) - المعيل
-            // البحث برقم الهوية أو رقم الملف أو الاسم الكامل أو الاسم الجزئي
-            $dataResult = Data::where('data_id_number', $searchTerm)
-                ->orWhere('file_id_number', $searchTerm)
-                ->orWhere('data_first_name', 'LIKE', "%{$searchTerm}%")
-                ->orWhere('data_father_name', 'LIKE', "%{$searchTerm}%")
-                ->orWhere('data_grand_father_name', 'LIKE', "%{$searchTerm}%")
-                ->orWhere('data_family_name', 'LIKE', "%{$searchTerm}%")
-                ->orWhere(function($query) use ($searchTerm) {
-                    // البحث بالاسم الكامل
-                    $query->whereRaw("CONCAT(IFNULL(data_first_name, ''), ' ', IFNULL(data_father_name, ''), ' ', IFNULL(data_grand_father_name, ''), ' ', IFNULL(data_family_name, '')) LIKE ?", ["%{$searchTerm}%"]);
-                })
-                ->first();
+            // البحث برقم الهوية أو رقم الملف أو الاسم الكامل أو الاسم الجزئي مع التطبيع
+            $dataResult = Data::where(function($query) use ($searchTerm, $normalizedQuery, $noSpacesQuery) {
+                // البحث في الأرقام (بدون تطبيع)
+                $query->where('data_id_number', $searchTerm)
+                      ->orWhere('file_id_number', $searchTerm);
+
+                // البحث في الأسماء مع التطبيع
+                // البحث بالنص الكامل
+                $fullName = "CONCAT(IFNULL(data_first_name, ''), ' ', IFNULL(data_father_name, ''), ' ', IFNULL(data_grand_father_name, ''), ' ', IFNULL(data_family_name, ''))";
+                $query->orWhereRaw("({$this->buildNormSqlInline($fullName)}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline($fullName)}) LIKE ?", ["%{$noSpacesQuery}%"]);
+
+                // البحث في الأعمدة المنفصلة
+                $query->orWhereRaw("({$this->buildNormSqlInline('data_first_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('data_first_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
+                $query->orWhereRaw("({$this->buildNormSqlInline('data_father_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('data_father_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
+                $query->orWhereRaw("({$this->buildNormSqlInline('data_grand_father_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('data_grand_father_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
+                $query->orWhereRaw("({$this->buildNormSqlInline('data_family_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('data_family_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
+            })->first();
 
             if ($dataResult) {
                 $results['found'] = true;
@@ -570,17 +584,26 @@ class GeneralRegistrationController extends Controller
                 return response()->json($results);
             }
 
-            // 2. البحث في جدول re_people (أفراد الأسرة / الأيتام)
-            $rePeopleResult = RePeople::where('person_id', $searchTerm)
-                ->orWhere('first_name', 'LIKE', "%{$searchTerm}%")
-                ->orWhere('second_name', 'LIKE', "%{$searchTerm}%")
-                ->orWhere('third_name', 'LIKE', "%{$searchTerm}%")
-                ->orWhere('last_name', 'LIKE', "%{$searchTerm}%")
-                ->orWhere(function($query) use ($searchTerm) {
-                    // البحث بالاسم الكامل
-                    $query->whereRaw("CONCAT(IFNULL(first_name, ''), ' ', IFNULL(second_name, ''), ' ', IFNULL(third_name, ''), ' ', IFNULL(last_name, '')) LIKE ?", ["%{$searchTerm}%"]);
-                })
-                ->first();
+            // 2. البحث في جدول re_people (أفراد الأسرة / الأيتام) مع التطبيع
+            $rePeopleResult = RePeople::where(function($query) use ($searchTerm, $normalizedQuery, $noSpacesQuery) {
+                // البحث في الأرقام (بدون تطبيع)
+                $query->where('person_id', $searchTerm);
+
+                // البحث في الأسماء مع التطبيع
+                $fullName = "CONCAT(IFNULL(first_name, ''), ' ', IFNULL(second_name, ''), ' ', IFNULL(third_name, ''), ' ', IFNULL(last_name, ''))";
+                $query->orWhereRaw("({$this->buildNormSqlInline($fullName)}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline($fullName)}) LIKE ?", ["%{$noSpacesQuery}%"]);
+
+                // البحث في الأعمدة المنفصلة
+                $query->orWhereRaw("({$this->buildNormSqlInline('first_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('first_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
+                $query->orWhereRaw("({$this->buildNormSqlInline('second_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('second_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
+                $query->orWhereRaw("({$this->buildNormSqlInline('third_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('third_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
+                $query->orWhereRaw("({$this->buildNormSqlInline('last_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('last_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
+            })->first();
 
             if ($rePeopleResult) {
                 $results['found'] = true;
@@ -601,26 +624,42 @@ class GeneralRegistrationController extends Controller
                 return response()->json($results);
             }
 
-            // 3. البحث في جدول dead_people (المتوفى - الأب أو الأم)
-            $deadPeopleResult = DeadPepole::where('father_id', $searchTerm)
-                ->orWhere('mother_id', $searchTerm)
-                ->orWhere('father_first_name', 'LIKE', "%{$searchTerm}%")
-                ->orWhere('father_second_name', 'LIKE', "%{$searchTerm}%")
-                ->orWhere('father_third_name', 'LIKE', "%{$searchTerm}%")
-                ->orWhere('father_last_name', 'LIKE', "%{$searchTerm}%")
-                ->orWhere('mother_first_name', 'LIKE', "%{$searchTerm}%")
-                ->orWhere('mother_second_name', 'LIKE', "%{$searchTerm}%")
-                ->orWhere('mother_third_name', 'LIKE', "%{$searchTerm}%")
-                ->orWhere('mother_last_name', 'LIKE', "%{$searchTerm}%")
-                ->orWhere(function($query) use ($searchTerm) {
-                    // البحث بالاسم الكامل للأب
-                    $query->whereRaw("CONCAT(IFNULL(father_first_name, ''), ' ', IFNULL(father_second_name, ''), ' ', IFNULL(father_third_name, ''), ' ', IFNULL(father_last_name, '')) LIKE ?", ["%{$searchTerm}%"]);
-                })
-                ->orWhere(function($query) use ($searchTerm) {
-                    // البحث بالاسم الكامل للأم
-                    $query->whereRaw("CONCAT(IFNULL(mother_first_name, ''), ' ', IFNULL(mother_second_name, ''), ' ', IFNULL(mother_third_name, ''), ' ', IFNULL(mother_last_name, '')) LIKE ?", ["%{$searchTerm}%"]);
-                })
-                ->first();
+            // 3. البحث في جدول dead_people (المتوفى - الأب أو الأم) مع التطبيع
+            $deadPeopleResult = DeadPepole::where(function($query) use ($searchTerm, $normalizedQuery, $noSpacesQuery) {
+                // البحث في الأرقام (بدون تطبيع)
+                $query->where('father_id', $searchTerm)
+                      ->orWhere('mother_id', $searchTerm);
+
+                // البحث في اسم الأب مع التطبيع
+                $fatherFullName = "CONCAT(IFNULL(father_first_name, ''), ' ', IFNULL(father_second_name, ''), ' ', IFNULL(father_third_name, ''), ' ', IFNULL(father_last_name, ''))";
+                $query->orWhereRaw("({$this->buildNormSqlInline($fatherFullName)}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline($fatherFullName)}) LIKE ?", ["%{$noSpacesQuery}%"]);
+
+                // البحث في اسم الأم مع التطبيع
+                $motherFullName = "CONCAT(IFNULL(mother_first_name, ''), ' ', IFNULL(mother_second_name, ''), ' ', IFNULL(mother_third_name, ''), ' ', IFNULL(mother_last_name, ''))";
+                $query->orWhereRaw("({$this->buildNormSqlInline($motherFullName)}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline($motherFullName)}) LIKE ?", ["%{$noSpacesQuery}%"]);
+
+                // البحث في أعمدة الأب المنفصلة
+                $query->orWhereRaw("({$this->buildNormSqlInline('father_first_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('father_first_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
+                $query->orWhereRaw("({$this->buildNormSqlInline('father_second_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('father_second_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
+                $query->orWhereRaw("({$this->buildNormSqlInline('father_third_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('father_third_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
+                $query->orWhereRaw("({$this->buildNormSqlInline('father_last_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('father_last_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
+
+                // البحث في أعمدة الأم المنفصلة
+                $query->orWhereRaw("({$this->buildNormSqlInline('mother_first_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('mother_first_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
+                $query->orWhereRaw("({$this->buildNormSqlInline('mother_second_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('mother_second_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
+                $query->orWhereRaw("({$this->buildNormSqlInline('mother_third_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('mother_third_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
+                $query->orWhereRaw("({$this->buildNormSqlInline('mother_last_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('mother_last_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
+            })->first();
 
             if ($deadPeopleResult) {
                 $results['found'] = true;
@@ -654,16 +693,26 @@ class GeneralRegistrationController extends Controller
                 return response()->json($results);
             }
 
-            // 4. البحث في جدول persons (السجل المدني - قاعدة بيانات civilregistry)
-            $personsResult = \App\Models\CivilRegistryPerson::where('CI_ID_NUM', $searchTerm)
-                ->orWhere('CI_FIRST_ARB', 'LIKE', "%{$searchTerm}%")
-                ->orWhere('CI_FATHER_ARB', 'LIKE', "%{$searchTerm}%")
-                ->orWhere('CI_FAMILY_ARB', 'LIKE', "%{$searchTerm}%")
-                ->orWhere(function($query) use ($searchTerm) {
-                    // البحث بالاسم الكامل
-                    $query->whereRaw("CONCAT(CI_FIRST_ARB, ' ', CI_FATHER_ARB, ' ', CI_GRAND_FATHER_ARB, ' ', CI_FAMILY_ARB) LIKE ?", ["%{$searchTerm}%"]);
-                })
-                ->first();
+            // 4. البحث في جدول persons (السجل المدني - قاعدة بيانات civilregistry) مع التطبيع
+            $personsResult = \App\Models\CivilRegistryPerson::where(function($query) use ($searchTerm, $normalizedQuery, $noSpacesQuery) {
+                // البحث في الأرقام (بدون تطبيع)
+                $query->where('CI_ID_NUM', $searchTerm);
+
+                // البحث في الأسماء مع التطبيع
+                $fullName = "CONCAT(CI_FIRST_ARB, ' ', CI_FATHER_ARB, ' ', CI_GRAND_FATHER_ARB, ' ', CI_FAMILY_ARB)";
+                $query->orWhereRaw("({$this->buildNormSqlInline($fullName)}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline($fullName)}) LIKE ?", ["%{$noSpacesQuery}%"]);
+
+                // البحث في الأعمدة المنفصلة
+                $query->orWhereRaw("({$this->buildNormSqlInline('CI_FIRST_ARB')}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('CI_FIRST_ARB')}) LIKE ?", ["%{$noSpacesQuery}%"]);
+                $query->orWhereRaw("({$this->buildNormSqlInline('CI_FATHER_ARB')}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('CI_FATHER_ARB')}) LIKE ?", ["%{$noSpacesQuery}%"]);
+                $query->orWhereRaw("({$this->buildNormSqlInline('CI_GRAND_FATHER_ARB')}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('CI_GRAND_FATHER_ARB')}) LIKE ?", ["%{$noSpacesQuery}%"]);
+                $query->orWhereRaw("({$this->buildNormSqlInline('CI_FAMILY_ARB')}) LIKE ?", ["%{$normalizedQuery}%"]);
+                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('CI_FAMILY_ARB')}) LIKE ?", ["%{$noSpacesQuery}%"]);
+            })->first();
 
             if ($personsResult) {
                 $results['found'] = true;
@@ -824,6 +873,30 @@ class GeneralRegistrationController extends Controller
                 'message' => 'حدث خطأ أثناء جلب البيانات: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * بناء SQL inline للتطبيع مع المسافات
+     */
+    private function buildNormSqlInline($column)
+    {
+        return "TRIM(
+            REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+                {$column},
+                'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ة', 'ه'), 'ى', 'ي'), 'ـ', ''),
+                '  ', ' '), '   ', ' '))";
+    }
+
+    /**
+     * بناء SQL inline لإزالة كل المسافات
+     */
+    private function buildNoSpacesSqlInline($column)
+    {
+        return "REPLACE(TRIM(
+            REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+                {$column},
+                'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ة', 'ه'), 'ى', 'ي'), 'ـ', '')),
+                ' ', '')";
     }
 }
 
