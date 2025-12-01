@@ -120,7 +120,8 @@ class NormalizedSearchService
         $thirdWord = $mergedWords[2] ?? '';
         $fourthWord = $mergedWords[3] ?? '';
 
-        return $query->select(
+        // المحاولة الأولى: بحث سريع مع INDEX (مع المسافات)
+        $results = $query->select(
             'CI_ID_NUM as id_number',
             'CI_FIRST_ARB',
             'CI_FATHER_ARB',
@@ -130,49 +131,87 @@ class NormalizedSearchService
             'CI_SEX_CD',
             'CI_DEAD_DT'
         )
-        ->where(function($q) use ($firstWord, $secondWord, $thirdWord, $fourthWord, $words) {
-            // البحث باستخدام الأعمدة المطبّعة (أسرع بكثير!)
+        ->where(function($q) use ($firstWord, $secondWord, $thirdWord, $fourthWord) {
             if ($fourthWord) {
-                // 4 كلمات: الاسم + الأب + الجد + العائلة
-                $q->where(function($sq) use ($firstWord, $secondWord, $thirdWord, $fourthWord) {
-                    $sq->where('CI_FIRST_ARB_NORMALIZED', 'LIKE', $firstWord . '%')
-                       ->where('CI_FATHER_ARB_NORMALIZED', 'LIKE', $secondWord . '%')
-                       ->where('CI_GRAND_FATHER_ARB_NORMALIZED', 'LIKE', $thirdWord . '%')
-                       ->where('CI_FAMILY_ARB_NORMALIZED', 'LIKE', $fourthWord . '%');
-                });
+                $q->where('CI_FIRST_ARB_NORMALIZED', 'LIKE', $firstWord . '%')
+                   ->where('CI_FATHER_ARB_NORMALIZED', 'LIKE', $secondWord . '%')
+                   ->where('CI_GRAND_FATHER_ARB_NORMALIZED', 'LIKE', $thirdWord . '%')
+                   ->where('CI_FAMILY_ARB_NORMALIZED', 'LIKE', $fourthWord . '%');
             } elseif ($thirdWord) {
-                // 3 كلمات: الاسم + الأب + (الجد أو العائلة)
-                $q->where(function($sq) use ($firstWord, $secondWord, $thirdWord) {
-                    $sq->where('CI_FIRST_ARB_NORMALIZED', 'LIKE', $firstWord . '%')
-                       ->where('CI_FATHER_ARB_NORMALIZED', 'LIKE', $secondWord . '%')
-                       ->where(function($ssq) use ($thirdWord) {
-                           $ssq->where('CI_GRAND_FATHER_ARB_NORMALIZED', 'LIKE', $thirdWord . '%')
-                              ->orWhere('CI_FAMILY_ARB_NORMALIZED', 'LIKE', $thirdWord . '%');
-                       });
-                });
+                $q->where('CI_FIRST_ARB_NORMALIZED', 'LIKE', $firstWord . '%')
+                   ->where('CI_FATHER_ARB_NORMALIZED', 'LIKE', $secondWord . '%')
+                   ->where(function($ssq) use ($thirdWord) {
+                       $ssq->where('CI_GRAND_FATHER_ARB_NORMALIZED', 'LIKE', $thirdWord . '%')
+                          ->orWhere('CI_FAMILY_ARB_NORMALIZED', 'LIKE', $thirdWord . '%');
+                   });
             } elseif ($secondWord) {
-                // كلمتان: الاسم + (الأب أو العائلة)
-                // البحث الأكثر دقة: الاسم + العائلة
                 $q->where(function($sq) use ($firstWord, $secondWord) {
-                    $sq->where('CI_FIRST_ARB_NORMALIZED', 'LIKE', $firstWord . '%')
-                       ->where('CI_FAMILY_ARB_NORMALIZED', 'LIKE', $secondWord . '%');
-                });
-
-                // البحث البديل: الاسم + الأب
-                $q->orWhere(function($sq) use ($firstWord, $secondWord) {
-                    $sq->where('CI_FIRST_ARB_NORMALIZED', 'LIKE', $firstWord . '%')
-                       ->where('CI_FATHER_ARB_NORMALIZED', 'LIKE', $secondWord . '%');
-                });
-
-                // البحث الأوسع: الأب + العائلة
-                $q->orWhere(function($sq) use ($firstWord, $secondWord) {
-                    $sq->where('CI_FATHER_ARB_NORMALIZED', 'LIKE', $firstWord . '%')
-                       ->where('CI_FAMILY_ARB_NORMALIZED', 'LIKE', $secondWord . '%');
+                    $sq->where(function($ssq) use ($firstWord, $secondWord) {
+                        $ssq->where('CI_FIRST_ARB_NORMALIZED', 'LIKE', $firstWord . '%')
+                           ->where('CI_FAMILY_ARB_NORMALIZED', 'LIKE', $secondWord . '%');
+                    })->orWhere(function($ssq) use ($firstWord, $secondWord) {
+                        $ssq->where('CI_FIRST_ARB_NORMALIZED', 'LIKE', $firstWord . '%')
+                           ->where('CI_FATHER_ARB_NORMALIZED', 'LIKE', $secondWord . '%');
+                    })->orWhere(function($ssq) use ($firstWord, $secondWord) {
+                        $ssq->where('CI_FATHER_ARB_NORMALIZED', 'LIKE', $firstWord . '%')
+                           ->where('CI_FAMILY_ARB_NORMALIZED', 'LIKE', $secondWord . '%');
+                    });
                 });
             }
         })
         ->limit($limit)
         ->get();
+
+        // إذا وُجدت نتائج، أرجعها مباشرة (سريع!)
+        if ($results && $results->isNotEmpty()) {
+            return $results;
+        }
+
+        // المحاولة الثانية: بحث شامل بدون مسافات (بطيء لكن دقيق)
+        // إزالة المسافات من كلمات البحث
+        $firstWordNoSpace = str_replace(' ', '', $firstWord);
+        $secondWordNoSpace = str_replace(' ', '', $secondWord);
+        $thirdWordNoSpace = str_replace(' ', '', $thirdWord);
+        $fourthWordNoSpace = str_replace(' ', '', $fourthWord);
+
+        return DB::connection('civilregistry')->table('persons')
+            ->select(
+                'CI_ID_NUM as id_number',
+                'CI_FIRST_ARB',
+                'CI_FATHER_ARB',
+                'CI_GRAND_FATHER_ARB',
+                'CI_FAMILY_ARB',
+                'CI_BIRTH_DT',
+                'CI_SEX_CD',
+                'CI_DEAD_DT'
+            )
+            ->where(function($q) use ($firstWordNoSpace, $secondWordNoSpace, $thirdWordNoSpace, $fourthWordNoSpace) {
+                if ($fourthWordNoSpace) {
+                    $q->whereRaw("REPLACE(CI_FIRST_ARB_NORMALIZED, ' ', '') LIKE ?", [$firstWordNoSpace . '%'])
+                       ->whereRaw("REPLACE(CI_FATHER_ARB_NORMALIZED, ' ', '') LIKE ?", [$secondWordNoSpace . '%'])
+                       ->whereRaw("REPLACE(CI_GRAND_FATHER_ARB_NORMALIZED, ' ', '') LIKE ?", [$thirdWordNoSpace . '%'])
+                       ->whereRaw("REPLACE(CI_FAMILY_ARB_NORMALIZED, ' ', '') LIKE ?", [$fourthWordNoSpace . '%']);
+                } elseif ($thirdWordNoSpace) {
+                    $q->whereRaw("REPLACE(CI_FIRST_ARB_NORMALIZED, ' ', '') LIKE ?", [$firstWordNoSpace . '%'])
+                       ->whereRaw("REPLACE(CI_FATHER_ARB_NORMALIZED, ' ', '') LIKE ?", [$secondWordNoSpace . '%'])
+                       ->where(function($ssq) use ($thirdWordNoSpace) {
+                           $ssq->whereRaw("REPLACE(CI_GRAND_FATHER_ARB_NORMALIZED, ' ', '') LIKE ?", [$thirdWordNoSpace . '%'])
+                              ->orWhereRaw("REPLACE(CI_FAMILY_ARB_NORMALIZED, ' ', '') LIKE ?", [$thirdWordNoSpace . '%']);
+                       });
+                } elseif ($secondWordNoSpace) {
+                    $q->where(function($sq) use ($firstWordNoSpace, $secondWordNoSpace) {
+                        $sq->where(function($ssq) use ($firstWordNoSpace, $secondWordNoSpace) {
+                            $ssq->whereRaw("REPLACE(CI_FIRST_ARB_NORMALIZED, ' ', '') LIKE ?", [$firstWordNoSpace . '%'])
+                               ->whereRaw("REPLACE(CI_FAMILY_ARB_NORMALIZED, ' ', '') LIKE ?", [$secondWordNoSpace . '%']);
+                        })->orWhere(function($ssq) use ($firstWordNoSpace, $secondWordNoSpace) {
+                            $ssq->whereRaw("REPLACE(CI_FIRST_ARB_NORMALIZED, ' ', '') LIKE ?", [$firstWordNoSpace . '%'])
+                               ->whereRaw("REPLACE(CI_FATHER_ARB_NORMALIZED, ' ', '') LIKE ?", [$secondWordNoSpace . '%']);
+                        });
+                    });
+                }
+            })
+            ->limit($limit)
+            ->get();
     }
 
     /**
@@ -268,34 +307,34 @@ class NormalizedSearchService
 
         return DB::table('data')
             ->where(function($q) use ($firstWord, $secondWord, $thirdWord, $fourthWord) {
-                // 4 كلمات: الاسم + الأب + الجد + العائلة
+                // 4 كلمات: الاسم + الأب + الجد + العائلة (مع دعم المسافات)
                 if ($fourthWord) {
                     $q->where(function($sq) use ($firstWord, $secondWord, $thirdWord, $fourthWord) {
-                        $sq->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(data_first_name, 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ى', 'ي') LIKE ?", [$firstWord . '%'])
-                           ->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(data_father_name, 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ى', 'ي') LIKE ?", [$secondWord . '%'])
-                           ->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(data_grand_father_name, 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ى', 'ي') LIKE ?", [$thirdWord . '%'])
-                           ->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(data_family_name, 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ى', 'ي') LIKE ?", [$fourthWord . '%']);
+                        $sq->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(data_first_name, 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ى', 'ي'), ' ', '') LIKE ?", [str_replace(' ', '', $firstWord) . '%'])
+                           ->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(data_father_name, 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ى', 'ي'), ' ', '') LIKE ?", [str_replace(' ', '', $secondWord) . '%'])
+                           ->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(data_grand_father_name, 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ى', 'ي'), ' ', '') LIKE ?", [str_replace(' ', '', $thirdWord) . '%'])
+                           ->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(data_family_name, 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ى', 'ي'), ' ', '') LIKE ?", [str_replace(' ', '', $fourthWord) . '%']);
                     });
                 }
-                // 3 كلمات: الاسم + الأب + العائلة
+                // 3 كلمات: الاسم + الأب + العائلة (مع دعم المسافات)
                 elseif ($thirdWord) {
                     $q->where(function($sq) use ($firstWord, $secondWord, $thirdWord) {
-                        $sq->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(data_first_name, 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ى', 'ي') LIKE ?", [$firstWord . '%'])
-                           ->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(data_father_name, 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ى', 'ي') LIKE ?", [$secondWord . '%'])
-                           ->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(data_family_name, 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ى', 'ي') LIKE ?", [$thirdWord . '%']);
+                        $sq->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(data_first_name, 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ى', 'ي'), ' ', '') LIKE ?", [str_replace(' ', '', $firstWord) . '%'])
+                           ->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(data_father_name, 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ى', 'ي'), ' ', '') LIKE ?", [str_replace(' ', '', $secondWord) . '%'])
+                           ->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(data_family_name, 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ى', 'ي'), ' ', '') LIKE ?", [str_replace(' ', '', $thirdWord) . '%']);
                     });
                 }
-                // كلمتان: الاسم + العائلة (أولوية أعلى)
+                // كلمتان: الاسم + العائلة (أولوية أعلى) (مع دعم المسافات)
                 elseif ($secondWord) {
                     $q->where(function($sq) use ($firstWord, $secondWord) {
-                        $sq->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(data_first_name, 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ى', 'ي') LIKE ?", [$firstWord . '%'])
-                           ->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(data_family_name, 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ى', 'ي') LIKE ?", [$secondWord . '%']);
+                        $sq->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(data_first_name, 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ى', 'ي'), ' ', '') LIKE ?", [str_replace(' ', '', $firstWord) . '%'])
+                           ->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(data_family_name, 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ى', 'ي'), ' ', '') LIKE ?", [str_replace(' ', '', $secondWord) . '%']);
                     });
 
                     // أو: الاسم + الأب
                     $q->orWhere(function($sq) use ($firstWord, $secondWord) {
-                        $sq->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(data_first_name, 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ى', 'ي') LIKE ?", [$firstWord . '%'])
-                           ->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(data_father_name, 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ى', 'ي') LIKE ?", [$secondWord . '%']);
+                        $sq->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(data_first_name, 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ى', 'ي'), ' ', '') LIKE ?", [str_replace(' ', '', $firstWord) . '%'])
+                           ->whereRaw("REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(data_father_name, 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ى', 'ي'), ' ', '') LIKE ?", [str_replace(' ', '', $secondWord) . '%']);
                     });
                 }
             })
