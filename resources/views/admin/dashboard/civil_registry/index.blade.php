@@ -458,7 +458,7 @@
 
                     html += `
                         <tr>
-                            <td><strong>${person.CI_ID_NUM || 'غير محدد'}</strong></td>
+                            <td><strong>${person.id_number || person.CI_ID_NUM || 'غير محدد'}</strong></td>
                             <td>${fullName || 'غير محدد'}</td>
                             <td>${gender}</td>
                             <td>${person.CI_BIRTH_DT ? new Date(person.CI_BIRTH_DT).toLocaleDateString('ar-EG') : 'غير محدد'}</td>

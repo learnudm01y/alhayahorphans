@@ -304,9 +304,9 @@
                     input.name = input.name.replace('[0]', `[${familyMemberCount}]`);
 
                     // إضافة required للحقول المطلوبة
-                    if (input.name.includes('[first_name]') || 
-                        input.name.includes('[last_name]') || 
-                        input.name.includes('[person_birth_date]') || 
+                    if (input.name.includes('[first_name]') ||
+                        input.name.includes('[last_name]') ||
+                        input.name.includes('[person_birth_date]') ||
                         input.name.includes('[person_gender]')) {
                         input.required = true;
                     }

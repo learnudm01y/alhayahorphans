@@ -514,10 +514,12 @@ class GeneralRegistrationController extends Controller
     }
 
     /**
-     * البحث الشامل في جميع الجداول
+     * البحث الشامل في جميع الجداول - محسّن بـ NormalizedSearchService
      */
     public function searchAllTables(Request $request)
     {
+        $startTime = microtime(true);
+
         try {
             $searchTerm = $request->input('search_term');
 
@@ -528,195 +530,63 @@ class GeneralRegistrationController extends Controller
                 ]);
             }
 
-            // تطبيع كلمة البحث
-            $normalizedSearches = normalizeArabicForFlexibleSearch($searchTerm);
-            $normalizedQuery = $normalizedSearches['with_spaces'];
-            $noSpacesQuery = $normalizedSearches['without_spaces'];
-
             $results = [
                 'found' => false,
                 'has_account' => false,
                 'data' => [],
-                'message' => ''
+                'message' => '',
+                'search_time' => 0
             ];
 
-            // 1. البحث في جدول data (قاعدة بيانات aso) - المعيل
-            // البحث برقم الهوية أو رقم الملف أو الاسم الكامل أو الاسم الجزئي مع التطبيع
-            $dataResult = Data::where(function($query) use ($searchTerm, $normalizedQuery, $noSpacesQuery) {
-                // البحث في الأرقام (بدون تطبيع)
-                $query->where('data_id_number', $searchTerm)
-                      ->orWhere('file_id_number', $searchTerm);
-
-                // البحث في الأسماء مع التطبيع
-                // البحث بالنص الكامل
-                $fullName = "CONCAT(IFNULL(data_first_name, ''), ' ', IFNULL(data_father_name, ''), ' ', IFNULL(data_grand_father_name, ''), ' ', IFNULL(data_family_name, ''))";
-                $query->orWhereRaw("({$this->buildNormSqlInline($fullName)}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline($fullName)}) LIKE ?", ["%{$noSpacesQuery}%"]);
-
-                // البحث في الأعمدة المنفصلة
-                $query->orWhereRaw("({$this->buildNormSqlInline('data_first_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('data_first_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
-                $query->orWhereRaw("({$this->buildNormSqlInline('data_father_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('data_father_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
-                $query->orWhereRaw("({$this->buildNormSqlInline('data_grand_father_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('data_grand_father_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
-                $query->orWhereRaw("({$this->buildNormSqlInline('data_family_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('data_family_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
-            })->first();
-
+            // 1. البحث في جدول data (بيانات المستفيدين) - محسّن
+            $dataResult = $this->searchInDataTableOptimized($searchTerm);
             if ($dataResult) {
                 $results['found'] = true;
                 $results['has_account'] = true;
                 $results['source'] = 'data';
-                $results['data'] = [
-                    'file_id_number' => $dataResult->file_id_number,
-                    'id_number' => $dataResult->data_id_number,
-                    'full_name' => trim(
-                        ($dataResult->data_first_name ?? '') . ' ' .
-                        ($dataResult->data_father_name ?? '') . ' ' .
-                        ($dataResult->data_grand_father_name ?? '') . ' ' .
-                        ($dataResult->data_family_name ?? '')
-                    ),
-                    'phone' => $dataResult->data_phone_number,
-                    'type' => 'معيل أسرة'
-                ];
+                $results['data'] = $dataResult;
                 $results['message'] = 'تم العثور على سجل موجود مسبقاً. يرجى تسجيل الدخول.';
+                $results['search_time'] = round((microtime(true) - $startTime) * 1000, 2) . ' ms';
                 return response()->json($results);
             }
 
-            // 2. البحث في جدول re_people (أفراد الأسرة / الأيتام) مع التطبيع
-            $rePeopleResult = RePeople::where(function($query) use ($searchTerm, $normalizedQuery, $noSpacesQuery) {
-                // البحث في الأرقام (بدون تطبيع)
-                $query->where('person_id', $searchTerm);
-
-                // البحث في الأسماء مع التطبيع
-                $fullName = "CONCAT(IFNULL(first_name, ''), ' ', IFNULL(second_name, ''), ' ', IFNULL(third_name, ''), ' ', IFNULL(last_name, ''))";
-                $query->orWhereRaw("({$this->buildNormSqlInline($fullName)}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline($fullName)}) LIKE ?", ["%{$noSpacesQuery}%"]);
-
-                // البحث في الأعمدة المنفصلة
-                $query->orWhereRaw("({$this->buildNormSqlInline('first_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('first_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
-                $query->orWhereRaw("({$this->buildNormSqlInline('second_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('second_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
-                $query->orWhereRaw("({$this->buildNormSqlInline('third_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('third_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
-                $query->orWhereRaw("({$this->buildNormSqlInline('last_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('last_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
-            })->first();
-
+            // 2. البحث في جدول re_people - محسّن
+            $rePeopleResult = $this->searchInRePeopleOptimized($searchTerm);
             if ($rePeopleResult) {
                 $results['found'] = true;
                 $results['has_account'] = true;
                 $results['source'] = 're_people';
-                $results['data'] = [
-                    'file_id_number' => $rePeopleResult->registration_id,
-                    'id_number' => $rePeopleResult->person_id,
-                    'full_name' => trim(
-                        ($rePeopleResult->first_name ?? '') . ' ' .
-                        ($rePeopleResult->second_name ?? '') . ' ' .
-                        ($rePeopleResult->third_name ?? '') . ' ' .
-                        ($rePeopleResult->last_name ?? '')
-                    ),
-                    'type' => 'يتيم / فرد من الأسرة'
-                ];
-                $results['message'] = 'تم العثور على سجل موجود مسبقاً. يرجى تسجيل الدخول.';
+                $results['data'] = $rePeopleResult;
+                $results['message'] = 'تم العثور على سجل موجود مسبقاً.';
+                $results['search_time'] = round((microtime(true) - $startTime) * 1000, 2) . ' ms';
                 return response()->json($results);
             }
 
-            // 3. البحث في جدول dead_people (المتوفى - الأب أو الأم) مع التطبيع
-            $deadPeopleResult = DeadPepole::where(function($query) use ($searchTerm, $normalizedQuery, $noSpacesQuery) {
-                // البحث في الأرقام (بدون تطبيع)
-                $query->where('father_id', $searchTerm)
-                      ->orWhere('mother_id', $searchTerm);
-
-                // البحث في اسم الأب مع التطبيع
-                $fatherFullName = "CONCAT(IFNULL(father_first_name, ''), ' ', IFNULL(father_second_name, ''), ' ', IFNULL(father_third_name, ''), ' ', IFNULL(father_last_name, ''))";
-                $query->orWhereRaw("({$this->buildNormSqlInline($fatherFullName)}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline($fatherFullName)}) LIKE ?", ["%{$noSpacesQuery}%"]);
-
-                // البحث في اسم الأم مع التطبيع
-                $motherFullName = "CONCAT(IFNULL(mother_first_name, ''), ' ', IFNULL(mother_second_name, ''), ' ', IFNULL(mother_third_name, ''), ' ', IFNULL(mother_last_name, ''))";
-                $query->orWhereRaw("({$this->buildNormSqlInline($motherFullName)}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline($motherFullName)}) LIKE ?", ["%{$noSpacesQuery}%"]);
-
-                // البحث في أعمدة الأب المنفصلة
-                $query->orWhereRaw("({$this->buildNormSqlInline('father_first_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('father_first_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
-                $query->orWhereRaw("({$this->buildNormSqlInline('father_second_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('father_second_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
-                $query->orWhereRaw("({$this->buildNormSqlInline('father_third_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('father_third_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
-                $query->orWhereRaw("({$this->buildNormSqlInline('father_last_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('father_last_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
-
-                // البحث في أعمدة الأم المنفصلة
-                $query->orWhereRaw("({$this->buildNormSqlInline('mother_first_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('mother_first_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
-                $query->orWhereRaw("({$this->buildNormSqlInline('mother_second_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('mother_second_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
-                $query->orWhereRaw("({$this->buildNormSqlInline('mother_third_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('mother_third_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
-                $query->orWhereRaw("({$this->buildNormSqlInline('mother_last_name')}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('mother_last_name')}) LIKE ?", ["%{$noSpacesQuery}%"]);
-            })->first();
-
+            // 3. البحث في جدول dead_people - محسّن
+            $deadPeopleResult = $this->searchInDeadPeopleOptimized($searchTerm);
             if ($deadPeopleResult) {
                 $results['found'] = true;
-                $results['has_account'] = true;
+                $results['has_account'] = false;
                 $results['source'] = 'dead_people';
-
-                // تحديد إذا كان الأب أو الأم
-                $isFather = ($deadPeopleResult->father_id == $searchTerm ||
-                            stripos($deadPeopleResult->father_first_name ?? '', $searchTerm) !== false ||
-                            stripos($deadPeopleResult->father_last_name ?? '', $searchTerm) !== false);
-
-                $results['data'] = [
-                    'file_id_number' => $deadPeopleResult->re_file_id,
-                    'id_number' => $isFather ? $deadPeopleResult->father_id : $deadPeopleResult->mother_id,
-                    'full_name' => $isFather ?
-                        trim(
-                            ($deadPeopleResult->father_first_name ?? '') . ' ' .
-                            ($deadPeopleResult->father_second_name ?? '') . ' ' .
-                            ($deadPeopleResult->father_third_name ?? '') . ' ' .
-                            ($deadPeopleResult->father_last_name ?? '')
-                        ) :
-                        trim(
-                            ($deadPeopleResult->mother_first_name ?? '') . ' ' .
-                            ($deadPeopleResult->mother_second_name ?? '') . ' ' .
-                            ($deadPeopleResult->mother_third_name ?? '') . ' ' .
-                            ($deadPeopleResult->mother_last_name ?? '')
-                        ),
-                    'type' => 'متوفى'
-                ];
-                $results['message'] = 'تم العثور على سجل موجود مسبقاً. يرجى تسجيل الدخول.';
+                $results['data'] = $deadPeopleResult;
+                $results['message'] = 'تم العثور على سجل في قائمة المتوفين.';
+                $results['search_time'] = round((microtime(true) - $startTime) * 1000, 2) . ' ms';
                 return response()->json($results);
             }
 
-            // 4. البحث في جدول persons (السجل المدني - قاعدة بيانات civilregistry) مع التطبيع
-            $personsResult = \App\Models\CivilRegistryPerson::where(function($query) use ($searchTerm, $normalizedQuery, $noSpacesQuery) {
-                // البحث في الأرقام (بدون تطبيع)
-                $query->where('CI_ID_NUM', $searchTerm);
+            // 4. البحث في السجل المدني - محسّن باستخدام NormalizedSearchService
+            $normalizedSearchService = app(\App\Services\NormalizedSearchService::class);
+            $civilRegistryResults = $normalizedSearchService->searchCivilRegistry($searchTerm, 1);
 
-                // البحث في الأسماء مع التطبيع
-                $fullName = "CONCAT(CI_FIRST_ARB, ' ', CI_FATHER_ARB, ' ', CI_GRAND_FATHER_ARB, ' ', CI_FAMILY_ARB)";
-                $query->orWhereRaw("({$this->buildNormSqlInline($fullName)}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline($fullName)}) LIKE ?", ["%{$noSpacesQuery}%"]);
+            // 4. البحث في السجل المدني - محسّن باستخدام NormalizedSearchService
+            $normalizedSearchService = app(\App\Services\NormalizedSearchService::class);
+            $civilRegistryResults = $normalizedSearchService->searchCivilRegistry($searchTerm, 1);
 
-                // البحث في الأعمدة المنفصلة
-                $query->orWhereRaw("({$this->buildNormSqlInline('CI_FIRST_ARB')}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('CI_FIRST_ARB')}) LIKE ?", ["%{$noSpacesQuery}%"]);
-                $query->orWhereRaw("({$this->buildNormSqlInline('CI_FATHER_ARB')}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('CI_FATHER_ARB')}) LIKE ?", ["%{$noSpacesQuery}%"]);
-                $query->orWhereRaw("({$this->buildNormSqlInline('CI_GRAND_FATHER_ARB')}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('CI_GRAND_FATHER_ARB')}) LIKE ?", ["%{$noSpacesQuery}%"]);
-                $query->orWhereRaw("({$this->buildNormSqlInline('CI_FAMILY_ARB')}) LIKE ?", ["%{$normalizedQuery}%"]);
-                $query->orWhereRaw("({$this->buildNoSpacesSqlInline('CI_FAMILY_ARB')}) LIKE ?", ["%{$noSpacesQuery}%"]);
-            })->first();
+            if ($civilRegistryResults && $civilRegistryResults->isNotEmpty()) {
+                $personsResult = $civilRegistryResults->first();
 
-            if ($personsResult) {
                 $results['found'] = true;
-                $results['has_account'] = false; // موجود في السجل المدني فقط
+                $results['has_account'] = false;
                 $results['source'] = 'civil_registry';
 
                 // تحويل تاريخ الميلاد بشكل صحيح بالميلادي
@@ -732,45 +602,45 @@ class GeneralRegistrationController extends Controller
                         }
 
                         if ($carbonDate) {
-                            $birthDate = $carbonDate->format('Y-m-d'); // للإدخال في الحقل
-                            $birthDateDisplay = $carbonDate->format('Y/m/d'); // للعرض
+                            $birthDate = $carbonDate->format('Y-m-d');
+                            $birthDateDisplay = $carbonDate->format('Y/m/d');
                         }
                     } catch (\Exception $e) {
-                        Log::warning('خطأ في تحويل تاريخ الميلاد: ' . $e->getMessage());
+                        \Log::warning('خطأ في تحويل تاريخ الميلاد: ' . $e->getMessage());
                     }
                 }
 
                 // جلب اسم المدينة
                 $cityName = null;
-                if ($personsResult->CITY) {
-                    $city = City::find($personsResult->CITY);
+                if (isset($personsResult->CITY) && $personsResult->CITY) {
+                    $city = \App\Models\City::find($personsResult->CITY);
                     $cityName = $city ? $city->city : null;
                 }
 
                 // جلب الحالة الاجتماعية
                 $maritalStatusName = null;
-                if ($personsResult->CI_PERSONAL_CD) {
-                    $maritalStatus = CI_PERSONAL_CD::find($personsResult->CI_PERSONAL_CD);
+                if (isset($personsResult->CI_PERSONAL_CD) && $personsResult->CI_PERSONAL_CD) {
+                    $maritalStatus = \App\Models\CI_PERSONAL_CD::find($personsResult->CI_PERSONAL_CD);
                     $maritalStatusName = $maritalStatus ? $maritalStatus->CI_PERSONAL_CD : null;
                 }
 
                 $results['data'] = [
-                    'id_number' => $personsResult->CI_ID_NUM,
-                    'first_name' => $personsResult->CI_FIRST_ARB,
-                    'father_name' => $personsResult->CI_FATHER_ARB,
-                    'grand_father_name' => $personsResult->CI_GRAND_FATHER_ARB,
-                    'family_name' => $personsResult->CI_FAMILY_ARB,
-                    'mother_name' => $personsResult->MOTHER_NAME1,
-                    'birth_date' => $birthDate, // بصيغة Y-m-d
-                    'birth_date_display' => $birthDateDisplay, // بصيغة Y/m/d للعرض
-                    'birth_date_raw' => $personsResult->CI_BIRTH_DT,
-                    'gender' => $personsResult->CI_SEX_CD,
-                    'marital_status' => $personsResult->CI_PERSONAL_CD, // رقم الحالة الاجتماعية
-                    'marital_status_name' => $maritalStatusName, // اسم الحالة الاجتماعية
-                    'city' => $personsResult->CITY, // رقم المدينة
-                    'city_name' => $cityName, // اسم المدينة
-                    'street' => $personsResult->STREET,
-                    'house_no' => $personsResult->HOUSE_NO,
+                    'id_number' => $personsResult->id_number ?? $personsResult->CI_ID_NUM,
+                    'first_name' => $personsResult->CI_FIRST_ARB ?? null,
+                    'father_name' => $personsResult->CI_FATHER_ARB ?? null,
+                    'grand_father_name' => $personsResult->CI_GRAND_FATHER_ARB ?? null,
+                    'family_name' => $personsResult->CI_FAMILY_ARB ?? null,
+                    'mother_name' => $personsResult->MOTHER_NAME1 ?? null,
+                    'birth_date' => $birthDate,
+                    'birth_date_display' => $birthDateDisplay,
+                    'birth_date_raw' => $personsResult->CI_BIRTH_DT ?? null,
+                    'gender' => $personsResult->CI_SEX_CD ?? null,
+                    'marital_status' => $personsResult->CI_PERSONAL_CD ?? null,
+                    'marital_status_name' => $maritalStatusName,
+                    'city' => $personsResult->CITY ?? null,
+                    'city_name' => $cityName,
+                    'street' => $personsResult->STREET ?? null,
+                    'house_no' => $personsResult->HOUSE_NO ?? null,
                     'full_name' => trim(
                         ($personsResult->CI_FIRST_ARB ?? '') . ' ' .
                         ($personsResult->CI_FATHER_ARB ?? '') . ' ' .
@@ -779,25 +649,198 @@ class GeneralRegistrationController extends Controller
                     ),
                     'type' => 'موجود في السجل المدني'
                 ];
-                $results['message'] = 'تم العثور علم بيانات في السجل المدني. يمكنك المتابعة لإنشاء حساب جديد.';
+                $results['message'] = 'تم العثور على بيانات في السجل المدني. يمكنك المتابعة لإنشاء حساب جديد.';
+                $results['search_time'] = round((microtime(true) - $startTime) * 1000, 2) . ' ms';
                 return response()->json($results);
             }
 
             // إذا لم يتم العثور على نتائج
             $results['message'] = 'لم يتم العثور على أي بيانات مطابقة. يرجى التأكد من رقم الهوية والمحاولة مرة أخرى.';
+            $results['search_time'] = round((microtime(true) - $startTime) * 1000, 2) . ' ms';
             return response()->json($results);
 
         } catch (\Exception $e) {
-            Log::error('خطأ في البحث: ' . $e->getMessage());
+            \Log::error('خطأ في البحث: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'حدث خطأ أثناء البحث: ' . $e->getMessage()
+                'message' => 'حدث خطأ أثناء البحث: ' . $e->getMessage(),
+                'search_time' => round((microtime(true) - $startTime) * 1000, 2) . ' ms'
             ], 500);
         }
     }
 
     /**
-     * ملء الحقول تلقائياً من السجل المدني
+     * البحث المحسّن في جدول data
+     */
+    private function searchInDataTableOptimized($searchTerm)
+    {
+        // إذا كان رقماً، ابحث في أرقام الهوية والملفات
+        if (is_numeric($searchTerm)) {
+            $result = \App\Models\Data::where('data_id_number', $searchTerm)
+                ->orWhere('file_id_number', $searchTerm)
+                ->first();
+
+            if ($result) {
+                return [
+                    'file_id_number' => $result->file_id_number,
+                    'id_number' => $result->data_id_number,
+                    'full_name' => trim(
+                        ($result->data_first_name ?? '') . ' ' .
+                        ($result->data_father_name ?? '') . ' ' .
+                        ($result->data_grand_father_name ?? '') . ' ' .
+                        ($result->data_family_name ?? '')
+                    ),
+                    'phone' => $result->data_phone_number,
+                    'type' => 'معيل أسرة'
+                ];
+            }
+        }
+
+        // البحث بالاسم باستخدام NormalizedSearchService
+        $normalizedSearchService = app(\App\Services\NormalizedSearchService::class);
+        $results = $normalizedSearchService->searchDataTable($searchTerm, 1);
+
+        if ($results && $results->isNotEmpty()) {
+            $result = $results->first();
+            return [
+                'file_id_number' => $result->file_id_number,
+                'id_number' => $result->data_id_number,
+                'full_name' => trim(
+                    ($result->data_first_name ?? '') . ' ' .
+                    ($result->data_father_name ?? '') . ' ' .
+                    ($result->data_grand_father_name ?? '') . ' ' .
+                    ($result->data_family_name ?? '')
+                ),
+                'phone' => $result->data_phone_number ?? null,
+                'type' => 'معيل أسرة'
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * البحث المحسّن في جدول re_people
+     */
+    private function searchInRePeopleOptimized($searchTerm)
+    {
+        // البحث برقم الهوية أولاً (أسرع)
+        if (is_numeric($searchTerm) && strlen($searchTerm) >= 9) {
+            $result = \App\Models\RePeople::where('person_id', $searchTerm)->first();
+
+            if ($result) {
+                return [
+                    'id_number' => $result->person_id,
+                    'full_name' => trim(
+                        ($result->first_name ?? '') . ' ' .
+                        ($result->second_name ?? '') . ' ' .
+                        ($result->third_name ?? '') . ' ' .
+                        ($result->last_name ?? '')
+                    ),
+                    'type' => $result->person_type_id == 1 ? 'يتيم' : 'شخص مسجل'
+                ];
+            }
+        }
+
+        // البحث بالاسم
+        $normalizedTerm = normalizeArabicText($searchTerm);
+        $result = \App\Models\RePeople::where(function($query) use ($normalizedTerm) {
+            $query->where('first_name', 'LIKE', $normalizedTerm . '%')
+                  ->orWhere('last_name', 'LIKE', $normalizedTerm . '%');
+        })->first();
+
+        if ($result) {
+            return [
+                'id_number' => $result->person_id,
+                'full_name' => trim(
+                    ($result->first_name ?? '') . ' ' .
+                    ($result->second_name ?? '') . ' ' .
+                    ($result->third_name ?? '') . ' ' .
+                    ($result->last_name ?? '')
+                ),
+                'type' => $result->person_type_id == 1 ? 'يتيم' : 'شخص مسجل'
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * البحث المحسّن في جدول dead_people
+     */
+    private function searchInDeadPeopleOptimized($searchTerm)
+    {
+        // البحث برقم الهوية (الأب أو الأم)
+        if (is_numeric($searchTerm) && strlen($searchTerm) >= 9) {
+            $result = \App\Models\DeadPepole::where('father_id', $searchTerm)
+                ->orWhere('mother_id', $searchTerm)
+                ->first();
+
+            if ($result) {
+                $fullName = '';
+                if ($result->father_id == $searchTerm) {
+                    $fullName = trim(
+                        ($result->father_first_name ?? '') . ' ' .
+                        ($result->father_second_name ?? '') . ' ' .
+                        ($result->father_third_name ?? '') . ' ' .
+                        ($result->father_last_name ?? '')
+                    );
+                } else {
+                    $fullName = trim(
+                        ($result->mother_first_name ?? '') . ' ' .
+                        ($result->mother_second_name ?? '') . ' ' .
+                        ($result->mother_third_name ?? '') . ' ' .
+                        ($result->mother_last_name ?? '')
+                    );
+                }
+
+                return [
+                    'id_number' => $searchTerm,
+                    'full_name' => $fullName,
+                    'type' => 'متوفى'
+                ];
+            }
+        }
+
+        // البحث بالاسم
+        $normalizedTerm = normalizeArabicText($searchTerm);
+        $result = \App\Models\DeadPepole::where(function($query) use ($normalizedTerm) {
+            $query->where('father_first_name', 'LIKE', '%' . $normalizedTerm . '%')
+                  ->orWhere('father_last_name', 'LIKE', '%' . $normalizedTerm . '%')
+                  ->orWhere('mother_first_name', 'LIKE', '%' . $normalizedTerm . '%')
+                  ->orWhere('mother_last_name', 'LIKE', '%' . $normalizedTerm . '%');
+        })->first();
+
+        if ($result) {
+            $fullName = '';
+            if (!empty($result->father_first_name)) {
+                $fullName = trim(
+                    ($result->father_first_name ?? '') . ' ' .
+                    ($result->father_second_name ?? '') . ' ' .
+                    ($result->father_third_name ?? '') . ' ' .
+                    ($result->father_last_name ?? '')
+                );
+            } else {
+                $fullName = trim(
+                    ($result->mother_first_name ?? '') . ' ' .
+                    ($result->mother_second_name ?? '') . ' ' .
+                    ($result->mother_third_name ?? '') . ' ' .
+                    ($result->mother_last_name ?? '')
+                );
+            }
+
+            return [
+                'id_number' => $result->father_id ?? $result->mother_id,
+                'full_name' => $fullName,
+                'type' => 'متوفى'
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * ملف الحقول تلقائياً من السجل المدني
      */
     public function fillFromCivilRegistry(Request $request)
     {
@@ -811,15 +854,18 @@ class GeneralRegistrationController extends Controller
                 ]);
             }
 
-            // البحث في السجل المدني
-            $person = \App\Models\CivilRegistryPerson::where('CI_ID_NUM', $idNumber)->first();
+            // البحث في السجل المدني باستخدام NormalizedSearchService (أسرع)
+            $normalizedSearchService = app(\App\Services\NormalizedSearchService::class);
+            $results = $normalizedSearchService->searchCivilRegistry($idNumber, 1);
 
-            if (!$person) {
+            if ($results->isEmpty()) {
                 return response()->json([
                     'success' => false,
                     'message' => 'لم يتم العثور على بيانات في السجل المدني'
                 ]);
             }
+
+            $person = $results->first();
 
             // تحويل تاريخ الميلاد بشكل صحيح بالميلادي
             $birthDate = null;
@@ -833,17 +879,17 @@ class GeneralRegistrationController extends Controller
                     }
 
                     if ($carbonDate) {
-                        $birthDate = $carbonDate->format('Y-m-d'); // بصيغة YYYY-MM-DD للحقل
+                        $birthDate = $carbonDate->format('Y-m-d');
                     }
                 } catch (\Exception $e) {
-                    Log::warning('خطأ في تحويل تاريخ الميلاد: ' . $e->getMessage());
+                    \Log::warning('خطأ في تحويل تاريخ الميلاد: ' . $e->getMessage());
                 }
             }
 
             // جلب اسم المدينة
             $cityName = null;
             if ($person->CITY) {
-                $city = City::find($person->CITY);
+                $city = \App\Models\City::find($person->CITY);
                 $cityName = $city ? $city->city : null;
             }
 
@@ -851,28 +897,158 @@ class GeneralRegistrationController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'data_id_number' => $person->CI_ID_NUM,
+                    'data_id_number' => $person->id_number ?? $person->CI_ID_NUM,
                     'data_first_name' => $person->CI_FIRST_ARB,
                     'data_father_name' => $person->CI_FATHER_ARB,
                     'data_grand_father_name' => $person->CI_GRAND_FATHER_ARB,
                     'data_family_name' => $person->CI_FAMILY_ARB,
-                    'data_birth_date' => $birthDate, // بصيغة Y-m-d
+                    'data_birth_date' => $birthDate,
                     'data_gender' => $person->CI_SEX_CD,
-                    'data_marital_status' => $person->CI_PERSONAL_CD, // رقم الحالة الاجتماعية
+                    'data_marital_status' => $person->CI_PERSONAL_CD,
                     'data_city' => $person->CITY,
-                    'data_city_name' => $cityName, // اسم المدينة
-                    'data_current_address' => $person->STREET,
-                    'mother_name' => $person->MOTHER_NAME1,
+                    'data_city_name' => $cityName,
+                    'data_current_address' => $person->STREET ?? null,
+                    'mother_name' => $person->MOTHER_NAME1 ?? null,
                 ]
             ]);
 
         } catch (\Exception $e) {
-            Log::error('خطأ في جلب البيانات من السجل المدني: ' . $e->getMessage());
+            \Log::error('خطأ في جلب البيانات من السجل المدني: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'حدث خطأ أثناء جلب البيانات: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * البحث الذكي في جدول محدد مع تحسين الأداء
+     */
+    private function searchInTable($table, $searchTerm, $normalizedQuery, $noSpacesQuery, &$results)
+    {
+        $result = null;
+
+        if ($table === 'data') {
+            $result = Data::where(function($query) use ($searchTerm, $normalizedQuery) {
+                $query->where('data_id_number', $searchTerm)
+                      ->orWhere('file_id_number', $searchTerm);
+
+                $fullName = "CONCAT(IFNULL(data_first_name, ''), ' ', IFNULL(data_father_name, ''), ' ', IFNULL(data_grand_father_name, ''), ' ', IFNULL(data_family_name, ''))";
+                $query->orWhereRaw("({$this->buildCombinedNormSql($fullName)}) LIKE ?", ["%{$normalizedQuery}%"]);
+
+                foreach (['data_first_name', 'data_father_name', 'data_grand_father_name', 'data_family_name'] as $column) {
+                    $query->orWhereRaw("({$this->buildCombinedNormSql($column)}) LIKE ?", ["%{$normalizedQuery}%"]);
+                }
+            })->first();
+
+            if ($result) {
+                $results['found'] = true;
+                $results['has_account'] = true;
+                $results['source'] = 'data';
+                $results['data'] = [
+                    'file_id_number' => $result->file_id_number,
+                    'id_number' => $result->data_id_number,
+                    'full_name' => trim(
+                        ($result->data_first_name ?? '') . ' ' .
+                        ($result->data_father_name ?? '') . ' ' .
+                        ($result->data_grand_father_name ?? '') . ' ' .
+                        ($result->data_family_name ?? '')
+                    ),
+                    'phone' => $result->data_phone_number,
+                    'type' => 'معيل أسرة'
+                ];
+                $results['message'] = 'تم العثور على سجل موجود مسبقاً. يرجى تسجيل الدخول.';
+            }
+        } elseif ($table === 're_people') {
+            $result = RePeople::where(function($query) use ($searchTerm, $normalizedQuery) {
+                $query->where('person_id', $searchTerm);
+
+                $fullName = "CONCAT(IFNULL(first_name, ''), ' ', IFNULL(second_name, ''), ' ', IFNULL(third_name, ''), ' ', IFNULL(last_name, ''))";
+                $query->orWhereRaw("({$this->buildCombinedNormSql($fullName)}) LIKE ?", ["%{$normalizedQuery}%"]);
+
+                foreach (['first_name', 'second_name', 'third_name', 'last_name'] as $column) {
+                    $query->orWhereRaw("({$this->buildCombinedNormSql($column)}) LIKE ?", ["%{$normalizedQuery}%"]);
+                }
+            })->first();
+
+            if ($result) {
+                $results['found'] = true;
+                $results['has_account'] = true;
+                $results['source'] = 're_people';
+                $results['data'] = [
+                    'file_id_number' => $result->registration_id,
+                    'id_number' => $result->person_id,
+                    'full_name' => trim(
+                        ($result->first_name ?? '') . ' ' .
+                        ($result->second_name ?? '') . ' ' .
+                        ($result->third_name ?? '') . ' ' .
+                        ($result->last_name ?? '')
+                    ),
+                    'type' => 'يتيم / فرد من الأسرة'
+                ];
+                $results['message'] = 'تم العثور على سجل موجود مسبقاً. يرجى تسجيل الدخول.';
+            }
+        } elseif ($table === 'dead_people') {
+            $result = DeadPepole::where(function($query) use ($searchTerm, $normalizedQuery) {
+                $query->where('father_id', $searchTerm)
+                      ->orWhere('mother_id', $searchTerm);
+
+                $fatherFullName = "CONCAT(IFNULL(father_first_name, ''), ' ', IFNULL(father_second_name, ''), ' ', IFNULL(father_third_name, ''), ' ', IFNULL(father_last_name, ''))";
+                $query->orWhereRaw("({$this->buildCombinedNormSql($fatherFullName)}) LIKE ?", ["%{$normalizedQuery}%"]);
+
+                $motherFullName = "CONCAT(IFNULL(mother_first_name, ''), ' ', IFNULL(mother_second_name, ''), ' ', IFNULL(mother_third_name, ''), ' ', IFNULL(mother_last_name, ''))";
+                $query->orWhereRaw("({$this->buildCombinedNormSql($motherFullName)}) LIKE ?", ["%{$normalizedQuery}%"]);
+
+                foreach (['father_first_name', 'father_second_name', 'father_third_name', 'father_last_name',
+                          'mother_first_name', 'mother_second_name', 'mother_third_name', 'mother_last_name'] as $column) {
+                    $query->orWhereRaw("({$this->buildCombinedNormSql($column)}) LIKE ?", ["%{$normalizedQuery}%"]);
+                }
+            })->first();
+
+            if ($result) {
+                $results['found'] = true;
+                $results['has_account'] = true;
+                $results['source'] = 'dead_people';
+
+                $isFather = ($result->father_id == $searchTerm ||
+                            stripos($result->father_first_name ?? '', $searchTerm) !== false ||
+                            stripos($result->father_last_name ?? '', $searchTerm) !== false);
+
+                $results['data'] = [
+                    'file_id_number' => $result->re_file_id,
+                    'id_number' => $isFather ? $result->father_id : $result->mother_id,
+                    'full_name' => $isFather ?
+                        trim(
+                            ($result->father_first_name ?? '') . ' ' .
+                            ($result->father_second_name ?? '') . ' ' .
+                            ($result->father_third_name ?? '') . ' ' .
+                            ($result->father_last_name ?? '')
+                        ) :
+                        trim(
+                            ($result->mother_first_name ?? '') . ' ' .
+                            ($result->mother_second_name ?? '') . ' ' .
+                            ($result->mother_third_name ?? '') . ' ' .
+                            ($result->mother_last_name ?? '')
+                        ),
+                    'type' => 'متوفى'
+                ];
+                $results['message'] = 'تم العثور على سجل موجود مسبقاً. يرجى تسجيل الدخول.';
+            }
+        }
+    }
+
+    /**
+     * بناء SQL inline للتطبيع مع المسافات (محسّن)
+     * يجمع بين البحث بالمسافات وبدون مسافات في SQL واحدة
+     */
+    private function buildCombinedNormSql($column)
+    {
+        // تطبيع الأحرف وإزالة المسافات الزائدة
+        return "TRIM(
+            REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+                {$column},
+                'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ة', 'ه'), 'ى', 'ي'), 'ـ', ''),
+                '  ', ' '), '   ', ' '))";
     }
 
     /**
