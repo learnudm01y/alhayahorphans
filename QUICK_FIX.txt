@@ -30,7 +30,8 @@ mysql -u root -p aso
 ثم تنفيذ:
 
 ```sql
-UPDATE association_employees SET sponsor_id = NULL WHERE sponsor_id IS NOT NULL AND sponsor_id NOT IN (SELECT id FROM sponsors);
+ALTER TABLE association_employees MODIFY COLUMN sponsor_id BIGINT UNSIGNED NULL;
+DELETE FROM association_employees WHERE sponsor_id IS NOT NULL AND sponsor_id NOT IN (SELECT id FROM sponsors);
 SET FOREIGN_KEY_CHECKS = 0;
 ALTER TABLE association_employees DROP FOREIGN KEY IF EXISTS association_employees_sponsor_id_foreign;
 SET FOREIGN_KEY_CHECKS = 1;

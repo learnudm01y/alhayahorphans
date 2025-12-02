@@ -29,21 +29,30 @@ try {
     echo "عدد السجلات الخاطئة: " . $badRecords[0]->count . "\n\n";
 
     if ($badRecords[0]->count > 0) {
-        // الخطوة 2: تحديث السجلات الخاطئة
-        echo "الخطوة 2: تحديث السجلات الخاطئة...\n";
-
-        $updated = DB::update("
-            UPDATE association_employees
-            SET sponsor_id = NULL
-            WHERE sponsor_id IS NOT NULL
+        // الخطوة 2: جعل العمود nullable أولاً
+        echo "الخطوة 2: جعل العمود sponsor_id nullable...\n";
+        
+        try {
+            DB::statement("ALTER TABLE association_employees MODIFY COLUMN sponsor_id BIGINT UNSIGNED NULL");
+            echo "تم تعديل العمود بنجاح\n\n";
+        } catch (\Exception $e) {
+            echo "تحذير: " . $e->getMessage() . "\n\n";
+        }
+        
+        // الخطوة 3: حذف السجلات الخاطئة (بدلاً من تحديثها إلى NULL)
+        echo "الخطوة 3: حذف السجلات الخاطئة...\n";
+        
+        $deleted = DB::delete("
+            DELETE FROM association_employees 
+            WHERE sponsor_id IS NOT NULL 
             AND sponsor_id NOT IN (SELECT id FROM sponsors)
         ");
-
-        echo "تم تحديث {$updated} سجل\n\n";
+        
+        echo "تم حذف {$deleted} سجل\n\n";
     }
-
-    // الخطوة 3: حذف Foreign Key القديم
-    echo "الخطوة 3: حذف Foreign Key القديم...\n";
+    
+    // الخطوة 4: حذف Foreign Key القديم
+    echo "الخطوة 4: حذف Foreign Key القديم...\n";
 
     try {
         DB::statement("ALTER TABLE association_employees DROP FOREIGN KEY association_employees_sponsor_id_foreign");
@@ -52,8 +61,8 @@ try {
         echo "Foreign Key غير موجود أو تم حذفه مسبقاً\n\n";
     }
 
-    // الخطوة 4: إضافة Foreign Key الجديد
-    echo "الخطوة 4: إضافة Foreign Key الجديد...\n";
+    // الخطوة 5: إضافة Foreign Key الجديد
+    echo "الخطوة 5: إضافة Foreign Key الجديد...\n";
 
     try {
         DB::statement("
@@ -68,8 +77,8 @@ try {
         echo "خطأ: " . $e->getMessage() . "\n\n";
     }
 
-    // الخطوة 5: التحقق من النتيجة
-    echo "الخطوة 5: التحقق من النتيجة...\n";
+    // الخطوة 6: التحقق من النتيجة
+    echo "الخطوة 6: التحقق من النتيجة...\n";
 
     $totalRecords = DB::table('association_employees')->count();
     $nullRecords = DB::table('association_employees')->whereNull('sponsor_id')->count();
