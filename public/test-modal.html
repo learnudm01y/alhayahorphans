@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار Bootstrap Modal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding: 50px; font-family: Arial; }
+        .test-box { background: #f8f9fa; padding: 30px; border-radius: 10px; margin: 20px 0; }
+        .log { background: #000; color: #0f0; padding: 15px; font-family: monospace; min-height: 150px; border-radius: 5px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mb-4">🧪 اختبار المودال</h1>
+
+        <div class="test-box">
+            <h3>اختبار 1: زر بسيط</h3>
+            <button type="button" class="btn btn-primary" id="testBtn1">
+                اضغط هنا - اختبار 1
+            </button>
+        </div>
+
+        <div class="test-box">
+            <h3>اختبار 2: زر مع نفس ID من الصفحة الأصلية</h3>
+            <button type="button" class="btn btn-primary" id="addSponsorBtn">
+                <i class="ki-duotone ki-plus fs-2">+</i>
+                إضافة جمعية جديدة
+            </button>
+        </div>
+
+        <div class="log" id="log">جاري التحميل...</div>
+    </div>
+
+    <!-- Modal 1 -->
+    <div class="modal fade" id="testModal1" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">✅ نجح!</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    المودال يعمل بشكل صحيح!
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2 - نفس المودال من الصفحة الأصلية -->
+    <div class="modal fade" id="sponsorModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">إضافة جمعية جديدة</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>هذا هو المودال الصحيح!</p>
+                    <p>إذا ظهر هذا المودال، فالمشكلة ليست في الكود بل في الصفحة الأصلية.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function log(msg) {
+            $('#log').append(new Date().toLocaleTimeString() + ' - ' + msg + '\n');
+        }
+
+        $(document).ready(function() {
+            log('✅ jQuery loaded: ' + $.fn.jquery);
+            log('✅ Bootstrap loaded');
+            log('✅ #testBtn1 exists: ' + $('#testBtn1').length);
+            log('✅ #addSponsorBtn exists: ' + $('#addSponsorBtn').length);
+            log('✅ #testModal1 exists: ' + $('#testModal1').length);
+            log('✅ #sponsorModal exists: ' + $('#sponsorModal').length);
+            log('══════════════════════════════════');
+
+            // Test 1
+            $('#testBtn1').click(function() {
+                log('🟢 Test 1 button clicked');
+                const modal = new bootstrap.Modal(document.getElementById('testModal1'));
+                modal.show();
+                log('✅ Modal 1 opened');
+            });
+
+            // Test 2 - Same as original page
+            $('#addSponsorBtn').click(function() {
+                log('🟢 addSponsorBtn clicked');
+                const modal = new bootstrap.Modal(document.getElementById('sponsorModal'));
+                modal.show();
+                log('✅ sponsorModal opened');
+            });
+
+            log('👆 اضغط أحد الأزرار أعلاه');
+        });
+    </script>
+</body>
+</html>

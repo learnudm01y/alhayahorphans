@@ -306,7 +306,27 @@
                 </div>
                 <!--end:Menu item-->
             </div>
-            <!--end:Menu sub-->
+        </div>
+        <!--end:Menu item-->
+        <!--begin:Menu item-->
+        <div data-kt-menu-trigger="click" class="menu-item menu-accordion">
+            <span class="menu-link">
+                <span class="menu-icon">
+                    <i class="fas fa-hands-helping fs-2"></i>
+                </span>
+                <span class="menu-title">إدارة الجمعيات</span>
+                <span class="menu-arrow"></span>
+            </span>
+            <div class="menu-sub menu-sub-accordion">
+                <div class="menu-item">
+                    <a class="menu-link" href="{{ route('admin.sponsors.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-list"></i>
+                        </span>
+                        <span class="menu-title"> إدارة الجمعيات </span>
+                    </a>
+                </div>
+            </div>
         </div>
         <!--end:Menu item-->
         <!--begin:Menu item-->

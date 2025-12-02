@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار DataTable الجمعيات</title>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <h1>🧪 اختبار DataTable الجمعيات</h1>
+
+    <div id="status"></div>
+
+    <h2>1️⃣ اختبار GET Request مباشر:</h2>
+    <button onclick="testDirectRequest()">اختبر الآن</button>
+    <pre id="directResult"></pre>
+
+    <h2>2️⃣ اختبار DataTable AJAX:</h2>
+    <button onclick="testDataTableRequest()">اختبر الآن</button>
+    <pre id="dataTableResult"></pre>
+
+    <h2>3️⃣ عرض DataTable الفعلي:</h2>
+    <table id="sponsors-table" class="display" style="width:100%">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>اسم الجمعية</th>
+                <th>الاسم المختصر</th>
+                <th>رقم الهاتف</th>
+                <th>البريد الإلكتروني</th>
+                <th>اسم البنك</th>
+                <th>رقم الحساب</th>
+                <th>تاريخ الإنشاء</th>
+            </tr>
+        </thead>
+    </table>
+
+    <script>
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        function testDirectRequest() {
+            showStatus('⏳ جاري الاختبار...', 'info');
+
+            fetch('/admin/sponsors')
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    console.log('Response headers:', response.headers);
+                    return response.text();
+                })
+                .then(html => {
+                    document.getElementById('directResult').textContent =
+                        `✅ النجاح! طول الاستجابة: ${html.length} حرف\n` +
+                        `أول 500 حرف:\n${html.substring(0, 500)}...`;
+                    showStatus('✅ GET Request نجح!', 'success');
+                })
+                .catch(error => {
+                    document.getElementById('directResult').textContent =
+                        `❌ خطأ: ${error.message}`;
+                    showStatus('❌ فشل الطلب!', 'error');
+                });
+        }
+
+        function testDataTableRequest() {
+            showStatus('⏳ جاري اختبار DataTable AJAX...', 'info');
+
+            // محاكاة طلب DataTable
+            $.ajax({
+                url: '/admin/sponsors',
+                type: 'GET',
+                dataType: 'json',
+                data: {
+                    draw: 1,
+                    start: 0,
+                    length: 10,
+                    'columns[0][data]': 'id',
+                    'columns[0][name]': '',
+                    'columns[0][searchable]': 'true',
+                    'columns[0][orderable]': 'true',
+                    'order[0][column]': 0,
+                    'order[0][dir]': 'asc',
+                    'search[value]': '',
+                    'search[regex]': 'false'
+                },
+                success: function(response) {
+                    console.log('DataTable Response:', response);
+                    document.getElementById('dataTableResult').textContent =
+                        JSON.stringify(response, null, 2);
+                    showStatus(`✅ DataTable AJAX نجح! عدد السجلات: ${response.recordsTotal}`, 'success');
+                },
+                error: function(xhr, status, error) {
+                    console.error('Error:', error);
+                    console.error('Response:', xhr.responseText);
+                    document.getElementById('dataTableResult').textContent =
+                        `❌ خطأ: ${error}\n\nResponse:\n${xhr.responseText}`;
+                    showStatus('❌ فشل DataTable AJAX!', 'error');
+                }
+            });
+        }
+
+        // تهيئة DataTable الفعلي
+        $(document).ready(function() {
+            try {
+                const table = $('#sponsors-table').DataTable({
+                    processing: true,
+                    serverSide: true,
+                    ajax: '/admin/sponsors',
+                    columns: [
+                        { data: 'id', name: 'id' },
+                        { data: 'sponsor_name', name: 'sponsor_name' },
+                        { data: 'sponsor_short_name', name: 'sponsor_short_name' },
+                        { data: 'sponsor_phone_number', name: 'sponsor_phone_number' },
+                        { data: 'sponsor_email', name: 'sponsor_email' },
+                        { data: 'bank_name', name: 'bank_name', orderable: false },
+                        { data: 'sponsor_account_bank_number', name: 'sponsor_account_bank_number' },
+                        { data: 'created_at', name: 'created_at' }
+                    ],
+                    language: {
+                        url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/ar.json'
+                    }
+                });
+
+                showStatus('✅ DataTable تم تهيئته بنجاح!', 'success');
+            } catch (error) {
+                showStatus(`❌ خطأ في تهيئة DataTable: ${error.message}`, 'error');
+            }
+        });
+    </script>
+</body>
+</html>

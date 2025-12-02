@@ -8,4 +8,40 @@ use Illuminate\Database\Eloquent\Model;
 class Sponsor extends Model
 {
     use HasFactory;
+
+    protected $table = 'sponsors';
+    protected $fillable = [
+        'file_id',
+        'sponsor_name',
+        'sponsor_short_name',
+        'sponsor_phone_number',
+        'sponsor_email',
+        'sponsor_address',
+        'sponsor_bank_name_id',
+        'sponsor_account_bank_number',
+        'sponsor_bank_swift_code',
+        'sponsor_bank_related_phone_number',
+        'sponsor_bank_account_currency',
+        'country_code',
+    ];
+
+    public function bankName()
+    {
+        return $this->belongsTo(BankName::class, 'sponsor_bank_name_id');
+    }
+
+    public function currencyType()
+    {
+        return $this->belongsTo(CurrencyType::class, 'sponsor_bank_account_currency');
+    }
+
+    public function country()
+    {
+        return $this->belongsTo(CI_BIRTH_CD::class, 'country_code', 'code');
+    }
+
+    public function employees()
+    {
+        return $this->hasMany(AssociationEmployee::class);
+    }
 }

@@ -8,5 +8,11 @@ use Illuminate\Database\Eloquent\Model;
 class AssociationEmployee extends Model
 {
     use HasFactory;
-    protected $fillable = ['employee_name'];
+
+    protected $fillable = ['sponsor_id', 'employee_name'];
+
+    public function sponsor()
+    {
+        return $this->belongsTo(Sponsor::class);
+    }
 }

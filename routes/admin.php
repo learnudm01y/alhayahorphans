@@ -29,6 +29,7 @@ use App\Http\Controllers\ZipTestController;
 use App\Http\Controllers\Admin\RecordsManagementEditController;
 use App\Http\Controllers\Admin\RequestStatusController;
 use App\Http\Controllers\Admin\SponsorshipStatusController;
+use App\Http\Controllers\Admin\SponsorController;
 use App\Http\Controllers\Admin\TypeOfAccommodationController;
 use App\Http\Controllers\Admin\TypeOfGuaranteeController;
 use App\Http\Controllers\Users\UserController;
@@ -129,6 +130,14 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
         ->name('delete.category.management.academicdegree');
     // Aid Status Management
     Route::resource('aid_status', AidStatusController::class);
+    // Sponsors Management (إدارة الجمعيات)
+    Route::get('sponsors/generate-file-id', [SponsorController::class, 'generateFileId'])->name('sponsors.generate-file-id');
+    Route::post('sponsors/{sponsor}/employees', [SponsorController::class, 'storeEmployee'])->name('sponsors.employees.store');
+    Route::get('sponsors/{sponsor}/employees', [SponsorController::class, 'getEmployees'])->name('sponsors.employees.index');
+    Route::delete('sponsors/employees/{employee}', [SponsorController::class, 'destroyEmployee'])->name('sponsors.employees.destroy');
+    Route::get('sponsors/test-form', [SponsorController::class, 'testForm'])->name('sponsors.test');
+    Route::get('sponsors/test-final', [SponsorController::class, 'testFinal'])->name('sponsors.test.final');
+    Route::resource('sponsors', SponsorController::class);
     // Bank Name Management
     Route::resource('bank_name', BankNameController::class);
     // Category Of Relation Management
