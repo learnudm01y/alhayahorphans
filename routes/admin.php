@@ -30,6 +30,7 @@ use App\Http\Controllers\Admin\RecordsManagementEditController;
 use App\Http\Controllers\Admin\RequestStatusController;
 use App\Http\Controllers\Admin\SponsorshipStatusController;
 use App\Http\Controllers\Admin\SponsorController;
+use App\Http\Controllers\Admin\SponsorshipController;
 use App\Http\Controllers\Admin\TypeOfAccommodationController;
 use App\Http\Controllers\Admin\TypeOfGuaranteeController;
 use App\Http\Controllers\Users\UserController;
@@ -460,6 +461,12 @@ Route::prefix('admin')->group(function () {
 
     // Profile Search Routes - البحث السريع في الملفات مع الاقتراحات
     Route::get('profile-search', [\App\Http\Controllers\Admin\ProfileSearchController::class, 'quickSearch'])->name('profile.search');
+
+    // Sponsorships Routes - مسارات الكفالات
+    Route::prefix('sponsorships')->name('sponsorships.')->group(function () {
+        Route::get('sponsored', [SponsorshipController::class, 'sponsored'])->name('sponsored');
+        Route::get('unsponsored', [SponsorshipController::class, 'unsponsored'])->name('unsponsored');
+    });
 
     // Civil Registry API Routes - مسارات API للسجل المدني
     Route::prefix('api/civil-registry')->name('api.civil.registry.')->group(function () {

@@ -330,6 +330,35 @@
         </div>
         <!--end:Menu item-->
         <!--begin:Menu item-->
+        <div data-kt-menu-trigger="click" class="menu-item menu-accordion">
+            <span class="menu-link">
+                <span class="menu-icon">
+                    <i class="fas fa-hand-holding-heart fs-2"></i>
+                </span>
+                <span class="menu-title">قسم الكفالات</span>
+                <span class="menu-arrow"></span>
+            </span>
+            <div class="menu-sub menu-sub-accordion">
+                <div class="menu-item">
+                    <a class="menu-link" href="{{ route('sponsorships.sponsored') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-users"></i>
+                        </span>
+                        <span class="menu-title">الأشخاص المكفولين</span>
+                    </a>
+                </div>
+                <div class="menu-item">
+                    <a class="menu-link" href="{{ route('sponsorships.unsponsored') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-user-times"></i>
+                        </span>
+                        <span class="menu-title">الأشخاص غير المكفولين</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+        <!--end:Menu item-->
+        <!--begin:Menu item-->
         <div class="menu-item pt-5">
             <!--begin:Menu content-->
             <div class="menu-content">

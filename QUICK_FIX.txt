@@ -1,0 +1,51 @@
+=====================================
+حل مشكلة Foreign Key - خطوات سريعة
+=====================================
+
+الطريقة الأسهل (موصى بها):
+----------------------------
+
+1. رفع ملف fix_foreign_key.php إلى المجلد الرئيسي
+2. تشغيله من terminal:
+
+```bash
+cd /var/www/html/alhayahorphans
+php fix_foreign_key.php
+```
+
+أو من المتصفح:
+http://your-domain.com/fix_foreign_key.php
+
+----------------------------
+
+الطريقة البديلة (SQL مباشرة):
+----------------------------
+
+تسجيل الدخول إلى MySQL:
+
+```bash
+mysql -u root -p aso
+```
+
+ثم تنفيذ:
+
+```sql
+UPDATE association_employees SET sponsor_id = NULL WHERE sponsor_id IS NOT NULL AND sponsor_id NOT IN (SELECT id FROM sponsors);
+SET FOREIGN_KEY_CHECKS = 0;
+ALTER TABLE association_employees DROP FOREIGN KEY IF EXISTS association_employees_sponsor_id_foreign;
+SET FOREIGN_KEY_CHECKS = 1;
+ALTER TABLE association_employees ADD CONSTRAINT association_employees_sponsor_id_foreign FOREIGN KEY (sponsor_id) REFERENCES sponsors(id) ON DELETE CASCADE;
+```
+
+----------------------------
+
+بعد تنفيذ الحل:
+----------------------------
+
+```bash
+php artisan migrate --force
+php artisan route:cache
+php artisan config:cache
+```
+
+تم!
