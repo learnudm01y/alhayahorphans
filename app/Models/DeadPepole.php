@@ -42,6 +42,14 @@ class DeadPepole extends Model
     {
         return $this->belongsTo(DeathReason::class, 'mother_death_reason');
     }
+
+    /**
+     * علاقة مع جدول data باستخدام re_file_id
+     */
+    public function dataRecord()
+    {
+        return $this->belongsTo(Data::class, 're_file_id', 'file_id_number');
+    }
     public function attachments()
     {
         // إرجاع مجموعة مرفقات للأب والأم معاً

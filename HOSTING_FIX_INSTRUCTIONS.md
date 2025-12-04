@@ -76,6 +76,9 @@ SHOW CREATE TABLE association_employees;
 ## 🔄 بعد تطبيق الحل:
 
 ```bash
+# حذف Migration القديمة من الجدول (لتجنب التكرار)
+php remove_migration.php
+
 # تنفيذ باقي Migrations
 php artisan migrate --force
 
@@ -86,6 +89,26 @@ php artisan view:cache
 
 # التحقق
 php artisan migrate:status
+```
+
+---
+
+## ⚠️ إذا ظهر خطأ "Duplicate column name 'sponsor_id'":
+
+هذا يعني أن العمود موجود بالفعل. قم بتنفيذ:
+
+```bash
+# حذف Migration من جدول migrations
+php remove_migration.php
+
+# ثم تنفيذ Migrations الجديدة فقط
+php artisan migrate --force
+```
+
+أو تنفيذ SQL مباشرة:
+
+```sql
+DELETE FROM migrations WHERE migration = '2025_12_02_035205_add_sponsor_id_to_association_employees';
 ```
 
 ---

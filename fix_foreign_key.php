@@ -31,26 +31,26 @@ try {
     if ($badRecords[0]->count > 0) {
         // الخطوة 2: جعل العمود nullable أولاً
         echo "الخطوة 2: جعل العمود sponsor_id nullable...\n";
-        
+
         try {
             DB::statement("ALTER TABLE association_employees MODIFY COLUMN sponsor_id BIGINT UNSIGNED NULL");
             echo "تم تعديل العمود بنجاح\n\n";
         } catch (\Exception $e) {
             echo "تحذير: " . $e->getMessage() . "\n\n";
         }
-        
+
         // الخطوة 3: حذف السجلات الخاطئة (بدلاً من تحديثها إلى NULL)
         echo "الخطوة 3: حذف السجلات الخاطئة...\n";
-        
+
         $deleted = DB::delete("
-            DELETE FROM association_employees 
-            WHERE sponsor_id IS NOT NULL 
+            DELETE FROM association_employees
+            WHERE sponsor_id IS NOT NULL
             AND sponsor_id NOT IN (SELECT id FROM sponsors)
         ");
-        
+
         echo "تم حذف {$deleted} سجل\n\n";
     }
-    
+
     // الخطوة 4: حذف Foreign Key القديم
     echo "الخطوة 4: حذف Foreign Key القديم...\n";
 

@@ -20,7 +20,7 @@
                     </div>
                 </div>
                 <div class="card-toolbar">
-                    <div class="d-flex justify-content-end gap-2" data-kt-sponsorship-table-toolbar="base">
+                    <div class="d-flex justify-content-end" data-kt-sponsorship-table-toolbar="base">
                         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#sponsorshipModal">
                             <i class="ki-duotone ki-plus fs-2"></i>
                             إضافة كفالة جديدة
@@ -184,7 +184,7 @@
 
                         <div class="fv-row mb-7">
                             <label class="fs-6 fw-semibold mb-2">ملاحظات</label>
-                            <textarea class="form-control form-control-solid" rows="3"
+                            <textarea class="form-control form-control-solid" rows="3" 
                                       name="notes" id="notes" placeholder="أي ملاحظات إضافية"></textarea>
                         </div>
                     </div>
@@ -203,6 +203,45 @@
         </div>
     </div>
 </div>
+
+<!-- Modal for View Sponsorship Details -->
+<div class="modal fade" id="viewSponsorshipModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-light">
+                <h2 class="fw-bold text-gray-800">
+                    <i class="ki-duotone ki-information-5 fs-1 text-info me-2">
+                        <span class="path1"></span>
+                        <span class="path2"></span>
+                        <span class="path3"></span>
+                    </i>
+                    تفاصيل الكفالة
+                </h2>
+                <div class="btn btn-icon btn-sm btn-active-icon-primary" data-bs-dismiss="modal">
+                    <i class="ki-duotone ki-cross fs-1">
+                        <span class="path1"></span>
+                        <span class="path2"></span>
+                    </i>
+                </div>
+            </div>
+
+            <div class="modal-body py-10 px-lg-17">
+                <div class="scroll-y me-n7 pe-7" style="max-height: 600px; overflow-y: auto;">
+                    <div id="viewSponsorshipContent">
+                        <div class="text-center py-10">
+                            <span class="spinner-border spinner-border-lg text-primary"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">إغلاق</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('scriptsCode')
@@ -262,7 +301,7 @@
 
                 const formData = $(this).serialize();
                 const submitBtn = $('#submitBtn');
-
+                
                 submitBtn.attr('data-kt-indicator', 'on');
                 submitBtn.prop('disabled', true);
 
@@ -293,7 +332,7 @@
                         } else if (xhr.responseJSON && xhr.responseJSON.message) {
                             errorMessage = xhr.responseJSON.message;
                         }
-
+                        
                         Swal.fire({
                             icon: 'error',
                             title: 'خطأ!',
@@ -332,7 +371,7 @@
                         $('#sponsorship_type_id').val(response.sponsorship_type_id);
                         $('#sponsorship_status_id').val(response.sponsorship_status_id);
                         $('#notes').val(response.notes);
-
+                        
                         $('#sponsorshipModal').modal('show');
                     },
                     error: function(xhr) {
@@ -382,7 +421,95 @@
             // View Sponsorship
             $(document).on('click', '.view-sponsorship', function() {
                 const sponsorshipId = $(this).data('id');
-                window.location.href = `/admin/sponsorships/${sponsorshipId}`;
+
+                $('#viewSponsorshipModal').modal('show');
+                $('#viewSponsorshipContent').html('<div class="text-center py-10"><span class="spinner-border spinner-border-lg text-primary"></span></div>');
+
+                $.ajax({
+                    url: `/admin/sponsorships/${sponsorshipId}/edit`,
+                    type: 'GET',
+                    success: function(data) {
+                        let html = `
+                            <div class="mb-10">
+                                <h3 class="fw-bold text-gray-900 mb-5">معلومات الكافل</h3>
+                                <div class="separator separator-dashed mb-7"></div>
+                                <div class="row g-5">
+                                    <div class="col-md-6">
+                                        <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">الكافل</span>
+                                        <span class="fw-bold text-gray-800 fs-6">${data.sponsor?.sponsor_name || data.sponsoring_organization || '-'}</span>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">إسم المؤسسة</span>
+                                        <span class="fw-bold text-gray-800 fs-6">${data.sponsoring_organization || '-'}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-10">
+                                <h3 class="fw-bold text-gray-900 mb-5">معلومات المكفول</h3>
+                                <div class="separator separator-dashed mb-7"></div>
+                                <div class="row g-5">
+                                    <div class="col-md-4">
+                                        <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">رقم الملف الداخلي</span>
+                                        <span class="fw-bold text-gray-800 fs-6">${data.internal_file_number || '-'}</span>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">رقم الملف الخارجي</span>
+                                        <span class="fw-bold text-gray-800 fs-6">${data.external_file_number || '-'}</span>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">رقم الهوية</span>
+                                        <span class="fw-bold text-gray-800 fs-6">${data.identity_number || '-'}</span>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">الإسم</span>
+                                        <span class="fw-bold text-gray-800 fs-6">${data.orphan_name || '-'}</span>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">إسم المعيل</span>
+                                        <span class="fw-bold text-gray-800 fs-6">${data.guardian_name || '-'}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-10">
+                                <h3 class="fw-bold text-gray-900 mb-5">تفاصيل الكفالة</h3>
+                                <div class="separator separator-dashed mb-7"></div>
+                                <div class="row g-5">
+                                    <div class="col-md-4">
+                                        <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">مدة الكفالة</span>
+                                        <span class="fw-bold text-gray-800 fs-6">${data.sponsorship_duration_months ? data.sponsorship_duration_months + ' شهر' : '-'}</span>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">تاريخ البداية</span>
+                                        <span class="fw-bold text-gray-800 fs-6">${data.sponsorship_start_date || '-'}</span>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">تاريخ النهاية</span>
+                                        <span class="fw-bold text-gray-800 fs-6">${data.sponsorship_end_date || '-'}</span>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">نوع الكفالة</span>
+                                        <span class="fw-bold text-gray-800 fs-6">${data.sponsorship_type?.description || '-'}</span>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">حالة الكفالة</span>
+                                        <span class="fw-bold text-gray-800 fs-6">${data.sponsorship_status?.description || '-'}</span>
+                                    </div>
+                                    <div class="col-md-12">
+                                        <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">ملاحظات</span>
+                                        <span class="fw-bold text-gray-800 fs-6">${data.notes || '-'}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        
+                        $('#viewSponsorshipContent').html(html);
+                    },
+                    error: function() {
+                        $('#viewSponsorshipContent').html('<div class="alert alert-danger">حدث خطأ في تحميل البيانات</div>');
+                    }
+                });
             });
         });
     </script>

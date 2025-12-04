@@ -31,6 +31,7 @@ use App\Http\Controllers\Admin\RequestStatusController;
 use App\Http\Controllers\Admin\SponsorshipStatusController;
 use App\Http\Controllers\Admin\SponsorController;
 use App\Http\Controllers\Admin\SponsorshipController;
+use App\Http\Controllers\Admin\UnifiedSearchController;
 use App\Http\Controllers\Admin\TypeOfAccommodationController;
 use App\Http\Controllers\Admin\TypeOfGuaranteeController;
 use App\Http\Controllers\Users\UserController;
@@ -139,6 +140,14 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::get('sponsors/test-form', [SponsorController::class, 'testForm'])->name('sponsors.test');
     Route::get('sponsors/test-final', [SponsorController::class, 'testFinal'])->name('sponsors.test.final');
     Route::resource('sponsors', SponsorController::class);
+
+    // Sponsorships Management (إدارة الكفالات)
+    Route::get('sponsorships/sponsored', [SponsorshipController::class, 'sponsored'])->name('sponsorships.sponsored');
+    Route::get('sponsorships/unsponsored', [SponsorshipController::class, 'unsponsored'])->name('sponsorships.unsponsored');
+    Route::post('sponsorships/get-person-details', [SponsorshipController::class, 'getPersonDetails'])->name('sponsorships.getPersonDetails');
+    Route::post('sponsorships/unified-search', [UnifiedSearchController::class, 'search'])->name('sponsorships.unifiedSearch');
+    Route::resource('sponsorships', SponsorshipController::class);
+
     // Bank Name Management
     Route::resource('bank_name', BankNameController::class);
     // Category Of Relation Management

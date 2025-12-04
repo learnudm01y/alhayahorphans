@@ -8,14 +8,14 @@ ALTER TABLE association_employees MODIFY COLUMN sponsor_id BIGINT UNSIGNED NULL;
 -- الخطوة 2: تحديث أو حذف البيانات الخاطئة (sponsor_id غير موجود في جدول sponsors)
 
 -- خيار 1: حذف السجلات الخاطئة (موصى به)
-DELETE FROM association_employees 
-WHERE sponsor_id IS NOT NULL 
+DELETE FROM association_employees
+WHERE sponsor_id IS NOT NULL
 AND sponsor_id NOT IN (SELECT id FROM sponsors);
 
 -- خيار 2: جعل sponsor_id = NULL (إذا كنت تريد الاحتفاظ بالسجلات)
--- UPDATE association_employees 
--- SET sponsor_id = NULL 
--- WHERE sponsor_id IS NOT NULL 
+-- UPDATE association_employees
+-- SET sponsor_id = NULL
+-- WHERE sponsor_id IS NOT NULL
 -- AND sponsor_id NOT IN (SELECT id FROM sponsors);
 
 -- الخطوة 3: حذف Foreign Key القديم إن وجد

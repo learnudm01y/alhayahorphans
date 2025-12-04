@@ -44,9 +44,26 @@ ALTER TABLE association_employees ADD CONSTRAINT association_employees_sponsor_i
 ----------------------------
 
 ```bash
+# 1. حذف Migration القديمة
+php remove_migration.php
+
+# 2. تنفيذ Migrations
 php artisan migrate --force
+
+# 3. تحديث Cache
 php artisan route:cache
 php artisan config:cache
 ```
 
-تم!
+----------------------------
+
+إذا ظهر خطأ "Duplicate column":
+----------------------------
+
+```bash
+# حل سريع
+mysql -u root -p aso -e "DELETE FROM migrations WHERE migration = '2025_12_02_035205_add_sponsor_id_to_association_employees';"
+php artisan migrate --force
+```
+
+----------------------------

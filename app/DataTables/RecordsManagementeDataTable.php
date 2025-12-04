@@ -32,7 +32,7 @@ class RecordsManagementeDataTable extends DataTable
                   <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                     الإجراءات
                   </button>
-                  <ul class="dropdown-menu dropdown-menu-end" style="min-width: 140px;">
+                  <ul class="dropdown-menu dropdown-menu-end" style="min-width: 160px;">
                     <li>
                       <a class="dropdown-item" style="color:#222;" href="'.$showUrl.'">
                         <i class="bi bi-eye text-info"></i> عرض
@@ -43,6 +43,12 @@ class RecordsManagementeDataTable extends DataTable
                         <i class="bi bi-pencil-square text-primary"></i> تعديل
                       </a>
                     </li>
+                    <li>
+                      <a class="dropdown-item sponsorship-btn" style="color:#222; cursor: pointer;" data-record-id="'.$row->id.'" data-record-name="'.$row->data_first_name.' '.$row->data_father_name.' '.$row->data_grand_father_name.' '.$row->data_family_name.'" data-file-id="'.$row->file_id_number.'">
+                        <i class="bi bi-heart-fill text-success"></i> تنفيذ كفالة
+                      </a>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
                     <li>
                       <form action="'.$deleteUrl.'" method="POST" style="display:inline;" onsubmit="return confirm(\'هل أنت متأكد من حذف السجل؟\');">
                         '.csrf_field().method_field('DELETE').'
