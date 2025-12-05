@@ -145,6 +145,7 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::get('sponsorships/sponsored', [SponsorshipController::class, 'sponsored'])->name('sponsorships.sponsored');
     Route::get('sponsorships/unsponsored', [SponsorshipController::class, 'unsponsored'])->name('sponsorships.unsponsored');
     Route::post('sponsorships/get-person-details', [SponsorshipController::class, 'getPersonDetails'])->name('sponsorships.getPersonDetails');
+    Route::post('sponsorships/{id}/update-status', [SponsorshipController::class, 'updateStatus'])->name('sponsorships.updateStatus');
     Route::post('sponsorships/unified-search', [UnifiedSearchController::class, 'search'])->name('sponsorships.unifiedSearch');
     Route::resource('sponsorships', SponsorshipController::class);
 

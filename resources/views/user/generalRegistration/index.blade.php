@@ -81,12 +81,78 @@
     </style>
     @stack('UserStylesGeneralRegistration')
 
+    <style>
+        /* تنسيق الشعار */
+        .logo-container {
+            position: fixed;
+            top: 35px;
+            left: 30%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            background: white;
+            padding: 4px 8px;
+            border-radius: 6px;
+            box-shadow: 0 1px 5px rgba(0, 0, 0, 0.1);
+            max-width: 90%;
+        }
+
+        .logo-container img {
+            height: 28px;
+            width: auto;
+            display: block;
+            max-width: 100%;
+        }
+
+        @media (min-width: 481px) and (max-width: 768px) {
+            .logo-container {
+                top: 8px;
+                padding: 5px 10px;
+            }
+
+            .logo-container img {
+                height: 35px;
+            }
+        }
+
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .logo-container {
+                top: 12px;
+                padding: 6px 12px;
+            }
+
+            .logo-container img {
+                height: 40px;
+            }
+        }
+
+        @media (min-width: 1025px) {
+            .logo-container {
+                top: 20px;
+                right: 20px;
+                left: auto;
+                transform: none;
+                padding: 10px 15px;
+                max-width: none;
+            }
+
+            .logo-container img {
+                height: 50px;
+            }
+        }
+    </style>
+
 </head>
 <body id="kt_app_body" data-kt-app-layout="dark-sidebar" data-kt-app-header-fixed="true"
     data-kt-app-sidebar-enabled="true" data-kt-app-sidebar-fixed="true" data-kt-app-sidebar-hoverable="true"
     data-kt-app-sidebar-push-header="true" data-kt-app-sidebar-push-toolbar="true"
     data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" data-kt-app-toolbar-fixed="true"
     class="app-default">
+
+    <!--begin::Logo-->
+    <div class="logo-container">
+        <img src="{{ asset('uploads/logo01.png') }}" alt="الحياة لتنمية الأسرة" title="Al Hayah For Family Development">
+    </div>
+    <!--end::Logo-->
 
 
         @yield('contentGeneralRegistration')

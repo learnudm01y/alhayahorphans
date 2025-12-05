@@ -44,4 +44,14 @@ class Sponsor extends Model
     {
         return $this->hasMany(AssociationEmployee::class);
     }
+
+    /**
+     * علاقة Many-to-Many مع جدول الكفالات (sponsorships)
+     * المؤسسة يمكن أن تكون لديها عدة كفالات
+     */
+    public function sponsorships()
+    {
+        return $this->belongsToMany(Sponsorship::class, 'sponsorship_sponsor')
+            ->withTimestamps();
+    }
 }

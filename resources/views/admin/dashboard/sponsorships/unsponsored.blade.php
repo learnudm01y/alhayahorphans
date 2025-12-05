@@ -48,6 +48,20 @@
         margin-bottom: 0;
     }
 
+    /* إصلاح Select2 للعربية - RTL */
+    .select2-container--bootstrap5 .select2-selection--multiple:not(.form-select-sm):not(.form-select-lg) .select2-selection__choice .select2-selection__choice__display {
+        margin-left: 0.1rem;
+        font-size: 1.1rem;
+        padding-right: 16px;
+    }
+    .select2-container--bootstrap5 .select2-dropdown .select2-results__option.select2-results__option--selected {
+        background-color: var(--bs-component-hover-bg);
+        color: var(--bs-component-hover-color);
+        transition: color 0.2s ease;
+        position: relative;
+        padding-right: 32px;
+    }
+
     #recordDetailsModal .card {
         border: none;
         box-shadow: none;
@@ -458,9 +472,8 @@
 
                             <div class="row g-4 mb-5">
                                 <div class="col-md-6">
-                                    <label class="form-label fw-semibold required">إسم المؤسسة الكافلة</label>
-                                    <select class="form-select" name="sponsor_id" id="create_sponsor_id" required>
-                                        <option value="">اختر المؤسسة الكافلة</option>
+                                    <label class="form-label fw-semibold required">المؤسسات الكافلة (يمكن اختيار أكثر من مؤسسة)</label>
+                                    <select class="form-select" name="sponsor_ids[]" id="create_sponsor_ids" multiple required>
                                         @foreach($sponsors as $sponsor)
                                             <option value="{{ $sponsor->id }}">{{ $sponsor->sponsor_name }}</option>
                                         @endforeach
@@ -510,17 +523,27 @@
                                 </div>
                             </div>
 
-                            <div class="mb-5" id="guardian_manual_field_wrapper">
-                                <label class="form-label fw-semibold">إسم المعيل</label>
-                                <input type="text" class="form-control" placeholder="إسم المعيل"
-                                       name="guardian_name" id="create_guardian_name" />
-                            </div>
+                            <div class="row g-4 mb-5">
+                                <div class="col-md-6">
+                                    <div id="guardian_manual_field_wrapper">
+                                        <label class="form-label fw-semibold">إسم المعيل</label>
+                                        <input type="text" class="form-control" placeholder="إسم المعيل"
+                                               name="guardian_name" id="create_guardian_name" />
+                                    </div>
 
-                            <div class="mb-5" id="guardian_field_wrapper" style="display: none;">
-                                <label class="form-label fw-semibold">إسم المعيل الأساسي</label>
-                                <input type="text" class="form-control bg-light" placeholder="سيتم جلبه تلقائياً"
-                                       name="guardian_name_auto" id="create_guardian_name_auto" readonly />
-                                <small class="text-muted">تم جلب اسم المعيل تلقائياً من قاعدة البيانات</small>
+                                    <div id="guardian_field_wrapper" style="display: none;">
+                                        <label class="form-label fw-semibold">إسم المعيل الأساسي</label>
+                                        <input type="text" class="form-control bg-light" placeholder="سيتم جلبه تلقائياً"
+                                               name="guardian_name_auto" id="create_guardian_name_auto" readonly />
+                                        <small class="text-muted">تم جلب اسم المعيل تلقائياً من قاعدة البيانات</small>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6" id="guardian_identity_field_wrapper">
+                                    <label class="form-label fw-semibold">رقم هوية المعيل</label>
+                                    <input type="text" class="form-control" placeholder="رقم هوية المعيل"
+                                           name="guardian_identity_number" id="create_guardian_identity_number" />
+                                </div>
                             </div>                            <!--begin::تفاصيل الكفالة-->
                             <div class="mb-5 mt-4">
                                 <h4 class="fw-bold text-gray-900 mb-3">
@@ -577,6 +600,26 @@
                                 <textarea class="form-control" rows="3" name="notes" id="create_notes"
                                           placeholder="أي ملاحظات إضافية"></textarea>
                             </div>
+
+                            <!--begin::المعلومات البنكية-->
+                            <div class="mb-5 mt-4">
+                                <h4 class="fw-bold text-gray-900 mb-3">
+                                    <i class="bi bi-bank"></i> المعلومات البنكية
+                                </h4>
+                                <div class="separator mb-4"></div>
+                            </div>
+
+                            <div class="alert alert-info d-flex align-items-center py-3 mb-5">
+                                <i class="fas fa-info-circle fs-4 me-3"></i>
+                                <span>يمكنك إضافة حتى 10 حسابات بنكية للمعيل. جميع الحقول اختيارية.</span>
+                                <button type="button" class="btn btn-sm btn-primary ms-auto" id="addUnsponsoredBankAccount">
+                                    <i class="fas fa-plus me-1"></i>إضافة حساب بنكي
+                                </button>
+                            </div>
+
+                            <div id="unsponsoredBankAccountsContainer" class="d-none">
+                                <!-- سيتم إضافة الحسابات البنكية هنا ديناميكياً -->
+                            </div>
                         </div>
                     </div>
 
@@ -605,6 +648,150 @@
     {!! $dataTable->scripts() !!}
     <script>
         $(document).ready(function() {
+            // ============================================
+            // إدارة الحسابات البنكية في مودال غير المكفولين
+            // ============================================
+            let unsponsoredBankAccountCount = 0;
+            const maxUnsponsoredBankAccounts = 10;
+            const bankNames = @json($bankNames ?? []);
+
+            function createUnsponsoredBankAccountForm(index, bankData = {}) {
+                return `
+                <div class="unsponsored-bank-account-form border rounded p-4 mb-4 position-relative"
+                     data-index="${index}"
+                     style="border: 2px dashed #009ef7 !important; background-color: #d8d8d8;">
+                    <button type="button" class="btn-close position-absolute top-0 end-0 m-3 remove-unsponsored-bank-btn"
+                            title="حذف الحساب" style="z-index: 10;"></button>
+                    <h6 class="mb-4 text-primary fw-bold">
+                        <i class="fas fa-university me-2"></i>حساب بنكي رقم ${index + 1}
+                    </h6>
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">اسم البنك</label>
+                            <select name="bank_accounts[${index}][bank_name]" class="form-select form-select-solid">
+                                <option value="">اختر البنك</option>
+                                ${bankNames.map(bank => `
+                                    <option value="${bank.id}" ${bankData.bank_name == bank.id ? 'selected' : ''}>
+                                        ${bank.description}
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">اسم صاحب الحساب</label>
+                            <input type="text" name="bank_accounts[${index}][re_guardian_name]"
+                                   class="form-control form-control-solid" maxlength="100"
+                                   placeholder="أدخل اسم صاحب الحساب"
+                                   value="${bankData.re_guardian_name || ''}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">رقم هوية صاحب الحساب</label>
+                            <input type="text" name="bank_accounts[${index}][person_owner_identity_number]"
+                                   class="form-control form-control-solid" maxlength="20"
+                                   placeholder="أدخل رقم الهوية"
+                                   value="${bankData.person_owner_identity_number || ''}"
+                                   oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">رقم هاتف صاحب الحساب</label>
+                            <input type="text" name="bank_accounts[${index}][re_phone_number]"
+                                   class="form-control form-control-solid" maxlength="20"
+                                   placeholder="أدخل رقم الهاتف"
+                                   value="${bankData.re_phone_number || ''}"
+                                   oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">رقم IBAN بالدولار</label>
+                            <input type="text" name="bank_accounts[${index}][iban_usd]"
+                                   class="form-control form-control-solid" maxlength="34"
+                                   placeholder="مثال: PS00XXXX0000000000000000000"
+                                   value="${bankData.iban_usd || ''}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">رقم IBAN بالشيكل</label>
+                            <input type="text" name="bank_accounts[${index}][iban_shekel]"
+                                   class="form-control form-control-solid" maxlength="34"
+                                   placeholder="مثال: PS00XXXX0000000000000000000"
+                                   value="${bankData.iban_shekel || ''}">
+                        </div>
+                        <input type="hidden" name="bank_accounts[${index}][id]" value="${bankData.id || ''}">
+                    </div>
+                </div>
+                `;
+            }
+
+            function updateRemoveUnsponsoredBankButtons() {
+                $('.remove-unsponsored-bank-btn').off('click').on('click', function(e) {
+                    e.preventDefault();
+                    Swal.fire({
+                        title: 'تأكيد الحذف',
+                        text: 'هل أنت متأكد من حذف هذا الحساب البنكي؟',
+                        icon: 'warning',
+                        showCancelButton: true,
+                        confirmButtonColor: '#d33',
+                        cancelButtonColor: '#3085d6',
+                        confirmButtonText: 'نعم، احذف',
+                        cancelButtonText: 'إلغاء'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            $(this).closest('.unsponsored-bank-account-form').remove();
+                            unsponsoredBankAccountCount--;
+
+                            // إعادة ترقيم
+                            $('.unsponsored-bank-account-form').each(function(idx) {
+                                $(this).attr('data-index', idx);
+                                $(this).find('h6').html(`<i class="fas fa-university me-2"></i>حساب بنكي رقم ${idx + 1}`);
+                            });
+
+                            if (unsponsoredBankAccountCount === 0) {
+                                $('#unsponsoredBankAccountsContainer').addClass('d-none');
+                            }
+
+                            $('#addUnsponsoredBankAccount').prop('disabled', false);
+
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'تم الحذف',
+                                text: 'تم حذف الحساب البنكي بنجاح',
+                                timer: 1500,
+                                showConfirmButton: false
+                            });
+                        }
+                    });
+                });
+            }
+
+            $('#addUnsponsoredBankAccount').on('click', function() {
+                if (unsponsoredBankAccountCount < maxUnsponsoredBankAccounts) {
+                    $('#unsponsoredBankAccountsContainer').removeClass('d-none');
+                    $('#unsponsoredBankAccountsContainer').append(createUnsponsoredBankAccountForm(unsponsoredBankAccountCount));
+                    unsponsoredBankAccountCount++;
+                    updateRemoveUnsponsoredBankButtons();
+
+                    // التمرير للحساب الجديد
+                    $('html, body').animate({
+                        scrollTop: $('.unsponsored-bank-account-form:last').offset().top - 100
+                    }, 500);
+
+                    if (unsponsoredBankAccountCount >= maxUnsponsoredBankAccounts) {
+                        $(this).prop('disabled', true);
+                    }
+                } else {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'تنبيه',
+                        text: 'لا يمكن إضافة أكثر من 10 حسابات بنكية'
+                    });
+                }
+            });
+
+            // مسح الحسابات البنكية عند إغلاق المودال
+            $('#createSponsorshipModal').on('hidden.bs.modal', function() {
+                $('#unsponsoredBankAccountsContainer').html('').addClass('d-none');
+                unsponsoredBankAccountCount = 0;
+                $('#addUnsponsoredBankAccount').prop('disabled', false);
+            });
+
             // ============================================
             // محرك البحث القوي الموحد
             // ============================================
@@ -897,19 +1084,32 @@
                         // معالجة حقل المعيل حسب نوع الشخص
                         const guardianFieldWrapper = $('#guardian_field_wrapper');
                         const guardianManualWrapper = $('#guardian_manual_field_wrapper');
+                        const guardianIdentityWrapper = $('#guardian_identity_field_wrapper');
                         const guardianAutoInput = $('#create_guardian_name_auto');
                         const guardianManualInput = $('#create_guardian_name');
 
-                        if (response.needs_guardian) {
+                        // إخفاء حقول المعيل للأشخاص من جدول data (المعيلين)
+                        if (response.person_type === 'breadwinner') {
+                            guardianFieldWrapper.hide();
+                            guardianManualWrapper.hide();
+                            guardianIdentityWrapper.hide();
+                            guardianManualInput.val('');
+                            guardianAutoInput.val('');
+                            $('#create_guardian_identity_number').val('');
+                        } else if (response.needs_guardian) {
                             guardianFieldWrapper.show();
                             guardianManualWrapper.hide();
+                            guardianIdentityWrapper.show();
                             guardianAutoInput.val(response.guardian_name || guardianName || '');
                             guardianManualInput.val(response.guardian_name || guardianName || '');
+                            $('#create_guardian_identity_number').val(response.guardian_identity || guardianId || '');
                         } else {
                             guardianFieldWrapper.hide();
                             guardianManualWrapper.hide();
+                            guardianIdentityWrapper.hide();
                             guardianManualInput.val('');
                             guardianAutoInput.val('');
+                            $('#create_guardian_identity_number').val('');
                         }
 
                         // إضافة badge يوضح نوع الشخص
@@ -1007,23 +1207,36 @@
                         // معالجة حقل المعيل حسب نوع الشخص
                         const guardianFieldWrapper = $('#guardian_field_wrapper');
                         const guardianManualWrapper = $('#guardian_manual_field_wrapper');
+                        const guardianIdentityWrapper = $('#guardian_identity_field_wrapper');
                         const guardianAutoInput = $('#create_guardian_name_auto');
                         const guardianManualInput = $('#create_guardian_name');
 
-                        if (response.needs_guardian) {
+                        // إخفاء حقول المعيل للأشخاص من جدول data (المعيلين)
+                        if (response.person_type === 'breadwinner') {
+                            guardianFieldWrapper.hide();
+                            guardianManualWrapper.hide();
+                            guardianIdentityWrapper.hide();
+                            guardianManualInput.val('');
+                            guardianAutoInput.val('');
+                            $('#create_guardian_identity_number').val('');
+                        } else if (response.needs_guardian) {
                             // الشخص يحتاج معيل (يتيم أو فرد عائلة)
                             guardianFieldWrapper.show(); // إظهار حقل المعيل الأوتوماتيكي
                             guardianManualWrapper.hide(); // إخفاء الحقل اليدوي
+                            guardianIdentityWrapper.show();
                             guardianAutoInput.val(response.guardian_name || guardianName || '');
 
                             // نسخ القيمة إلى الحقل الذي سيتم إرساله
                             guardianManualInput.val(response.guardian_name || guardianName || '');
+                            $('#create_guardian_identity_number').val(response.guardian_identity || guardianId || '');
                         } else {
-                            // الشخص لا يحتاج معيل (معيل أو متوفي)
+                            // الشخص لا يحتاج معيل (متوفي)
                             guardianFieldWrapper.hide(); // إخفاء حقل المعيل الأوتوماتيكي
                             guardianManualWrapper.hide(); // إخفاء الحقل اليدوي أيضاً
+                            guardianIdentityWrapper.hide();
                             guardianManualInput.val('');
                             guardianAutoInput.val('');
+                            $('#create_guardian_identity_number').val('');
                         }
 
                         // إضافة badge يوضح نوع الشخص
@@ -1161,9 +1374,19 @@
                 });
             });
 
+            // Initialize Select2 for multiple sponsors in create modal
+            $('#create_sponsor_ids').select2({
+                placeholder: 'اختر المؤسسات الكافلة',
+                allowClear: false,
+                dir: 'rtl',
+                width: '100%',
+                dropdownParent: $('#createSponsorshipModal')
+            });
+
             // إعادة تعيين النموذج عند إغلاق المودال
             $('#createSponsorshipModal').on('hidden.bs.modal', function() {
                 $('#createSponsorshipForm')[0].reset();
+                $('#create_sponsor_ids').val(null).trigger('change');
                 $('#record_id').val('');
                 $('#record_type').val('');
                 $('#display_file_id').text('-');
@@ -1173,8 +1396,10 @@
                 // إعادة تعيين حقول المعيل
                 $('#guardian_field_wrapper').hide();
                 $('#guardian_manual_field_wrapper').hide();
+                $('#guardian_identity_field_wrapper').hide();
                 $('#create_guardian_name').val('');
                 $('#create_guardian_name_auto').val('');
+                $('#create_guardian_identity_number').val('');
             });
 
             // تحميل محتوى البحث عند فتح الـ modal

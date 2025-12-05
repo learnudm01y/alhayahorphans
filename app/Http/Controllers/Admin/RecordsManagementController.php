@@ -24,6 +24,8 @@ use App\Models\RePeople;
 use App\Models\SponsorshipStatus;
 use App\Models\TypeOfAccommodation;
 use App\Models\TypeOfGuarantee;
+use App\Models\GuardianBankAccount;
+use App\Models\BankName;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -62,6 +64,7 @@ class RecordsManagementController extends Controller
         $sponsorship_status = SponsorshipStatus::all();
         $guarantee_types = TypeOfGuarantee::all(); // Assuming you have a TypeOfGuarantee model
         $death_reasons = DeathReason::all(); // Assuming you have a DeathReason model
+        $bank_name = BankName::all(); // قائمة البنوك
         return view(
             'admin.dashboard.records_management.create',
             compact(
@@ -79,6 +82,7 @@ class RecordsManagementController extends Controller
                 'TypeOfAccommodation',
                 'documentTypes',
                 'sponsorship_status',
+                'bank_name',
                 'guarantee_types',
                 'death_reasons'
             )
@@ -174,6 +178,37 @@ class RecordsManagementController extends Controller
 
             // وضع علامة على الرقم كمستخدم في جدول reserved_codes
             markCodeAsUsed($fileIdNumber);
+
+            // 2.5 Store bank accounts إذا وُجدت
+            $bankAccounts = $request->input('bank_accounts', []);
+            Log::info('🟢 بيانات الحسابات البنكية المستلمة من Admin:', ['bank_accounts' => $bankAccounts]);
+            if (is_array($bankAccounts) && count($bankAccounts) > 0) {
+                foreach ($bankAccounts as $bankAccount) {
+                    Log::info('🔵 حساب بنكي فردي من Admin:', $bankAccount);
+                    $reIdNumber = $bankAccount['person_owner_identity_number'] ?? null;
+                    if (
+                        (!empty($bankAccount['bank_name'])) ||
+                        (!empty($bankAccount['iban_usd'])) ||
+                        (!empty($bankAccount['iban_shekel'])) ||
+                        (!empty($bankAccount['re_guardian_name'])) ||
+                        (!empty($bankAccount['re_phone_number'])) ||
+                        (!empty($reIdNumber))
+                    ) {
+                        GuardianBankAccount::create([
+                            'guardian_registration' => $fileIdNumber,
+                            'bank_name' => $bankAccount['bank_name'] ?? null,
+                            'iban_usd' => $bankAccount['iban_usd'] ?? null,
+                            'iban_shekel' => $bankAccount['iban_shekel'] ?? null,
+                            're_id_number' => $reIdNumber,
+                            're_guardian_name' => $bankAccount['re_guardian_name'] ?? null,
+                            're_phone_number' => $bankAccount['re_phone_number'] ?? null,
+                        ]);
+                        Log::info('✅ تم تخزين حساب بنكي من Admin بنجاح', ['file_id' => $fileIdNumber, 'bank_name' => $bankAccount['bank_name'] ?? 'N/A']);
+                    } else {
+                        Log::warning('⚠️ لم يتم تخزين حساب بنكي من Admin بسبب نقص البيانات', $bankAccount);
+                    }
+                }
+            }
 
             // 3. Store deceased only إذا كان القسم أيتام ويوجد بيانات للأب أو الأم
             if ($request->input('data_section_id') == 1) {

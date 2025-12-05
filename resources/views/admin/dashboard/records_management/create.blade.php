@@ -62,110 +62,120 @@
                         </li>
                     </ul>
                     <style>
-                    .tab-icon {
-                        font-size: 2rem;
-                        color: #0d6efd;
-                        background: none !important;
-                        border-radius: 0 !important;
-                        padding: 0 !important;
-                        margin-bottom: 0.2rem;
-                        border: none !important;
-                        transition: none !important;
-                        box-shadow: none !important;
-                    }
-                    .nav-tabs .nav-link.active .tab-icon,
-                    .nav-tabs .nav-link:focus .tab-icon,
-                    .nav-tabs .nav-link:hover .tab-icon {
-                        background: none !important;
-                        color: #0d6efd !important;
-                        border: none !important;
-                        transform: none !important;
-                        box-shadow: none !important;
-                    }
-                    @media (max-width: 576px) {
-                        .mobile-bottom-tabs {
-                            position: fixed;
-                            bottom: 0;
-                            left: 0;
-                            right: 0;
-                            z-index: 1050;
-                            background: rgba(245,245,245,0.95);
-                            box-shadow: 0 -2px 12px rgba(0,0,0,0.08);
-                            margin-bottom: 0 !important;
-                            border-top: 1.5px solid #e5e7eb;
-                            border-radius: 22px 22px 0 0;
-                            padding: 0.2rem 0.5rem 0.3rem 0.5rem;
-                            display: flex !important;
-                            justify-content: space-between;
-                            gap: 0 !important;
-                        }
-                        .mobile-bottom-tabs .nav-item {
-                            flex: 1 1 0;
-                            display: flex;
-                            justify-content: center;
-                            align-items: stretch;
-                            position: relative;
-                        }
-                        .mobile-bottom-tabs .nav-link {
-                            padding: 0.4rem 0 !important;
-                            background: transparent !important;
-                            border: none !important;
-                            box-shadow: none !important;
-                            display: flex;
-                            flex-direction: column;
-                            align-items: center;
-                            border-radius: 18px !important;
-                            position: relative;
-                            height: 100%;
-                            min-width: 0;
-                        }
-                        .mobile-bottom-tabs .tab-label {
-                            display: none !important;
-                        }
                         .tab-icon {
-                            font-size: 2.1rem !important;
-                            color: #232323 !important;
-                            background: rgba(200,200,200,0.18) !important;
-                            border-radius: 16px !important;
-                            padding: 0.55rem !important;
-                            margin-bottom: 0 !important;
+                            font-size: 2rem;
+                            color: #0d6efd;
+                            background: none !important;
+                            border-radius: 0 !important;
+                            padding: 0 !important;
+                            margin-bottom: 0.2rem;
                             border: none !important;
-                            box-shadow: 0 1px 6px rgba(0,0,0,0.04) !important;
-                            transition: background 0.2s, color 0.2s, box-shadow 0.2s !important;
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
+                            transition: none !important;
+                            box-shadow: none !important;
                         }
+
                         .nav-tabs .nav-link.active .tab-icon,
                         .nav-tabs .nav-link:focus .tab-icon,
                         .nav-tabs .nav-link:hover .tab-icon {
-                            color: #232323 !important;
-                            background: rgba(44,44,44,0.13) !important;
-                            box-shadow: 0 2px 8px rgba(0,0,0,0.10) !important;
+                            background: none !important;
+                            color: #0d6efd !important;
+                            border: none !important;
+                            transform: none !important;
+                            box-shadow: none !important;
                         }
-                        .mobile-bottom-tabs .nav-item:not(:last-child)::after {
-                            content: "";
-                            position: absolute;
-                            top: 18%;
-                            right: 0;
-                            width: 1.5px;
-                            height: 64%;
-                            background: #e5e7eb;
-                            border-radius: 2px;
-                            opacity: 0.85;
-                            z-index: 2;
+
+                        @media (max-width: 576px) {
+                            .mobile-bottom-tabs {
+                                position: fixed;
+                                bottom: 0;
+                                left: 0;
+                                right: 0;
+                                z-index: 1050;
+                                background: rgba(245, 245, 245, 0.95);
+                                box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
+                                margin-bottom: 0 !important;
+                                border-top: 1.5px solid #e5e7eb;
+                                border-radius: 22px 22px 0 0;
+                                padding: 0.2rem 0.5rem 0.3rem 0.5rem;
+                                display: flex !important;
+                                justify-content: space-between;
+                                gap: 0 !important;
+                            }
+
+                            .mobile-bottom-tabs .nav-item {
+                                flex: 1 1 0;
+                                display: flex;
+                                justify-content: center;
+                                align-items: stretch;
+                                position: relative;
+                            }
+
+                            .mobile-bottom-tabs .nav-link {
+                                padding: 0.4rem 0 !important;
+                                background: transparent !important;
+                                border: none !important;
+                                box-shadow: none !important;
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                border-radius: 18px !important;
+                                position: relative;
+                                height: 100%;
+                                min-width: 0;
+                            }
+
+                            .mobile-bottom-tabs .tab-label {
+                                display: none !important;
+                            }
+
+                            .tab-icon {
+                                font-size: 2.1rem !important;
+                                color: #232323 !important;
+                                background: rgba(200, 200, 200, 0.18) !important;
+                                border-radius: 16px !important;
+                                padding: 0.55rem !important;
+                                margin-bottom: 0 !important;
+                                border: none !important;
+                                box-shadow: 0 1px 6px rgba(0, 0, 0, 0.04) !important;
+                                transition: background 0.2s, color 0.2s, box-shadow 0.2s !important;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                            }
+
+                            .nav-tabs .nav-link.active .tab-icon,
+                            .nav-tabs .nav-link:focus .tab-icon,
+                            .nav-tabs .nav-link:hover .tab-icon {
+                                color: #232323 !important;
+                                background: rgba(44, 44, 44, 0.13) !important;
+                                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10) !important;
+                            }
+
+                            .mobile-bottom-tabs .nav-item:not(:last-child)::after {
+                                content: "";
+                                position: absolute;
+                                top: 18%;
+                                right: 0;
+                                width: 1.5px;
+                                height: 64%;
+                                background: #e5e7eb;
+                                border-radius: 2px;
+                                opacity: 0.85;
+                                z-index: 2;
+                            }
+
+                            body {
+                                padding-bottom: 80px !important;
+                            }
                         }
-                        body {
-                            padding-bottom: 80px !important;
-                        }
-                    }
                     </style>
                     <div class="card-body bg-light">
                         <form action="{{ route('admin.records.management.store') }}" method="POST"
                             enctype="multipart/form-data" autocomplete="off" id="main_form">
                             @csrf
                             <input type="hidden" name="file_id_number" value="{{ $file_id_number ?? '' }}">
-                            <input type="hidden" id="person_identity_number_hidden" name="person_identity_number" value="">
+                            <input type="hidden" id="person_identity_number_hidden" name="person_identity_number"
+                                value="">
                             <input type="hidden" id="file_type_hidden" name="file_type" value="">
                             <!-- تأكد من وجود هذه الحقول المخفية -->
                             <div class="tab-content" id="formTabsContent">
@@ -405,6 +415,20 @@
                                                 class="form-control bg-secondary bg-opacity-25"
                                                 value="{{ auth()->user()->name }}" readonly>
                                         </div>
+
+                                        <!-- قسم المعلومات البنكية -->
+                                        <div class="col-12 mt-4">
+                                            <div class="alert alert-info py-2 mb-2 d-flex align-items-center justify-content-between" style="font-size: 0.97rem;">
+                                                <span><i class="fas fa-university me-2"></i>إذا كان المعيل يمتلك حساب بنكي، قم بإضافة المعلومات المطلوبة. يمكنك إضافة حتى 10 حسابات بنكية.</span>
+                                                <button type="button" class="btn btn-outline-primary btn-sm ms-2" id="addBankAccountBtn" style="border: 2px solid #0d6efd; border-radius: 8px; box-shadow: 0 0 0 2px #e7f1ff;">
+                                                    <i class="fas fa-plus me-2"></i>إضافة حساب بنكي
+                                                </button>
+                                            </div>
+                                            <!-- منطقة الحسابات البنكية الديناميكية (مخفية في البداية) -->
+                                            <div id="bankAccountsContainer" class="d-none">
+                                                <!-- سيتم توليد النماذج البنكية هنا عبر الجافاسكريبت -->
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -424,7 +448,8 @@
                                                     </div>
                                                     <div id="familyMembersContainer">
                                                         <!-- نموذج إضافة فرد (مخفي - يستخدم كقالب فقط) -->
-                                                        <div class="family-member-form border rounded p-3 mb-3" style="display: none;">
+                                                        <div class="family-member-form border rounded p-3 mb-3"
+                                                            style="display: none;">
                                                             <div class="row g-3">
                                                                 <input type="hidden" name="family_members[0][file_id]"
                                                                     value="{{ $file_id_number ?? '' }}">
@@ -679,66 +704,83 @@
                                 </div>
 
                                 <!-- Attachments Tab -->
-                                 <div class="tab-pane fade" id="attachments" role="tabpanel" aria-labelledby="attachments-tab">
+                                <div class="tab-pane fade" id="attachments" role="tabpanel"
+                                    aria-labelledby="attachments-tab">
                                     <div class="row g-3">
                                         <div class="col-12 mb-3">
                                             <div class="card">
                                                 <div class="card-body">
                                                     <div class="row mb-3">
                                                         <div class="col-md-4">
-                                                            <label class="form-label fw-bold">اختر الشخص <span class="text-danger">*</span></label>
-                                                            <select id="person_selector" class="form-select" >
+                                                            <label class="form-label fw-bold">اختر الشخص <span
+                                                                    class="text-danger">*</span></label>
+                                                            <select id="person_selector" class="form-select">
                                                                 <option value="">اختر الشخص</option>
                                                                 <optgroup label="صاحب الملف">
-                                                                    <option value="main" data-id="{{ $file_id_number }}" data-id-number="{{ isset($data_id_number) ? $data_id_number : '' }}">
+                                                                    <option value="main"
+                                                                        data-id="{{ $file_id_number }}"
+                                                                        data-id-number="{{ isset($data_id_number) ? $data_id_number : '' }}">
                                                                         <span class="main-person"></span>
                                                                     </option>
                                                                 </optgroup>
-                                                                <optgroup label="أفراد الأسرة" id="family_members_options">
+                                                                <optgroup label="أفراد الأسرة"
+                                                                    id="family_members_options">
                                                                     @foreach ($family_members ?? [] as $index => $member)
-                                                                        <option value="family_{{ $index }}" data-id="{{ $file_id_number }}" data-id-number="{{ $member['person_id'] ?? '' }}">
+                                                                        <option value="family_{{ $index }}"
+                                                                            data-id="{{ $file_id_number }}"
+                                                                            data-id-number="{{ $member['person_id'] ?? '' }}">
                                                                             {{ $member['name'] ?? '' }}
                                                                         </option>
                                                                     @endforeach
                                                                 </optgroup>
                                                                 <optgroup label="الأفراد المتوفين">
-                                                                    <option value="deceased_father" data-id-number="{{ isset($father_id_number) ? $father_id_number : '' }}">
+                                                                    <option value="deceased_father"
+                                                                        data-id-number="{{ isset($father_id_number) ? $father_id_number : '' }}">
                                                                         الأب المتوفى
                                                                     </option>
-                                                                    <option value="deceased_mother" data-id-number="{{ isset($mother_id_number) ? $mother_id_number : '' }}">
+                                                                    <option value="deceased_mother"
+                                                                        data-id-number="{{ isset($mother_id_number) ? $mother_id_number : '' }}">
                                                                         الأم المتوفية
                                                                     </option>
                                                                 </optgroup>
                                                             </select>
 
                                                             <!-- حقل مخفي لإرسال رقم الهوية -->
-                                                            <input type="hidden" name="person_identity_number" id="identity_number">
+                                                            <input type="hidden" name="person_identity_number"
+                                                                id="identity_number">
                                                         </div>
 
                                                         <div class="col-md-4">
-                                                            <label class="form-label fw-bold">نوع الوثيقة <span class="text-danger">*</span></label>
-                                                            <select name="document_type" id="document_type" class="form-select">
+                                                            <label class="form-label fw-bold">نوع الوثيقة <span
+                                                                    class="text-danger">*</span></label>
+                                                            <select name="document_type" id="document_type"
+                                                                class="form-select">
                                                                 <option value="">اختر نوع الوثيقة</option>
                                                                 @foreach ($documentTypes as $documentType)
-                                                                    <option value="{{ $documentType->pref }}">{{ $documentType->description }}</option>
+                                                                    <option value="{{ $documentType->pref }}">
+                                                                        {{ $documentType->description }}</option>
                                                                 @endforeach
                                                             </select>
                                                         </div>
 
                                                         <div class="col-md-4">
                                                             <label class="form-label fw-bold">رقم الملف</label>
-                                                            <input type="text" id="document_id" class="form-control bg-secondary bg-opacity-25"
+                                                            <input type="text" id="document_id"
+                                                                class="form-control bg-secondary bg-opacity-25"
                                                                 value="{{ $file_id_number ?? '' }}" readonly>
                                                         </div>
                                                     </div>
 
                                                     <div class="text-center mt-3">
                                                         <div class="file-upload-wrapper">
-                                                            <input type="file" name="document_file" id="document_file" class="form-control" accept="image/*">
+                                                            <input type="file" name="document_file" id="document_file"
+                                                                class="form-control" accept="image/*">
                                                             <div id="preview" class="mt-3 d-none">
-                                                                <img src="" alt="معاينة" class="img-fluid mb-2" style="max-height: 200px;">
+                                                                <img src="" alt="معاينة" class="img-fluid mb-2"
+                                                                    style="max-height: 200px;">
                                                                 <div class="mt-2">
-                                                                    <button type="button" id="confirmUpload" class="btn btn-success">
+                                                                    <button type="button" id="confirmUpload"
+                                                                        class="btn btn-success">
                                                                         <i class="fas fa-check me-2"></i>تأكيد الرفع
                                                                     </button>
                                                                 </div>
@@ -831,4 +873,3 @@
     @include('admin.dashboard.records_management.style')
     @include('admin.dashboard.records_management.javascript_create')
 @endsection
-

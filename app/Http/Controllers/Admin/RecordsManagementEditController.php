@@ -24,6 +24,8 @@ use App\Models\TypeOfGuarantee;
 use App\Models\DeathReason;
 use App\Models\Attachment;
 use App\Models\RePeople;
+use App\Models\BankName;
+use App\Models\GuardianBankAccount;
 use Illuminate\Support\Facades\Log;
 
 class RecordsManagementEditController extends Controller
@@ -94,6 +96,11 @@ class RecordsManagementEditController extends Controller
         $sponsorship_status = SponsorshipStatus::all();
         $guarantee_types = TypeOfGuarantee::all();
         $death_reasons = DeathReason::all();
+
+        // 🏦 جلب البيانات البنكية
+        $bank_name = BankName::all();
+        $bankAccounts = GuardianBankAccount::where('guardian_registration', $data->data_id_number)->get();
+
         return view('admin.dashboard.records_management.edit', compact(
             'data',
             'generalSection',
@@ -110,7 +117,9 @@ class RecordsManagementEditController extends Controller
             'documentTypes',
             'sponsorship_status',
             'guarantee_types',
-            'death_reasons'
+            'death_reasons',
+            'bank_name',
+            'bankAccounts'
         ));
     }
 
@@ -491,6 +500,71 @@ class RecordsManagementEditController extends Controller
                                 'file_path' => $filePath
                             ]);
                         }
+                    }
+                }
+            }
+
+            // 🏦 تحديث الحسابات البنكية
+            if ($request->has('bank_accounts') && !empty($request->bank_accounts)) {
+                $guardianIdentity = $data->data_id_number;
+
+                Log::info('🏦 البدء في تحديث الحسابات البنكية', [
+                    'data_id' => $data->id,
+                    'guardian_identity' => $guardianIdentity,
+                    'accounts_count' => count($request->bank_accounts)
+                ]);
+
+                // احتفاظ بـ IDs الحسابات المحدثة
+                $processedIds = [];
+
+                foreach ($request->bank_accounts as $index => $account) {
+                    // التحقق من أن هناك حقل واحد على الأقل مملوء
+                    $hasData = !empty($account['bank_name']) ||
+                               !empty($account['re_guardian_name']) ||
+                               !empty($account['person_owner_identity_number']) ||
+                               !empty($account['re_phone_number']) ||
+                               !empty($account['iban_usd']) ||
+                               !empty($account['iban_shekel']);
+
+                    if ($hasData) {
+                        $bankAccountData = [
+                            'guardian_registration' => $guardianIdentity,
+                            'bank_name' => $account['bank_name'] ?? null,
+                            're_guardian_name' => $account['re_guardian_name'] ?? null,
+                            'person_owner_identity_number' => $account['person_owner_identity_number'] ?? null,
+                            're_phone_number' => $account['re_phone_number'] ?? null,
+                            'iban_usd' => $account['iban_usd'] ?? null,
+                            'iban_shekel' => $account['iban_shekel'] ?? null,
+                        ];
+
+                        if (!empty($account['id'])) {
+                            // تحديث حساب موجود
+                            GuardianBankAccount::where('id', $account['id'])->update($bankAccountData);
+                            $processedIds[] = $account['id'];
+                            Log::info('✅ تم تحديث الحساب البنكي', ['account_id' => $account['id']]);
+                        } else {
+                            // إنشاء حساب جديد
+                            $newAccount = GuardianBankAccount::create($bankAccountData);
+                            $processedIds[] = $newAccount->id;
+                            Log::info('🟢 تم إنشاء حساب بنكي جديد', $bankAccountData);
+                        }
+                    }
+                }
+
+                // حذف الحسابات التي لم تعد موجودة (إذا تم حذفها من النموذج)
+                if (!empty($processedIds)) {
+                    $deletedCount = GuardianBankAccount::where('guardian_registration', $guardianIdentity)
+                        ->whereNotIn('id', $processedIds)
+                        ->delete();
+
+                    if ($deletedCount > 0) {
+                        Log::info('🗑️ تم حذف حسابات بنكية قديمة', ['deleted_count' => $deletedCount]);
+                    }
+                } else {
+                    // حذف جميع الحسابات إذا لم يتم إرسال أي حساب
+                    $deletedCount = GuardianBankAccount::where('guardian_registration', $guardianIdentity)->delete();
+                    if ($deletedCount > 0) {
+                        Log::info('🗑️ تم حذف جميع الحسابات البنكية', ['deleted_count' => $deletedCount]);
                     }
                 }
             }

@@ -19,6 +19,7 @@ class Sponsorship extends Model
         'identity_number',
         'orphan_name',
         'guardian_name',
+        'guardian_identity_number',
         'sponsorship_duration_months',
         'sponsorship_start_date',
         'sponsorship_end_date',
@@ -35,11 +36,22 @@ class Sponsorship extends Model
     ];
 
     /**
-     * علاقة مع جدول الكفلاء (sponsors)
+     * علاقة مع جدول الكفلاء (sponsors) - العلاقة القديمة
+     * @deprecated استخدم sponsors() للحصول على جميع الكفلاء
      */
     public function sponsor()
     {
         return $this->belongsTo(Sponsor::class, 'sponsor_id');
+    }
+
+    /**
+     * علاقة Many-to-Many مع جدول الكفلاء (sponsors)
+     * كفالة واحدة يمكن أن تكون من عدة مؤسسات
+     */
+    public function sponsors()
+    {
+        return $this->belongsToMany(Sponsor::class, 'sponsorship_sponsor')
+            ->withTimestamps();
     }
 
     /**

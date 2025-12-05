@@ -84,6 +84,9 @@ class UnifiedSearchController extends Controller
      */
     private function searchInDataTable($query)
     {
+        // تقسيم النص إلى كلمات للبحث الذكي
+        $searchWords = array_filter(array_map('trim', explode(' ', $query)));
+
         return Data::with([
             'section',
             'requestStatus',
@@ -91,7 +94,7 @@ class UnifiedSearchController extends Controller
             'healthStatus',
             'city'
         ])
-        ->where(function($q) use ($query) {
+        ->where(function($q) use ($query, $searchWords) {
             // البحث في رقم الملف
             $q->where('file_id_number', 'LIKE', "%{$query}%")
               // البحث في رقم الهوية
@@ -99,7 +102,7 @@ class UnifiedSearchController extends Controller
               // البحث في رقم الجوال
               ->orWhere('data_phone_number', 'LIKE', "%{$query}%")
               ->orWhere('data_alt_phone_number', 'LIKE', "%{$query}%")
-              // البحث في الأسماء
+              // البحث في الأسماء بالنص الكامل
               ->orWhere('data_first_name', 'LIKE', "%{$query}%")
               ->orWhere('data_father_name', 'LIKE', "%{$query}%")
               ->orWhere('data_grand_father_name', 'LIKE', "%{$query}%")
@@ -108,6 +111,44 @@ class UnifiedSearchController extends Controller
               ->orWhereRaw("CONCAT_WS(' ', data_first_name, data_father_name, data_grand_father_name, data_family_name) LIKE ?", ["%{$query}%"])
               // البحث بدون مسافات
               ->orWhereRaw("REPLACE(CONCAT(data_first_name, data_father_name, data_grand_father_name, data_family_name), ' ', '') LIKE ?", ["%{$query}%"]);
+
+            // البحث الذكي بالكلمات المنفصلة
+            foreach ($searchWords as $word) {
+                $q->orWhere('data_first_name', 'LIKE', "%{$word}%")
+                  ->orWhere('data_father_name', 'LIKE', "%{$word}%")
+                  ->orWhere('data_grand_father_name', 'LIKE', "%{$word}%")
+                  ->orWhere('data_family_name', 'LIKE', "%{$word}%");
+            }
+
+            // البحث بالاسم الأول + الأخير (للأسماء من كلمتين)
+            if (count($searchWords) >= 2) {
+                $firstName = $searchWords[0];
+                $lastName = end($searchWords);
+
+                $q->orWhere(function($nameQ) use ($firstName, $lastName) {
+                    $nameQ->where('data_first_name', 'LIKE', "%{$firstName}%")
+                          ->where('data_family_name', 'LIKE', "%{$lastName}%");
+                });
+
+                // محاولة الاسم الأول + اسم الأب
+                $q->orWhere(function($nameQ) use ($firstName, $lastName) {
+                    $nameQ->where('data_first_name', 'LIKE', "%{$firstName}%")
+                          ->where('data_father_name', 'LIKE', "%{$lastName}%");
+                });
+            }
+
+            // البحث بثلاث كلمات (أول، وسط، أخير)
+            if (count($searchWords) >= 3) {
+                $firstName = $searchWords[0];
+                $middleName = $searchWords[1];
+                $lastName = end($searchWords);
+
+                $q->orWhere(function($nameQ) use ($firstName, $middleName, $lastName) {
+                    $nameQ->where('data_first_name', 'LIKE', "%{$firstName}%")
+                          ->where('data_father_name', 'LIKE', "%{$middleName}%")
+                          ->where('data_family_name', 'LIKE', "%{$lastName}%");
+                });
+            }
         })
         ->whereHas('requestStatus', function($q) {
             $q->where('description', 'مقبول');
@@ -121,6 +162,9 @@ class UnifiedSearchController extends Controller
      */
     private function searchInRePeopleTable($query)
     {
+        // تقسيم النص إلى كلمات للبحث الذكي
+        $searchWords = array_filter(array_map('trim', explode(' ', $query)));
+
         return RePeople::with([
             'healthStatus',
             'guaranteeType',
@@ -131,12 +175,12 @@ class UnifiedSearchController extends Controller
                 $subq->where('description', 'مقبول');
             });
         })
-        ->where(function($q) use ($query) {
+        ->where(function($q) use ($query, $searchWords) {
             // البحث في رقم الملف
             $q->where('registration_id', 'LIKE', "%{$query}%")
               // البحث في رقم الهوية
               ->orWhere('person_id', 'LIKE', "%{$query}%")
-              // البحث في الأسماء
+              // البحث في الأسماء بالنص الكامل
               ->orWhere('first_name', 'LIKE', "%{$query}%")
               ->orWhere('second_name', 'LIKE', "%{$query}%")
               ->orWhere('third_name', 'LIKE', "%{$query}%")
@@ -145,6 +189,44 @@ class UnifiedSearchController extends Controller
               ->orWhereRaw("CONCAT_WS(' ', first_name, second_name, third_name, last_name) LIKE ?", ["%{$query}%"])
               // البحث بدون مسافات
               ->orWhereRaw("REPLACE(CONCAT(first_name, second_name, third_name, last_name), ' ', '') LIKE ?", ["%{$query}%"]);
+
+            // البحث الذكي بالكلمات المنفصلة
+            foreach ($searchWords as $word) {
+                $q->orWhere('first_name', 'LIKE', "%{$word}%")
+                  ->orWhere('second_name', 'LIKE', "%{$word}%")
+                  ->orWhere('third_name', 'LIKE', "%{$word}%")
+                  ->orWhere('last_name', 'LIKE', "%{$word}%");
+            }
+
+            // البحث بالاسم الأول + الأخير
+            if (count($searchWords) >= 2) {
+                $firstName = $searchWords[0];
+                $lastName = end($searchWords);
+
+                $q->orWhere(function($nameQ) use ($firstName, $lastName) {
+                    $nameQ->where('first_name', 'LIKE', "%{$firstName}%")
+                          ->where('last_name', 'LIKE', "%{$lastName}%");
+                });
+
+                // محاولة الاسم الأول + الثاني
+                $q->orWhere(function($nameQ) use ($firstName, $lastName) {
+                    $nameQ->where('first_name', 'LIKE', "%{$firstName}%")
+                          ->where('second_name', 'LIKE', "%{$lastName}%");
+                });
+            }
+
+            // البحث بثلاث كلمات
+            if (count($searchWords) >= 3) {
+                $firstName = $searchWords[0];
+                $middleName = $searchWords[1];
+                $lastName = end($searchWords);
+
+                $q->orWhere(function($nameQ) use ($firstName, $middleName, $lastName) {
+                    $nameQ->where('first_name', 'LIKE', "%{$firstName}%")
+                          ->where('second_name', 'LIKE', "%{$middleName}%")
+                          ->where('last_name', 'LIKE', "%{$lastName}%");
+                });
+            }
         })
         ->limit(50)
         ->get();
@@ -155,17 +237,20 @@ class UnifiedSearchController extends Controller
      */
     private function searchInDeadPeopleTable($query)
     {
+        // تقسيم النص إلى كلمات للبحث الذكي
+        $searchWords = array_filter(array_map('trim', explode(' ', $query)));
+
         return DeadPepole::whereHas('dataRecord', function($q) {
             $q->whereHas('requestStatus', function($subq) {
                 $subq->where('description', 'مقبول');
             });
         })
-        ->where(function($q) use ($query) {
+        ->where(function($q) use ($query, $searchWords) {
             // البحث في رقم الملف
             $q->where('re_file_id', 'LIKE', "%{$query}%")
               // البحث في رقم هوية الأب
               ->orWhere('father_id', 'LIKE', "%{$query}%")
-              // البحث في أسماء الأب
+              // البحث في أسماء الأب بالنص الكامل
               ->orWhere('father_first_name', 'LIKE', "%{$query}%")
               ->orWhere('father_second_name', 'LIKE', "%{$query}%")
               ->orWhere('father_third_name', 'LIKE', "%{$query}%")
@@ -174,13 +259,64 @@ class UnifiedSearchController extends Controller
               ->orWhereRaw("CONCAT_WS(' ', father_first_name, father_second_name, father_third_name, father_last_name) LIKE ?", ["%{$query}%"])
               // البحث في رقم هوية الأم
               ->orWhere('mother_id', 'LIKE', "%{$query}%")
-              // البحث في أسماء الأم
+              // البحث في أسماء الأم بالنص الكامل
               ->orWhere('mother_first_name', 'LIKE', "%{$query}%")
               ->orWhere('mother_second_name', 'LIKE', "%{$query}%")
               ->orWhere('mother_third_name', 'LIKE', "%{$query}%")
               ->orWhere('mother_last_name', 'LIKE', "%{$query}%")
               // البحث في اسم الأم الكامل
               ->orWhereRaw("CONCAT_WS(' ', mother_first_name, mother_second_name, mother_third_name, mother_last_name) LIKE ?", ["%{$query}%"]);
+
+            // البحث الذكي بالكلمات المنفصلة
+            foreach ($searchWords as $word) {
+                $q->orWhere('father_first_name', 'LIKE', "%{$word}%")
+                  ->orWhere('father_second_name', 'LIKE', "%{$word}%")
+                  ->orWhere('father_third_name', 'LIKE', "%{$word}%")
+                  ->orWhere('father_last_name', 'LIKE', "%{$word}%")
+                  ->orWhere('mother_first_name', 'LIKE', "%{$word}%")
+                  ->orWhere('mother_second_name', 'LIKE', "%{$word}%")
+                  ->orWhere('mother_third_name', 'LIKE', "%{$word}%")
+                  ->orWhere('mother_last_name', 'LIKE', "%{$word}%");
+            }
+
+            // البحث بالاسم الأول + الأخير
+            if (count($searchWords) >= 2) {
+                $firstName = $searchWords[0];
+                $lastName = end($searchWords);
+
+                // للأب
+                $q->orWhere(function($nameQ) use ($firstName, $lastName) {
+                    $nameQ->where('father_first_name', 'LIKE', "%{$firstName}%")
+                          ->where('father_last_name', 'LIKE', "%{$lastName}%");
+                });
+
+                // للأم
+                $q->orWhere(function($nameQ) use ($firstName, $lastName) {
+                    $nameQ->where('mother_first_name', 'LIKE', "%{$firstName}%")
+                          ->where('mother_last_name', 'LIKE', "%{$lastName}%");
+                });
+            }
+
+            // البحث بثلاث كلمات
+            if (count($searchWords) >= 3) {
+                $firstName = $searchWords[0];
+                $middleName = $searchWords[1];
+                $lastName = end($searchWords);
+
+                // للأب
+                $q->orWhere(function($nameQ) use ($firstName, $middleName, $lastName) {
+                    $nameQ->where('father_first_name', 'LIKE', "%{$firstName}%")
+                          ->where('father_second_name', 'LIKE', "%{$middleName}%")
+                          ->where('father_last_name', 'LIKE', "%{$lastName}%");
+                });
+
+                // للأم
+                $q->orWhere(function($nameQ) use ($firstName, $middleName, $lastName) {
+                    $nameQ->where('mother_first_name', 'LIKE', "%{$firstName}%")
+                          ->where('mother_second_name', 'LIKE', "%{$middleName}%")
+                          ->where('mother_last_name', 'LIKE', "%{$lastName}%");
+                });
+            }
         })
         ->limit(50)
         ->get();

@@ -1503,4 +1503,151 @@
             }
         }
     </style>
+
+    <script>
+        // ============================================
+        // إدارة الحسابات البنكية الديناميكية
+        // ============================================
+        document.addEventListener('DOMContentLoaded', function() {
+            const bankAccountsContainer = document.getElementById('bankAccountsContainer');
+            const addBankAccountBtn = document.getElementById('addBankAccountBtn');
+            let bankAccountCount = 0;
+            const maxBankAccounts = 10;
+            const bankNames = @json($bank_name);
+
+            function createBankAccountForm(index) {
+                return `
+                <div class="bank-account-form border rounded p-3 mb-3 position-relative"
+                     data-index="${index}"
+                     style="border:2px dashed #0d6efd !important; background-color: #d8d8d8;">
+                    <button type="button" class="btn-close position-absolute top-0 end-0 m-2 remove-bank-account-btn"
+                            title="حذف الحساب" style="z-index: 10;"></button>
+                    <h6 class="mb-3 text-primary"><i class="fas fa-university me-2"></i>حساب بنكي رقم ${index + 1}</h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">اسم البنك <span class="text-muted">(اختياري)</span></label>
+                            <select name="bank_accounts[${index}][bank_name]" class="form-select">
+                                <option value="">اختر البنك</option>
+                                ${bankNames.map(bank => `<option value="${bank.id}">${bank.description}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">اسم صاحب الحساب <span class="text-muted">(اختياري)</span></label>
+                            <input type="text" name="bank_accounts[${index}][re_guardian_name]"
+                                   class="form-control" maxlength="100"
+                                   placeholder="أدخل اسم صاحب الحساب">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">رقم هوية صاحب الحساب <span class="text-muted">(اختياري)</span></label>
+                            <input type="text" name="bank_accounts[${index}][person_owner_identity_number]"
+                                   class="form-control" maxlength="20" inputmode="numeric" pattern="[0-9]*"
+                                   placeholder="أدخل رقم الهوية"
+                                   oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">رقم هاتف صاحب الحساب <span class="text-muted">(اختياري)</span></label>
+                            <input type="text" name="bank_accounts[${index}][re_phone_number]"
+                                   class="form-control" maxlength="20" inputmode="numeric"
+                                   placeholder="أدخل رقم الهاتف"
+                                   oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">رقم حساب البنك بالدولار (IBAN) <span class="text-muted">(اختياري)</span></label>
+                            <input type="text" name="bank_accounts[${index}][iban_usd]"
+                                   class="form-control" maxlength="34"
+                                   placeholder="مثال: PS00XXXX0000000000000000000">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">رقم حساب البنك بالشيكل (IBAN) <span class="text-muted">(اختياري)</span></label>
+                            <input type="text" name="bank_accounts[${index}][iban_shekel]"
+                                   class="form-control" maxlength="34"
+                                   placeholder="مثال: PS00XXXX0000000000000000000">
+                        </div>
+                    </div>
+                </div>
+                `;
+            }
+
+            function updateRemoveButtons() {
+                document.querySelectorAll('.remove-bank-account-btn').forEach(btn => {
+                    btn.onclick = function(e) {
+                        e.preventDefault();
+                        Swal.fire({
+                            title: 'تأكيد الحذف',
+                            text: 'هل أنت متأكد أنك تريد حذف معلومات الحساب البنكي؟',
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonColor: '#d33',
+                            cancelButtonColor: '#3085d6',
+                            confirmButtonText: 'نعم، احذف',
+                            cancelButtonText: 'إلغاء'
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                const form = btn.closest('.bank-account-form');
+                                form.remove();
+                                bankAccountCount--;
+
+                                // إعادة ترقيم الحسابات المتبقية
+                                document.querySelectorAll('.bank-account-form').forEach((form, idx) => {
+                                    form.setAttribute('data-index', idx);
+                                    const title = form.querySelector('h6');
+                                    if (title) {
+                                        title.innerHTML = `<i class="fas fa-university me-2"></i>حساب بنكي رقم ${idx + 1}`;
+                                    }
+                                });
+
+                                if (bankAccountCount < maxBankAccounts) {
+                                    addBankAccountBtn.disabled = false;
+                                }
+                                if (bankAccountCount === 0) {
+                                    bankAccountsContainer.classList.add('d-none');
+                                }
+
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'تم الحذف',
+                                    text: 'تم حذف الحساب البنكي بنجاح',
+                                    timer: 1500,
+                                    showConfirmButton: false
+                                });
+                            }
+                        });
+                    }
+                });
+            }
+
+            addBankAccountBtn.addEventListener('click', function() {
+                if (bankAccountCount < maxBankAccounts) {
+                    if (bankAccountsContainer.classList.contains('d-none')) {
+                        bankAccountsContainer.classList.remove('d-none');
+                    }
+                    bankAccountsContainer.insertAdjacentHTML('beforeend', createBankAccountForm(bankAccountCount));
+                    bankAccountCount++;
+                    updateRemoveButtons();
+
+                    if (bankAccountCount >= maxBankAccounts) {
+                        addBankAccountBtn.disabled = true;
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'تنبيه',
+                            text: 'لقد وصلت للحد الأقصى من الحسابات البنكية (10 حسابات)',
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                    }
+
+                    // التمرير للحساب الجديد
+                    const newForm = bankAccountsContainer.lastElementChild;
+                    newForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'تنبيه',
+                        text: 'لا يمكن إضافة أكثر من 10 حسابات بنكية',
+                        confirmButtonText: 'حسناً'
+                    });
+                }
+            });
+        });
+    </script>
 @endpush
