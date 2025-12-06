@@ -101,6 +101,20 @@
                 </div>
                 <div class="card-toolbar">
                     <div class="d-flex justify-content-end gap-2" data-kt-sponsorship-table-toolbar="base">
+                        <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#importExcelModal">
+                            <i class="ki-duotone ki-file-up fs-2">
+                                <span class="path1"></span>
+                                <span class="path2"></span>
+                            </i>
+                            رفع ملف Excel
+                        </button>
+                        <button type="button" class="btn btn-success btn-sm" id="export_excel_btn">
+                            <i class="ki-duotone ki-file-down fs-2">
+                                <span class="path1"></span>
+                                <span class="path2"></span>
+                            </i>
+                            تصدير Excel
+                        </button>
                         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#sponsorshipModal">
                             <i class="ki-duotone ki-plus fs-2"></i>
                             إضافة كفالة جديدة
@@ -170,6 +184,171 @@
     </div>
 </div>
 <!--end::Content-->
+
+<!-- Modal for Import Excel -->
+<div class="modal fade" id="importExcelModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="fw-bold">رفع ملف Excel</h2>
+                <div class="btn btn-icon btn-sm btn-active-icon-primary" data-bs-dismiss="modal">
+                    <i class="ki-duotone ki-cross fs-1">
+                        <span class="path1"></span>
+                        <span class="path2"></span>
+                    </i>
+                </div>
+            </div>
+
+            <form id="importExcelForm" enctype="multipart/form-data">
+                @csrf
+                <div class="modal-body py-10 px-lg-17">
+
+                    <!--begin::تعليمات-->
+                    <div class="alert alert-info d-flex align-items-center mb-7">
+                        <i class="ki-duotone ki-information-5 fs-2x text-info me-4">
+                            <span class="path1"></span>
+                            <span class="path2"></span>
+                            <span class="path3"></span>
+                        </i>
+                        <div class="d-flex flex-column flex-grow-1">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h5 class="mb-1">تعليمات رفع الملف</h5>
+                                    <span>يجب أن يحتوي ملف Excel على الأعمدة التالية بالترتيب:</span>
+                                    <small class="text-muted mt-2 d-block">
+                                        <strong>هوية المعيل*</strong> (مطلوب)، هوية اليتيم، اسم اليتيم، اسم المعيل، رقم الملف الداخلي،
+                                        رقم الملف الخارجي، المؤسسة الراعية، تاريخ بدء الكفالة، تاريخ انتهاء الكفالة،
+                                        مدة الكفالة، المبلغ الشهري، ملاحظات، <strong>المحفظة</strong> (اسم البنك)، IBAN دولار، IBAN شيكل،
+                                        رقم الهاتف، رقم الحساب
+                                    </small>
+                                    <div class="alert alert-warning mt-3 mb-0 py-2">
+                                        <small>
+                                            <strong>⚠️ مهم:</strong>
+                                            <strong>"هوية المعيل"</strong> = رقم هوية ولي الأمر (للتحقق من وجوده) |
+                                            <strong>"المحفظة"</strong> = اسم البنك
+                                        </small>
+                                    </div>
+                                </div>
+                                <a href="{{ asset('templates/sponsorships_import_template.xlsx') }}"
+                                   class="btn btn-sm btn-light-info" download>
+                                    <i class="ki-duotone ki-file-down fs-3">
+                                        <span class="path1"></span>
+                                        <span class="path2"></span>
+                                    </i>
+                                    تحميل القالب
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <!--end::تعليمات-->
+
+                    <!--begin::الفلاتر-->
+                    <div class="mb-7">
+                        <h3 class="fw-bold text-gray-900 mb-5">إعدادات الاستيراد</h3>
+                        <div class="separator mb-5"></div>
+                    </div>
+
+                    <div class="row g-9 mb-7">
+                        <div class="col-md-4 fv-row">
+                            <label class="fs-6 fw-semibold mb-2 required">المؤسسة الكافلة</label>
+                            <select class="form-select form-select-solid" id="import_sponsor_id" name="sponsor_id" required>
+                                <option value="">اختر المؤسسة</option>
+                                @foreach($sponsors as $sponsor)
+                                    <option value="{{ $sponsor->id }}">{{ $sponsor->sponsor_name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="col-md-4 fv-row">
+                            <label class="fs-6 fw-semibold mb-2 required">نوع الكفالة</label>
+                            <select class="form-select form-select-solid" id="import_sponsorship_type_id" name="sponsorship_type_id" required>
+                                <option value="">اختر النوع</option>
+                                @foreach($sponsorshipTypes as $type)
+                                    <option value="{{ $type->id }}">{{ $type->description }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="col-md-4 fv-row">
+                            <label class="fs-6 fw-semibold mb-2 required">حالة الكفالة</label>
+                            <select class="form-select form-select-solid" id="import_sponsorship_status_id" name="sponsorship_status_id" required>
+                                <option value="">اختر الحالة</option>
+                                @foreach($sponsorshipStatuses as $status)
+                                    <option value="{{ $status->id }}">{{ $status->description }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+                    <!--end::الفلاتر-->
+
+                    <!--begin::رفع الملف-->
+                    <div class="row g-9 mb-7">
+                        <div class="col-md-12 fv-row">
+                            <label class="fs-6 fw-semibold mb-2 required">ملف Excel</label>
+                            <input type="file" class="form-control form-control-solid"
+                                   id="excel_file" name="excel_file"
+                                   accept=".xlsx,.xls" required>
+                            <div class="form-text">يدعم ملفات Excel فقط (.xlsx, .xls)</div>
+                        </div>
+                    </div>
+                    <!--end::رفع الملف-->
+
+                    <!--begin::Progress Bar-->
+                    <div id="import_progress_container" style="display: none;">
+                        <div class="progress" style="height: 30px;">
+                            <div id="import_progress_bar" class="progress-bar progress-bar-striped progress-bar-animated"
+                                 role="progressbar" style="width: 0%">
+                                <span id="import_progress_text">0%</span>
+                            </div>
+                        </div>
+                        <div id="import_status_text" class="text-center mt-3 fw-bold"></div>
+                    </div>
+                    <!--end::Progress Bar-->
+
+                    <!--begin::نتائج الفحص-->
+                    <div id="validation_results_container" style="display: none;">
+                        <div class="separator my-5"></div>
+                        <h3 class="fw-bold text-gray-900 mb-5">نتائج الفحص</h3>
+
+                        <div id="validation_results"></div>
+
+                        <div class="alert alert-success d-flex align-items-center mt-5" id="validation_success" style="display: none !important;">
+                            <i class="ki-duotone ki-shield-tick fs-2x text-success me-4">
+                                <span class="path1"></span>
+                                <span class="path2"></span>
+                            </i>
+                            <div>
+                                <h5 class="mb-1">✅ الملف جاهز للاستيراد</h5>
+                                <span>جميع البيانات صحيحة ويمكنك الآن بدء عملية الاستيراد</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!--end::نتائج الفحص-->
+
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="submit" class="btn btn-warning" id="check_file_btn">
+                        <i class="ki-duotone ki-shield-search fs-2">
+                            <span class="path1"></span>
+                            <span class="path2"></span>
+                            <span class="path3"></span>
+                        </i>
+                        فحص الملف
+                    </button>
+                    <button type="button" class="btn btn-primary" id="import_submit_btn" style="display: none;">
+                        <i class="ki-duotone ki-file-up fs-2">
+                            <span class="path1"></span>
+                            <span class="path2"></span>
+                        </i>
+                        تنفيذ الاستيراد
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 <!-- Modal for Add/Edit Sponsorship -->
 <div class="modal fade" id="sponsorshipModal" tabindex="-1" aria-hidden="true">
@@ -1145,6 +1324,307 @@
                         $('#viewSponsorshipContent').html('<div class="alert alert-danger">حدث خطأ في تحميل البيانات</div>');
                     }
                 });
+            });
+
+            // ============================================
+            // تصدير Excel مع الفلاتر
+            // ============================================
+            $('#export_excel_btn').on('click', function() {
+                // جمع الفلاتر الحالية
+                const sponsorFilter = $('#filter_sponsor').val();
+                const typeFilter = $('#filter_sponsorship_type').val();
+                const statusFilter = $('#filter_sponsorship_status').val();
+
+                // بناء الـ URL
+                let exportUrl = '{{ route("admin.sponsorships.export") }}';
+                const params = [];
+
+                if (sponsorFilter) params.push('sponsor_id=' + sponsorFilter);
+                if (typeFilter) params.push('sponsorship_type_id=' + typeFilter);
+                if (statusFilter) params.push('sponsorship_status_id=' + statusFilter);
+
+                // إضافة البحث من DataTable
+                const searchValue = $('#sponsorships-table_filter input').val();
+                if (searchValue) params.push('search=' + encodeURIComponent(searchValue));
+
+                const queryString = params.length > 0 ? '?' + params.join('&') : '';
+
+                // عرض رسالة تحميل
+                Swal.fire({
+                    title: 'جاري التصدير...',
+                    html: 'يرجى الانتظار حتى يتم تجهيز الملف',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+
+                // فتح الرابط للتحميل
+                window.location.href = exportUrl + queryString;
+
+                // إغلاق رسالة التحميل بعد ثانيتين
+                setTimeout(function() {
+                    Swal.close();
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'تم التصدير بنجاح',
+                        text: 'تم تحميل الملف إلى جهازك',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                }, 2000);
+            });
+
+            // ============================================
+            // رفع ملف Excel واستيراد البيانات
+            // ============================================
+
+            // دالة مساعدة لتنظيف modal backdrop
+            function cleanupModalBackdrop() {
+                $('.modal-backdrop').remove();
+                $('body').removeClass('modal-open');
+                $('body').css('padding-right', '');
+                $('body').css('overflow', '');
+            }
+
+            // فحص الملف قبل الاستيراد
+            // ============================================
+            $('#import_sponsor_id, #import_sponsorship_type_id, #import_sponsorship_status_id').select2({
+                dir: 'rtl',
+                width: '100%',
+                dropdownParent: $('#importExcelModal')
+            });
+
+            $('#importExcelForm').on('submit', function(e) {
+                e.preventDefault();
+
+                // التحقق من الحقول المطلوبة
+                if (!$('#import_sponsor_id').val() || !$('#import_sponsorship_type_id').val() ||
+                    !$('#import_sponsorship_status_id').val() || !$('#excel_file').val()) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'تنبيه',
+                        text: 'يرجى ملء جميع الحقول المطلوبة'
+                    });
+                    return;
+                }
+
+                const formData = new FormData(this);
+                formData.append('check_only', '1'); // فحص فقط
+
+                // إظهار شريط التقدم
+                $('#import_progress_container').show();
+                $('#validation_results_container').hide();
+                $('#import_progress_bar').css('width', '0%');
+                $('#import_progress_text').text('0%');
+                $('#import_status_text').text('جاري فحص الملف...');
+                $('#check_file_btn').prop('disabled', true);
+                $('#import_submit_btn').hide();
+
+                $.ajax({
+                    url: '{{ route("admin.sponsorships.import") }}',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    xhr: function() {
+                        const xhr = new window.XMLHttpRequest();
+                        xhr.upload.addEventListener('progress', function(e) {
+                            if (e.lengthComputable) {
+                                const percentComplete = Math.round((e.loaded / e.total) * 100);
+                                $('#import_progress_bar').css('width', percentComplete + '%');
+                                $('#import_progress_text').text(percentComplete + '%');
+                            }
+                        }, false);
+                        return xhr;
+                    },
+                    success: function(response) {
+                        $('#import_progress_bar').css('width', '100%');
+                        $('#import_progress_text').text('100%');
+                        $('#import_status_text').text('اكتمل الفحص');
+                        $('#check_file_btn').prop('disabled', false);
+
+                        setTimeout(() => {
+                            $('#import_progress_container').hide();
+                        }, 1000);
+
+                        if (response.success) {
+                            displayValidationResults(response);
+                        }
+                    },
+                    error: function(xhr) {
+                        $('#check_file_btn').prop('disabled', false);
+                        $('#import_progress_container').hide();
+
+                        let errorMessage = 'حدث خطأ أثناء فحص الملف';
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            errorMessage = xhr.responseJSON.message;
+                        }
+
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'خطأ',
+                            html: errorMessage
+                        }).then(() => {
+                            cleanupModalBackdrop();
+                        });
+                    }
+                });
+            });
+
+            // عرض نتائج الفحص
+            function displayValidationResults(response) {
+                console.log('🔍 Validation Response:', response);
+                console.log('📋 Missing Guardians:', response.validation.missing_guardians);
+                console.log('🏦 Missing Banks:', response.validation.missing_banks);
+
+                const container = $('#validation_results');
+                container.empty();
+
+                let hasErrors = false;
+
+                // المعلومات الأساسية
+                let summaryHtml = `
+                    <div class="alert alert-primary d-flex align-items-center mb-5">
+                        <i class="ki-duotone ki-information-5 fs-2x text-primary me-4">
+                            <span class="path1"></span>
+                            <span class="path2"></span>
+                            <span class="path3"></span>
+                        </i>
+                        <div>
+                            <h5 class="mb-1">معلومات الملف</h5>
+                            <p class="mb-0">إجمالي السجلات: <strong>${response.validation.total_rows}</strong></p>
+                            <p class="mb-0">سجلات صالحة: <strong class="text-success">${response.validation.valid_rows}</strong></p>
+                        </div>
+                    </div>
+                `;
+                container.append(summaryHtml);
+
+                // المعيلين المفقودين
+                if (response.validation.missing_guardians && response.validation.missing_guardians.length > 0) {
+                    hasErrors = true;
+                    let guardiansHtml = `
+                        <div class="alert alert-danger d-flex align-items-start mb-5">
+                            <i class="ki-duotone ki-cross-circle fs-2x text-danger me-4">
+                                <span class="path1"></span>
+                                <span class="path2"></span>
+                            </i>
+                            <div class="flex-grow-1">
+                                <h5 class="mb-2">❌ أرقام هويات معيلين غير موجودة (${response.validation.missing_guardians.length})</h5>
+                                <p class="mb-2">يجب إضافة هؤلاء الأشخاص إلى النظام أولاً:</p>
+                                <div class="bg-light-danger p-3 rounded">
+                                    ${response.validation.missing_guardians.slice(0, 20).map(id => `<span class="badge badge-danger me-2 mb-2">${id}</span>`).join('')}
+                                    ${response.validation.missing_guardians.length > 20 ? `<span class="text-muted">... و ${response.validation.missing_guardians.length - 20} آخرين</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    container.append(guardiansHtml);
+                }
+
+                // البنوك المفقودة
+                if (response.validation.missing_banks && response.validation.missing_banks.length > 0) {
+                    hasErrors = true;
+                    let banksHtml = `
+                        <div class="alert alert-warning d-flex align-items-start mb-5">
+                            <i class="ki-duotone ki-information-5 fs-2x text-warning me-4">
+                                <span class="path1"></span>
+                                <span class="path2"></span>
+                                <span class="path3"></span>
+                            </i>
+                            <div class="flex-grow-1">
+                                <h5 class="mb-2">⚠️ بنوك غير موجودة (${response.validation.missing_banks.length})</h5>
+                                <p class="mb-2">يجب إضافة هذه البنوك من قسم إدارة البنوك:</p>
+                                <div class="bg-light-warning p-3 rounded">
+                                    ${response.validation.missing_banks.map(bank => `<span class="badge badge-warning me-2 mb-2">${bank}</span>`).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    container.append(banksHtml);
+                }
+
+                $('#validation_results_container').show();
+
+                if (!hasErrors) {
+                    $('#validation_success').show();
+                    $('#import_submit_btn').show();
+                } else {
+                    $('#validation_success').hide();
+                    $('#import_submit_btn').hide();
+                }
+            }
+
+            // تنفيذ الاستيراد الفعلي
+            $('#import_submit_btn').on('click', function() {
+                const formData = new FormData($('#importExcelForm')[0]);
+                // إزالة check_only لتنفيذ الاستيراد
+
+                $('#import_progress_container').show();
+                $('#import_progress_bar').css('width', '0%');
+                $('#import_progress_text').text('0%');
+                $('#import_status_text').text('جاري الاستيراد...');
+                $('#import_submit_btn').prop('disabled', true);
+
+                $.ajax({
+                    url: '{{ route("admin.sponsorships.import") }}',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function(response) {
+                        $('#import_progress_bar').css('width', '100%');
+                        $('#import_progress_text').text('100%');
+
+                        if (response.success) {
+                            $('#importExcelModal').modal('hide');
+
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'اكتملت عملية الاستيراد',
+                                html: `
+                                    <p><strong>إجمالي السجلات:</strong> ${response.summary.total}</p>
+                                    <p><strong>تم الإدخال بنجاح:</strong> <span class="text-success">${response.summary.success}</span></p>
+                                    <p><strong>أخطاء:</strong> <span class="text-danger">${response.summary.errors}</span></p>
+                                `
+                            }).then(() => {
+                                // تنظيف modal backdrop بعد إغلاق SweetAlert
+                                cleanupModalBackdrop();
+
+                                // إعادة تحميل الجدول
+                                if ($.fn.DataTable.isDataTable('#sponsorships-table')) {
+                                    $('#sponsorships-table').DataTable().ajax.reload();
+                                }
+                            });
+                        }
+                    },
+                    error: function(xhr) {
+                        $('#import_submit_btn').prop('disabled', false);
+                        $('#import_progress_container').hide();
+
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'خطأ',
+                            text: xhr.responseJSON?.message || 'حدث خطأ أثناء الاستيراد'
+                        }).then(() => {
+                            cleanupModalBackdrop();
+                        });
+                    }
+                });
+            });
+
+            // إعادة تعيين النموذج عند إغلاق المودال
+            $('#importExcelModal').on('hidden.bs.modal', function() {
+                $('#importExcelForm')[0].reset();
+                $('#import_progress_container').hide();
+                $('#validation_results_container').hide();
+                $('#check_file_btn').prop('disabled', false).show();
+                $('#import_submit_btn').prop('disabled', false).hide();
+                $('#import_sponsor_id, #import_sponsorship_type_id, #import_sponsorship_status_id').val('').trigger('change');
+
+                // تنظيف modal backdrop للتأكد
+                cleanupModalBackdrop();
             });
         });
     </script>

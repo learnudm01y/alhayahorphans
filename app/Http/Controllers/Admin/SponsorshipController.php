@@ -18,6 +18,10 @@ use App\Models\GuardianBankAccount;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 
 class SponsorshipController extends Controller
 {
@@ -662,6 +666,655 @@ class SponsorshipController extends Controller
                 'success' => false,
                 'message' => 'حدث خطأ أثناء تحديث حالة الكفالة'
             ], 500);
+        }
+    }
+
+    /**
+     * تصدير بيانات الكفالات إلى Excel مع الفلاتر
+     */
+    public function export(Request $request)
+    {
+        try {
+            Log::info('🎯 بدء عملية تصدير الكفالات', [
+                'filters' => $request->all()
+            ]);
+
+            // بناء الاستعلام مع الفلاتر
+            $query = Sponsorship::with([
+                'sponsor',
+                'sponsors',
+                'sponsorshipType',
+                'sponsorshipStatus',
+                'creator'
+            ]);
+
+            // تطبيق فلتر المؤسسة الكافلة
+            if ($request->has('sponsor_id') && !empty($request->get('sponsor_id'))) {
+                $sponsorId = $request->get('sponsor_id');
+                $query->whereHas('sponsors', function($q) use ($sponsorId) {
+                    $q->where('sponsors.id', $sponsorId);
+                });
+            }
+
+            // تطبيق فلتر نوع الكفالة
+            if ($request->has('sponsorship_type_id') && !empty($request->get('sponsorship_type_id'))) {
+                $query->where('sponsorship_type_id', $request->get('sponsorship_type_id'));
+            }
+
+            // تطبيق فلتر حالة الكفالة
+            if ($request->has('sponsorship_status_id') && !empty($request->get('sponsorship_status_id'))) {
+                $query->where('sponsorship_status_id', $request->get('sponsorship_status_id'));
+            }
+
+            // تطبيق فلتر البحث
+            if ($request->has('search') && !empty($request->get('search'))) {
+                $searchTerm = $request->get('search');
+                $searchWords = array_filter(array_map('trim', explode(' ', $searchTerm)));
+
+                if (!empty($searchWords)) {
+                    $query->where(function ($q) use ($searchTerm) {
+                        // استخدام البحث الذكي في جميع الحقول النصية
+                        $this->addSmartSearch($q, 'orphan_name', $searchTerm, false);
+                        $this->addSmartSearch($q, 'guardian_name', $searchTerm, false);
+                        $this->addSmartSearch($q, 'sponsoring_organization', $searchTerm, false);
+
+                        // البحث في الأرقام (بدون normalization)
+                        $q->orWhere('identity_number', 'LIKE', "%{$searchTerm}%")
+                          ->orWhere('guardian_identity_number', 'LIKE', "%{$searchTerm}%")
+                          ->orWhere('internal_file_number', 'LIKE', "%{$searchTerm}%")
+                          ->orWhere('external_file_number', 'LIKE', "%{$searchTerm}%");
+                    });
+                }
+            }
+
+            $sponsorships = $query->orderBy('id', 'desc')->get();
+
+            Log::info('✅ تم جلب البيانات للتصدير', [
+                'count' => $sponsorships->count()
+            ]);
+
+            // إنشاء ملف Excel باستخدام PhpSpreadsheet
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+
+            // تعيين رؤوس الأعمدة
+            $headers = [
+                '#',
+                'المؤسسة الكافلة',
+                'رقم ملف داخلي',
+                'رقم ملف خارجي',
+                'رقم هوية ولي الأمر',
+                'رقم هوية اليتيم',
+                'اسم اليتيم',
+                'اسم ولي الأمر',
+                'المؤسسة الراعية',
+                'تاريخ بدء الكفالة',
+                'تاريخ نهاية الكفالة',
+                'مدة الكفالة (أشهر)',
+                'نوع الكفالة',
+                'حالة الكفالة',
+                'المبلغ الشهري',
+                'ملاحظات',
+                'تم الإنشاء بواسطة',
+                'تاريخ الإنشاء',
+            ];
+
+            // كتابة رؤوس الأعمدة
+            $sheet->fromArray($headers, NULL, 'A1');
+
+            // تنسيق رؤوس الأعمدة
+            $headerStyle = [
+                'font' => [
+                    'bold' => true,
+                    'size' => 12,
+                    'color' => ['rgb' => 'FFFFFF']
+                ],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['rgb' => '009EF7']
+                ],
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_CENTER,
+                    'vertical' => Alignment::VERTICAL_CENTER,
+                ]
+            ];
+            $sheet->getStyle('A1:R1')->applyFromArray($headerStyle);
+
+            // كتابة البيانات
+            $row = 2;
+            foreach ($sponsorships as $sponsorship) {
+                $sponsorNames = $sponsorship->sponsors->pluck('sponsor_name')->implode(' + ');
+
+                $data = [
+                    $sponsorship->id,
+                    $sponsorNames ?: '-',
+                    $sponsorship->internal_file_number ?: '-',
+                    $sponsorship->external_file_number ?: '-',
+                    $sponsorship->guardian_identity_number ?: '-',
+                    $sponsorship->identity_number ?: '-',
+                    $sponsorship->orphan_name ?: '-',
+                    $sponsorship->guardian_name ?: '-',
+                    $sponsorship->sponsoring_organization ?: '-',
+                    $sponsorship->sponsorship_start_date ? date('Y-m-d', strtotime($sponsorship->sponsorship_start_date)) : '-',
+                    $sponsorship->sponsorship_end_date ? date('Y-m-d', strtotime($sponsorship->sponsorship_end_date)) : '-',
+                    $sponsorship->sponsorship_duration_months ?: '-',
+                    $sponsorship->sponsorshipType?->description ?: '-',
+                    $sponsorship->sponsorshipStatus?->description ?: '-',
+                    $sponsorship->monthly_amount ?: '-',
+                    $sponsorship->notes ?: '-',
+                    $sponsorship->creator?->name ?: '-',
+                    $sponsorship->created_at ? $sponsorship->created_at->format('Y-m-d H:i') : '-',
+                ];
+
+                $sheet->fromArray($data, NULL, 'A' . $row);
+                $row++;
+            }
+
+            // ضبط عرض الأعمدة تلقائياً
+            foreach (range('A', 'R') as $col) {
+                $sheet->getColumnDimension($col)->setAutoSize(true);
+            }
+
+            // إنشاء الملف
+            $filename = 'sponsorships_' . date('Y-m-d_His') . '.xlsx';
+            $writer = new Xlsx($spreadsheet);
+
+            // حفظ الملف مؤقتاً
+            $tempFile = tempnam(sys_get_temp_dir(), 'sponsorships_');
+            $writer->save($tempFile);
+
+            Log::info('✅ تم إنشاء ملف Excel بنجاح', [
+                'filename' => $filename,
+                'rows' => $sponsorships->count()
+            ]);
+
+            // إرجاع الملف للتحميل
+            return response()->download($tempFile, $filename)->deleteFileAfterSend(true);
+
+        } catch (\Exception $e) {
+            Log::error('❌ خطأ في تصدير الكفالات:', [
+                'message' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return back()->with('error', 'حدث خطأ أثناء تصدير البيانات: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * استيراد بيانات الكفالات من ملف Excel
+     */
+    public function import(Request $request)
+    {
+        try {
+            // التحقق من صحة الملف أولاً
+            $request->validate([
+                'excel_file' => 'required|file|mimes:xlsx,xls|max:10240',
+            ]);
+
+            // التحقق اليدوي من وجود البيانات المرجعية
+            $validationErrors = [];
+
+            // 1. التحقق من المؤسسة الكافلة
+            if (empty($request->sponsor_id)) {
+                $validationErrors[] = 'يجب اختيار المؤسسة الكافلة';
+            } else {
+                $sponsor = \App\Models\Sponsor::find($request->sponsor_id);
+                if (!$sponsor) {
+                    $validationErrors[] = "المؤسسة الكافلة المحددة (ID: {$request->sponsor_id}) غير موجودة في النظام";
+                }
+            }
+
+            // 2. التحقق من نوع الكفالة
+            if (empty($request->sponsorship_type_id)) {
+                $validationErrors[] = 'يجب اختيار نوع الكفالة';
+            } else {
+                $sponsorshipType = \App\Models\TypeOfGuarantee::find($request->sponsorship_type_id);
+                if (!$sponsorshipType) {
+                    $validationErrors[] = "نوع الكفالة المحدد (ID: {$request->sponsorship_type_id}) غير موجود في النظام";
+                }
+            }
+
+            // 3. التحقق من حالة الكفالة
+            if (empty($request->sponsorship_status_id)) {
+                $validationErrors[] = 'يجب اختيار حالة الكفالة';
+            } else {
+                $sponsorshipStatus = \App\Models\SponsorshipStatus::find($request->sponsorship_status_id);
+                if (!$sponsorshipStatus) {
+                    $validationErrors[] = "حالة الكفالة المحددة (ID: {$request->sponsorship_status_id}) غير موجودة في النظام";
+                }
+            }
+
+            // إذا كانت هناك أخطاء في التحقق، إرجاعها للمستخدم
+            if (!empty($validationErrors)) {
+                return back()->with('error', implode('<br>', $validationErrors));
+            }
+
+            Log::info('🎯 بدء عملية فحص/استيراد الكفالات من Excel', [
+                'sponsor_id' => $request->sponsor_id,
+                'sponsorship_type_id' => $request->sponsorship_type_id,
+                'sponsorship_status_id' => $request->sponsorship_status_id,
+                'check_only' => $request->has('check_only'),
+            ]);
+
+            $file = $request->file('excel_file');
+
+            // قراءة ملف Excel
+            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file->getPathname());
+            $worksheet = $spreadsheet->getActiveSheet();
+            $rows = $worksheet->toArray();
+
+            // إزالة صف الرؤوس والبحث عن الأعمدة حسب الاسم
+            $headers = array_shift($rows);
+
+            // إنشاء map للأعمدة بناءً على الأسماء (normalize لمطابقة أفضل)
+            $columnMap = [];
+            foreach ($headers as $index => $header) {
+                $normalizedHeader = $this->normalizeArabicText(trim($header));
+                $columnMap[$normalizedHeader] = $index;
+            }
+
+            Log::info('📋 Headers Found:', [
+                'headers' => $headers,
+                'columnMap' => $columnMap
+            ]);
+
+            // تعريف أسماء الأعمدة المطلوبة (بعد normalization)
+            // ملاحظة: المحافظة غير مدعومة لأنها عمود رقمي (ID) في قاعدة البيانات
+            $requiredColumns = [
+                'id' => $this->normalizeArabicText('ID'),
+                'external_file_number' => $this->normalizeArabicText('ID'), // نفس ID
+                'orphan_name' => $this->normalizeArabicText('اسم اليتيم'),
+                'identity_number' => $this->normalizeArabicText('رقم هوية اليتيم'),
+                'guardian_name' => $this->normalizeArabicText('اسم المعيل'),
+                'guardian_identity_number' => $this->normalizeArabicText('هوية المعيل'),
+                'data_phone_number' => $this->normalizeArabicText('الهاتف'),
+                'data_alt_phone_number' => $this->normalizeArabicText('جوال بديل'),
+                'sponsoring_organization' => $this->normalizeArabicText('المؤسسة'),
+                'person_owner_identity_number' => $this->normalizeArabicText('هوية صاحب المحفظة'),
+                'person_owner_identity_number_alt' => $this->normalizeArabicText('هوية المحفظة'), // اسم بديل
+                're_guardian_name' => $this->normalizeArabicText('صاحب المحفظة'),
+                'bank_name' => $this->normalizeArabicText('المحفظة'),
+                're_phone_number' => $this->normalizeArabicText('جوال المحفظة'),
+            ];
+
+            // الخطوة 1: التحقق المسبق من جميع البيانات قبل البدء بالاستيراد
+            $preValidationErrors = [];
+            $uniqueBanks = [];
+            $uniqueGuardians = [];
+
+            foreach ($rows as $index => $row) {
+                $rowNumber = $index + 2;
+
+                // تخطي الصفوف الفارغة
+                if (empty(array_filter($row))) {
+                    continue;
+                }
+
+                // قراءة البيانات بناءً على أسماء الأعمدة
+                $guardianIdentityNumber = trim($row[$columnMap[$requiredColumns['guardian_identity_number']] ?? 0] ?? '');
+                $bankName = trim($row[$columnMap[$requiredColumns['bank_name']] ?? 0] ?? '');
+
+                // Log first 3 rows to see what data we're reading
+                if ($index < 3) {
+                    Log::info("📊 Reading Row $rowNumber:", [
+                        'guardian_identity_number' => $guardianIdentityNumber,
+                        'bank_name' => $bankName,
+                        'full_row' => $row
+                    ]);
+                }
+
+                // جمع أرقام هويات المعيلين الفريدة
+                if (!empty($guardianIdentityNumber) && !in_array($guardianIdentityNumber, $uniqueGuardians)) {
+                    $uniqueGuardians[] = $guardianIdentityNumber;
+                }
+
+                // جمع أسماء البنوك الفريدة
+                if (!empty($bankName) && !in_array($bankName, $uniqueBanks)) {
+                    $uniqueBanks[] = $bankName;
+                }
+            }
+
+            // التحقق من وجود جميع المعيلين في النظام
+            $missingGuardians = [];
+            if (!empty($uniqueGuardians)) {
+                $existingGuardians = Data::whereIn('data_id_number', $uniqueGuardians)
+                    ->pluck('data_id_number')
+                    ->toArray();
+
+                $missingGuardians = array_diff($uniqueGuardians, $existingGuardians);
+            }
+
+            // التحقق من وجود جميع البنوك في النظام
+            $missingBanks = [];
+            if (!empty($uniqueBanks)) {
+                foreach ($uniqueBanks as $bankName) {
+                    // استخدام البحث الذكي للعثور على البنك
+                    $bank = BankName::where(function($query) use ($bankName) {
+                        $this->addSmartSearch($query, 'description', $bankName, false);
+                    })->first();
+
+                    if (!$bank) {
+                        $missingBanks[] = $bankName;
+                        Log::warning("⚠️ Bank not found:", [
+                            'original_name' => $bankName,
+                            'normalized_name' => $this->normalizeArabicText($bankName)
+                        ]);
+                    } else {
+                        Log::info("✅ Bank found:", [
+                            'searched_for' => $bankName,
+                            'found_bank_id' => $bank->id,
+                            'found_bank_description' => $bank->description
+                        ]);
+                    }
+                }
+            }
+
+            // إذا كان الطلب للفحص فقط، إرجاع النتائج
+            if ($request->has('check_only')) {
+                $validRows = count($rows) - count($missingGuardians);
+
+                Log::info('🔍 CHECK ONLY MODE - Validation Results:', [
+                    'missing_guardians_count' => count($missingGuardians),
+                    'missing_guardians_sample' => array_slice($missingGuardians, 0, 5),
+                    'missing_banks_count' => count($missingBanks),
+                    'missing_banks_sample' => array_slice($missingBanks, 0, 5),
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'تم فحص الملف بنجاح',
+                    'validation' => [
+                        'total_rows' => count($rows),
+                        'valid_rows' => $validRows,
+                        'missing_guardians' => array_values($missingGuardians),
+                        'missing_banks' => $missingBanks,
+                    ]
+                ]);
+            }
+
+            // إذا كانت هناك بيانات مفقودة، أخبر المستخدم (في حالة الاستيراد المباشر)
+            if (!empty($missingGuardians)) {
+                $preValidationErrors[] = "<strong>أرقام هويات معيلين غير موجودة في النظام (" . count($missingGuardians) . "):</strong><br>"
+                    . implode(', ', array_slice($missingGuardians, 0, 10))
+                    . (count($missingGuardians) > 10 ? ' ...' : '');
+            }
+
+            if (!empty($missingBanks)) {
+                $preValidationErrors[] = "<strong>بنوك غير موجودة في النظام (" . count($missingBanks) . "):</strong><br>"
+                    . implode(', ', $missingBanks);
+            }
+
+            // إذا كانت هناك أخطاء في التحقق المسبق، أخبر المستخدم
+            if (!empty($preValidationErrors)) {
+                $errorMessage = "<div style='text-align: right;'>";
+                $errorMessage .= "<p><strong>⚠️ لا يمكن بدء الاستيراد بسبب وجود بيانات مفقودة:</strong></p>";
+                $errorMessage .= implode('<br><br>', $preValidationErrors);
+                $errorMessage .= "<br><br><p><strong>يرجى القيام بما يلي:</strong></p>";
+                $errorMessage .= "<ul style='text-align: right; direction: rtl;'>";
+
+                if (!empty($missingGuardians)) {
+                    $errorMessage .= "<li>إضافة المعيلين المفقودين إلى النظام من خلال صفحة تسجيل البيانات</li>";
+                }
+
+                if (!empty($missingBanks)) {
+                    $errorMessage .= "<li>إضافة البنوك المفقودة من قسم إدارة البنوك</li>";
+                }
+
+                $errorMessage .= "</ul></div>";
+
+                return back()->with('error', $errorMessage);
+            }
+
+            // الخطوة 2: بدء عملية الاستيراد الفعلية
+            $successCount = 0;
+            $errorCount = 0;
+            $pendingPersons = [];
+            $errors = [];
+
+            foreach ($rows as $index => $row) {
+                $rowNumber = $index + 2; // +2 لأن الصف الأول headers و الترقيم يبدأ من 1
+
+                try {
+                    // تخطي الصفوف الفارغة
+                    if (empty(array_filter($row))) {
+                        continue;
+                    }
+
+                    // استخراج البيانات من الصف بناءً على أسماء الأعمدة
+                    $guardianIdentityNumber = trim($row[$columnMap[$requiredColumns['guardian_identity_number']] ?? 0] ?? '');
+                    $identityNumber = trim($row[$columnMap[$requiredColumns['identity_number']] ?? 0] ?? '');
+                    $orphanName = trim($row[$columnMap[$requiredColumns['orphan_name']] ?? 0] ?? '');
+                    $guardianName = trim($row[$columnMap[$requiredColumns['guardian_name']] ?? 0] ?? '');
+                    $externalFileNumber = trim($row[$columnMap[$requiredColumns['external_file_number']] ?? 0] ?? '');
+                    $sponsoringOrganization = trim($row[$columnMap[$requiredColumns['sponsoring_organization']] ?? 0] ?? '');
+
+                    // البيانات الاختيارية
+                    $phoneNumber = trim($row[$columnMap[$requiredColumns['data_phone_number']] ?? -1] ?? '');
+                    $altPhoneNumber = trim($row[$columnMap[$requiredColumns['data_alt_phone_number']] ?? -1] ?? '');
+
+                    // البيانات البنكية
+                    $bankName = trim($row[$columnMap[$requiredColumns['bank_name']] ?? 0] ?? '');
+                    // دعم اسمين مختلفين لنفس العمود
+                    $personOwnerIdentityNumber = trim($row[$columnMap[$requiredColumns['person_owner_identity_number']] ??
+                        $columnMap[$requiredColumns['person_owner_identity_number_alt']] ?? 0] ?? '');
+                    $reGuardianName = trim($row[$columnMap[$requiredColumns['re_guardian_name']] ?? 0] ?? '');
+                    $rePhoneNumber = trim($row[$columnMap[$requiredColumns['re_phone_number']] ?? 0] ?? '');
+
+                    // التحقق من الحقول المطلوبة
+                    if (empty($guardianIdentityNumber)) {
+                        $errors[] = "الصف {$rowNumber}: هوية المعيل مطلوبة";
+                        $errorCount++;
+                        continue;
+                    }
+
+                    // البحث عن المعيل في قاعدة البيانات (جدول data)
+                    $person = Data::where('data_id_number', $guardianIdentityNumber)->first();
+
+                    if (!$person) {
+                        $errors[] = "الصف {$rowNumber}: هوية المعيل '{$guardianIdentityNumber}' غير موجودة";
+                        $errorCount++;
+                        continue;
+                    }
+
+                    // تحديث بيانات الهاتف في جدول data إذا كانت موجودة في الملف
+                    // ملاحظة: لا يتم تحديث المحافظة لأنها عمود رقمي (ID) وليس نصي
+                    $needsSave = false;
+
+                    if (!empty($phoneNumber)) {
+                        $person->data_phone_number = $phoneNumber;
+                        $needsSave = true;
+                    }
+                    if (!empty($altPhoneNumber)) {
+                        $person->data_alt_phone_number = $altPhoneNumber;
+                        $needsSave = true;
+                    }
+
+                    if ($needsSave) {
+                        $person->save();
+                    }
+
+                    // التحقق من وجود البنك إذا تم توفير اسم البنك
+                    $bankId = null;
+                    if (!empty($bankName)) {
+                        // استخدام البحث الذكي للعثور على البنك
+                        $bank = BankName::where(function($query) use ($bankName) {
+                            $this->addSmartSearch($query, 'description', $bankName, false);
+                        })->first();
+
+                        if ($bank) {
+                            $bankId = $bank->id;
+                        }
+                    }
+
+                    // إنشاء سجل الكفالة
+                    DB::beginTransaction();
+
+                    $sponsorship = new Sponsorship();
+                    $sponsorship->identity_number = $identityNumber ?: null;
+                    $sponsorship->orphan_name = $orphanName ?: null;
+                    $sponsorship->guardian_name = $guardianName ?: null;
+                    $sponsorship->guardian_identity_number = $guardianIdentityNumber;
+                    $sponsorship->external_file_number = $externalFileNumber ?: null;
+                    $sponsorship->sponsoring_organization = $sponsoringOrganization ?: null;
+                    $sponsorship->sponsorship_type_id = $request->sponsorship_type_id;
+                    $sponsorship->sponsorship_status_id = $request->sponsorship_status_id;
+                    $sponsorship->created_by = auth()->id();
+                    $sponsorship->save();
+
+                    // ربط الكفالة بالمؤسسة الكافلة
+                    $sponsorship->sponsors()->attach($request->sponsor_id);
+
+                    // إضافة البيانات البنكية إذا كانت متوفرة
+                    if ($bankId) {
+                        $bankAccount = new GuardianBankAccount();
+                        $bankAccount->guardian_registration = $person->file_id_number; // ربط بـ file_id من جدول data
+                        $bankAccount->person_owner_identity_number = $personOwnerIdentityNumber ?: $guardianIdentityNumber;
+                        $bankAccount->re_id_number = $identityNumber ?: null;
+                        $bankAccount->re_guardian_name = $reGuardianName ?: $guardianName;
+                        $bankAccount->bank_name = $bankId;
+                        $bankAccount->re_phone_number = $rePhoneNumber ?: $phoneNumber;
+                        $bankAccount->save();
+                    }
+
+                    DB::commit();
+                    $successCount++;
+
+                    Log::info("✅ تم استيراد الصف {$rowNumber} بنجاح", [
+                        'guardian_identity' => $guardianIdentityNumber,
+                        'orphan_identity' => $identityNumber
+                    ]);
+
+                } catch (\Exception $e) {
+                    DB::rollBack();
+                    $errorCount++;
+                    $errors[] = "الصف {$rowNumber}: {$e->getMessage()}";
+
+                    Log::error("❌ خطأ في استيراد الصف {$rowNumber}", [
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString()
+                    ]);
+                }
+            }
+
+            // إعداد النتيجة
+            $result = [
+                'success' => true,
+                'message' => 'تمت عملية الاستيراد',
+                'summary' => [
+                    'total' => count($rows),
+                    'success' => $successCount,
+                    'errors' => $errorCount,
+                ],
+                'errors' => $errors,
+            ];
+
+            Log::info('✅ اكتملت عملية الاستيراد', $result['summary']);
+
+            return response()->json($result);
+
+        } catch (\Exception $e) {
+            Log::error('❌ خطأ في عملية الاستيراد:', [
+                'message' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء استيراد البيانات: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * تطبيع النص العربي للبحث المتقدم
+     * يدعم: الألف بأشكالها، التاء المربوطة، الياء، حذف المسافات الزائدة
+     */
+    private function normalizeArabicText($text)
+    {
+        // تحويل جميع أشكال الألف إلى ألف عادية
+        $text = str_replace(['أ', 'إ', 'آ', 'ٱ'], 'ا', $text);
+
+        // تحويل التاء المربوطة إلى هاء
+        $text = str_replace(['ة'], 'ه', $text);
+
+        // تحويل الياء المختلفة
+        $text = str_replace(['ى'], 'ي', $text);
+
+        // إزالة التشكيل (الحركات)
+        $text = preg_replace('/[\x{064B}-\x{065F}]/u', '', $text);
+
+        // إزالة المسافات الزائدة
+        $text = preg_replace('/\s+/', ' ', $text);
+
+        return trim($text);
+    }
+
+    /**
+     * بحث ذكي في حقل نصي مع دعم normalization
+     * يستخدم في البحث عن الأسماء، المؤسسات، البنوك، إلخ
+     *
+     * @param \Illuminate\Database\Eloquent\Builder $query
+     * @param string $column اسم العمود
+     * @param string $searchValue القيمة المراد البحث عنها
+     * @param bool $exactMatch هل البحث دقيق أم جزئي (default: false = جزئي)
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    private function addSmartSearch($query, $column, $searchValue, $exactMatch = false)
+    {
+        $normalized = $this->normalizeArabicText($searchValue);
+
+        return $query->where(function($q) use ($column, $searchValue, $normalized, $exactMatch) {
+            // 1. البحث الدقيق أولاً
+            $q->where($column, $searchValue);
+
+            if ($exactMatch) {
+                // 2. البحث مع normalization فقط
+                $q->orWhereRaw(
+                    'REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(' . $column . ', "أ", "ا"), "إ", "ا"), "آ", "ا"), "ٱ", "ا"), "ة", "ه"), "ى", "ي") = ?',
+                    [$normalized]
+                );
+            } else {
+                // 2. البحث الجزئي
+                $q->orWhere($column, 'LIKE', "%{$searchValue}%");
+
+                // 3. البحث الجزئي مع normalization
+                $q->orWhereRaw(
+                    'REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(' . $column . ', "أ", "ا"), "إ", "ا"), "آ", "ا"), "ٱ", "ا"), "ة", "ه"), "ى", "ي") LIKE ?',
+                    ["%{$normalized}%"]
+                );
+            }
+        });
+    }
+
+    /**
+     * تحويل تاريخ Excel إلى تنسيق قاعدة البيانات
+     */
+    private function convertExcelDate($excelDate)
+    {
+        if (empty($excelDate)) {
+            return null;
+        }
+
+        try {
+            // إذا كان التاريخ رقمياً (Excel serial date)
+            if (is_numeric($excelDate)) {
+                $date = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($excelDate);
+                return $date->format('Y-m-d');
+            }
+
+            // إذا كان التاريخ نصياً
+            $date = \Carbon\Carbon::parse($excelDate);
+            return $date->format('Y-m-d');
+
+        } catch (\Exception $e) {
+            Log::warning('تحذير: تعذر تحويل التاريخ', [
+                'date' => $excelDate,
+                'error' => $e->getMessage()
+            ]);
+            return null;
         }
     }
 }
