@@ -1037,6 +1037,109 @@
                         `;
 
                         $('#viewSponsorshipContent').html(html);
+
+                        // 🏦 تحميل وعرض البيانات البنكية بشكل إجباري
+                        if (data.guardian_identity_number || data.identity_number) {
+                            const identityToSearch = data.guardian_identity_number || data.identity_number;
+
+                            $.ajax({
+                                url: '/admin/records-management/get-bank-accounts',
+                                type: 'GET',
+                                data: { guardian_identity: identityToSearch },
+                                success: function(bankResponse) {
+                                    let bankHtml = `
+                                        <div class="mb-10">
+                                            <h3 class="fw-bold text-gray-900 mb-5">
+                                                <i class="fas fa-university text-primary me-2"></i>المعلومات البنكية
+                                            </h3>
+                                            <div class="separator separator-dashed mb-7"></div>
+                                    `;
+
+                                    if (bankResponse.success && bankResponse.accounts && bankResponse.accounts.length > 0) {
+                                        bankResponse.accounts.forEach((account, index) => {
+                                            bankHtml += `
+                                                <div class="border rounded p-4 mb-4" style="background-color: #f1faff; border: 2px solid #009ef7 !important;">
+                                                    <h6 class="mb-4 text-primary fw-bold">
+                                                        <i class="fas fa-university me-2"></i>حساب بنكي رقم ${index + 1}
+                                                    </h6>
+                                                    <div class="row g-4">
+                                                        <div class="col-md-6">
+                                                            <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">اسم البنك</span>
+                                                            <span class="fw-bold text-gray-800 fs-6">${account.bank?.description || '-'}</span>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">اسم صاحب الحساب</span>
+                                                            <span class="fw-bold text-gray-800 fs-6">${account.re_guardian_name || '-'}</span>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">رقم هوية صاحب الحساب</span>
+                                                            <span class="fw-bold text-gray-800 fs-6">${account.person_owner_identity_number || '-'}</span>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">رقم هاتف صاحب الحساب</span>
+                                                            <span class="fw-bold text-gray-800 fs-6">${account.re_phone_number || '-'}</span>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">رقم IBAN بالدولار</span>
+                                                            <span class="fw-bold text-gray-800 fs-6">${account.iban_usd || '-'}</span>
+                                                        </div>
+                                                        <div class="col-md-6">
+                                                            <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">رقم IBAN بالشيكل</span>
+                                                            <span class="fw-bold text-gray-800 fs-6">${account.iban_shekel || '-'}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            `;
+                                        });
+                                    } else {
+                                        bankHtml += `
+                                            <div class="alert alert-warning d-flex align-items-center">
+                                                <i class="fas fa-exclamation-triangle fs-2 me-3"></i>
+                                                <span class="fw-semibold">لا توجد بيانات بنكية مسجلة لهذا الشخص</span>
+                                            </div>
+                                        `;
+                                    }
+
+                                    bankHtml += `</div>`;
+
+                                    // إضافة البيانات البنكية إلى المحتوى
+                                    $('#viewSponsorshipContent').append(bankHtml);
+                                },
+                                error: function(xhr) {
+                                    console.error('Error loading bank accounts:', xhr);
+
+                                    let bankErrorHtml = `
+                                        <div class="mb-10">
+                                            <h3 class="fw-bold text-gray-900 mb-5">
+                                                <i class="fas fa-university text-primary me-2"></i>المعلومات البنكية
+                                            </h3>
+                                            <div class="separator separator-dashed mb-7"></div>
+                                            <div class="alert alert-danger d-flex align-items-center">
+                                                <i class="fas fa-times-circle fs-2 me-3"></i>
+                                                <span class="fw-semibold">حدث خطأ أثناء تحميل البيانات البنكية</span>
+                                            </div>
+                                        </div>
+                                    `;
+
+                                    $('#viewSponsorshipContent').append(bankErrorHtml);
+                                }
+                            });
+                        } else {
+                            // في حالة عدم وجود رقم هوية
+                            let noBankHtml = `
+                                <div class="mb-10">
+                                    <h3 class="fw-bold text-gray-900 mb-5">
+                                        <i class="fas fa-university text-primary me-2"></i>المعلومات البنكية
+                                    </h3>
+                                    <div class="separator separator-dashed mb-7"></div>
+                                    <div class="alert alert-info d-flex align-items-center">
+                                        <i class="fas fa-info-circle fs-2 me-3"></i>
+                                        <span class="fw-semibold">لا يوجد رقم هوية للبحث عن البيانات البنكية</span>
+                                    </div>
+                                </div>
+                            `;
+                            $('#viewSponsorshipContent').append(noBankHtml);
+                        }
                     },
                     error: function() {
                         $('#viewSponsorshipContent').html('<div class="alert alert-danger">حدث خطأ في تحميل البيانات</div>');

@@ -340,7 +340,7 @@ class SponsorshipsDataTable extends DataTable
                     ->orderBy(0, 'desc')
                     ->parameters([
                         'language' => [
-                            'url' => '//cdn.datatables.net/plug-ins/1.13.6/i18n/ar.json'
+                            'url' => asset('admin/assets/plugins/custom/datatables/i18n/ar.json')
                         ],
                         'pageLength' => 25,
                         'lengthMenu' => [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'الكل']],
