@@ -56,6 +56,11 @@ class UnifiedPeopleDataTable extends DataTable
                     </li>
                     <li><hr class="dropdown-divider"></li>
                     <li>
+                      <a class="dropdown-item" style="color:#222;" href="'.$editUrl.'">
+                        <i class="bi bi-pencil text-primary"></i> تعديل
+                      </a>
+                    </li>
+                    <li>
                       <a class="dropdown-item" style="color:#222;" href="'.$showUrl.'">
                         <i class="bi bi-eye text-info"></i> عرض
                       </a>

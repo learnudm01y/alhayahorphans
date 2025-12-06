@@ -981,5 +981,71 @@ class RecordsManagementEditController extends Controller
             return response()->json(['success' => false, 'message' => 'لا توجد سجلات مدخلة لهذا الموظف.']);
         }
     }
+
+    /**
+     * AJAX: جلب الحسابات البنكية لشخص معين بناءً على رقم هوية المعيل
+     */
+    public function getBankAccounts(Request $request)
+    {
+        try {
+            $guardianIdentity = $request->input('guardian_identity');
+
+            if (!$guardianIdentity) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'رقم هوية المعيل مطلوب'
+                ], 400);
+            }
+
+            // البحث عن file_id_number من جدول data باستخدام identity_number
+            $guardianFileId = Data::where('data_id_number', $guardianIdentity)
+                                 ->value('file_id_number');
+
+            if (!$guardianFileId) {
+                // محاولة أخيرة: البحث في جدول data باستخدام file_id_number مباشرة
+                $existsInData = Data::where('file_id_number', $guardianIdentity)->exists();
+                if ($existsInData) {
+                    $guardianFileId = $guardianIdentity;
+                }
+            }
+
+            if (!$guardianFileId) {
+                return response()->json([
+                    'success' => true,
+                    'bank_accounts' => [],
+                    'message' => 'لا توجد حسابات بنكية'
+                ]);
+            }
+
+            // جلب الحسابات البنكية
+            $bankAccounts = GuardianBankAccount::with('bank')
+                ->where('guardian_registration', $guardianFileId)
+                ->get();
+
+            Log::info('🏦 تم جلب الحسابات البنكية', [
+                'guardian_identity' => $guardianIdentity,
+                'guardian_file_id' => $guardianFileId,
+                'accounts_count' => $bankAccounts->count()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'accounts' => $bankAccounts,
+                'guardian_file_id' => $guardianFileId
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('❌ خطأ في جلب الحسابات البنكية:', [
+                'message' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء جلب الحسابات البنكية'
+            ], 500);
+        }
+    }
 }
 

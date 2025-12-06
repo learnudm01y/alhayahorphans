@@ -279,6 +279,20 @@
                             <div class="separator mb-5"></div>
                         </div>
 
+                        <!-- عرض البيانات البنكية الموجودة -->
+                        <div id="existingIndexBankAccountsSection" class="d-none mb-5">
+                            <div class="alert alert-success d-flex align-items-center py-3">
+                                <i class="fas fa-check-circle fs-2 me-3"></i>
+                                <div>
+                                    <strong>البيانات البنكية الموجودة</strong>
+                                    <p class="mb-0 small">هذه هي الحسابات البنكية المسجلة مسبقاً لهذا الشخص</p>
+                                </div>
+                            </div>
+                            <div id="existingIndexBankAccountsList" class="row g-3">
+                                <!-- سيتم عرض البيانات البنكية الموجودة هنا -->
+                            </div>
+                        </div>
+
                         <div class="alert alert-info d-flex align-items-center py-3 mb-5">
                             <i class="fas fa-info-circle fs-2 me-3"></i>
                             <span>يمكنك إضافة حتى 10 حسابات بنكية للمكفول. جميع الحقول اختيارية.</span>
@@ -390,6 +404,19 @@
                 dropdownParent: $('#sponsorshipModal')
             });
 
+            // معالج تحميل البيانات البنكية عند إدخال رقم الهوية
+            $('#guardian_identity_number, #identity_number').on('blur', function() {
+                const guardianIdentity = $('#guardian_identity_number').val();
+                const identityNumber = $('#identity_number').val();
+
+                // استخدام رقم هوية المعيل أولاً، ثم رقم الهوية
+                const identityToUse = guardianIdentity || identityNumber;
+
+                if (identityToUse && identityToUse.length >= 9) {
+                    loadExistingIndexBankAccounts(identityToUse);
+                }
+            });
+
             // Reset form when modal is hidden
             $('#sponsorshipModal').on('hidden.bs.modal', function () {
                 $('#sponsorshipForm')[0].reset();
@@ -399,7 +426,10 @@
                 $('#modalTitle').text('إضافة كفالة جديدة');
                 // مسح الحسابات البنكية
                 $('#sponsorshipBankAccountsContainer').addClass('d-none').html('');
+                $('#existingIndexBankAccountsSection').addClass('d-none');
+                $('#existingIndexBankAccountsList').html('');
                 sponsorshipBankAccountCount = 0;
+                $('#addSponsorshipBankAccount').prop('disabled', false);
             });
 
             // ============================================
@@ -407,6 +437,88 @@
             // ============================================
             let sponsorshipBankAccountCount = 0;
             const maxSponsorshipBankAccounts = 10;
+
+            // ============================================
+            // تحميل البيانات البنكية الموجودة
+            // ============================================
+            function loadExistingIndexBankAccounts(guardianIdentity) {
+                if (!guardianIdentity) {
+                    $('#existingIndexBankAccountsSection').addClass('d-none');
+                    return;
+                }
+
+                $.ajax({
+                    url: '/admin/records-management/get-bank-accounts',
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        guardian_identity: guardianIdentity
+                    },
+                    success: function(response) {
+                        if (response.success && response.accounts && response.accounts.length > 0) {
+                            let html = '';
+                            response.accounts.forEach(function(account, index) {
+                                const bankName = account.bank ? account.bank.description : 'غير محدد';
+                                const guardianName = account.re_guardian_name || 'غير محدد';
+                                const ownerIdentity = account.person_owner_identity_number || 'غير محدد';
+                                const phoneNumber = account.re_phone_number || 'غير محدد';
+                                const ibanUsd = account.iban_usd || 'غير محدد';
+                                const ibanShekel = account.iban_shekel || 'غير محدد';
+
+                                html += `
+                                    <div class="col-md-6 mb-3">
+                                        <div class="card border border-success">
+                                            <div class="card-header bg-light-success py-2">
+                                                <h6 class="mb-0 text-success">
+                                                    <i class="fas fa-university me-2"></i>حساب بنكي ${index + 1}
+                                                </h6>
+                                            </div>
+                                            <div class="card-body p-3">
+                                                <div class="row g-2">
+                                                    <div class="col-6">
+                                                        <small class="text-muted d-block">البنك:</small>
+                                                        <strong>${bankName}</strong>
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <small class="text-muted d-block">صاحب الحساب:</small>
+                                                        <strong>${guardianName}</strong>
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <small class="text-muted d-block">رقم الهوية:</small>
+                                                        <strong>${ownerIdentity}</strong>
+                                                    </div>
+                                                    <div class="col-6">
+                                                        <small class="text-muted d-block">الهاتف:</small>
+                                                        <strong>${phoneNumber}</strong>
+                                                    </div>
+                                                    <div class="col-12">
+                                                        <small class="text-muted d-block">IBAN بالدولار:</small>
+                                                        <strong class="small">${ibanUsd}</strong>
+                                                    </div>
+                                                    <div class="col-12">
+                                                        <small class="text-muted d-block">IBAN بالشيكل:</small>
+                                                        <strong class="small">${ibanShekel}</strong>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            });
+
+                            $('#existingIndexBankAccountsList').html(html);
+                            $('#existingIndexBankAccountsSection').removeClass('d-none');
+                        } else {
+                            $('#existingIndexBankAccountsSection').addClass('d-none');
+                            $('#existingIndexBankAccountsList').html('');
+                        }
+                    },
+                    error: function(xhr) {
+                        console.error('Error loading bank accounts:', xhr);
+                        $('#existingIndexBankAccountsSection').addClass('d-none');
+                    }
+                });
+            }
 
             function createSponsorshipBankAccountForm(index, bankData = {}) {
                 return `
@@ -630,6 +742,12 @@
                         $('#sponsorship_type_id').val(response.sponsorship_type_id);
                         $('#sponsorship_status_id').val(response.sponsorship_status_id);
                         $('#notes').val(response.notes);
+
+                        // 🏦 تحميل البيانات البنكية الموجودة
+                        const guardianIdentity = response.guardian_identity_number || response.identity_number;
+                        if (guardianIdentity) {
+                            loadExistingIndexBankAccounts(guardianIdentity);
+                        }
 
                         // 🏦 تحميل الحسابات البنكية
                         $('#sponsorshipBankAccountsContainer').html('').addClass('d-none');

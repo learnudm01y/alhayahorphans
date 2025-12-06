@@ -468,6 +468,58 @@
                     min-width: 120px !important;
                 }
             }
+            /* تنسيقات خاصة برسائل الـ Validation */
+            #validation-errors-container {
+                border: 2px solid #dc3545;
+                border-radius: 10px;
+                background: linear-gradient(135deg, #fff5f5 0%, #ffe6e6 100%);
+                box-shadow: 0 4px 10px rgba(220, 53, 69, 0.2);
+                animation: slideDown 0.4s ease-out;
+            }
+
+            @keyframes slideDown {
+                from {
+                    opacity: 0;
+                    transform: translateY(-20px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+
+            #validation-errors-list li {
+                padding: 8px 0;
+                font-size: 16px;
+                color: #721c24;
+                border-bottom: 1px dashed rgba(220, 53, 69, 0.2);
+            }
+
+            #validation-errors-list li:last-child {
+                border-bottom: none;
+            }
+
+            #validation-errors-list li:before {
+                content: "⚠️ ";
+                margin-left: 8px;
+            }
+
+            .is-invalid {
+                border: 2px solid #dc3545 !important;
+                background-color: #fff5f5 !important;
+                animation: shake 0.4s;
+            }
+
+            @keyframes shake {
+                0%, 100% { transform: translateX(0); }
+                25% { transform: translateX(-5px); }
+                75% { transform: translateX(5px); }
+            }
+
+            .alert-heading {
+                color: #721c24;
+                font-weight: bold;
+            }
         </style>
         <style>
             /* مثال:

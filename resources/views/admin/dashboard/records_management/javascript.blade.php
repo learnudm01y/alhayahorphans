@@ -7,8 +7,7 @@
 @include('admin.dashboard.records_management.editSectionJavascript.viewFinalInformation')
 @include('admin.dashboard.records_management.editSectionJavascript.uploadDocument')
 
-{{-- 🏦 JavaScript للحسابات البنكية في صفحة التعديل --}}
-@if(isset($edit) && $edit)
+{{-- 🏦 JavaScript للحسابات البنكية والـ Validation --}}
 <script>
 $(document).ready(function() {
     let editBankAccountCount = 0;
@@ -158,11 +157,122 @@ $(document).ready(function() {
                 title: 'تنبيه',
                 text: 'لا يمكن إضافة أكثر من 10 حسابات بنكية'
             });
+        });
+    });
+
+    // ============================================
+    // نظام Validation الشامل
+    // ============================================
+
+    // دالة لجمع وعرض جميع أخطاء الـ Validation
+    function collectAndDisplayValidationErrors() {
+        const errors = [];
+        const errorsList = $('#validation-errors-list');
+        const errorsContainer = $('#validation-errors-container');
+
+        errorsList.empty();
+
+        // التحقق من الحقول المطلوبة في البوابة الأولى
+        const requiredFields = [
+            { name: 'data_section_id', label: 'القسم', selector: 'select[name="data_section_id"]' },
+            { name: 'data_id_number', label: 'رقم الهوية', selector: 'input[name="data_id_number"]' },
+            { name: 'file_id_number', label: 'رقم الملف', selector: 'input[name="file_id_number"]' },
+            { name: 'data_first_name', label: 'الاسم الأول', selector: 'input[name="data_first_name"]' },
+            { name: 'data_father_name', label: 'اسم الأب', selector: 'input[name="data_father_name"]' },
+            { name: 'data_grand_father_name', label: 'اسم الجد', selector: 'input[name="data_grand_father_name"]' },
+            { name: 'data_family_name', label: 'اسم العائلة', selector: 'input[name="data_family_name"]' },
+            { name: 'data_relationship', label: 'صلة القرابة', selector: 'select[name="data_relationship"]' },
+            { name: 'data_birth_date', label: 'تاريخ الميلاد', selector: 'input[name="data_birth_date"]' },
+            { name: 'data_gender', label: 'الجنس', selector: 'select[name="data_gender"]' },
+            { name: 'data_phone_number', label: 'رقم الهاتف', selector: 'input[name="data_phone_number"]' },
+            { name: 'data_marital_status', label: 'الحالة الاجتماعية', selector: 'select[name="data_marital_status"]' },
+            { name: 'data_displacement_status', label: 'حالة النزوح', selector: 'select[name="data_displacement_status"]' },
+            { name: 'data_current_address', label: 'العنوان الحالي', selector: 'input[name="data_current_address"]' },
+            { name: 'data_city', label: 'المدينة', selector: 'select[name="data_city"]' },
+            { name: 'data_province', label: 'المحافظة', selector: 'select[name="data_province"]' },
+            { name: 'data_health_status', label: 'الحالة الصحية', selector: 'select[name="data_health_status"]' },
+            { name: 'data_employment_status_breadwinner', label: 'الحالة الوظيفية المعيل', selector: 'select[name="data_employment_status_breadwinner"]' },
+            { name: 'data_housing_status', label: 'حالة السكن', selector: 'select[name="data_housing_status"]' },
+            { name: 'data_current_housing_type', label: 'نوع السكن الحالي', selector: 'select[name="data_current_housing_type"]' }
+        ];
+
+        requiredFields.forEach(function(field) {
+            const element = $(field.selector);
+            if (element.length > 0) {
+                const value = element.val();
+                if (!value || value.trim() === '') {
+                    errors.push(field.label + ' مطلوب');
+                    element.addClass('is-invalid');
+                } else {
+                    element.removeClass('is-invalid');
+                }
+            }
+        });
+
+        // التحقق من صحة رقم الهوية (10 أرقام)
+        const idNumber = $('input[name="data_id_number"]').val();
+        if (idNumber && idNumber.length !== 10) {
+            errors.push('رقم الهوية يجب أن يتكون من 10 أرقام');
+            $('input[name="data_id_number"]').addClass('is-invalid');
         }
+
+        // التحقق من صحة رقم الملف (6 أرقام)
+        const fileId = $('input[name="file_id_number"]').val();
+        if (fileId && fileId.length > 6) {
+            errors.push('رقم الملف يجب ألا يتجاوز 6 أرقام');
+            $('input[name="file_id_number"]').addClass('is-invalid');
+        }
+
+        // عرض الأخطاء إذا وجدت
+        if (errors.length > 0) {
+            errors.forEach(function(error) {
+                errorsList.append('<li>' + error + '</li>');
+            });
+            errorsContainer.removeClass('d-none');
+
+            // التمرير إلى منطقة الأخطاء
+            $('html, body').animate({
+                scrollTop: errorsContainer.offset().top - 100
+            }, 500);
+
+            return false;
+        } else {
+            errorsContainer.addClass('d-none');
+            return true;
+        }
+    }
+
+    // التحقق عند تقديم النموذج
+    $('#main_form').on('submit', function(e) {
+        if (!collectAndDisplayValidationErrors()) {
+            e.preventDefault();
+
+            Swal.fire({
+                icon: 'error',
+                title: 'خطأ في البيانات',
+                html: 'يرجى تصحيح الأخطاء المعروضة في النموذج قبل الحفظ.<br><strong>عدد الأخطاء: ' + $('#validation-errors-list li').length + '</strong>',
+                confirmButtonText: 'حسناً',
+                confirmButtonColor: '#d33'
+            });
+
+            return false;
+        }
+    });
+
+    // إزالة علامة الخطأ عند تعديل الحقل
+    $('input[required], select[required], input.is-invalid, select.is-invalid').on('change input', function() {
+        if ($(this).val() && $(this).val().trim() !== '') {
+            $(this).removeClass('is-invalid');
+        }
+    });
+
+    // التحقق الفوري عند تبديل البوابات
+    $('.nav-link[data-bs-toggle="tab"]').on('click', function() {
+        // إخفاء رسائل الأخطاء عند التنقل
+        $('#validation-errors-container').addClass('d-none');
     });
 });
 </script>
-@endif
 
 
 

@@ -195,4 +195,19 @@
         <input type="text" name="data_user_insert_data" class="form-control bg-secondary bg-opacity-25" value="{{ $data->data_user_insert_data ?? (auth()->user()->name ?? '') }}" readonly>
     </div>
 </div>
+
+{{-- 🏦 قسم الحسابات البنكية --}}
+<div class="mt-5 mb-4">
+    <h4 class="mb-3 text-primary"><i class="fas fa-university me-2"></i>المعلومات البنكية</h4>
+    <div class="alert alert-info d-flex align-items-center justify-content-between flex-wrap gap-2" role="alert">
+        <span>يمكنك إضافة حسابات بنكية للمعيل (حد أقصى 10 حسابات). جميع الحقول اختيارية.</span>
+        <button type="button" class="btn btn-primary btn-sm" id="addEditBankAccountBtn">
+            <i class="fas fa-plus me-1"></i> إضافة حساب بنكي
+        </button>
+    </div>
+    <div id="editBankAccountsContainer" class="d-none">
+        {{-- سيتم إضافة النماذج هنا ديناميكيا --}}
+    </div>
+</div>
+
 {{-- إزالة أي أزرار حفظ/إلغاء إضافية من هذا القسم، الأزرار الرئيسية موجودة في form_sections.blade.php فقط --}}

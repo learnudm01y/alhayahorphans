@@ -115,6 +115,10 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::post('records-management/upload', [RecordsManagementEditController::class, 'upload'])
         ->name('records.management.upload');
 
+    // مسار جلب الحسابات البنكية
+    Route::post('records-management/get-bank-accounts', [RecordsManagementEditController::class, 'getBankAccounts'])
+        ->name('records.management.getBankAccounts');
+
     // مسار تعديل سجل موجود (update via AJAX or full form submit)
     Route::put('records-management/{id}', [RecordsManagementEditController::class, 'update'])
         ->name('records.management.update');

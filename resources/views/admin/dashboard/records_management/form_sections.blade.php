@@ -217,21 +217,11 @@
             </div>
         </div>
 
-        {{-- 🏦 قسم الحسابات البنكية --}}
-        @if(isset($edit) && $edit)
-        <div class="mb-7 mt-10">
-            <h3>المعلومات البنكية</h3>
+        {{-- منطقة عرض رسائل الـ Validation --}}
+        <div id="validation-errors-container" class="alert alert-danger d-none mt-4" role="alert">
+            <h5 class="alert-heading mb-3"><i class="fas fa-exclamation-triangle me-2"></i>يرجى تصحيح الأخطاء التالية:</h5>
+            <ul id="validation-errors-list" class="mb-0"></ul>
         </div>
-        <div class="alert alert-info d-flex align-items-center justify-content-between" role="alert">
-            <span>يمكنك إضافة حسابات بنكية للمعيل (حد أقصى 10 حسابات). جميع الحقول اختيارية.</span>
-            <button type="button" class="btn btn-primary btn-sm" id="addEditBankAccountBtn">
-                <i class="fas fa-plus me-1"></i> إضافة حساب بنكي
-            </button>
-        </div>
-        <div id="editBankAccountsContainer" class="d-none">
-            {{-- سيتم إضافة النماذج هنا ديناميكيا --}}
-        </div>
-        @endif
 
         <div class="mt-4 text-center">
             <button type="submit" class="btn btn-success px-5 py-2">{{ isset($edit) && $edit ? 'حفظ التعديلات' : 'حفظ السجل' }}</button>

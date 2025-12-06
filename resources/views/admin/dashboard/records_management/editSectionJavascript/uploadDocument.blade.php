@@ -245,12 +245,77 @@
                             <p class="small text-muted mb-0 mt-1">${personName}</p>
                         </div>
                     </div>`;
+
                 if (personKey === 'main') {
                     document.getElementById('main_person_docs')?.insertAdjacentHTML('beforeend', cardHtml);
                 } else if (personKey === 'deceased_father') {
-                    document.getElementById('father_docs')?.insertAdjacentHTML('beforeend', cardHtml);
+                    // 🆕 إنشاء قسم الأب المتوفى إذا لم يكن موجوداً
+                    let fatherSection = document.getElementById('father_docs');
+                    if (!fatherSection) {
+                        // البحث عن حاوية المتوفين
+                        let deceasedContainer = null;
+                        document.querySelectorAll('.card-body h5').forEach(h5 => {
+                            if (h5.textContent.includes('وثائق الأفراد المتوفين')) {
+                                deceasedContainer = h5.closest('.card-body')?.querySelector('.row');
+                            }
+                        });
+
+                        if (!deceasedContainer) {
+                            console.warn('لم يتم العثور على حاوية المتوفين');
+                            return;
+                        }
+                        const fatherSectionHtml = `
+                        <div class="col-md-6">
+                            <div class="deceased-docs-section">
+                                <div class="bg-primary bg-opacity-10 border border-primary rounded-top px-3 py-2 mb-2 text-primary fw-bold text-center">
+                                    الأب المتوفى
+                                </div>
+                                <div id="father_docs" class="documents-flex-container d-flex flex-nowrap gap-3 py-2"></div>
+                            </div>
+                        </div>`;
+                        deceasedContainer.insertAdjacentHTML('beforeend', fatherSectionHtml);
+                        fatherSection = document.getElementById('father_docs');
+                    }
+                    fatherSection?.insertAdjacentHTML('beforeend', cardHtml);
+                    // 🆕 إزالة رسالة "لا توجد مرفقات" إذا كانت موجودة
+                    const fatherNoDocsMsg = fatherSection?.querySelector('.text-muted');
+                    if (fatherNoDocsMsg && fatherNoDocsMsg.textContent.includes('لا توجد مرفقات')) {
+                        fatherNoDocsMsg.remove();
+                    }
                 } else if (personKey === 'deceased_mother') {
-                    document.getElementById('mother_docs')?.insertAdjacentHTML('beforeend', cardHtml);
+                    // 🆕 إنشاء قسم الأم المتوفية إذا لم يكن موجوداً
+                    let motherSection = document.getElementById('mother_docs');
+                    if (!motherSection) {
+                        // البحث عن حاوية المتوفين
+                        let deceasedContainer = null;
+                        document.querySelectorAll('.card-body h5').forEach(h5 => {
+                            if (h5.textContent.includes('وثائق الأفراد المتوفين')) {
+                                deceasedContainer = h5.closest('.card-body')?.querySelector('.row');
+                            }
+                        });
+
+                        if (!deceasedContainer) {
+                            console.warn('لم يتم العثور على حاوية المتوفين');
+                            return;
+                        }
+                        const motherSectionHtml = `
+                        <div class="col-md-6">
+                            <div class="deceased-docs-section">
+                                <div class="bg-primary bg-opacity-10 border border-primary rounded-top px-3 py-2 mb-2 text-primary fw-bold text-center">
+                                    الأم المتوفية
+                                </div>
+                                <div id="mother_docs" class="documents-flex-container d-flex flex-nowrap gap-3 py-2"></div>
+                            </div>
+                        </div>`;
+                        deceasedContainer.insertAdjacentHTML('beforeend', motherSectionHtml);
+                        motherSection = document.getElementById('mother_docs');
+                    }
+                    motherSection?.insertAdjacentHTML('beforeend', cardHtml);
+                    // 🆕 إزالة رسالة "لا توجد مرفقات" إذا كانت موجودة
+                    const motherNoDocsMsg = motherSection?.querySelector('.text-muted');
+                    if (motherNoDocsMsg && motherNoDocsMsg.textContent.includes('لا توجد مرفقات')) {
+                        motherNoDocsMsg.remove();
+                    }
                 } else if (personKey.startsWith('family_')) {
                     const safeKey = personKey.replace(/[^a-zA-Z0-9_-]/g, '_');
                     let section = document.getElementById(`family_member_${safeKey}`);

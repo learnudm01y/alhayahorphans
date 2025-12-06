@@ -442,22 +442,53 @@
                     @csrf
                     <input type="hidden" id="record_id" name="record_id">
                     <input type="hidden" id="record_type" name="record_type">
+                    <input type="hidden" id="reserved_file_id" name="reserved_file_id">
 
                     <div class="modal-body py-4 px-lg-5">
                         <div class="scroll-y" style="max-height: 600px; overflow-y: auto;">
 
-                            <!--begin::معلومات السجل-->
-                            <div class="alert alert-info mb-5">
-                                <h5 class="mb-2">
-                                    <i class="bi bi-info-circle"></i> معلومات السجل المختار
-                                    <span id="person_type_badge" class="float-end"></span>
-                                </h5>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <strong>رقم الملف:</strong> <span id="display_file_id">-</span>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <strong>الاسم:</strong> <span id="display_record_name">-</span>
+                            <!--begin::معلومات السجل - تصميم جديد-->
+                            <div class="row g-3 mb-5">
+                                <!-- معلومات السجل المختار -->
+                                <div id="record_info_box" class="col-md-12">
+                                    <div class="border rounded p-4" style="background-color: #ffffff; border: 2px solid #e5e5e5 !important; min-height: 148px;">
+                                        <div class="d-flex align-items-center justify-content-between mb-3">
+                                            <div class="d-flex align-items-center">
+                                                <i class="bi bi-info-circle fs-3 me-2 text-dark"></i>
+                                                <h5 class="mb-0 fw-bold text-dark">معلومات السجل المختار</h5>
+                                            </div>
+                                            <span id="person_type_badge"></span>
+                                        </div>
+
+                                        <div class="row">
+                                            <!-- العمود الأيمن - معلومات السجل الحالي -->
+                                            <div class="col-md-8">
+                                                <div class="mb-3">
+                                                    <span class="text-muted d-block mb-1 small">رقم الملف الحالي:</span>
+                                                    <span id="display_file_id" class="fw-bold text-dark fs-5">-</span>
+                                                </div>
+                                                <div class="mb-0">
+                                                    <span class="text-muted d-block mb-1 small">الاسم:</span>
+                                                    <span id="display_record_name" class="fw-bold text-dark">-</span>
+                                                </div>
+                                            </div>
+
+                                            <!-- العمود الأيسر - رقم الملف المحجوز -->
+                                            <div class="col-md-4">
+                                                <div id="reserved_file_section" class="border-start border-success border-3 ps-3 h-100" style="display: none;">
+                                                    <div class="d-flex flex-column h-100 justify-content-center">
+                                                        <div class="mb-2">
+                                                            <i class="fas fa-check-circle text-success me-1"></i>
+                                                            <span class="small fw-semibold text-success">تم توليد رقم ملف جديد</span>
+                                                        </div>
+                                                        <div class="mb-1">
+                                                            <span class="small text-muted d-block mb-1">رقم الملف الجديد المحجوز:</span>
+                                                            <span id="display_reserved_file_id" class="badge bg-success fs-5 px-3 py-2">-</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -607,6 +638,16 @@
                                     <i class="bi bi-bank"></i> المعلومات البنكية
                                 </h4>
                                 <div class="separator mb-4"></div>
+                            </div>
+
+                            <!-- عرض الحسابات البنكية الموجودة -->
+                            <div id="existingBankAccountsSection" class="mb-4 d-none">
+                                <div class="alert alert-success">
+                                    <h6 class="mb-3">
+                                        <i class="fas fa-check-circle"></i> الحسابات البنكية الموجودة للشخص
+                                    </h6>
+                                    <div id="existingBankAccountsList"></div>
+                                </div>
                             </div>
 
                             <div class="alert alert-info d-flex align-items-center py-3 mb-5">
@@ -790,7 +831,84 @@
                 $('#unsponsoredBankAccountsContainer').html('').addClass('d-none');
                 unsponsoredBankAccountCount = 0;
                 $('#addUnsponsoredBankAccount').prop('disabled', false);
+                $('#existingBankAccountsSection').addClass('d-none');
+                $('#existingBankAccountsList').html('');
+                // مسح الرقم المحجوز
+                $('#reserved_file_id').val('');
+                $('#reserved_file_section').hide();
             });
+
+            // ============================================
+            // دالة لجلب وعرض الحسابات البنكية الموجودة
+            // ============================================
+            function loadExistingBankAccounts(personData) {
+                // إخفاء القسم افتراضياً
+                $('#existingBankAccountsSection').addClass('d-none');
+                $('#existingBankAccountsList').html('');
+
+                // تحديد رقم هوية المعيل بناءً على نوع الشخص
+                let guardianIdentity = null;
+
+                if (personData.person_type === 'breadwinner') {
+                    // المعيل يستخدم رقم هويته الخاص
+                    guardianIdentity = personData.identity_number;
+                } else if (personData.guardian_identity) {
+                    // الشخص له معيل
+                    guardianIdentity = personData.guardian_identity;
+                } else {
+                    console.log('لا يوجد رقم هوية معيل لهذا الشخص');
+                    return;
+                }
+
+                // جلب الحسابات البنكية من السيرفر
+                $.ajax({
+                    url: '/admin/records-management/get-bank-accounts',
+                    method: 'POST',
+                    data: {
+                        guardian_identity: guardianIdentity,
+                        _token: '{{ csrf_token() }}'
+                    },
+                    success: function(response) {
+                        if (response.success && response.accounts && response.accounts.length > 0) {
+                            let accountsHtml = '<div class="row g-3">';
+
+                            response.accounts.forEach(function(account, index) {
+                                const bankName = account.bank ? account.bank.description : 'غير محدد';
+
+                                accountsHtml += `
+                                <div class="col-md-6">
+                                    <div class="card border-success">
+                                        <div class="card-body p-3">
+                                            <h6 class="card-title text-success mb-2">
+                                                <i class="fas fa-university me-1"></i> ${bankName}
+                                            </h6>
+                                            <div class="small">
+                                                ${account.re_guardian_name ? `<div><strong>الاسم:</strong> ${account.re_guardian_name}</div>` : ''}
+                                                ${account.person_owner_identity_number ? `<div><strong>رقم الهوية:</strong> ${account.person_owner_identity_number}</div>` : ''}
+                                                ${account.re_phone_number ? `<div><strong>الهاتف:</strong> ${account.re_phone_number}</div>` : ''}
+                                                ${account.iban_usd ? `<div><strong>IBAN دولار:</strong> ${account.iban_usd}</div>` : ''}
+                                                ${account.iban_shekel ? `<div><strong>IBAN شيكل:</strong> ${account.iban_shekel}</div>` : ''}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                `;
+                            });
+
+                            accountsHtml += '</div>';
+                            $('#existingBankAccountsList').html(accountsHtml);
+                            $('#existingBankAccountsSection').removeClass('d-none');
+
+                            console.log(`✅ تم تحميل ${response.accounts.length} حساب بنكي موجود`);
+                        } else {
+                            console.log('لا توجد حسابات بنكية موجودة لهذا الشخص');
+                        }
+                    },
+                    error: function(xhr) {
+                        console.error('خطأ في جلب الحسابات البنكية:', xhr);
+                    }
+                });
+            }
 
             // ============================================
             // محرك البحث القوي الموحد
@@ -1199,9 +1317,21 @@
                         $('#display_file_id').text(response.file_id || fileId);
                         $('#display_record_name').text(response.full_name || recordName);
 
+                        // 🆕 عرض رقم الملف المحجوز إذا تم توليده
+                        if (response.new_file_id_generated && response.reserved_file_id) {
+                            $('#reserved_file_id').val(response.reserved_file_id);
+                            $('#display_reserved_file_id').text(response.reserved_file_id);
+                            $('#reserved_file_section').show();
+
+                            console.log('✅ تم توليد رقم ملف جديد محجوز:', response.reserved_file_id);
+                        } else {
+                            $('#reserved_file_id').val('');
+                            $('#reserved_file_section').hide();
+                        }
+
                         // تعبئة الحقول الأساسية
                         $('#create_orphan_name').val(response.full_name || recordName);
-                        $('#create_internal_file_number').val(response.file_id || fileId);
+                        $('#create_internal_file_number').val(response.reserved_file_id || response.file_id || fileId);
                         $('#create_identity_number').val(response.identity_number || identityNumber);
 
                         // معالجة حقل المعيل حسب نوع الشخص
@@ -1257,6 +1387,9 @@
                                 break;
                         }
                         $('#person_type_badge').html(personTypeBadge);
+
+                        // 🏦 جلب وعرض الحسابات البنكية الموجودة
+                        loadExistingBankAccounts(response);
 
                         // إظهار المودال
                         $('#createSponsorshipModal').modal('show');
@@ -1316,11 +1449,22 @@
                         // إعادة تعيين النموذج
                         $('#createSponsorshipForm')[0].reset();
 
+                        // إعداد رسالة النجاح
+                        let successMessage = response.message || 'تم إنشاء الكفالة بنجاح';
+
+                        // إذا تم توليد رقم ملف جديد، أضف معلومات إضافية
+                        if (response.info && response.info.file_id_generated && response.info.new_file_id) {
+                            successMessage += `<br><br><div class="alert alert-success mt-3">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>رقم الملف الجديد: ${response.info.new_file_id}</strong>
+                            </div>`;
+                        }
+
                         // إظهار رسالة نجاح
                         Swal.fire({
                             icon: 'success',
                             title: 'تم بنجاح!',
-                            text: response.message || 'تم إنشاء الكفالة بنجاح',
+                            html: successMessage,
                             confirmButtonText: 'حسناً',
                             confirmButtonColor: '#000000'
                         });

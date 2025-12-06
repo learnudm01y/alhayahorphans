@@ -203,13 +203,14 @@
                         @php
                             $deceased = isset($data) && $data->deadPepole ? $data->deadPepole : null;
                         @endphp
-                        @if($deceased && ($deceased->father_id || $deceased->mother_id))
-                            <div class="col-md-6">
-                                <div class="deceased-docs-section">
-                                    <div class="bg-primary bg-opacity-10 border border-primary rounded-top px-3 py-2 mb-2 text-primary fw-bold text-center">
-                                        الأب المتوفى
-                                    </div>
-                                    <div id="father_docs" class="documents-flex-container d-flex flex-nowrap gap-3 py-2">
+                        {{-- 🆕 عرض الأقسام دائماً حتى لو كانت فارغة --}}
+                        <div class="col-md-6">
+                            <div class="deceased-docs-section">
+                                <div class="bg-primary bg-opacity-10 border border-primary rounded-top px-3 py-2 mb-2 text-primary fw-bold text-center">
+                                    الأب المتوفى
+                                </div>
+                                <div id="father_docs" class="documents-flex-container d-flex flex-nowrap gap-3 py-2">
+                                    @if($deceased && $deceased->father_id)
                                         @php
                                             $father_attachments = \App\Models\Attachment::where('person_identity_number', $deceased->father_id)->get();
                                         @endphp
@@ -247,15 +248,19 @@
                                         @empty
                                             <span class="text-muted">لا توجد مرفقات للأب المتوفى.</span>
                                         @endforelse
-                                    </div>
+                                    @else
+                                        <span class="text-muted">لا توجد مرفقات للأب المتوفى.</span>
+                                    @endif
                                 </div>
                             </div>
-                            <div class="col-md-6">
-                                <div class="deceased-docs-section">
-                                    <div class="bg-primary bg-opacity-10 border border-primary rounded-top px-3 py-2 mb-2 text-primary fw-bold text-center">
-                                        الأم المتوفية
-                                    </div>
-                                    <div id="mother_docs" class="documents-flex-container d-flex flex-nowrap gap-3 py-2">
+                        </div>
+                        <div class="col-md-6">
+                            <div class="deceased-docs-section">
+                                <div class="bg-primary bg-opacity-10 border border-primary rounded-top px-3 py-2 mb-2 text-primary fw-bold text-center">
+                                    الأم المتوفية
+                                </div>
+                                <div id="mother_docs" class="documents-flex-container d-flex flex-nowrap gap-3 py-2">
+                                    @if($deceased && $deceased->mother_id)
                                         @php
                                             $mother_attachments = \App\Models\Attachment::where('person_identity_number', $deceased->mother_id)->get();
                                         @endphp
@@ -293,12 +298,12 @@
                                         @empty
                                             <span class="text-muted">لا توجد مرفقات للأم المتوفية.</span>
                                         @endforelse
-                                    </div>
+                                    @else
+                                        <span class="text-muted">لا توجد مرفقات للأم المتوفية.</span>
+                                    @endif
                                 </div>
                             </div>
-                        @else
-                            <span class="text-muted text-center">لا توجد بيانات متوفين أو مرفقات متوفين.</span>
-                        @endif
+                        </div>
                     </div>
                 </div>
             </div>

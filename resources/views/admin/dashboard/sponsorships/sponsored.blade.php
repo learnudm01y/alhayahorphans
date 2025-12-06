@@ -333,6 +333,18 @@
                             <div class="separator mb-5"></div>
                         </div>
 
+                        <!--begin::عرض البيانات البنكية الموجودة-->
+                        <div id="existingBankAccountsSection" class="d-none mb-7">
+                            <div class="alert alert-success d-flex align-items-center py-3 mb-4">
+                                <i class="fas fa-check-circle fs-2 me-3"></i>
+                                <span class="fw-semibold">البيانات البنكية المسجلة للشخص</span>
+                            </div>
+                            <div id="existingBankAccountsList">
+                                <!-- سيتم عرض البيانات البنكية الموجودة هنا -->
+                            </div>
+                        </div>
+                        <!--end::عرض البيانات البنكية الموجودة-->
+
                         <div class="alert alert-info d-flex align-items-center py-3 mb-5">
                             <i class="fas fa-info-circle fs-2 me-3"></i>
                             <span>يمكنك إضافة حتى 10 حسابات بنكية للمكفول. جميع الحقول اختيارية.</span>
@@ -602,9 +614,75 @@
             // مسح الحسابات البنكية عند إغلاق المودال
             $('#sponsorshipModal').on('hidden.bs.modal', function() {
                 $('#sponsoredBankAccountsContainer').html('').addClass('d-none');
+                $('#existingBankAccountsSection').addClass('d-none');
+                $('#existingBankAccountsList').html('');
                 sponsoredBankAccountCount = 0;
                 $('#addSponsoredBankAccount').prop('disabled', false);
             });
+
+            // ============================================
+            // وظيفة لجلب وعرض البيانات البنكية الموجودة
+            // ============================================
+            function loadExistingBankAccounts(identityNumber) {
+                if (!identityNumber) {
+                    $('#existingBankAccountsSection').addClass('d-none');
+                    return;
+                }
+
+                $.ajax({
+                    url: '/admin/records-management/get-bank-accounts',
+                    type: 'GET',
+                    data: { identity_number: identityNumber },
+                    success: function(response) {
+                        if (response.success && response.accounts && response.accounts.length > 0) {
+                            let html = '';
+                            response.accounts.forEach((account, index) => {
+                                html += `
+                                <div class="border rounded p-4 mb-3" style="background-color: #f8f9fa;">
+                                    <h6 class="mb-3 text-dark fw-bold">
+                                        <i class="fas fa-university text-primary me-2"></i>حساب بنكي ${index + 1}
+                                    </h6>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">اسم البنك</span>
+                                            <span class="fw-bold text-gray-800 fs-6">${account.bank?.description || '-'}</span>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">اسم صاحب الحساب</span>
+                                            <span class="fw-bold text-gray-800 fs-6">${account.re_guardian_name || '-'}</span>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">رقم هوية صاحب الحساب</span>
+                                            <span class="fw-bold text-gray-800 fs-6">${account.person_owner_identity_number || '-'}</span>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">رقم هاتف صاحب الحساب</span>
+                                            <span class="fw-bold text-gray-800 fs-6">${account.re_phone_number || '-'}</span>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">رقم IBAN بالدولار</span>
+                                            <span class="fw-bold text-gray-800 fs-6">${account.iban_usd || '-'}</span>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">رقم IBAN بالشيكل</span>
+                                            <span class="fw-bold text-gray-800 fs-6">${account.iban_shekel || '-'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                `;
+                            });
+                            $('#existingBankAccountsList').html(html);
+                            $('#existingBankAccountsSection').removeClass('d-none');
+                        } else {
+                            $('#existingBankAccountsSection').addClass('d-none');
+                        }
+                    },
+                    error: function(xhr) {
+                        console.error('Error loading bank accounts:', xhr);
+                        $('#existingBankAccountsSection').addClass('d-none');
+                    }
+                });
+            }
 
             // ============================================
             // Search functionality
@@ -816,6 +894,11 @@
                         $('#sponsorship_type_id').val(response.sponsorship_type_id);
                         $('#sponsorship_status_id').val(response.sponsorship_status_id);
                         $('#notes').val(response.notes);
+
+                        // 🆕 تحميل البيانات البنكية الموجودة للشخص
+                        if (response.identity_number) {
+                            loadExistingBankAccounts(response.identity_number);
+                        }
 
                         $('#sponsorshipModal').modal('show');
                     },

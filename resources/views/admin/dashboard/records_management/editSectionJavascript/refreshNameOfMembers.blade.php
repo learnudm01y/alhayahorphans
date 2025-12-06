@@ -14,6 +14,42 @@
                 }
             }
 
+            // 🆕 تحديث معلومات الأب والأم المتوفين
+            const fileIdNumber = document.getElementById('main_file_id_number')?.value ||
+                                document.querySelector('input[name="file_id_number"]')?.value || '';
+
+            // تحديث الأب المتوفى
+            const fatherOption = document.querySelector('option[value="deceased_father"]');
+            if (fatherOption) {
+                const fatherId = document.querySelector('input[name="father_id"]')?.value || '';
+                const fatherFirstName = document.querySelector('input[name="father_first_name"]')?.value || '';
+                const fatherLastName = document.querySelector('input[name="father_last_name"]')?.value || '';
+
+                fatherOption.setAttribute('data-id', fileIdNumber);
+                if (fatherId) {
+                    fatherOption.setAttribute('data-id-number', fatherId);
+                }
+                if (fatherFirstName || fatherLastName) {
+                    fatherOption.textContent = `الأب المتوفى${fatherFirstName ? ' - ' + fatherFirstName + ' ' + fatherLastName : ''}`;
+                }
+            }
+
+            // تحديث الأم المتوفية
+            const motherOption = document.querySelector('option[value="deceased_mother"]');
+            if (motherOption) {
+                const motherId = document.querySelector('input[name="mother_id"]')?.value || '';
+                const motherFirstName = document.querySelector('input[name="mother_first_name"]')?.value || '';
+                const motherLastName = document.querySelector('input[name="mother_last_name"]')?.value || '';
+
+                motherOption.setAttribute('data-id', fileIdNumber);
+                if (motherId) {
+                    motherOption.setAttribute('data-id-number', motherId);
+                }
+                if (motherFirstName || motherLastName) {
+                    motherOption.textContent = `الأم المتوفية${motherFirstName ? ' - ' + motherFirstName + ' ' + motherLastName : ''}`;
+                }
+            }
+
             const familyMembersOptions = document.getElementById('family_members_options');
             familyMembersOptions.innerHTML = '';
 
@@ -75,6 +111,18 @@
                         option.setAttribute('data-id-number', newId);
                     }
                 }
+            }
+
+            // 🆕 تحديث معلومات المتوفين عند تغيير حقولهم
+            if (
+                e.target.name === 'father_id' ||
+                e.target.name === 'father_first_name' ||
+                e.target.name === 'father_last_name' ||
+                e.target.name === 'mother_id' ||
+                e.target.name === 'mother_first_name' ||
+                e.target.name === 'mother_last_name'
+            ) {
+                updatePersonsList();
             }
 
             // تحديث الأسماء عند التعديل

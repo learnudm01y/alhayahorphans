@@ -64,13 +64,53 @@ class SponsorshipController extends Controller
                 'sponsorship_type_id' => 'nullable|exists:type_of_guarantee,id',
                 'sponsorship_status_id' => 'nullable|exists:sponsorship_statuses,id',
                 'notes' => 'nullable|string',
+                'record_id' => 'nullable|string',
+                'record_type' => 'nullable|string|in:re_people,dead_people,data',
+                'reserved_file_id' => 'nullable|string|max:20',
             ]);
 
             $validatedData['created_by'] = auth()->id();
 
+            // 🆕 معالجة توليد file_id_number للأشخاص من re_people و dead_people
+            $recordType = $request->input('record_type');
+            $recordId = $request->input('record_id');
+            $reservedFileId = $request->input('reserved_file_id'); // الرقم المحجوز من المودال
+
+            if (in_array($recordType, ['re_people', 'dead_people']) && $recordId) {
+                // استخدام الرقم المحجوز أو توليد رقم جديد
+                $newFileId = $reservedFileId ?: generateUniqueReservedCode('data', 'file_id_number');
+
+                if (!$newFileId) {
+                    throw new \Exception('فشل في توليد رقم ملف فريد');
+                }
+
+                Log::info('🆕 توليد file_id_number للكفالة (سيتم حفظه في جدول sponsorships فقط)', [
+                    'record_type' => $recordType,
+                    'record_id' => $recordId,
+                    'file_id' => $newFileId,
+                    'was_reserved' => !empty($reservedFileId),
+                    'identity_number' => $validatedData['identity_number'] ?? null
+                ]);
+
+                // ✅ تحديث internal_file_number في validatedData (سيتم حفظه في جدول sponsorships فقط)
+                // ⚠️ لن يتم إضافة الشخص إلى جدول data - هو موجود بالفعل في re_people أو dead_people
+                $validatedData['internal_file_number'] = $newFileId;
+
+                // وضع علامة على الرقم كمستخدم
+                markCodeAsUsed($newFileId);
+
+                Log::info('✅ تم حجز file_id_number وحفظه في الكفالة', [
+                    'file_id_number' => $newFileId,
+                    'record_type' => $recordType,
+                    'record_id' => $recordId
+                ]);
+            }
+
             // إزالة sponsor_ids من البيانات لأنه سيتم معالجته بشكل منفصل
             $sponsorIds = $validatedData['sponsor_ids'] ?? [];
             unset($validatedData['sponsor_ids']);
+            unset($validatedData['record_id']);
+            unset($validatedData['record_type']);
 
             $sponsorship = Sponsorship::create($validatedData);
 
@@ -170,10 +210,22 @@ class SponsorshipController extends Controller
 
             DB::commit();
 
+            // إعداد الرسالة مع رقم الملف
+            $message = 'تم إضافة الكفالة بنجاح';
+            $additionalInfo = [];
+
+            // إذا تم توليد رقم ملف جديد، أضفه للرسالة
+            if (isset($newFileId)) {
+                $message .= ' - تم توليد رقم ملف جديد';
+                $additionalInfo['new_file_id'] = $newFileId;
+                $additionalInfo['file_id_generated'] = true;
+            }
+
             return response()->json([
                 'success' => true,
-                'message' => 'تم إضافة الكفالة بنجاح',
-                'data' => $sponsorship->load('sponsors')
+                'message' => $message,
+                'data' => $sponsorship->load('sponsors'),
+                'info' => $additionalInfo
             ], 200);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
@@ -470,7 +522,26 @@ class SponsorshipController extends Controller
                 'guardian_name' => '',
                 'guardian_identity' => '',
                 'file_id' => '',
+                'new_file_id_generated' => false,
+                'reserved_file_id' => null,
             ];
+
+            // 🆕 توليد file_id_number جديد للأشخاص من re_people و dead_people
+            if (in_array($recordType, ['re_people', 'dead_people'])) {
+                $newFileId = generateUniqueReservedCode('data', 'file_id_number');
+
+                if ($newFileId) {
+                    $personData['reserved_file_id'] = $newFileId;
+                    $personData['new_file_id_generated'] = true;
+
+                    Log::info('🆕 تم توليد وحجز file_id_number جديد', [
+                        'record_type' => $recordType,
+                        'record_id' => $recordId,
+                        'new_file_id' => $newFileId,
+                        'status' => 'محجوز - في انتظار إنشاء الكفالة'
+                    ]);
+                }
+            }
 
             if ($recordType === 'data') {
                 // معيل من جدول data
