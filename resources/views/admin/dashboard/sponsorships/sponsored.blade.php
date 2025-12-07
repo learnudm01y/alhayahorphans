@@ -108,13 +108,26 @@
                             </i>
                             رفع ملف Excel
                         </button>
-                        <button type="button" class="btn btn-success btn-sm" id="export_excel_btn">
+
+                        <!-- أزرار التصدير -->
+                        <button type="button" class="btn btn-success btn-sm" id="export_excel_full_btn">
                             <i class="ki-duotone ki-file-down fs-2">
                                 <span class="path1"></span>
                                 <span class="path2"></span>
                             </i>
-                            تصدير Excel
+                            تصدير كامل
                         </button>
+
+                        <button type="button" class="btn btn-info btn-sm" id="export_excel_login_btn">
+                            <i class="ki-duotone ki-profile-user fs-2">
+                                <span class="path1"></span>
+                                <span class="path2"></span>
+                                <span class="path3"></span>
+                                <span class="path4"></span>
+                            </i>
+                            تصدير تسجيل دخول
+                        </button>
+
                         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#sponsorshipModal">
                             <i class="ki-duotone ki-plus fs-2"></i>
                             إضافة كفالة جديدة
@@ -216,7 +229,7 @@
                                     <h5 class="mb-1">تعليمات رفع الملف</h5>
                                     <span>يجب أن يحتوي ملف Excel على الأعمدة التالية بالترتيب:</span>
                                     <small class="text-muted mt-2 d-block">
-                                        <strong>هوية المعيل*</strong> (مطلوب)، هوية اليتيم، اسم اليتيم، اسم المعيل، رقم الملف الداخلي،
+                                        <strong>اسم الكافل*</strong> (مطلوب - سيتم إدخاله في عمود اسم الكافل)، <strong>هوية المعيل*</strong> (مطلوب)، هوية اليتيم، اسم اليتيم، اسم المعيل، رقم الملف الداخلي،
                                         رقم الملف الخارجي، المؤسسة الراعية، تاريخ بدء الكفالة، تاريخ انتهاء الكفالة،
                                         مدة الكفالة، المبلغ الشهري، ملاحظات، <strong>المحفظة</strong> (اسم البنك)، IBAN دولار، IBAN شيكل،
                                         رقم الهاتف، رقم الحساب
@@ -1329,7 +1342,21 @@
             // ============================================
             // تصدير Excel مع الفلاتر
             // ============================================
-            $('#export_excel_btn').on('click', function() {
+
+            // تصدير كامل البيانات
+            $('#export_excel_full_btn').click(function() {
+                exportExcel('full');
+            });
+
+            // تصدير بيانات تسجيل الدخول
+            $('#export_excel_login_btn').click(function() {
+                exportExcel('login');
+            });
+
+            // دالة التصدير الموحدة
+            function exportExcel(type) {
+                console.log('📊 بدء التصدير - النوع:', type);
+
                 // جمع الفلاتر الحالية
                 const sponsorFilter = $('#filter_sponsor').val();
                 const typeFilter = $('#filter_sponsorship_type').val();
@@ -1338,6 +1365,9 @@
                 // بناء الـ URL
                 let exportUrl = '{{ route("admin.sponsorships.export") }}';
                 const params = [];
+
+                // إضافة نوع التصدير
+                params.push('export_type=' + type);
 
                 if (sponsorFilter) params.push('sponsor_id=' + sponsorFilter);
                 if (typeFilter) params.push('sponsorship_type_id=' + typeFilter);
@@ -1350,8 +1380,9 @@
                 const queryString = params.length > 0 ? '?' + params.join('&') : '';
 
                 // عرض رسالة تحميل
+                const title = type === 'login' ? 'جاري تصدير بيانات تسجيل الدخول...' : 'جاري التصدير...';
                 Swal.fire({
-                    title: 'جاري التصدير...',
+                    title: title,
                     html: 'يرجى الانتظار حتى يتم تجهيز الملف',
                     allowOutsideClick: false,
                     allowEscapeKey: false,
@@ -1374,7 +1405,7 @@
                         showConfirmButton: false
                     });
                 }, 2000);
-            });
+            }
 
             // ============================================
             // رفع ملف Excel واستيراد البيانات

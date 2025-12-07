@@ -675,7 +675,10 @@ class SponsorshipController extends Controller
     public function export(Request $request)
     {
         try {
+            $exportType = $request->get('export_type', 'full'); // full أو login
+
             Log::info('🎯 بدء عملية تصدير الكفالات', [
+                'export_type' => $exportType,
                 'filters' => $request->all()
             ]);
 
@@ -730,39 +733,95 @@ class SponsorshipController extends Controller
             $sponsorships = $query->orderBy('id', 'desc')->get();
 
             Log::info('✅ تم جلب البيانات للتصدير', [
-                'count' => $sponsorships->count()
+                'count' => $sponsorships->count(),
+                'export_type' => $exportType
             ]);
 
             // إنشاء ملف Excel باستخدام PhpSpreadsheet
             $spreadsheet = new Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
 
-            // تعيين رؤوس الأعمدة
-            $headers = [
-                '#',
-                'المؤسسة الكافلة',
-                'رقم ملف داخلي',
-                'رقم ملف خارجي',
-                'رقم هوية ولي الأمر',
-                'رقم هوية اليتيم',
-                'اسم اليتيم',
-                'اسم ولي الأمر',
-                'المؤسسة الراعية',
-                'تاريخ بدء الكفالة',
-                'تاريخ نهاية الكفالة',
-                'مدة الكفالة (أشهر)',
-                'نوع الكفالة',
-                'حالة الكفالة',
-                'المبلغ الشهري',
-                'ملاحظات',
-                'تم الإنشاء بواسطة',
-                'تاريخ الإنشاء',
-            ];
+            // تحديد الرؤوس والبيانات حسب نوع التصدير
+            if ($exportType === 'login') {
+                // تصدير بيانات تسجيل الدخول
+                $headers = [
+                    'اسم الكافل',
+                    'اسم المكفول',
+                    'اسم المستخدم',  // رقم الهوية
+                    'كلمة المرور',    // رقم الملف (خارجي أو داخلي)
+                ];
 
-            // كتابة رؤوس الأعمدة
-            $sheet->fromArray($headers, NULL, 'A1');
+                $sheet->fromArray($headers, NULL, 'A1');
 
-            // تنسيق رؤوس الأعمدة
+                // تنسيق رؤوس الأعمدة
+                $headerStyle = [
+                    'font' => [
+                        'bold' => true,
+                        'size' => 12,
+                        'color' => ['rgb' => 'FFFFFF']
+                    ],
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
+                        'startColor' => ['rgb' => '009EF7']
+                    ],
+                    'alignment' => [
+                        'horizontal' => Alignment::HORIZONTAL_CENTER,
+                        'vertical' => Alignment::VERTICAL_CENTER,
+                    ]
+                ];
+                $sheet->getStyle('A1:D1')->applyFromArray($headerStyle);
+
+                // كتابة البيانات
+                $row = 2;
+                foreach ($sponsorships as $sponsorship) {
+                    $sponsorNames = $sponsorship->sponsors->pluck('sponsor_name')->implode(' + ');
+
+                    // تحديد رقم الملف (خارجي أو داخلي)
+                    $fileNumber = $sponsorship->external_file_number ?: $sponsorship->internal_file_number;
+
+                    $data = [
+                        $sponsorNames ?: '-',
+                        $sponsorship->orphan_name ?: '-',
+                        $sponsorship->identity_number ?: '-',  // اسم المستخدم
+                        $fileNumber ?: '-',                    // كلمة المرور
+                    ];
+
+                    $sheet->fromArray($data, NULL, 'A' . $row);
+                    $row++;
+                }
+
+                // ضبط عرض الأعمدة تلقائياً
+                foreach (range('A', 'D') as $col) {
+                    $sheet->getColumnDimension($col)->setAutoSize(true);
+                }
+
+                $filename = 'sponsorships_login_' . date('Y-m-d_His') . '.xlsx';
+
+            } else {
+                // تصدير كامل البيانات (الطريقة القديمة)
+                $headers = [
+                    '#',
+                    'المؤسسة الكافلة',
+                    'رقم ملف داخلي',
+                    'رقم ملف خارجي',
+                    'رقم هوية ولي الأمر',
+                    'رقم هوية اليتيم',
+                    'اسم اليتيم',
+                    'اسم ولي الأمر',
+                    'المؤسسة الراعية',
+                    'تاريخ بدء الكفالة',
+                    'تاريخ نهاية الكفالة',
+                    'مدة الكفالة (أشهر)',
+                    'نوع الكفالة',
+                    'حالة الكفالة',
+                    'المبلغ الشهري',
+                    'ملاحظات',
+                    'تم الإنشاء بواسطة',
+                    'تاريخ الإنشاء',
+                ];
+
+                // كتابة رؤوس الأعمدة
+                $sheet->fromArray($headers, NULL, 'A1');            // تنسيق رؤوس الأعمدة
             $headerStyle = [
                 'font' => [
                     'bold' => true,
@@ -810,13 +869,15 @@ class SponsorshipController extends Controller
                 $row++;
             }
 
-            // ضبط عرض الأعمدة تلقائياً
-            foreach (range('A', 'R') as $col) {
-                $sheet->getColumnDimension($col)->setAutoSize(true);
+                // ضبط عرض الأعمدة تلقائياً
+                foreach (range('A', 'R') as $col) {
+                    $sheet->getColumnDimension($col)->setAutoSize(true);
+                }
+
+                $filename = 'sponsorships_' . date('Y-m-d_His') . '.xlsx';
             }
 
             // إنشاء الملف
-            $filename = 'sponsorships_' . date('Y-m-d_His') . '.xlsx';
             $writer = new Xlsx($spreadsheet);
 
             // حفظ الملف مؤقتاً
