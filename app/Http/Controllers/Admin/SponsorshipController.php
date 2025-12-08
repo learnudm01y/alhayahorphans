@@ -992,7 +992,8 @@ class SponsorshipController extends Controller
                 'guardian_identity_number' => $this->normalizeArabicText('هوية المعيل'),
                 'data_phone_number' => $this->normalizeArabicText('الهاتف'),
                 'data_alt_phone_number' => $this->normalizeArabicText('جوال بديل'),
-                'sponsoring_organization' => $this->normalizeArabicText('المؤسسة'),
+                'sponsoring_organization' => $this->normalizeArabicText('اسم الكافل'),
+                'sponsoring_organization_alt' => $this->normalizeArabicText('المؤسسة'), // اسم بديل للتوافق مع الملفات القديمة
                 'person_owner_identity_number' => $this->normalizeArabicText('هوية صاحب المحفظة'),
                 'person_owner_identity_number_alt' => $this->normalizeArabicText('هوية المحفظة'), // اسم بديل
                 're_guardian_name' => $this->normalizeArabicText('صاحب المحفظة'),
@@ -1149,7 +1150,9 @@ class SponsorshipController extends Controller
                     $orphanName = trim($row[$columnMap[$requiredColumns['orphan_name']] ?? 0] ?? '');
                     $guardianName = trim($row[$columnMap[$requiredColumns['guardian_name']] ?? 0] ?? '');
                     $externalFileNumber = trim($row[$columnMap[$requiredColumns['external_file_number']] ?? 0] ?? '');
-                    $sponsoringOrganization = trim($row[$columnMap[$requiredColumns['sponsoring_organization']] ?? 0] ?? '');
+                    // دعم اسمين: "اسم الكافل" (الجديد) أو "المؤسسة" (القديم للتوافق)
+                    $sponsoringOrganization = trim($row[$columnMap[$requiredColumns['sponsoring_organization']] ??
+                        $columnMap[$requiredColumns['sponsoring_organization_alt']] ?? 0] ?? '');
 
                     // البيانات الاختيارية
                     $phoneNumber = trim($row[$columnMap[$requiredColumns['data_phone_number']] ?? -1] ?? '');
