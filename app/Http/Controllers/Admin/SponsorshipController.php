@@ -1166,33 +1166,39 @@ class SponsorshipController extends Controller
                 }
 
                 // إذا كان الشخص معيل موجود، التحقق من أرقام الهاتف وتحديثها إذا اختلفت
-                if ($found && $targetTable === 'data' && !empty($personData['phone'])) {
+                if ($found && $targetTable === 'data') {
                     $guardian = Data::where('data_id_number', $identity)->first();
                     if ($guardian) {
                         $phoneChanged = false;
                         $phoneChanges = [];
 
-                        // مقارنة رقم الهاتف الأساسي
-                        if (!empty($personData['phone']) && $guardian->data_phone_number !== $personData['phone']) {
+                        // تنظيف وتطبيع الأرقام للمقارنة
+                        $newPhone = trim($personData['phone'] ?? '');
+                        $newAltPhone = trim($personData['alt_phone'] ?? '');
+                        $oldPhone = trim($guardian->data_phone_number ?? '');
+                        $oldAltPhone = trim($guardian->data_alt_phone_number ?? '');
+
+                        // مقارنة رقم الهاتف الأساسي (فقط إذا كان الرقم الجديد غير فارغ)
+                        if (!empty($newPhone) && $oldPhone !== $newPhone) {
                             $phoneChanges['phone'] = [
-                                'old' => $guardian->data_phone_number ?? 'غير موجود',
-                                'new' => $personData['phone']
+                                'old' => $oldPhone ?: 'غير موجود',
+                                'new' => $newPhone
                             ];
-                            $guardian->data_phone_number = $personData['phone'];
+                            $guardian->data_phone_number = $newPhone;
                             $phoneChanged = true;
                         }
 
-                        // مقارنة رقم الهاتف البديل
-                        if (!empty($personData['alt_phone']) && $guardian->data_alt_phone_number !== $personData['alt_phone']) {
+                        // مقارنة رقم الهاتف البديل (فقط إذا كان الرقم الجديد غير فارغ)
+                        if (!empty($newAltPhone) && $oldAltPhone !== $newAltPhone) {
                             $phoneChanges['alt_phone'] = [
-                                'old' => $guardian->data_alt_phone_number ?? 'غير موجود',
-                                'new' => $personData['alt_phone']
+                                'old' => $oldAltPhone ?: 'غير موجود',
+                                'new' => $newAltPhone
                             ];
-                            $guardian->data_alt_phone_number = $personData['alt_phone'];
+                            $guardian->data_alt_phone_number = $newAltPhone;
                             $phoneChanged = true;
                         }
 
-                        // حفظ التغييرات
+                        // حفظ التغييرات فقط إذا كان هناك تغيير فعلي
                         if ($phoneChanged) {
                             $guardian->save();
                             Log::info('📞 تحديث أرقام الهاتف للمعيل:', [
@@ -1201,7 +1207,7 @@ class SponsorshipController extends Controller
                                 'changes' => $phoneChanges
                             ]);
 
-                            // إضافة إلى قائمة المحدثين
+                            // إضافة إلى قائمة المحدثين فقط إذا كان هناك تغيير
                             $updatedPhones[] = [
                                 'identity' => $identity,
                                 'name' => $personData['name'] ?? '',
@@ -1335,7 +1341,7 @@ class SponsorshipController extends Controller
                     }
 
                     // تحديد رقم الملف بناءً على نوع الشخص المكفول
-                    $internalFileNumber = null;
+                    $internalFileNumber = null; // رقم الملف للربط الداخلي (relation_id_number)
                     $normalizedPersonType = $this->normalizeArabicText($personType);
 
                     // تحديد رقم الملف حسب نوع الشخص
@@ -1345,12 +1351,12 @@ class SponsorshipController extends Controller
                         $guardianRecord = Data::where('data_id_number', $sponsoredIdentity)->first();
 
                         if ($guardianRecord) {
-                            // المعيل موجود - استخدام رقم ملفه
+                            // ⚠️ المعيل موجود - استخدام رقم ملفه (لا يتم توليد رقم جديد)
                             $internalFileNumber = $guardianRecord->file_id_number;
-                            Log::info("✅ المعيل موجود - استخدام رقم ملفه", [
+                            Log::info("✅ المعيل موجود - استخدام رقم ملفه الموجود", [
                                 'row' => $rowNumber,
                                 'guardian_identity' => $sponsoredIdentity,
-                                'file_id' => $internalFileNumber
+                                'existing_file_id' => $internalFileNumber
                             ]);
                         } else {
                             // المعيل غير موجود - إنشاء ملف جديد له
@@ -1363,12 +1369,12 @@ class SponsorshipController extends Controller
                         }
 
                     } else {
-                        // الحصول على رقم ملف المعيل من جدول data
+                        // 📌 للأنواع الأخرى (فرد أسرة، متوفي): نستخدم رقم ملف المعيل للربط فقط
                         $guardianFileId = null;
                         $guardianRecord = Data::where('data_id_number', $guardianIdentity)->first();
+
                         if ($guardianRecord) {
                             $guardianFileId = $guardianRecord->file_id_number;
-
                             Log::info("🔍 معلومات المعيل", [
                                 'row' => $rowNumber,
                                 'guardian_identity' => $guardianIdentity,
@@ -1381,39 +1387,16 @@ class SponsorshipController extends Controller
                             ]);
                         }
 
-                        if (in_array($normalizedPersonType, ['فرد عايله', 'فرد عائله', 'فرد عائلة', 'فرد اسره', 'فرد اسرة', 'فرد أسرة', 'فرد الع ائله'])) {
-                            // فرد عائلة: استخدام رقم ملف المعيل (الربط العائلي)
-                            if ($guardianFileId) {
-                                $internalFileNumber = $guardianFileId;
-                                Log::info("✅ استخدام رقم ملف المعيل لفرد الأسرة", [
-                                    'row' => $rowNumber,
-                                    'guardian_file_id' => $guardianFileId
-                                ]);
-                            } else {
-                                // المعيل غير موجود - توليد رقم جديد (حالة استثنائية)
-                                $internalFileNumber = generateUniqueReservedCode('data', 'file_id_number');
-                                Log::warning("⚠️ المعيل غير موجود - تم توليد رقم جديد لفرد الأسرة", [
-                                    'row' => $rowNumber,
-                                    'new_file_id' => $internalFileNumber
-                                ]);
-                            }
-
-                        } elseif (in_array($normalizedPersonType, ['أب متوفي', 'اب متوفي', 'الاب المتوفي', 'أم متوفيه', 'ام متوفيه', 'الام المتوفيه', 'أم متوفية', 'ام متوفية'])) {
-                            // متوفى: استخدام رقم ملف المعيل (الربط العائلي)
-                            if ($guardianFileId) {
-                                $internalFileNumber = $guardianFileId;
-                                Log::info("✅ استخدام رقم ملف المعيل للمتوفي", [
-                                    'row' => $rowNumber,
-                                    'guardian_file_id' => $guardianFileId
-                                ]);
-                            } else {
-                                // المعيل غير موجود - توليد رقم جديد (حالة استثنائية)
-                                $internalFileNumber = generateUniqueReservedCode('data', 'file_id_number');
-                                Log::warning("⚠️ المعيل غير موجود - تم توليد رقم جديد للمتوفي", [
-                                    'row' => $rowNumber,
-                                    'new_file_id' => $internalFileNumber
-                                ]);
-                            }
+                        // استخدام رقم ملف المعيل للربط الداخلي (relation_id_number)
+                        if ($guardianFileId) {
+                            $internalFileNumber = $guardianFileId;
+                        } else {
+                            // المعيل غير موجود - توليد رقم جديد (حالة استثنائية)
+                            $internalFileNumber = generateUniqueReservedCode('data', 'file_id_number');
+                            Log::warning("⚠️ المعيل غير موجود - تم توليد رقم جديد", [
+                                'row' => $rowNumber,
+                                'new_file_id' => $internalFileNumber
+                            ]);
                         }
                     }
 
@@ -1447,14 +1430,25 @@ class SponsorshipController extends Controller
                     // إنشاء سجل الكفالة
                     DB::beginTransaction();
 
-                    // توليد رقم ملف داخلي جديد (يُعرض للمستخدم)
-                    $displayFileNumber = generateUniqueReservedCode('data', 'file_id_number');
+                    // ⚠️ توليد رقم ملف للعرض: فقط إذا لم يكن الشخص معيل موجود مسبقاً
+                    $displayFileNumber = null;
 
-                    Log::info("📋 توليد أرقام الملفات", [
-                        'row' => $rowNumber,
-                        'relation_id' => $internalFileNumber, // الرقم الداخلي للربط (مخفي)
-                        'display_file_number' => $displayFileNumber // الرقم المعروض للمستخدم
-                    ]);
+                    if (in_array($normalizedPersonType, ['معيل', 'معيل اسره', 'معيل اسرة', 'معيل أسرة', 'معيل عائله', 'معيل عائلة'])) {
+                        // المعيل: لا يتم توليد رقم جديد، يستخدم نفس الرقم الموجود/الجديد
+                        $displayFileNumber = $internalFileNumber;
+                        Log::info("📋 المعيل: استخدام نفس الرقم للعرض والربط", [
+                            'row' => $rowNumber,
+                            'file_number' => $displayFileNumber
+                        ]);
+                    } else {
+                        // الأنواع الأخرى: توليد رقم جديد للعرض
+                        $displayFileNumber = generateUniqueReservedCode('data', 'file_id_number');
+                        Log::info("📋 توليد أرقام الملفات", [
+                            'row' => $rowNumber,
+                            'relation_id' => $internalFileNumber, // الرقم الداخلي للربط (مخفي)
+                            'display_file_number' => $displayFileNumber // الرقم المعروض للمستخدم
+                        ]);
+                    }
 
                     $sponsorship = new Sponsorship();
                     $sponsorship->identity_number = $sponsoredIdentity ?: null;
