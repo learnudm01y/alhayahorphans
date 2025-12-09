@@ -1193,6 +1193,14 @@
                                         <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">رقم هوية المعيل</span>
                                         <span class="fw-bold text-gray-800 fs-6">${data.guardian_identity_number || '-'}</span>
                                     </div>
+                                    <div class="col-md-6">
+                                        <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">رقم هاتف المعيل</span>
+                                        <span class="fw-bold text-gray-800 fs-6">${data.guardian_phone || '-'}</span>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">جوال بديل للمعيل</span>
+                                        <span class="fw-bold text-gray-800 fs-6">${data.guardian_alt_phone || '-'}</span>
+                                    </div>
                                 </div>
                             </div>
 
@@ -1605,6 +1613,8 @@
                                             <th>نوع الشخص</th>
                                             <th>رقم الهوية</th>
                                             <th>الاسم</th>
+                                            <th>الهاتف</th>
+                                            <th>جوال بديل</th>
                                             <th>الجدول المستهدف</th>
                                             <th class="text-center" style="width: 80px;">الصف</th>
                                         </tr>
@@ -1616,12 +1626,29 @@
                         const typeLabel = getPersonTypeLabel(person.type);
                         const typeBadge = getPersonTypeBadge(person.type);
 
+                        // عرض أرقام الهاتف إذا كان الشخص معيل
+                        let phoneDisplay = '-';
+                        let altPhoneDisplay = '-';
+                        let phoneStatusBadge = '';
+
+                        if (person.type === 'معيل') {
+                            phoneDisplay = person.phone || '-';
+                            altPhoneDisplay = person.alt_phone || '-';
+
+                            // عرض حالة التحديث إذا كانت موجودة
+                            if (person.phone_status) {
+                                phoneStatusBadge = `<br><small class="text-muted">${person.phone_status}</small>`;
+                            }
+                        }
+
                         personsTableHtml += `
                             <tr>
                                 <td class="text-center fw-bold">${index + 1}</td>
                                 <td><span class="badge ${typeBadge}">${typeLabel}</span></td>
                                 <td class="font-monospace">${person.identity || '-'}</td>
                                 <td>${person.name || '-'}</td>
+                                <td class="font-monospace">${phoneDisplay}${phoneStatusBadge}</td>
+                                <td class="font-monospace">${altPhoneDisplay}</td>
                                 <td><code class="text-primary">${getTableNameInArabic(person.target_table)}</code></td>
                                 <td class="text-center"><span class="badge badge-light-primary">${person.row}</span></td>
                             </tr>
@@ -1657,6 +1684,67 @@
 
                     // تخزين البيانات المفقودة لاستخدامها عند الإنشاء
                     window.missingPersonsData = response.validation.missing_persons;
+                }
+
+                // عرض المعيلين الذين تم تحديث أرقام هواتفهم
+                if (response.validation.updated_phones && response.validation.updated_phones.length > 0) {
+                    let updatedPhonesHtml = `
+                        <div class="alert alert-info mb-5">
+                            <div class="d-flex align-items-start mb-3">
+                                <i class="ki-duotone ki-phone fs-2x text-info me-4">
+                                    <span class="path1"></span>
+                                    <span class="path2"></span>
+                                </i>
+                                <div class="flex-grow-1">
+                                    <h5 class="mb-2">📞 تم تحديث أرقام الهاتف (${response.validation.updated_phones.length})</h5>
+                                    <p class="mb-3">تم تحديث أرقام الهاتف التالية في قاعدة البيانات:</p>
+                                </div>
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover table-sm align-middle">
+                                    <thead class="table-info">
+                                        <tr>
+                                            <th class="text-center" style="width: 60px;">#</th>
+                                            <th>رقم الهوية</th>
+                                            <th>الاسم</th>
+                                            <th>رقم الهاتف القديم</th>
+                                            <th>رقم الهاتف الجديد</th>
+                                            <th>جوال بديل قديم</th>
+                                            <th>جوال بديل جديد</th>
+                                            <th class="text-center" style="width: 80px;">الصف</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                    `;
+
+                    response.validation.updated_phones.forEach((person, index) => {
+                        const phoneOld = person.changes.phone ? person.changes.phone.old : '-';
+                        const phoneNew = person.changes.phone ? person.changes.phone.new : '-';
+                        const altPhoneOld = person.changes.alt_phone ? person.changes.alt_phone.old : '-';
+                        const altPhoneNew = person.changes.alt_phone ? person.changes.alt_phone.new : '-';
+
+                        updatedPhonesHtml += `
+                            <tr>
+                                <td class="text-center fw-bold">${index + 1}</td>
+                                <td class="font-monospace">${person.identity}</td>
+                                <td>${person.name}</td>
+                                <td class="font-monospace ${person.changes.phone ? 'text-decoration-line-through text-muted' : ''}">${phoneOld}</td>
+                                <td class="font-monospace ${person.changes.phone ? 'fw-bold text-success' : ''}">${phoneNew}</td>
+                                <td class="font-monospace ${person.changes.alt_phone ? 'text-decoration-line-through text-muted' : ''}">${altPhoneOld}</td>
+                                <td class="font-monospace ${person.changes.alt_phone ? 'fw-bold text-success' : ''}">${altPhoneNew}</td>
+                                <td class="text-center"><span class="badge badge-light-primary">${person.row}</span></td>
+                            </tr>
+                        `;
+                    });
+
+                    updatedPhonesHtml += `
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    `;
+                    container.append(updatedPhonesHtml);
                 }
 
                 // البنوك المفقودة

@@ -272,10 +272,19 @@ class SponsorshipController extends Controller
                     ->get()
                     ->toArray();
 
+                // 📞 جلب معلومات المعيل من جدول data (بما في ذلك أرقام الهاتف)
+                $guardianData = Data::where('data_id_number', $sponsorship->guardian_identity_number)->first();
+                if ($guardianData) {
+                    $sponsorship->guardian_phone = $guardianData->data_phone_number;
+                    $sponsorship->guardian_alt_phone = $guardianData->data_alt_phone_number;
+                }
+
                 Log::info('🏦 تم جلب الحسابات البنكية للكفالة', [
                     'sponsorship_id' => $id,
                     'guardian_identity' => $sponsorship->guardian_identity_number,
-                    'accounts_count' => count($sponsorship->bank_accounts)
+                    'accounts_count' => count($sponsorship->bank_accounts),
+                    'guardian_phone' => $sponsorship->guardian_phone ?? null,
+                    'guardian_alt_phone' => $sponsorship->guardian_alt_phone ?? null
                 ]);
             } else {
                 $sponsorship->bank_accounts = [];
@@ -745,7 +754,7 @@ class SponsorshipController extends Controller
             if ($exportType === 'login') {
                 // تصدير بيانات تسجيل الدخول
                 $headers = [
-                    'اسم الكافل',
+                    'المؤسسة',
                     'اسم المكفول',
                     'اسم المستخدم',  // رقم الهوية
                     'كلمة المرور',    // رقم الملف (خارجي أو داخلي)
@@ -1022,6 +1031,8 @@ class SponsorshipController extends Controller
                 $guardianIdentity = trim($row[$columnMap[$requiredColumns['guardian_identity_number']] ?? 0] ?? '');
                 $guardianName = trim($row[$columnMap[$requiredColumns['guardian_name']] ?? 0] ?? '');
                 $bankName = trim($row[$columnMap[$requiredColumns['bank_name']] ?? 0] ?? '');
+                $phoneNumber = trim($row[$columnMap[$requiredColumns['data_phone_number']] ?? -1] ?? '');
+                $altPhoneNumber = trim($row[$columnMap[$requiredColumns['data_alt_phone_number']] ?? -1] ?? '');
 
                 // Log first 3 rows
                 if ($index < 3) {
@@ -1046,32 +1057,52 @@ class SponsorshipController extends Controller
                         'name' => $sponsoredName,
                         'guardian_identity' => $guardianIdentity,
                         'guardian_name' => $guardianName,
+                        'phone' => $phoneNumber,
+                        'alt_phone' => $altPhoneNumber,
                         'full_row' => $row
                     ];
 
                     $uniquePersons[] = $personData;
                 }
 
-                // جمع المعيلين أيضاً للتحقق
-                if (!empty($guardianIdentity)) {
-                    $guardianData = [
-                        'row' => $rowNumber,
-                        'type' => 'معيل',
-                        'identity' => $guardianIdentity,
-                        'name' => $guardianName,
-                        'full_row' => $row
-                    ];
+                // جمع المعيلين أيضاً للتحقق (فقط إذا لم يكن نوع الشخص "معيل")
+                // لأنه إذا كان نوع الشخص "معيل"، فهو نفسه المكفول وتم إضافته في الخطوة السابقة
+                $normalizedPersonType = $this->normalizeArabicText($personType);
+                $isGuardianType = in_array($normalizedPersonType, ['معيل', 'معيل اسره', 'معيل اسرة', 'معيل أسرة', 'معيل عائله', 'معيل عائلة']);
 
-                    // تجنب التكرار
-                    $exists = false;
-                    foreach ($uniquePersons as $person) {
+                if (!empty($guardianIdentity) && !$isGuardianType) {
+                    // تجنب التكرار - التحقق أولاً إذا كان المعيل موجود مسبقاً
+                    $guardianExists = false;
+                    $guardianIndex = -1;
+
+                    foreach ($uniquePersons as $idx => $person) {
                         if ($person['identity'] === $guardianIdentity && $person['type'] === 'معيل') {
-                            $exists = true;
+                            $guardianExists = true;
+                            $guardianIndex = $idx;
                             break;
                         }
                     }
-                    if (!$exists) {
+
+                    if (!$guardianExists) {
+                        // إضافة المعيل لأول مرة مع جميع بياناته
+                        $guardianData = [
+                            'row' => $rowNumber,
+                            'type' => 'معيل',
+                            'identity' => $guardianIdentity,
+                            'name' => $guardianName,
+                            'phone' => $phoneNumber,
+                            'alt_phone' => $altPhoneNumber,
+                            'full_row' => $row
+                        ];
                         $uniquePersons[] = $guardianData;
+                    } else {
+                        // المعيل موجود مسبقاً، نحدّث أرقام الهاتف فقط إذا كانت الحالية أفضل (غير فارغة)
+                        if (!empty($phoneNumber) && empty($uniquePersons[$guardianIndex]['phone'])) {
+                            $uniquePersons[$guardianIndex]['phone'] = $phoneNumber;
+                        }
+                        if (!empty($altPhoneNumber) && empty($uniquePersons[$guardianIndex]['alt_phone'])) {
+                            $uniquePersons[$guardianIndex]['alt_phone'] = $altPhoneNumber;
+                        }
                     }
                 }
 
@@ -1083,6 +1114,7 @@ class SponsorshipController extends Controller
 
             // التحقق من وجود جميع الأشخاص في النظام حسب نوعهم
             $missingPersons = [];
+            $updatedPhones = []; // قائمة الأشخاص الذين تم تحديث أرقامهم
 
             foreach ($uniquePersons as $personData) {
                 $identity = $personData['identity'];
@@ -1126,15 +1158,67 @@ class SponsorshipController extends Controller
                         'name' => $personData['name'] ?? '',
                         'guardian_identity' => $personData['guardian_identity'] ?? '',
                         'guardian_name' => $personData['guardian_name'] ?? '',
+                        'phone' => $personData['phone'] ?? '',
+                        'alt_phone' => $personData['alt_phone'] ?? '',
+                        'phone_status' => '',
                         'data' => $personData
                     ];
+                }
+
+                // إذا كان الشخص معيل موجود، التحقق من أرقام الهاتف وتحديثها إذا اختلفت
+                if ($found && $targetTable === 'data' && !empty($personData['phone'])) {
+                    $guardian = Data::where('data_id_number', $identity)->first();
+                    if ($guardian) {
+                        $phoneChanged = false;
+                        $phoneChanges = [];
+
+                        // مقارنة رقم الهاتف الأساسي
+                        if (!empty($personData['phone']) && $guardian->data_phone_number !== $personData['phone']) {
+                            $phoneChanges['phone'] = [
+                                'old' => $guardian->data_phone_number ?? 'غير موجود',
+                                'new' => $personData['phone']
+                            ];
+                            $guardian->data_phone_number = $personData['phone'];
+                            $phoneChanged = true;
+                        }
+
+                        // مقارنة رقم الهاتف البديل
+                        if (!empty($personData['alt_phone']) && $guardian->data_alt_phone_number !== $personData['alt_phone']) {
+                            $phoneChanges['alt_phone'] = [
+                                'old' => $guardian->data_alt_phone_number ?? 'غير موجود',
+                                'new' => $personData['alt_phone']
+                            ];
+                            $guardian->data_alt_phone_number = $personData['alt_phone'];
+                            $phoneChanged = true;
+                        }
+
+                        // حفظ التغييرات
+                        if ($phoneChanged) {
+                            $guardian->save();
+                            Log::info('📞 تحديث أرقام الهاتف للمعيل:', [
+                                'guardian_identity' => $identity,
+                                'guardian_name' => $personData['name'],
+                                'changes' => $phoneChanges
+                            ]);
+
+                            // إضافة إلى قائمة المحدثين
+                            $updatedPhones[] = [
+                                'identity' => $identity,
+                                'name' => $personData['name'] ?? '',
+                                'changes' => $phoneChanges,
+                                'row' => $personData['row']
+                            ];
+                        }
+                    }
                 }
             }
 
             Log::info('🔍 نتائج البحث عن الأشخاص:', [
                 'total_persons_checked' => count($uniquePersons),
                 'missing_persons' => count($missingPersons),
-                'missing_details' => $missingPersons
+                'updated_phones' => count($updatedPhones),
+                'missing_details' => $missingPersons,
+                'updated_phones_details' => $updatedPhones
             ]);
 
             // التحقق من وجود جميع البنوك في النظام
@@ -1167,6 +1251,7 @@ class SponsorshipController extends Controller
                 Log::info('🔍 CHECK ONLY MODE - Validation Results:', [
                     'missing_persons_count' => count($missingPersons),
                     'missing_banks_count' => count($missingBanks),
+                    'updated_phones_count' => count($updatedPhones),
                 ]);
 
                 return response()->json([
@@ -1176,6 +1261,7 @@ class SponsorshipController extends Controller
                         'total_rows' => count($rows),
                         'missing_persons' => $missingPersons, // قائمة الأشخاص المفقودين مع تفاصيلهم
                         'missing_banks' => $missingBanks,
+                        'updated_phones' => $updatedPhones, // قائمة المعيلين الذين تم تحديث أرقامهم
                     ]
                 ]);
             }
@@ -1252,61 +1338,82 @@ class SponsorshipController extends Controller
                     $internalFileNumber = null;
                     $normalizedPersonType = $this->normalizeArabicText($personType);
 
-                    // الحصول على رقم ملف المعيل
-                    $guardianFileId = null;
-                    $guardianRecord = Data::where('data_id_number', $guardianIdentity)->first();
-                    if ($guardianRecord) {
-                        $guardianFileId = $guardianRecord->file_id_number;
-
-                        Log::info("🔍 معلومات المعيل", [
-                            'row' => $rowNumber,
-                            'guardian_identity' => $guardianIdentity,
-                            'guardian_file_id' => $guardianFileId
-                        ]);
-                    } else {
-                        Log::warning("⚠️ المعيل غير موجود في جدول data", [
-                            'row' => $rowNumber,
-                            'guardian_identity' => $guardianIdentity
-                        ]);
-                    }
-
                     // تحديد رقم الملف حسب نوع الشخص
                     if (in_array($normalizedPersonType, ['معيل', 'معيل اسره', 'معيل اسرة', 'معيل أسرة', 'معيل عائله', 'معيل عائلة'])) {
-                        // المعيل: استخدام رقم ملفه الموجود
-                        $internalFileNumber = $guardianFileId;
+                        // 🎯 حالة خاصة: المعيل هو نفسه المكفول
+                        // البحث عن المعيل في data باستخدام رقم هوية المكفول
+                        $guardianRecord = Data::where('data_id_number', $sponsoredIdentity)->first();
 
-                    } elseif (in_array($normalizedPersonType, ['فرد عايله', 'فرد عائله', 'فرد عائلة', 'فرد اسره', 'فرد اسرة', 'فرد أسرة', 'فرد الع ائله'])) {
-                        // فرد عائلة: استخدام رقم ملف المعيل (الربط العائلي)
-                        if ($guardianFileId) {
-                            $internalFileNumber = $guardianFileId;
-                            Log::info("✅ استخدام رقم ملف المعيل لفرد الأسرة", [
+                        if ($guardianRecord) {
+                            // المعيل موجود - استخدام رقم ملفه
+                            $internalFileNumber = $guardianRecord->file_id_number;
+                            Log::info("✅ المعيل موجود - استخدام رقم ملفه", [
                                 'row' => $rowNumber,
-                                'guardian_file_id' => $guardianFileId
+                                'guardian_identity' => $sponsoredIdentity,
+                                'file_id' => $internalFileNumber
                             ]);
                         } else {
-                            // المعيل غير موجود - توليد رقم جديد (حالة استثنائية)
+                            // المعيل غير موجود - إنشاء ملف جديد له
                             $internalFileNumber = generateUniqueReservedCode('data', 'file_id_number');
-                            Log::warning("⚠️ المعيل غير موجود - تم توليد رقم جديد لفرد الأسرة", [
+                            Log::info("➕ المعيل غير موجود - تم توليد رقم ملف جديد", [
                                 'row' => $rowNumber,
+                                'guardian_identity' => $sponsoredIdentity,
                                 'new_file_id' => $internalFileNumber
                             ]);
                         }
 
-                    } elseif (in_array($normalizedPersonType, ['أب متوفي', 'اب متوفي', 'الاب المتوفي', 'أم متوفيه', 'ام متوفيه', 'الام المتوفيه', 'أم متوفية', 'ام متوفية'])) {
-                        // متوفى: استخدام رقم ملف المعيل (الربط العائلي)
-                        if ($guardianFileId) {
-                            $internalFileNumber = $guardianFileId;
-                            Log::info("✅ استخدام رقم ملف المعيل للمتوفي", [
+                    } else {
+                        // الحصول على رقم ملف المعيل من جدول data
+                        $guardianFileId = null;
+                        $guardianRecord = Data::where('data_id_number', $guardianIdentity)->first();
+                        if ($guardianRecord) {
+                            $guardianFileId = $guardianRecord->file_id_number;
+
+                            Log::info("🔍 معلومات المعيل", [
                                 'row' => $rowNumber,
+                                'guardian_identity' => $guardianIdentity,
                                 'guardian_file_id' => $guardianFileId
                             ]);
                         } else {
-                            // المعيل غير موجود - توليد رقم جديد (حالة استثنائية)
-                            $internalFileNumber = generateUniqueReservedCode('data', 'file_id_number');
-                            Log::warning("⚠️ المعيل غير موجود - تم توليد رقم جديد للمتوفي", [
+                            Log::warning("⚠️ المعيل غير موجود في جدول data", [
                                 'row' => $rowNumber,
-                                'new_file_id' => $internalFileNumber
+                                'guardian_identity' => $guardianIdentity
                             ]);
+                        }
+
+                        if (in_array($normalizedPersonType, ['فرد عايله', 'فرد عائله', 'فرد عائلة', 'فرد اسره', 'فرد اسرة', 'فرد أسرة', 'فرد الع ائله'])) {
+                            // فرد عائلة: استخدام رقم ملف المعيل (الربط العائلي)
+                            if ($guardianFileId) {
+                                $internalFileNumber = $guardianFileId;
+                                Log::info("✅ استخدام رقم ملف المعيل لفرد الأسرة", [
+                                    'row' => $rowNumber,
+                                    'guardian_file_id' => $guardianFileId
+                                ]);
+                            } else {
+                                // المعيل غير موجود - توليد رقم جديد (حالة استثنائية)
+                                $internalFileNumber = generateUniqueReservedCode('data', 'file_id_number');
+                                Log::warning("⚠️ المعيل غير موجود - تم توليد رقم جديد لفرد الأسرة", [
+                                    'row' => $rowNumber,
+                                    'new_file_id' => $internalFileNumber
+                                ]);
+                            }
+
+                        } elseif (in_array($normalizedPersonType, ['أب متوفي', 'اب متوفي', 'الاب المتوفي', 'أم متوفيه', 'ام متوفيه', 'الام المتوفيه', 'أم متوفية', 'ام متوفية'])) {
+                            // متوفى: استخدام رقم ملف المعيل (الربط العائلي)
+                            if ($guardianFileId) {
+                                $internalFileNumber = $guardianFileId;
+                                Log::info("✅ استخدام رقم ملف المعيل للمتوفي", [
+                                    'row' => $rowNumber,
+                                    'guardian_file_id' => $guardianFileId
+                                ]);
+                            } else {
+                                // المعيل غير موجود - توليد رقم جديد (حالة استثنائية)
+                                $internalFileNumber = generateUniqueReservedCode('data', 'file_id_number');
+                                Log::warning("⚠️ المعيل غير موجود - تم توليد رقم جديد للمتوفي", [
+                                    'row' => $rowNumber,
+                                    'new_file_id' => $internalFileNumber
+                                ]);
+                            }
                         }
                     }
 
@@ -1451,40 +1558,61 @@ class SponsorshipController extends Controller
                     $name = $personData['name'];
                     $guardianIdentity = $personData['guardian_identity'] ?? null;
 
-                    // الحصول على رقم الملف الموحد للعائلة من المعيل
+                    // الحصول على رقم الملف الموحد للعائلة
                     $fileIdNumber = null;
 
-                    // أولاً: البحث عن رقم ملف المعيل في جدول data
-                    if ($guardianIdentity) {
-                        if (isset($familyFileIds[$guardianIdentity])) {
-                            // استخدام رقم الملف المحفوظ مسبقاً
-                            $fileIdNumber = $familyFileIds[$guardianIdentity];
+                    // حالة خاصة: إذا كان النوع "معيل"، فهو نفسه المكفول
+                    if (in_array($type, ['معيل', 'معيل اسره', 'معيل اسرة', 'معيل أسرة', 'معيل عائله', 'معيل عائلة'])) {
+                        // البحث عن المعيل في جدول data باستخدام identity (رقم هوية المعيل)
+                        $guardianRecord = Data::where('data_id_number', $identity)->first();
+                        if ($guardianRecord) {
+                            // المعيل موجود - استخدام رقم ملفه
+                            $fileIdNumber = $guardianRecord->file_id_number;
+                            Log::info('✅ المعيل موجود - استخدام رقم ملفه', [
+                                'identity' => $identity,
+                                'file_id_number' => $fileIdNumber
+                            ]);
                         } else {
-                            // البحث عن المعيل في قاعدة البيانات
-                            $guardianRecord = Data::where('data_id_number', $guardianIdentity)->first();
-                            if ($guardianRecord) {
-                                // استخدام رقم ملف المعيل الموجود
-                                $fileIdNumber = $guardianRecord->file_id_number;
-                                $familyFileIds[$guardianIdentity] = $fileIdNumber;
-
-                                Log::info('✅ استخدام رقم ملف المعيل الموجود', [
-                                    'guardian_identity' => $guardianIdentity,
-                                    'file_id_number' => $fileIdNumber
-                                ]);
-                            } else {
-                                // المعيل غير موجود - توليد رقم جديد (حالة نادرة)
-                                $fileIdNumber = generateUniqueReservedCode('data', 'file_id_number');
-                                $familyFileIds[$guardianIdentity] = $fileIdNumber;
-
-                                Log::warning('⚠️ المعيل غير موجود - تم توليد رقم جديد', [
-                                    'guardian_identity' => $guardianIdentity,
-                                    'new_file_id' => $fileIdNumber
-                                ]);
-                            }
+                            // المعيل غير موجود - توليد رقم جديد
+                            $fileIdNumber = generateUniqueReservedCode('data', 'file_id_number');
+                            Log::info('➕ المعيل غير موجود - تم توليد رقم ملف جديد', [
+                                'identity' => $identity,
+                                'new_file_id' => $fileIdNumber
+                            ]);
                         }
                     } else {
-                        // لا يوجد معيل - توليد رقم جديد
-                        $fileIdNumber = generateUniqueReservedCode('data', 'file_id_number');
+                        // للأنواع الأخرى: البحث عن رقم ملف المعيل في جدول data
+                        if ($guardianIdentity) {
+                            if (isset($familyFileIds[$guardianIdentity])) {
+                                // استخدام رقم الملف المحفوظ مسبقاً
+                                $fileIdNumber = $familyFileIds[$guardianIdentity];
+                            } else {
+                                // البحث عن المعيل في قاعدة البيانات
+                                $guardianRecord = Data::where('data_id_number', $guardianIdentity)->first();
+                                if ($guardianRecord) {
+                                    // استخدام رقم ملف المعيل الموجود
+                                    $fileIdNumber = $guardianRecord->file_id_number;
+                                    $familyFileIds[$guardianIdentity] = $fileIdNumber;
+
+                                    Log::info('✅ استخدام رقم ملف المعيل الموجود', [
+                                        'guardian_identity' => $guardianIdentity,
+                                        'file_id_number' => $fileIdNumber
+                                    ]);
+                                } else {
+                                    // المعيل غير موجود - توليد رقم جديد (حالة نادرة)
+                                    $fileIdNumber = generateUniqueReservedCode('data', 'file_id_number');
+                                    $familyFileIds[$guardianIdentity] = $fileIdNumber;
+
+                                    Log::warning('⚠️ المعيل غير موجود - تم توليد رقم جديد', [
+                                        'guardian_identity' => $guardianIdentity,
+                                        'new_file_id' => $fileIdNumber
+                                    ]);
+                                }
+                            }
+                        } else {
+                            // لا يوجد معيل - توليد رقم جديد
+                            $fileIdNumber = generateUniqueReservedCode('data', 'file_id_number');
+                        }
                     }
 
                     // تصنيف وإنشاء السجل حسب نوع الشخص
