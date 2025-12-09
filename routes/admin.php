@@ -150,6 +150,7 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::get('sponsorships/unsponsored', [SponsorshipController::class, 'unsponsored'])->name('sponsorships.unsponsored');
     Route::get('sponsorships/export', [SponsorshipController::class, 'export'])->name('sponsorships.export');
     Route::post('sponsorships/import', [SponsorshipController::class, 'import'])->name('sponsorships.import');
+    Route::post('sponsorships/create-missing-persons', [SponsorshipController::class, 'createMissingPersons'])->name('sponsorships.createMissingPersons');
     Route::post('sponsorships/get-person-details', [SponsorshipController::class, 'getPersonDetails'])->name('sponsorships.getPersonDetails');
     Route::post('sponsorships/{id}/update-status', [SponsorshipController::class, 'updateStatus'])->name('sponsorships.updateStatus');
     Route::post('sponsorships/unified-search', [UnifiedSearchController::class, 'search'])->name('sponsorships.unifiedSearch');

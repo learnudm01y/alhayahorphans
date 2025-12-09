@@ -1504,10 +1504,59 @@
                 });
             });
 
+            // دوال مساعدة لعرض نوع الشخص
+            function getPersonTypeLabel(type) {
+                const types = {
+                    'معيل': 'معيل',
+                    'معيل اسره': 'معيل أسرة',
+                    'معيل اسرة': 'معيل أسرة',
+                    'معيل أسرة': 'معيل أسرة',
+                    'معيل عائله': 'معيل عائلة',
+                    'معيل عائلة': 'معيل عائلة',
+                    'فرد عايله': 'فرد عائلة',
+                    'فرد عائله': 'فرد عائلة',
+                    'فرد عائلة': 'فرد عائلة',
+                    'فرد اسره': 'فرد أسرة',
+                    'فرد اسرة': 'فرد أسرة',
+                    'فرد أسرة': 'فرد أسرة',
+                    'فرد الع ائله': 'فرد عائلة',
+                    'أب متوفي': 'أب متوفي',
+                    'اب متوفي': 'أب متوفي',
+                    'الاب المتوفي': 'أب متوفي',
+                    'أم متوفيه': 'أم متوفية',
+                    'ام متوفيه': 'أم متوفية',
+                    'الام المتوفيه': 'أم متوفية',
+                    'أم متوفية': 'أم متوفية',
+                    'ام متوفية': 'أم متوفية'
+                };
+                return types[type] || type;
+            }
+
+            function getPersonTypeBadge(type) {
+                if (type.includes('معيل')) {
+                    return 'badge-primary';
+                } else if (type.includes('فرد')) {
+                    return 'badge-info';
+                } else if (type.includes('متوفي') || type.includes('متوفيه') || type.includes('متوفية')) {
+                    return 'badge-secondary';
+                }
+                return 'badge-light';
+            }
+
+            function getTableNameInArabic(tableName) {
+                const tables = {
+                    'data': 'بيانات المعيلين',
+                    're_people': 'أفراد الأسرة',
+                    'dead_people (father)': 'المتوفين (أب)',
+                    'dead_people (mother)': 'المتوفين (أم)'
+                };
+                return tables[tableName] || tableName;
+            }
+
             // عرض نتائج الفحص
             function displayValidationResults(response) {
                 console.log('🔍 Validation Response:', response);
-                console.log('📋 Missing Guardians:', response.validation.missing_guardians);
+                console.log('📋 Missing Persons:', response.validation.missing_persons);
                 console.log('🏦 Missing Banks:', response.validation.missing_banks);
 
                 const container = $('#validation_results');
@@ -1526,32 +1575,88 @@
                         <div>
                             <h5 class="mb-1">معلومات الملف</h5>
                             <p class="mb-0">إجمالي السجلات: <strong>${response.validation.total_rows}</strong></p>
-                            <p class="mb-0">سجلات صالحة: <strong class="text-success">${response.validation.valid_rows}</strong></p>
                         </div>
                     </div>
                 `;
                 container.append(summaryHtml);
 
-                // المعيلين المفقودين
-                if (response.validation.missing_guardians && response.validation.missing_guardians.length > 0) {
+                // الأشخاص المفقودين (معيلين، أفراد عائلة، متوفين)
+                if (response.validation.missing_persons && response.validation.missing_persons.length > 0) {
                     hasErrors = true;
-                    let guardiansHtml = `
-                        <div class="alert alert-danger d-flex align-items-start mb-5">
-                            <i class="ki-duotone ki-cross-circle fs-2x text-danger me-4">
-                                <span class="path1"></span>
-                                <span class="path2"></span>
-                            </i>
-                            <div class="flex-grow-1">
-                                <h5 class="mb-2">❌ أرقام هويات معيلين غير موجودة (${response.validation.missing_guardians.length})</h5>
-                                <p class="mb-2">يجب إضافة هؤلاء الأشخاص إلى النظام أولاً:</p>
-                                <div class="bg-light-danger p-3 rounded">
-                                    ${response.validation.missing_guardians.slice(0, 20).map(id => `<span class="badge badge-danger me-2 mb-2">${id}</span>`).join('')}
-                                    ${response.validation.missing_guardians.length > 20 ? `<span class="text-muted">... و ${response.validation.missing_guardians.length - 20} آخرين</span>` : ''}
+
+                    let personsTableHtml = `
+                        <div class="alert alert-danger mb-5">
+                            <div class="d-flex align-items-start mb-3">
+                                <i class="ki-duotone ki-cross-circle fs-2x text-danger me-4">
+                                    <span class="path1"></span>
+                                    <span class="path2"></span>
+                                </i>
+                                <div class="flex-grow-1">
+                                    <h5 class="mb-2">❌ أشخاص مفقودين في قاعدة البيانات (${response.validation.missing_persons.length})</h5>
+                                    <p class="mb-3">يجب إنشاء سجلات لهؤلاء الأشخاص قبل الاستيراد:</p>
                                 </div>
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover table-sm align-middle">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th class="text-center" style="width: 60px;">#</th>
+                                            <th>نوع الشخص</th>
+                                            <th>رقم الهوية</th>
+                                            <th>الاسم</th>
+                                            <th>الجدول المستهدف</th>
+                                            <th class="text-center" style="width: 80px;">الصف</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                    `;
+
+                    response.validation.missing_persons.forEach((person, index) => {
+                        const typeLabel = getPersonTypeLabel(person.type);
+                        const typeBadge = getPersonTypeBadge(person.type);
+
+                        personsTableHtml += `
+                            <tr>
+                                <td class="text-center fw-bold">${index + 1}</td>
+                                <td><span class="badge ${typeBadge}">${typeLabel}</span></td>
+                                <td class="font-monospace">${person.identity || '-'}</td>
+                                <td>${person.name || '-'}</td>
+                                <td><code class="text-primary">${getTableNameInArabic(person.target_table)}</code></td>
+                                <td class="text-center"><span class="badge badge-light-primary">${person.row}</span></td>
+                            </tr>
+                        `;
+                    });
+
+                    personsTableHtml += `
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center mt-4">
+                                <div class="alert alert-info mb-0 flex-grow-1 me-3">
+                                    <i class="ki-duotone ki-information-5 fs-2x text-info me-2">
+                                        <span class="path1"></span>
+                                        <span class="path2"></span>
+                                        <span class="path3"></span>
+                                    </i>
+                                    <strong>ملاحظة:</strong> يمكنك إنشاء هذه السجلات تلقائياً بالضغط على الزر
+                                </div>
+
+                                <button type="button" class="btn btn-success btn-lg" id="create_missing_persons_btn">
+                                    <i class="ki-duotone ki-plus-circle fs-2">
+                                        <span class="path1"></span>
+                                        <span class="path2"></span>
+                                    </i>
+                                    إنشاء السجلات المفقودة
+                                </button>
                             </div>
                         </div>
                     `;
-                    container.append(guardiansHtml);
+                    container.append(personsTableHtml);
+
+                    // تخزين البيانات المفقودة لاستخدامها عند الإنشاء
+                    window.missingPersonsData = response.validation.missing_persons;
                 }
 
                 // البنوك المفقودة
@@ -1585,6 +1690,83 @@
                     $('#validation_success').hide();
                     $('#import_submit_btn').hide();
                 }
+            }
+
+            // إنشاء السجلات المفقودة
+            $(document).on('click', '#create_missing_persons_btn', function() {
+                if (!window.missingPersonsData || window.missingPersonsData.length === 0) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'خطأ',
+                        text: 'لا توجد بيانات لإنشائها'
+                    });
+                    return;
+                }
+
+                Swal.fire({
+                    title: 'تأكيد الإنشاء',
+                    html: `هل تريد إنشاء <strong>${window.missingPersonsData.length}</strong> سجل في قاعدة البيانات؟`,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: '#3085d6',
+                    cancelButtonColor: '#d33',
+                    confirmButtonText: 'نعم، إنشاء',
+                    cancelButtonText: 'إلغاء'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        createMissingPersons();
+                    }
+                });
+            });
+
+            function createMissingPersons() {
+                const btn = $('#create_missing_persons_btn');
+                btn.prop('disabled', true);
+                btn.html('<span class="spinner-border spinner-border-sm me-2"></span>جاري الإنشاء...');
+
+                $.ajax({
+                    url: '{{ route("admin.sponsorships.createMissingPersons") }}',
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        persons: window.missingPersonsData
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'تم الإنشاء بنجاح',
+                                html: `تم إنشاء ${response.created_count} سجل بنجاح`,
+                                confirmButtonText: 'إعادة فحص الملف'
+                            }).then(() => {
+                                // إعادة فحص الملف تلقائياً
+                                $('#check_file_btn').trigger('click');
+                            });
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'خطأ',
+                                html: response.message || 'حدث خطأ أثناء إنشاء السجلات'
+                            });
+                        }
+                    },
+                    error: function(xhr) {
+                        let errorMessage = 'حدث خطأ أثناء إنشاء السجلات';
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            errorMessage = xhr.responseJSON.message;
+                        }
+
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'خطأ',
+                            html: errorMessage
+                        });
+                    },
+                    complete: function() {
+                        btn.prop('disabled', false);
+                        btn.html('<i class="ki-duotone ki-plus-circle fs-2"><span class="path1"></span><span class="path2"></span></i> إنشاء السجلات المفقودة');
+                    }
+                });
             }
 
             // تنفيذ الاستيراد الفعلي

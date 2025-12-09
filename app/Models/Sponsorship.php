@@ -15,6 +15,7 @@ class Sponsorship extends Model
         'sponsor_id',
         'sponsoring_organization',
         'internal_file_number',
+        'relation_id_number', // رقم الربط الداخلي المخفي
         'external_file_number',
         'identity_number',
         'orphan_name',
