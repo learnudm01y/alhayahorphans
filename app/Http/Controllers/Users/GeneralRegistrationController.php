@@ -29,6 +29,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\GuardianBankAccount;
+use App\Services\BankAccountValidationService;
 
 class GeneralRegistrationController extends Controller
 {
@@ -181,35 +182,15 @@ class GeneralRegistrationController extends Controller
             markCodeAsUsed($fileIdNumber);
             Log::info('✅ تم حفظ الرقم بنجاح: ' . $fileIdNumber);
 
-            // التحقق من وجود رقم الهوية في جدول persons (السجل المدني)
-            // إذا لم يكن موجوداً، يتم إضافته
-            $guardianIdNumber = $request->input('data_id_number');
-            $existsInPersons = \App\Models\Persons::where('CI_ID_NUM', $guardianIdNumber)->exists();
-
-            if (!$existsInPersons) {
-                try {
-                    \App\Models\Persons::create([
-                        'CI_ID_NUM' => $guardianIdNumber,
-                        'CI_FIRST_ARB' => $request->input('data_first_name'),
-                        'CI_FATHER_ARB' => $request->input('data_father_name'),
-                        'CI_GRAND_FATHER_ARB' => $request->input('data_grand_father_name'),
-                        'CI_FAMILY_ARB' => $request->input('data_family_name'),
-                        'CI_BIRTH_DT' => $request->input('data_birth_date'),
-                        'CI_SEX_CD' => $request->input('data_gender'),
-                        'CITY' => $request->input('data_city'),
-                        'STREET' => $request->input('data_current_address'),
-                    ]);
-                    Log::info('✅ تم إضافة رقم الهوية ' . $guardianIdNumber . ' إلى جدول persons');
-                } catch (\Exception $e) {
-                    Log::warning('⚠️ لم يتم إضافة رقم الهوية إلى persons: ' . $e->getMessage());
-                }
-            }
-
-            // إضافة بيانات الحساب البنكي إذا وُجدت أي قيمة بنكية
+            // إضافة بيانات الحساب البنكي إذا وُجدت أي قيمة بنكية مع التحقق من التكرار
             $bankAccounts = $request->input('bank_accounts', []);
+            $bankValidationService = app(BankAccountValidationService::class);
+            $duplicateBankErrors = [];
+            $guardianIdNumber = $request->input('data_id_number'); // رقم هوية المعيل
+
             Log::info('🟢 بيانات الحسابات البنكية المستلمة من الواجهة:', ['bank_accounts' => $bankAccounts]);
             if (is_array($bankAccounts) && count($bankAccounts) > 0) {
-                foreach ($bankAccounts as $bankAccount) {
+                foreach ($bankAccounts as $index => $bankAccount) {
                     Log::info('🔵 حساب بنكي فردي:', $bankAccount);
                     // تأكد من استقبال وتخزين person_owner_identity_number
                     $reIdNumber = $bankAccount['person_owner_identity_number'] ?? null;
@@ -221,16 +202,42 @@ class GeneralRegistrationController extends Controller
                         (!empty($bankAccount['re_phone_number'])) ||
                         (!empty($reIdNumber))
                     ) {
+                        // 🔍 التحقق من عدم تكرار الحساب البنكي
+                        $accountIdNumber = $reIdNumber ?? $guardianIdNumber;
+
+                        $duplicateCheck = $bankValidationService->checkDuplicateBankAccount([
+                            'guardian_registration' => $fileIdNumber,
+                            're_phone_number' => $bankAccount['re_phone_number'] ?? null,
+                            'bank_name' => $bankAccount['bank_name'] ?? null,
+                            're_id_number' => $accountIdNumber
+                        ]);
+
+                        if ($duplicateCheck['is_duplicate']) {
+                            $duplicateBankErrors[] = [
+                                'index' => $index + 1,
+                                'message' => $duplicateCheck['message']
+                            ];
+                            Log::warning('⚠️ محاولة إضافة حساب بنكي مكرر في التسجيل العام', [
+                                'index' => $index,
+                                'existing_account' => $duplicateCheck['existing_account']
+                            ]);
+                            continue; // تجاوز هذا الحساب المكرر
+                        }
+
                         GuardianBankAccount::create([
                             'guardian_registration' => $fileIdNumber,
                             'bank_name' => $bankAccount['bank_name'] ?? null,
                             'iban_usd' => $bankAccount['iban_usd'] ?? null,
                             'iban_shekel' => $bankAccount['iban_shekel'] ?? null,
+                            'person_owner_identity_number' => $reIdNumber, // رقم هوية صاحب الحساب
                             're_id_number' => $reIdNumber,
                             're_guardian_name' => $bankAccount['re_guardian_name'] ?? null,
                             're_phone_number' => $bankAccount['re_phone_number'] ?? null,
                         ]);
-                        Log::info('🟢 تم تخزين حساب بنكي مع رقم هوية صاحب الحساب:', ['re_id_number' => $reIdNumber]);
+                        Log::info('🟢 تم تخزين حساب بنكي مع رقم هوية صاحب الحساب:', [
+                            'person_owner_identity_number' => $reIdNumber,
+                            're_id_number' => $reIdNumber
+                        ]);
                     } else {
                         Log::warning('⚠️ لم يتم تخزين حساب بنكي بسبب نقص البيانات', $bankAccount);
                     }
@@ -289,75 +296,6 @@ class GeneralRegistrationController extends Controller
                         'person_type_of_guarantee' => $member['person_type_of_guarantee'] ?? null,
                         'person_note' => $member['person_note'] ?? null,
                     ]);
-
-                    // إضافة إلى جدول persons إذا لم يكن موجوداً
-                    $memberIdNumber = $member['person_id'] ?? null;
-                    if ($memberIdNumber) {
-                        $existsInPersons = \App\Models\Persons::where('CI_ID_NUM', $memberIdNumber)->exists();
-                        if (!$existsInPersons) {
-                            try {
-                                \App\Models\Persons::create([
-                                    'CI_ID_NUM' => $memberIdNumber,
-                                    'CI_FIRST_ARB' => $member['first_name'] ?? null,
-                                    'CI_FATHER_ARB' => $member['second_name'] ?? null,
-                                    'CI_GRAND_FATHER_ARB' => $member['third_name'] ?? null,
-                                    'CI_FAMILY_ARB' => $member['last_name'] ?? null,
-                                    'CI_BIRTH_DT' => $member['person_birth_date'] ?? null,
-                                    'CI_SEX_CD' => $member['person_gender'] ?? null,
-                                ]);
-                                Log::info('✅ تم إضافة فرد الأسرة (رقم الهوية: ' . $memberIdNumber . ') إلى جدول persons');
-                            } catch (\Exception $e) {
-                                Log::warning('⚠️ لم يتم إضافة فرد الأسرة إلى persons: ' . $e->getMessage());
-                            }
-                        }
-                    }
-                }
-            }
-
-            // إضافة المتوفى (الأب/الأم) إلى جدول persons إذا لم يكن موجوداً
-            if ($request->input('data_section_id') == 1) {
-                // إضافة الأب
-                $fatherId = $request->input('father_id');
-                if ($fatherId) {
-                    $existsInPersons = \App\Models\Persons::where('CI_ID_NUM', $fatherId)->exists();
-                    if (!$existsInPersons) {
-                        try {
-                            \App\Models\Persons::create([
-                                'CI_ID_NUM' => $fatherId,
-                                'CI_FIRST_ARB' => $request->input('father_first_name'),
-                                'CI_FATHER_ARB' => $request->input('father_second_name'),
-                                'CI_GRAND_FATHER_ARB' => $request->input('father_third_name'),
-                                'CI_FAMILY_ARB' => $request->input('father_last_name'),
-                                'CI_DEAD_DT' => $request->input('father_death_date'),
-                                'CI_SEX_CD' => 1, // ذكر
-                            ]);
-                            Log::info('✅ تم إضافة الأب المتوفى (رقم الهوية: ' . $fatherId . ') إلى جدول persons');
-                        } catch (\Exception $e) {
-                            Log::warning('⚠️ لم يتم إضافة الأب المتوفى إلى persons: ' . $e->getMessage());
-                        }
-                    }
-                }
-
-                // إضافة الأم
-                $motherId = $request->input('mother_id');
-                if ($motherId) {
-                    $existsInPersons = \App\Models\Persons::where('CI_ID_NUM', $motherId)->exists();
-                    if (!$existsInPersons) {
-                        try {
-                            \App\Models\Persons::create([
-                                'CI_ID_NUM' => $motherId,
-                                'CI_FIRST_ARB' => $request->input('mother_first_name'),
-                                'CI_FATHER_ARB' => $request->input('mother_second_name'),
-                                'CI_GRAND_FATHER_ARB' => $request->input('mother_third_name'),
-                                'CI_FAMILY_ARB' => $request->input('mother_last_name'),
-                                'CI_DEAD_DT' => $request->input('mother_death_date'),
-                                'CI_SEX_CD' => 2, // أنثى
-                            ]);
-                            Log::info('✅ تم إضافة الأم المتوفاة (رقم الهوية: ' . $motherId . ') إلى جدول persons');
-                        } catch (\Exception $e) {
-                            Log::warning('⚠️ لم يتم إضافة الأم المتوفاة إلى persons: ' . $e->getMessage());
-                        }
-                    }
                 }
             }
 

@@ -360,4 +360,16 @@ Route::prefix('api/speedtest')->withoutMiddleware(['auth', 'verified'])->group(f
         ->name('api.speedtest.clear-cache');
 });
 
+// Google Drive Test Routes - مسارات اختبار Google Drive
+Route::prefix('google-drive-test')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Admin\GoogleDriveTestController::class, 'index'])->name('google.drive.test.index');
+    Route::post('/test-connection', [\App\Http\Controllers\Admin\GoogleDriveTestController::class, 'testConnection'])->name('google.drive.test.connection');
+    Route::post('/upload', [\App\Http\Controllers\Admin\GoogleDriveTestController::class, 'uploadTest'])->name('google.drive.test.upload');
+    Route::get('/list', [\App\Http\Controllers\Admin\GoogleDriveTestController::class, 'listFiles'])->name('google.drive.test.list');
+    Route::delete('/delete', [\App\Http\Controllers\Admin\GoogleDriveTestController::class, 'deleteFile'])->name('google.drive.test.delete');
+    Route::post('/create-folder', [\App\Http\Controllers\Admin\GoogleDriveTestController::class, 'createFolder'])->name('google.drive.test.folder');
+    Route::get('/search', [\App\Http\Controllers\Admin\GoogleDriveTestController::class, 'searchFiles'])->name('google.drive.test.search');
+    Route::get('/file-info', [\App\Http\Controllers\Admin\GoogleDriveTestController::class, 'getFileInfo'])->name('google.drive.test.info');
+});
+
 require __DIR__ . '/auth.php';

@@ -119,6 +119,10 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::get('records-management/get-bank-accounts', [RecordsManagementEditController::class, 'getBankAccounts'])
         ->name('records.management.getBankAccounts');
 
+    // مسار اعتماد حساب بنكي
+    Route::post('records-management/approve-bank-account', [RecordsManagementEditController::class, 'approveBankAccount'])
+        ->name('records.management.approveBankAccount');
+
     // مسار تعديل سجل موجود (update via AJAX or full form submit)
     Route::put('records-management/{id}', [RecordsManagementEditController::class, 'update'])
         ->name('records.management.update');

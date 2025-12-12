@@ -26,6 +26,7 @@ use App\Models\TypeOfAccommodation;
 use App\Models\TypeOfGuarantee;
 use App\Models\GuardianBankAccount;
 use App\Models\BankName;
+use App\Services\BankAccountValidationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -179,11 +180,14 @@ class RecordsManagementController extends Controller
             // وضع علامة على الرقم كمستخدم في جدول reserved_codes
             markCodeAsUsed($fileIdNumber);
 
-            // 2.5 Store bank accounts إذا وُجدت
+            // 2.5 Store bank accounts إضا وُجدت مع التحقق من التكرار
             $bankAccounts = $request->input('bank_accounts', []);
+            $bankValidationService = app(BankAccountValidationService::class);
+            $duplicateBankErrors = [];
+
             Log::info('🟢 بيانات الحسابات البنكية المستلمة من Admin:', ['bank_accounts' => $bankAccounts]);
             if (is_array($bankAccounts) && count($bankAccounts) > 0) {
-                foreach ($bankAccounts as $bankAccount) {
+                foreach ($bankAccounts as $index => $bankAccount) {
                     Log::info('🔵 حساب بنكي فردي من Admin:', $bankAccount);
                     $reIdNumber = $bankAccount['person_owner_identity_number'] ?? null;
                     if (
@@ -194,6 +198,28 @@ class RecordsManagementController extends Controller
                         (!empty($bankAccount['re_phone_number'])) ||
                         (!empty($reIdNumber))
                     ) {
+                        // 🔍 التحقق من عدم تكرار الحساب البنكي
+                        $accountIdNumber = $reIdNumber ?? $request->input('data_id_number');
+
+                        $duplicateCheck = $bankValidationService->checkDuplicateBankAccount([
+                            'guardian_registration' => $fileIdNumber,
+                            're_phone_number' => $bankAccount['re_phone_number'] ?? null,
+                            'bank_name' => $bankAccount['bank_name'] ?? null,
+                            're_id_number' => $accountIdNumber
+                        ]);
+
+                        if ($duplicateCheck['is_duplicate']) {
+                            $duplicateBankErrors[] = [
+                                'index' => $index + 1,
+                                'message' => $duplicateCheck['message']
+                            ];
+                            Log::warning('⚠️ محاولة إضافة حساب بنكي مكرر في إدارة السجلات', [
+                                'index' => $index,
+                                'existing_account' => $duplicateCheck['existing_account']
+                            ]);
+                            continue; // تجاوز هذا الحساب المكرر
+                        }
+
                         GuardianBankAccount::create([
                             'guardian_registration' => $fileIdNumber,
                             'bank_name' => $bankAccount['bank_name'] ?? null,

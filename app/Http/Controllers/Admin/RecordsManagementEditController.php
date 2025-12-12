@@ -1047,5 +1047,59 @@ class RecordsManagementEditController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * اعتماد حساب بنكي معين للمعيل
+     */
+    public function approveBankAccount(Request $request)
+    {
+        try {
+            $accountId = $request->input('account_id');
+            $guardianFileId = $request->input('guardian_file_id');
+
+            if (!$accountId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'معرف الحساب البنكي مطلوب'
+                ], 400);
+            }
+
+            // جلب الحساب المطلوب اعتماده
+            $account = GuardianBankAccount::findOrFail($accountId);
+
+            // إلغاء اعتماد جميع الحسابات الأخرى لنفس المعيل
+            GuardianBankAccount::where('guardian_registration', $account->guardian_registration)
+                ->where('id', '!=', $accountId)
+                ->update(['check_account' => 0]);
+
+            // اعتماد الحساب المحدد
+            $account->check_account = 1;
+            $account->save();
+
+            Log::info('✅ تم اعتماد الحساب البنكي', [
+                'account_id' => $accountId,
+                'guardian_registration' => $account->guardian_registration,
+                'user_id' => auth()->id()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم اعتماد الحساب البنكي بنجاح',
+                'account_id' => $accountId
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('❌ خطأ في اعتماد الحساب البنكي:', [
+                'message' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'account_id' => $request->input('account_id')
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء اعتماد الحساب البنكي'
+            ], 500);
+        }
+    }
 }
 

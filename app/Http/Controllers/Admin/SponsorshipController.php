@@ -15,6 +15,7 @@ use App\Models\RePeople;
 use App\Models\DeadPepole;
 use App\Models\BankName;
 use App\Models\GuardianBankAccount;
+use App\Services\BankAccountValidationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -75,6 +76,12 @@ class SponsorshipController extends Controller
 
             $validatedData['created_by'] = auth()->id();
 
+            // 🆕 تعيين الحالة الافتراضية "جديد" (ID = 4) إذا لم يتم تحديد حالة
+            if (!isset($validatedData['sponsorship_status_id']) || empty($validatedData['sponsorship_status_id'])) {
+                $validatedData['sponsorship_status_id'] = 4; // حالة "جديد"
+                Log::info('✅ تم تعيين الحالة الافتراضية: جديد');
+            }
+
             // 🆕 معالجة توليد file_id_number للأشخاص من re_people و dead_people
             $recordType = $request->input('record_type');
             $recordId = $request->input('record_id');
@@ -123,8 +130,10 @@ class SponsorshipController extends Controller
                 $sponsorship->sponsors()->sync($sponsorIds);
             }
 
-            // 🏦 حفظ الحسابات البنكية
+            // 🏦 حفظ الحسابات البنكية مع التحقق من التكرار
             if ($request->has('bank_accounts') && !empty($request->bank_accounts)) {
+                $bankValidationService = app(BankAccountValidationService::class);
+                $duplicateErrors = [];
                 // محاولة الحصول على رقم هوية المعيل من عدة مصادر
                 $guardianIdentity = $validatedData['guardian_identity_number'] ??
                                    $request->input('guardian_identity_number') ??
@@ -175,6 +184,29 @@ class SponsorshipController extends Controller
                                        !empty($account['iban_shekel']);
 
                             if ($hasData) {
+                                // 🔍 التحقق من عدم تكرار الحساب البنكي
+                                $accountIdNumber = $account['person_owner_identity_number'] ?? $guardianIdentity;
+                                $excludeId = !empty($account['id']) ? $account['id'] : null;
+
+                                $duplicateCheck = $bankValidationService->checkDuplicateBankAccount([
+                                    'guardian_registration' => $guardianFileId,
+                                    're_phone_number' => $account['re_phone_number'] ?? null,
+                                    'bank_name' => $account['bank_name'] ?? null,
+                                    're_id_number' => $accountIdNumber
+                                ], $excludeId);
+
+                                if ($duplicateCheck['is_duplicate']) {
+                                    $duplicateErrors[] = [
+                                        'index' => $index + 1,
+                                        'message' => $duplicateCheck['message']
+                                    ];
+                                    Log::warning('⚠️ محاولة إضافة حساب بنكي مكرر', [
+                                        'index' => $index,
+                                        'existing_account' => $duplicateCheck['existing_account']
+                                    ]);
+                                    continue; // تجاوز هذا الحساب المكرر
+                                }
+
                                 $bankAccountData = [
                                     'guardian_registration' => $guardianFileId, // استخدام file_id_number بدلاً من identity_number
                                     'bank_name' => $account['bank_name'] ?? null,
@@ -217,6 +249,12 @@ class SponsorshipController extends Controller
             // إعداد الرسالة مع رقم الملف
             $message = 'تم إضافة الكفالة بنجاح';
             $additionalInfo = [];
+
+            // إضافة تحذيرات التكرار البنكي إن وجدت
+            if (!empty($duplicateErrors)) {
+                $additionalInfo['bank_duplicates'] = $duplicateErrors;
+                $message .= '. تم تجاهل ' . count($duplicateErrors) . ' حساب بنكي مكرر';
+            }
 
             // إذا تم توليد رقم ملف جديد، أضفه للرسالة
             if (isset($newFileId)) {
@@ -334,6 +372,9 @@ class SponsorshipController extends Controller
 
             $sponsorship->update($validatedData);
 
+            // ✍️ إضافة المستخدم الحالي إلى قائمة المعدلين
+            $sponsorship->addUpdater(auth()->id());
+
             // تحديث المؤسسات الكافلة
             if (!empty($sponsorIds)) {
                 $sponsorship->sponsors()->sync($sponsorIds);
@@ -341,8 +382,10 @@ class SponsorshipController extends Controller
                 $sponsorship->sponsors()->detach();
             }
 
-            // 🏦 تحديث الحسابات البنكية
+            // 🏦 تحديث الحسابات البنكية مع التحقق من التكرار
             if ($request->has('bank_accounts') && !empty($request->bank_accounts)) {
+                $bankValidationService = app(BankAccountValidationService::class);
+                $duplicateErrors = [];
                 // محاولة الحصول على رقم هوية المعيل من عدة مصادر
                 $guardianIdentity = $validatedData['guardian_identity_number'] ??
                                    $request->input('guardian_identity_number') ??
@@ -396,6 +439,29 @@ class SponsorshipController extends Controller
                                        !empty($account['iban_shekel']);
 
                             if ($hasData) {
+                                // 🔍 التحقق من عدم تكرار الحساب البنكي
+                                $accountIdNumber = $account['person_owner_identity_number'] ?? $guardianIdentity;
+                                $excludeId = !empty($account['id']) ? $account['id'] : null;
+
+                                $duplicateCheck = $bankValidationService->checkDuplicateBankAccount([
+                                    'guardian_registration' => $guardianFileId,
+                                    're_phone_number' => $account['re_phone_number'] ?? null,
+                                    'bank_name' => $account['bank_name'] ?? null,
+                                    're_id_number' => $accountIdNumber
+                                ], $excludeId);
+
+                                if ($duplicateCheck['is_duplicate']) {
+                                    $duplicateErrors[] = [
+                                        'index' => $index + 1,
+                                        'message' => $duplicateCheck['message']
+                                    ];
+                                    Log::warning('⚠️ محاولة تحديث إلى حساب بنكي مكرر', [
+                                        'index' => $index,
+                                        'existing_account' => $duplicateCheck['existing_account']
+                                    ]);
+                                    continue; // تجاوز هذا الحساب المكرر
+                                }
+
                                 $bankAccountData = [
                                     'guardian_registration' => $guardianFileId, // استخدام file_id_number بدلاً من identity_number
                                     'bank_name' => $account['bank_name'] ?? null,
@@ -443,9 +509,19 @@ class SponsorshipController extends Controller
 
             DB::commit();
 
+            $message = 'تم تحديث الكفالة بنجاح';
+            $additionalInfo = [];
+
+            // إضافة تحذيرات التكرار البنكي إن وجدت
+            if (!empty($duplicateErrors)) {
+                $additionalInfo['bank_duplicates'] = $duplicateErrors;
+                $message .= '. تم تجاهل ' . count($duplicateErrors) . ' حساب بنكي مكرر';
+            }
+
             return response()->json([
                 'success' => true,
-                'message' => 'تم تحديث الكفالة بنجاح'
+                'message' => $message,
+                'info' => $additionalInfo
             ]);
 
         } catch (\Exception $e) {
@@ -649,6 +725,9 @@ class SponsorshipController extends Controller
 
             $sponsorship->sponsorship_status_id = $request->sponsorship_status_id;
             $sponsorship->save();
+
+            // ✍️ إضافة المستخدم الحالي إلى قائمة المعدلين عند تغيير الحالة
+            $sponsorship->addUpdater(auth()->id());
 
             $newStatus = $sponsorship->fresh()->sponsorshipStatus->description;
 
@@ -946,10 +1025,8 @@ class SponsorshipController extends Controller
                 }
             }
 
-            // 3. التحقق من حالة الكفالة
-            if (empty($request->sponsorship_status_id)) {
-                $validationErrors[] = 'يجب اختيار حالة الكفالة';
-            } else {
+            // 3. التحقق من حالة الكفالة (اختياري - سيتم استخدام "جديد" كافتراضي)
+            if (!empty($request->sponsorship_status_id)) {
                 $sponsorshipStatus = \App\Models\SponsorshipStatus::find($request->sponsorship_status_id);
                 if (!$sponsorshipStatus) {
                     $validationErrors[] = "حالة الكفالة المحددة (ID: {$request->sponsorship_status_id}) غير موجودة في النظام";
@@ -1450,33 +1527,120 @@ class SponsorshipController extends Controller
                         ]);
                     }
 
+                    // ⚠️ في حالة المعيل: يتم إدخال اسمه ورقم هويته فقط، وباقي البيانات تترك فارغة
+                    $isGuardianType = in_array($normalizedPersonType, ['معيل', 'معيل اسره', 'معيل اسرة', 'معيل أسرة', 'معيل عائله', 'معيل عائلة']);
+
                     $sponsorship = new Sponsorship();
+                    // للمعيل: نخزن اسمه ورقمه فقط في حقول المكفول
                     $sponsorship->identity_number = $sponsoredIdentity ?: null;
                     $sponsorship->orphan_name = $sponsoredName ?: null;
-                    $sponsorship->guardian_name = $guardianName ?: null;
-                    $sponsorship->guardian_identity_number = $guardianIdentity;
+                    // للمعيل: نترك هذه الحقول فارغة لأنه هو نفسه المكفول
+                    $sponsorship->guardian_name = $isGuardianType ? null : ($guardianName ?: null);
+                    $sponsorship->guardian_identity_number = $isGuardianType ? null : $guardianIdentity;
                     $sponsorship->relation_id_number = $internalFileNumber; // رقم الربط الداخلي (مخفي)
                     $sponsorship->internal_file_number = $displayFileNumber; // الرقم المعروض للمستخدم
                     $sponsorship->external_file_number = $externalFileNumber ?: null;
                     $sponsorship->sponsoring_organization = $sponsoringOrganization ?: null;
                     $sponsorship->sponsorship_type_id = $request->sponsorship_type_id;
-                    $sponsorship->sponsorship_status_id = $request->sponsorship_status_id;
+                    // استخدام الحالة المحددة أو "جديد" (ID = 4) كحالة افتراضية
+                    $sponsorship->sponsorship_status_id = $request->sponsorship_status_id ?: 4;
                     $sponsorship->created_by = auth()->id();
                     $sponsorship->save();
 
                     // ربط الكفالة بالمؤسسة الكافلة
                     $sponsorship->sponsors()->attach($request->sponsor_id);
 
-                    // إضافة البيانات البنكية - استخدام رقم ملف المعيل الحقيقي (للربط الداخلي)
+                    // إضافة البيانات البنكية - استخدام رقم ملف المعيل الحقيقي (للربط الداخلي) مع التحقق من التكرار
                     if ($bankId) {
-                        $bankAccount = new GuardianBankAccount();
-                        $bankAccount->guardian_registration = $internalFileNumber; // استخدام رقم ملف المعيل من جدول data
-                        $bankAccount->person_owner_identity_number = $personOwnerIdentityNumber ?: $guardianIdentity;
-                        $bankAccount->re_id_number = $sponsoredIdentity ?: null;
-                        $bankAccount->re_guardian_name = $reGuardianName ?: $guardianName;
-                        $bankAccount->bank_name = $bankId;
-                        $bankAccount->re_phone_number = $rePhoneNumber ?: $phoneNumber;
-                        $bankAccount->save();
+                        // 🎯 تحديد رقم هوية المعيل بشكل قاطع (بغض النظر عن نوع الشخص)
+                        // في حالة المعيل: يكون نفسه المكفول (sponsoredIdentity)
+                        // في الحالات الأخرى: نستخدم guardianIdentity
+                        $actualGuardianIdentity = $isGuardianType ? $sponsoredIdentity : $guardianIdentity;
+
+                        // ✅ person_owner_identity_number: رقم هوية صاحب الحساب البنكي (من عمود "هوية المحفظة")
+                        // 🔥 CRITICAL FIX: التأكد من أن القيمة هي رقم هوية وليس رقم ملف خارجي
+                        // - رقم الهوية يجب أن يكون 10 أرقام
+                        // - رقم الملف الخارجي عادة 5 أرقام فقط (مثل 80004)
+                        $accountOwnerIdentity = $actualGuardianIdentity; // القيمة الافتراضية: هوية المعيل
+
+                        if (!empty($personOwnerIdentityNumber)) {
+                            // التحقق من أن القيمة ليست رقم ملف خارجي (أقل من 6 أرقام)
+                            $cleanedValue = preg_replace('/\D/', '', $personOwnerIdentityNumber); // إزالة أي رموز غير رقمية
+
+                            if (strlen($cleanedValue) >= 9) {
+                                // هذا رقم هوية صالح (9-10 أرقام)
+                                $accountOwnerIdentity = $personOwnerIdentityNumber;
+                                Log::info('✅ رقم هوية صالح لصاحب المحفظة', [
+                                    'row' => $rowNumber,
+                                    'identity' => $accountOwnerIdentity,
+                                    'length' => strlen($cleanedValue)
+                                ]);
+                            } else {
+                                // هذا رقم ملف خارجي (أقل من 9 أرقام) - سنستخدم هوية المعيل
+                                Log::warning('⚠️ القيمة في عمود "هوية المحفظة" ليست رقم هوية صالح - استخدام هوية المعيل', [
+                                    'row' => $rowNumber,
+                                    'invalid_value' => $personOwnerIdentityNumber,
+                                    'length' => strlen($cleanedValue),
+                                    'using_guardian_identity' => $actualGuardianIdentity
+                                ]);
+                            }
+                        }
+
+                        // 🔍 التحقق من عدم تكرار الحساب البنكي
+                        // ✅ نمرر جميع الأعمدة الخمسة التي يجب أن تكون متطابقة لاعتبار الحساب مكرر:
+                        // 1. guardian_registration (رقم ملف المعيل الداخلي)
+                        // 2. person_owner_identity_number (رقم هوية صاحب الحساب)
+                        // 3. re_id_number (رقم هوية المعيل)
+                        // 4. re_phone_number (رقم جوال المحفظة)
+                        // 5. bank_name (اسم البنك/المحفظة)
+                        $bankValidationService = app(BankAccountValidationService::class);
+
+                        $duplicateCheck = $bankValidationService->checkDuplicateBankAccount([
+                            'guardian_registration' => $internalFileNumber,
+                            'person_owner_identity_number' => $accountOwnerIdentity,
+                            're_id_number' => $actualGuardianIdentity,
+                            're_phone_number' => $rePhoneNumber ?: $phoneNumber,
+                            'bank_name' => $bankId
+                        ]);
+
+                        if (!$duplicateCheck['is_duplicate']) {
+                            $bankAccount = new GuardianBankAccount();
+                            $bankAccount->guardian_registration = $internalFileNumber; // استخدام رقم ملف المعيل من جدول data
+
+                            // ✅ person_owner_identity_number: رقم هوية صاحب الحساب البنكي (من عمود "هوية المحفظة")
+                            $bankAccount->person_owner_identity_number = $accountOwnerIdentity;
+
+                            // ✅ re_id_number: رقم هوية المعيل دائماً (بغض النظر عن نوع الشخص)
+                            // - إذا كان معيل: نستخدم رقم هويته (sponsoredIdentity)
+                            // - إذا كان فرد أسرة/متوفي: نستخدم رقم هوية المعيل (guardianIdentity)
+                            $bankAccount->re_id_number = $actualGuardianIdentity;
+
+                            $bankAccount->re_guardian_name = $reGuardianName ?: $guardianName;
+                            $bankAccount->bank_name = $bankId;
+                            $bankAccount->re_phone_number = $rePhoneNumber ?: $phoneNumber;
+                            $bankAccount->save();
+
+                            Log::info('💾 تم حفظ الحساب البنكي', [
+                                'row' => $rowNumber,
+                                'person_type' => $personType,
+                                'guardian_registration' => $internalFileNumber,
+                                're_id_number (المعيل)' => $actualGuardianIdentity,
+                                'person_owner_identity_number (صاحب المحفظة)' => $accountOwnerIdentity,
+                                'bank_name' => $bankId
+                            ]);
+                        } else {
+                            Log::warning('🚫 تم منع إدخال حساب بنكي مكرر - جميع الأعمدة الخمسة متطابقة', [
+                                'row' => $rowNumber,
+                                'person_type' => $personType,
+                                '1_guardian_registration' => $internalFileNumber,
+                                '2_person_owner_identity_number' => $accountOwnerIdentity,
+                                '3_re_id_number' => $actualGuardianIdentity,
+                                '4_re_phone_number' => $rePhoneNumber ?: $phoneNumber,
+                                '5_bank_name' => $bankId,
+                                'duplicate_message' => $duplicateCheck['message'],
+                                'existing_account_id' => $duplicateCheck['existing_account']['id'] ?? null
+                            ]);
+                        }
                     }
 
                     DB::commit();

@@ -77,6 +77,63 @@
         color: var(--bs-gray-700);
         padding-right: 43px;
     }
+
+    /* تنسيق النقطة الخضراء لحالة "محدث" */
+    .status-indicator-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        background-color: #50cd89;
+        border-radius: 50%;
+        margin-left: 6px;
+        box-shadow: 0 0 6px rgba(80, 205, 137, 0.6);
+        animation: pulse-green 2s infinite;
+    }
+
+    @keyframes pulse-green {
+        0%, 100% {
+            box-shadow: 0 0 6px rgba(80, 205, 137, 0.6);
+        }
+        50% {
+            box-shadow: 0 0 12px rgba(80, 205, 137, 0.9);
+        }
+    }
+
+    /* تنسيق علامة الصح السوداء لحالة "ذهب للصرف" */
+    .status-check-mark {
+        display: inline-block;
+        font-weight: bold;
+        color: #000000;
+        margin-left: 6px;
+        font-size: 14px;
+        text-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
+    }
+
+    /* تنسيق زر الاعتماد - أخضر غامق */
+    .btn-dark-green {
+        background-color: #1a5f3b !important;
+        border-color: #1a5f3b !important;
+        color: #ffffff !important;
+        font-weight: 600;
+    }
+
+    .btn-dark-green:disabled {
+        background-color: #1a5f3b !important;
+        border-color: #1a5f3b !important;
+        opacity: 0.8;
+        cursor: not-allowed;
+    }
+
+    .btn-outline-success:hover {
+        background-color: #198754;
+        border-color: #198754;
+        color: #ffffff;
+    }
+
+    /* تنسيق النقطة في القائمة المنسدلة */
+    .change-sponsorship-status option {
+        padding: 5px 10px;
+    }
 </style>
 @endpush
 
@@ -625,9 +682,9 @@
             });
 
             // ============================================
-            // تطبيق الفلاتر على الجدول
+            // تطبيق الفلاتر بشكل تلقائي عند التغيير (كل فلتر مستقل)
             // ============================================
-            $('#apply_filters').on('click', function() {
+            function applyFilters() {
                 if ($.fn.DataTable.isDataTable('#sponsorships-table')) {
                     const table = $('#sponsorships-table').DataTable();
 
@@ -646,23 +703,48 @@
                     const queryString = params.length > 0 ? '?' + params.join('&') : '';
 
                     // تحديث الـ AJAX URL وإعادة تحميل البيانات
-                    table.ajax.url(baseUrl + queryString).load(function() {
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'تم تطبيق الفلاتر',
-                            text: 'تم تحديث النتائج بنجاح',
-                            timer: 1500,
-                            showConfirmButton: false
-                        });
-                    });
+                    table.ajax.url(baseUrl + queryString).load();
                 }
+            }
+
+            // تفعيل الفلاتر بشكل تلقائي عند التغيير
+            $('#filter_sponsor').on('change', function() {
+                console.log('🔴 Sponsor filter changed:', $(this).val());
+                applyFilters();
+            });
+
+            $('#filter_sponsorship_type').on('change', function() {
+                console.log('🔵 Type filter changed:', $(this).val());
+                applyFilters();
+            });
+
+            $('#filter_sponsorship_status').on('change', function() {
+                console.log('🟢 Status filter changed:', $(this).val());
+                applyFilters();
+            });
+
+            // زر تطبيق الفلاتر (احتياطي للتطبيق اليدوي)
+            $('#apply_filters').on('click', function() {
+                applyFilters();
+                Swal.fire({
+                    icon: 'success',
+                    title: 'تم تطبيق الفلاتر',
+                    text: 'تم تحديث النتائج بنجاح',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
             });
 
             // ============================================
-            // إعادة تعيين الفلاتر
+            // إعادة تعيين الفلاتر بشكل تلقائي
             // ============================================
             $('#reset_filters').on('click', function() {
-                $('#filter_sponsor, #filter_sponsorship_type, #filter_sponsorship_status').val('').trigger('change');
+                console.log('♻️ Resetting all filters...');
+
+                // إزالة القيم مؤقتاً بدون تفعيل change event
+                $('#filter_sponsor').val(null).trigger('change.select2');
+                $('#filter_sponsorship_type').val(null).trigger('change.select2');
+                $('#filter_sponsorship_status').val(null).trigger('change.select2');
 
                 if ($.fn.DataTable.isDataTable('#sponsorships-table')) {
                     const table = $('#sponsorships-table').DataTable();
@@ -829,11 +911,23 @@
                         if (response.success && response.accounts && response.accounts.length > 0) {
                             let html = '';
                             response.accounts.forEach((account, index) => {
+                                const isApproved = account.check_account == 1;
+
                                 html += `
-                                <div class="border rounded p-4 mb-3" style="background-color: #f8f9fa;">
-                                    <h6 class="mb-3 text-dark fw-bold">
-                                        <i class="fas fa-university text-primary me-2"></i>حساب بنكي ${index + 1}
-                                    </h6>
+                                <div class="border rounded p-4 mb-3 bank-account-card" data-account-id="${account.id}" style="background-color: #f8f9fa;">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h6 class="mb-0 text-dark fw-bold">
+                                            <i class="fas fa-university text-primary me-2"></i>حساب بنكي ${index + 1}
+                                        </h6>
+                                        <button type="button"
+                                                class="btn btn-sm approve-bank-account-btn ${isApproved ? 'btn-dark-green' : 'btn-outline-success'}"
+                                                data-account-id="${account.id}"
+                                                data-guardian-file-id="${response.guardian_file_id}"
+                                                ${isApproved ? 'disabled' : ''}>
+                                            <i class="fas ${isApproved ? 'fa-check-circle' : 'fa-check'} me-1"></i>
+                                            ${isApproved ? 'حساب معتمد' : 'اعتماد الحساب'}
+                                        </button>
+                                    </div>
                                     <div class="row g-3">
                                         <div class="col-md-6">
                                             <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">اسم البنك</span>
@@ -898,14 +992,29 @@
                     const table = $('#sponsorships-table').DataTable();
                     const searchInput = $('#kt_sponsorship_search');
 
-                    searchInput.off('keyup input').on('keyup input', function() {
-                        table.search(this.value).draw();
+                    // إزالة أي event handlers سابقة
+                    searchInput.off('keyup input change');
+
+                    // تفعيل البحث الفوري
+                    searchInput.on('keyup input change', function() {
+                        const searchValue = this.value;
+                        console.log('🔍 Searching for:', searchValue);
+                        table.search(searchValue).draw();
+                    });
+
+                    // مسح البحث عند الضغط على Escape
+                    searchInput.on('keydown', function(e) {
+                        if (e.key === 'Escape') {
+                            $(this).val('');
+                            table.search('').draw();
+                        }
                     });
 
                     searchInitialized = true;
-                    console.log('✓ Search initialized successfully!');
+                    console.log('✅ Search engine activated successfully!');
+                    console.log('🔍 You can now search for: names, IDs, files, etc.');
                 } catch (error) {
-                    console.error('Error initializing search:', error);
+                    console.error('❌ Error initializing search:', error);
                 }
             }
 
@@ -1019,11 +1128,23 @@
                     success: function(response) {
                         $('#sponsorshipModal').modal('hide');
 
+                        // 🔍 التحقق من وجود تحذيرات حسابات بنكية مكررة
+                        let message = response.message;
+                        let icon = 'success';
+
+                        if (response.info && response.info.bank_duplicates && response.info.bank_duplicates.length > 0) {
+                            icon = 'warning';
+                            message += '\n\n⚠️ تم تجاهل الحسابات البنكية المكررة التالية:\n\n';
+                            response.info.bank_duplicates.forEach(function(dup) {
+                                message += `${dup.index}. ${dup.message}\n\n`;
+                            });
+                        }
+
                         Swal.fire({
-                            icon: 'success',
-                            title: 'نجح!',
-                            text: response.message,
-                            timer: 2000,
+                            icon: icon,
+                            title: icon === 'success' ? 'نجح!' : 'نجح مع تحذيرات',
+                            html: message.replace(/\n/g, '<br>'),
+                            timer: icon === 'success' ? 2000 : null,
                             showConfirmButton: true,
                             confirmButtonText: 'حسناً'
                         });
@@ -1226,7 +1347,15 @@
                                     </div>
                                     <div class="col-md-6">
                                         <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">حالة الكفالة</span>
-                                        <span class="fw-bold text-gray-800 fs-6">${data.sponsorship_status?.description || '-'}</span>
+                                        <span class="fw-bold text-gray-800 fs-6">
+                                            ${data.sponsorship_status_id == 3 || (data.sponsorship_status?.description || '').includes('محدث')
+                                                ? '<span class="status-indicator-dot"></span>'
+                                                : ''}
+                                            ${data.sponsorship_status_id == 5 || (data.sponsorship_status?.description || '').includes('ذهب') || (data.sponsorship_status?.description || '').includes('صرف')
+                                                ? '<span class="status-check-mark">✓</span>'
+                                                : ''}
+                                            ${data.sponsorship_status?.description || '-'}
+                                        </span>
                                     </div>
                                     <div class="col-md-12">
                                         <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">ملاحظات</span>
@@ -1257,11 +1386,23 @@
 
                                     if (bankResponse.success && bankResponse.accounts && bankResponse.accounts.length > 0) {
                                         bankResponse.accounts.forEach((account, index) => {
+                                            const isApproved = account.check_account == 1;
+
                                             bankHtml += `
-                                                <div class="border rounded p-4 mb-4" style="background-color: #f1faff; border: 2px solid #009ef7 !important;">
-                                                    <h6 class="mb-4 text-primary fw-bold">
-                                                        <i class="fas fa-university me-2"></i>حساب بنكي رقم ${index + 1}
-                                                    </h6>
+                                                <div class="border rounded p-4 mb-4 bank-account-card" data-account-id="${account.id}" style="background-color: #f1faff; border: 2px solid #009ef7 !important;">
+                                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                                        <h6 class="mb-0 text-primary fw-bold">
+                                                            <i class="fas fa-university me-2"></i>حساب بنكي رقم ${index + 1}
+                                                        </h6>
+                                                        <button type="button"
+                                                                class="btn btn-sm approve-bank-account-btn ${isApproved ? 'btn-dark-green' : 'btn-outline-success'}"
+                                                                data-account-id="${account.id}"
+                                                                data-guardian-file-id="${bankResponse.guardian_file_id}"
+                                                                ${isApproved ? 'disabled' : ''}>
+                                                            <i class="fas ${isApproved ? 'fa-check-circle' : 'fa-check'} me-1"></i>
+                                                            ${isApproved ? 'حساب معتمد' : 'اعتماد الحساب'}
+                                                        </button>
+                                                    </div>
                                                     <div class="row g-4">
                                                         <div class="col-md-6">
                                                             <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">اسم البنك</span>
@@ -1352,7 +1493,16 @@
             // ============================================
 
             // تصدير كامل البيانات
+            // ربط زر تصدير كامل مع وظيفة DataTable Excel
             $('#export_excel_full_btn').click(function() {
+                // تفعيل تصدير Excel من DataTable
+                var table = $('#sponsorships-table').DataTable();
+                table.button('.buttons-excel').trigger();
+                return;
+            });
+
+            // الكود القديم للتصدير (احتياطي)
+            $('#export_excel_full_btn_old').click(function() {
                 exportExcel('full');
             });
 
@@ -1479,6 +1629,7 @@
                         return xhr;
                     },
                     success: function(response) {
+                        console.log('✅ Response received:', response);
                         $('#import_progress_bar').css('width', '100%');
                         $('#import_progress_text').text('100%');
                         $('#import_status_text').text('اكتمل الفحص');
@@ -1489,16 +1640,30 @@
                         }, 1000);
 
                         if (response.success) {
+                            console.log('✅ Displaying validation results...');
                             displayValidationResults(response);
+                        } else {
+                            console.error('❌ Response success is false:', response);
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'خطأ',
+                                text: response.message || 'حدث خطأ أثناء فحص الملف'
+                            });
                         }
                     },
                     error: function(xhr) {
+                        console.error('❌ AJAX Error:', xhr);
+                        console.error('Status:', xhr.status);
+                        console.error('Response:', xhr.responseText);
+
                         $('#check_file_btn').prop('disabled', false);
                         $('#import_progress_container').hide();
 
                         let errorMessage = 'حدث خطأ أثناء فحص الملف';
                         if (xhr.responseJSON && xhr.responseJSON.message) {
                             errorMessage = xhr.responseJSON.message;
+                        } else if (xhr.responseText) {
+                            errorMessage = 'خطأ في الخادم: ' + xhr.responseText.substring(0, 200);
                         }
 
                         Swal.fire({
@@ -1563,7 +1728,20 @@
 
             // عرض نتائج الفحص
             function displayValidationResults(response) {
-                console.log('🔍 Validation Response:', response);
+                console.log('🔍 Displaying Validation Results...');
+                console.log('📊 Full Response:', response);
+                console.log('✅ Response.validation exists:', !!response.validation);
+
+                if (!response.validation) {
+                    console.error('❌ No validation data in response!');
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'خطأ',
+                        text: 'لم يتم استلام بيانات التحقق من الخادم'
+                    });
+                    return;
+                }
+
                 console.log('📋 Missing Persons:', response.validation.missing_persons);
                 console.log('🏦 Missing Banks:', response.validation.missing_banks);
 
@@ -1926,6 +2104,76 @@
 
                 // تنظيف modal backdrop للتأكد
                 cleanupModalBackdrop();
+            });
+
+            // ====================================================================
+            // معالج زر اعتماد الحساب البنكي
+            // ====================================================================
+            $(document).on('click', '.approve-bank-account-btn', function(e) {
+                e.preventDefault();
+
+                const $btn = $(this);
+                const accountId = $btn.data('account-id');
+                const guardianFileId = $btn.data('guardian-file-id');
+
+                // تعطيل الزر مؤقتاً
+                $btn.prop('disabled', true);
+                const originalHtml = $btn.html();
+                $btn.html('<i class="fas fa-spinner fa-spin me-1"></i>جاري الاعتماد...');
+
+                $.ajax({
+                    url: '{{ route("admin.records.management.approveBankAccount") }}',
+                    type: 'POST',
+                    data: {
+                        account_id: accountId,
+                        guardian_file_id: guardianFileId,
+                        _token: '{{ csrf_token() }}'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            // تحديث جميع الأزرار: إعادتها للحالة الافتراضية (غير معتمد)
+                            $('.bank-account-card').each(function() {
+                                const $otherBtn = $(this).find('.approve-bank-account-btn');
+                                $otherBtn.removeClass('btn-dark-green').addClass('btn-outline-success');
+                                $otherBtn.html('<i class="fas fa-check me-1"></i>اعتماد الحساب');
+                                $otherBtn.prop('disabled', false);
+                            });
+
+                            // تحديث الزر الحالي فقط (أخضر غامق ومعطل)
+                            $btn.removeClass('btn-outline-success').addClass('btn-dark-green');
+                            $btn.html('<i class="fas fa-check-circle me-1"></i>حساب معتمد');
+                            $btn.prop('disabled', true);
+
+                            // عرض رسالة نجاح
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'تم الاعتماد',
+                                text: response.message,
+                                timer: 2000,
+                                showConfirmButton: false
+                            });
+                        } else {
+                            $btn.html(originalHtml);
+                            $btn.prop('disabled', false);
+
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'خطأ',
+                                text: response.message || 'حدث خطأ أثناء اعتماد الحساب'
+                            });
+                        }
+                    },
+                    error: function(xhr) {
+                        $btn.html(originalHtml);
+                        $btn.prop('disabled', false);
+
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'خطأ',
+                            text: 'حدث خطأ أثناء اعتماد الحساب البنكي'
+                        });
+                    }
+                });
             });
         });
     </script>

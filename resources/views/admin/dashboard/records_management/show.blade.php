@@ -131,6 +131,27 @@
             margin-bottom: 0 !important;
         }
     }
+
+    /* تنسيق زر الاعتماد - أخضر غامق */
+    .btn-dark-green {
+        background-color: #1a5f3b !important;
+        border-color: #1a5f3b !important;
+        color: #ffffff !important;
+        font-weight: 600;
+    }
+
+    .btn-dark-green:disabled {
+        background-color: #1a5f3b !important;
+        border-color: #1a5f3b !important;
+        opacity: 0.8;
+        cursor: not-allowed;
+    }
+
+    .btn-outline-success:hover {
+        background-color: #198754;
+        border-color: #198754;
+        color: #ffffff;
+    }
 </style>
 <!-- Modal HTML -->
 <div class="modal fade" id="attachmentsModal" tabindex="-1" aria-labelledby="attachmentsModalLabel" aria-hidden="true">
@@ -265,11 +286,13 @@
                                         <th>رقم الآيبان (شيكل)</th>
                                         <th>رقم الآيبان (دولار)</th>
                                         <th>اسم صاحب الحساب</th>
+                                        <th>رقم الهاتف</th>
+                                        <th style="width: 150px;">الحالة</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     @foreach($bankAccounts as $account)
-                                        <tr>
+                                        <tr class="bank-account-row" data-account-id="{{ $account->id }}">
                                             <td>
                                                 @php
                                                     // إذا كان bank_name رقم (id) فاعرض الوصف من جدول bank_names
@@ -284,6 +307,20 @@
                                             <td>{{ $account->iban_shekel }}</td>
                                             <td>{{ $account->iban_usd }}</td>
                                             <td>{{ $account->re_guardian_name }}</td>
+                                            <td>{{ $account->re_phone_number ?? '-' }}</td>
+                                            <td class="text-center">
+                                                @php
+                                                    $isApproved = $account->check_account == 1;
+                                                @endphp
+                                                <button type="button"
+                                                        class="btn btn-sm approve-bank-account-btn {{ $isApproved ? 'btn-dark-green' : 'btn-outline-success' }}"
+                                                        data-account-id="{{ $account->id }}"
+                                                        data-guardian-file-id="{{ $data->file_id_number }}"
+                                                        {{ $isApproved ? 'disabled' : '' }}>
+                                                    <i class="fas {{ $isApproved ? 'fa-check-circle' : 'fa-check' }} me-1"></i>
+                                                    {{ $isApproved ? 'حساب معتمد' : 'اعتماد الحساب' }}
+                                                </button>
+                                            </td>
                                         </tr>
                                     @endforeach
                                 </tbody>
@@ -509,9 +546,88 @@
     </div>
 </div>
 @push('scriptsCode')
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // ====================================================================
+    // معالج زر اعتماد الحساب البنكي
+    // ====================================================================
+    document.querySelectorAll('.approve-bank-account-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+
+            const accountId = this.getAttribute('data-account-id');
+            const guardianFileId = this.getAttribute('data-guardian-file-id');
+            const originalHtml = this.innerHTML;
+
+            // تعطيل الزر مؤقتاً
+            this.disabled = true;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>جاري الاعتماد...';
+
+            // إرسال طلب AJAX
+            fetch('{{ route("admin.records.management.approveBankAccount") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({
+                    account_id: accountId,
+                    guardian_file_id: guardianFileId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // تحديث جميع الأزرار: إعادتها للحالة الافتراضية (غير معتمد)
+                    document.querySelectorAll('.approve-bank-account-btn').forEach(function(otherBtn) {
+                        otherBtn.classList.remove('btn-dark-green');
+                        otherBtn.classList.add('btn-outline-success');
+                        otherBtn.innerHTML = '<i class="fas fa-check me-1"></i>اعتماد الحساب';
+                        otherBtn.disabled = false;
+                    });
+
+                    // تحديث الزر الحالي فقط (أخضر غامق ومعطل)
+                    this.classList.remove('btn-outline-success');
+                    this.classList.add('btn-dark-green');
+                    this.innerHTML = '<i class="fas fa-check-circle me-1"></i>حساب معتمد';
+                    this.disabled = true;
+
+                    // عرض رسالة نجاح
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'تم الاعتماد',
+                        text: data.message,
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                } else {
+                    this.innerHTML = originalHtml;
+                    this.disabled = false;
+
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'خطأ',
+                        text: data.message || 'حدث خطأ أثناء اعتماد الحساب'
+                    });
+                }
+            })
+            .catch(error => {
+                this.innerHTML = originalHtml;
+                this.disabled = false;
+
+                Swal.fire({
+                    icon: 'error',
+                    title: 'خطأ',
+                    text: 'حدث خطأ أثناء اعتماد الحساب البنكي'
+                });
+            });
+        });
+    });
+
+    // ====================================================================
     // دعم جميع مناطق المرفقات (الرئيسية، أفراد الأسرة، المتوفين)
+    // ====================================================================
     document.querySelectorAll('.open-attachments-modal').forEach(function(el) {
         el.addEventListener('click', function(e) {
             e.preventDefault();

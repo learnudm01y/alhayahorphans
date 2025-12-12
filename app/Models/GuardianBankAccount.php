@@ -17,6 +17,11 @@ class GuardianBankAccount extends Model
         're_phone_number',
         'person_owner_identity_number',
         'iban_shekel',
+        'check_account',
+    ];
+
+    protected $casts = [
+        'check_account' => 'integer',
     ];
 
     public function guardian()

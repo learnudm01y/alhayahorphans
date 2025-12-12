@@ -28,12 +28,14 @@ class Sponsorship extends Model
         'sponsorship_status_id',
         'notes',
         'created_by',
+        'updated_by', // مصفوفة المستخدمين الذين عدلوا السجل
     ];
 
     protected $casts = [
         'sponsorship_start_date' => 'date',
         'sponsorship_end_date' => 'date',
         'sponsorship_duration_months' => 'integer',
+        'updated_by' => 'array', // تحويل JSON إلى مصفوفة تلقائياً
     ];
 
     /**
@@ -80,6 +82,36 @@ class Sponsorship extends Model
     }
 
     /**
+     * إضافة مستخدم جديد إلى قائمة المستخدمين الذين عدلوا السجل
+     */
+    public function addUpdater($userId)
+    {
+        $updatedBy = $this->updated_by ?? [];
+
+        // إضافة المستخدم مع التاريخ والوقت
+        $updatedBy[] = [
+            'user_id' => $userId,
+            'updated_at' => now()->toDateTimeString(),
+            'name' => optional(User::find($userId))->name
+        ];
+
+        $this->updated_by = $updatedBy;
+        $this->save();
+    }
+
+    /**
+     * الحصول على أسماء جميع المستخدمين الذين عدلوا السجل
+     */
+    public function getUpdaterNamesAttribute()
+    {
+        if (empty($this->updated_by)) {
+            return [];
+        }
+
+        return collect($this->updated_by)->pluck('name')->unique()->toArray();
+    }
+
+    /**
      * علاقة مع جدول البيانات (data) عبر رقم الملف الداخلي
      */
     public function guardianData()
@@ -88,11 +120,21 @@ class Sponsorship extends Model
     }
 
     /**
+     * علاقة مع جدول البيانات (data) عبر رقم الربط relation_id_number
+     * للحصول على المحافظة والمدينة للشخص المكفول
+     */
+    public function relationData()
+    {
+        return $this->belongsTo(Data::class, 'relation_id_number', 'file_id_number');
+    }
+
+    /**
      * علاقة مع جدول الأيتام (re_people) عبر رقم الهوية
+     * ملاحظة: العمود الصحيح في re_people هو person_id وليس id_number
      */
     public function orphan()
     {
-        return $this->belongsTo(RePeople::class, 'identity_number', 'id_number');
+        return $this->belongsTo(RePeople::class, 'identity_number', 'person_id');
     }
 
     /**

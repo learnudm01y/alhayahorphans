@@ -73,6 +73,27 @@
         position: relative;
         padding-right: 32px;
     }
+
+    /* تنسيق أزرار التصدير */
+    .dt-buttons {
+        margin-bottom: 10px;
+        gap: 5px;
+        display: flex;
+        flex-wrap: wrap;
+    }
+
+    .dt-button {
+        margin-left: 5px !important;
+        margin-right: 5px !important;
+        border-radius: 4px !important;
+    }
+
+    div.dataTables_wrapper div.dataTables_length,
+    div.dataTables_wrapper div.dataTables_filter,
+    div.dataTables_wrapper div.dataTables_info,
+    div.dataTables_wrapper div.dataTables_paginate {
+        margin-top: 10px;
+    }
 </style>
 @endpush
 
@@ -915,4 +936,11 @@
             });
         });
     </script>
+
+    {{-- مكتبات DataTables Buttons للتصدير --}}
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css">
+    <script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.colVis.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 @endpush

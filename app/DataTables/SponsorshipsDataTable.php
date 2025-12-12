@@ -62,29 +62,25 @@ class SponsorshipsDataTable extends DataTable
                 return $row->sponsorshipType ? $row->sponsorshipType->description : '-';
             })
             ->addColumn('sponsorship_status', function ($row) {
-                if ($row->sponsorshipStatus) {
-                    $status = $row->sponsorshipStatus->description;
-                    $badge = 'badge-info';
-
-                    // تخصيص الألوان حسب الحالة
-                    if (stripos($status, 'نشط') !== false || stripos($status, 'فعال') !== false) {
-                        $badge = 'badge-success';
-                    } elseif (stripos($status, 'منتهي') !== false || stripos($status, 'موقوف') !== false) {
-                        $badge = 'badge-danger';
-                    } elseif (stripos($status, 'معلق') !== false) {
-                        $badge = 'badge-warning';
-                    }
-
-                    return '<span class="badge ' . $badge . '">' . $status . '</span>';
-                }
-                return '-';
+                // عمود نصي بسيط للتصدير (بدون HTML)
+                return $row->sponsorshipStatus ? $row->sponsorshipStatus->description : '-';
             })
             ->addColumn('sponsorship_status_dropdown', function ($row) {
                 $statuses = \App\Models\SponsorshipStatus::all();
                 $options = '';
                 foreach ($statuses as $status) {
                     $selected = ($row->sponsorship_status_id == $status->id) ? 'selected' : '';
-                    $options .= '<option value="' . $status->id . '" ' . $selected . '>' . $status->description . '</option>';
+
+                    // إضافة أيقونات مميزة لكل حالة
+                    $icon = '';
+                    if ($status->id == 3 || stripos($status->description, 'محدث') !== false) {
+                        $icon = '🟢 '; // نقطة خضراء لـ "محدث"
+                    } elseif ($status->id == 5 || stripos($status->description, 'ذهب') !== false || stripos($status->description, 'صرف') !== false) {
+                        $icon = '✓ '; // علامة صح لـ "ذهب للصرف"
+                    }
+                    // إزالة الأيقونة الخاصة بـ "جديد" و "اختبار حالة كفالة جديدة"
+
+                    $options .= '<option value="' . $status->id . '" ' . $selected . '>' . $icon . $status->description . '</option>';
                 }
 
                 return '<select class="form-select form-select-sm form-select-solid change-sponsorship-status"
@@ -108,10 +104,185 @@ class SponsorshipsDataTable extends DataTable
             ->editColumn('created_at', function ($row) {
                 return $row->created_at->format('Y-m-d H:i:s');
             })
+            ->addColumn('address', function ($row) {
+                // جلب العنوان من جدول data عبر relation_id_number
+                if ($row->relationData) {
+                    return $row->relationData->data_description_needs ?: '-';
+                }
+                // fallback: جلب من guardianData
+                return $row->guardianData ? ($row->guardianData->data_description_needs ?: '-') : '-';
+            })
+            ->addColumn('city', function ($row) {
+                // جلب المدينة من جدول data عبر relation_id_number
+                if ($row->relationData && $row->relationData->city) {
+                    return $row->relationData->city->city;
+                }
+                // fallback: جلب من guardianData
+                if ($row->guardianData && $row->guardianData->city) {
+                    return $row->guardianData->city->city;
+                }
+                return '-';
+            })
+            ->addColumn('province', function ($row) {
+                // جلب المحافظة من جدول data عبر relation_id_number
+                if ($row->relationData && $row->relationData->province) {
+                    return $row->relationData->province->description;
+                }
+                // fallback: جلب من guardianData
+                if ($row->guardianData && $row->guardianData->province) {
+                    return $row->guardianData->province->description;
+                }
+                return '-';
+            })
+            ->addColumn('bank_name', function ($row) {
+                // عرض اسم البنك من الحساب المعتمد فقط (check_account = 1)
+                // استخدام relationData (relation_id_number) للحصول على رقم الملف الصحيح
+                $fileId = null;
+                if ($row->relationData && $row->relationData->file_id_number) {
+                    $fileId = $row->relationData->file_id_number;
+                } elseif ($row->guardianData && $row->guardianData->file_id_number) {
+                    $fileId = $row->guardianData->file_id_number;
+                }
+
+                if ($fileId) {
+                    $approvedAccount = \App\Models\GuardianBankAccount::where('guardian_registration', $fileId)
+                            ->where('check_account', 1)
+                            ->first();
+
+                    if ($approvedAccount) {
+                        $bankName = $approvedAccount->bank_name;
+                        if (is_numeric($bankName)) {
+                            $bankModel = \App\Models\BankName::find($bankName);
+                            return $bankModel ? $bankModel->description : $bankName;
+                        }
+                        return $bankName;
+                    }
+                }
+                return '-';
+            })
+            ->addColumn('account_holder_name', function ($row) {
+                // عرض اسم صاحب الحساب من الحساب المعتمد فقط (check_account = 1)
+                $fileId = null;
+                if ($row->relationData && $row->relationData->file_id_number) {
+                    $fileId = $row->relationData->file_id_number;
+                } elseif ($row->guardianData && $row->guardianData->file_id_number) {
+                    $fileId = $row->guardianData->file_id_number;
+                }
+
+                if ($fileId) {
+                    $approvedAccount = \App\Models\GuardianBankAccount::where('guardian_registration', $fileId)
+                        ->where('check_account', 1)
+                        ->first();
+
+                    if ($approvedAccount) {
+                        return $approvedAccount->re_guardian_name ?: '-';
+                    }
+                }
+                return '-';
+            })
+            ->addColumn('account_holder_id', function ($row) {
+                // عرض رقم هوية صاحب الحساب من الحساب المعتمد فقط (check_account = 1)
+                $fileId = null;
+                if ($row->relationData && $row->relationData->file_id_number) {
+                    $fileId = $row->relationData->file_id_number;
+                } elseif ($row->guardianData && $row->guardianData->file_id_number) {
+                    $fileId = $row->guardianData->file_id_number;
+                }
+
+                if ($fileId) {
+                    $approvedAccount = \App\Models\GuardianBankAccount::where('guardian_registration', $fileId)
+                        ->where('check_account', 1)
+                        ->first();
+
+                    if ($approvedAccount) {
+                        return $approvedAccount->person_owner_identity_number ?: '-';
+                    }
+                }
+                return '-';
+            })
+            ->addColumn('account_phone', function ($row) {
+                // عرض رقم الهاتف من الحساب المعتمد فقط (check_account = 1)
+                $fileId = null;
+                if ($row->relationData && $row->relationData->file_id_number) {
+                    $fileId = $row->relationData->file_id_number;
+                } elseif ($row->guardianData && $row->guardianData->file_id_number) {
+                    $fileId = $row->guardianData->file_id_number;
+                }
+
+                if ($fileId) {
+                    $approvedAccount = \App\Models\GuardianBankAccount::where('guardian_registration', $fileId)
+                        ->where('check_account', 1)
+                        ->first();
+
+                    if ($approvedAccount) {
+                        return $approvedAccount->re_phone_number ?: '-';
+                    }
+                }
+                return '-';
+            })
+            ->addColumn('bank_account_numbers', function ($row) {
+                // عرض أرقام الحسابات البنكية من الحساب المعتمد فقط (check_account = 1)
+                $fileId = null;
+                if ($row->relationData && $row->relationData->file_id_number) {
+                    $fileId = $row->relationData->file_id_number;
+                } elseif ($row->guardianData && $row->guardianData->file_id_number) {
+                    $fileId = $row->guardianData->file_id_number;
+                }
+
+                if ($fileId) {
+                    $approvedAccount = \App\Models\GuardianBankAccount::where('guardian_registration', $fileId)
+                        ->where('check_account', 1)
+                        ->first();
+
+                    if ($approvedAccount) {
+                        $accounts = [];
+                        if ($approvedAccount->iban_shekel) {
+                            $accounts[] = '<div><strong>شيكل:</strong> ' . $approvedAccount->iban_shekel . '</div>';
+                        }
+                        if ($approvedAccount->iban_usd) {
+                            $accounts[] = '<div><strong>دولار:</strong> ' . $approvedAccount->iban_usd . '</div>';
+                        }
+                        return !empty($accounts) ? implode('', $accounts) : '-';
+                    }
+                }
+                return '-';
+            })
+            ->addColumn('iban_shekel_export', function ($row) {
+                // حساب شيكل للتصدير (نص بسيط)
+                $fileId = null;
+                if ($row->relationData && $row->relationData->file_id_number) {
+                    $fileId = $row->relationData->file_id_number;
+                } elseif ($row->guardianData && $row->guardianData->file_id_number) {
+                    $fileId = $row->guardianData->file_id_number;
+                }
+                if ($fileId) {
+                    $approvedAccount = \App\Models\GuardianBankAccount::where('guardian_registration', $fileId)->where('check_account', 1)->first();
+                    if ($approvedAccount && $approvedAccount->iban_shekel) {
+                        return $approvedAccount->iban_shekel;
+                    }
+                }
+                return '-';
+            })
+            ->addColumn('iban_usd_export', function ($row) {
+                // حساب دولار للتصدير (نص بسيط)
+                $fileId = null;
+                if ($row->relationData && $row->relationData->file_id_number) {
+                    $fileId = $row->relationData->file_id_number;
+                } elseif ($row->guardianData && $row->guardianData->file_id_number) {
+                    $fileId = $row->guardianData->file_id_number;
+                }
+                if ($fileId) {
+                    $approvedAccount = \App\Models\GuardianBankAccount::where('guardian_registration', $fileId)->where('check_account', 1)->first();
+                    if ($approvedAccount && $approvedAccount->iban_usd) {
+                        return $approvedAccount->iban_usd;
+                    }
+                }
+                return '-';
+            })
             ->addColumn('actions', function ($row) {
                 return view('admin.dashboard.sponsorships.partials.actions', compact('row'))->render();
             })
-            ->rawColumns(['sponsor_name', 'sponsorship_status', 'sponsorship_status_dropdown', 'remaining_days', 'actions'])
+            ->rawColumns(['sponsor_name', 'sponsorship_status', 'sponsorship_status_dropdown', 'remaining_days', 'bank_account_numbers', 'actions'])
             ->filter(function ($query) {
                 // ============================================
                 // فلاتر المؤسسة الكافلة
@@ -138,177 +309,107 @@ class SponsorshipsDataTable extends DataTable
                 }
 
                 // ============================================
-                // فلتر البحث النصي
+                // فلتر البحث النصي الذكي مع normalization
                 // ============================================
                 if (request()->has('search') && !empty(request()->get('search')['value'])) {
                     $searchTerm = request()->get('search')['value'];
 
-                    // تنظيف وتجهيز كلمات البحث
-                    $searchWords = array_filter(array_map('trim', explode(' ', $searchTerm)));
+                    // استخدام helper function لتطبيع البحث
+                    $searchData = extractSearchTerms($searchTerm);
+                    $normalizedTerm = $searchData['normalized'];
+                    $searchWords = $searchData['words'];
 
                     if (!empty($searchWords)) {
-                        $query->where(function ($q) use ($searchWords, $searchTerm) {
-                            // البحث في جدول sponsorships مباشرة
-                            $q->where(function ($subQ) use ($searchWords, $searchTerm) {
-                                // البحث الكامل
-                                $subQ->where('orphan_name', 'LIKE', "%{$searchTerm}%")
-                                    ->orWhere('guardian_name', 'LIKE', "%{$searchTerm}%")
-                                    ->orWhere('identity_number', 'LIKE', "%{$searchTerm}%")
-                                    ->orWhere('internal_file_number', 'LIKE', "%{$searchTerm}%")
+                        $query->where(function ($q) use ($searchWords, $normalizedTerm, $searchTerm) {
+                            // البحث في جدول sponsorships فقط في الأعمدة الموجودة فعلياً
+                            $q->where(function ($subQ) use ($searchWords, $normalizedTerm, $searchTerm) {
+                                // البحث في أرقام الملفات (بدون normalization)
+                                $subQ->where('internal_file_number', 'LIKE', "%{$searchTerm}%")
                                     ->orWhere('external_file_number', 'LIKE', "%{$searchTerm}%");
 
-                                // البحث بالكلمات المنفصلة
-                                foreach ($searchWords as $word) {
-                                    $subQ->orWhere('orphan_name', 'LIKE', "%{$word}%")
-                                        ->orWhere('guardian_name', 'LIKE', "%{$word}%");
+                                // البحث في المؤسسة الكافلة (مع normalization)
+                                if (!empty($normalizedTerm)) {
+                                    $subQ->orWhereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(sponsoring_organization), "أ", "ا"), "إ", "ا"), "آ", "ا"), "ى", "ي"), "ة", "ه") LIKE ?', ["%{$normalizedTerm}%"]);
                                 }
                             })
-                            // البحث في جدول data (المعيلين)
-                            ->orWhereHas('guardianData', function ($dataQ) use ($searchWords, $searchTerm) {
-                                $dataQ->where(function ($dq) use ($searchWords, $searchTerm) {
-                                    // البحث في حقول الاسم
-                                    $dq->where('data_first_name', 'LIKE', "%{$searchTerm}%")
-                                       ->orWhere('data_father_name', 'LIKE', "%{$searchTerm}%")
-                                       ->orWhere('data_grand_father_name', 'LIKE', "%{$searchTerm}%")
-                                       ->orWhere('data_family_name', 'LIKE', "%{$searchTerm}%")
-                                       ->orWhere('data_id_number', 'LIKE', "%{$searchTerm}%")
+                            // البحث في relationData (البيانات المرتبطة عبر relation_id_number) - بحث ذكي مع normalization
+                            ->orWhereHas('relationData', function ($dataQ) use ($searchWords, $normalizedTerm, $searchTerm) {
+                                $dataQ->where(function ($dq) use ($searchWords, $normalizedTerm, $searchTerm) {
+                                    // البحث في رقم الهوية ورقم الملف (بدون normalization)
+                                    $dq->where('data_id_number', 'LIKE', "%{$searchTerm}%")
                                        ->orWhere('file_id_number', 'LIKE', "%{$searchTerm}%");
 
-                                    // البحث الذكي بالكلمات المنفصلة
-                                    foreach ($searchWords as $word) {
-                                        $dq->orWhere('data_first_name', 'LIKE', "%{$word}%")
-                                           ->orWhere('data_father_name', 'LIKE', "%{$word}%")
-                                           ->orWhere('data_grand_father_name', 'LIKE', "%{$word}%")
-                                           ->orWhere('data_family_name', 'LIKE', "%{$word}%");
-                                    }
+                                    // البحث في الأسماء (مع normalization)
+                                    if (!empty($searchWords)) {
+                                        // البحث بكل كلمة على حدة
+                                        foreach ($searchWords as $word) {
+                                            $dq->orWhereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(data_first_name), "أ", "ا"), "إ", "ا"), "آ", "ا"), "ى", "ي"), "ة", "ه") LIKE ?', ["%{$word}%"])
+                                               ->orWhereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(data_father_name), "أ", "ا"), "إ", "ا"), "آ", "ا"), "ى", "ي"), "ة", "ه") LIKE ?', ["%{$word}%"])
+                                               ->orWhereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(data_grand_father_name), "أ", "ا"), "إ", "ا"), "آ", "ا"), "ى", "ي"), "ة", "ه") LIKE ?', ["%{$word}%"])
+                                               ->orWhereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(data_family_name), "أ", "ا"), "إ", "ا"), "آ", "ا"), "ى", "ي"), "ة", "ه") LIKE ?', ["%{$word}%"]);
+                                        }
 
-                                    // البحث بالاسم الأول + الأخير (متقدم)
-                                    if (count($searchWords) >= 2) {
-                                        $firstName = $searchWords[0];
-                                        $lastName = end($searchWords);
-                                        $dq->orWhere(function ($nameQ) use ($firstName, $lastName) {
-                                            $nameQ->where('data_first_name', 'LIKE', "%{$firstName}%")
-                                                  ->where('data_family_name', 'LIKE', "%{$lastName}%");
-                                        });
+                                        // البحث بالاسم الكامل المطبع
+                                        if (!empty($normalizedTerm) && count($searchWords) >= 2) {
+                                            $firstName = $searchWords[0];
+                                            $lastName = end($searchWords);
 
-                                        // محاولة الاسم الأول + اسم الأب
-                                        $dq->orWhere(function ($nameQ) use ($firstName, $lastName) {
-                                            $nameQ->where('data_first_name', 'LIKE', "%{$firstName}%")
-                                                  ->where('data_father_name', 'LIKE', "%{$lastName}%");
-                                        });
-                                    }
+                                            // بحث دقيق: الاسم الأول + الأخير
+                                            $dq->orWhere(function ($nameQ) use ($firstName, $lastName) {
+                                                $nameQ->whereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(data_first_name), "أ", "ا"), "إ", "ا"), "آ", "ا"), "ى", "ي"), "ة", "ه") LIKE ?', ["%{$firstName}%"])
+                                                      ->whereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(data_family_name), "أ", "ا"), "إ", "ا"), "آ", "ا"), "ى", "ي"), "ة", "ه") LIKE ?', ["%{$lastName}%"]);
+                                            });
 
-                                    // البحث بثلاث كلمات (أول، وسط، أخير)
-                                    if (count($searchWords) >= 3) {
-                                        $firstName = $searchWords[0];
-                                        $middleName = $searchWords[1];
-                                        $lastName = end($searchWords);
-
-                                        $dq->orWhere(function ($nameQ) use ($firstName, $middleName, $lastName) {
-                                            $nameQ->where('data_first_name', 'LIKE', "%{$firstName}%")
-                                                  ->where('data_father_name', 'LIKE', "%{$middleName}%")
-                                                  ->where('data_family_name', 'LIKE', "%{$lastName}%");
-                                        });
+                                            // بحث بديل: الاسم الأول + اسم الأب
+                                            $dq->orWhere(function ($nameQ) use ($firstName, $lastName) {
+                                                $nameQ->whereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(data_first_name), "أ", "ا"), "إ", "ا"), "آ", "ا"), "ى", "ي"), "ة", "ه") LIKE ?', ["%{$firstName}%"])
+                                                      ->whereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(data_father_name), "أ", "ا"), "إ", "ا"), "آ", "ا"), "ى", "ي"), "ة", "ه") LIKE ?', ["%{$lastName}%"]);
+                                            });
+                                        }
                                     }
                                 });
                             })
-                            // البحث في جدول re_people (الأيتام وأفراد العائلة)
-                            ->orWhereHas('orphan', function ($orphanQ) use ($searchWords, $searchTerm) {
-                                $orphanQ->where(function ($oq) use ($searchWords, $searchTerm) {
-                                    // البحث الكامل في الأسماء
-                                    $oq->where('first_name', 'LIKE', "%{$searchTerm}%")
-                                       ->orWhere('second_name', 'LIKE', "%{$searchTerm}%")
-                                       ->orWhere('third_name', 'LIKE', "%{$searchTerm}%")
-                                       ->orWhere('last_name', 'LIKE', "%{$searchTerm}%")
-                                       ->orWhere('person_id', 'LIKE', "%{$searchTerm}%");
+                            // البحث في جدول data (المعيلين - guardianData) - بحث ذكي مع normalization
+                            ->orWhereHas('guardianData', function ($dataQ) use ($searchWords, $normalizedTerm, $searchTerm) {
+                                $dataQ->where(function ($dq) use ($searchWords, $normalizedTerm, $searchTerm) {
+                                    // البحث في رقم الهوية ورقم الملف (بدون normalization)
+                                    $dq->where('data_id_number', 'LIKE', "%{$searchTerm}%")
+                                       ->orWhere('file_id_number', 'LIKE', "%{$searchTerm}%");
 
-                                    // البحث الذكي بالكلمات المنفصلة
-                                    foreach ($searchWords as $word) {
-                                        $oq->orWhere('first_name', 'LIKE', "%{$word}%")
-                                           ->orWhere('second_name', 'LIKE', "%{$word}%")
-                                           ->orWhere('third_name', 'LIKE', "%{$word}%")
-                                           ->orWhere('last_name', 'LIKE', "%{$word}%");
-                                    }
+                                    // البحث في الأسماء (مع normalization)
+                                    if (!empty($searchWords)) {
+                                        // البحث بكل كلمة على حدة
+                                        foreach ($searchWords as $word) {
+                                            $dq->orWhereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(data_first_name), "أ", "ا"), "إ", "ا"), "آ", "ا"), "ى", "ي"), "ة", "ه") LIKE ?', ["%{$word}%"])
+                                               ->orWhereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(data_father_name), "أ", "ا"), "إ", "ا"), "آ", "ا"), "ى", "ي"), "ة", "ه") LIKE ?', ["%{$word}%"])
+                                               ->orWhereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(data_grand_father_name), "أ", "ا"), "إ", "ا"), "آ", "ا"), "ى", "ي"), "ة", "ه") LIKE ?', ["%{$word}%"])
+                                               ->orWhereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(data_family_name), "أ", "ا"), "إ", "ا"), "آ", "ا"), "ى", "ي"), "ة", "ه") LIKE ?', ["%{$word}%"]);
+                                        }
 
-                                    // البحث بالاسم الأول + الأخير
-                                    if (count($searchWords) >= 2) {
-                                        $firstName = $searchWords[0];
-                                        $lastName = end($searchWords);
-                                        $oq->orWhere(function ($nameQ) use ($firstName, $lastName) {
-                                            $nameQ->where('first_name', 'LIKE', "%{$firstName}%")
-                                                  ->where('last_name', 'LIKE', "%{$lastName}%");
-                                        });
+                                        // البحث بالاسم الكامل المطبع
+                                        if (count($searchWords) >= 2) {
+                                            $firstName = $searchWords[0];
+                                            $lastName = end($searchWords);
 
-                                        // محاولة الاسم الأول + الثاني
-                                        $oq->orWhere(function ($nameQ) use ($firstName, $lastName) {
-                                            $nameQ->where('first_name', 'LIKE', "%{$firstName}%")
-                                                  ->where('second_name', 'LIKE', "%{$lastName}%");
-                                        });
-                                    }
+                                            // بحث دقيق: الاسم الأول + الأخير
+                                            $dq->orWhere(function ($nameQ) use ($firstName, $lastName) {
+                                                $nameQ->whereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(data_first_name), "أ", "ا"), "إ", "ا"), "آ", "ا"), "ى", "ي"), "ة", "ه") LIKE ?', ["%{$firstName}%"])
+                                                      ->whereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(data_family_name), "أ", "ا"), "إ", "ا"), "آ", "ا"), "ى", "ي"), "ة", "ه") LIKE ?', ["%{$lastName}%"]);
+                                            });
+                                        }
 
-                                    // البحث بثلاث كلمات
-                                    if (count($searchWords) >= 3) {
-                                        $firstName = $searchWords[0];
-                                        $middleName = $searchWords[1];
-                                        $lastName = end($searchWords);
+                                        // البحث بثلاث كلمات (دقيق جداً)
+                                        if (count($searchWords) >= 3) {
+                                            $firstName = $searchWords[0];
+                                            $middleName = $searchWords[1];
+                                            $lastName = end($searchWords);
 
-                                        $oq->orWhere(function ($nameQ) use ($firstName, $middleName, $lastName) {
-                                            $nameQ->where('first_name', 'LIKE', "%{$firstName}%")
-                                                  ->where('second_name', 'LIKE', "%{$middleName}%")
-                                                  ->where('last_name', 'LIKE', "%{$lastName}%");
-                                        });
-                                    }
-                                });
-                            })
-                            // البحث في dead_people (المتوفين)
-                            ->orWhere(function ($deadQ) use ($searchWords, $searchTerm) {
-                                // البحث بالـ identity_number في جدول dead_people
-                                $deadQ->whereIn('identity_number', function ($subQuery) use ($searchWords, $searchTerm) {
-                                    $subQuery->select('father_id')
-                                        ->from('dead_people')
-                                        ->where(function ($dpq) use ($searchWords, $searchTerm) {
-                                            $dpq->where('father_first_name', 'LIKE', "%{$searchTerm}%")
-                                                ->orWhere('father_second_name', 'LIKE', "%{$searchTerm}%")
-                                                ->orWhere('father_third_name', 'LIKE', "%{$searchTerm}%")
-                                                ->orWhere('father_last_name', 'LIKE', "%{$searchTerm}%")
-                                                ->orWhere('father_id', 'LIKE', "%{$searchTerm}%")
-                                                ->orWhere('mother_first_name', 'LIKE', "%{$searchTerm}%")
-                                                ->orWhere('mother_second_name', 'LIKE', "%{$searchTerm}%")
-                                                ->orWhere('mother_third_name', 'LIKE', "%{$searchTerm}%")
-                                                ->orWhere('mother_last_name', 'LIKE', "%{$searchTerm}%")
-                                                ->orWhere('mother_id', 'LIKE', "%{$searchTerm}%");
-
-                                            foreach ($searchWords as $word) {
-                                                $dpq->orWhere('father_first_name', 'LIKE', "%{$word}%")
-                                                    ->orWhere('father_second_name', 'LIKE', "%{$word}%")
-                                                    ->orWhere('father_third_name', 'LIKE', "%{$word}%")
-                                                    ->orWhere('father_last_name', 'LIKE', "%{$word}%")
-                                                    ->orWhere('mother_first_name', 'LIKE', "%{$word}%")
-                                                    ->orWhere('mother_second_name', 'LIKE', "%{$word}%")
-                                                    ->orWhere('mother_third_name', 'LIKE', "%{$word}%")
-                                                    ->orWhere('mother_last_name', 'LIKE', "%{$word}%");
-                                            }
-
-                                            if (count($searchWords) >= 2) {
-                                                $firstName = $searchWords[0];
-                                                $lastName = end($searchWords);
-                                                $dpq->orWhere(function ($nameQ) use ($firstName, $lastName) {
-                                                    $nameQ->where('father_first_name', 'LIKE', "%{$firstName}%")
-                                                          ->where('father_last_name', 'LIKE', "%{$lastName}%");
-                                                })->orWhere(function ($nameQ) use ($firstName, $lastName) {
-                                                    $nameQ->where('mother_first_name', 'LIKE', "%{$firstName}%")
-                                                          ->where('mother_last_name', 'LIKE', "%{$lastName}%");
-                                                });
-                                            }
-                                        });
-                                });
-                            })
-                            // البحث في المؤسسات الكافلة
-                            ->orWhereHas('sponsors', function ($sponsorQ) use ($searchWords, $searchTerm) {
-                                $sponsorQ->where(function ($sq) use ($searchWords, $searchTerm) {
-                                    $sq->where('sponsor_name', 'LIKE', "%{$searchTerm}%");
-                                    foreach ($searchWords as $word) {
-                                        $sq->orWhere('sponsor_name', 'LIKE', "%{$word}%");
+                                            $dq->orWhere(function ($nameQ) use ($firstName, $middleName, $lastName) {
+                                                $nameQ->whereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(data_first_name), "أ", "ا"), "إ", "ا"), "آ", "ا"), "ى", "ي"), "ة", "ه") LIKE ?', ["%{$firstName}%"])
+                                                      ->whereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(data_father_name), "أ", "ا"), "إ", "ا"), "آ", "ا"), "ى", "ي"), "ة", "ه") LIKE ?', ["%{$middleName}%"])
+                                                      ->whereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(data_family_name), "أ", "ا"), "إ", "ا"), "آ", "ا"), "ى", "ي"), "ة", "ه") LIKE ?', ["%{$lastName}%"]);
+                                            });
+                                        }
                                     }
                                 });
                             });
@@ -326,7 +427,13 @@ class SponsorshipsDataTable extends DataTable
                 'sponsors',
                 'sponsorshipType',
                 'sponsorshipStatus',
-                'creator'
+                'creator',
+                'guardianData',
+                'guardianData.city',
+                'guardianData.province',
+                'relationData',
+                'relationData.city',
+                'relationData.province'
             ])
             ->select('sponsorships.*');
     }
@@ -338,6 +445,11 @@ class SponsorshipsDataTable extends DataTable
                     ->columns($this->getColumns())
                     ->minifiedAjax()
                     ->orderBy(0, 'desc')
+                    ->dom('<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6 text-end"B>><"row"<"col-sm-12"tr>><"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>')
+                    ->buttons([
+                        ['extend' => 'excel', 'text' => '<i class="fa fa-file-excel"></i> Excel', 'className' => 'btn btn-success btn-sm buttons-excel d-none', 'exportOptions' => ['columns' => ':visible:not(.no-export)']],
+                        ['extend' => 'colvis', 'text' => '<i class="fa fa-columns"></i> التحكم بالأعمدة', 'className' => 'btn btn-secondary btn-sm'],
+                    ])
                     ->parameters([
                         'language' => [
                             'url' => asset('admin/assets/plugins/custom/datatables/i18n/ar.json')
@@ -354,27 +466,39 @@ class SponsorshipsDataTable extends DataTable
     public function getColumns(): array
     {
         return [
+            Column::make('orphan_name')->title('الإسم'),
+            Column::make('identity_number')->title('رقم الهوية'),
+            Column::make('guardian_name')->title('إسم المعيل'),
+            Column::computed('guardian_identity')->title('رقم هوية المعيل')->orderable(false)->searchable(false),
             Column::computed('sponsor_name')->title('إسم المؤسسة الكافلة')->orderable(false)->searchable(false),
             Column::computed('sponsoring_organization')->title('إسم الكافل'),
             Column::make('internal_file_number')->title('رقم الملف الداخلي'),
             Column::make('external_file_number')->title('رقم الملف الخارجي'),
-            Column::make('identity_number')->title('رقم الهوية'),
-            Column::make('orphan_name')->title('الإسم'),
-            Column::make('guardian_name')->title('إسم المعيل'),
-            Column::computed('guardian_identity')->title('رقم هوية المعيل')->orderable(false)->searchable(false),
             Column::computed('sponsorship_duration')->title('مدة الكفالة')->orderable(false)->searchable(false),
             Column::computed('sponsorship_period')->title('فترة الكفالة')->orderable(false)->searchable(false),
             Column::computed('sponsorship_type')->title('نوع الكفالة')->orderable(false)->searchable(false),
-            Column::computed('sponsorship_status_dropdown')->title('حالة الكفالة')->orderable(false)->searchable(false),
-            Column::computed('remaining_days')->title('المتبقي')->orderable(false)->searchable(false),
-            Column::make('created_at')->title('تاريخ الإضافة'),
+            Column::computed('sponsorship_status')->title('حالة الكفالة')->orderable(false)->searchable(false)->visible(false),
+            Column::computed('sponsorship_status_dropdown')->title('حالة الكفالة')->orderable(false)->searchable(false)->addClass('no-export'),
             Column::computed('actions')
                 ->title('الإجراءات')
                 ->orderable(false)
                 ->searchable(false)
                 ->exportable(false)
                 ->printable(false)
+                ->addClass('no-export')
                 ->width(120),
+            Column::computed('province')->title('المحافظة')->orderable(false)->searchable(false),
+            Column::computed('city')->title('المدينة')->orderable(false)->searchable(false),
+            Column::computed('address')->title('العنوان')->orderable(false)->searchable(false),
+            Column::computed('bank_name')->title('إسم البنك')->orderable(false)->searchable(false),
+            Column::computed('account_holder_name')->title('إسم صاحب الحساب')->orderable(false)->searchable(false),
+            Column::computed('account_holder_id')->title('رقم هوية صاحب الحساب')->orderable(false)->searchable(false),
+            Column::computed('account_phone')->title('رقم الجوال المربوط بالحساب')->orderable(false)->searchable(false),
+            Column::computed('bank_account_numbers')->title('أرقام الحساب البنكي')->orderable(false)->searchable(false)->addClass('no-export'),
+            Column::computed('iban_shekel_export')->title('حساب شيكل')->orderable(false)->searchable(false)->visible(false),
+            Column::computed('iban_usd_export')->title('حساب دولار')->orderable(false)->searchable(false)->visible(false),
+            Column::computed('remaining_days')->title('المتبقي')->orderable(false)->searchable(false),
+                Column::make('created_at')->title('تاريخ الإضافة'),
         ];
     }
 

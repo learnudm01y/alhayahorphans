@@ -7,6 +7,7 @@
     "require": {
         "php": "^8.1",
         "doctrine/dbal": "^3.10",
+        "google/apiclient": "*",
         "guzzlehttp/guzzle": "^7.2",
         "intervention/image": "^3.11",
         "laravel-lang/lang": "^15.2",
@@ -37,7 +38,8 @@
             "Database\\Seeders\\": "database/seeders/"
         },
         "files": [
-            "app/Helpers/global_helper.php"
+            "app/Helpers/global_helper.php",
+            "app/Helpers/SearchHelper.php"
         ]
     },
     "autoload-dev": {
