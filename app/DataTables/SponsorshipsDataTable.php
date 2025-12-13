@@ -4,6 +4,7 @@ namespace App\DataTables;
 
 use App\Models\Sponsorship;
 use Illuminate\Database\Eloquent\Builder as QueryBuilder;
+use Illuminate\Support\Facades\Log;
 use Yajra\DataTables\EloquentDataTable;
 use Yajra\DataTables\Html\Builder as HtmlBuilder;
 use Yajra\DataTables\Html\Column;
@@ -418,7 +419,7 @@ class SponsorshipsDataTable extends DataTable
                     }
                 }
                 } catch (\Exception $e) {
-                    \Log::error('❌ خطأ في البحث بـ DataTable', [
+                    Log::error('❌ خطأ في البحث بـ DataTable', [
                         'error' => $e->getMessage(),
                         'search' => request()->get('search'),
                         'line' => $e->getLine()

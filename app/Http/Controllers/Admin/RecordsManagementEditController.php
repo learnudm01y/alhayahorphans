@@ -562,23 +562,6 @@ class RecordsManagementEditController extends Controller
                         }
                     }
                 }
-
-                // حذف الحسابات التي لم تعد موجودة (إذا تم حذفها من النموذج)
-                if (!empty($processedIds)) {
-                    $deletedCount = GuardianBankAccount::where('guardian_registration', $guardianRegistration)
-                        ->whereNotIn('id', $processedIds)
-                        ->delete();
-
-                    if ($deletedCount > 0) {
-                        Log::info('🗑️ تم حذف حسابات بنكية قديمة', ['deleted_count' => $deletedCount]);
-                    }
-                } else {
-                    // حذف جميع الحسابات إذا لم يتم إرسال أي حساب
-                    $deletedCount = GuardianBankAccount::where('guardian_registration', $guardianRegistration)->delete();
-                    if ($deletedCount > 0) {
-                        Log::info('🗑️ تم حذف جميع الحسابات البنكية', ['deleted_count' => $deletedCount]);
-                    }
-                }
             }
 
             DB::commit();

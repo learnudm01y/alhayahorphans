@@ -544,7 +544,7 @@ class GeneralRegistrationController extends Controller
                             $birthDateDisplay = $carbonDate->format('Y/m/d');
                         }
                     } catch (\Exception $e) {
-                        \Log::warning('خطأ في تحويل تاريخ الميلاد: ' . $e->getMessage());
+                        Log::warning('خطأ في تحويل تاريخ الميلاد: ' . $e->getMessage());
                     }
                 }
 
@@ -598,7 +598,7 @@ class GeneralRegistrationController extends Controller
             return response()->json($results);
 
         } catch (\Exception $e) {
-            \Log::error('خطأ في البحث: ' . $e->getMessage());
+            Log::error('خطأ في البحث: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'حدث خطأ أثناء البحث: ' . $e->getMessage(),

@@ -14,7 +14,7 @@ use App\Services\LightningSearchService;
 use App\Services\ExactMatchSearchService;
 use App\Services\SmartExactSearchService;
 use App\Services\SimpleExactSearchService;
-
+use Illuminate\Support\Facades\Log;
 
 /*
 |--------------------------------------------------------------------------
@@ -721,7 +721,7 @@ Route::get('/sponsorships/get-bank-accounts', function (Request $request) {
         $fileId = $request->query('file_id');
         $guardianIdentity = $request->query('guardian_identity');
 
-        \Log::info('🔍 API: طلب جلب الحسابات البنكية', [
+        Log::info('🔍 API: طلب جلب الحسابات البنكية', [
             'file_id' => $fileId,
             'guardian_identity' => $guardianIdentity
         ]);

@@ -28,39 +28,40 @@ class BankAccountValidationService
             $rePhoneNumber = $bankAccountData['re_phone_number'] ?? null;
             $bankName = $bankAccountData['bank_name'] ?? null;
 
-            Log::info('🔍 بدء التحقق من تكرار الحساب البنكي (5 أعمدة):', [
-                '1_guardian_registration' => $guardianRegistration,
-                '2_person_owner_identity_number' => $personOwnerIdentityNumber,
-                '3_re_id_number' => $reIdNumber,
-                '4_re_phone_number' => $rePhoneNumber,
-                '5_bank_name' => $bankName,
+            Log::info('🔍 بدء التحقق من تكرار الحساب البنكي:', [
+                'guardian_registration' => $guardianRegistration,
+                'person_owner_identity_number' => $personOwnerIdentityNumber,
+                're_id_number' => $reIdNumber,
+                're_phone_number' => $rePhoneNumber,
+                'bank_name' => $bankName,
                 'exclude_id' => $excludeId
             ]);
 
-            // التحقق من وجود البيانات الأساسية (الأعمدة الخمسة مطلوبة)
-            if (empty($guardianRegistration) || empty($personOwnerIdentityNumber) || empty($reIdNumber)) {
-                Log::warning('⚠️ بيانات غير كافية للتحقق - الأعمدة الثلاثة الأولى مطلوبة');
+            // التحقق من وجود البيانات الأساسية الإلزامية فقط
+            // person_owner_identity_number اختياري (يمكن أن يكون null إذا كان المعيل يفتح لنفسه)
+            if (empty($guardianRegistration) || empty($reIdNumber)) {
+                Log::warning('⚠️ بيانات غير كافية للتحقق - guardian_registration و re_id_number مطلوبان');
                 return [
                     'is_duplicate' => false,
-                    'message' => 'بيانات غير كافية للتحقق من التكرار (guardian_registration, person_owner_identity_number, re_id_number مطلوبة)',
+                    'message' => 'بيانات غير كافية للتحقق من التكرار (guardian_registration و re_id_number مطلوبان)',
                     'existing_account' => null
                 ];
             }
 
             // 🎯 بناء الاستعلام للبحث عن حساب مكرر
-            // ✅ يجب أن تتطابق جميع الأعمدة الخمسة لاعتبار الحساب مكرر
+            // ✅ التحقق الأساسي: نفس guardian_registration + re_id_number + bank_name
             $query = GuardianBankAccount::query()
                 ->where('guardian_registration', $guardianRegistration)
-                ->where('person_owner_identity_number', $personOwnerIdentityNumber)
                 ->where('re_id_number', $reIdNumber);
 
-            // ✅ إضافة الشرطين المتبقيين (re_phone_number و bank_name)
-            if (!empty($rePhoneNumber)) {
-                $query->where('re_phone_number', $rePhoneNumber);
-            }
-
+            // إضافة bank_name إذا كان موجود
             if (!empty($bankName)) {
                 $query->where('bank_name', $bankName);
+            }
+
+            // إضافة person_owner_identity_number إذا كان موجود (للتفريق بين حسابات مختلفة)
+            if (!empty($personOwnerIdentityNumber)) {
+                $query->where('person_owner_identity_number', $personOwnerIdentityNumber);
             }
 
             // استثناء الحساب الحالي في حالة التعديل
