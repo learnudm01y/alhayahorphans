@@ -323,15 +323,29 @@ class SponsorshipsDataTable extends DataTable
 
                     if (!empty($searchWords)) {
                         $query->where(function ($q) use ($searchWords, $normalizedTerm, $searchTerm) {
-                            // البحث في جدول sponsorships فقط في الأعمدة الموجودة فعلياً
+                            // البحث في جدول sponsorships - جميع الأعمدة
                             $q->where(function ($subQ) use ($searchWords, $normalizedTerm, $searchTerm) {
-                                // البحث في أرقام الملفات (بدون normalization)
+                                // البحث في أرقام الملفات وأرقام الهوية (بدون normalization)
                                 $subQ->where('internal_file_number', 'LIKE', "%{$searchTerm}%")
-                                    ->orWhere('external_file_number', 'LIKE', "%{$searchTerm}%");
+                                    ->orWhere('external_file_number', 'LIKE', "%{$searchTerm}%")
+                                    ->orWhere('identity_number', 'LIKE', "%{$searchTerm}%")
+                                    ->orWhere('guardian_identity_number', 'LIKE', "%{$searchTerm}%");
 
-                                // البحث في المؤسسة الكافلة (مع normalization)
+                                // البحث في الأسماء والنصوص (مع normalization)
                                 if (!empty($normalizedTerm)) {
-                                    $subQ->orWhereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(sponsoring_organization), "أ", "ا"), "إ", "ا"), "آ", "ا"), "ى", "ي"), "ة", "ه") LIKE ?', ["%{$normalizedTerm}%"]);
+                                    $subQ->orWhereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(sponsoring_organization), "أ", "ا"), "إ", "ا"), "آ", "ا"), "ى", "ي"), "ة", "ه") LIKE ?', ["%{$normalizedTerm}%"])
+                                        ->orWhereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(orphan_name), "أ", "ا"), "إ", "ا"), "آ", "ا"), "ى", "ي"), "ة", "ه") LIKE ?', ["%{$normalizedTerm}%"])
+                                        ->orWhereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(guardian_name), "أ", "ا"), "إ", "ا"), "آ", "ا"), "ى", "ي"), "ة", "ه") LIKE ?', ["%{$normalizedTerm}%"])
+                                        ->orWhereRaw('REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(notes), "أ", "ا"), "إ", "ا"), "آ", "ا"), "ى", "ي"), "ة", "ه") LIKE ?', ["%{$normalizedTerm}%"]);
+                                }
+
+                                // البحث في التواريخ (بدون normalization)
+                                $subQ->orWhere('sponsorship_start_date', 'LIKE', "%{$searchTerm}%")
+                                    ->orWhere('sponsorship_end_date', 'LIKE', "%{$searchTerm}%");
+
+                                // البحث في مدة الكفالة (رقمي)
+                                if (is_numeric($searchTerm)) {
+                                    $subQ->orWhere('sponsorship_duration_months', $searchTerm);
                                 }
                             })
                             // البحث في relationData (البيانات المرتبطة عبر relation_id_number) - بحث ذكي مع normalization
