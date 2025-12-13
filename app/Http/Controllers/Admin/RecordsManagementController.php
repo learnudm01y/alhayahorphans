@@ -220,6 +220,10 @@ class RecordsManagementController extends Controller
                             continue; // تجاوز هذا الحساب المكرر
                         }
 
+                        // 🆕 التحقق إذا كان هذا أول حساب بنكي للشخص (يُعتمد تلقائياً)
+                        $existingAccountsCount = GuardianBankAccount::where('guardian_registration', $fileIdNumber)->count();
+                        $isFirstAccount = ($existingAccountsCount == 0);
+
                         GuardianBankAccount::create([
                             'guardian_registration' => $fileIdNumber,
                             'bank_name' => $bankAccount['bank_name'] ?? null,
@@ -228,6 +232,7 @@ class RecordsManagementController extends Controller
                             're_id_number' => $reIdNumber,
                             're_guardian_name' => $bankAccount['re_guardian_name'] ?? null,
                             're_phone_number' => $bankAccount['re_phone_number'] ?? null,
+                            'check_account' => $isFirstAccount ? 1 : 0, // ✅ الحساب الأول يُعتمد تلقائياً
                         ]);
                         Log::info('✅ تم تخزين حساب بنكي من Admin بنجاح', ['file_id' => $fileIdNumber, 'bank_name' => $bankAccount['bank_name'] ?? 'N/A']);
                     } else {

@@ -1004,7 +1004,7 @@
                         button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> جاري الاعتماد...');
 
                         $.ajax({
-                            url: '/admin/bank-accounts/approve',
+                            url: '/admin/records-management/approve-bank-account',
                             method: 'POST',
                             data: {
                                 account_id: accountId,

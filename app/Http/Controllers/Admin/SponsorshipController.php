@@ -274,6 +274,10 @@ class SponsorshipController extends Controller
                                     continue;
                                 }
 
+                                // 🆕 التحقق إذا كان هذا أول حساب بنكي للشخص (يُعتمد تلقائياً)
+                                $existingAccountsCount = GuardianBankAccount::where('guardian_registration', $guardianFileId)->count();
+                                $isFirstAccount = ($existingAccountsCount == 0);
+
                                 $bankAccountData = [
                                     'guardian_registration' => $guardianFileId, // استخدام file_id_number بدلاً من identity_number
                                     're_id_number' => $guardianIdentity, // رقم هوية ولي الأمر (يتم جلبه تلقائياً من data)
@@ -283,6 +287,7 @@ class SponsorshipController extends Controller
                                     're_phone_number' => $account['re_phone_number'] ?? null,
                                     'iban_usd' => $account['iban_usd'] ?? null,
                                     'iban_shekel' => $account['iban_shekel'] ?? null,
+                                    'check_account' => $isFirstAccount ? 1 : 0, // ✅ الحساب الأول يُعتمد تلقائياً
                                 ];
 
                                 if (!empty($account['id'])) {
@@ -561,6 +566,10 @@ class SponsorshipController extends Controller
                                     continue;
                                 }
 
+                                // 🆕 التحقق إذا كان هذا أول حساب بنكي للشخص (يُعتمد تلقائياً)
+                                $existingAccountsCount = GuardianBankAccount::where('guardian_registration', $guardianFileId)->count();
+                                $isFirstAccount = ($existingAccountsCount == 0);
+
                                 $bankAccountData = [
                                     'guardian_registration' => $guardianFileId, // استخدام file_id_number بدلاً من identity_number
                                     're_id_number' => $guardianIdentity, // رقم هوية ولي الأمر (يتم جلبه تلقائياً من data)
@@ -570,6 +579,7 @@ class SponsorshipController extends Controller
                                     're_phone_number' => $account['re_phone_number'] ?? null,
                                     'iban_usd' => $account['iban_usd'] ?? null,
                                     'iban_shekel' => $account['iban_shekel'] ?? null,
+                                    'check_account' => $isFirstAccount ? 1 : 0, // ✅ الحساب الأول يُعتمد تلقائياً
                                 ];
 
                                 if (!empty($account['id'])) {

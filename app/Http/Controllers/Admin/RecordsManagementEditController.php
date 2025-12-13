@@ -538,6 +538,10 @@ class RecordsManagementEditController extends Controller
                                !empty($account['iban_shekel']);
 
                     if ($hasData) {
+                        // 🆕 التحقق إذا كان هذا أول حساب بنكي للشخص (يُعتمد تلقائياً)
+                        $existingAccountsCount = GuardianBankAccount::where('guardian_registration', $guardianRegistration)->count();
+                        $isFirstAccount = ($existingAccountsCount == 0);
+
                         $bankAccountData = [
                             'guardian_registration' => $guardianRegistration,
                             're_id_number' => $data->data_id_number,
@@ -547,6 +551,7 @@ class RecordsManagementEditController extends Controller
                             're_phone_number' => $account['re_phone_number'] ?? null,
                             'iban_usd' => $account['iban_usd'] ?? null,
                             'iban_shekel' => $account['iban_shekel'] ?? null,
+                            'check_account' => $isFirstAccount ? 1 : 0, // ✅ الحساب الأول يُعتمد تلقائياً
                         ];
 
                         if (!empty($account['id'])) {
