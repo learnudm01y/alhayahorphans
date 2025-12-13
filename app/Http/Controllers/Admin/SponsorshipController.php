@@ -397,7 +397,18 @@ class SponsorshipController extends Controller
                 $sponsorship->bank_accounts = [];
             }
 
-            return response()->json($sponsorship);
+            // تحويل إلى مصفوفة
+            $sponsorshipData = $sponsorship->toArray();
+
+            // 📅 إعادة تطبيق صيغة التواريخ الصحيحة (Y-m-d) بعد التحويل
+            if ($sponsorship->sponsorship_start_date) {
+                $sponsorshipData['sponsorship_start_date'] = $sponsorship->sponsorship_start_date->format('Y-m-d');
+            }
+            if ($sponsorship->sponsorship_end_date) {
+                $sponsorshipData['sponsorship_end_date'] = $sponsorship->sponsorship_end_date->format('Y-m-d');
+            }
+
+            return response()->json($sponsorshipData);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,

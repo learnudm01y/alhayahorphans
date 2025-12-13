@@ -519,6 +519,23 @@
                             </div>
                         </div>
 
+                        <div class="row g-9 mb-7">
+                            <div class="col-md-6 fv-row">
+                                <label class="fs-6 fw-semibold mb-2">رقم هاتف المعيل</label>
+                                <input type="text" class="form-control form-control-solid"
+                                       placeholder="رقم هاتف المعيل" name="guardian_phone"
+                                       id="guardian_phone" readonly />
+                                <div class="form-text">يتم جلب هذا الحقل تلقائياً من قاعدة البيانات</div>
+                            </div>
+                            <div class="col-md-6 fv-row">
+                                <label class="fs-6 fw-semibold mb-2">جوال بديل للمعيل</label>
+                                <input type="text" class="form-control form-control-solid"
+                                       placeholder="جوال بديل للمعيل" name="guardian_alt_phone"
+                                       id="guardian_alt_phone" readonly />
+                                <div class="form-text">يتم جلب هذا الحقل تلقائياً من قاعدة البيانات</div>
+                            </div>
+                        </div>
+
                         <!--begin::معلومات الكفالة-->
                         <div class="mb-7 mt-10">
                             <h3 class="fw-bold text-gray-900 mb-5">تفاصيل الكفالة</h3>
@@ -761,15 +778,37 @@
             });
 
             function createSponsoredBankAccountForm(index, bankData = {}) {
+                const isApproved = bankData.check_account == 1;
+                const accountId = bankData.id || '';
+                const guardianFileId = bankData.guardian_file_id || '';
+
                 return `
-                <div class="sponsored-bank-account-form border rounded p-4 mb-4 position-relative"
+                <div class="sponsored-bank-account-form border rounded p-4 mb-4 position-relative bank-account-card"
                      data-index="${index}"
-                     style="border: 2px dashed #009ef7 !important; background-color: #d8d8d8;">
-                    <button type="button" class="btn-close position-absolute top-0 end-0 m-3 remove-sponsored-bank-btn"
-                            title="حذف الحساب" style="z-index: 10;"></button>
-                    <h6 class="mb-4 text-primary fw-bold">
-                        <i class="fas fa-university me-2"></i>حساب بنكي رقم ${index + 1}
-                    </h6>
+                     data-account-id="${accountId}"
+                     style="border: 2px dashed #009ef7 !important; background-color: ${isApproved ? '#f1faff' : '#d8d8d8'};">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h6 class="mb-0 text-primary fw-bold">
+                            <i class="fas fa-university me-2"></i>حساب بنكي رقم ${index + 1}
+                        </h6>
+                        <div class="d-flex gap-2">
+                            ${accountId ? `
+                                <button type="button"
+                                        class="btn btn-sm approve-bank-account-btn ${isApproved ? 'btn-dark-green' : 'btn-outline-success'}"
+                                        data-account-id="${accountId}"
+                                        data-guardian-file-id="${guardianFileId}"
+                                        ${isApproved ? 'disabled' : ''}>
+                                    <i class="fas ${isApproved ? 'fa-check-circle' : 'fa-check'} me-1"></i>
+                                    ${isApproved ? 'حساب معتمد' : 'اعتماد الحساب'}
+                                </button>
+                            ` : ''}
+                            <button type="button"
+                                    class="btn btn-sm btn-danger remove-sponsored-bank-btn"
+                                    title="حذف الحساب">
+                                <i class="fas fa-trash-alt me-1"></i>حذف
+                            </button>
+                        </div>
+                    </div>
                     <div class="row g-4">
                         <div class="col-md-6">
                             <label class="form-label fw-semibold">اسم البنك</label>
@@ -900,72 +939,59 @@
             function loadExistingBankAccounts(identityNumber) {
                 if (!identityNumber) {
                     $('#existingBankAccountsSection').addClass('d-none');
+                    $('#sponsoredBankAccountsContainer').html('').addClass('d-none');
                     return;
                 }
 
                 $.ajax({
                     url: '/admin/records-management/get-bank-accounts',
                     type: 'GET',
-                    data: { identity_number: identityNumber },
+                    data: { guardian_identity: identityNumber },
                     success: function(response) {
                         if (response.success && response.accounts && response.accounts.length > 0) {
-                            let html = '';
-                            response.accounts.forEach((account, index) => {
-                                const isApproved = account.check_account == 1;
+                            // إخفاء قسم العرض للقراءة فقط
+                            $('#existingBankAccountsSection').addClass('d-none');
 
-                                html += `
-                                <div class="border rounded p-4 mb-3 bank-account-card" data-account-id="${account.id}" style="background-color: #f8f9fa;">
-                                    <div class="d-flex justify-content-between align-items-center mb-3">
-                                        <h6 class="mb-0 text-dark fw-bold">
-                                            <i class="fas fa-university text-primary me-2"></i>حساب بنكي ${index + 1}
-                                        </h6>
-                                        <button type="button"
-                                                class="btn btn-sm approve-bank-account-btn ${isApproved ? 'btn-dark-green' : 'btn-outline-success'}"
-                                                data-account-id="${account.id}"
-                                                data-guardian-file-id="${response.guardian_file_id}"
-                                                ${isApproved ? 'disabled' : ''}>
-                                            <i class="fas ${isApproved ? 'fa-check-circle' : 'fa-check'} me-1"></i>
-                                            ${isApproved ? 'حساب معتمد' : 'اعتماد الحساب'}
-                                        </button>
-                                    </div>
-                                    <div class="row g-3">
-                                        <div class="col-md-6">
-                                            <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">اسم البنك</span>
-                                            <span class="fw-bold text-gray-800 fs-6">${account.bank?.description || '-'}</span>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">اسم صاحب الحساب</span>
-                                            <span class="fw-bold text-gray-800 fs-6">${account.re_guardian_name || '-'}</span>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">رقم هوية صاحب الحساب</span>
-                                            <span class="fw-bold text-gray-800 fs-6">${account.person_owner_identity_number || '-'}</span>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">رقم هاتف صاحب الحساب</span>
-                                            <span class="fw-bold text-gray-800 fs-6">${account.re_phone_number || '-'}</span>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">رقم IBAN بالدولار</span>
-                                            <span class="fw-bold text-gray-800 fs-6">${account.iban_usd || '-'}</span>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <span class="fw-semibold text-gray-600 fs-7 d-block mb-1">رقم IBAN بالشيكل</span>
-                                            <span class="fw-bold text-gray-800 fs-6">${account.iban_shekel || '-'}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                `;
+                            // عرض الحسابات بشكل قابل للتعديل
+                            sponsoredBankAccountCount = 0;
+                            $('#sponsoredBankAccountsContainer').html('').removeClass('d-none');
+
+                            response.accounts.forEach((account, index) => {
+                                const bankData = {
+                                    id: account.id,
+                                    bank_name: account.bank_name,
+                                    re_guardian_name: account.re_guardian_name,
+                                    person_owner_identity_number: account.person_owner_identity_number,
+                                    re_phone_number: account.re_phone_number,
+                                    iban_usd: account.iban_usd,
+                                    iban_shekel: account.iban_shekel,
+                                    check_account: account.check_account,
+                                    guardian_file_id: response.guardian_file_id
+                                };
+
+                                $('#sponsoredBankAccountsContainer').append(
+                                    createSponsoredBankAccountForm(sponsoredBankAccountCount, bankData)
+                                );
+                                sponsoredBankAccountCount++;
                             });
-                            $('#existingBankAccountsList').html(html);
-                            $('#existingBankAccountsSection').removeClass('d-none');
+
+                            updateRemoveSponsoredBankButtons();
+
+                            // تحديث حالة زر الإضافة
+                            if (sponsoredBankAccountCount >= maxSponsoredBankAccounts) {
+                                $('#addSponsoredBankAccount').prop('disabled', true);
+                            } else {
+                                $('#addSponsoredBankAccount').prop('disabled', false);
+                            }
                         } else {
                             $('#existingBankAccountsSection').addClass('d-none');
+                            $('#sponsoredBankAccountsContainer').html('').addClass('d-none');
                         }
                     },
                     error: function(xhr) {
                         console.error('Error loading bank accounts:', xhr);
                         $('#existingBankAccountsSection').addClass('d-none');
+                        $('#sponsoredBankAccountsContainer').html('').addClass('d-none');
                     }
                 });
             }
@@ -1201,16 +1227,31 @@
                         $('#orphan_name').val(response.orphan_name);
                         $('#guardian_name').val(response.guardian_name);
                         $('#guardian_identity_number').val(response.guardian_identity_number);
+
+                        // 📞 تحميل أرقام هواتف المعيل
+                        $('#guardian_phone').val(response.guardian_phone || '-');
+                        $('#guardian_alt_phone').val(response.guardian_alt_phone || '-');
+
                         $('#sponsorship_duration_months').val(response.sponsorship_duration_months);
-                        $('#sponsorship_start_date').val(response.sponsorship_start_date);
-                        $('#sponsorship_end_date').val(response.sponsorship_end_date);
+
+                        // 📅 تحميل التواريخ بصيغة صحيحة لحقول input[type="date"]
+                        console.log('📅 تواريخ الكفالة:', {
+                            start: response.sponsorship_start_date,
+                            end: response.sponsorship_end_date
+                        });
+                        $('#sponsorship_start_date').val(response.sponsorship_start_date || '');
+                        $('#sponsorship_end_date').val(response.sponsorship_end_date || '');
+
                         $('#sponsorship_type_id').val(response.sponsorship_type_id);
                         $('#sponsorship_status_id').val(response.sponsorship_status_id);
                         $('#notes').val(response.notes);
 
-                        // 🆕 تحميل البيانات البنكية الموجودة للشخص
-                        if (response.identity_number) {
-                            loadExistingBankAccounts(response.identity_number);
+                        // 🆕 تحميل البيانات البنكية الموجودة للمعيل
+                        // استخدام guardian_identity_number أولاً (المعيل)، ثم identity_number (المكفول) كبديل
+                        const identityToLoad = response.guardian_identity_number || response.identity_number;
+                        if (identityToLoad) {
+                            console.log('🏦 تحميل الحسابات البنكية للرقم:', identityToLoad);
+                            loadExistingBankAccounts(identityToLoad);
                         }
 
                         $('#sponsorshipModal').modal('show');
