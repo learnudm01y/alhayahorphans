@@ -777,6 +777,108 @@
                 }
             });
 
+            // ============================================
+            // 🍪 نظام حفظ إعدادات عرض الأعمدة (Column Visibility)
+            // ============================================
+
+            const COLUMN_COOKIE_NAME = 'sponsorships_table_columns';
+            const COOKIE_EXPIRY_DAYS = 365; // سنة واحدة
+
+            // دالة لحفظ Cookie
+            function setCookie(name, value, days) {
+                const expires = new Date();
+                expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+                document.cookie = name + '=' + encodeURIComponent(value) + ';expires=' + expires.toUTCString() + ';path=/';
+            }
+
+            // دالة لقراءة Cookie
+            function getCookie(name) {
+                const nameEQ = name + "=";
+                const ca = document.cookie.split(';');
+                for(let i = 0; i < ca.length; i++) {
+                    let c = ca[i];
+                    while (c.charAt(0) == ' ') c = c.substring(1, c.length);
+                    if (c.indexOf(nameEQ) == 0) return decodeURIComponent(c.substring(nameEQ.length, c.length));
+                }
+                return null;
+            }
+
+            // دالة لحذف Cookie
+            function deleteCookie(name) {
+                document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:01 GMT;path=/';
+            }
+
+            // دالة لحفظ حالة الأعمدة
+            function saveColumnVisibility() {
+                if (!$.fn.DataTable.isDataTable('#sponsorships-table')) return;
+
+                const table = $('#sponsorships-table').DataTable();
+                const columnStates = [];
+
+                // جلب حالة كل عمود
+                table.columns().every(function() {
+                    const column = this;
+                    columnStates.push({
+                        index: column.index(),
+                        visible: column.visible()
+                    });
+                });
+
+                // حفظ الحالة في Cookie
+                setCookie(COLUMN_COOKIE_NAME, JSON.stringify(columnStates), COOKIE_EXPIRY_DAYS);
+                console.log('🍪 تم حفظ إعدادات الأعمدة:', columnStates);
+            }
+
+            // دالة لاستعادة حالة الأعمدة
+            function restoreColumnVisibility() {
+                const savedState = getCookie(COLUMN_COOKIE_NAME);
+
+                if (!savedState) {
+                    console.log('🍪 لا توجد إعدادات محفوظة للأعمدة');
+                    return;
+                }
+
+                if (!$.fn.DataTable.isDataTable('#sponsorships-table')) return;
+
+                try {
+                    const columnStates = JSON.parse(savedState);
+                    const table = $('#sponsorships-table').DataTable();
+
+                    console.log('🍪 استعادة إعدادات الأعمدة:', columnStates);
+
+                    // تطبيق الحالة المحفوظة
+                    columnStates.forEach(function(state) {
+                        table.column(state.index).visible(state.visible, false);
+                    });
+
+                    // إعادة رسم الجدول مرة واحدة فقط
+                    table.columns.adjust().draw(false);
+
+                    console.log('✅ تم استعادة إعدادات الأعمدة بنجاح');
+                } catch (e) {
+                    console.error('❌ خطأ في استعادة إعدادات الأعمدة:', e);
+                    deleteCookie(COLUMN_COOKIE_NAME);
+                }
+            }
+
+            // استعادة الإعدادات عند تحميل الصفحة
+            setTimeout(function() {
+                if ($.fn.DataTable.isDataTable('#sponsorships-table')) {
+                    restoreColumnVisibility();
+
+                    // مراقبة تغييرات رؤية الأعمدة
+                    const table = $('#sponsorships-table').DataTable();
+
+                    // عند الضغط على زر التحكم بالأعمدة
+                    table.on('column-visibility.dt', function(e, settings, column, state) {
+                        console.log('🔄 تغيير رؤية العمود:', column, '→', state ? 'مرئي' : 'مخفي');
+                        saveColumnVisibility();
+                    });
+
+                    console.log('✅ تم تفعيل نظام حفظ إعدادات الأعمدة');
+                }
+            }, 1000); // انتظار ثانية لضمان تحميل DataTable
+
             function createSponsoredBankAccountForm(index, bankData = {}) {
                 const isApproved = bankData.check_account == 1;
                 const accountId = bankData.id || '';
