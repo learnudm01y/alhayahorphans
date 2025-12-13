@@ -642,12 +642,16 @@
 
                             <!-- عرض الحسابات البنكية الموجودة -->
                             <div id="existingBankAccountsSection" class="mb-4 d-none">
-                                <div class="alert alert-success">
-                                    <h6 class="mb-3">
-                                        <i class="fas fa-check-circle"></i> الحسابات البنكية الموجودة للشخص
-                                    </h6>
-                                    <div id="existingBankAccountsList"></div>
+                                <div class="alert alert-info border border-info py-3 mb-4">
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-info-circle fs-3 me-3 text-info"></i>
+                                        <div>
+                                            <h6 class="mb-1 fw-bold text-info">الحسابات البنكية الموجودة مسبقاً</h6>
+                                            <small class="text-muted">هذه الحسابات مسجلة بالفعل في النظام ويمكنك إضافة حسابات جديدة إذا لزم الأمر</small>
+                                        </div>
+                                    </div>
                                 </div>
+                                <div id="existingBankAccountsList"></div>
                             </div>
 
                             <div class="alert alert-info d-flex align-items-center py-3 mb-5">
@@ -729,7 +733,7 @@
                             <label class="form-label fw-semibold">رقم هوية صاحب الحساب</label>
                             <input type="text" name="bank_accounts[${index}][person_owner_identity_number]"
                                    class="form-control form-control-solid" maxlength="20"
-                                   placeholder="أدخل رقم الهوية"
+                                   placeholder="أدخل رقم هوية صاحب الحساب"
                                    value="${bankData.person_owner_identity_number || ''}"
                                    oninput="this.value = this.value.replace(/[^0-9]/g, '');">
                         </div>
@@ -805,7 +809,12 @@
             $('#addUnsponsoredBankAccount').on('click', function() {
                 if (unsponsoredBankAccountCount < maxUnsponsoredBankAccounts) {
                     $('#unsponsoredBankAccountsContainer').removeClass('d-none');
-                    $('#unsponsoredBankAccountsContainer').append(createUnsponsoredBankAccountForm(unsponsoredBankAccountCount));
+                    const bankForm = createUnsponsoredBankAccountForm(unsponsoredBankAccountCount);
+                    $('#unsponsoredBankAccountsContainer').append(bankForm);
+
+                    // ملاحظة: re_id_number سيتم جلبه تلقائياً من الـ Controller باستخدام relation_id_number
+                    // لا حاجة لملئه يدوياً هنا
+
                     unsponsoredBankAccountCount++;
                     updateRemoveUnsponsoredBankButtons();
 
@@ -846,56 +855,120 @@
                 $('#existingBankAccountsSection').addClass('d-none');
                 $('#existingBankAccountsList').html('');
 
-                // تحديد رقم هوية المعيل بناءً على نوع الشخص
+                // تحديد معايير البحث بناءً على نوع الشخص
+                let fileId = null;
                 let guardianIdentity = null;
 
                 if (personData.person_type === 'breadwinner') {
-                    // المعيل يستخدم رقم هويته الخاص
+                    // المعيل: استخدم file_id الخاص به
+                    fileId = personData.file_id || personData.reserved_file_id;
                     guardianIdentity = personData.identity_number;
                 } else if (personData.guardian_identity) {
-                    // الشخص له معيل
+                    // الشخص له معيل: استخدم file_id المعيل
+                    fileId = personData.guardian_file_id;
                     guardianIdentity = personData.guardian_identity;
                 } else {
-                    console.log('لا يوجد رقم هوية معيل لهذا الشخص');
+                    console.log('لا يوجد رقم ملف أو رقم هوية معيل لهذا الشخص');
                     return;
                 }
 
-                // جلب الحسابات البنكية من السيرفر
+                console.log('🔍 جلب الحسابات البنكية:', {
+                    fileId,
+                    guardianIdentity,
+                    personType: personData.person_type,
+                    personData: personData
+                });
+
+                // التحقق من وجود معايير بحث صالحة
+                if (!fileId && !guardianIdentity) {
+                    console.warn('⚠️ لا يوجد file_id أو guardian_identity للبحث');
+                    $('#existingBankAccountsSection').addClass('d-none');
+                    return;
+                }
+
+                // جلب الحسابات البنكية من السيرفر - استخدام GET بدلاً من POST
                 $.ajax({
-                    url: '/admin/records-management/get-bank-accounts',
-                    method: 'POST',
+                    url: '/api/sponsorships/get-bank-accounts',
+                    method: 'GET',
                     data: {
-                        guardian_identity: guardianIdentity,
-                        _token: '{{ csrf_token() }}'
+                        file_id: fileId,
+                        guardian_identity: guardianIdentity
                     },
                     success: function(response) {
+                        console.log('📦 استجابة الحسابات البنكية:', response);
+
                         if (response.success && response.accounts && response.accounts.length > 0) {
-                            let accountsHtml = '<div class="row g-3">';
+                            let accountsHtml = '';
 
                             response.accounts.forEach(function(account, index) {
-                                const bankName = account.bank ? account.bank.description : 'غير محدد';
+                                // استخدام bank_description أو bank_name_text حسب ما يعيده API
+                                const bankName = account.bank_description || account.bank_name_text || 'غير محدد';
+                                const isApproved = account.check_account == 1;
 
                                 accountsHtml += `
-                                <div class="col-md-6">
-                                    <div class="card border-success">
-                                        <div class="card-body p-3">
-                                            <h6 class="card-title text-success mb-2">
-                                                <i class="fas fa-university me-1"></i> ${bankName}
-                                            </h6>
-                                            <div class="small">
-                                                ${account.re_guardian_name ? `<div><strong>الاسم:</strong> ${account.re_guardian_name}</div>` : ''}
-                                                ${account.person_owner_identity_number ? `<div><strong>رقم الهوية:</strong> ${account.person_owner_identity_number}</div>` : ''}
-                                                ${account.re_phone_number ? `<div><strong>الهاتف:</strong> ${account.re_phone_number}</div>` : ''}
-                                                ${account.iban_usd ? `<div><strong>IBAN دولار:</strong> ${account.iban_usd}</div>` : ''}
-                                                ${account.iban_shekel ? `<div><strong>IBAN شيكل:</strong> ${account.iban_shekel}</div>` : ''}
+                                    <div class="bank-account-form border rounded p-4 mb-4 position-relative"
+                                         style="border: 2px solid ${isApproved ? '#1e7e34' : '#0056b3'} !important; background-color: ${isApproved ? '#d4edda' : '#cce5ff'};">
+                                        <h6 class="mb-4 fw-bold" style="color: ${isApproved ? '#155724' : '#004085'};">
+                                            <i class="fas fa-university me-2"></i>حساب بنكي رقم ${index + 1}
+                                        </h6>
+                                        <div class="row g-4">
+                                            <div class="col-md-6">
+                                                <label class="form-label fw-semibold text-dark">اسم البنك</label>
+                                                <div class="form-control form-control-solid" style="background-color: #e9ecef; border: 1px solid #ced4da; font-weight: 500;">
+                                                    ${bankName}
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label fw-semibold text-dark">اسم صاحب الحساب</label>
+                                                <div class="form-control form-control-solid" style="background-color: #e9ecef; border: 1px solid #ced4da; font-weight: 500;">
+                                                    ${account.re_guardian_name || '-'}
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label fw-semibold text-dark">رقم هوية صاحب الحساب</label>
+                                                <div class="form-control form-control-solid" style="background-color: #e9ecef; border: 1px solid #ced4da; font-weight: 500;">
+                                                    ${account.person_owner_identity_number || '-'}
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label fw-semibold text-dark">رقم هاتف صاحب الحساب</label>
+                                                <div class="form-control form-control-solid" style="background-color: #e9ecef; border: 1px solid #ced4da; font-weight: 500;">
+                                                    ${account.re_phone_number || '-'}
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label fw-semibold text-dark">رقم IBAN بالدولار</label>
+                                                <div class="form-control form-control-solid" style="background-color: #e9ecef; border: 1px solid #ced4da; font-family: monospace; font-weight: 500;">
+                                                    ${account.iban_usd || '-'}
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label fw-semibold text-dark">رقم IBAN بالشيكل</label>
+                                                <div class="form-control form-control-solid" style="background-color: #e9ecef; border: 1px solid #ced4da; font-family: monospace; font-weight: 500;">
+                                                    ${account.iban_shekel || '-'}
+                                                </div>
+                                            </div>
+                                            <div class="col-12">
+                                                <div class="alert ${isApproved ? 'alert-success' : 'alert-warning'} d-flex align-items-center justify-content-between mb-0" style="border: 2px solid ${isApproved ? '#155724' : '#856404'};">
+                                                    <span style="font-weight: 600;">
+                                                        ${isApproved
+                                                            ? '<i class="fas fa-check-circle me-2"></i>تم اعتماد هذا الحساب'
+                                                            : '<i class="fas fa-exclamation-triangle me-2"></i>هذا الحساب في انتظار الاعتماد'}
+                                                    </span>
+                                                    ${!isApproved ? `
+                                                    <button type="button" class="btn btn-success btn-sm approve-unsponsored-bank-account"
+                                                            data-account-id="${account.id}"
+                                                            style="font-weight: 600;">
+                                                        <i class="fas fa-check me-1"></i>اعتماد الحساب
+                                                    </button>
+                                                    ` : ''}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
                                 `;
                             });
 
-                            accountsHtml += '</div>';
                             $('#existingBankAccountsList').html(accountsHtml);
                             $('#existingBankAccountsSection').removeClass('d-none');
 
@@ -909,6 +982,73 @@
                     }
                 });
             }
+
+            // ============================================
+            // معالج اعتماد الحساب البنكي في مودال غير المكفولين
+            // ============================================
+            $(document).on('click', '.approve-unsponsored-bank-account', function() {
+                const accountId = $(this).data('account-id');
+                const button = $(this);
+
+                Swal.fire({
+                    title: 'تأكيد الاعتماد',
+                    text: 'هل تريد اعتماد هذا الحساب البنكي؟',
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: '#28a745',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: 'نعم، اعتماد الحساب',
+                    cancelButtonText: 'إلغاء'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> جاري الاعتماد...');
+
+                        $.ajax({
+                            url: '/admin/bank-accounts/approve',
+                            method: 'POST',
+                            data: {
+                                account_id: accountId,
+                                _token: $('meta[name="csrf-token"]').attr('content')
+                            },
+                            success: function(response) {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'تم الاعتماد بنجاح',
+                                    text: 'تم اعتماد الحساب البنكي بنجاح',
+                                    confirmButtonText: 'موافق'
+                                });
+
+                                // إعادة تحميل الحسابات البنكية
+                                const recordId = $('#record_id').val();
+                                const recordType = $('#record_type').val();
+
+                                $.ajax({
+                                    url: '{{ route("admin.sponsorships.getPersonDetails") }}',
+                                    method: 'POST',
+                                    data: {
+                                        record_id: recordId,
+                                        record_type: recordType,
+                                        _token: '{{ csrf_token() }}'
+                                    },
+                                    success: function(personData) {
+                                        loadExistingBankAccounts(personData);
+                                    }
+                                });
+                            },
+                            error: function(xhr) {
+                                button.prop('disabled', false).html('<i class="fas fa-check me-1"></i>اعتماد الحساب');
+
+                                Swal.fire({
+                                    icon: 'error',
+                                    title: 'خطأ',
+                                    text: xhr.responseJSON?.message || 'حدث خطأ أثناء اعتماد الحساب',
+                                    confirmButtonText: 'موافق'
+                                });
+                            }
+                        });
+                    }
+                });
+            });
 
             // ============================================
             // محرك البحث القوي الموحد

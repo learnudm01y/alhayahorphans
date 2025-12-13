@@ -74,6 +74,23 @@ $(document).ready(function() {
                            placeholder="مثال: PS00XXXX0000000000000000000"
                            value="${bankData.iban_shekel || ''}">
                 </div>
+                ${bankData.id ? `
+                <div class="col-12">
+                    <div class="alert ${bankData.check_account == 1 ? 'alert-success' : 'alert-warning'} d-flex align-items-center justify-content-between">
+                        <span>
+                            ${bankData.check_account == 1 ?
+                                '<i class="fas fa-check-circle me-2"></i>تم اعتماد هذا الحساب' :
+                                '<i class="fas fa-exclamation-triangle me-2"></i>هذا الحساب في انتظار الاعتماد'}
+                        </span>
+                        ${bankData.check_account != 1 ? `
+                        <button type="button" class="btn btn-sm btn-success approve-bank-account"
+                                data-account-id="${bankData.id}">
+                            <i class="fas fa-check me-1"></i>اعتماد الحساب
+                        </button>
+                        ` : ''}
+                    </div>
+                </div>
+                ` : ''}
                 <input type="hidden" name="bank_accounts[${index}][id]" value="${bankData.id || ''}">
             </div>
         </div>
@@ -157,7 +174,7 @@ $(document).ready(function() {
                 title: 'تنبيه',
                 text: 'لا يمكن إضافة أكثر من 10 حسابات بنكية'
             });
-        });
+        }
     });
 
     // ============================================
@@ -211,8 +228,8 @@ $(document).ready(function() {
 
         // التحقق من صحة رقم الهوية (10 أرقام)
         const idNumber = $('input[name="data_id_number"]').val();
-        if (idNumber && idNumber.length !== 10) {
-            errors.push('رقم الهوية يجب أن يتكون من 10 أرقام');
+        if (idNumber && idNumber.length !== 9) {
+            errors.push('رقم الهوية يجب أن يتكون من 9 أرقام');
             $('input[name="data_id_number"]').addClass('is-invalid');
         }
 
@@ -270,6 +287,59 @@ $(document).ready(function() {
     $('.nav-link[data-bs-toggle="tab"]').on('click', function() {
         // إخفاء رسائل الأخطاء عند التنقل
         $('#validation-errors-container').addClass('d-none');
+    });
+
+    // 🏦 اعتماد الحساب البنكي
+    $(document).on('click', '.approve-bank-account', function(e) {
+        e.preventDefault();
+        const accountId = $(this).data('account-id');
+        const button = $(this);
+
+        Swal.fire({
+            title: 'تأكيد الاعتماد',
+            text: 'هل أنت متأكد من اعتماد هذا الحساب البنكي؟',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#28a745',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'نعم، اعتمد',
+            cancelButtonText: 'إلغاء'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.ajax({
+                    url: '{{ route("admin.records.management.approveBankAccount") }}',
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        account_id: accountId
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'تم الاعتماد',
+                                text: response.message,
+                                timer: 2000,
+                                showConfirmButton: false
+                            });
+
+                            // تحديث الواجهة
+                            button.closest('.alert')
+                                .removeClass('alert-warning')
+                                .addClass('alert-success')
+                                .html('<span><i class="fas fa-check-circle me-2"></i>تم اعتماد هذا الحساب</span>');
+                        }
+                    },
+                    error: function(xhr) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'خطأ',
+                            text: xhr.responseJSON?.message || 'حدث خطأ أثناء اعتماد الحساب'
+                        });
+                    }
+                });
+            }
+        });
     });
 });
 </script>

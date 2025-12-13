@@ -284,15 +284,16 @@ class SponsorshipsDataTable extends DataTable
             })
             ->rawColumns(['sponsor_name', 'sponsorship_status', 'sponsorship_status_dropdown', 'remaining_days', 'bank_account_numbers', 'actions'])
             ->filter(function ($query) {
-                // ============================================
-                // فلاتر المؤسسة الكافلة
-                // ============================================
-                if (request()->has('sponsor_id') && !empty(request()->get('sponsor_id'))) {
-                    $sponsorId = request()->get('sponsor_id');
-                    $query->whereHas('sponsors', function($q) use ($sponsorId) {
-                        $q->where('sponsors.id', $sponsorId);
-                    });
-                }
+                try {
+                    // ============================================
+                    // فلاتر المؤسسة الكافلة
+                    // ============================================
+                    if (request()->has('sponsor_id') && !empty(request()->get('sponsor_id'))) {
+                        $sponsorId = request()->get('sponsor_id');
+                        $query->whereHas('sponsors', function($q) use ($sponsorId) {
+                            $q->where('sponsors.id', $sponsorId);
+                        });
+                    }
 
                 // ============================================
                 // فلاتر نوع الكفالة
@@ -415,6 +416,13 @@ class SponsorshipsDataTable extends DataTable
                             });
                         });
                     }
+                }
+                } catch (\Exception $e) {
+                    \Log::error('❌ خطأ في البحث بـ DataTable', [
+                        'error' => $e->getMessage(),
+                        'search' => request()->get('search'),
+                        'line' => $e->getLine()
+                    ]);
                 }
             });
     }

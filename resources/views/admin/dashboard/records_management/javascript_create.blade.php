@@ -54,8 +54,8 @@
 
                 // التحقق من صحة رقم الهوية (10 أرقام)
                 const idNumber = $('input[name="data_id_number"]').val();
-                if (idNumber && idNumber.length !== 10) {
-                    errors.push('رقم الهوية يجب أن يتكون من 10 أرقام');
+                if (idNumber && idNumber.length !== 9) {
+                    errors.push('رقم الهوية يجب أن يتكون من 9 أرقام');
                     $('input[name="data_id_number"]').addClass('is-invalid');
                 }
 
@@ -439,7 +439,7 @@
                     else if (input.name.includes('[person_id]')) {
                         input.setAttribute('inputmode', 'numeric');
                         input.setAttribute('pattern', '[0-9]*');
-                        input.setAttribute('maxlength', '10');
+                        input.setAttribute('maxlength', '9');
                         input.setAttribute('oninput', "this.value = this.value.replace(/[^0-9]/g, '')");
                         input.value = '';
                     }
@@ -786,7 +786,7 @@
             // دالة للتحقق من رقم الهوية
             function validateIdNumber(input) {
                 const idNumber = input.value;
-                if (idNumber.length !== 10) {
+                if (idNumber.length !== 9) {
                     input.setCustomValidity('يجب أن يتكون رقم الهوية من 10 أرقام');
                     return false;
                 }

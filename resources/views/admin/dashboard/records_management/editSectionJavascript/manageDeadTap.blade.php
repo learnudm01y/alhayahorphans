@@ -222,7 +222,7 @@
         // دالة للتحقق من رقم الهوية
         function validateIdNumber(input) {
             const idNumber = input.value;
-            if (idNumber.length !== 10) {
+            if (idNumber.length !== 9) {
                 input.setCustomValidity('يجب أن يتكون رقم الهوية من 10 أرقام');
                 return false;
             }

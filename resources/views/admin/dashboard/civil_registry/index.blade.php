@@ -176,6 +176,108 @@
             </div>
         </div>
     </div>
+
+    <!-- Modal عرض تفاصيل الشخص مع الحسابات البنكية -->
+    <div class="modal fade" id="personDetailsModal" tabindex="-1" aria-labelledby="personDetailsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header bg-info text-white">
+                    <h5 class="modal-title" id="personDetailsModalLabel">
+                        <i class="fas fa-user-circle"></i> تفاصيل الشخص
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="personDetailsContent">
+                    <!-- Loading Spinner -->
+                    <div class="text-center py-5" id="personDetailsLoading">
+                        <div class="spinner-border text-info" style="width: 3rem; height: 3rem;" role="status">
+                            <span class="visually-hidden">جاري التحميل...</span>
+                        </div>
+                        <p class="mt-3 text-muted">جاري تحميل البيانات...</p>
+                    </div>
+                    <!-- محتوى التفاصيل -->
+                    <div id="personDetailsData" style="display: none;"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times"></i> إغلاق
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal إضافة حساب بنكي -->
+    <div class="modal fade" id="addBankAccountModal" tabindex="-1" aria-labelledby="addBankAccountModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title" id="addBankAccountModalLabel">
+                        <i class="fas fa-university"></i> إضافة حساب بنكي جديد
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="addBankAccountForm">
+                    <div class="modal-body">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>معلومات الشخص:</strong>
+                            <div id="personInfoDisplay" class="mt-2"></div>
+                        </div>
+
+                        <input type="hidden" id="bank_file_id_number" name="file_id_number">
+                        <input type="hidden" id="bank_re_id_number" name="re_id_number">
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">اسم البنك <span class="text-danger">*</span></label>
+                                <select name="bank_name" class="form-select" required>
+                                    <option value="">اختر البنك</option>
+                                    @foreach($bank_name ?? [] as $bank)
+                                        <option value="{{ $bank->id }}">{{ $bank->bank_name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">اسم صاحب الحساب <span class="text-danger">*</span></label>
+                                <input type="text" name="re_guardian_name" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">رقم هوية صاحب الحساب</label>
+                                <input type="text" name="person_owner_identity_number" class="form-control"
+                                       inputmode="numeric" pattern="[0-9]*" maxlength="9"
+                                       oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">رقم الهاتف</label>
+                                <input type="text" name="re_phone_number" class="form-control"
+                                       inputmode="numeric" pattern="[0-9]*" maxlength="10"
+                                       oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">IBAN (دولار)</label>
+                                <input type="text" name="iban_usd" class="form-control" maxlength="34"
+                                       placeholder="PS00XXXX0000000000000000000">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">IBAN (شيكل)</label>
+                                <input type="text" name="iban_shekel" class="form-control" maxlength="34"
+                                       placeholder="PS00XXXX0000000000000000000">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times"></i> إلغاء
+                        </button>
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-save"></i> حفظ الحساب البنكي
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @push('scriptsCode')
@@ -916,9 +1018,377 @@
         });
 
         // دالة عرض تفاصيل الشخص (يمكن تطويرها لاحقاً)
+        // دالة عرض تفاصيل الشخص مع الحسابات البنكية
         window.showPersonDetails = function(personId) {
-            alert(`عرض تفاصيل الشخص رقم: ${personId}\n(هذه الميزة قيد التطوير)`);
+            // إظهار الـ Modal
+            const modal = new bootstrap.Modal(document.getElementById('personDetailsModal'));
+            modal.show();
+
+            // إظهار الـ Loading وإخفاء المحتوى
+            $('#personDetailsLoading').show();
+            $('#personDetailsData').hide();
+
+            // جلب البيانات من الـ API
+            fetch(`/api/civil-registry/person-details/${personId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        displayPersonDetails(data.data);
+                    } else {
+                        $('#personDetailsData').html(`
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                ${data.message}
+                            </div>
+                        `);
+                    }
+                    $('#personDetailsLoading').hide();
+                    $('#personDetailsData').show();
+                })
+                .catch(error => {
+                    console.error('خطأ في جلب البيانات:', error);
+                    $('#personDetailsData').html(`
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            حدث خطأ في جلب البيانات. يرجى المحاولة مرة أخرى.
+                        </div>
+                    `);
+                    $('#personDetailsLoading').hide();
+                    $('#personDetailsData').show();
+                });
         };
+
+        // دالة عرض تفاصيل الشخص
+        function displayPersonDetails(data) {
+            const person = data.person;
+            const bankAccounts = data.bank_accounts;
+            const hasBankAccounts = data.has_bank_accounts;
+
+            // بناء HTML للبيانات الأساسية
+            let html = `
+                <div class="container-fluid">
+                    <!-- معلومات الشخص الأساسية -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-primary text-white">
+                            <h6 class="mb-0"><i class="fas fa-id-card me-2"></i>البيانات الشخصية</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <strong><i class="fas fa-user text-primary me-2"></i>الاسم الكامل:</strong>
+                                    <p class="mb-0">${person.full_name}</p>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <strong><i class="fas fa-id-badge text-info me-2"></i>رقم الهوية:</strong>
+                                    <p class="mb-0">${person.id_number || 'غير محدد'}</p>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <strong><i class="fas fa-venus-mars text-secondary me-2"></i>الجنس:</strong>
+                                    <p class="mb-0">${person.sex}</p>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <strong><i class="fas fa-calendar text-warning me-2"></i>تاريخ الميلاد:</strong>
+                                    <p class="mb-0">${person.birth_date ? new Date(person.birth_date).toLocaleDateString('ar-EG') : 'غير محدد'}</p>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <strong><i class="fas fa-heartbeat text-danger me-2"></i>الحالة:</strong>
+                                    <p class="mb-0">
+                                        ${person.is_alive
+                                            ? '<span class="badge bg-success">على قيد الحياة</span>'
+                                            : '<span class="badge bg-danger">متوفى</span>'}
+                                    </p>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <strong><i class="fas fa-female text-pink me-2"></i>اسم الأم:</strong>
+                                    <p class="mb-0">${person.mother_name || 'غير محدد'}</p>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <strong><i class="fas fa-map-marker-alt text-success me-2"></i>المدينة:</strong>
+                                    <p class="mb-0">${person.city || 'غير محدد'}</p>
+                                </div>
+                                ${person.street ? `
+                                <div class="col-md-6 mb-3">
+                                    <strong><i class="fas fa-road text-muted me-2"></i>الشارع:</strong>
+                                    <p class="mb-0">${person.street}</p>
+                                </div>
+                                ` : ''}
+                                ${person.house_no ? `
+                                <div class="col-md-6 mb-3">
+                                    <strong><i class="fas fa-home text-muted me-2"></i>رقم المنزل:</strong>
+                                    <p class="mb-0">${person.house_no}</p>
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- الحسابات البنكية -->
+                    <div class="card">
+                        <div class="card-header ${hasBankAccounts ? 'bg-success' : 'bg-warning'} text-white d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">
+                                <i class="fas fa-university me-2"></i>
+                                الحسابات البنكية
+                                ${hasBankAccounts
+                                    ? `<span class="badge bg-light text-success ms-2">${bankAccounts.length} حساب</span>`
+                                    : '<span class="badge bg-light text-warning ms-2">لا توجد حسابات</span>'}
+                            </h6>
+                            ${data.data_record ? `
+                            <button type="button" class="btn btn-light btn-sm" onclick="showAddBankAccountForm(${data.data_record.file_id_number}, '${data.person.id_number}', '${data.person.full_name}')">
+                                <i class="fas fa-plus me-1"></i>إضافة حساب بنكي
+                            </button>
+                            ` : ''}
+                        </div>
+                        <div class="card-body">
+            `;
+
+            if (hasBankAccounts) {
+                bankAccounts.forEach((account, index) => {
+                    const isApproved = account.check_account == 1;
+                    html += `
+                        <div class="bank-account-form border rounded p-4 mb-4 position-relative"
+                             style="border: 2px dashed ${isApproved ? '#50cd89' : '#009ef7'} !important; background-color: ${isApproved ? '#e8fff3' : '#f1faff'};">
+                            <h6 class="mb-4 fw-bold" style="color: ${isApproved ? '#50cd89' : '#009ef7'};">
+                                <i class="fas fa-university me-2"></i>حساب بنكي رقم ${index + 1}
+                            </h6>
+                            <div class="row g-4">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold text-muted">اسم البنك</label>
+                                    <div class="form-control form-control-solid bg-light" style="background-color: #f5f8fa;">
+                                        ${account.bank_name_text || 'غير محدد'}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold text-muted">اسم صاحب الحساب</label>
+                                    <div class="form-control form-control-solid bg-light" style="background-color: #f5f8fa;">
+                                        ${account.re_guardian_name || '-'}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold text-muted">رقم هوية صاحب الحساب</label>
+                                    <div class="form-control form-control-solid bg-light" style="background-color: #f5f8fa;">
+                                        ${account.person_owner_identity_number || '-'}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold text-muted">رقم هاتف صاحب الحساب</label>
+                                    <div class="form-control form-control-solid bg-light" style="background-color: #f5f8fa;">
+                                        ${account.re_phone_number || '-'}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold text-muted">رقم IBAN بالدولار</label>
+                                    <div class="form-control form-control-solid bg-light" style="background-color: #f5f8fa; font-family: monospace;">
+                                        ${account.iban_usd || '-'}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-semibold text-muted">رقم IBAN بالشيكل</label>
+                                    <div class="form-control form-control-solid bg-light" style="background-color: #f5f8fa; font-family: monospace;">
+                                        ${account.iban_shekel || '-'}
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="alert ${isApproved ? 'alert-success' : 'alert-warning'} d-flex align-items-center justify-content-between mb-0">
+                                        <span>
+                                            ${isApproved
+                                                ? '<i class="fas fa-check-circle me-2"></i>تم اعتماد هذا الحساب'
+                                                : '<i class="fas fa-exclamation-triangle me-2"></i>هذا الحساب في انتظار الاعتماد'}
+                                        </span>
+                                        ${!isApproved ? `
+                                        <button type="button" class="btn btn-sm btn-success approve-civil-bank-account"
+                                                data-account-id="${account.id}">
+                                            <i class="fas fa-check me-1"></i>اعتماد الحساب
+                                        </button>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+            } else {
+                if (data.data_record) {
+                    html += `
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>ملاحظة:</strong> هذا الشخص مسجل في النظام (رقم ملف: ${data.data_record.file_id_number})
+                            ولكن لم يتم إضافة أي حسابات بنكية له بعد.
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>تنبيه:</strong> هذا الشخص موجود في السجل المدني فقط ولم يتم تسجيله في نظام الحياة للأيتام بعد.
+                            لإضافة حسابات بنكية، يجب أولاً تسجيل الشخص في النظام.
+                        </div>
+                    `;
+                }
+            }
+
+            html += `
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            $('#personDetailsData').html(html);
+        }
+
+        // دالة لإظهار نموذج إضافة حساب بنكي
+        function showAddBankAccountForm(fileIdNumber, idNumber, fullName) {
+            // تعبئة الحقول المخفية
+            $('#bank_file_id_number').val(fileIdNumber);
+            $('#bank_re_id_number').val(idNumber);
+
+            // عرض معلومات الشخص
+            $('#personInfoDisplay').html(`
+                <strong>الاسم:</strong> ${fullName}<br>
+                <strong>رقم الهوية:</strong> ${idNumber}<br>
+                <strong>رقم الملف:</strong> ${fileIdNumber}
+            `);
+
+            // مسح النموذج
+            $('#addBankAccountForm')[0].reset();
+            $('#bank_file_id_number').val(fileIdNumber);
+            $('#bank_re_id_number').val(idNumber);
+
+            // فتح المودال
+            $('#addBankAccountModal').modal('show');
+        }
+
+        // معالجة إرسال النموذج
+        $('#addBankAccountForm').on('submit', function(e) {
+            e.preventDefault();
+
+            const submitButton = $(this).find('button[type="submit"]');
+            const originalText = submitButton.html();
+
+            // تعطيل الزر أثناء الإرسال
+            submitButton.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...');
+
+            // جمع البيانات
+            const formData = {
+                file_id_number: $('#bank_file_id_number').val(),
+                re_id_number: $('#bank_re_id_number').val(),
+                bank_name: $('select[name="bank_name"]').val(),
+                re_guardian_name: $('input[name="re_guardian_name"]').val(),
+                person_owner_identity_number: $('input[name="person_owner_identity_number"]').val(),
+                re_phone_number: $('input[name="re_phone_number"]').val(),
+                iban_usd: $('input[name="iban_usd"]').val(),
+                iban_shekel: $('input[name="iban_shekel"]').val()
+            };
+
+            $.ajax({
+                url: '/api/civil-registry/save-bank-account',
+                method: 'POST',
+                data: formData,
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                },
+                success: function(response) {
+                    // إغلاق المودال
+                    $('#addBankAccountModal').modal('hide');
+
+                    // عرض رسالة نجاح
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'تم الحفظ بنجاح',
+                        text: 'تم إضافة الحساب البنكي بنجاح',
+                        confirmButtonText: 'موافق'
+                    });
+
+                    // إعادة تحميل تفاصيل الشخص لعرض الحساب الجديد
+                    const personId = $('#bank_re_id_number').val();
+                    $.ajax({
+                        url: `/api/civil-registry/person-details/${personId}`,
+                        method: 'GET',
+                        success: function(data) {
+                            displayPersonDetails(data);
+                        }
+                    });
+                },
+                error: function(xhr) {
+                    let errorMessage = 'حدث خطأ أثناء حفظ البيانات';
+
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        errorMessage = xhr.responseJSON.message;
+                    }
+
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'خطأ',
+                        text: errorMessage,
+                        confirmButtonText: 'موافق'
+                    });
+                },
+                complete: function() {
+                    // إعادة تفعيل الزر
+                    submitButton.prop('disabled', false).html(originalText);
+                }
+            });
+        });
+
+        // معالجة اعتماد الحساب البنكي
+        $(document).on('click', '.approve-civil-bank-account', function() {
+            const accountId = $(this).data('account-id');
+            const button = $(this);
+
+            Swal.fire({
+                title: 'تأكيد الاعتماد',
+                text: 'هل تريد اعتماد هذا الحساب البنكي؟',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#50cd89',
+                cancelButtonColor: '#f1416c',
+                confirmButtonText: 'نعم، اعتماد',
+                cancelButtonText: 'إلغاء'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // تعطيل الزر أثناء المعالجة
+                    button.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> جاري الاعتماد...');
+
+                    $.ajax({
+                        url: '/admin/bank-accounts/approve',
+                        method: 'POST',
+                        data: {
+                            account_id: accountId,
+                            _token: $('meta[name="csrf-token"]').attr('content')
+                        },
+                        success: function(response) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'تم الاعتماد',
+                                text: 'تم اعتماد الحساب البنكي بنجاح',
+                                confirmButtonText: 'موافق'
+                            });
+
+                            // إعادة تحميل التفاصيل
+                            const personId = $('#bank_re_id_number').val();
+                            if (personId) {
+                                $.ajax({
+                                    url: `/api/civil-registry/person-details/${personId}`,
+                                    method: 'GET',
+                                    success: function(data) {
+                                        displayPersonDetails(data);
+                                    }
+                                });
+                            }
+                        },
+                        error: function(xhr) {
+                            button.prop('disabled', false).html('<i class="fas fa-check me-1"></i>اعتماد الحساب');
+
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'خطأ',
+                                text: xhr.responseJSON?.message || 'حدث خطأ أثناء اعتماد الحساب',
+                                confirmButtonText: 'موافق'
+                            });
+                        }
+                    });
+                }
+            });
+        });
     });
 
     </script>

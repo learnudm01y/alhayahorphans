@@ -10,7 +10,7 @@
     </div>
     <div class="col-md-4">
         <label class="form-label">رقم الهوية <span class="text-danger">*</span></label>
-        <input type="text" name="data_id_number" id="data_id_number" class="form-control" required inputmode="numeric" pattern="[0-9]*" maxlength="10" oninput="this.value = this.value.replace(/[^0-9]/g, '');" value="{{ $data->data_id_number ?? '' }}">
+        <input type="text" name="data_id_number" id="data_id_number" class="form-control" required inputmode="numeric" pattern="[0-9]*" maxlength="9" oninput="this.value = this.value.replace(/[^0-9]/g, '');" value="{{ $data->data_id_number ?? '' }}">
     </div>
     <div class="col-md-4">
         <label class="form-label">رقم الملف <span class="text-danger">*</span></label>

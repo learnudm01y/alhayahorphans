@@ -99,7 +99,7 @@ class RecordsManagementEditController extends Controller
 
         // 🏦 جلب البيانات البنكية
         $bank_name = BankName::all();
-        $bankAccounts = GuardianBankAccount::where('guardian_registration', $data->data_id_number)->get();
+        $bankAccounts = GuardianBankAccount::where('guardian_registration', $data->file_id_number)->get();
 
         return view('admin.dashboard.records_management.edit', compact(
             'data',
@@ -256,6 +256,17 @@ class RecordsManagementEditController extends Controller
             $fileIdNumber = str_pad($fileIdNumberRaw, 6, '0', STR_PAD_LEFT);
             $oldDataIdNumber = $data->getOriginal('data_id_number');
             $newDataIdNumber = $request->input('data_id_number');
+
+            // التحقق من عدم تكرار رقم الملف إذا تم تغييره
+            if ($fileIdNumber !== $data->getOriginal('file_id_number')) {
+                $existingFile = Data::where('file_id_number', $fileIdNumber)
+                    ->where('id', '!=', $data->id)
+                    ->first();
+
+                if ($existingFile) {
+                    return redirect()->back()->with('error', "رقم الملف {$fileIdNumber} مستخدم بالفعل لشخص آخر. الرجاء استخدام رقم مختلف.");
+                }
+            }
 
             $data->update([
                 'file_id_number' => $fileIdNumber,
@@ -506,11 +517,11 @@ class RecordsManagementEditController extends Controller
 
             // 🏦 تحديث الحسابات البنكية
             if ($request->has('bank_accounts') && !empty($request->bank_accounts)) {
-                $guardianIdentity = $data->data_id_number;
+                $guardianRegistration = $data->file_id_number;
 
                 Log::info('🏦 البدء في تحديث الحسابات البنكية', [
                     'data_id' => $data->id,
-                    'guardian_identity' => $guardianIdentity,
+                    'guardian_registration' => $guardianRegistration,
                     'accounts_count' => count($request->bank_accounts)
                 ]);
 
@@ -528,7 +539,8 @@ class RecordsManagementEditController extends Controller
 
                     if ($hasData) {
                         $bankAccountData = [
-                            'guardian_registration' => $guardianIdentity,
+                            'guardian_registration' => $guardianRegistration,
+                            're_id_number' => $data->data_id_number,
                             'bank_name' => $account['bank_name'] ?? null,
                             're_guardian_name' => $account['re_guardian_name'] ?? null,
                             'person_owner_identity_number' => $account['person_owner_identity_number'] ?? null,
@@ -553,7 +565,7 @@ class RecordsManagementEditController extends Controller
 
                 // حذف الحسابات التي لم تعد موجودة (إذا تم حذفها من النموذج)
                 if (!empty($processedIds)) {
-                    $deletedCount = GuardianBankAccount::where('guardian_registration', $guardianIdentity)
+                    $deletedCount = GuardianBankAccount::where('guardian_registration', $guardianRegistration)
                         ->whereNotIn('id', $processedIds)
                         ->delete();
 
@@ -562,7 +574,7 @@ class RecordsManagementEditController extends Controller
                     }
                 } else {
                     // حذف جميع الحسابات إذا لم يتم إرسال أي حساب
-                    $deletedCount = GuardianBankAccount::where('guardian_registration', $guardianIdentity)->delete();
+                    $deletedCount = GuardianBankAccount::where('guardian_registration', $guardianRegistration)->delete();
                     if ($deletedCount > 0) {
                         Log::info('🗑️ تم حذف جميع الحسابات البنكية', ['deleted_count' => $deletedCount]);
                     }

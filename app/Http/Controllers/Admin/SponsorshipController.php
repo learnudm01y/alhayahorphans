@@ -117,6 +117,38 @@ class SponsorshipController extends Controller
                 ]);
             }
 
+            // 🆕 ملء relation_id_number برقم ملف المعيل من جدول data
+            $relationIdNumber = null;
+            if (!empty($validatedData['guardian_identity_number'])) {
+                // البحث عن المعيل في جدول data
+                $guardianData = Data::where('data_id_number', $validatedData['guardian_identity_number'])
+                                    ->first();
+
+                if ($guardianData) {
+                    $relationIdNumber = $guardianData->file_id_number;
+                    Log::info('✅ تم جلب relation_id_number من جدول data', [
+                        'guardian_identity' => $validatedData['guardian_identity_number'],
+                        'relation_id_number' => $relationIdNumber
+                    ]);
+                }
+            } elseif (!empty($validatedData['identity_number'])) {
+                // إذا لم يكن هناك معيل، نستخدم رقم هوية الشخص نفسه (حالة المعيل)
+                $guardianData = Data::where('data_id_number', $validatedData['identity_number'])
+                                    ->first();
+
+                if ($guardianData) {
+                    $relationIdNumber = $guardianData->file_id_number;
+                    Log::info('✅ تم جلب relation_id_number من رقم هوية الشخص (معيل)', [
+                        'identity_number' => $validatedData['identity_number'],
+                        'relation_id_number' => $relationIdNumber
+                    ]);
+                }
+            }
+
+            if ($relationIdNumber) {
+                $validatedData['relation_id_number'] = $relationIdNumber;
+            }
+
             // إزالة sponsor_ids من البيانات لأنه سيتم معالجته بشكل منفصل
             $sponsorIds = $validatedData['sponsor_ids'] ?? [];
             unset($validatedData['sponsor_ids']);
@@ -134,21 +166,82 @@ class SponsorshipController extends Controller
             if ($request->has('bank_accounts') && !empty($request->bank_accounts)) {
                 $bankValidationService = app(BankAccountValidationService::class);
                 $duplicateErrors = [];
-                // محاولة الحصول على رقم هوية المعيل من عدة مصادر
-                $guardianIdentity = $validatedData['guardian_identity_number'] ??
-                                   $request->input('guardian_identity_number') ??
-                                   $sponsorship->guardian_identity_number ??
-                                   null;
 
-                // إذا لم نجد رقم هوية المعيل، نحاول استخدام رقم هوية الشخص نفسه (للمعيلين)
-                if (!$guardianIdentity && !empty($validatedData['identity_number'])) {
-                    $guardianIdentity = $validatedData['identity_number'];
-                    Log::info('🔄 استخدام رقم هوية الشخص كرقم هوية المعيل', [
-                        'identity_number' => $guardianIdentity
-                    ]);
+                // 🆕 جلب رقم هوية المعيل ورقم الملف من جدول data
+                $guardianIdentity = null;
+                $guardianFileId = null;
+
+                // أولاً: إذا كان هناك guardian_identity_number (معيل محدد)، نبحث به
+                if (!empty($sponsorship->guardian_identity_number)) {
+                    $guardianData = Data::where('data_id_number', $sponsorship->guardian_identity_number)
+                                        ->select('data_id_number', 'file_id_number')
+                                        ->first();
+
+                    if ($guardianData) {
+                        $guardianIdentity = $guardianData->data_id_number; // رقم هوية المعيل
+                        $guardianFileId = $guardianData->file_id_number;   // رقم ملف المعيل
+
+                        Log::info('✅ تم جلب بيانات المعيل من جدول data باستخدام guardian_identity_number', [
+                            'guardian_identity_number' => $sponsorship->guardian_identity_number,
+                            'guardian_identity' => $guardianIdentity,
+                            'guardian_file_id' => $guardianFileId
+                        ]);
+                    }
                 }
 
-                if ($guardianIdentity) {
+                // ثانياً: إذا لم يكن هناك معيل محدد (حالة المعيل نفسه)، نستخدم internal_file_number
+                if (!$guardianData && !empty($sponsorship->internal_file_number)) {
+                    $guardianData = Data::where('file_id_number', $sponsorship->internal_file_number)
+                                        ->select('data_id_number', 'file_id_number')
+                                        ->first();
+
+                    if ($guardianData) {
+                        $guardianIdentity = $guardianData->data_id_number; // رقم هوية المعيل
+                        $guardianFileId = $guardianData->file_id_number;   // رقم ملف المعيل
+
+                        Log::info('✅ تم جلب بيانات المعيل من جدول data باستخدام internal_file_number (معيل نفسه)', [
+                            'internal_file_number' => $sponsorship->internal_file_number,
+                            'guardian_identity' => $guardianIdentity,
+                            'guardian_file_id' => $guardianFileId
+                        ]);
+                    }
+                }
+
+                // ثالثاً: محاولة أخيرة باستخدام relation_id_number
+                if (!$guardianData && !empty($sponsorship->relation_id_number)) {
+                    $guardianData = Data::where('file_id_number', $sponsorship->relation_id_number)
+                                        ->select('data_id_number', 'file_id_number')
+                                        ->first();
+
+                    if ($guardianData) {
+                        $guardianIdentity = $guardianData->data_id_number; // رقم هوية المعيل
+                        $guardianFileId = $guardianData->file_id_number;   // رقم ملف المعيل
+
+                        Log::info('✅ تم جلب بيانات المعيل من جدول data باستخدام relation_id_number', [
+                            'relation_id_number' => $sponsorship->relation_id_number,
+                            'guardian_identity' => $guardianIdentity,
+                            'guardian_file_id' => $guardianFileId
+                        ]);
+                    }
+                }
+
+                // إذا لم نجد من relation_id_number، نستخدم الطرق القديمة
+                if (!$guardianIdentity) {
+                    $guardianIdentity = $validatedData['guardian_identity_number'] ??
+                                       $request->input('guardian_identity_number') ??
+                                       $sponsorship->guardian_identity_number ??
+                                       null;
+
+                    // إذا لم نجد رقم هوية المعيل، نحاول استخدام رقم هوية الشخص نفسه (للمعيلين)
+                    if (!$guardianIdentity && !empty($validatedData['identity_number'])) {
+                        $guardianIdentity = $validatedData['identity_number'];
+                        Log::info('🔄 استخدام رقم هوية الشخص كرقم هوية المعيل', [
+                            'identity_number' => $guardianIdentity
+                        ]);
+                    }
+                }
+
+                if ($guardianIdentity && !$guardianFileId) {
                     // 🔍 البحث عن file_id_number من جدول data باستخدام identity_number
                     $guardianFileId = Data::where('data_id_number', $guardianIdentity)
                                          ->value('file_id_number');
@@ -209,6 +302,7 @@ class SponsorshipController extends Controller
 
                                 $bankAccountData = [
                                     'guardian_registration' => $guardianFileId, // استخدام file_id_number بدلاً من identity_number
+                                    're_id_number' => $account['re_id_number'] ?? $guardianIdentity, // رقم هوية ولي الأمر (إجباري)
                                     'bank_name' => $account['bank_name'] ?? null,
                                     're_guardian_name' => $account['re_guardian_name'] ?? null,
                                     'person_owner_identity_number' => $account['person_owner_identity_number'] ?? null,
@@ -386,21 +480,82 @@ class SponsorshipController extends Controller
             if ($request->has('bank_accounts') && !empty($request->bank_accounts)) {
                 $bankValidationService = app(BankAccountValidationService::class);
                 $duplicateErrors = [];
-                // محاولة الحصول على رقم هوية المعيل من عدة مصادر
-                $guardianIdentity = $validatedData['guardian_identity_number'] ??
-                                   $request->input('guardian_identity_number') ??
-                                   $sponsorship->guardian_identity_number ??
-                                   null;
 
-                // إذا لم نجد رقم هوية المعيل، نحاول استخدام رقم هوية الشخص نفسه
-                if (!$guardianIdentity && !empty($validatedData['identity_number'])) {
-                    $guardianIdentity = $validatedData['identity_number'];
-                    Log::info('🔄 استخدام رقم هوية الشخص كرقم هوية المعيل', [
-                        'identity_number' => $guardianIdentity
-                    ]);
+                // 🆕 جلب رقم هوية المعيل ورقم الملف من جدول data
+                $guardianIdentity = null;
+                $guardianFileId = null;
+
+                // أولاً: إذا كان هناك guardian_identity_number (معيل محدد)، نبحث به
+                if (!empty($sponsorship->guardian_identity_number)) {
+                    $guardianData = Data::where('data_id_number', $sponsorship->guardian_identity_number)
+                                        ->select('data_id_number', 'file_id_number')
+                                        ->first();
+
+                    if ($guardianData) {
+                        $guardianIdentity = $guardianData->data_id_number; // رقم هوية المعيل
+                        $guardianFileId = $guardianData->file_id_number;   // رقم ملف المعيل
+
+                        Log::info('✅ تم جلب بيانات المعيل من جدول data باستخدام guardian_identity_number (update)', [
+                            'guardian_identity_number' => $sponsorship->guardian_identity_number,
+                            'guardian_identity' => $guardianIdentity,
+                            'guardian_file_id' => $guardianFileId
+                        ]);
+                    }
                 }
 
-                if ($guardianIdentity) {
+                // ثانياً: إذا لم يكن هناك معيل محدد (حالة المعيل نفسه)، نستخدم internal_file_number
+                if (!$guardianData && !empty($sponsorship->internal_file_number)) {
+                    $guardianData = Data::where('file_id_number', $sponsorship->internal_file_number)
+                                        ->select('data_id_number', 'file_id_number')
+                                        ->first();
+
+                    if ($guardianData) {
+                        $guardianIdentity = $guardianData->data_id_number; // رقم هوية المعيل
+                        $guardianFileId = $guardianData->file_id_number;   // رقم ملف المعيل
+
+                        Log::info('✅ تم جلب بيانات المعيل من جدول data باستخدام internal_file_number (معيل نفسه - update)', [
+                            'internal_file_number' => $sponsorship->internal_file_number,
+                            'guardian_identity' => $guardianIdentity,
+                            'guardian_file_id' => $guardianFileId
+                        ]);
+                    }
+                }
+
+                // ثالثاً: محاولة أخيرة باستخدام relation_id_number
+                if (!$guardianData && !empty($sponsorship->relation_id_number)) {
+                    $guardianData = Data::where('file_id_number', $sponsorship->relation_id_number)
+                                        ->select('data_id_number', 'file_id_number')
+                                        ->first();
+
+                    if ($guardianData) {
+                        $guardianIdentity = $guardianData->data_id_number; // رقم هوية المعيل
+                        $guardianFileId = $guardianData->file_id_number;   // رقم ملف المعيل
+
+                        Log::info('✅ تم جلب بيانات المعيل من جدول data باستخدام relation_id_number (update)', [
+                            'relation_id_number' => $sponsorship->relation_id_number,
+                            'guardian_identity' => $guardianIdentity,
+                            'guardian_file_id' => $guardianFileId
+                        ]);
+                    }
+                }
+
+                // إذا لم نجد من relation_id_number، نستخدم الطرق القديمة
+                if (!$guardianIdentity) {
+                    $guardianIdentity = $validatedData['guardian_identity_number'] ??
+                                       $request->input('guardian_identity_number') ??
+                                       $sponsorship->guardian_identity_number ??
+                                       null;
+
+                    // إذا لم نجد رقم هوية المعيل، نحاول استخدام رقم هوية الشخص نفسه
+                    if (!$guardianIdentity && !empty($validatedData['identity_number'])) {
+                        $guardianIdentity = $validatedData['identity_number'];
+                        Log::info('🔄 استخدام رقم هوية الشخص كرقم هوية المعيل', [
+                            'identity_number' => $guardianIdentity
+                        ]);
+                    }
+                }
+
+                if ($guardianIdentity && !$guardianFileId) {
                     // 🔍 البحث عن file_id_number من جدول data باستخدام identity_number
                     $guardianFileId = Data::where('data_id_number', $guardianIdentity)
                                          ->value('file_id_number');
@@ -464,6 +619,7 @@ class SponsorshipController extends Controller
 
                                 $bankAccountData = [
                                     'guardian_registration' => $guardianFileId, // استخدام file_id_number بدلاً من identity_number
+                                    're_id_number' => $account['re_id_number'] ?? $guardianIdentity, // رقم هوية ولي الأمر (إجباري)
                                     'bank_name' => $account['bank_name'] ?? null,
                                     're_guardian_name' => $account['re_guardian_name'] ?? null,
                                     'person_owner_identity_number' => $account['person_owner_identity_number'] ?? null,
@@ -610,6 +766,7 @@ class SponsorshipController extends Controller
                 'full_name' => '',
                 'guardian_name' => '',
                 'guardian_identity' => '',
+                'guardian_file_id' => '', // 🔥 إضافة رقم ملف المعيل
                 'file_id' => '',
                 'new_file_id_generated' => false,
                 'reserved_file_id' => null,
@@ -666,6 +823,7 @@ class SponsorshipController extends Controller
                     if ($record->dataRecord) {
                         $personData['guardian_name'] = trim("{$record->dataRecord->data_first_name} {$record->dataRecord->data_father_name} {$record->dataRecord->data_grand_father_name} {$record->dataRecord->data_family_name}");
                         $personData['guardian_identity'] = $record->dataRecord->data_id_number;
+                        $personData['guardian_file_id'] = $record->dataRecord->file_id_number; // 🔥 إضافة رقم ملف المعيل
                     }
                 }
             }

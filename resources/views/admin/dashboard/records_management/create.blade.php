@@ -198,7 +198,7 @@
                                                     class="text-danger">*</span></label>
                                             <input type="text" name="data_id_number" id="data_id_number"
                                                 class="form-control" required inputmode="numeric" pattern="[0-9]*"
-                                                maxlength="10" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+                                                maxlength="9" oninput="this.value = this.value.replace(/[^0-9]/g, '');">>
                                         </div>
                                         <div class="col-12">
                                             <div class="row g-3">
@@ -503,7 +503,7 @@
                                                                     <input type="text"
                                                                         name="family_members[0][person_id]"
                                                                         class="form-control" inputmode="numeric"
-                                                                        pattern="[0-9]*" maxlength="10"
+                                                                        pattern="[0-9]*" maxlength="9"
                                                                         oninput="this.value = this.value.replace(/[^0-9]/g, '');">
                                                                 </div>
                                                                 <div class="col-md-4">
@@ -605,7 +605,7 @@
                                                             <label class="form-label">رقم الهوية <span
                                                                     class="text-danger">*</span></label>
                                                             <input type="text" name="father_id" class="form-control"
-                                                                inputmode="numeric" pattern="[0-9]*" maxlength="10"
+                                                                inputmode="numeric" pattern="[0-9]*" maxlength="9"
                                                                 oninput="this.value = this.value.replace(/[^0-9]/g, '');">
                                                         </div>
                                                         <div class="col-md-4">
@@ -676,7 +676,7 @@
                                                             <label class="form-label">رقم الهوية <span
                                                                     class="text-danger">*</span></label>
                                                             <input type="text" name="mother_id" class="form-control"
-                                                                inputmode="numeric" pattern="[0-9]*" maxlength="10"
+                                                                inputmode="numeric" pattern="[0-9]*" maxlength="9"
                                                                 oninput="this.value = this.value.replace(/[^0-9]/g, '');">
                                                         </div>
                                                         <div class="col-md-4">

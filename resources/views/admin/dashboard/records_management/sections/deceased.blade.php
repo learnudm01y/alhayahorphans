@@ -43,7 +43,7 @@
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">رقم الهوية <span class="text-danger">*</span></label>
-                        <input type="text" name="father_id" class="form-control" inputmode="numeric" pattern="[0-9]*" maxlength="10"
+                        <input type="text" name="father_id" class="form-control" inputmode="numeric" pattern="[0-9]*" maxlength="9"
                                oninput="this.value = this.value.replace(/[^0-9]/g, '');"
                                value="{{ old('father_id', $dead ? $dead->father_id : '') }}">
                     </div>
@@ -111,7 +111,7 @@
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">رقم الهوية <span class="text-danger">*</span></label>
-                            <input type="text" name="mother_id" class="form-control" inputmode="numeric" pattern="[0-9]*" maxlength="10"
+                            <input type="text" name="mother_id" class="form-control" inputmode="numeric" pattern="[0-9]*" maxlength="9"
                                    oninput="this.value = this.value.replace(/[^0-9]/g, '');"
                                    value="{{ old('mother_id', $dead ? $dead->mother_id : '') }}">
                         </div>

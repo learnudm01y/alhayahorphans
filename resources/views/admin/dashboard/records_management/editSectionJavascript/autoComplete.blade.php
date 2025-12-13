@@ -74,7 +74,7 @@
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">رقم هوية اليتيم</label>
-                                <input type="text" name="family_members[0][person_id]" class="form-control" inputmode="numeric" pattern="[0-9]*" maxlength="10" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+                                <input type="text" name="family_members[0][person_id]" class="form-control" inputmode="numeric" pattern="[0-9]*" maxlength="9" oninput="this.value = this.value.replace(/[^0-9]/g, '');">>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">تاريخ الميلاد <span class="text-danger">*</span></label>
@@ -85,8 +85,8 @@
                                 <input type="number" name="family_members[0][person_age]" class="form-control" readonly>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label">الجنس <span class="text-danger">*</span></label>
-                                <select name="family_members[0][person_gender]" class="form-select" required>
+                                <label class="form-label">الجنس</label>
+                                <select name="family_members[0][person_gender]" class="form-select">
                                     <option value="">اختر الجنس</option>
                                     <option value="1">ذكر</option>
                                     <option value="2">أنثى</option>

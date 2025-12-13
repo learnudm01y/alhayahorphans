@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use App\Http\Controllers\UnifiedFileManagementController;
 use App\Http\Controllers\SimpleFileUploadController;
 use App\Http\Controllers\DuplicateFileController;
@@ -537,6 +538,235 @@ Route::prefix('gallery')->group(function () {
             ], 500);
         }
     });
+});
+
+// ====================================================================
+// API لجلب تفاصيل شخص من السجل المدني مع حساباته البنكية
+// ====================================================================
+Route::get('/civil-registry/person-details/{personId}', function ($personId) {
+    try {
+        // جلب بيانات الشخص من السجل المدني
+        $person = DB::connection('civilregistry')
+            ->table('persons')
+            ->where('ID', $personId)
+            ->first();
+
+        if (!$person) {
+            return response()->json([
+                'success' => false,
+                'message' => 'الشخص غير موجود في السجل المدني'
+            ], 404);
+        }
+
+        // البحث عن سجل مطابق في جدول data بناءً على رقم الهوية
+        $dataRecord = DB::table('data')
+            ->where('data_id_number', $person->CI_ID_NUM)
+            ->first();
+
+        // جلب الحسابات البنكية إذا كان هناك سجل مطابق
+        $bankAccounts = [];
+        if ($dataRecord) {
+            $bankAccounts = DB::table('guardian_banks_account')
+                ->leftJoin('bank_names', 'guardian_banks_account.bank_name', '=', 'bank_names.id')
+                ->where('guardian_banks_account.guardian_registration', $dataRecord->file_id_number)
+                ->select(
+                    'guardian_banks_account.*',
+                    'bank_names.bank_name as bank_name_text'
+                )
+                ->get()
+                ->map(function ($account) {
+                    return [
+                        'id' => $account->id,
+                        'bank_name' => $account->bank_name_text,
+                        'iban_usd' => $account->iban_usd,
+                        'iban_shekel' => $account->iban_shekel,
+                        're_guardian_name' => $account->re_guardian_name,
+                        're_phone_number' => $account->re_phone_number,
+                        'person_owner_identity_number' => $account->person_owner_identity_number,
+                        'check_account' => $account->check_account,
+                        'is_approved' => $account->check_account == 1
+                    ];
+                });
+        }
+
+        // بناء الاسم الكامل
+        $fullName = trim(
+            ($person->CI_FIRST_ARB ?? '') . ' ' .
+            ($person->CI_FATHER_ARB ?? '') . ' ' .
+            ($person->CI_GRAND_FATHER_ARB ?? '') . ' ' .
+            ($person->CI_FAMILY_ARB ?? '')
+        );
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'person' => [
+                    'id' => $person->ID,
+                    'id_number' => $person->CI_ID_NUM,
+                    'full_name' => $fullName,
+                    'first_name' => $person->CI_FIRST_ARB,
+                    'father_name' => $person->CI_FATHER_ARB,
+                    'grand_father_name' => $person->CI_GRAND_FATHER_ARB,
+                    'family_name' => $person->CI_FAMILY_ARB,
+                    'mother_name' => $person->MOTHER_NAME1,
+                    'birth_date' => $person->CI_BIRTH_DT,
+                    'sex' => $person->CI_SEX_CD == 1 ? 'ذكر' : ($person->CI_SEX_CD == 2 ? 'أنثى' : 'غير محدد'),
+                    'personal_status' => $person->CI_PERSONAL_CD,
+                    'city' => $person->CITY,
+                    'street' => $person->STREET,
+                    'house_no' => $person->HOUSE_NO,
+                    'is_alive' => empty($person->CI_DEAD_DT) || $person->CI_DEAD_DT == 0,
+                    'death_date' => $person->CI_DEAD_DT
+                ],
+                'data_record' => $dataRecord ? [
+                    'id' => $dataRecord->id,
+                    'file_id_number' => $dataRecord->file_id_number,
+                    'data_id_number' => $dataRecord->data_id_number
+                ] : null,
+                'bank_accounts' => $bankAccounts->toArray(),
+                'has_bank_accounts' => count($bankAccounts) > 0
+            ]
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'حدث خطأ: ' . $e->getMessage()
+        ], 500);
+    }
+});
+
+// حفظ حساب بنكي جديد من بوابة السجل المدني
+Route::post('/civil-registry/save-bank-account', function (Request $request) {
+    try {
+        // التحقق من صحة البيانات المطلوبة
+        $validator = Validator::make($request->all(), [
+            'file_id_number' => 'required',
+            're_id_number' => 'required',
+            'bank_name' => 'required|exists:bank_names,id',
+            're_guardian_name' => 'required|string|max:255',
+            'person_owner_identity_number' => 'nullable|string|max:9',
+            're_phone_number' => 'nullable|string|max:10',
+            'iban_usd' => 'nullable|string|max:34',
+            'iban_shekel' => 'nullable|string|max:34',
+        ], [
+            'file_id_number.required' => 'رقم الملف مطلوب',
+            're_id_number.required' => 'رقم الهوية مطلوب',
+            'bank_name.required' => 'يجب اختيار البنك',
+            'bank_name.exists' => 'البنك المحدد غير موجود',
+            're_guardian_name.required' => 'اسم صاحب الحساب مطلوب',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first()
+            ], 422);
+        }
+
+        // التحقق من وجود السجل في جدول data
+        $dataRecord = DB::table('data')
+            ->where('file_id_number', $request->file_id_number)
+            ->where('data_id_number', $request->re_id_number)
+            ->first();
+
+        if (!$dataRecord) {
+            return response()->json([
+                'success' => false,
+                'message' => 'لم يتم العثور على السجل. يرجى التأكد من تسجيل الشخص في النظام أولاً.'
+            ], 404);
+        }
+
+        // إدراج الحساب البنكي الجديد
+        DB::table('guardian_bank_accounts')->insert([
+            'guardian_registration' => $request->file_id_number,
+            're_id_number' => $request->re_id_number,
+            'bank_name' => $request->bank_name,
+            're_guardian_name' => $request->re_guardian_name,
+            'person_owner_identity_number' => $request->person_owner_identity_number,
+            're_phone_number' => $request->re_phone_number,
+            'iban_usd' => $request->iban_usd,
+            'iban_shekel' => $request->iban_shekel,
+            'check_account' => 0, // افتراضياً غير معتمد
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        // الحصول على الحساب المضاف مع اسم البنك
+        $newAccount = DB::table('guardian_bank_accounts')
+            ->leftJoin('bank_names', 'guardian_bank_accounts.bank_name', '=', 'bank_names.id')
+            ->where('guardian_bank_accounts.guardian_registration', $request->file_id_number)
+            ->where('guardian_bank_accounts.re_id_number', $request->re_id_number)
+            ->select('guardian_bank_accounts.*', 'bank_names.description as bank_name_text')
+            ->orderBy('guardian_bank_accounts.id', 'desc')
+            ->first();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'تم إضافة الحساب البنكي بنجاح',
+            'data' => $newAccount
+        ], 201);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'حدث خطأ أثناء حفظ البيانات: ' . $e->getMessage()
+        ], 500);
+    }
+});
+
+// جلب الحسابات البنكية بناءً على file_id_number أو guardian_identity
+Route::get('/sponsorships/get-bank-accounts', function (Request $request) {
+    try {
+        $fileId = $request->query('file_id');
+        $guardianIdentity = $request->query('guardian_identity');
+
+        \Log::info('🔍 API: طلب جلب الحسابات البنكية', [
+            'file_id' => $fileId,
+            'guardian_identity' => $guardianIdentity
+        ]);
+
+        if (!$fileId && !$guardianIdentity) {
+            return response()->json([
+                'success' => false,
+                'message' => 'يجب توفير file_id أو guardian_identity'
+            ], 400);
+        }
+
+        $query = DB::table('guardian_bank_accounts')
+            ->leftJoin('bank_names', 'guardian_bank_accounts.bank_name', '=', 'bank_names.id');
+
+        // البحث أولاً بناءً على file_id (guardian_registration)
+        if ($fileId) {
+            $query->where('guardian_bank_accounts.guardian_registration', $fileId);
+        }
+        // البحث ثانياً بناءً على guardian_identity (re_id_number)
+        elseif ($guardianIdentity) {
+            $query->where('guardian_bank_accounts.re_id_number', $guardianIdentity);
+        }
+
+        $accounts = $query
+            ->select(
+                'guardian_bank_accounts.*',
+                'bank_names.description as bank_name_text',
+                'bank_names.description as bank_description'
+            )
+            ->orderBy('guardian_bank_accounts.check_account', 'desc') // المعتمدة أولاً
+            ->orderBy('guardian_bank_accounts.id', 'desc')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'accounts' => $accounts,
+            'count' => $accounts->count()
+        ], 200);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'حدث خطأ أثناء جلب الحسابات البنكية: ' . $e->getMessage()
+        ], 500);
+    }
 });
 
 // ====================================================================

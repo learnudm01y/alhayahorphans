@@ -59,7 +59,7 @@
                                             </div>
                                             <div class="col-md-4">
                                                 <label class="form-label">رقم هوية اليتيم</label>
-                                                <input type="text" name="family_members[{{ $index }}][person_id]" class="form-control" inputmode="numeric" pattern="[0-9]*" maxlength="10" oninput="this.value = this.value.replace(/[^0-9]/g, '');" value="{{ $member->person_id }}">
+                                                <input type="text" name="family_members[{{ $index }}][person_id]" class="form-control" inputmode="numeric" pattern="[0-9]*" maxlength="9" oninput="this.value = this.value.replace(/[^0-9]/g, '');" value="{{ $member->person_id }}">
                                             </div>
                                             <div class="col-md-4">
                                                 <label class="form-label">تاريخ الميلاد <span class="text-danger">*</span></label>
@@ -70,8 +70,8 @@
                                                 <input type="number" name="family_members[{{ $index }}][person_age]" class="form-control" readonly value="{{ $member->person_age }}">
                                             </div>
                                             <div class="col-md-4">
-                                                <label class="form-label">الجنس <span class="text-danger">*</span></label>
-                                                <select name="family_members[{{ $index }}][person_gender]" class="form-select" required>
+                                                <label class="form-label">الجنس</label>
+                                                <select name="family_members[{{ $index }}][person_gender]" class="form-select">
                                                     <option value="">اختر الجنس</option>
                                                     <option value="1" {{ $member->person_gender == 1 ? 'selected' : '' }}>ذكر</option>
                                                     <option value="2" {{ $member->person_gender == 2 ? 'selected' : '' }}>أنثى</option>
@@ -122,86 +122,7 @@
                                 </div>
                             </div>
                         @endforeach
-                    @else
-                     @endif
-                        {{-- <div class="family-member-form border rounded p-3 mb-3 position-relative">
-                            <!-- هيدر خاص للكارد الفارغ مع زر الحذف x -->
-                            <div class="card-header d-flex justify-content-end align-items-center" style="background: #f8f9fa; border-bottom: 1px solid #eee; min-height: 48px;">
-                                <button type="button" class="btn btn-light btn-sm delete-family-member-x custom-x-btn" title="حذف">
-                                    <span aria-hidden="true" style="font-size:1.2rem;">&times;</span>
-                                </button>
-                            </div>
-                            <div class="row g-3">
-                                <input type="hidden" name="family_members[0][file_id]" value="{{ $file_id_number ?? '' }}">
-                                <div class="col-md-6">
-                                    <label class="form-label">رقم التسجيل <span class="text-danger">*</span></label>
-                                    <input type="text" name="family_members[0][registration_id]" class="form-control bg-secondary bg-opacity-10 registration-id-input" readonly value="">
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">حالة الكفالة</label>
-                                    <select name="family_members[0][sponsorship_status]" class="form-select">
-                                        <option value="">اختر الحالة</option>
-                                        @foreach ($sponsorship_status as $status)
-                                            <option value="{{ $status->id }}">{{ $status->description }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">الاسم الأول <span class="text-danger">*</span></label>
-                                    <input type="text" name="family_members[0][first_name]" class="form-control">
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">الاسم الثاني</label>
-                                    <input type="text" name="family_members[0][second_name]" class="form-control">
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">الاسم الثالث</label>
-                                    <input type="text" name="family_members[0][third_name]" class="form-control">
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">اسم العائلة <span class="text-danger">*</span></label>
-                                    <input type="text" name="family_members[0][last_name]" class="form-control">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">رقم هوية اليتيم</label>
-                                    <input type="text" name="family_members[0][person_id]" class="form-control" inputmode="numeric" pattern="[0-9]*" maxlength="10" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">تاريخ الميلاد <span class="text-danger">*</span></label>
-                                    <input type="date" name="family_members[0][person_birth_date]" class="form-control">
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">العمر</label>
-                                    <input type="number" name="family_members[0][person_age]" class="form-control" readonly>
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">الجنس <span class="text-danger">*</span></label>
-                                    <select name="family_members[0][person_gender]" class="form-select" required>
-                                        <option value="">اختر الجنس</option>
-                                        <option value="1">ذكر</option>
-                                        <option value="2">أنثى</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">الحالة الصحية</label>
-                                    <select name="family_members[0][person_health_status]" class="form-select">
-                                        <option value="">اختر الحالة</option>
-                                        @foreach ($health_status as $status)
-                                            <option value="{{ $status->id }}">{{ $status->description }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div class="col-md-4">
-                                    <label class="form-label">نوع الكفالة</label>
-                                    <select name="family_members[0][person_type_of_guarantee]" class="form-select">
-                                        <option value="">اختر النوع</option>
-                                        @foreach ($guarantee_types as $type)
-                                            <option value="{{ $type->id }}">{{ $type->description }}</option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                            </div>
-                        </div> --}}
+                    @endif
 
                 </div>
             </div>
