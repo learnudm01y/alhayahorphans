@@ -228,7 +228,7 @@
         <div class="text-center mb-4">
             <img src="{{ asset('uploads/avatar.jpg') }}" alt="Logo" class="login-logo">
             <div class="login-title">تسجيل الدخول للبوابة</div>
-            <div class="login-desc">يرجى إدخال رقم هوية المكفول ورقم الملف</div>
+            <div class="login-desc">يرجى إدخال رقم هوية المكفول ورقم الملف الداخلي</div>
         </div>
         <form id="loginForm" method="POST" action="{{ route('user.login') }}" autocomplete="off">
             @csrf
@@ -237,8 +237,8 @@
                 <input type="text" class="form-control form-control-lg" id="login_email" name="login_email" required autofocus placeholder="أدخل رقم هوية الشخص المكفول">
             </div>
             <div class="mb-3">
-                <label for="login_password" class="form-label">رقم الملف (خارجي أو داخلي)</label>
-                <input type="password" class="form-control form-control-lg" id="login_password" name="login_password" required placeholder="أدخل رقم الملف">
+                <label for="login_password" class="form-label">رقم الملف الداخلي</label>
+                <input type="password" class="form-control form-control-lg" id="login_password" name="login_password" required placeholder="أدخل رقم الملف الداخلي">
             </div>
             <button type="submit" class="btn btn-login w-100">دخول</button>
         </form>

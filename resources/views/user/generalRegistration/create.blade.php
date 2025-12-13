@@ -264,18 +264,20 @@
 
                                                     <div class="card p-4 my-3 shadow-sm border border-primary">
                                                         <h5 class="mb-3"><i class="fas fa-sign-in-alt"></i> تسجيل الدخول</h5>
+                                                        <p class="text-muted small">استخدم رقم هوية المكفول ورقم الملف الداخلي للكفالة</p>
                                                         <form id="loginFormSearch" method="POST" action="{{ route('user.login') }}" autocomplete="off">
                                                             @csrf
                                                             <div class="mb-3">
-                                                                <label for="login_email_search" class="form-label">رقم الهوية</label>
+                                                                <label for="login_email_search" class="form-label">رقم هوية المكفول</label>
                                                                 <input type="text" class="form-control" id="login_email_search"
                                                                     name="login_email" maxlength="20" required pattern="[0-9]+"
                                                                     value="${data.data.id_number}">
                                                             </div>
                                                             <div class="mb-3">
-                                                                <label for="login_password_search" class="form-label">كلمة المرور (4 أرقام)</label>
+                                                                <label for="login_password_search" class="form-label">رقم الملف الداخلي</label>
                                                                 <input type="password" class="form-control" id="login_password_search"
-                                                                    name="login_password" maxlength="4" minlength="4" required pattern="\\d{4}">
+                                                                    name="login_password" required placeholder="أدخل رقم الملف الداخلي">
+                                                                <small class="form-text text-muted">رقم الملف الداخلي الخاص بالكفالة</small>
                                                             </div>
                                                             <button type="submit" class="btn btn-success w-100">
                                                                 <i class="fas fa-sign-in-alt"></i> دخول

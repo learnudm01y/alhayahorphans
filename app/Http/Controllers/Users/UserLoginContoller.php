@@ -19,8 +19,8 @@ class UserLoginContoller extends Controller
         ], [
             'login_email.required' => 'يرجى إدخال رقم هوية المكفول',
             'login_email.string' => 'رقم الهوية يجب أن يكون نص صحيح',
-            'login_password.required' => 'يرجى إدخال رقم الملف',
-            'login_password.string' => 'رقم الملف يجب أن يكون نص صحيح',
+            'login_password.required' => 'يرجى إدخال رقم الملف الداخلي',
+            'login_password.string' => 'رقم الملف الداخلي يجب أن يكون نص صحيح',
         ]);
 
         if ($validator->fails()) {
@@ -45,17 +45,27 @@ class UserLoginContoller extends Controller
             ])->withInput();
         }
 
-        // التحقق من رقم الملف (خارجي أولاً، ثم داخلي)
-        $correctFileNumber = $sponsorship->external_file_number ?: $sponsorship->internal_file_number;
+        // التحقق من رقم الملف الداخلي فقط
+        $correctFileNumber = $sponsorship->internal_file_number;
+
+        if (empty($correctFileNumber)) {
+            Log::error('❌ رقم الملف الداخلي غير موجود للكفالة', [
+                'sponsorship_id' => $sponsorship->id,
+                'identity_number' => $identityNumber
+            ]);
+            return back()->withErrors([
+                'login_email' => 'لا يوجد رقم ملف داخلي مسجل لهذه الكفالة. يرجى التواصل مع الإدارة.',
+            ])->withInput();
+        }
 
         if ($fileNumber !== $correctFileNumber) {
-            Log::warning('❌ رقم الملف غير صحيح', [
+            Log::warning('❌ رقم الملف الداخلي غير صحيح', [
                 'identity_number' => $identityNumber,
                 'provided_file_number' => $fileNumber,
                 'expected_file_number' => $correctFileNumber
             ]);
             return back()->withErrors([
-                'login_password' => 'رقم الملف غير صحيح.',
+                'login_password' => 'رقم الملف الداخلي غير صحيح.',
             ])->withInput();
         }
 
