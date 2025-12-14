@@ -13,48 +13,120 @@ return new class extends Migration
     {
         Schema::table('sponsor_field_settings', function (Blueprint $table) {
             // From sponsorships table
-            $table->boolean('field_sponsoring_organization')->default(0)->after('field_attachments');
-            $table->boolean('field_external_file_number')->default(0)->after('field_sponsoring_organization');
-            $table->boolean('field_guardian_identity_number')->default(0)->after('field_external_file_number');
-            $table->boolean('field_sponsorship_duration_months')->default(0)->after('field_guardian_identity_number');
-            $table->boolean('field_sponsorship_start_date')->default(0)->after('field_sponsorship_duration_months');
-            $table->boolean('field_sponsorship_end_date')->default(0)->after('field_sponsorship_start_date');
-            $table->boolean('field_sponsorship_type_id')->default(0)->after('field_sponsorship_end_date');
-            $table->boolean('field_sponsorship_status_id')->default(0)->after('field_sponsorship_type_id');
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_sponsoring_organization')) {
+                $table->boolean('field_sponsoring_organization')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_external_file_number')) {
+                $table->boolean('field_external_file_number')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_guardian_identity_number')) {
+                $table->boolean('field_guardian_identity_number')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_sponsorship_duration_months')) {
+                $table->boolean('field_sponsorship_duration_months')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_sponsorship_start_date')) {
+                $table->boolean('field_sponsorship_start_date')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_sponsorship_end_date')) {
+                $table->boolean('field_sponsorship_end_date')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_sponsorship_type_id')) {
+                $table->boolean('field_sponsorship_type_id')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_sponsorship_status_id')) {
+                $table->boolean('field_sponsorship_status_id')->default(0);
+            }
 
             // From data table - Guardian info
-            $table->boolean('field_data_id_number')->default(0)->after('field_sponsorship_status_id');
-            $table->boolean('field_data_first_name')->default(0)->after('field_data_id_number');
-            $table->boolean('field_data_father_name')->default(0)->after('field_data_first_name');
-            $table->boolean('field_data_grand_father_name')->default(0)->after('field_data_father_name');
-            $table->boolean('field_data_family_name')->default(0)->after('field_data_grand_father_name');
-            $table->boolean('field_data_birth_date')->default(0)->after('field_data_family_name');
-            $table->boolean('field_data_phone_number')->default(0)->after('field_data_birth_date');
-            $table->boolean('field_data_address')->default(0)->after('field_data_phone_number');
-            $table->boolean('field_data_city')->default(0)->after('field_data_address');
-            $table->boolean('field_data_neighborhood')->default(0)->after('field_data_city');
-            $table->boolean('field_re_guardian_name')->default(0)->after('field_data_neighborhood');
-            $table->boolean('field_re_guardian_phone')->default(0)->after('field_re_guardian_name');
-            $table->boolean('field_re_guardian_id')->default(0)->after('field_re_guardian_phone');
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_data_id_number')) {
+                $table->boolean('field_data_id_number')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_data_first_name')) {
+                $table->boolean('field_data_first_name')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_data_father_name')) {
+                $table->boolean('field_data_father_name')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_data_grand_father_name')) {
+                $table->boolean('field_data_grand_father_name')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_data_family_name')) {
+                $table->boolean('field_data_family_name')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_data_birth_date')) {
+                $table->boolean('field_data_birth_date')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_data_phone_number')) {
+                $table->boolean('field_data_phone_number')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_data_address')) {
+                $table->boolean('field_data_address')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_data_city')) {
+                $table->boolean('field_data_city')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_data_neighborhood')) {
+                $table->boolean('field_data_neighborhood')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_re_guardian_name')) {
+                $table->boolean('field_re_guardian_name')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_re_guardian_phone')) {
+                $table->boolean('field_re_guardian_phone')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_re_guardian_id')) {
+                $table->boolean('field_re_guardian_id')->default(0);
+            }
 
             // From dead_people table
-            $table->boolean('field_father_first_name')->default(0)->after('field_re_guardian_id');
-            $table->boolean('field_father_id')->default(0)->after('field_father_first_name');
-            $table->boolean('field_father_death_reason')->default(0)->after('field_father_id');
-            $table->boolean('field_mother_first_name')->default(0)->after('field_father_death_reason');
-            $table->boolean('field_mother_id')->default(0)->after('field_mother_first_name');
-            $table->boolean('field_mother_death_date')->default(0)->after('field_mother_id');
-            $table->boolean('field_mother_death_reason')->default(0)->after('field_mother_death_date');
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_father_first_name')) {
+                $table->boolean('field_father_first_name')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_father_id')) {
+                $table->boolean('field_father_id')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_father_death_reason')) {
+                $table->boolean('field_father_death_reason')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_mother_first_name')) {
+                $table->boolean('field_mother_first_name')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_mother_id')) {
+                $table->boolean('field_mother_id')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_mother_death_date')) {
+                $table->boolean('field_mother_death_date')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_mother_death_reason')) {
+                $table->boolean('field_mother_death_reason')->default(0);
+            }
 
             // From re_people table
-            $table->boolean('field_first_name')->default(0)->after('field_mother_death_reason');
-            $table->boolean('field_person_id')->default(0)->after('field_first_name');
-            $table->boolean('field_person_birth_date')->default(0)->after('field_person_id');
-            $table->boolean('field_person_age')->default(0)->after('field_person_birth_date');
-            $table->boolean('field_person_gender')->default(0)->after('field_person_age');
-            $table->boolean('field_person_health_status')->default(0)->after('field_person_gender');
-            $table->boolean('field_person_type_of_guarantee')->default(0)->after('field_person_health_status');
-            $table->boolean('field_person_note')->default(0)->after('field_person_type_of_guarantee');
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_first_name')) {
+                $table->boolean('field_first_name')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_person_id')) {
+                $table->boolean('field_person_id')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_person_birth_date')) {
+                $table->boolean('field_person_birth_date')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_person_age')) {
+                $table->boolean('field_person_age')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_person_gender')) {
+                $table->boolean('field_person_gender')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_person_health_status')) {
+                $table->boolean('field_person_health_status')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_person_type_of_guarantee')) {
+                $table->boolean('field_person_type_of_guarantee')->default(0);
+            }
+            if (!Schema::hasColumn('sponsor_field_settings', 'field_person_note')) {
+                $table->boolean('field_person_note')->default(0);
+            }
         });
     }
 
