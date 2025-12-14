@@ -397,42 +397,8 @@ return [
         ],
 
         // معلومات اخوة المكفول
-        'field_siblings_names' => [
-            'id' => 43,
-            'db_column' => 'field_siblings_names',
-            'display_name' => 'اسماء اخوة المكفول',
-            'category' => 'معلومات اخوة المكفول',
-            'category_id' => 9,
-            'order' => 43,
-            'required' => false,
-        ],
-        'field_sibling_birthdate' => [
-            'id' => 44,
-            'db_column' => 'field_sibling_birthdate',
-            'display_name' => 'تاريخ الميلاد (للأخ/الأخت)',
-            'category' => 'معلومات اخوة المكفول',
-            'category_id' => 9,
-            'order' => 44,
-            'required' => false,
-        ],
-        'field_sibling_grade' => [
-            'id' => 45,
-            'db_column' => 'field_sibling_grade',
-            'display_name' => 'الصف (للأخ/الأخت)',
-            'category' => 'معلومات اخوة المكفول',
-            'category_id' => 9,
-            'order' => 45,
-            'required' => false,
-        ],
-        'field_sibling_notes' => [
-            'id' => 46,
-            'db_column' => 'field_sibling_notes',
-            'display_name' => 'ملاحظات (الحالة الصحية والإجتماعية)',
-            'category' => 'معلومات اخوة المكفول',
-            'category_id' => 9,
-            'order' => 46,
-            'required' => false,
-        ],
+        // تم إزالة حقول "معلومات اخوة المكفول" القديمة
+        // سيتم عرض أفراد الأسرة ديناميكياً من جدول re_people
 
         // تأثير الكفالة والمتابعة
         'field_sponsorship_impact' => [

@@ -101,11 +101,12 @@
     .family-member-card {
         background: #f8f9fa;
         border: 2px solid #e9ecef !important;
+        border-radius: 12px;
         transition: all 0.3s ease;
     }
     .family-member-card:hover {
-        border-color: #3b82f6 !important;
-        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+        border-color: #667eea !important;
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
     }
 </style>
 
@@ -246,13 +247,13 @@
                                                 </option>
                                             @endforeach
                                         </select>
-                                    @elseif(Str::contains($fieldKey, ['notes', 'note', 'siblings_names', 'sibling_birthdate', 'sibling_grade']) && !Str::contains($fieldKey, ['reason']))
-                                        {{-- Text Area - للملاحظات ومعلومات أفراد الأسرة --}}
+                                    @elseif(Str::contains($fieldKey, ['notes', 'note']) && !Str::contains($fieldKey, ['reason']))
+                                        {{-- Text Area --}}
                                         <textarea
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-control"
-                                            rows="{{ Str::contains($fieldKey, ['siblings_names', 'sibling_birthdate', 'sibling_grade']) ? '5' : '3' }}"
-                                            placeholder="أدخل {{ $field['display_name'] }}{{ Str::contains($fieldKey, ['siblings']) ? ' (كل فرد في سطر منفصل)' : '' }}"
+                                            rows="3"
+                                            placeholder="أدخل {{ $field['display_name'] }}"
                                             {{ ($field['required'] ?? false) ? 'required' : '' }}
                                         >{{ old('fields.' . $field['db_column'], $value) }}</textarea>
                                     @elseif(Str::contains($fieldKey, ['_date', '_birth_date']) || (Str::contains($fieldKey, ['death']) && Str::contains($fieldKey, ['date'])))
@@ -329,6 +330,76 @@
                     </div>
                 @endforeach
 
+                {{-- أفراد الأسرة - عرض ديناميكي من re_people --}}
+                <div class="card card-custom p-4 mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3 class="category-title mb-0">
+                            <i class="bi bi-people-fill field-icon"></i>
+                            أفراد الأسرة
+                        </h3>
+                        <button type="button" class="btn btn-sm btn-primary" onclick="addFamilyMember()">
+                            <i class="bi bi-plus-circle me-1"></i>
+                            إضافة فرد جديد
+                        </button>
+                    </div>
+
+                    <div id="family-members-container">
+                        @if(isset($familyMembers) && $familyMembers->count() > 0)
+                            @foreach($familyMembers as $index => $member)
+                                <div class="family-member-card card mb-3 p-3" data-member-id="{{ $member->id }}">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h5 class="mb-0">فرد رقم {{ $index + 1 }}</h5>
+                                        <button type="button" class="btn btn-sm btn-danger" onclick="removeFamilyMember(this)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </div>
+
+                                    <input type="hidden" name="family_members[{{ $index }}][id]" value="{{ $member->id }}">
+                                    <input type="hidden" name="family_members[{{ $index }}][person_id]" value="{{ $member->person_id }}">
+
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">اسماء اخوة المكفول</label>
+                                            <input type="text" name="family_members[{{ $index }}][name]"
+                                                   class="form-control"
+                                                   value="{{ trim("{$member->first_name} {$member->second_name} {$member->third_name} {$member->last_name}") }}"
+                                                   placeholder="أدخل اسماء اخوة المكفول">
+                                        </div>
+
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">تاريخ الميلاد (للأخ/الأخت)</label>
+                                            <input type="date" name="family_members[{{ $index }}][birthdate]"
+                                                   class="form-control"
+                                                   value="{{ $member->person_birth_date }}">
+                                        </div>
+
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">الصف (للأخ/الأخت)</label>
+                                            <input type="text" name="family_members[{{ $index }}][grade]"
+                                                   class="form-control"
+                                                   value="{{ $member->person_gender == 1 ? 'ذكر' : ($member->person_gender == 2 ? 'أنثى' : '') }}"
+                                                   placeholder="أدخل الصف (للأخ/الأخت)">
+                                        </div>
+
+                                        <div class="col-md-12 mb-3">
+                                            <label class="form-label">ملاحظات (الحالة الصحية والإجتماعية)</label>
+                                            <textarea name="family_members[{{ $index }}][notes]"
+                                                      class="form-control"
+                                                      rows="3"
+                                                      placeholder="أدخل ملاحظات (الحالة الصحية والإجتماعية)">{{ $member->person_note ?? '' }}</textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        @else
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle me-2"></i>
+                                لا يوجد أفراد أسرة مسجلين. يمكنك إضافة أفراد جدد بالضغط على زر "إضافة فرد جديد".
+                            </div>
+                        @endif
+                    </div>
+                </div>
+
                 {{-- تم إزالة القسم المنفصل للحساب البنكي - الحقول الآن ضمن النموذج القابل للتعديل --}}
 
                 {{-- Action Buttons --}}
@@ -400,6 +471,98 @@
                 });
             }
         });
+
+        // Family Members Management
+        let familyMemberIndex = {{ isset($familyMembers) ? $familyMembers->count() : 0 }};
+
+        function addFamilyMember() {
+            const container = document.getElementById('family-members-container');
+            const alertInfo = container.querySelector('.alert-info');
+            if (alertInfo) {
+                alertInfo.remove();
+            }
+
+            const newMemberHtml = `
+                <div class="family-member-card card mb-3 p-3" data-member-id="new-${familyMemberIndex}">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h5 class="mb-0">فرد رقم ${familyMemberIndex + 1}</h5>
+                        <button type="button" class="btn btn-sm btn-danger" onclick="removeFamilyMember(this)">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+
+                    <input type="hidden" name="family_members[${familyMemberIndex}][is_new]" value="1">
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">اسماء اخوة المكفول</label>
+                            <input type="text" name="family_members[${familyMemberIndex}][name]"
+                                   class="form-control"
+                                   placeholder="أدخل اسماء اخوة المكفول">
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">تاريخ الميلاد (للأخ/الأخت)</label>
+                            <input type="date" name="family_members[${familyMemberIndex}][birthdate]"
+                                   class="form-control">
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">الصف (للأخ/الأخت)</label>
+                            <input type="text" name="family_members[${familyMemberIndex}][grade]"
+                                   class="form-control"
+                                   placeholder="أدخل الصف (للأخ/الأخت)">
+                        </div>
+
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label">ملاحظات (الحالة الصحية والإجتماعية)</label>
+                            <textarea name="family_members[${familyMemberIndex}][notes]"
+                                      class="form-control"
+                                      rows="3"
+                                      placeholder="أدخل ملاحظات (الحالة الصحية والإجتماعية)"></textarea>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            container.insertAdjacentHTML('beforeend', newMemberHtml);
+            familyMemberIndex++;
+        }
+
+        function removeFamilyMember(button) {
+            Swal.fire({
+                title: 'تأكيد الحذف',
+                text: 'هل أنت متأكد من حذف هذا الفرد؟',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'نعم، احذف',
+                cancelButtonText: 'إلغاء',
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const card = button.closest('.family-member-card');
+                    card.remove();
+
+                    // إعادة ترقيم الأفراد
+                    const allCards = document.querySelectorAll('.family-member-card');
+                    allCards.forEach((card, index) => {
+                        card.querySelector('h5').textContent = `فرد رقم ${index + 1}`;
+                    });
+
+                    // إذا لم يتبق أي فرد، أظهر رسالة
+                    if (allCards.length === 0) {
+                        const container = document.getElementById('family-members-container');
+                        container.innerHTML = `
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle me-2"></i>
+                                لا يوجد أفراد أسرة مسجلين. يمكنك إضافة أفراد جدد بالضغط على زر "إضافة فرد جديد".
+                            </div>
+                        `;
+                    }
+                }
+            });
+        }
         </script>
     @else
         {{-- No Sponsorship Found --}}
@@ -446,8 +609,6 @@
         });
     </script>
 @endif
-
-
 
 @endsection
 

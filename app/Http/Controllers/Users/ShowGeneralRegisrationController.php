@@ -140,12 +140,12 @@ class ShowGeneralRegisrationController extends Controller
         $provinces = \DB::table('provinces')->get();
         $cities = \DB::table('city')->get();
 
-        // جلب جميع أفراد الأسرة من re_people
+        // جلب أفراد الأسرة (استبعاد المكفول نفسه)
         $familyMembers = collect();
-        if ($sponsorship->relation_id_number) {
+        if ($sponsorship->relationData) {
             $familyMembers = \DB::table('re_people')
-                ->where('registration_id', $sponsorship->relation_id_number)
-                ->orderBy('person_id')
+                ->where('registration_id', $sponsorship->relationData->file_id_number)
+                ->where('person_id', '!=', $sponsorship->identity_number)
                 ->get();
         }
 
@@ -339,40 +339,6 @@ class ShowGeneralRegisrationController extends Controller
             }
         }
 
-        // جلب بيانات أفراد الأسرة من re_people
-        if ($sponsorship->relation_id_number) {
-            $familyMembersData = \DB::table('re_people')
-                ->where('registration_id', $sponsorship->relation_id_number)
-                ->orderBy('person_id')
-                ->get();
-
-            // دمج البيانات في حقول مفصولة بفاصلة
-            $siblings_names = [];
-            $siblings_birthdates = [];
-            $siblings_grades = [];
-            $siblings_notes = [];
-
-            foreach ($familyMembersData as $member) {
-                if (!empty($member->first_name)) {
-                    $siblings_names[] = trim("{$member->first_name} {$member->second_name} {$member->third_name} {$member->last_name}");
-                }
-                if (!empty($member->person_birth_date)) {
-                    $siblings_birthdates[] = $member->person_birth_date;
-                }
-                if (!empty($member->person_class)) {
-                    $siblings_grades[] = $member->person_class;
-                }
-                if (!empty($member->person_note)) {
-                    $siblings_notes[] = $member->person_note;
-                }
-            }
-
-            $values['field_siblings_names'] = implode("\n", $siblings_names);
-            $values['field_sibling_birthdate'] = implode("\n", $siblings_birthdates);
-            $values['field_sibling_grade'] = implode("\n", $siblings_grades);
-            $values['field_sibling_notes'] = implode("\n", $siblings_notes);
-        }
-
         // جلب الحساب البنكي المعتمد من guardian_bank_accounts
         if ($guardianData && $guardianData->file_id_number) {
             $approvedBankAccount = \DB::table('guardian_bank_accounts')
@@ -546,55 +512,47 @@ class ShowGeneralRegisrationController extends Controller
                 $sponsorship->relationData->save();
             }
 
-            // تحديث أفراد الأسرة من حقول النص
-            if (isset($fieldsData['field_siblings_names'])) {
-                $this->updateFamilyMembersFromFields(
-                    $sponsorship,
-                    $fieldsData['field_siblings_names'] ?? '',
-                    $fieldsData['field_sibling_birthdate'] ?? '',
-                    $fieldsData['field_sibling_grade'] ?? '',
-                    $fieldsData['field_sibling_notes'] ?? ''
-                );
-            }
-
-            // تحديث أفراد الأسرة (الطريقة القديمة - للتوافق)
+            // تحديث أفراد الأسرة من جدول re_people
             if ($request->has('family_members')) {
                 $familyMembers = $request->input('family_members');
 
                 foreach ($familyMembers as $memberData) {
-                    // تخطي السجلات الفارغة
-                    if (empty($memberData['first_name'])) {
-                        continue;
-                    }
-
-                    if (isset($memberData['id']) && $memberData['id']) {
-                        // تحديث فرد موجود
-                        \DB::table('re_people')
-                            ->where('id', $memberData['id'])
-                            ->update([
-                                'first_name' => $memberData['first_name'] ?? '',
-                                'person_birth_date' => $memberData['person_birth_date'] ?? null,
-                                'person_class' => $memberData['person_class'] ?? '',
-                                'person_note' => $memberData['person_note'] ?? '',
-                                'updated_at' => now(),
-                            ]);
-                    } else {
+                    // تحقق إذا كان فرد موجود أو جديد
+                    if (isset($memberData['is_new']) && $memberData['is_new'] == 1) {
                         // إضافة فرد جديد
-                        if ($sponsorship->relation_id_number) {
-                            // توليد person_id جديد
-                            $newPersonId = \DB::table('re_people')->max('person_id') + 1;
-                            
+                        if ($sponsorship->relationData && !empty($memberData['name'])) {
+                            // تقسيم الاسم
+                            $nameParts = explode(' ', trim($memberData['name']), 4);
+
                             \DB::table('re_people')->insert([
-                                'registration_id' => $sponsorship->relation_id_number,
-                                'person_id' => $newPersonId,
-                                'first_name' => $memberData['first_name'],
-                                'person_birth_date' => $memberData['person_birth_date'] ?? null,
-                                'person_class' => $memberData['person_class'] ?? '',
-                                'person_note' => $memberData['person_note'] ?? '',
-                                'person_type_of_guarantee' => 0,
+                                'registration_id' => $sponsorship->relationData->file_id_number,
+                                'person_id' => rand(700000000, 799999999), // رقم هوية عشوائي مؤقت
+                                'first_name' => $nameParts[0] ?? '',
+                                'second_name' => $nameParts[1] ?? '',
+                                'third_name' => $nameParts[2] ?? '',
+                                'last_name' => $nameParts[3] ?? '',
+                                'person_birth_date' => $memberData['birthdate'] ?? null,
+                                'person_note' => $memberData['notes'] ?? null,
                                 'created_at' => now(),
                                 'updated_at' => now(),
                             ]);
+                        }
+                    } elseif (isset($memberData['id']) && $memberData['id']) {
+                        // تحديث فرد موجود
+                        if (!empty($memberData['name'])) {
+                            $nameParts = explode(' ', trim($memberData['name']), 4);
+
+                            \DB::table('re_people')
+                                ->where('id', $memberData['id'])
+                                ->update([
+                                    'first_name' => $nameParts[0] ?? '',
+                                    'second_name' => $nameParts[1] ?? '',
+                                    'third_name' => $nameParts[2] ?? '',
+                                    'last_name' => $nameParts[3] ?? '',
+                                    'person_birth_date' => $memberData['birthdate'] ?? null,
+                                    'person_note' => $memberData['notes'] ?? null,
+                                    'updated_at' => now(),
+                                ]);
                         }
                     }
                 }
@@ -634,60 +592,6 @@ class ShowGeneralRegisrationController extends Controller
                 ->back()
                 ->withInput()
                 ->with('error', 'حدث خطأ أثناء حفظ البيانات: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * تحديث أفراد الأسرة من حقول النص المفصولة بأسطر
-     */
-    private function updateFamilyMembersFromFields($sponsorship, $names, $birthdates, $grades, $notes)
-    {
-        if (empty($names) || !$sponsorship->relation_id_number) {
-            return;
-        }
-
-        // تقسيم البيانات إلى مصفوفات
-        $namesArray = array_filter(explode("\n", $names));
-        $birthdatesArray = explode("\n", $birthdates);
-        $gradesArray = explode("\n", $grades);
-        $notesArray = explode("\n", $notes);
-
-        // حذف أفراد الأسرة الحاليين
-        \DB::table('re_people')
-            ->where('registration_id', $sponsorship->relation_id_number)
-            ->delete();
-
-        // إضافة أفراد الأسرة الجدد
-        foreach ($namesArray as $index => $name) {
-            $name = trim($name);
-            if (empty($name)) {
-                continue;
-            }
-
-            // تقسيم الاسم إلى أجزاء
-            $nameParts = explode(' ', $name);
-            $firstName = $nameParts[0] ?? '';
-            $secondName = $nameParts[1] ?? '';
-            $thirdName = $nameParts[2] ?? '';
-            $lastName = $nameParts[3] ?? '';
-
-            // توليد person_id جديد
-            $newPersonId = \DB::table('re_people')->max('person_id') + 1;
-
-            \DB::table('re_people')->insert([
-                'registration_id' => $sponsorship->relation_id_number,
-                'person_id' => $newPersonId,
-                'first_name' => $firstName,
-                'second_name' => $secondName,
-                'third_name' => $thirdName,
-                'last_name' => $lastName,
-                'person_birth_date' => trim($birthdatesArray[$index] ?? ''),
-                'person_class' => trim($gradesArray[$index] ?? ''),
-                'person_note' => trim($notesArray[$index] ?? ''),
-                'person_type_of_guarantee' => 0,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
         }
     }
 }
