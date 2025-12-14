@@ -34,13 +34,13 @@ return new class extends Migration
         });
 
         Schema::table('sponsor_field_settings', function (Blueprint $table) {
-            // إضافة الحقول الجديدة بنفس الترتيب في الصورة
-            $table->boolean('field_guardian_account_owner_name')->default(false)->after('field_person_note')->comment('اسم صاحب الحساب');
-            $table->boolean('field_guardian_bank_name')->default(false)->after('field_guardian_account_owner_name')->comment('اسم البنك');
-            $table->boolean('field_guardian_id_owner')->default(false)->after('field_guardian_bank_name')->comment('رقم هوية صاحب الحساب');
-            $table->boolean('field_guardian_phone_number')->default(false)->after('field_guardian_id_owner')->comment('رقم هاتف صاحب الحساب');
-            $table->boolean('field_guardian_iban_usd')->default(false)->after('field_guardian_phone_number')->comment('رقم IBAN بالدولار');
-            $table->boolean('field_guardian_iban_shekel')->default(false)->after('field_guardian_iban_usd')->comment('رقم IBAN بالشيكل');
+            // إضافة الحقول الجديدة بدون تحديد الموقع لتجنب مشاكل الأعمدة المفقودة
+            $table->boolean('field_guardian_account_owner_name')->default(false)->comment('اسم صاحب الحساب');
+            $table->boolean('field_guardian_bank_name')->default(false)->comment('اسم البنك');
+            $table->boolean('field_guardian_id_owner')->default(false)->comment('رقم هوية صاحب الحساب');
+            $table->boolean('field_guardian_phone_number')->default(false)->comment('رقم هاتف صاحب الحساب');
+            $table->boolean('field_guardian_iban_usd')->default(false)->comment('رقم IBAN بالدولار');
+            $table->boolean('field_guardian_iban_shekel')->default(false)->comment('رقم IBAN بالشيكل');
         });
     }
 
