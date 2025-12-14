@@ -825,7 +825,7 @@ class GeneralRegistrationController extends Controller
                         $birthDate = $carbonDate->format('Y-m-d');
                     }
                 } catch (\Exception $e) {
-                    \Log::warning('خطأ في تحويل تاريخ الميلاد: ' . $e->getMessage());
+                    Log::warning('خطأ في تحويل تاريخ الميلاد: ' . $e->getMessage());
                 }
             }
 
@@ -856,7 +856,7 @@ class GeneralRegistrationController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('خطأ في جلب البيانات من السجل المدني: ' . $e->getMessage());
+            Log::error('خطأ في جلب البيانات من السجل المدني: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'حدث خطأ أثناء جلب البيانات: ' . $e->getMessage()

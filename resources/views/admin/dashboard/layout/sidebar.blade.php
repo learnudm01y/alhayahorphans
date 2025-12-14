@@ -326,6 +326,14 @@
                         <span class="menu-title"> إدارة الجمعيات </span>
                     </a>
                 </div>
+                <div class="menu-item">
+                    <a class="menu-link" href="{{ route('admin.sponsors.fields-management') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-cogs"></i>
+                        </span>
+                        <span class="menu-title"> تحديث البيانات </span>
+                    </a>
+                </div>
             </div>
         </div>
         <!--end:Menu item-->

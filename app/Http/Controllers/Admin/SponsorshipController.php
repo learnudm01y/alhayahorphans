@@ -155,6 +155,11 @@ class SponsorshipController extends Controller
             unset($validatedData['record_id']);
             unset($validatedData['record_type']);
 
+            // ✅ حفظ sponsor_id في الحقل المباشر (أول جمعية في القائمة)
+            if (!empty($sponsorIds)) {
+                $validatedData['sponsor_id'] = is_array($sponsorIds) ? $sponsorIds[0] : $sponsorIds;
+            }
+
             $sponsorship = Sponsorship::create($validatedData);
 
             // ربط المؤسسات الكافلة إذا تم اختيارها
@@ -449,6 +454,17 @@ class SponsorshipController extends Controller
             // إزالة sponsor_ids من البيانات لأنه سيتم معالجته بشكل منفصل
             $sponsorIds = $validatedData['sponsor_ids'] ?? [];
             unset($validatedData['sponsor_ids']);
+
+            // ✅ تحديث sponsor_id في الحقل المباشر (أول جمعية في القائمة)
+            if (!empty($sponsorIds)) {
+                $validatedData['sponsor_id'] = is_array($sponsorIds) ? $sponsorIds[0] : $sponsorIds;
+            } elseif (isset($validatedData['sponsor_id'])) {
+                // في حالة إرسال sponsor_id مباشرة (من المودال)
+                // نبقيه كما هو
+            } else {
+                // إذا تم حذف جميع الجمعيات، نحذف sponsor_id أيضاً
+                $validatedData['sponsor_id'] = null;
+            }
 
             $sponsorship->update($validatedData);
 
@@ -1654,6 +1670,7 @@ class SponsorshipController extends Controller
                     $sponsorship->internal_file_number = $displayFileNumber; // الرقم المعروض للمستخدم
                     $sponsorship->external_file_number = $externalFileNumber ?: null;
                     $sponsorship->sponsoring_organization = $sponsoringOrganization ?: null;
+                    $sponsorship->sponsor_id = $request->sponsor_id; // ✅ حفظ رقم الجمعية
                     $sponsorship->sponsorship_type_id = $request->sponsorship_type_id;
                     // استخدام الحالة المحددة أو "جديد" (ID = 4) كحالة افتراضية
                     $sponsorship->sponsorship_status_id = $request->sponsorship_status_id ?: 4;

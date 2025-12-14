@@ -141,6 +141,11 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     // Aid Status Management
     Route::resource('aid_status', AidStatusController::class);
     // Sponsors Management (إدارة الجمعيات)
+    // ملاحظة: يجب وضع جميع الـ Routes المخصصة قبل Route::resource
+    Route::get('sponsors/fields-management', [SponsorController::class, 'fieldsManagement'])->name('sponsors.fields-management');
+    Route::get('sponsors/fields-management/data', [SponsorController::class, 'getSponsorsForFieldsManagement'])->name('sponsors.fields-management.data');
+    Route::get('sponsors/{sponsor}/fields', [SponsorController::class, 'getSponsorFields'])->name('sponsors.get-fields');
+    Route::post('sponsors/{sponsor}/fields', [SponsorController::class, 'saveSponsorFields'])->name('sponsors.save-fields');
     Route::get('sponsors/generate-file-id', [SponsorController::class, 'generateFileId'])->name('sponsors.generate-file-id');
     Route::post('sponsors/{sponsor}/employees', [SponsorController::class, 'storeEmployee'])->name('sponsors.employees.store');
     Route::get('sponsors/{sponsor}/employees', [SponsorController::class, 'getEmployees'])->name('sponsors.employees.index');

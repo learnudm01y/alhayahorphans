@@ -105,6 +105,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::group(['prefix' => 'user', 'as' => 'user.'], function () {
         Route::get('/dashboard', [UserController::class, 'dashboard'])->name('dashboard');
         Route::get('/general-registration', [ShowGeneralRegisrationController::class, 'index'])->name('generalRegistration.index');
+        Route::post('/general-registration/update', [ShowGeneralRegisrationController::class, 'updateSponsorshipData'])->name('update-sponsorship-data');
         // profifle management
         Route::get('profile', [UserProfileController::class, 'profile'])->name('index.profile');
         Route::get('settings', [UserProfileController::class, 'settings'])->name('settings');

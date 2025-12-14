@@ -54,4 +54,13 @@ class Sponsor extends Model
         return $this->belongsToMany(Sponsorship::class, 'sponsorship_sponsor')
             ->withTimestamps();
     }
+
+    /**
+     * علاقة مع إعدادات الحقول
+     * كل جمعية لها إعدادات حقول خاصة بها
+     */
+    public function fieldSettings()
+    {
+        return $this->hasOne(SponsorFieldSetting::class);
+    }
 }

@@ -301,4 +301,159 @@ class SponsorController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * عرض صفحة إدارة حقول الجمعيات
+     */
+    public function fieldsManagement()
+    {
+        return view('admin.dashboard.sponsors.fields-management');
+    }
+
+    /**
+     * الحصول على بيانات الجمعيات للـ DataTable (بدون حجز رقم ملف)
+     */
+    public function getSponsorsForFieldsManagement(Request $request)
+    {
+        if ($request->ajax()) {
+            $sponsors = Sponsor::with('country')->select('sponsors.*');
+
+            return datatables()->of($sponsors)
+                ->addIndexColumn()
+                ->addColumn('country_name', function($sponsor) {
+                    return $sponsor->country ? $sponsor->country->description_ar : '-';
+                })
+                ->make(true);
+        }
+
+        return response()->json(['error' => 'Invalid request'], 400);
+    }
+
+    /**
+     * الحصول على إعدادات حقول جمعية معينة
+     */
+    public function getSponsorFields($sponsorId)
+    {
+        try {
+            $sponsor = Sponsor::findOrFail($sponsorId);
+
+            // جلب أو إنشاء إعدادات الحقول للجمعية
+            $fieldSettings = $sponsor->fieldSettings;
+
+            if (!$fieldSettings) {
+                // إنشاء إعدادات افتراضية إذا لم تكن موجودة
+                $fieldSettings = \App\Models\SponsorFieldSetting::create([
+                    'sponsor_id' => $sponsorId,
+                ]);
+            }
+
+            // تحميل ملف الـ config
+            $fieldsConfig = config('sponsor_fields.fields');
+
+            // بناء مصفوفة الحقول مع حالتها
+            $fields = [];
+            foreach ($fieldsConfig as $key => $fieldInfo) {
+                $fields[] = [
+                    'id' => $fieldInfo['id'],
+                    'name' => $fieldInfo['display_name'],
+                    'db_column' => $fieldInfo['db_column'],
+                    'category' => $fieldInfo['category'],
+                    'category_id' => $fieldInfo['category_id'],
+                    'order' => $fieldInfo['order'],
+                    'required' => $fieldInfo['required'],
+                    'active' => (bool) $fieldSettings->{$key},
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'fields' => $fields,
+                'sponsor' => [
+                    'id' => $sponsor->id,
+                    'name' => $sponsor->sponsor_name,
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error loading sponsor fields:', [
+                'sponsor_id' => $sponsorId,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء تحميل الحقول'
+            ], 500);
+        }
+    }
+
+    /**
+     * حفظ إعدادات حقول جمعية معينة
+     */
+    public function saveSponsorFields(Request $request, $sponsorId)
+    {
+        DB::beginTransaction();
+
+        try {
+            $sponsor = Sponsor::findOrFail($sponsorId);
+
+            // التحقق من البيانات
+            $validated = $request->validate([
+                'fields' => 'required|array',
+                'fields.*' => 'required|string',
+            ]);
+
+            // جلب أو إنشاء إعدادات الحقول
+            $fieldSettings = $sponsor->fieldSettings;
+
+            if (!$fieldSettings) {
+                $fieldSettings = new \App\Models\SponsorFieldSetting();
+                $fieldSettings->sponsor_id = $sponsorId;
+            }
+
+            // تحميل جميع الحقول من الـ config
+            $fieldsConfig = config('sponsor_fields.fields');
+            $allDbColumns = array_column($fieldsConfig, 'db_column');
+
+            // تعيين جميع الحقول إلى 0 (غير مفعل)
+            foreach ($allDbColumns as $column) {
+                $fieldSettings->{$column} = 0;
+            }
+
+            // تفعيل الحقول المختارة فقط
+            foreach ($validated['fields'] as $dbColumn) {
+                if (in_array($dbColumn, $allDbColumns)) {
+                    $fieldSettings->{$dbColumn} = 1;
+                }
+            }
+
+            $fieldSettings->save();
+
+            DB::commit();
+
+            Log::info('Sponsor fields updated successfully', [
+                'sponsor_id' => $sponsorId,
+                'active_fields_count' => count($validated['fields'])
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم حفظ إعدادات الحقول بنجاح',
+                'active_fields_count' => count($validated['fields'])
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            Log::error('Error saving sponsor fields:', [
+                'sponsor_id' => $sponsorId,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء حفظ الإعدادات'
+            ], 500);
+        }
+    }
 }

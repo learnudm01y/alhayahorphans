@@ -36,7 +36,9 @@ class UserLoginContoller extends Controller
         ]);
 
         // البحث عن كفالة بناءً على رقم هوية المكفول
-        $sponsorship = Sponsorship::where('identity_number', $identityNumber)->first();
+        $sponsorship = Sponsorship::with('relationData')
+            ->where('identity_number', $identityNumber)
+            ->first();
 
         if (!$sponsorship) {
             Log::warning('⚠️ لم يتم العثور على كفالة برقم الهوية', ['identity_number' => $identityNumber]);
@@ -69,24 +71,29 @@ class UserLoginContoller extends Controller
             ])->withInput();
         }
 
-        // البحث عن المستخدم المرتبط
-        $user = \App\Models\User::where('email', $sponsorship->guardian_identity_number)
-            ->orWhere('email', $identityNumber)
-            ->first();
+        // البحث عن المستخدم المرتبط - البحث فقط برقم هوية المكفول (identity_number)
+        $user = \App\Models\User::where('email', $identityNumber)->first();
 
         if (!$user) {
             // إنشاء مستخدم جديد تلقائياً للمكفول
             Log::info('🆕 إنشاء مستخدم جديد للمكفول', [
                 'identity_number' => $identityNumber,
+                'sponsorship_id' => $sponsorship->id,
                 'name' => $sponsorship->orphan_name
             ]);
 
             $user = \App\Models\User::create([
                 'name' => $sponsorship->orphan_name ?: 'مستخدم',
-                'phone' => null,
-                'email' => $identityNumber,
+                'phone' => $sponsorship->relationData->data_phone_number ?? '0000000000',
+                'email' => $identityNumber,  // نستخدم رقم هوية المكفول كـ email
                 'password' => bcrypt($correctFileNumber),
                 'role' => 'user',
+                'email_verified_at' => now(),  // تفعيل البريد مباشرة
+            ]);
+
+            Log::info('✅ تم إنشاء المستخدم بنجاح', [
+                'user_id' => $user->id,
+                'email' => $user->email
             ]);
         }
 
@@ -96,7 +103,9 @@ class UserLoginContoller extends Controller
 
         Log::info('✅ تم تسجيل الدخول بنجاح', [
             'user_id' => $user->id,
-            'identity_number' => $identityNumber
+            'user_email' => $user->email,
+            'identity_number' => $identityNumber,
+            'sponsorship_id' => $sponsorship->id
         ]);
 
         return redirect()->route('user.generalRegistration.index')->with('success', 'تم تسجيل الدخول بنجاح.');
