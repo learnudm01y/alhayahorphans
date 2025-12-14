@@ -98,6 +98,15 @@
         border-radius: 15px;
         border: 2px solid #ffc107;
     }
+    .family-member-card {
+        background: #f8f9fa;
+        border: 2px solid #e9ecef !important;
+        transition: all 0.3s ease;
+    }
+    .family-member-card:hover {
+        border-color: #3b82f6 !important;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+    }
 </style>
 
 <div class="container py-4">
@@ -237,13 +246,13 @@
                                                 </option>
                                             @endforeach
                                         </select>
-                                    @elseif(Str::contains($fieldKey, ['notes', 'note']) && !Str::contains($fieldKey, ['reason']))
-                                        {{-- Text Area --}}
+                                    @elseif(Str::contains($fieldKey, ['notes', 'note', 'siblings_names', 'sibling_birthdate', 'sibling_grade']) && !Str::contains($fieldKey, ['reason']))
+                                        {{-- Text Area - للملاحظات ومعلومات أفراد الأسرة --}}
                                         <textarea
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-control"
-                                            rows="3"
-                                            placeholder="أدخل {{ $field['display_name'] }}"
+                                            rows="{{ Str::contains($fieldKey, ['siblings_names', 'sibling_birthdate', 'sibling_grade']) ? '5' : '3' }}"
+                                            placeholder="أدخل {{ $field['display_name'] }}{{ Str::contains($fieldKey, ['siblings']) ? ' (كل فرد في سطر منفصل)' : '' }}"
                                             {{ ($field['required'] ?? false) ? 'required' : '' }}
                                         >{{ old('fields.' . $field['db_column'], $value) }}</textarea>
                                     @elseif(Str::contains($fieldKey, ['_date', '_birth_date']) || (Str::contains($fieldKey, ['death']) && Str::contains($fieldKey, ['date'])))
@@ -319,48 +328,6 @@
                         </div>
                     </div>
                 @endforeach
-
-                {{-- أفراد الأسرة --}}
-                @if(isset($familyMembers) && $familyMembers->count() > 0)
-                    <div class="card card-custom p-4 mb-4">
-                        <h3 class="category-title">
-                            <i class="bi bi-people-fill field-icon"></i>
-                            أفراد الأسرة
-                        </h3>
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead>
-                                    <tr>
-                                        <th>#</th>
-                                        <th>الاسم الكامل</th>
-                                        <th>العمر</th>
-                                        <th>الجنس</th>
-                                        <th>تاريخ الميلاد</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach($familyMembers as $index => $member)
-                                        <tr>
-                                            <td>{{ $index + 1 }}</td>
-                                            <td>{{ trim("{$member->first_name} {$member->second_name} {$member->third_name} {$member->last_name}") }}</td>
-                                            <td>{{ $member->person_age ?? '-' }}</td>
-                                            <td>
-                                                @if($member->person_gender == 1)
-                                                    <span class="badge bg-primary">ذكر</span>
-                                                @elseif($member->person_gender == 2)
-                                                    <span class="badge bg-danger">أنثى</span>
-                                                @else
-                                                    -
-                                                @endif
-                                            </td>
-                                            <td>{{ $member->person_birth_date ?? '-' }}</td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                @endif
 
                 {{-- تم إزالة القسم المنفصل للحساب البنكي - الحقول الآن ضمن النموذج القابل للتعديل --}}
 
@@ -479,6 +446,8 @@
         });
     </script>
 @endif
+
+
 
 @endsection
 

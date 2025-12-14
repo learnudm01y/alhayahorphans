@@ -16,12 +16,12 @@ return new class extends Migration
             if (!Schema::hasColumn('sponsor_field_settings', 'field_data_province')) {
                 $table->boolean('field_data_province')->default(0)->comment('محافظة المعيل');
             }
-            
+
             // إضافة حقل المدينة (إذا لم يكن موجوداً)
             if (!Schema::hasColumn('sponsor_field_settings', 'field_data_city')) {
                 $table->boolean('field_data_city')->default(0)->comment('مدينة المعيل');
             }
-            
+
             // إضافة حقل تاريخ وفاة الأب
             if (!Schema::hasColumn('sponsor_field_settings', 'field_father_death_date')) {
                 $table->boolean('field_father_death_date')->default(0)->comment('تاريخ وفاة الأب');

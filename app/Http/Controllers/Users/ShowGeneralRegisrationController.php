@@ -140,11 +140,12 @@ class ShowGeneralRegisrationController extends Controller
         $provinces = \DB::table('provinces')->get();
         $cities = \DB::table('city')->get();
 
-        // جلب أفراد الأسرة
+        // جلب جميع أفراد الأسرة من re_people
         $familyMembers = collect();
-        if ($sponsorship->relationData) {
+        if ($sponsorship->relation_id_number) {
             $familyMembers = \DB::table('re_people')
-                ->where('registration_id', $sponsorship->relationData->file_id_number)
+                ->where('registration_id', $sponsorship->relation_id_number)
+                ->orderBy('person_id')
                 ->get();
         }
 
@@ -338,6 +339,40 @@ class ShowGeneralRegisrationController extends Controller
             }
         }
 
+        // جلب بيانات أفراد الأسرة من re_people
+        if ($sponsorship->relation_id_number) {
+            $familyMembersData = \DB::table('re_people')
+                ->where('registration_id', $sponsorship->relation_id_number)
+                ->orderBy('person_id')
+                ->get();
+
+            // دمج البيانات في حقول مفصولة بفاصلة
+            $siblings_names = [];
+            $siblings_birthdates = [];
+            $siblings_grades = [];
+            $siblings_notes = [];
+
+            foreach ($familyMembersData as $member) {
+                if (!empty($member->first_name)) {
+                    $siblings_names[] = trim("{$member->first_name} {$member->second_name} {$member->third_name} {$member->last_name}");
+                }
+                if (!empty($member->person_birth_date)) {
+                    $siblings_birthdates[] = $member->person_birth_date;
+                }
+                if (!empty($member->person_class)) {
+                    $siblings_grades[] = $member->person_class;
+                }
+                if (!empty($member->person_note)) {
+                    $siblings_notes[] = $member->person_note;
+                }
+            }
+
+            $values['field_siblings_names'] = implode("\n", $siblings_names);
+            $values['field_sibling_birthdate'] = implode("\n", $siblings_birthdates);
+            $values['field_sibling_grade'] = implode("\n", $siblings_grades);
+            $values['field_sibling_notes'] = implode("\n", $siblings_notes);
+        }
+
         // جلب الحساب البنكي المعتمد من guardian_bank_accounts
         if ($guardianData && $guardianData->file_id_number) {
             $approvedBankAccount = \DB::table('guardian_bank_accounts')
@@ -511,31 +546,54 @@ class ShowGeneralRegisrationController extends Controller
                 $sponsorship->relationData->save();
             }
 
-            // تحديث أفراد الأسرة
+            // تحديث أفراد الأسرة من حقول النص
+            if (isset($fieldsData['field_siblings_names'])) {
+                $this->updateFamilyMembersFromFields(
+                    $sponsorship,
+                    $fieldsData['field_siblings_names'] ?? '',
+                    $fieldsData['field_sibling_birthdate'] ?? '',
+                    $fieldsData['field_sibling_grade'] ?? '',
+                    $fieldsData['field_sibling_notes'] ?? ''
+                );
+            }
+
+            // تحديث أفراد الأسرة (الطريقة القديمة - للتوافق)
             if ($request->has('family_members')) {
                 $familyMembers = $request->input('family_members');
 
                 foreach ($familyMembers as $memberData) {
+                    // تخطي السجلات الفارغة
+                    if (empty($memberData['first_name'])) {
+                        continue;
+                    }
+
                     if (isset($memberData['id']) && $memberData['id']) {
                         // تحديث فرد موجود
-                        $member = RePeople::find($memberData['id']);
-                        if ($member) {
-                            $member->update([
-                                'person_name' => $memberData['person_name'] ?? '',
-                                'person_relationship' => $memberData['person_relationship'] ?? '',
+                        \DB::table('re_people')
+                            ->where('id', $memberData['id'])
+                            ->update([
+                                'first_name' => $memberData['first_name'] ?? '',
                                 'person_birth_date' => $memberData['person_birth_date'] ?? null,
-                                'person_health_status' => $memberData['person_health_status'] ?? '',
+                                'person_class' => $memberData['person_class'] ?? '',
+                                'person_note' => $memberData['person_note'] ?? '',
+                                'updated_at' => now(),
                             ]);
-                        }
                     } else {
                         // إضافة فرد جديد
-                        if ($sponsorship->relationData && !empty($memberData['person_name'])) {
-                            RePeople::create([
-                                'file_no' => $sponsorship->relationData->file_id_number,
-                                'person_name' => $memberData['person_name'],
-                                'person_relationship' => $memberData['person_relationship'] ?? '',
+                        if ($sponsorship->relation_id_number) {
+                            // توليد person_id جديد
+                            $newPersonId = \DB::table('re_people')->max('person_id') + 1;
+                            
+                            \DB::table('re_people')->insert([
+                                'registration_id' => $sponsorship->relation_id_number,
+                                'person_id' => $newPersonId,
+                                'first_name' => $memberData['first_name'],
                                 'person_birth_date' => $memberData['person_birth_date'] ?? null,
-                                'person_health_status' => $memberData['person_health_status'] ?? '',
+                                'person_class' => $memberData['person_class'] ?? '',
+                                'person_note' => $memberData['person_note'] ?? '',
+                                'person_type_of_guarantee' => 0,
+                                'created_at' => now(),
+                                'updated_at' => now(),
                             ]);
                         }
                     }
@@ -576,6 +634,60 @@ class ShowGeneralRegisrationController extends Controller
                 ->back()
                 ->withInput()
                 ->with('error', 'حدث خطأ أثناء حفظ البيانات: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * تحديث أفراد الأسرة من حقول النص المفصولة بأسطر
+     */
+    private function updateFamilyMembersFromFields($sponsorship, $names, $birthdates, $grades, $notes)
+    {
+        if (empty($names) || !$sponsorship->relation_id_number) {
+            return;
+        }
+
+        // تقسيم البيانات إلى مصفوفات
+        $namesArray = array_filter(explode("\n", $names));
+        $birthdatesArray = explode("\n", $birthdates);
+        $gradesArray = explode("\n", $grades);
+        $notesArray = explode("\n", $notes);
+
+        // حذف أفراد الأسرة الحاليين
+        \DB::table('re_people')
+            ->where('registration_id', $sponsorship->relation_id_number)
+            ->delete();
+
+        // إضافة أفراد الأسرة الجدد
+        foreach ($namesArray as $index => $name) {
+            $name = trim($name);
+            if (empty($name)) {
+                continue;
+            }
+
+            // تقسيم الاسم إلى أجزاء
+            $nameParts = explode(' ', $name);
+            $firstName = $nameParts[0] ?? '';
+            $secondName = $nameParts[1] ?? '';
+            $thirdName = $nameParts[2] ?? '';
+            $lastName = $nameParts[3] ?? '';
+
+            // توليد person_id جديد
+            $newPersonId = \DB::table('re_people')->max('person_id') + 1;
+
+            \DB::table('re_people')->insert([
+                'registration_id' => $sponsorship->relation_id_number,
+                'person_id' => $newPersonId,
+                'first_name' => $firstName,
+                'second_name' => $secondName,
+                'third_name' => $thirdName,
+                'last_name' => $lastName,
+                'person_birth_date' => trim($birthdatesArray[$index] ?? ''),
+                'person_class' => trim($gradesArray[$index] ?? ''),
+                'person_note' => trim($notesArray[$index] ?? ''),
+                'person_type_of_guarantee' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
         }
     }
 }
