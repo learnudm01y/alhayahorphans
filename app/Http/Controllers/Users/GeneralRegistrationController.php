@@ -481,49 +481,95 @@ class GeneralRegistrationController extends Controller
                 'search_time' => 0
             ];
 
-            // 1. البحث في جدول data (بيانات المستفيدين) - محسّن
-            $dataResult = $this->searchInDataTableOptimized($searchTerm);
-            if ($dataResult) {
-                $results['found'] = true;
-                $results['has_account'] = true;
-                $results['source'] = 'data';
-                $results['data'] = $dataResult;
-                $results['message'] = 'تم العثور على سجل موجود مسبقاً. يرجى تسجيل الدخول.';
-                $results['search_time'] = round((microtime(true) - $startTime) * 1000, 2) . ' ms';
-                return response()->json($results);
+            // تحديد نوع البحث: رقم هوية (9 أرقام) أو اسم
+            $isIdNumber = is_numeric($searchTerm) && strlen($searchTerm) == 9;
+
+            if ($isIdNumber) {
+                // البحث برقم الهوية (9 أرقام) في الجداول: re_people, data, dead_people, persons (civil registry)
+
+                // 1. البحث في جدول re_people
+                $rePeopleResult = $this->searchInRePeopleOptimized($searchTerm);
+                if ($rePeopleResult) {
+                    $results['found'] = true;
+                    $results['has_account'] = true;
+                    $results['source'] = 're_people';
+                    $results['data'] = $rePeopleResult;
+                    $results['message'] = 'تم العثور على سجل موجود مسبقاً في re_people.';
+                    $results['search_time'] = round((microtime(true) - $startTime) * 1000, 2) . ' ms';
+                    return response()->json($results);
+                }
+
+                // 2. البحث في جدول data
+                $dataResult = $this->searchInDataTableOptimized($searchTerm);
+                if ($dataResult) {
+                    $results['found'] = true;
+                    $results['has_account'] = true;
+                    $results['source'] = 'data';
+                    $results['data'] = $dataResult;
+                    $results['message'] = 'تم العثور على سجل موجود مسبقاً. يرجى تسجيل الدخول.';
+                    $results['search_time'] = round((microtime(true) - $startTime) * 1000, 2) . ' ms';
+                    return response()->json($results);
+                }
+
+                // 3. البحث في جدول dead_people
+                $deadPeopleResult = $this->searchInDeadPeopleOptimized($searchTerm);
+                if ($deadPeopleResult) {
+                    $results['found'] = true;
+                    $results['has_account'] = false;
+                    $results['source'] = 'dead_people';
+                    $results['data'] = $deadPeopleResult;
+                    $results['message'] = 'تم العثور على سجل في قائمة المتوفين.';
+                    $results['search_time'] = round((microtime(true) - $startTime) * 1000, 2) . ' ms';
+                    return response()->json($results);
+                }
+
+                // 4. البحث في جدول persons في civilregistry
+                $normalizedSearchService = app(\App\Services\NormalizedSearchService::class);
+                $civilRegistryResults = $normalizedSearchService->searchCivilRegistry($searchTerm, 1);
+            } else {
+                // البحث بالاسم في الجداول: dead_people, data, re_people فقط
+
+                // 1. البحث في جدول dead_people
+                $deadPeopleResult = $this->searchInDeadPeopleOptimized($searchTerm);
+                if ($deadPeopleResult) {
+                    $results['found'] = true;
+                    $results['has_account'] = false;
+                    $results['source'] = 'dead_people';
+                    $results['data'] = $deadPeopleResult;
+                    $results['message'] = 'تم العثور على سجل في قائمة المتوفين.';
+                    $results['search_time'] = round((microtime(true) - $startTime) * 1000, 2) . ' ms';
+                    return response()->json($results);
+                }
+
+                // 2. البحث في جدول data
+                $dataResult = $this->searchInDataTableOptimized($searchTerm);
+                if ($dataResult) {
+                    $results['found'] = true;
+                    $results['has_account'] = true;
+                    $results['source'] = 'data';
+                    $results['data'] = $dataResult;
+                    $results['message'] = 'تم العثور على سجل موجود مسبقاً. يرجى تسجيل الدخول.';
+                    $results['search_time'] = round((microtime(true) - $startTime) * 1000, 2) . ' ms';
+                    return response()->json($results);
+                }
+
+                // 3. البحث في جدول re_people
+                $rePeopleResult = $this->searchInRePeopleOptimized($searchTerm);
+                if ($rePeopleResult) {
+                    $results['found'] = true;
+                    $results['has_account'] = true;
+                    $results['source'] = 're_people';
+                    $results['data'] = $rePeopleResult;
+                    $results['message'] = 'تم العثور على سجل موجود مسبقاً في re_people.';
+                    $results['search_time'] = round((microtime(true) - $startTime) * 1000, 2) . ' ms';
+                    return response()->json($results);
+                }
+
+                // لا نبحث في السجل المدني للأسماء
+                $civilRegistryResults = null;
             }
 
-            // 2. البحث في جدول re_people - محسّن
-            $rePeopleResult = $this->searchInRePeopleOptimized($searchTerm);
-            if ($rePeopleResult) {
-                $results['found'] = true;
-                $results['has_account'] = true;
-                $results['source'] = 're_people';
-                $results['data'] = $rePeopleResult;
-                $results['message'] = 'تم العثور على سجل موجود مسبقاً.';
-                $results['search_time'] = round((microtime(true) - $startTime) * 1000, 2) . ' ms';
-                return response()->json($results);
-            }
-
-            // 3. البحث في جدول dead_people - محسّن
-            $deadPeopleResult = $this->searchInDeadPeopleOptimized($searchTerm);
-            if ($deadPeopleResult) {
-                $results['found'] = true;
-                $results['has_account'] = false;
-                $results['source'] = 'dead_people';
-                $results['data'] = $deadPeopleResult;
-                $results['message'] = 'تم العثور على سجل في قائمة المتوفين.';
-                $results['search_time'] = round((microtime(true) - $startTime) * 1000, 2) . ' ms';
-                return response()->json($results);
-            }
-
-            // 4. البحث في السجل المدني - محسّن باستخدام NormalizedSearchService
-            $normalizedSearchService = app(\App\Services\NormalizedSearchService::class);
-            $civilRegistryResults = $normalizedSearchService->searchCivilRegistry($searchTerm, 1);
-
-            // 4. البحث في السجل المدني - محسّن باستخدام NormalizedSearchService
-            $normalizedSearchService = app(\App\Services\NormalizedSearchService::class);
-            $civilRegistryResults = $normalizedSearchService->searchCivilRegistry($searchTerm, 1);
+            // معالجة نتائج السجل المدني (فقط لرقم الهوية)
 
             if ($civilRegistryResults && $civilRegistryResults->isNotEmpty()) {
                 $personsResult = $civilRegistryResults->first();
