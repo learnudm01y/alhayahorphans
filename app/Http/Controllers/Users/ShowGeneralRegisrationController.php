@@ -14,6 +14,7 @@ use App\Models\SponsorFieldSetting;
 use App\Models\GuardianBankAccount;
 use App\Models\RePeople;
 use App\Models\Attachment;
+use App\Services\GoogleDriveService;
 use Illuminate\Support\Facades\Log;
 
 
@@ -166,6 +167,32 @@ class ShowGeneralRegisrationController extends Controller
             }
         }
 
+        // جلب أنواع المرفقات المفعلة للجمعية فقط
+        $documentTypes = collect();
+        if ($sponsorId && $fieldSettings) {
+            // جلب معرفات الوثائق المفعلة من sponsor_field_settings
+            $enabledDocumentIds = $fieldSettings->enabled_documents ?? [];
+
+            if (!empty($enabledDocumentIds)) {
+                $documentTypes = \App\Models\DocumentType::whereIn('id', $enabledDocumentIds)->get();
+            }
+
+            Log::info('ENABLED DOCUMENTS FOR SPONSOR', [
+                'sponsor_id' => $sponsorId,
+                'enabled_document_ids' => $enabledDocumentIds,
+                'documents_count' => $documentTypes->count(),
+                'documents' => $documentTypes->pluck('description', 'id')
+            ]);
+        }
+
+        // جلب المرفقات الموجودة حالياً
+        $existingAttachments = collect();
+        if ($sponsorship->identity_number) {
+            $existingAttachments = \App\Models\Attachment::where('person_identity_number', $sponsorship->identity_number)
+                ->get()
+                ->groupBy('file_type');
+        }
+
         return view('user.dashboard.component.generalRegisrationIndex', compact(
             'sponsorship',
             'enabledFields',
@@ -180,7 +207,9 @@ class ShowGeneralRegisrationController extends Controller
             'bankNames',
             'deathReasons',
             'provinces',
-            'cities'
+            'cities',
+            'documentTypes',
+            'existingAttachments'
         ));
     }
 
@@ -384,8 +413,73 @@ class ShowGeneralRegisrationController extends Controller
             $user = Auth::user();
             $sponsorshipId = $request->input('sponsorship_id');
 
+            // Logging مبكر لمعرفة هل الملفات وصلت فعلاً للسيرفر
+            $allFiles = $request->allFiles();
+            $attachmentsFiles = $allFiles['attachments'] ?? null;
+            $attachmentsSummary = [];
+            $attachmentsTotal = 0;
+            $attachmentsValidTotal = 0;
+            $attachmentsInvalidSummary = [];
+            $validAttachments = [];
+
+            if (is_array($attachmentsFiles)) {
+                foreach ($attachmentsFiles as $docTypeId => $files) {
+                    $count = 0;
+                    $names = [];
+                    $validCount = 0;
+                    $invalid = [];
+                    foreach ((array) $files as $file) {
+                        if ($file instanceof \Illuminate\Http\UploadedFile) {
+                            $count++;
+                            $names[] = $file->getClientOriginalName();
+
+                            if ($file->isValid()) {
+                                $validCount++;
+                                $validAttachments[(string) $docTypeId][] = $file;
+                            } else {
+                                $invalid[] = [
+                                    'name' => $file->getClientOriginalName(),
+                                    'error' => $file->getError(),
+                                    'size' => $file->getSize(),
+                                ];
+                            }
+                        }
+                    }
+                    $attachmentsTotal += $count;
+                    $attachmentsValidTotal += $validCount;
+                    $attachmentsSummary[(string) $docTypeId] = [
+                        'count' => $count,
+                        'names' => array_slice($names, 0, 3),
+                    ];
+
+                    if (!empty($invalid)) {
+                        $attachmentsInvalidSummary[(string) $docTypeId] = array_slice($invalid, 0, 5);
+                    }
+                }
+            }
+
+            Log::info('UPDATE_SPONSORSHIP_SUBMIT', [
+                'user_id' => $user?->id,
+                'sponsorship_id' => $sponsorshipId,
+                // hasFile() يعتمد على validity وقد يرجع false حتى لو allFiles يحتوي عناصر غير صالحة
+                // مع الـ inputs المتداخلة attachments[docTypeId][] لا يمكن الاعتماد على hasFile('attachments')
+                'has_attachments_valid' => $attachmentsValidTotal > 0,
+                'attachments_total_files' => $attachmentsTotal,
+                'attachments_valid_files' => $attachmentsValidTotal,
+                'attachments_summary' => $attachmentsSummary,
+                'attachments_invalid_summary' => $attachmentsInvalidSummary,
+                'php_upload_max_filesize' => ini_get('upload_max_filesize'),
+                'php_post_max_size' => ini_get('post_max_size'),
+                'php_max_file_uploads' => ini_get('max_file_uploads'),
+            ]);
+
+            // إذا تم اختيار ملفات ولكن لم يصل أي ملف صالح، نوقف العملية برسالة واضحة
+            if ($attachmentsTotal > 0 && $attachmentsValidTotal === 0) {
+                throw new \Exception('تم اختيار ملفات ولكن لم تصل للسيرفر كملفات صالحة (قد تكون أكبر من upload_max_filesize/post_max_size أو حدث خطأ أثناء الرفع).');
+            }
+
             // التحقق من أن المستخدم يملك هذه الكفالة
-            $sponsorship = Sponsorship::with('relationData')
+            $sponsorship = Sponsorship::with(['relationData', 'sponsor'])
                 ->where('id', $sponsorshipId)
                 ->where('identity_number', $user->email)
                 ->firstOrFail();
@@ -394,7 +488,10 @@ class ShowGeneralRegisrationController extends Controller
             $request->validate([
                 'fields' => 'array',
                 'family_members' => 'array',
-                'attachments.*' => 'file|mimes:pdf,jpg,jpeg,png|max:10240', // 10MB
+                // attachments[documentTypeId][] => uploaded files
+                'attachments' => 'sometimes|array',
+                'attachments.*' => 'sometimes|array',
+                'attachments.*.*' => 'file|mimes:pdf,jpg,jpeg,png,gif,webp,mp4,avi,mov,wmv,webm|max:51200', // 50MB
             ]);
 
             DB::beginTransaction();
@@ -412,6 +509,54 @@ class ShowGeneralRegisrationController extends Controller
 
             foreach ($fieldsData as $fieldKey => $fieldValue) {
                 $cleanFieldKey = str_replace('field_', '', $fieldKey);
+
+                // بعض الحقول يتم إرسالها كنص (description) من الـ UI بينما تُحفظ كـ ID في جدول data
+                if ($sponsorship->relationData && $fieldValue !== null && $fieldValue !== '') {
+                    // health_statuses.description -> data_health_status
+                    if ($cleanFieldKey === 'health_status') {
+                        $resolved = $this->resolveLookupIdByDescription('health_statuses', (string) $fieldValue);
+                        if ($resolved !== null) {
+                            $sponsorship->relationData->data_health_status = $resolved;
+                        } else {
+                            Log::warning('LOOKUP_ID_NOT_FOUND', [
+                                'field' => 'health_status',
+                                'value' => (string) $fieldValue,
+                                'sponsorship_id' => $sponsorship->id,
+                            ]);
+                        }
+                        continue;
+                    }
+
+                    // housing_status.description -> data_housing_status
+                    if ($cleanFieldKey === 'housing_status') {
+                        $resolved = $this->resolveLookupIdByDescription('housing_status', (string) $fieldValue);
+                        if ($resolved !== null) {
+                            $sponsorship->relationData->data_housing_status = $resolved;
+                        } else {
+                            Log::warning('LOOKUP_ID_NOT_FOUND', [
+                                'field' => 'housing_status',
+                                'value' => (string) $fieldValue,
+                                'sponsorship_id' => $sponsorship->id,
+                            ]);
+                        }
+                        continue;
+                    }
+
+                    // type_of_accommodation.description -> data_current_housing_type
+                    if ($cleanFieldKey === 'housing_type') {
+                        $resolved = $this->resolveLookupIdByDescription('type_of_accommodation', (string) $fieldValue);
+                        if ($resolved !== null) {
+                            $sponsorship->relationData->data_current_housing_type = $resolved;
+                        } else {
+                            Log::warning('LOOKUP_ID_NOT_FOUND', [
+                                'field' => 'housing_type',
+                                'value' => (string) $fieldValue,
+                                'sponsorship_id' => $sponsorship->id,
+                            ]);
+                        }
+                        continue;
+                    }
+                }
 
                 // جمع حقول البنك
                 if (in_array($fieldKey, [
@@ -559,19 +704,131 @@ class ShowGeneralRegisrationController extends Controller
             }
 
             // معالجة المرفقات الجديدة
-            if ($request->hasFile('attachments')) {
-                foreach ($request->file('attachments') as $file) {
-                    $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
-                    $file->storeAs('attachments', $filename, 'public');
+            if ($attachmentsValidTotal > 0) {
+                $driveParentInput = (string) env('GOOGLE_DRIVE_GENERAL_REGISTRATION_PARENT_ID', '');
+                if ($driveParentInput === '') {
+                    throw new \Exception('إعداد GOOGLE_DRIVE_GENERAL_REGISTRATION_PARENT_ID غير موجود في .env');
+                }
 
-                    if ($sponsorship->relationData) {
+                $driveParentId = $this->extractGoogleDriveFolderId($driveParentInput);
+
+                Log::info('GOOGLE_DRIVE_UPLOAD_START', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'identity' => $sponsorship->identity_number,
+                    'drive_parent_input' => $driveParentInput,
+                    'drive_parent_id' => $driveParentId,
+                    'attachments_total_files' => $attachmentsTotal,
+                    'attachments_valid_files' => $attachmentsValidTotal,
+                    'attachments_summary' => $attachmentsSummary,
+                    'attachments_invalid_summary' => $attachmentsInvalidSummary,
+                ]);
+
+                $driveService = new GoogleDriveService();
+
+                // تحقق فعلي عبر Google Drive API أن المعرف هو Folder ID صالح
+                try {
+                    $parentInfo = $driveService->getFileWithFields($driveParentId, 'id,mimeType,name');
+                    $mimeType = $parentInfo['mimeType'] ?? null;
+                    if ($mimeType !== 'application/vnd.google-apps.folder') {
+                        throw new \Exception('القيمة ليست Folder (mimeType غير صحيح)');
+                    }
+                } catch (\Exception $e) {
+                    $serviceAccountEmail = $this->getGoogleDriveServiceAccountEmail();
+                    $emailHint = $serviceAccountEmail ? (" (Service Account: {$serviceAccountEmail})") : '';
+                    throw new \Exception(
+                        'قيمة GOOGLE_DRIVE_GENERAL_REGISTRATION_PARENT_ID غير صالحة كـ Folder ID أو لا يمكن الوصول إليها.'
+                        . $emailHint
+                        . ' ضع Folder ID لمجلد داخل Shared Drive ومشارك مع Service Account. مثال رابط: https://drive.google.com/drive/folders/{FOLDER_ID}'
+                    );
+                }
+
+                $organizationName = $sponsorship->sponsor?->sponsor_name ?: ($sponsorship->sponsoring_organization ?: 'غير محدد');
+                $orphanName = $sponsorship->orphan_name ?: $sponsorship->identity_number;
+
+                $temproryFolder = $driveService->getOrCreateFolder($this->sanitizeDriveName('temprory'), $driveParentId);
+                $orgFolder = $driveService->getOrCreateFolder($this->sanitizeDriveName($organizationName), $temproryFolder['id']);
+                $personFolder = $driveService->getOrCreateFolder($this->sanitizeDriveName($orphanName), $orgFolder['id']);
+
+                $uploadedCount = 0;
+
+                foreach ($validAttachments as $docTypeId => $files) {
+                    // الحصول على نوع المستند
+                    $documentType = \App\Models\DocumentType::find($docTypeId);
+
+                    if (!$documentType || !$sponsorship->identity_number) {
+                        continue;
+                    }
+
+                    // معالجة كل ملف
+                    $fileIndex = 0;
+                    foreach ((array)$files as $file) {
+                        $fileIndex++;
+                        $extension = strtolower($file->getClientOriginalExtension() ?: '');
+                        $baseName = $this->sanitizeDriveName($documentType->description ?: 'وثيقة');
+
+                        // اسم الملف يكون نفس اسم نوع الوثيقة، وإذا كان هناك أكثر من ملف لنفس النوع نضيف رقم
+                        $finalBaseName = $fileIndex === 1 ? $baseName : ($baseName . '_' . $fileIndex);
+                        $filename = $extension ? ($finalBaseName . '.' . $extension) : $finalBaseName;
+
+                        $uploadResult = $driveService->uploadFile($file->getRealPath(), $filename, $personFolder['id']);
+                        $fileId = $uploadResult['id'] ?? null;
+                        if (!$fileId) {
+                            throw new \Exception('فشل رفع الملف إلى Google Drive: لم يتم إرجاع file id');
+                        }
+
+                        // مشاركة للقراءة حتى يتمكن المستخدم من فتح الرابط
+                        $driveService->makePublicReadOnly($fileId);
+                        $webViewLink = $uploadResult['webViewLink'] ?? "https://drive.google.com/file/d/{$fileId}/view";
+
                         Attachment::create([
-                            'file_id_number' => $sponsorship->relationData->file_id_number,
+                            'person_identity_number' => $sponsorship->identity_number,
                             'stored_file_name' => $filename,
-                            'file_path' => 'storage/attachments/' . $filename,
+                            'file_path' => $webViewLink,
+                            'file_type' => $docTypeId,
+                        ]);
+
+                        $uploadedCount++;
+
+                        Log::info('ATTACHMENT_UPLOADED_TO_GOOGLE_DRIVE', [
+                            'identity' => $sponsorship->identity_number,
+                            'doc_type' => $documentType->description,
+                            'filename' => $filename,
+                            'drive_file_id' => $fileId,
+                            'drive_folder_id' => $personFolder['id'],
                         ]);
                     }
                 }
+
+                Log::info('GOOGLE_DRIVE_ATTACHMENTS_UPLOAD_COMPLETED', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'identity' => $sponsorship->identity_number,
+                    'uploaded_count' => $uploadedCount,
+                    'drive_parent_id' => $driveParentId,
+                    'temprory_folder_id' => $temproryFolder['id'] ?? null,
+                    'organization_folder_id' => $orgFolder['id'] ?? null,
+                    'orphan_folder_id' => $personFolder['id'] ?? null,
+                ]);
+            }
+
+            if ($attachmentsTotal > 0 && $attachmentsValidTotal === 0) {
+                Log::warning('GOOGLE_DRIVE_ATTACHMENTS_ALL_INVALID', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'identity' => $sponsorship->identity_number,
+                    'attachments_total_files' => $attachmentsTotal,
+                    'attachments_valid_files' => $attachmentsValidTotal,
+                    'attachments_invalid_summary' => $attachmentsInvalidSummary,
+                    'php_upload_max_filesize' => ini_get('upload_max_filesize'),
+                    'php_post_max_size' => ini_get('post_max_size'),
+                ]);
+            }
+
+            if ($attachmentsTotal === 0) {
+                Log::warning('GOOGLE_DRIVE_NO_ATTACHMENTS_RECEIVED', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'identity' => $sponsorship->identity_number,
+                    'attachments_total_files' => $attachmentsTotal,
+                    'attachments_summary' => $attachmentsSummary,
+                ]);
             }
 
             DB::commit();
@@ -592,6 +849,69 @@ class ShowGeneralRegisrationController extends Controller
                 ->back()
                 ->withInput()
                 ->with('error', 'حدث خطأ أثناء حفظ البيانات: ' . $e->getMessage());
+        }
+    }
+
+    private function sanitizeDriveName(string $name): string
+    {
+        $name = trim(preg_replace('/\s+/u', ' ', $name));
+        // ممنوع / \ : * ? " < > |
+        $name = str_replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], '-', $name);
+        $name = trim($name, " .\t\n\r\0\x0B-");
+        if ($name === '') {
+            return 'غير_مسمى';
+        }
+        // حد عملي لاسم المجلد/الملف
+        return mb_substr($name, 0, 120);
+    }
+
+    private function resolveLookupIdByDescription(string $table, string $description): ?int
+    {
+        $description = trim($description);
+        if ($description === '') {
+            return null;
+        }
+
+        $id = \DB::table($table)
+            ->where('description', $description)
+            ->value('id');
+
+        return $id ? (int) $id : null;
+    }
+
+    private function extractGoogleDriveFolderId(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        // Accept full folder URL: https://drive.google.com/drive/folders/{ID}
+        if (preg_match('~drive\.google\.com/drive/folders/([^/?#]+)~i', $value, $m)) {
+            return $m[1];
+        }
+
+        // Accept open?id={ID}
+        if (preg_match('~[?&]id=([^&]+)~i', $value, $m)) {
+            return $m[1];
+        }
+
+        return $value;
+    }
+
+    private function getGoogleDriveServiceAccountEmail(): ?string
+    {
+        try {
+            $credentialsPath = storage_path('app/google/credentials.json');
+            if (!file_exists($credentialsPath)) {
+                return null;
+            }
+
+            $json = json_decode((string) file_get_contents($credentialsPath), true);
+            $email = $json['client_email'] ?? null;
+            return is_string($email) && $email !== '' ? $email : null;
+        } catch (\Throwable $e) {
+            return null;
         }
     }
 }

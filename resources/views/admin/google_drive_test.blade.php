@@ -192,8 +192,13 @@
                 </h5>
             </div>
             <div class="card-body">
-                <p>إنشاء مجلد جديد في Google Drive</p>
+                <p>إنشاء مجلد جديد داخل المجلد الرئيسي الذي تقوم بالرفع عليه (Parent Folder ID)</p>
                 <form id="folderForm">
+                    <div class="mb-3">
+                        <label class="form-label">Parent Folder ID (المجلد الرئيسي)</label>
+                        <input type="text" class="form-control" id="parentFolderId" placeholder="أدخل Folder ID للمجلد الرئيسي (نفس الذي تستخدمه للرفع)" required>
+                        <small class="text-muted">سيتم إنشاء المجلد بداخله مباشرة</small>
+                    </div>
                     <div class="mb-3">
                         <input type="text" class="form-control" id="folderName" placeholder="اسم المجلد" required>
                     </div>
@@ -407,11 +412,12 @@
         $('#folderForm').submit(function(e) {
             e.preventDefault();
             const folderName = $('#folderName').val();
+            const parentFolderId = $('#parentFolderId').val();
             showLoading('folderResult');
             $.ajax({
                 url: '{{ route("google.drive.test.folder") }}',
                 method: 'POST',
-                data: { folder_name: folderName },
+                data: { folder_name: folderName, parent_folder_id: parentFolderId },
                 success: function(response) {
                     if (response.success) {
                         $('#folderResult').html(

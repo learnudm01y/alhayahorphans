@@ -113,7 +113,7 @@
 <div class="container py-4">
     @if(isset($sponsorship) && $sponsorship)
         {{-- Form --}}
-        <form method="POST" action="{{ route('user.update-sponsorship-data') }}" id="sponsorshipForm">
+        <form method="POST" action="{{ route('user.update-sponsorship-data') }}" id="sponsorshipForm" enctype="multipart/form-data">
             @csrf
             <input type="hidden" name="sponsorship_id" value="{{ $sponsorship->id }}">
 
@@ -400,6 +400,138 @@
                     </div>
                 </div>
 
+                {{-- قسم المرفقات --}}
+                <div class="card card-custom mb-4">
+                    <div class="card-body">
+                        <div class="category-title">
+                            <i class="bi bi-paperclip field-icon"></i>
+                            المرفقات والوثائق
+                        </div>
+
+                        <div class="alert alert-info mb-4">
+                            <i class="bi bi-info-circle me-2"></i>
+                            يرجى رفع المستندات المطلوبة (صور أو فيديوهات). يمكنك استخدام الكاميرا مباشرة أو اختيار ملف من جهازك.
+                        </div>
+
+                        <div id="attachments-container">
+                            @if(isset($documentTypes) && $documentTypes->count() > 0)
+                                @foreach($documentTypes as $index => $docType)
+                                    <div class="attachment-card card mb-3 p-3 border-start border-4 border-primary" data-doc-type-id="{{ $docType->id }}">
+                                        <div class="mb-3">
+                                            <h5 class="text-primary mb-2">
+                                                <i class="bi bi-file-earmark-text me-2"></i>
+                                                {{ $docType->description }}
+                                                @if($docType->pref)
+                                                    <span class="badge bg-secondary">{{ $docType->pref }}</span>
+                                                @endif
+                                            </h5>
+                                        </div>
+
+                                        <div class="row">
+                                            {{-- عرض المرفقات الموجودة --}}
+                                            @if(isset($existingAttachments[$docType->id]))
+                                                <div class="col-12 mb-3">
+                                                    <div class="existing-files border rounded p-3 bg-light">
+                                                        <p class="mb-2 fw-bold"><i class="bi bi-files me-2"></i>الملفات الموجودة:</p>
+                                                        <div class="row">
+                                                            @foreach($existingAttachments[$docType->id] as $attachment)
+                                                                <div class="col-md-3 mb-2">
+                                                                    <div class="file-preview position-relative">
+                                                                        @if(Str::startsWith($attachment->file_path, ['http://', 'https://']))
+                                                                            <a href="{{ $attachment->file_path }}" target="_blank" class="btn btn-primary w-100" style="height: 150px; display:flex; align-items:center; justify-content:center;">
+                                                                                <i class="bi bi-box-arrow-up-right me-2"></i>
+                                                                                فتح الملف
+                                                                            </a>
+                                                                        @else
+                                                                            @if(in_array(pathinfo($attachment->file_path, PATHINFO_EXTENSION), ['jpg', 'jpeg', 'png', 'gif', 'webp']))
+                                                                                <img src="{{ asset('storage/' . $attachment->file_path) }}"
+                                                                                     class="img-thumbnail"
+                                                                                     style="width: 100%; height: 150px; object-fit: cover;"
+                                                                                     alt="{{ $docType->description }}">
+                                                                            @elseif(in_array(pathinfo($attachment->file_path, PATHINFO_EXTENSION), ['mp4', 'avi', 'mov', 'wmv']))
+                                                                                <video class="img-thumbnail"
+                                                                                       style="width: 100%; height: 150px; object-fit: cover;"
+                                                                                       controls>
+                                                                                    <source src="{{ asset('storage/' . $attachment->file_path) }}" type="video/{{ pathinfo($attachment->file_path, PATHINFO_EXTENSION) }}">
+                                                                                </video>
+                                                                            @else
+                                                                                <a href="{{ asset('storage/' . $attachment->file_path) }}" target="_blank" class="btn btn-secondary w-100" style="height: 150px; display:flex; align-items:center; justify-content:center;">
+                                                                                    <i class="bi bi-file-earmark me-2"></i>
+                                                                                    فتح الملف
+                                                                                </a>
+                                                                            @endif
+                                                                        @endif
+                                                                        <button type="button"
+                                                                                class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1"
+                                                                                onclick="deleteAttachment({{ $attachment->id }}, this)">
+                                                                            <i class="bi bi-trash"></i>
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            @endforeach
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            @endif
+
+                                            {{-- حقول رفع الملفات الجديدة --}}
+                                            <div class="col-md-12 mb-3">
+                                                <div class="upload-buttons-group d-flex gap-2 mb-3">
+                                                    {{-- زر الكاميرا للصور --}}
+                                                    <button type="button"
+                                                            class="btn btn-outline-primary flex-fill"
+                                                            onclick="openCameraForPhoto({{ $docType->id }})">
+                                                        <i class="bi bi-camera-fill me-2"></i>
+                                                        التقاط صورة
+                                                    </button>
+
+                                                    {{-- زر الكاميرا للفيديو --}}
+                                                    <button type="button"
+                                                            class="btn btn-outline-danger flex-fill"
+                                                            onclick="openCameraForVideo({{ $docType->id }})">
+                                                        <i class="bi bi-camera-video-fill me-2"></i>
+                                                        تسجيل فيديو
+                                                    </button>
+
+                                                    {{-- زر اختيار ملف --}}
+                                                    <button type="button"
+                                                            class="btn btn-outline-success flex-fill"
+                                                            onclick="document.getElementById('file-{{ $docType->id }}').click()">
+                                                        <i class="bi bi-folder2-open me-2"></i>
+                                                        اختيار من الملفات
+                                                    </button>
+                                                </div>
+
+                                                {{-- حقل الإدخال المخفي --}}
+                                                <input type="file"
+                                                       id="file-{{ $docType->id }}"
+                                                       name="attachments[{{ $docType->id }}][]"
+                                                       class="d-none"
+                                                       accept="image/*,video/*"
+                                                       multiple
+                                                       onchange="previewFiles(this, {{ $docType->id }})">
+
+                                                {{-- منطقة المعاينة --}}
+                                                <div id="preview-{{ $docType->id }}" class="preview-container mt-3 d-none">
+                                                    <div class="border rounded p-3 bg-light">
+                                                        <p class="mb-2 fw-bold"><i class="bi bi-eye me-2"></i>معاينة الملفات الجديدة:</p>
+                                                        <div id="preview-grid-{{ $docType->id }}" class="row"></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            @else
+                                <div class="alert alert-warning">
+                                    <i class="bi bi-exclamation-triangle me-2"></i>
+                                    لا توجد أنواع مرفقات مفعلة حالياً.
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
                 {{-- تم إزالة القسم المنفصل للحساب البنكي - الحقول الآن ضمن النموذج القابل للتعديل --}}
 
                 {{-- Action Buttons --}}
@@ -471,6 +603,265 @@
                 });
             }
         });
+
+        // Attachments Management
+        let cameraStream = null;
+        let currentDocTypeId = null;
+
+        // فتح الكاميرا للصور
+        async function openCameraForPhoto(docTypeId) {
+            currentDocTypeId = docTypeId;
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' },
+                    audio: false
+                });
+
+                showCameraModal(stream, 'photo', docTypeId);
+            } catch (error) {
+                console.error('خطأ في فتح الكاميرا:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'خطأ',
+                    text: 'تعذر الوصول إلى الكاميرا. يرجى التأكد من منح الأذونات اللازمة.',
+                    confirmButtonColor: '#667eea'
+                });
+            }
+        }
+
+        // فتح الكاميرا للفيديو
+        async function openCameraForVideo(docTypeId) {
+            currentDocTypeId = docTypeId;
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' },
+                    audio: true
+                });
+
+                showCameraModal(stream, 'video', docTypeId);
+            } catch (error) {
+                console.error('خطأ في فتح الكاميرا:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'خطأ',
+                    text: 'تعذر الوصول إلى الكاميرا والميكروفون. يرجى التأكد من منح الأذونات اللازمة.',
+                    confirmButtonColor: '#667eea'
+                });
+            }
+        }
+
+        // عرض نافذة الكاميرا
+        function showCameraModal(stream, type, docTypeId) {
+            cameraStream = stream;
+            const isVideo = type === 'video';
+
+            const modalHtml = `
+                <div id="camera-modal" class="modal fade show" style="display: block; background: rgba(0,0,0,0.8);">
+                    <div class="modal-dialog modal-lg modal-dialog-centered">
+                        <div class="modal-content">
+                            <div class="modal-header bg-primary text-white">
+                                <h5 class="modal-title">
+                                    <i class="bi bi-camera${isVideo ? '-video' : ''}-fill me-2"></i>
+                                    ${isVideo ? 'تسجيل فيديو' : 'التقاط صورة'}
+                                </h5>
+                                <button type="button" class="btn-close btn-close-white" onclick="closeCameraModal()"></button>
+                            </div>
+                            <div class="modal-body text-center">
+                                <video id="camera-preview" autoplay playsinline style="width: 100%; max-height: 500px; border-radius: 10px;"></video>
+                                ${isVideo ? '<div id="recording-indicator" class="d-none mt-2 text-danger fw-bold"><i class="bi bi-record-circle-fill me-2"></i>جاري التسجيل...</div>' : ''}
+                            </div>
+                            <div class="modal-footer justify-content-center">
+                                ${isVideo ?
+                                    '<button type="button" class="btn btn-danger btn-lg" id="record-btn" onclick="toggleRecording()"><i class="bi bi-record-circle me-2"></i>بدء التسجيل</button>' :
+                                    '<button type="button" class="btn btn-primary btn-lg" onclick="capturePhoto()"><i class="bi bi-camera me-2"></i>التقاط الصورة</button>'
+                                }
+                                <button type="button" class="btn btn-secondary btn-lg" onclick="closeCameraModal()">إلغاء</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            document.getElementById('camera-preview').srcObject = stream;
+        }
+
+        // التقاط صورة
+        function capturePhoto() {
+            const video = document.getElementById('camera-preview');
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+
+            canvas.toBlob((blob) => {
+                const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
+                addFileToInput(file, currentDocTypeId);
+                closeCameraModal();
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'تم!',
+                    text: 'تم التقاط الصورة بنجاح',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            }, 'image/jpeg', 0.95);
+        }
+
+        // تسجيل الفيديو
+        let mediaRecorder = null;
+        let recordedChunks = [];
+
+        function toggleRecording() {
+            const recordBtn = document.getElementById('record-btn');
+            const indicator = document.getElementById('recording-indicator');
+
+            if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+                // بدء التسجيل
+                recordedChunks = [];
+                mediaRecorder = new MediaRecorder(cameraStream, { mimeType: 'video/webm' });
+
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) {
+                        recordedChunks.push(e.data);
+                    }
+                };
+
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    const file = new File([blob], `video-${Date.now()}.webm`, { type: 'video/webm' });
+                    addFileToInput(file, currentDocTypeId);
+                    closeCameraModal();
+
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'تم!',
+                        text: 'تم تسجيل الفيديو بنجاح',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                };
+
+                mediaRecorder.start();
+                recordBtn.innerHTML = '<i class="bi bi-stop-circle me-2"></i>إيقاف التسجيل';
+                recordBtn.classList.remove('btn-danger');
+                recordBtn.classList.add('btn-warning');
+                indicator.classList.remove('d-none');
+            } else {
+                // إيقاف التسجيل
+                mediaRecorder.stop();
+            }
+        }
+
+        // إغلاق نافذة الكاميرا
+        function closeCameraModal() {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+                cameraStream = null;
+            }
+            document.getElementById('camera-modal')?.remove();
+        }
+
+        // إضافة ملف إلى الإدخال
+        function addFileToInput(file, docTypeId) {
+            const input = document.getElementById(`file-${docTypeId}`);
+            const dataTransfer = new DataTransfer();
+
+            // إضافة الملفات الموجودة
+            for (let i = 0; i < input.files.length; i++) {
+                dataTransfer.items.add(input.files[i]);
+            }
+
+            // إضافة الملف الجديد
+            dataTransfer.items.add(file);
+            input.files = dataTransfer.files;
+
+            // تحديث المعاينة
+            previewFiles(input, docTypeId);
+        }
+
+        // معاينة الملفات
+        function previewFiles(input, docTypeId) {
+            const previewContainer = document.getElementById(`preview-${docTypeId}`);
+            const previewGrid = document.getElementById(`preview-grid-${docTypeId}`);
+
+            if (input.files.length > 0) {
+                previewContainer.classList.remove('d-none');
+                previewGrid.innerHTML = '';
+
+                Array.from(input.files).forEach((file, index) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const col = document.createElement('div');
+                        col.className = 'col-md-3 mb-2';
+
+                        let content = '';
+                        if (file.type.startsWith('image/')) {
+                            content = `<img src="${e.target.result}" class="img-thumbnail" style="width: 100%; height: 150px; object-fit: cover;">`;
+                        } else if (file.type.startsWith('video/')) {
+                            content = `<video class="img-thumbnail" style="width: 100%; height: 150px; object-fit: cover;" controls><source src="${e.target.result}" type="${file.type}"></video>`;
+                        }
+
+                        col.innerHTML = `
+                            <div class="position-relative">
+                                ${content}
+                                <button type="button" class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1" onclick="removePreviewFile(${docTypeId}, ${index})">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                                <small class="d-block text-center mt-1 text-muted">${file.name}</small>
+                            </div>
+                        `;
+                        previewGrid.appendChild(col);
+                    };
+                    reader.readAsDataURL(file);
+                });
+            } else {
+                previewContainer.classList.add('d-none');
+            }
+        }
+
+        // حذف ملف من المعاينة
+        function removePreviewFile(docTypeId, fileIndex) {
+            const input = document.getElementById(`file-${docTypeId}`);
+            const dataTransfer = new DataTransfer();
+
+            Array.from(input.files).forEach((file, index) => {
+                if (index !== fileIndex) {
+                    dataTransfer.items.add(file);
+                }
+            });
+
+            input.files = dataTransfer.files;
+            previewFiles(input, docTypeId);
+        }
+
+        // حذف مرفق موجود
+        function deleteAttachment(attachmentId, button) {
+            Swal.fire({
+                title: 'تأكيد الحذف',
+                text: 'هل أنت متأكد من حذف هذا المرفق؟',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'نعم، احذف',
+                cancelButtonText: 'إلغاء',
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // يمكن إضافة AJAX هنا لحذف المرفق من السيرفر
+                    button.closest('.col-md-3').remove();
+
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'تم الحذف',
+                        text: 'تم حذف المرفق بنجاح',
+                        timer: 2000,
+                        showConfirmButton: false
+                    });
+                }
+            });
+        }
 
         // Family Members Management
         let familyMemberIndex = {{ isset($familyMembers) ? $familyMembers->count() : 0 }};

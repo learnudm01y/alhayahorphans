@@ -22,4 +22,22 @@ class DocumentType extends Model
     {
         return $this->hasMany(RePeople::class, 'document_type');
     }
+
+    /**
+     * العلاقة مع الجمعيات
+     */
+    public function sponsors()
+    {
+        return $this->belongsToMany(Sponsor::class, 'sponsor_document_types')
+            ->withPivot(['is_enabled', 'basic_enabled', 'family_enabled', 'deceased_enabled', 'is_required', 'notes'])
+            ->withTimestamps();
+    }
+
+    /**
+     * العلاقة مع إعدادات الوثائق للجمعيات
+     */
+    public function sponsorDocumentTypes()
+    {
+        return $this->hasMany(SponsorDocumentType::class);
+    }
 }

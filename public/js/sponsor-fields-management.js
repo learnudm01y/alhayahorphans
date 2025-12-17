@@ -8,6 +8,8 @@ class SponsorFieldsManager {
         this.currentSponsorId = null;
         this.dataTable = null;
         this.fieldsData = [];
+        this.documentsData = [];
+        this.currentTab = 'fields'; // 'fields' or 'documents'
         this.init();
     }
 
@@ -15,6 +17,19 @@ class SponsorFieldsManager {
         this.initializeDataTable();
         this.attachEventListeners();
         this.loadAvailableFields();
+        this.attachTabEventListeners();
+        this.initializeToggleLabels();
+    }
+
+    /**
+     * تهيئة نصوص الحالة عند التحميل
+     */
+    initializeToggleLabels() {
+        $('.document-enabled-toggle').each(function() {
+            const isChecked = $(this).is(':checked');
+            $(this).closest('.form-check').find('.enabled-text').toggle(isChecked);
+            $(this).closest('.form-check').find('.disabled-text').toggle(!isChecked);
+        });
     }
 
     /**
@@ -87,7 +102,24 @@ class SponsorFieldsManager {
                 }
             ],
             language: {
-                url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/ar.json'
+                search: "بحث:",
+                lengthMenu: "عرض _MENU_ سجلات",
+                info: "عرض _START_ إلى _END_ من أصل _TOTAL_ سجل",
+                infoEmpty: "لا توجد سجلات متاحة",
+                infoFiltered: "(تصفية من _MAX_ إجمالي السجلات)",
+                loadingRecords: "جاري التحميل...",
+                zeroRecords: "لم يتم العثور على سجلات مطابقة",
+                emptyTable: "لا توجد بيانات متاحة في الجدول",
+                paginate: {
+                    first: "الأول",
+                    previous: "السابق",
+                    next: "التالي",
+                    last: "الأخير"
+                },
+                aria: {
+                    sortAscending: ": تفعيل لترتيب العمود تصاعدياً",
+                    sortDescending: ": تفعيل لترتيب العمود تنازلياً"
+                }
             },
             pageLength: 10,
             order: [[1, 'asc']],
@@ -155,8 +187,35 @@ class SponsorFieldsManager {
     openFieldsModal(sponsorId, sponsorName) {
         this.currentSponsorId = sponsorId;
         $('#sponsor_name_display').text(sponsorName);
+
+        console.log('🔓 ==== فتح المودال ====');
+        console.log('🔓 معرف الجمعية:', sponsorId);
+        console.log('🔓 اسم الجمعية:', sponsorName);
+
         $('#fieldsManagementModal').modal('show');
         this.loadSponsorFields(sponsorId);
+
+        // التحقق من التاب النشط بعد فتح المودال
+        setTimeout(() => {
+            console.log('🔍 فحص التاب النشط بعد فتح المودال...');
+            const activeTab = $('.tab-pane.active').attr('id');
+            console.log('🔍 التاب النشط:', activeTab);
+
+            if (activeTab === 'documents_tab' || $('#documents_tab').hasClass('active')) {
+                console.log('📄 ==== التاب النشط هو الوثائق ====');
+                console.log('📄 التحقق من دالة loadDocuments:', typeof loadDocuments);
+
+                if (typeof loadDocuments === 'function') {
+                    console.log('✅ دالة loadDocuments موجودة - تحميل الآن');
+                    loadDocuments(sponsorId);
+                } else {
+                    console.error('❌ دالة loadDocuments غير موجودة!');
+                    console.error('❌ تأكد من تحميل documents-management-new.js قبل sponsor-fields-management.js');
+                }
+            } else {
+                console.log('ℹ️ التاب النشط ليس الوثائق، سيتم التحميل عند التبديل');
+            }
+        }, 100);
     }
 
     /**
@@ -458,6 +517,58 @@ class SponsorFieldsManager {
         // TODO: تحميل الحقول المتاحة من الخادم
         // يمكن استخدامها لإضافة حقول جديدة
     }
+
+    /**
+     * ربط أحداث التبويبات
+     */
+    attachTabEventListeners() {
+        const self = this;
+
+        // عند التبديل بين التبويبات - سماع لكل من button و a
+        $('[data-bs-toggle="tab"]').on('shown.bs.tab', function(e) {
+            const targetTab = $(e.target).attr('href') || $(e.target).attr('data-bs-target');
+
+            console.log('🔄 ==== تبديل التاب ====');
+            console.log('🔄 التاب الجديد:', targetTab);
+            console.log('🔄 نوع العنصر:', e.target.tagName);
+
+            if (targetTab === '#fields_tab') {
+                console.log('📋 التبديل إلى تاب الحقول');
+                self.currentTab = 'fields';
+                $('#saveFieldsBtnFooter').show();
+                $('#saveDocumentsBtnFooter').hide();
+            } else if (targetTab === '#documents_tab') {
+                console.log('📄 ==== التبديل إلى تاب الوثائق ====');
+                self.currentTab = 'documents';
+                $('#saveFieldsBtnFooter').hide();
+                $('#saveDocumentsBtnFooter').hide();
+
+                // استدعاء النظام الجديد
+                if (self.currentSponsorId) {
+                    console.log('✅ معرف الجمعية:', self.currentSponsorId);
+                    console.log('🔍 فحص دالة loadDocuments:', typeof loadDocuments);
+
+                    if (typeof loadDocuments === 'function') {
+                        console.log('✅ دالة loadDocuments موجودة - استدعاء الآن');
+                        loadDocuments(self.currentSponsorId);
+                    } else {
+                        console.error('❌ دالة loadDocuments غير موجودة!');
+                        console.error('❌ تأكد من تحميل documents-management-new.js قبل sponsor-fields-management.js');
+                        console.error('❌ window.loadDocuments:', typeof window.loadDocuments);
+                    }
+                } else {
+                    console.error('❌ معرف الجمعية غير محدد!');
+                    console.error('❌ self.currentSponsorId:', self.currentSponsorId);
+                }
+            }
+        });
+
+        // تم حذف جميع event listeners القديمة للوثائق
+        // النظام الجديد يدير كل شيء في documents-management-new.js
+    }
+
+    // تم حذف جميع الوظائف القديمة للوثائق
+    // النظام الجديد موجود في documents-management-new.js
 }
 
 // تهيئة المدير عند تحميل الصفحة

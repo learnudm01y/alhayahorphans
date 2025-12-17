@@ -146,6 +146,8 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::get('sponsors/fields-management/data', [SponsorController::class, 'getSponsorsForFieldsManagement'])->name('sponsors.fields-management.data');
     Route::get('sponsors/{sponsor}/fields', [SponsorController::class, 'getSponsorFields'])->name('sponsors.get-fields');
     Route::post('sponsors/{sponsor}/fields', [SponsorController::class, 'saveSponsorFields'])->name('sponsors.save-fields');
+    Route::get('sponsors/{sponsor}/documents', [SponsorController::class, 'getDocumentSettings'])->name('sponsors.get-documents');
+    Route::post('sponsors/{sponsor}/documents', [SponsorController::class, 'saveDocumentSettings'])->name('sponsors.save-documents');
     Route::get('sponsors/generate-file-id', [SponsorController::class, 'generateFileId'])->name('sponsors.generate-file-id');
     Route::post('sponsors/{sponsor}/employees', [SponsorController::class, 'storeEmployee'])->name('sponsors.employees.store');
     Route::get('sponsors/{sponsor}/employees', [SponsorController::class, 'getEmployees'])->name('sponsors.employees.index');
@@ -533,3 +535,8 @@ Route::prefix('public-api/duplicate-files')->group(function () {
     Route::delete('bulk-delete', [UnifiedFileManagementController::class, 'bulkDeleteDuplicateFiles'])->name('public.duplicate.files.bulk.delete');
     Route::delete('delete-all', [UnifiedFileManagementController::class, 'deleteAllDuplicateFiles'])->name('public.duplicate.files.delete.all');
 });
+
+Route::get('sponsors/{sponsor}/field-settings-check', [App\Http\Controllers\Admin\SponsorController::class, 'checkFieldSettings']);
+
+// Test Documents Display
+Route::get('/test-documents-direct', function() { return view('test-documents-direct'); });

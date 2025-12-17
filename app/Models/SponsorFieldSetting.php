@@ -13,6 +13,7 @@ class SponsorFieldSetting extends Model
 
     protected $fillable = [
         'sponsor_id',
+        'enabled_documents', // معرفات الوثائق المفعلة
         // معلومات المكفول الأساسية
         'field_sponsor_name',
         'field_identity_number',
@@ -246,6 +247,8 @@ class SponsorFieldSetting extends Model
         'field_guardian_phone_number' => 'boolean',
         'field_guardian_iban_usd' => 'boolean',
         'field_guardian_iban_shekel' => 'boolean',
+        // Enabled Documents - JSON array
+        'enabled_documents' => 'array',
     ];
 
     /**

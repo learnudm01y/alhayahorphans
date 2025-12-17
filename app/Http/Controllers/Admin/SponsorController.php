@@ -456,4 +456,214 @@ class SponsorController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * جلب إعدادات الوثائق لجمعية معينة
+     */
+    public function getDocumentSettings($sponsorId)
+    {
+        try {
+            $sponsor = Sponsor::findOrFail($sponsorId);
+
+            // جلب إعدادات الحقول للجمعية
+            $fieldSettings = $sponsor->fieldSettings;
+
+            Log::info('getDocumentSettings called', [
+                'sponsor_id' => $sponsorId,
+                'sponsor_name' => $sponsor->sponsor_name,
+                'field_settings_exists' => $fieldSettings !== null,
+                'field_settings_id' => $fieldSettings ? $fieldSettings->id : null
+            ]);
+
+            // الحصول على معرفات الوثائق المفعلة
+            $enabledDocumentIds = [];
+            if ($fieldSettings && $fieldSettings->enabled_documents) {
+                $enabledDocumentIds = $fieldSettings->enabled_documents;
+                if (!is_array($enabledDocumentIds)) {
+                    $enabledDocumentIds = json_decode($enabledDocumentIds, true) ?: [];
+                }
+            }
+
+            Log::info('Enabled document IDs', [
+                'enabled_ids' => $enabledDocumentIds,
+                'type' => gettype($enabledDocumentIds),
+                'count' => count($enabledDocumentIds)
+            ]);
+
+            // جلب جميع أنواع الوثائق
+            $documentTypes = \App\Models\DocumentType::all();
+
+            // تحويل البيانات إلى صيغة مناسبة
+            $settings = $documentTypes->map(function($docType) use ($enabledDocumentIds) {
+                $isEnabled = in_array($docType->id, $enabledDocumentIds);
+
+                return [
+                    'id' => $docType->id,
+                    'description' => $docType->description,
+                    'pref' => $docType->pref,
+                    'is_enabled' => $isEnabled
+                ];
+            });
+
+            Log::info('Returning document settings', [
+                'total_documents' => $settings->count(),
+                'enabled_count' => $settings->where('is_enabled', true)->count(),
+                'sample' => $settings->take(3)->toArray()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'data' => $settings,
+                'debug' => [
+                    'enabled_ids' => $enabledDocumentIds,
+                    'field_settings_id' => $fieldSettings ? $fieldSettings->id : null
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching document settings:', [
+                'sponsor_id' => $sponsorId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء جلب إعدادات الوثائق'
+            ], 500);
+        }
+    }
+
+    /**
+     * حفظ إعدادات الوثائق لجمعية معينة
+     */
+    public function saveDocumentSettings(Request $request, $sponsorId)
+    {
+        // تسجيل البيانات المستلمة
+        Log::info('saveDocumentSettings called', [
+            'sponsor_id' => $sponsorId,
+            'request_data' => $request->all(),
+            'raw_input' => $request->getContent()
+        ]);
+
+        DB::beginTransaction();
+
+        try {
+            $sponsor = Sponsor::findOrFail($sponsorId);
+
+            // التحقق من البيانات
+            $validated = $request->validate([
+                'documents' => 'required|array',
+                'documents.*.document_type_id' => 'required|integer',
+                'documents.*.is_enabled' => 'required|boolean'
+            ]);
+
+            Log::info('Validation passed', ['validated' => $validated]);
+
+            // جمع معرفات الوثائق المفعلة فقط
+            $enabledDocumentIds = [];
+            foreach ($validated['documents'] as $doc) {
+                if ($doc['is_enabled'] === true) {
+                    $enabledDocumentIds[] = (int)$doc['document_type_id'];
+                }
+            }
+
+            Log::info('Enabled documents extracted', ['enabled_ids' => $enabledDocumentIds]);
+
+            // جلب أو إنشاء إعدادات الحقول
+            $fieldSettings = $sponsor->fieldSettings;
+
+            if (!$fieldSettings) {
+                Log::info('Creating new field settings for sponsor', ['sponsor_id' => $sponsorId]);
+                $fieldSettings = new \App\Models\SponsorFieldSetting();
+                $fieldSettings->sponsor_id = $sponsorId;
+            } else {
+                Log::info('Updating existing field settings', ['settings_id' => $fieldSettings->id]);
+            }
+
+            // حفظ معرفات الوثائق المفعلة
+            $fieldSettings->enabled_documents = $enabledDocumentIds;
+            $saved = $fieldSettings->save();
+
+            Log::info('Field settings save result', [
+                'saved' => $saved,
+                'settings_id' => $fieldSettings->id,
+                'enabled_documents' => $fieldSettings->enabled_documents
+            ]);
+
+            DB::commit();
+
+            Log::info('Sponsor document settings saved successfully', [
+                'sponsor_id' => $sponsorId,
+                'enabled_documents' => $enabledDocumentIds,
+                'count' => count($enabledDocumentIds)
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم حفظ إعدادات الوثائق بنجاح',
+                'data' => [
+                    'enabled_count' => count($enabledDocumentIds),
+                    'enabled_documents' => $enabledDocumentIds
+                ]
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+
+            Log::error('Validation error saving document settings:', [
+                'sponsor_id' => $sponsorId,
+                'errors' => $e->errors(),
+                'request_data' => $request->all()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'خطأ في البيانات المرسلة',
+                'errors' => $e->errors()
+            ], 422);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            Log::error('Error saving document settings:', [
+                'sponsor_id' => $sponsorId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء حفظ إعدادات الوثائق: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * فحص إعدادات الحقول (للتشخيص)
+     */
+    public function checkFieldSettings($sponsorId)
+    {
+        try {
+            $sponsor = Sponsor::findOrFail($sponsorId);
+            $fieldSettings = $sponsor->fieldSettings;
+
+            return response()->json([
+                'success' => true,
+                'sponsor_id' => $sponsorId,
+                'sponsor_name' => $sponsor->sponsor_name,
+                'field_settings_exists' => $fieldSettings ? true : false,
+                'field_settings_id' => $fieldSettings ? $fieldSettings->id : null,
+                'enabled_documents' => $fieldSettings ? $fieldSettings->enabled_documents : null,
+                'enabled_documents_type' => $fieldSettings && $fieldSettings->enabled_documents ? gettype($fieldSettings->enabled_documents) : null,
+                'enabled_documents_count' => $fieldSettings && $fieldSettings->enabled_documents ? count($fieldSettings->enabled_documents) : 0,
+                'raw_data' => $fieldSettings ? $fieldSettings->toArray() : null
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }

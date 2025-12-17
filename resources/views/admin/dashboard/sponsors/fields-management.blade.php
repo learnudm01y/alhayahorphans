@@ -73,68 +73,153 @@
             </div>
 
             <div class="modal-body py-10 px-lg-17">
-                <div class="row">
-                    <!--begin::Sidebar - قائمة الحقول-->
-                    <div class="col-md-4">
-                        <div class="card shadow-sm">
-                            <div class="card-header">
-                                <h3 class="card-title">الحقول المتاحة</h3>
-                            </div>
-                            <div class="card-body">
-                                <div class="mb-5">
-                                    <input type="text" class="form-control form-control-sm"
-                                           id="searchFields"
-                                           placeholder="بحث في الحقول...">
-                                </div>
-                                <div class="scroll-y" style="max-height: 600px;">
-                                    <div id="fieldsListContainer">
-                                        <!-- سيتم ملء قائمة الحقول هنا -->
-                                        <div class="text-center py-10">
-                                            <div class="spinner-border text-primary" role="status">
-                                                <span class="visually-hidden">جاري التحميل...</span>
+                <!--begin::Tabs Navigation-->
+                <ul class="nav nav-tabs nav-line-tabs mb-5 fs-6">
+                    <li class="nav-item">
+                        <a class="nav-link active" data-bs-toggle="tab" href="#fields_tab">
+                            <i class="fas fa-list-check me-2"></i>
+                            الحقول
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-bs-toggle="tab" href="#documents_tab">
+                            <i class="fas fa-file-alt me-2"></i>
+                            الوثائق المطلوبة
+                        </a>
+                    </li>
+                </ul>
+                <!--end::Tabs Navigation-->
+
+                <!--begin::Tab Content-->
+                <div class="tab-content" id="managementTabContent">
+                    <!--begin::Fields Tab-->
+                    <div class="tab-pane fade show active" id="fields_tab" role="tabpanel">
+                        <div class="row">
+                            <!--begin::Sidebar - قائمة الحقول-->
+                            <div class="col-md-4">
+                                <div class="card shadow-sm">
+                                    <div class="card-header">
+                                        <h3 class="card-title">الحقول المتاحة</h3>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-5">
+                                            <input type="text" class="form-control form-control-sm"
+                                                   id="searchFields"
+                                                   placeholder="بحث في الحقول...">
+                                        </div>
+                                        <div class="scroll-y" style="max-height: 600px;">
+                                            <div id="fieldsListContainer">
+                                                <!-- سيتم ملء قائمة الحقول هنا -->
+                                                <div class="text-center py-10">
+                                                    <div class="spinner-border text-primary" role="status">
+                                                        <span class="visually-hidden">جاري التحميل...</span>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                    <!--end::Sidebar-->
+                            <!--end::Sidebar-->
 
-                    <!--begin::Main Content - معاينة الحقول المختارة-->
-                    <div class="col-md-8">
-                        <div class="card shadow-sm">
-                            <div class="card-header">
-                                <h3 class="card-title">الحقول المفعلة للجمعية</h3>
-                            </div>
-                            <div class="card-body">
-                                <div class="alert alert-info d-flex align-items-center mb-5">
-                                    <i class="fas fa-info-circle fs-2x me-4"></i>
-                                    <div>
-                                        <strong>ملاحظة:</strong> قم بتفعيل أو إلغاء تفعيل الحقول التي تريد إظهارها أو إخفائها للجمعية.
-                                        الحقول المفعلة ستظهر في نماذج التسجيل والتقارير الخاصة بهذه الجمعية.
+                            <!--begin::Main Content - معاينة الحقول المختارة-->
+                            <div class="col-md-8">
+                                <div class="card shadow-sm">
+                                    <div class="card-header">
+                                        <h3 class="card-title">الحقول المفعلة للجمعية</h3>
                                     </div>
-                                </div>
+                                    <div class="card-body">
+                                        <div class="alert alert-info d-flex align-items-center mb-5">
+                                            <i class="fas fa-info-circle fs-2x me-4"></i>
+                                            <div>
+                                                <strong>ملاحظة:</strong> قم بتفعيل أو إلغاء تفعيل الحقول التي تريد إظهارها أو إخفائها للجمعية.
+                                                الحقول المفعلة ستظهر في نماذج التسجيل والتقارير الخاصة بهذه الجمعية.
+                                            </div>
+                                        </div>
 
-                                <div class="scroll-y" style="max-height: 600px;">
-                                    <div id="activeFieldsContainer">
-                                        <!-- سيتم ملء الحقول المفعلة هنا -->
-                                        <div class="text-center py-10">
-                                            <div class="spinner-border text-primary" role="status">
-                                                <span class="visually-hidden">جاري التحميل...</span>
+                                        <div class="scroll-y" style="max-height: 600px;">
+                                            <div id="activeFieldsContainer">
+                                                <!-- سيتم ملء الحقول المفعلة هنا -->
+                                                <div class="text-center py-10">
+                                                    <div class="spinner-border text-primary" role="status">
+                                                        <span class="visually-hidden">جاري التحميل...</span>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
+                            <!--end::Main Content-->
                         </div>
                     </div>
-                    <!--end::Main Content-->
+                    <!--end::Fields Tab-->
+
+                    <!--begin::Documents Tab - النظام الجديد-->
+                    <div class="tab-pane fade" id="documents_tab" role="tabpanel">
+                        <div class="card shadow-sm">
+                            <div class="card-header bg-light">
+                                <h3 class="card-title fw-bold">
+                                    <i class="fas fa-file-check text-primary me-2"></i>
+                                    إدارة الوثائق المطلوبة
+                                </h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="alert alert-info mb-6">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>تعليمات:</strong> حدد الوثائق التي سيتم عرضها في صفحة تحديث البيانات. فقط الوثائق المحددة ستظهر للمستخدمين.
+                                </div>
+
+                                <div id="documents_loading" class="text-center py-10" style="display: none;">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">جاري التحميل...</span>
+                                    </div>
+                                    <p class="mt-3 text-muted">جاري تحميل الوثائق...</p>
+                                </div>
+
+                                <div id="documents_list" class="table-responsive">
+                                    <table class="table table-row-bordered table-hover gs-7">
+                                        <thead>
+                                            <tr class="fw-bold fs-6 text-gray-800 border-bottom-2 border-gray-200">
+                                                <th class="w-50px text-center">
+                                                    <input type="checkbox" class="form-check-input" id="select_all_docs">
+                                                </th>
+                                                <th class="w-80px">المعرف</th>
+                                                <th>اسم الوثيقة</th>
+                                                <th class="w-120px">البادئة</th>
+                                                <th class="w-120px text-center">الحالة</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="documents_tbody">
+                                            <!-- سيتم ملؤها بواسطة JavaScript -->
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div class="mt-5 d-flex justify-content-between align-items-center">
+                                    <div class="text-muted">
+                                        <i class="fas fa-check-circle text-success me-2"></i>
+                                        <span id="enabled_count">0</span> وثيقة مفعلة
+                                    </div>
+                                    <button type="button" class="btn btn-success btn-lg" id="save_documents_btn">
+                                        <i class="fas fa-save me-2"></i>
+                                        حفظ التغييرات
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!--end::Documents Tab-->
                 </div>
+                <!--end::Tab Content-->
             </div>
 
             <div class="modal-footer">
                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">إغلاق</button>
+                <button type="button" class="btn btn-success" id="saveDocumentsBtnFooter" style="display: none;">
+                    <i class="fas fa-file-check me-2"></i>
+                    حفظ إعدادات الوثائق
+                </button>
                 <button type="button" class="btn btn-primary" id="saveFieldsBtnFooter">
                     <i class="fas fa-save me-2"></i>
                     حفظ التغييرات
@@ -247,6 +332,53 @@
     .dataTables_wrapper .dataTables_scroll {
         overflow-x: hidden;
     }
+
+    /* تنسيق بطاقات الوثائق */
+    .document-card {
+        transition: all 0.3s ease;
+    }
+
+    .document-card:hover {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        transform: translateY(-2px);
+    }
+
+    .document-card.opacity-50 {
+        opacity: 0.5;
+    }
+
+    /* تنسيق نصوص الحالة */
+    .enabled-text {
+        display: none;
+    }
+
+    .disabled-text {
+        display: inline;
+    }
+
+    .document-enabled-toggle:checked ~ label .enabled-text {
+        display: inline;
+    }
+
+    .document-enabled-toggle:checked ~ label .disabled-text {
+        display: none;
+    }
+
+    /* تنسيق التبويبات */
+    .nav-tabs .nav-link {
+        font-weight: 600;
+        color: #7e8299;
+        padding: 1rem 1.5rem;
+    }
+
+    .nav-tabs .nav-link.active {
+        color: #009ef7;
+        border-bottom: 3px solid #009ef7;
+    }
+
+    .nav-tabs .nav-link:hover {
+        color: #009ef7;
+    }
 </style>
 @endpush
 
@@ -254,12 +386,12 @@
 <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="{{ asset('js/documents-management-new.js') }}"></script>
 <script src="{{ asset('js/sponsor-fields-management.js') }}"></script>
 
 <script>
 $(document).ready(function() {
-    // الكود الآن في ملف sponsor-fields-management.js
-    console.log('صفحة إدارة حقول الجمعيات جاهزة');
+    console.log('✅ صفحة إدارة حقول الجمعيات جاهزة');
 });
 </script>
 @endpush

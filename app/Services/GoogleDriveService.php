@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Exception;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -13,6 +14,8 @@ class GoogleDriveService
     private $credentials;
     private $baseUrl = 'https://www.googleapis.com/drive/v3';
     private $uploadUrl = 'https://www.googleapis.com/upload/drive/v3';
+
+    private const FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
 
     public function __construct()
     {
@@ -143,7 +146,8 @@ class GoogleDriveService
             }
 
             // رفع الملف (مع دعم Shared Drives)
-            $url = $this->uploadUrl . '/files?uploadType=multipart&supportsAllDrives=true';
+            // اطلب webViewLink مباشرة لتجنب نداء إضافي بعد الرفع
+            $url = $this->uploadUrl . '/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,webViewLink';
 
             $response = Http::withOptions([
                 'verify' => false,
@@ -259,7 +263,7 @@ class GoogleDriveService
         try {
             $metadata = [
                 'name' => $folderName,
-                'mimeType' => 'application/vnd.google-apps.folder'
+                'mimeType' => self::FOLDER_MIME_TYPE
             ];
 
             if ($parentFolderId) {
@@ -281,6 +285,134 @@ class GoogleDriveService
             Log::error('خطأ في إنشاء المجلد: ' . $e->getMessage());
             throw $e;
         }
+    }
+
+    /**
+     * البحث عن مجلد باسم محدد داخل مجلد أب (اختياري)
+     */
+    public function findFolderIdByName(string $folderName, ?string $parentFolderId = null): ?string
+    {
+        try {
+            $escapedName = $this->escapeDriveQueryValue($folderName);
+            $queryParts = [
+                "mimeType='" . self::FOLDER_MIME_TYPE . "'",
+                "name='{$escapedName}'",
+                'trashed=false',
+            ];
+
+            if ($parentFolderId) {
+                $queryParts[] = "'{$parentFolderId}' in parents";
+            }
+
+            $response = Http::withOptions(['verify' => false])
+                ->withToken($this->accessToken)
+                ->get($this->baseUrl . '/files', [
+                    'q' => implode(' and ', $queryParts),
+                    'pageSize' => 1,
+                    'fields' => 'files(id, name)',
+                    'supportsAllDrives' => 'true',
+                    'includeItemsFromAllDrives' => 'true',
+                ]);
+
+            if (!$response->successful()) {
+                throw new Exception('فشل البحث عن المجلد: ' . $response->body());
+            }
+
+            $files = $response->json()['files'] ?? [];
+            if (count($files) === 0) {
+                return null;
+            }
+
+            return $files[0]['id'] ?? null;
+        } catch (Exception $e) {
+            Log::error('خطأ في البحث عن المجلد: ' . $e->getMessage(), [
+                'folder_name' => $folderName,
+                'parent_folder_id' => $parentFolderId,
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * جلب أو إنشاء مجلد باسم محدد داخل Parent (اختياري)
+     */
+    public function getOrCreateFolder(string $folderName, ?string $parentFolderId = null): array
+    {
+        $cacheKey = 'gdrive.folder.' . sha1(($parentFolderId ?: 'NO_PARENT') . '|' . $folderName);
+
+        $cached = Cache::get($cacheKey);
+        if (is_string($cached) && $cached !== '') {
+            return ['id' => $cached, 'name' => $folderName];
+        }
+
+        $existingId = $this->findFolderIdByName($folderName, $parentFolderId);
+        if ($existingId) {
+            Cache::put($cacheKey, $existingId, now()->addDays(7));
+            return ['id' => $existingId, 'name' => $folderName];
+        }
+
+        $created = $this->createFolder($folderName, $parentFolderId);
+        if (!empty($created['id'])) {
+            Cache::put($cacheKey, $created['id'], now()->addDays(7));
+        }
+
+        return $created;
+    }
+
+    /**
+     * جلب معلومات ملف مع تحديد fields لتقليل حجم الاستجابة
+     */
+    public function getFileWithFields(string $fileId, string $fields = 'id,name,webViewLink,webContentLink,mimeType'): array
+    {
+        try {
+            $response = Http::withOptions(['verify' => false])
+                ->withToken($this->accessToken)
+                ->get($this->baseUrl . '/files/' . $fileId, [
+                    'fields' => $fields,
+                    'supportsAllDrives' => 'true',
+                ]);
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            throw new Exception('فشل الحصول على معلومات الملف: ' . $response->body());
+        } catch (Exception $e) {
+            Log::error('خطأ في الحصول على معلومات الملف (fields): ' . $e->getMessage(), ['file_id' => $fileId]);
+            throw $e;
+        }
+    }
+
+    /**
+     * جعل الملف/المجلد عاماً للقراءة (Anyone with the link)
+     */
+    public function makePublicReadOnly(string $fileId): array
+    {
+        try {
+            $permission = [
+                'type' => 'anyone',
+                'role' => 'reader',
+            ];
+
+            $response = Http::withOptions(['verify' => false])
+                ->withToken($this->accessToken)
+                ->post($this->baseUrl . '/files/' . $fileId . '/permissions?supportsAllDrives=true', $permission);
+
+            if ($response->successful()) {
+                return $response->json();
+            }
+
+            throw new Exception('فشل جعل الملف عاماً للقراءة: ' . $response->body());
+        } catch (Exception $e) {
+            Log::error('خطأ في جعل الملف عاماً للقراءة: ' . $e->getMessage(), ['file_id' => $fileId]);
+            throw $e;
+        }
+    }
+
+    private function escapeDriveQueryValue(string $value): string
+    {
+        // Google Drive q uses single quotes; escape single quote.
+        return str_replace("'", "\\'", $value);
     }
 
     /**

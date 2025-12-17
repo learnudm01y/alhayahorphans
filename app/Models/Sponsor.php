@@ -63,4 +63,22 @@ class Sponsor extends Model
     {
         return $this->hasOne(SponsorFieldSetting::class);
     }
+
+    /**
+     * العلاقة مع أنواع الوثائق المفعلة
+     */
+    public function documentTypes()
+    {
+        return $this->belongsToMany(DocumentType::class, 'sponsor_document_types')
+            ->withPivot(['is_enabled', 'basic_enabled', 'family_enabled', 'deceased_enabled', 'is_required', 'notes'])
+            ->withTimestamps();
+    }
+
+    /**
+     * العلاقة مع إعدادات الوثائق
+     */
+    public function sponsorDocumentTypes()
+    {
+        return $this->hasMany(SponsorDocumentType::class);
+    }
 }

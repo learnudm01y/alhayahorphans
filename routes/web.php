@@ -374,3 +374,30 @@ Route::prefix('google-drive-test')->group(function () {
 });
 
 require __DIR__ . '/auth.php';
+
+// Test Documents API
+Route::get('/test-documents-api', function() { return view('test-documents-api'); })->name('test.documents.api');
+
+Route::get('/test-documents-display', function() { return view('test-documents-display'); });
+
+Route::get('/diagnose-documents', function() { return view('diagnose-documents'); });
+
+Route::get('/simple-modal-test', function() { return view('simple-modal-test'); });
+
+Route::get('/debug-documents-api', function() { return view('debug-documents-api'); });
+
+Route::get('/test-save-documents', function() { return view('test-save-documents'); });
+
+Route::get('/direct-test-save', function() { return view('direct-test-save'); });
+
+Route::get('/comprehensive-test', function() { return view('comprehensive-test'); });
+
+Route::get('/quick-save-test', function() { return view('quick-save-test'); });
+
+Route::get('/final-documents-test', function() { return view('final-documents-test'); });
+
+Route::get('/test-save-button', function() { return view('test-save-button'); });
+
+Route::get('/test-new-documents-system', function() { return view('test-new-documents-system'); });
+
+Route::get('/direct-documents-page', function() { return view('direct-documents-page'); });
