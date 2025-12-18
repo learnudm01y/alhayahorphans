@@ -14,6 +14,7 @@ use App\Models\SponsorFieldSetting;
 use App\Models\GuardianBankAccount;
 use App\Models\RePeople;
 use App\Models\Attachment;
+use App\Models\PortalGeneralRegistrationFieldValue;
 use App\Services\GoogleDriveService;
 use Illuminate\Support\Facades\Log;
 
@@ -129,22 +130,22 @@ class ShowGeneralRegisrationController extends Controller
         $housingTypes = \App\Models\TypeOfAccommodation::all();
 
         // جلب قائمة الحالات الصحية
-        $healthStatuses = \DB::table('health_statuses')->get();
+        $healthStatuses = DB::table('health_statuses')->get();
 
         // جلب قائمة البنوك
-        $bankNames = \DB::table('bank_names')->get();
+        $bankNames = DB::table('bank_names')->get();
 
         // جلب قائمة أسباب الوفاة
-        $deathReasons = \DB::table('death_reasons')->get();
+        $deathReasons = DB::table('death_reasons')->get();
 
         // جلب قوائم المحافظات والمدن
-        $provinces = \DB::table('provinces')->get();
-        $cities = \DB::table('city')->get();
+        $provinces = DB::table('provinces')->get();
+        $cities = DB::table('city')->get();
 
         // جلب أفراد الأسرة (استبعاد المكفول نفسه)
         $familyMembers = collect();
         if ($sponsorship->relationData) {
-            $familyMembers = \DB::table('re_people')
+            $familyMembers = DB::table('re_people')
                 ->where('registration_id', $sponsorship->relationData->file_id_number)
                 ->where('person_id', '!=', $sponsorship->identity_number)
                 ->get();
@@ -153,14 +154,14 @@ class ShowGeneralRegisrationController extends Controller
         // جلب الحساب البنكي المعتمد فقط مع اسم البنك
         $approvedBankAccount = null;
         if ($sponsorship->relationData) {
-            $approvedBankAccount = \DB::table('guardian_bank_accounts')
+            $approvedBankAccount = DB::table('guardian_bank_accounts')
                 ->where('guardian_registration', $sponsorship->relationData->file_id_number)
                 ->where('check_account', 1)
                 ->first();
 
             // إضافة اسم البنك
             if ($approvedBankAccount) {
-                $bankName = \DB::table('bank_names')
+                $bankName = DB::table('bank_names')
                     ->where('id', $approvedBankAccount->bank_name)
                     ->value('description');
                 $approvedBankAccount->bank_name_text = $bankName;
@@ -232,7 +233,7 @@ class ShowGeneralRegisrationController extends Controller
         $guardianData = null; // بيانات المعيل
 
         // 1. البحث في data (معيل)
-        $dataByIdentity = \DB::table('data')->where('data_id_number', $identityNumber)->first();
+        $dataByIdentity = DB::table('data')->where('data_id_number', $identityNumber)->first();
         if ($dataByIdentity) {
             $personType = 'data';
             $guardianData = $dataByIdentity;
@@ -240,29 +241,29 @@ class ShowGeneralRegisrationController extends Controller
 
         // 2. البحث في dead_people (متوفي)
         if (!$personType) {
-            $deadPerson = \DB::table('dead_people')
+            $deadPerson = DB::table('dead_people')
                 ->where('father_id', $identityNumber)
                 ->orWhere('mother_id', $identityNumber)
                 ->first();
             if ($deadPerson) {
                 $personType = 'dead_people';
                 // جلب بيانات المعيل من data
-                $guardianData = \DB::table('data')->where('file_id_number', $deadPerson->re_file_id)->first();
+                $guardianData = DB::table('data')->where('file_id_number', $deadPerson->re_file_id)->first();
             }
         }
 
         // 3. البحث في re_people (فرد أسرة)
         $rePerson = null;
         if (!$personType) {
-            $rePerson = \DB::table('re_people')->where('person_id', $identityNumber)->first();
+            $rePerson = DB::table('re_people')->where('person_id', $identityNumber)->first();
             if ($rePerson) {
                 $personType = 're_people';
                 // جلب بيانات المعيل من data بناءً على registration_id
-                $guardianData = \DB::table('data')->where('file_id_number', $rePerson->registration_id)->first();
+                $guardianData = DB::table('data')->where('file_id_number', $rePerson->registration_id)->first();
             }
         }
 
-        \Log::info('PERSON TYPE DETERMINED', [
+        Log::info('PERSON TYPE DETERMINED', [
             'identity' => $identityNumber,
             'type' => $personType,
             'has_guardian_data' => $guardianData ? true : false
@@ -278,23 +279,23 @@ class ShowGeneralRegisrationController extends Controller
         // الحالة الصحية
         $healthStatusValue = '';
         if ($personType == 're_people' && $rePerson && $rePerson->person_health_status) {
-            $healthStatus = \DB::table('health_statuses')->where('id', $rePerson->person_health_status)->first();
+            $healthStatus = DB::table('health_statuses')->where('id', $rePerson->person_health_status)->first();
             $healthStatusValue = $healthStatus->description ?? '';
         } elseif ($personType == 'data' && $dataByIdentity && $dataByIdentity->data_health_status) {
-            $healthStatus = \DB::table('health_statuses')->where('id', $dataByIdentity->data_health_status)->first();
+            $healthStatus = DB::table('health_statuses')->where('id', $dataByIdentity->data_health_status)->first();
             $healthStatusValue = $healthStatus->description ?? '';
         }
         $values['field_health_status'] = $healthStatusValue;
 
         // حالة السكن ونوع السكن - دائماً من بيانات المعيل (data)
         if ($guardianData) {
-            $housingStatus = \DB::table('housing_status')->where('id', $guardianData->data_housing_status)->first();
+            $housingStatus = DB::table('housing_status')->where('id', $guardianData->data_housing_status)->first();
             $values['field_housing_status'] = $housingStatus->description ?? '';
 
-            $housingType = \DB::table('type_of_accommodation')->where('id', $guardianData->data_current_housing_type)->first();
+            $housingType = DB::table('type_of_accommodation')->where('id', $guardianData->data_current_housing_type)->first();
             $values['field_housing_type'] = $housingType->description ?? '';
 
-            \Log::info('HOUSING DATA EXTRACTED', [
+            Log::info('HOUSING DATA EXTRACTED', [
                 'housing_status_id' => $guardianData->data_housing_status,
                 'housing_status' => $values['field_housing_status'],
                 'housing_type_id' => $guardianData->data_current_housing_type,
@@ -337,7 +338,7 @@ class ShowGeneralRegisrationController extends Controller
 
                 // جلب سبب وفاة الأب
                 if ($dead->father_death_reason) {
-                    $fatherDeathReason = \DB::table('death_reasons')
+                    $fatherDeathReason = DB::table('death_reasons')
                         ->where('id', $dead->father_death_reason)
                         ->first();
                     $values['field_father_death_reason'] = $fatherDeathReason ? $fatherDeathReason->description : '';
@@ -349,7 +350,7 @@ class ShowGeneralRegisrationController extends Controller
 
                 // جلب سبب وفاة الأم
                 if ($dead->mother_death_reason) {
-                    $motherDeathReason = \DB::table('death_reasons')
+                    $motherDeathReason = DB::table('death_reasons')
                         ->where('id', $dead->mother_death_reason)
                         ->first();
                     $values['field_mother_death_reason'] = $motherDeathReason ? $motherDeathReason->description : '';
@@ -370,7 +371,7 @@ class ShowGeneralRegisrationController extends Controller
 
         // جلب الحساب البنكي المعتمد من guardian_bank_accounts
         if ($guardianData && $guardianData->file_id_number) {
-            $approvedBankAccount = \DB::table('guardian_bank_accounts')
+            $approvedBankAccount = DB::table('guardian_bank_accounts')
                 ->where('guardian_registration', $guardianData->file_id_number)
                 ->where('check_account', 1)
                 ->first();
@@ -384,13 +385,13 @@ class ShowGeneralRegisrationController extends Controller
                 $values['field_guardian_iban_usd'] = $approvedBankAccount->iban_usd;
                 $values['field_guardian_iban_shekel'] = $approvedBankAccount->iban_shekel;
 
-                \Log::info('BANK ACCOUNT DATA LOADED', [
+                Log::info('BANK ACCOUNT DATA LOADED', [
                     'account_owner' => $approvedBankAccount->re_guardian_name,
                     'bank_id' => $approvedBankAccount->bank_name,
                     'iban_usd' => $approvedBankAccount->iban_usd
                 ]);
             } else {
-                \Log::warning('NO APPROVED BANK ACCOUNT FOUND', [
+                Log::warning('NO APPROVED BANK ACCOUNT FOUND', [
                     'guardian_file' => $guardianData->file_id_number
                 ]);
             }
@@ -400,6 +401,28 @@ class ShowGeneralRegisrationController extends Controller
             'total_values' => count($values),
             'has_bank_account' => isset($bankAccount)
         ]);
+
+        // تحميل قيم الحقول العامة من جدول مخصص للبوابة (Key/Value)
+        try {
+            $fileIdNumber = $sponsorship->relationData?->file_id_number;
+            if ($fileIdNumber) {
+                $stored = PortalGeneralRegistrationFieldValue::query()
+                    ->where('file_id_number', (string) $fileIdNumber)
+                    ->pluck('field_value', 'field_key');
+
+                foreach ($stored as $k => $v) {
+                    // لا نكسر القيم المحسوبة إن كانت موجودة، لكن نملأ القيم التي لا نعرف مصدرها
+                    if (!array_key_exists($k, $values) || $values[$k] === null || $values[$k] === '') {
+                        $values[$k] = $v;
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('PORTAL_FIELDS_LOAD_FAILED', [
+                'sponsorship_id' => $sponsorship->id ?? null,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         return $values;
     }
@@ -421,6 +444,10 @@ class ShowGeneralRegisrationController extends Controller
             $attachmentsValidTotal = 0;
             $attachmentsInvalidSummary = [];
             $validAttachments = [];
+
+            $fieldsIncoming = $request->input('fields', []);
+            $fieldsIncomingCount = is_array($fieldsIncoming) ? count($fieldsIncoming) : 0;
+            $fieldsIncomingKeysSample = is_array($fieldsIncoming) ? array_slice(array_keys($fieldsIncoming), 0, 25) : [];
 
             if (is_array($attachmentsFiles)) {
                 foreach ($attachmentsFiles as $docTypeId => $files) {
@@ -468,10 +495,20 @@ class ShowGeneralRegisrationController extends Controller
                 'attachments_valid_files' => $attachmentsValidTotal,
                 'attachments_summary' => $attachmentsSummary,
                 'attachments_invalid_summary' => $attachmentsInvalidSummary,
+                'fields_count' => $fieldsIncomingCount,
+                'fields_keys_sample' => $fieldsIncomingKeysSample,
                 'php_upload_max_filesize' => ini_get('upload_max_filesize'),
                 'php_post_max_size' => ini_get('post_max_size'),
                 'php_max_file_uploads' => ini_get('max_file_uploads'),
             ]);
+
+            if ($fieldsIncomingCount === 0) {
+                Log::warning('UPDATE_SPONSORSHIP_NO_FIELDS_RECEIVED', [
+                    'user_id' => $user?->id,
+                    'sponsorship_id' => $sponsorshipId,
+                    'note' => 'لم تصل أي حقول ضمن fields[]. تحقق من name="fields[...]" داخل form ومن عدم وجود عناصر disabled/عدم وجود JS يمنع الإرسال.',
+                ]);
+            }
 
             // إذا تم اختيار ملفات ولكن لم يصل أي ملف صالح، نوقف العملية برسالة واضحة
             if ($attachmentsTotal > 0 && $attachmentsValidTotal === 0) {
@@ -496,22 +533,134 @@ class ShowGeneralRegisrationController extends Controller
 
             DB::beginTransaction();
 
+            // كاش لأعمدة جدول data لتجنب Schema::hasColumn داخل loop (أسرع بكثير)
+            $dataColumnMap = [];
+            try {
+                $dataColumnMap = array_fill_keys(Schema::getColumnListing('data'), true);
+            } catch (\Throwable $e) {
+                $dataColumnMap = [];
+            }
+
             // تحديث الحقول الأساسية في جدول sponsorships
             $sponsorshipFields = ['orphan_name', 'identity_number', 'birth_date', 'internal_file_number',
                                  'guardian_name', 'guardian_phone', 'guardian_relationship'];
 
             $fieldsData = $request->input('fields', []);
 
+            // تخزين جميع الحقول الواردة في جدول مخصص (حتى لو لم يكن لها عمود/جدول بعد)
+            try {
+                $fileIdNumberForPortal = (string) ($sponsorship->relationData?->file_id_number ?: $sponsorship->internal_file_number ?: '');
+                $identityForPortal = (string) ($sponsorship->identity_number ?: '');
+                $storedCount = 0;
+
+                if (is_array($fieldsData) && $fileIdNumberForPortal !== '') {
+                    foreach ($fieldsData as $fieldKey => $fieldValue) {
+                        // نخزن القيم كسلسلة أو JSON إذا كانت مصفوفة
+                        if (is_array($fieldValue)) {
+                            $fieldValue = json_encode($fieldValue, JSON_UNESCAPED_UNICODE);
+                        } elseif (is_bool($fieldValue)) {
+                            $fieldValue = $fieldValue ? '1' : '0';
+                        } elseif ($fieldValue !== null) {
+                            $fieldValue = (string) $fieldValue;
+                        }
+
+                        PortalGeneralRegistrationFieldValue::query()->updateOrCreate(
+                            [
+                                'file_id_number' => $fileIdNumberForPortal,
+                                'field_key' => (string) $fieldKey,
+                            ],
+                            [
+                                'sponsorship_id' => $sponsorship->id,
+                                'identity_number' => $identityForPortal,
+                                'field_value' => $fieldValue,
+                                'updated_by_user_id' => $user?->id,
+                            ]
+                        );
+
+                        $storedCount++;
+                    }
+                }
+
+                Log::info('PORTAL_FIELDS_STORED', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'file_id_number' => $fileIdNumberForPortal,
+                    'stored_count' => $storedCount,
+                    'fields_received_count' => is_array($fieldsData) ? count($fieldsData) : 0,
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('PORTAL_FIELDS_STORE_FAILED', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             // حقول البنك الجديدة
             $bankFields = [];
             // حقول أسباب الوفاة
             $deathReasonFields = [];
+
+            // تجميع الحقول التي لم نستطع ربطها بعمود في DB
+            $unmappedFieldKeys = [];
+            $mappedToSponsorship = [];
+            $mappedToData = [];
 
             foreach ($fieldsData as $fieldKey => $fieldValue) {
                 $cleanFieldKey = str_replace('field_', '', $fieldKey);
 
                 // بعض الحقول يتم إرسالها كنص (description) من الـ UI بينما تُحفظ كـ ID في جدول data
                 if ($sponsorship->relationData && $fieldValue !== null && $fieldValue !== '') {
+                    // provinces.description -> data_province (INT)
+                    if ($cleanFieldKey === 'data_province') {
+                        $raw = trim((string) $fieldValue);
+                        if ($raw !== '') {
+                            if (is_numeric($raw)) {
+                                $sponsorship->relationData->data_province = (int) $raw;
+                            } else {
+                                $resolved = (int) (\DB::table('provinces')->where('description', $raw)->value('id') ?? 0);
+                                if ($resolved > 0) {
+                                    $sponsorship->relationData->data_province = $resolved;
+                                } else {
+                                    Log::warning('LOOKUP_ID_NOT_FOUND', [
+                                        'field' => 'data_province',
+                                        'value' => $raw,
+                                        'sponsorship_id' => $sponsorship->id,
+                                        'table' => 'provinces',
+                                        'column' => 'description',
+                                    ]);
+                                }
+                            }
+                        }
+                        continue;
+                    }
+
+                    // city.city -> data_city (INT)
+                    if ($cleanFieldKey === 'data_city') {
+                        $raw = trim((string) $fieldValue);
+                        if ($raw !== '') {
+                            if (is_numeric($raw)) {
+                                $sponsorship->relationData->data_city = (int) $raw;
+                            } else {
+                                $resolved = (int) (\DB::table('city')->where('city', $raw)->value('id') ?? 0);
+                                if ($resolved <= 0) {
+                                    // بعض قواعد البيانات تستخدم description بدل city
+                                    $resolved = (int) (\DB::table('city')->where('description', $raw)->value('id') ?? 0);
+                                }
+                                if ($resolved > 0) {
+                                    $sponsorship->relationData->data_city = $resolved;
+                                } else {
+                                    Log::warning('LOOKUP_ID_NOT_FOUND', [
+                                        'field' => 'data_city',
+                                        'value' => $raw,
+                                        'sponsorship_id' => $sponsorship->id,
+                                        'table' => 'city',
+                                        'columns_tried' => ['city', 'description'],
+                                    ]);
+                                }
+                            }
+                        }
+                        continue;
+                    }
+
                     // health_statuses.description -> data_health_status
                     if ($cleanFieldKey === 'health_status') {
                         $resolved = $this->resolveLookupIdByDescription('health_statuses', (string) $fieldValue);
@@ -580,14 +729,57 @@ class ShowGeneralRegisrationController extends Controller
                 // تحديث في جدول sponsorships
                 if (in_array($cleanFieldKey, $sponsorshipFields)) {
                     $sponsorship->$cleanFieldKey = $fieldValue;
+                    $mappedToSponsorship[] = $fieldKey;
                 }
                 // تحديث في جدول data (relationData)
                 else if ($sponsorship->relationData) {
-                    $dataColumn = 'data_' . $cleanFieldKey;
-                    if (Schema::hasColumn('data', $dataColumn)) {
-                        $sponsorship->relationData->$dataColumn = $fieldValue;
+                    // بعض الحقول تأتي بالفعل بصيغة data_xxx (مثال: field_data_city)
+                    // لذا لا نضيف data_ مرة ثانية.
+                    $candidateColumns = [];
+                    if (str_starts_with($cleanFieldKey, 'data_')) {
+                        $candidateColumns[] = $cleanFieldKey;
+                    } else {
+                        $candidateColumns[] = 'data_' . $cleanFieldKey;
+                    }
+
+                    foreach ($candidateColumns as $dataColumn) {
+                        $exists = !empty($dataColumnMap)
+                            ? isset($dataColumnMap[$dataColumn])
+                            : Schema::hasColumn('data', $dataColumn);
+
+                        if ($exists) {
+                            $sponsorship->relationData->$dataColumn = $fieldValue;
+                            $mappedToData[] = $fieldKey;
+                            break;
+                        }
+                    }
+
+                    // إذا لم يتم إيجاد أي عمود مناسب
+                    if (empty($candidateColumns)) {
+                        $unmappedFieldKeys[] = $fieldKey;
+                    } else {
+                        $found = false;
+                        foreach ($candidateColumns as $col) {
+                            $exists = !empty($dataColumnMap) ? isset($dataColumnMap[$col]) : Schema::hasColumn('data', $col);
+                            if ($exists) {
+                                $found = true;
+                                break;
+                            }
+                        }
+                        if (!$found) {
+                            $unmappedFieldKeys[] = $fieldKey;
+                        }
                     }
                 }
+            }
+
+            if (!empty($unmappedFieldKeys)) {
+                Log::warning('UPDATE_SPONSORSHIP_UNMAPPED_FIELDS', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'unmapped_count' => count($unmappedFieldKeys),
+                    'unmapped_keys_sample' => array_slice($unmappedFieldKeys, 0, 30),
+                    'note' => 'هذه الحقول وصلت من الفورم لكن لا يوجد عمود مطابق لها في جدول data أو لم يتم دعمها في mapping.',
+                ]);
             }
 
             // تحديث البيانات البنكية
@@ -595,14 +787,14 @@ class ShowGeneralRegisrationController extends Controller
                 $guardianFileNumber = $sponsorship->relationData->file_id_number;
 
                 // البحث عن الحساب المعتمد
-                $bankAccount = \DB::table('guardian_bank_accounts')
+                $bankAccount = DB::table('guardian_bank_accounts')
                     ->where('guardian_registration', $guardianFileNumber)
                     ->where('check_account', 1)
                     ->first();
 
                 if ($bankAccount) {
                     // تحديث البيانات البنكية
-                    \DB::table('guardian_bank_accounts')
+                    DB::table('guardian_bank_accounts')
                         ->where('id', $bankAccount->id)
                         ->update([
                             're_guardian_name' => $bankFields['field_guardian_account_owner_name'] ?? $bankAccount->re_guardian_name,
@@ -617,7 +809,7 @@ class ShowGeneralRegisrationController extends Controller
 
             // تحديث أسباب الوفاة في جدول dead_people
             if (!empty($deathReasonFields) && $sponsorship->relationData) {
-                $deadPeople = \DB::table('dead_people')
+                $deadPeople = DB::table('dead_people')
                     ->where('re_file_id', $sponsorship->relationData->file_id_number)
                     ->first();
 
@@ -626,7 +818,7 @@ class ShowGeneralRegisrationController extends Controller
 
                     // تحويل وصف سبب الوفاة إلى ID
                     if (isset($deathReasonFields['field_father_death_reason'])) {
-                        $reason = \DB::table('death_reasons')
+                        $reason = DB::table('death_reasons')
                             ->where('description', $deathReasonFields['field_father_death_reason'])
                             ->first();
                         if ($reason) {
@@ -635,7 +827,7 @@ class ShowGeneralRegisrationController extends Controller
                     }
 
                     if (isset($deathReasonFields['field_mother_death_reason'])) {
-                        $reason = \DB::table('death_reasons')
+                        $reason = DB::table('death_reasons')
                             ->where('description', $deathReasonFields['field_mother_death_reason'])
                             ->first();
                         if ($reason) {
@@ -644,7 +836,7 @@ class ShowGeneralRegisrationController extends Controller
                     }
 
                     if (!empty($updates)) {
-                        \DB::table('dead_people')
+                        DB::table('dead_people')
                             ->where('id', $deadPeople->id)
                             ->update($updates);
                     }
@@ -656,6 +848,19 @@ class ShowGeneralRegisrationController extends Controller
             if ($sponsorship->relationData) {
                 $sponsorship->relationData->save();
             }
+
+            Log::info('UPDATE_SPONSORSHIP_FIELDS_SAVED', [
+                'sponsorship_id' => $sponsorship->id,
+                'user_id' => $user?->id,
+                // لا نسجل القيم الحساسة، فقط أسماء الحقول التي تم تعديلها
+                'sponsorship_dirty' => array_keys($sponsorship->getChanges()),
+                'data_dirty' => $sponsorship->relationData ? array_keys($sponsorship->relationData->getChanges()) : [],
+                'fields_received_count' => is_array($fieldsData) ? count($fieldsData) : 0,
+                'fields_mapped_sponsorship_count' => count($mappedToSponsorship),
+                'fields_mapped_data_count' => count($mappedToData),
+                'bank_fields_count' => count($bankFields),
+                'death_reason_fields_count' => count($deathReasonFields),
+            ]);
 
             // تحديث أفراد الأسرة من جدول re_people
             if ($request->has('family_members')) {
@@ -669,7 +874,7 @@ class ShowGeneralRegisrationController extends Controller
                             // تقسيم الاسم
                             $nameParts = explode(' ', trim($memberData['name']), 4);
 
-                            \DB::table('re_people')->insert([
+                            DB::table('re_people')->insert([
                                 'registration_id' => $sponsorship->relationData->file_id_number,
                                 'person_id' => rand(700000000, 799999999), // رقم هوية عشوائي مؤقت
                                 'first_name' => $nameParts[0] ?? '',
@@ -687,7 +892,7 @@ class ShowGeneralRegisrationController extends Controller
                         if (!empty($memberData['name'])) {
                             $nameParts = explode(' ', trim($memberData['name']), 4);
 
-                            \DB::table('re_people')
+                            DB::table('re_people')
                                 ->where('id', $memberData['id'])
                                 ->update([
                                     'first_name' => $nameParts[0] ?? '',
@@ -872,7 +1077,7 @@ class ShowGeneralRegisrationController extends Controller
             return null;
         }
 
-        $id = \DB::table($table)
+        $id = DB::table($table)
             ->where('description', $description)
             ->value('id');
 
