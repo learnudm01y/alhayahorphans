@@ -12,6 +12,17 @@ class Authenticate extends Middleware
      */
     protected function redirectTo(Request $request): ?string
     {
-        return $request->expectsJson() ? null : route('login');
+        if ($request->expectsJson()) {
+            return null;
+        }
+
+        // Portal-specific login page for the general registration user flow.
+        // This ensures session expiry / unauthenticated access to that page
+        // never redirects to the default /login.
+        if ($request->is('user/general-registration') || $request->is('user/general-registration/*')) {
+            return route('user.login.page.index');
+        }
+
+        return route('login');
     }
 }

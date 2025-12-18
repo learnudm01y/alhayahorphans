@@ -616,7 +616,7 @@ class ShowGeneralRegisrationController extends Controller
                             if (is_numeric($raw)) {
                                 $sponsorship->relationData->data_province = (int) $raw;
                             } else {
-                                $resolved = (int) (\DB::table('provinces')->where('description', $raw)->value('id') ?? 0);
+                                $resolved = (int) (DB::table('provinces')->where('description', $raw)->value('id') ?? 0);
                                 if ($resolved > 0) {
                                     $sponsorship->relationData->data_province = $resolved;
                                 } else {
@@ -640,10 +640,10 @@ class ShowGeneralRegisrationController extends Controller
                             if (is_numeric($raw)) {
                                 $sponsorship->relationData->data_city = (int) $raw;
                             } else {
-                                $resolved = (int) (\DB::table('city')->where('city', $raw)->value('id') ?? 0);
+                                $resolved = (int) (DB::table('city')->where('city', $raw)->value('id') ?? 0);
                                 if ($resolved <= 0) {
                                     // بعض قواعد البيانات تستخدم description بدل city
-                                    $resolved = (int) (\DB::table('city')->where('description', $raw)->value('id') ?? 0);
+                                    $resolved = (int) (DB::table('city')->where('description', $raw)->value('id') ?? 0);
                                 }
                                 if ($resolved > 0) {
                                     $sponsorship->relationData->data_city = $resolved;
