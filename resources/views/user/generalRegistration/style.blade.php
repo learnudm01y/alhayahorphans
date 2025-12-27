@@ -27,6 +27,25 @@
             transform: scale(1.2);
         }
 
+        /* أنماط التبويب المعطل */
+        .nav-tabs .nav-link.disabled,
+        .nav-tabs .nav-link:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            pointer-events: auto;
+        }
+
+        .nav-tabs .nav-link.disabled:hover,
+        .nav-tabs .nav-link:disabled:hover {
+            background-color: transparent;
+            transform: none;
+        }
+
+        .nav-tabs .nav-link.disabled i,
+        .nav-tabs .nav-link:disabled i {
+            transform: none !important;
+        }
+
         .preview-item .card {
             height: 100%;
         }

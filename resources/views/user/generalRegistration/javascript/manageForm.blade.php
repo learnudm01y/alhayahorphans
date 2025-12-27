@@ -1241,24 +1241,91 @@
                     })
                     .then(async response => {
                         let data;
+                        const contentType = response.headers.get('content-type');
+
                         try {
+                            // محاولة قراءة JSON
                             data = await response.clone().json();
                         } catch {
+                            // إذا فشل، اقرأ كنص
                             data = await response.text();
                         }
+
                         return {
                             data,
-                            status: response.status
+                            status: response.status,
+                            ok: response.ok
                         };
                     })
-                    .then(({ data, status }) => {
+                    .then(({ data, status, ok }) => {
+                        // إغلاق رسالة الانتظار
+                        Swal.close();
+
+                        // معالجة أخطاء الـ validation (422)
+                        if (status === 422) {
+                            let errorMessage = 'يوجد أخطاء في البيانات المدخلة:';
+                            let errorDetails = '';
+
+                            if (typeof data === 'object' && data.errors) {
+                                // Laravel validation errors
+                                const errors = Object.values(data.errors);
+                                errorDetails = '<ul style="text-align: right; margin: 10px 0;">';
+                                errors.forEach(errorArray => {
+                                    if (Array.isArray(errorArray)) {
+                                        errorArray.forEach(error => {
+                                            errorDetails += `<li>${error}</li>`;
+                                        });
+                                    }
+                                });
+                                errorDetails += '</ul>';
+                            } else if (typeof data === 'object' && data.message) {
+                                errorDetails = data.message;
+                            } else if (typeof data === 'object' && data.error) {
+                                errorDetails = data.error;
+                            }
+
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'خطأ في البيانات',
+                                html: errorMessage + errorDetails,
+                                confirmButtonText: 'حسناً',
+                                customClass: {
+                                    htmlContainer: 'text-start'
+                                }
+                            });
+
+                            // إعادة تعيين isSubmitting للسماح بإعادة المحاولة
+                            if (typeof window.isSubmitting !== 'undefined') {
+                                window.isSubmitting = false;
+                            }
+                            return;
+                        }
+
+                        // معالجة أخطاء السيرفر (500)
+                        if (status === 500) {
+                            let errorMsg = 'حدث خطأ في السيرفر';
+                            if (typeof data === 'object' && data.error) {
+                                errorMsg = data.error;
+                            } else if (typeof data === 'object' && data.message) {
+                                errorMsg = data.message;
+                            }
+
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'خطأ في السيرفر',
+                                text: errorMsg,
+                                confirmButtonText: 'حسناً'
+                            });
+
+                            // إعادة تعيين isSubmitting للسماح بإعادة المحاولة
+                            if (typeof window.isSubmitting !== 'undefined') {
+                                window.isSubmitting = false;
+                            }
+                            return;
+                        }
+
                         // إذا كانت الاستجابة JSON وبها success=true
                         if (typeof data === 'object' && data && data.success) {
-                            // إذا كان هناك توجيه من السيرفر
-                            // if (data.redirect) {
-                            //     // window.location.href = data.redirect;
-                            //     // return;
-                            // }
                             if (data && data.success && data.redirect) {
                                 // معالجة الرابط إذا كان يبدأ بـ http أو https أو //
                                 let redirectUrl = data.redirect;
@@ -1277,31 +1344,56 @@
                             });
                             // setTimeout(() => window.location.reload(), 1500);
                         }
-                        // إذا كانت الاستجابة نصية والكود 200، اعتبرها نجاح (حل مشكلة Laravel redirect)
-                        else if (status === 200 && typeof data === 'string') {
+                        // إذا كانت الاستجابة نصية والكود 200 فقط
+                        else if (status === 200 && ok && typeof data === 'string') {
                             Swal.fire({
                                 icon: 'success',
                                 title: 'تم الحفظ',
                                 text: 'تم حفظ السجل بنجاح'
                             });
                             setTimeout(() => window.location.reload(), 1500);
+                        }
+                        // إذا كانت هناك أخطاء أخرى
+                        else if (!ok) {
+                            console.error('استجابة غير ناجحة من السيرفر:', { status, data });
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'خطأ',
+                                text: (typeof data === 'object' && data.error) ? data.error : (typeof data === 'object' && data.message) ? data.message : 'حدث خطأ أثناء الحفظ'
+                            });
+
+                            // إعادة تعيين isSubmitting للسماح بإعادة المحاولة
+                            if (typeof window.isSubmitting !== 'undefined') {
+                                window.isSubmitting = false;
+                            }
                         } else {
                             // اطبع الاستجابة في الـ console لتسهيل التشخيص
                             console.error('استجابة غير متوقعة من السيرفر:', data);
                             Swal.fire({
                                 icon: 'error',
                                 title: 'خطأ',
-                                text: (data && data.error) ? data.error : 'حدث خطأ أثناء الحفظ'
+                                text: (typeof data === 'object' && data.error) ? data.error : 'حدث خطأ أثناء الحفظ'
                             });
+
+                            // إعادة تعيين isSubmitting للسماح بإعادة المحاولة
+                            if (typeof window.isSubmitting !== 'undefined') {
+                                window.isSubmitting = false;
+                            }
                         }
                     })
                     .catch(err => {
                         console.error('خطأ أثناء الاتصال أو المعالجة:', err);
+                        Swal.close();
                         Swal.fire({
                             icon: 'error',
-                            title: 'خطأ',
-                            text: 'حدث خطأ أثناء الحفظ'
+                            title: 'خطأ في الاتصال',
+                            text: 'حدث خطأ أثناء الحفظ. يرجى المحاولة مرة أخرى.'
                         });
+
+                        // إعادة تعيين isSubmitting للسماح بإعادة المحاولة
+                        if (typeof window.isSubmitting !== 'undefined') {
+                            window.isSubmitting = false;
+                        }
                     });
             });
         });

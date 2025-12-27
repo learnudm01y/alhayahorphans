@@ -301,7 +301,7 @@
                 });
 
                 // تحديث الواجهة فوراً - هذا سيعرض الصورة قبل modal القص
-                renderAttachmentTasksUI(personKey);
+                window.renderAttachmentTasksUI(personKey);
 
                 // انتظار قصير للتأكد من عرض الصورة قبل بدء المعالجة
                 setTimeout(() => {
@@ -372,7 +372,7 @@
 
                         // تحديث فوري للواجهة مع تأثيرات انتقالية سلسة
                         requestAnimationFrame(() => {
-                            renderAttachmentTasksUI(personKey);
+                            window.renderAttachmentTasksUI(personKey);
 
                             // ⭐ تأثيرات خاصة عند اكتمال المعالجة
                             if (status === 'completed') {
@@ -472,7 +472,7 @@
                         }
                         task.updatedAt = Date.now();
                         console.log(`[Attachment] Task ${id} status updated:`, status, errorMessage);
-                        renderAttachmentTasksUI(personKey);
+                        window.renderAttachmentTasksUI(personKey);
                         return;
                     }
                 }
@@ -805,7 +805,7 @@
                     }
                     arr.splice(idx, 1);
                     if (arr.length === 0) allDocs.delete(personKey);
-                    renderAttachmentTasksUI(personKey);
+                    window.renderAttachmentTasksUI(personKey);
                     console.log('[removeAttachmentTask] تم حذف المهمة بنجاح:', taskId);
                 }
             }
@@ -868,7 +868,7 @@
                         if (arr.length === 0) window.allDocs.delete(personKey);
                         // تحديث الواجهة
                         if (typeof renderAttachmentTasksUI === 'function') {
-                            renderAttachmentTasksUI(personKey);
+                            window.renderAttachmentTasksUI(personKey);
                         }
                         console.log('[handleAttachmentCancelAndCleanup] تم حذف المهمة والكارد:', task.id, personKey);
                         found = true;
@@ -882,7 +882,7 @@
         }
 
             // تحسين renderAttachmentTasksUI للعرض الفوري المحسن
-            function renderAttachmentTasksUI(personKey) {
+            window.renderAttachmentTasksUI = function(personKey) {
                 console.log(`[renderAttachmentTasksUI] 🎨 تحديث واجهة البوابة: ${personKey}`);
 
                 // تحقق أن البوابة موجودة فعلياً في الصفحة
@@ -1090,8 +1090,8 @@
                                 }
                                 }
                                 // تحديث الواجهة بعد الحذف دفعة واحدة
-                                if (typeof renderAttachmentTasksUI === 'function') {
-                                    updatedKeys.forEach(key => renderAttachmentTasksUI(key));
+                                if (typeof window.renderAttachmentTasksUI === 'function') {
+                                    updatedKeys.forEach(key => window.renderAttachmentTasksUI(key));
                                 }
                                 // حذف الكارد من الواجهة مباشرة (احتياطي)
                                 const card = document.getElementById('preview_att_' + task.id);
@@ -1313,7 +1313,7 @@
                             task.docType = docTypeSelect.value;
                         }
                     });
-                    renderAttachmentTasksUI(personKey);
+                    window.renderAttachmentTasksUI(personKey);
                 });
             }
 
@@ -1555,7 +1555,7 @@
                         window.allDocs.get(personKey).forEach(task => {
                             task.personId = input.value;
                         });
-                        renderAttachmentTasksUI(personKey);
+                        window.renderAttachmentTasksUI(personKey);
                         console.log('🟢 تم تحديث رقم هوية فرد الأسرة في جميع مهامه:', personKey, input.value, window.allDocs.get(personKey));
                     }
                 });
@@ -1674,7 +1674,7 @@
                             // تأكد من وجود البوابة في الصفحة قبل تحديث الواجهة
                             const zone = document.querySelector(`[data-upload-zone="${key}"]`);
                             if (zone) {
-                                renderAttachmentTasksUI(key);
+                                window.renderAttachmentTasksUI(key);
                             }
                         }
                     });

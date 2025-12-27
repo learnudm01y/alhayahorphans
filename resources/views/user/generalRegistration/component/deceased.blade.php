@@ -49,8 +49,12 @@
                           <div class="col-md-12 mt-3">
                               <!-- منطقة رفع الملفات للأب المتوفى -->
                               <div data-upload-zone="deceased_father" class="upload-zone">
+                                  <div class="alert alert-info py-2 mb-2" style="font-size: 0.95rem;">
+                                      <i class="fas fa-info-circle me-1"></i>
+                                      يرجى إدخال رقم هوية الأب بشكل صحيح (9 أرقام) أولاً قبل اختيار نوع الوثيقة.
+                                  </div>
                                   <label class="form-label fw-bold">رفع وثائق الأب المتوفى</label>
-                                  <select class="form-select mainDocumentTypeSelect" id="mainDocumentTypeSelect_father">
+                                  <select class="form-select mainDocumentTypeSelect" id="mainDocumentTypeSelect_father" disabled style="opacity: 0.5; cursor: not-allowed;">
                                       <option value="">اختر نوع الوثيقة</option>
                                       @foreach ($documentTypes->where('deceased_enabled', 1) as $documentType)
                                           <option value="{{ $documentType->pref }}">
@@ -121,8 +125,12 @@
                           <div class="col-md-12 mt-3">
                               <!-- منطقة رفع الملفات للأم المتوفية -->
                               <div data-upload-zone="deceased_mother" class="upload-zone">
+                                  <div class="alert alert-info py-2 mb-2" style="font-size: 0.95rem;">
+                                      <i class="fas fa-info-circle me-1"></i>
+                                      يرجى إدخال رقم هوية الأم بشكل صحيح (9 أرقام) أولاً قبل اختيار نوع الوثيقة.
+                                  </div>
                                   <label class="form-label fw-bold">رفع وثائق الأم المتوفية</label>
-                                  <select class="form-select mainDocumentTypeSelect" id="mainDocumentTypeSelect_mother">
+                                  <select class="form-select mainDocumentTypeSelect" id="mainDocumentTypeSelect_mother" disabled style="opacity: 0.5; cursor: not-allowed;">
                                       <option value="">اختر نوع الوثيقة</option>
                                       @foreach ($documentTypes->where('deceased_enabled', 1) as $documentType)
                                           <option value="{{ $documentType->pref }}">
@@ -151,9 +159,77 @@
       <script>
           document.addEventListener('DOMContentLoaded', async function(e) {
              e.preventDefault();
+
+              // 🆕 تعريف المتغيرات في البداية لاستخدامها في كل الدوال
+              const fatherIdInput = document.querySelector('[name="father_id"]');
+              const motherIdInput = document.querySelector('[name="mother_id"]');
+              const motherSection = document.getElementById('motherInfoSection');
+
               const nextBtn = document.getElementById('goToFamilyTabBtn');
               if (nextBtn) {
                   nextBtn.addEventListener('click', async function(e) {
+                      // 🆕 التحقق من صحة أرقام الهوية أولاً قبل التحقق من الحقول الأخرى
+
+                      // التحقق من رقم هوية الأب (إذا كان مدخلاً)
+                      if (fatherIdInput && fatherIdInput.value.trim()) {
+                          const fatherIdValue = fatherIdInput.value.trim();
+                          if (!/^\d{9}$/.test(fatherIdValue)) {
+                              e.preventDefault();
+                              let message = 'رقم هوية الأب يجب أن يكون 9 أرقام بالضبط';
+
+                              if (fatherIdValue.length < 9) {
+                                  message = `رقم هوية الأب يجب أن يكون 9 أرقام (تم إدخال ${fatherIdValue.length} فقط)`;
+                              } else if (fatherIdValue.length > 9) {
+                                  message = `رقم هوية الأب يجب أن يكون 9 أرقام (تم إدخال ${fatherIdValue.length})`;
+                              }
+
+                              // تمييز الحقل بالأحمر
+                              fatherIdInput.style.border = '2px solid red';
+                              fatherIdInput.focus();
+
+                              Swal.fire({
+                                  icon: 'error',
+                                  title: 'خطأ في رقم هوية الأب',
+                                  text: message,
+                                  confirmButtonText: 'حسناً'
+                              });
+                              return;
+                          } else {
+                              // إزالة التمييز الأحمر إذا كان صحيحاً
+                              fatherIdInput.style.border = '';
+                          }
+                      }
+
+                      // التحقق من رقم هوية الأم (إذا كان مدخلاً)
+                      if (motherIdInput && motherIdInput.value.trim() && motherSection && motherSection.style.display !== 'none') {
+                          const motherIdValue = motherIdInput.value.trim();
+                          if (!/^\d{9}$/.test(motherIdValue)) {
+                              e.preventDefault();
+                              let message = 'رقم هوية الأم يجب أن يكون 9 أرقام بالضبط';
+
+                              if (motherIdValue.length < 9) {
+                                  message = `رقم هوية الأم يجب أن يكون 9 أرقام (تم إدخال ${motherIdValue.length} فقط)`;
+                              } else if (motherIdValue.length > 9) {
+                                  message = `رقم هوية الأم يجب أن يكون 9 أرقام (تم إدخال ${motherIdValue.length})`;
+                              }
+
+                              // تمييز الحقل بالأحمر
+                              motherIdInput.style.border = '2px solid red';
+                              motherIdInput.focus();
+
+                              Swal.fire({
+                                  icon: 'error',
+                                  title: 'خطأ في رقم هوية الأم',
+                                  text: message,
+                                  confirmButtonText: 'حسناً'
+                              });
+                              return;
+                          } else {
+                              // إزالة التمييز الأحمر إذا كان صحيحاً
+                              motherIdInput.style.border = '';
+                          }
+                      }
+
                       // حقول الأب المطلوبة
                       const fatherRequired = [
                           { name: 'father_first_name', label: 'الاسم الأول للأب' },
@@ -181,7 +257,6 @@
                           }
                       }
                       // إذا ظهرت بيانات الأم، تحقق من حقولها أيضًا
-                      const motherSection = document.getElementById('motherInfoSection');
                       if (!firstInvalid && motherSection && motherSection.style.display !== 'none') {
                           const motherRequired = [
                               { name: 'mother_first_name', label: 'الاسم الأول للأم' },
@@ -223,6 +298,126 @@
                       if (familyTab) familyTab.click();
                   });
               }
+
+              // 🆕 إضافة مراقبة مباشرة لحقول أرقام الهوية
+              // دالة التحقق من رقم الهوية
+              function validateIdField(input, label) {
+                  if (!input) return;
+
+                  input.addEventListener('input', function() {
+                      const value = this.value.trim();
+
+                      // إذا كان الحقل فارغاً، لا تعرض خطأ
+                      if (!value) {
+                          this.style.border = '';
+                          return;
+                      }
+
+                      // التحقق من الطول
+                      if (value.length !== 9) {
+                          this.style.border = '2px solid red';
+                      } else if (/^\d{9}$/.test(value)) {
+                          this.style.border = '2px solid green';
+                      } else {
+                          this.style.border = '2px solid red';
+                      }
+                  });
+
+                  // التحقق عند فقدان التركيز
+                  input.addEventListener('blur', function() {
+                      const value = this.value.trim();
+
+                      if (value && !/^\d{9}$/.test(value)) {
+                          let message = `رقم ${label} يجب أن يكون 9 أرقام بالضبط`;
+
+                          if (value.length < 9) {
+                              message = `رقم ${label} يجب أن يكون 9 أرقام (تم إدخال ${value.length} فقط)`;
+                          } else if (value.length > 9) {
+                              message = `رقم ${label} يجب أن يكون 9 أرقام (تم إدخال ${value.length})`;
+                          }
+
+                          this.style.border = '2px solid red';
+
+                          Swal.fire({
+                              icon: 'warning',
+                              title: 'تنبيه',
+                              text: message,
+                              confirmButtonText: 'حسناً',
+                              timer: 3000
+                          });
+                      }
+                  });
+              }
+
+              // تطبيق المراقبة على حقول أرقام الهوية
+              validateIdField(fatherIdInput, 'هوية الأب');
+              validateIdField(motherIdInput, 'هوية الأم');
+
+              // 🆕 دالة لتعطيل/تفعيل قائمة نوع الوثيقة بناءً على رقم الهوية (للأب والأم)
+              function setupDocumentSelectValidation(idInput, docTypeSelect, label) {
+                  if (!idInput || !docTypeSelect) return;
+
+                  // دالة التحقق
+                  function checkAndToggleDocSelect() {
+                      const idValue = idInput.value.trim();
+                      const isValid = /^\d{9}$/.test(idValue); // بالضبط 9 أرقام
+
+                      if (isValid) {
+                          // تفعيل القائمة
+                          docTypeSelect.disabled = false;
+                          docTypeSelect.classList.remove('disabled');
+                          docTypeSelect.style.opacity = '1';
+                          docTypeSelect.style.cursor = 'pointer';
+                      } else {
+                          // تعطيل القائمة
+                          docTypeSelect.disabled = true;
+                          docTypeSelect.classList.add('disabled');
+                          docTypeSelect.style.opacity = '0.5';
+                          docTypeSelect.style.cursor = 'not-allowed';
+                          docTypeSelect.selectedIndex = 0; // إعادة تعيين الاختيار
+                      }
+                  }
+
+                  // التحقق الأولي
+                  checkAndToggleDocSelect();
+
+                  // مراقبة التغييرات في حقل رقم الهوية
+                  idInput.addEventListener('input', checkAndToggleDocSelect);
+                  idInput.addEventListener('change', checkAndToggleDocSelect);
+
+                  // منع فتح القائمة إذا كانت معطلة
+                  docTypeSelect.addEventListener('mousedown', function(e) {
+                      if (this.disabled) {
+                          e.preventDefault();
+                          const idValue = idInput.value.trim();
+                          let message = `يجب إدخال رقم ${label} صحيح (9 أرقام) قبل اختيار نوع الوثيقة`;
+
+                          if (!idValue) {
+                              message = `يجب إدخال رقم ${label} أولاً`;
+                          } else if (idValue.length < 9) {
+                              message = `رقم ${label} يجب أن يكون 9 أرقام (تم إدخال ${idValue.length} فقط)`;
+                          } else if (idValue.length > 9) {
+                              message = `رقم ${label} يجب أن يكون 9 أرقام (تم إدخال ${idValue.length})`;
+                          } else if (!/^\d+$/.test(idValue)) {
+                              message = `رقم ${label} يجب أن يحتوي على أرقام فقط`;
+                          }
+
+                          Swal.fire({
+                              icon: 'warning',
+                              title: 'تنبيه',
+                              text: message,
+                              confirmButtonText: 'حسناً'
+                          });
+                      }
+                  });
+              }
+
+              // تطبيق المراقبة على قوائم الوثائق
+              const fatherDocSelect = document.querySelector('#mainDocumentTypeSelect_father');
+              const motherDocSelect = document.querySelector('#mainDocumentTypeSelect_mother');
+
+              setupDocumentSelectValidation(fatherIdInput, fatherDocSelect, 'هوية الأب');
+              setupDocumentSelectValidation(motherIdInput, motherDocSelect, 'هوية الأم');
           });
       </script>
   </div>

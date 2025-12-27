@@ -12,8 +12,8 @@
                 const reviewTab = document.createElement('li');
                 reviewTab.className = 'nav-item';
                 reviewTab.innerHTML = `
-                <button class="nav-link py-3" id="${reviewTabId}" data-bs-toggle="tab" data-bs-target="#${reviewPaneId}"
-                    type="button" role="tab" aria-controls="${reviewPaneId}" aria-selected="false">
+                <button class="nav-link py-3 disabled" id="${reviewTabId}" data-bs-toggle="tab" data-bs-target="#${reviewPaneId}"
+                    type="button" role="tab" aria-controls="${reviewPaneId}" aria-selected="false" disabled>
                     <div class="d-flex flex-column align-items-center">
                         <i class="fas fa-eye tab-icon mb-2"></i>
                         <span class="fs-4 fw-bold tab-label">عرض المعلومات المدخلة</span>
@@ -53,6 +53,45 @@
                 // لا شيء هنا (زر الحفظ سيعمل بشكل طبيعي)
             });
 
+            // دالة التحقق من وجود أفراد أسرة
+            function checkFamilyMembers() {
+                const familyMemberForms = document.querySelectorAll('.family-member-form:not(.d-none):not(#familyMemberTemplate)');
+                const reviewTabButton = document.getElementById(reviewTabId);
+
+                if (familyMemberForms.length > 0) {
+                    // يوجد أفراد - تفعيل التبويب
+                    if (reviewTabButton) {
+                        reviewTabButton.disabled = false;
+                        reviewTabButton.classList.remove('disabled');
+                    }
+                } else {
+                    // لا يوجد أفراد - تعطيل التبويب
+                    if (reviewTabButton) {
+                        reviewTabButton.disabled = true;
+                        reviewTabButton.classList.add('disabled');
+                    }
+                }
+            }
+
+            // مراقبة التغييرات في قسم أفراد الأسرة
+            const familyMembersContainer = document.getElementById('familyMembersContainer');
+            if (familyMembersContainer) {
+                // استخدام MutationObserver لمراقبة إضافة وحذف العناصر
+                const observer = new MutationObserver(function(mutations) {
+                    checkFamilyMembers();
+                });
+
+                observer.observe(familyMembersContainer, {
+                    childList: true,
+                    subtree: true,
+                    attributes: true,
+                    attributeFilter: ['class']
+                });
+
+                // فحص أولي
+                checkFamilyMembers();
+            }
+
             // نقل زر الحفظ من بوابة المرفقات إلى بوابة المراجعة
             // (تم حذف زر الحفظ من المرفقات في ملف create.blade.php)
             // زر الحفظ الجديد هو الزر داخل بوابة المراجعة فقط
@@ -60,7 +99,19 @@
             // لا تضف أي event listener هنا لزر الحفظ النهائي، سيتم ربطه في الأسفل مع حماية isSubmitting فقط
 
             // عند الانتقال إلى بوابة المراجعة، اعرض البيانات
-            document.getElementById(reviewTabId).addEventListener('click', function() {
+            document.getElementById(reviewTabId).addEventListener('click', function(e) {
+                // التحقق من أن التبويب غير معطل
+                if (this.disabled || this.classList.contains('disabled')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'تنبيه',
+                        text: 'يجب إضافة فرد واحد على الأقل في قسم "أفراد الأسرة" قبل الانتقال إلى المراجعة!',
+                        confirmButtonText: 'حسناً'
+                    });
+                    return false;
+                }
                 renderReviewContent();
             });
 
@@ -272,11 +323,73 @@ document.addEventListener('DOMContentLoaded', function() {
         if (finalSaveBtn) {
             finalSaveBtn.addEventListener('click', async function(e) {
                 e.preventDefault();
-                if (isSubmitting) return;
+                if (isSubmitting || window.isSubmitting) return;
+
+                // 🆕 التحقق من رقم الهوية الرئيسي أولاً قبل أي شيء
+                const mainIdInput = document.querySelector('[name="data_id_number"]');
+                if (mainIdInput) {
+                    const mainIdValue = mainIdInput.value.trim();
+
+                    // التحقق من أن الحقل ليس فارغاً
+                    if (!mainIdValue) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'رقم الهوية مطلوب',
+                            text: 'يجب إدخال رقم الهوية في البيانات الأساسية',
+                            confirmButtonText: 'حسناً'
+                        });
+
+                        // الانتقال إلى بوابة البيانات الأساسية
+                        const basicTab = document.getElementById('basic-tab');
+                        if (basicTab) basicTab.click();
+
+                        setTimeout(() => {
+                            mainIdInput.style.border = '2px solid red';
+                            mainIdInput.focus();
+                        }, 300);
+
+                        return;
+                    }
+
+                    // التحقق من أن الرقم 9 أرقام بالضبط
+                    if (!/^\d{9}$/.test(mainIdValue)) {
+                        let message = 'رقم الهوية يجب أن يكون 9 أرقام بالضبط';
+
+                        if (mainIdValue.length < 9) {
+                            message = `رقم الهوية يجب أن يكون 9 أرقام (تم إدخال ${mainIdValue.length} فقط)`;
+                        } else if (mainIdValue.length > 9) {
+                            message = `رقم الهوية يجب أن يكون 9 أرقام (تم إدخال ${mainIdValue.length})`;
+                        } else if (!/^\d+$/.test(mainIdValue)) {
+                            message = 'رقم الهوية يجب أن يحتوي على أرقام فقط';
+                        }
+
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'خطأ في رقم الهوية',
+                            text: message,
+                            confirmButtonText: 'حسناً'
+                        });
+
+                        // الانتقال إلى بوابة البيانات الأساسية
+                        const basicTab = document.getElementById('basic-tab');
+                        if (basicTab) basicTab.click();
+
+                        setTimeout(() => {
+                            mainIdInput.style.border = '2px solid red';
+                            mainIdInput.focus();
+                        }, 300);
+
+                        return;
+                    }
+                }
+
                 isSubmitting = true;
+                window.isSubmitting = true;
+
                 const valid = await validateAllIds(e);
                 if (!valid) {
                     isSubmitting = false;
+                    window.isSubmitting = false;
                     // إزالة تمييز الخطأ من جميع حقول الهوية أولاً
                     document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
 
@@ -325,8 +438,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.log('[DEBUG] سيتم تنفيذ requestSubmit على main_form');
                     // إزالة التركيز من زر الحفظ حتى تظهر رسالة Swal فوقه
                     finalSaveBtn && finalSaveBtn.blur && finalSaveBtn.blur();
-                    mainForm.requestSubmit();
-                    // إظهار رسالة انتظار ثم رسالة نجاح مباشرة (مع ضمان إغلاق الرسالة السابقة)
+
+                    // إظهار رسالة انتظار فقط (سيتم معالجة النجاح/الفشل في manageForm.blade.php)
                     Swal.fire({
                         icon: 'info',
                         title: 'جاري الحفظ',
@@ -336,22 +449,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         showConfirmButton: false,
                         didOpen: () => {
                             Swal.showLoading();
-                            setTimeout(() => {
-                                Swal.close();
-                                setTimeout(() => {
-                                    Swal.fire({
-                                        icon: 'success',
-                                        title: 'تم الحفظ بنجاح',
-                                        text: 'تم حفظ السجل بنجاح.',
-                                        timer: 1800,
-                                        showConfirmButton: false
-                                    });
-                                }, 100);
-                            }, 1200);
                         }
                     });
+
+                    // إرسال النموذج (سيتم معالجة الاستجابة في manageForm.blade.php)
+                    mainForm.requestSubmit();
                 } else {
                     console.error('[DEBUG] لم يتم العثور على النموذج main_form');
+                    isSubmitting = false;
                 }
                 // لا تعيد isSubmitting إلى false إلا بعد إعادة تحميل الصفحة أو ظهور رسالة نجاح
             });

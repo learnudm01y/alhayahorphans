@@ -567,6 +567,51 @@
                 });
             }, 100);
         }, true);
+
+        // التحقق الفوري من رقم الهوية في البوابة الأساسية
+        const mainIdInput = document.getElementById('data_id_number');
+        if (mainIdInput) {
+            mainIdInput.addEventListener('blur', function() {
+                const value = this.value.trim();
+
+                if (value === '') {
+                    this.style.border = '2px solid red';
+                    return;
+                }
+
+                if (!/^\d+$/.test(value)) {
+                    this.style.border = '2px solid red';
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'رقم الهوية غير صحيح',
+                        text: 'يجب أن يحتوي رقم الهوية على أرقام فقط',
+                        confirmButtonText: 'حسناً'
+                    });
+                    return;
+                }
+
+                if (value.length !== 9) {
+                    this.style.border = '2px solid red';
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'رقم الهوية غير مكتمل',
+                        text: 'رقم الهوية يجب أن يكون 9 أرقام بالضبط. أنت أدخلت ' + value.length + ' رقم فقط',
+                        confirmButtonText: 'حسناً'
+                    });
+                    return;
+                }
+
+                // رقم الهوية صحيح
+                this.style.border = '2px solid green';
+            });
+
+            // إزالة التنسيق عند بدء الكتابة
+            mainIdInput.addEventListener('input', function() {
+                if (this.style.border) {
+                    this.style.border = '';
+                }
+            });
+        }
     });
 </script>
 </script>

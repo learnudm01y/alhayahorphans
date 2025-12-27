@@ -513,6 +513,13 @@
                     }, 200);
                 }
 
+                // 🆕 تفعيل مراقبة رقم الهوية للنموذج الجديد
+                setTimeout(() => {
+                    if (typeof window.validateIdAndToggleSelect === 'function') {
+                        window.validateIdAndToggleSelect(clone);
+                    }
+                }, 300);
+
                 return true;
             } catch (error) {
                 console.error('❌ خطأ في addFamilyMember:', error);
@@ -1957,6 +1964,101 @@
             // إعادة التشغيل كل 10 ثوانٍ للتأكد
             setInterval(serverDiagnostics, 10000);
         }, 2000);
+
+        // 🆕 دالة لتعطيل/تفعيل قائمة نوع الوثيقة بناءً على رقم الهوية
+        window.setupIdValidationForDocumentSelect = function() {
+            // مراقبة جميع نماذج أفراد الأسرة الموجودة والمستقبلية
+            const container = document.getElementById('familyMembersContainer');
+            if (!container) return;
+
+            // استخدام MutationObserver لمراقبة إضافة نماذج جديدة
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    mutation.addedNodes.forEach(function(node) {
+                        if (node.nodeType === 1 && node.classList && node.classList.contains('family-member-form')) {
+                            window.validateIdAndToggleSelect(node);
+                        }
+                    });
+                });
+            });
+
+            observer.observe(container, {
+                childList: true,
+                subtree: false
+            });
+
+            // معالجة النماذج الموجودة حالياً
+            document.querySelectorAll('.family-member-form:not(.d-none)').forEach(function(form) {
+                window.validateIdAndToggleSelect(form);
+            });
+        }
+
+        // دالة التحقق من رقم الهوية وتعطيل/تفعيل القائمة
+        window.validateIdAndToggleSelect = function(form) {
+            const personIdInput = form.querySelector('input[name*="[person_id]"]');
+            const docTypeSelect = form.querySelector('.mainDocumentTypeSelect');
+
+            if (!personIdInput || !docTypeSelect) return;
+
+            // دالة التحقق
+            function checkAndToggle() {
+                const idValue = personIdInput.value.trim();
+                const isValid = /^\d{9}$/.test(idValue); // بالضبط 9 أرقام
+
+                if (isValid) {
+                    // تفعيل القائمة
+                    docTypeSelect.disabled = false;
+                    docTypeSelect.classList.remove('disabled');
+                    docTypeSelect.style.opacity = '1';
+                    docTypeSelect.style.cursor = 'pointer';
+                } else {
+                    // تعطيل القائمة
+                    docTypeSelect.disabled = true;
+                    docTypeSelect.classList.add('disabled');
+                    docTypeSelect.style.opacity = '0.5';
+                    docTypeSelect.style.cursor = 'not-allowed';
+                    docTypeSelect.selectedIndex = 0; // إعادة تعيين الاختيار
+                }
+            }
+
+            // التحقق الأولي
+            checkAndToggle();
+
+            // مراقبة التغييرات في حقل رقم الهوية
+            personIdInput.addEventListener('input', checkAndToggle);
+            personIdInput.addEventListener('change', checkAndToggle);
+
+            // منع فتح القائمة إذا كانت معطلة
+            docTypeSelect.addEventListener('mousedown', function(e) {
+                if (this.disabled) {
+                    e.preventDefault();
+                    const idValue = personIdInput.value.trim();
+                    let message = 'يجب إدخال رقم هوية صحيح (9 أرقام) قبل اختيار نوع الوثيقة';
+
+                    if (!idValue) {
+                        message = 'يجب إدخال رقم الهوية أولاً';
+                    } else if (idValue.length < 9) {
+                        message = `رقم الهوية يجب أن يكون 9 أرقام (تم إدخال ${idValue.length} فقط)`;
+                    } else if (idValue.length > 9) {
+                        message = `رقم الهوية يجب أن يكون 9 أرقام (تم إدخال ${idValue.length})`;
+                    } else if (!/^\d+$/.test(idValue)) {
+                        message = 'رقم الهوية يجب أن يحتوي على أرقام فقط';
+                    }
+
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'تنبيه',
+                        text: message,
+                        confirmButtonText: 'حسناً'
+                    });
+                }
+            });
+        }
+
+        // تفعيل المراقبة عند تحميل الصفحة
+        setTimeout(function() {
+            window.setupIdValidationForDocumentSelect();
+        }, 1000);
 
     }); // نهاية DOMContentLoaded
         </script>

@@ -84,7 +84,7 @@ class GeneralRegistrationController extends Controller
             $request->validate([
                 'file_id_number' => 'required|string',
                 'data_section_id' => 'required|integer',
-                'data_id_number' => 'required|string',
+                'data_id_number' => 'required|string|digits:9',
                 'data_first_name' => 'required|string|max:255',
                 'data_father_name' => 'nullable|string|max:255',
                 'data_grand_father_name' => 'nullable|string|max:255',
@@ -118,6 +118,8 @@ class GeneralRegistrationController extends Controller
                 'document_file.*' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
             ], [
                 'file_id_number.required' => 'رقم الملف الموحد مطلوب.',
+                'data_id_number.required' => 'رقم الهوية مطلوب.',
+                'data_id_number.digits' => 'رقم الهوية يجب أن يكون 9 أرقام بالضبط.',
                 'document_file.*.mimes' => 'يجب أن تكون صيغة الملف jpg أو jpeg أو png أو pdf.',
                 'document_file.*.max' => 'حجم الملف لا يجوز أن يتجاوز 5 ميغابايت.',
             ]);
@@ -254,7 +256,29 @@ class GeneralRegistrationController extends Controller
             if ($request->input('data_section_id') == 1) {
                 $fatherFilled = $request->filled('father_first_name') || $request->filled('father_last_name') || $request->filled('father_id');
                 $motherFilled = $request->filled('mother_first_name') || $request->filled('mother_last_name') || $request->filled('mother_id');
+
                 if ($fatherFilled || $motherFilled) {
+                    // التحقق من صحة أرقام الهوية
+                    $validationRules = [];
+                    $validationMessages = [];
+
+                    if ($request->filled('father_id')) {
+                        $validationRules['father_id'] = 'required|digits:9';
+                        $validationMessages['father_id.required'] = 'رقم هوية الأب مطلوب';
+                        $validationMessages['father_id.digits'] = 'رقم هوية الأب يجب أن يكون 9 أرقام بالضبط';
+                    }
+
+                    if ($request->filled('mother_id')) {
+                        $validationRules['mother_id'] = 'required|digits:9';
+                        $validationMessages['mother_id.required'] = 'رقم هوية الأم مطلوب';
+                        $validationMessages['mother_id.digits'] = 'رقم هوية الأم يجب أن يكون 9 أرقام بالضبط';
+                    }
+
+                    // تنفيذ التحقق إذا كان هناك قواعد
+                    if (!empty($validationRules)) {
+                        $request->validate($validationRules, $validationMessages);
+                    }
+
                     DeadPepole::create([
                         're_file_id' => $fileIdNumber,
 
@@ -284,6 +308,27 @@ class GeneralRegistrationController extends Controller
             $familyMembers = $request->input('family_members');
 
             if (is_array($familyMembers)) {
+                // التحقق من صحة أرقام الهوية لأفراد الأسرة
+                foreach ($familyMembers as $index => $member) {
+                    if (!empty($member['person_id'])) {
+                        // التحقق من أن رقم الهوية 9 أرقام
+                        if (!preg_match('/^\d{9}$/', $member['person_id'])) {
+                            if ($request->ajax() || $request->wantsJson()) {
+                                return response()->json([
+                                    'success' => false,
+                                    'errors' => [
+                                        "family_members.{$index}.person_id" => [
+                                            "رقم هوية فرد الأسرة رقم " . ($index + 1) . " يجب أن يكون 9 أرقام بالضبط"
+                                        ]
+                                    ]
+                                ], 422);
+                            }
+                            throw new \Exception("رقم هوية فرد الأسرة رقم " . ($index + 1) . " يجب أن يكون 9 أرقام بالضبط");
+                        }
+                    }
+                }
+
+                // حفظ أفراد الأسرة
                 foreach ($familyMembers as $member) {
                     // حفظ في جدول re_people
                     RePeople::create([
@@ -421,7 +466,7 @@ class GeneralRegistrationController extends Controller
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json(['success' => true]);
             }
-            return response()->json(['success' => true, 'redirect' => route('user.login.page.index', ['success' => 1])]);
+            return response()->json(['success' => true, 'redirect' => route('user.thank.you.page')]);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('خطأ في تخزين السجل: ' . $e->getMessage());

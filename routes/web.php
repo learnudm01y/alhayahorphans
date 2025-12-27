@@ -131,6 +131,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/users/generalRegistration/login', function() {
         return view('user.generalRegistration.login');
     })->name('user.login.page.index');
+
+    Route::get('/users/generalRegistration/thank-you', function() {
+        return view('user.generalRegistration.thank-you');
+    })->name('user.thank.you.page');
+
     Route::post('admin/general-category/toggle-status', [GeneralCategoryCotroller::class, 'toggleStatus'])->name('admin.general-category.toggle-status');
 
     Route::post('/check-id-number', [GeneralRegistrationController::class, 'check'])->name('check.id');
