@@ -193,7 +193,7 @@
                 return 'att_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
             }
 
-            function addAttachmentTask(personKey, file, docType, personId, fileIdNumber) {
+            function addAttachmentTask(personKey, file, docType, personId, fileIdNumber, docTypeName) {
                 // التحقق الصارم من صحة البيانات المدخلة
                 if (!personKey || personKey === 'template' || personKey.includes('template')) {
                     console.warn('[addAttachmentTask] محاولة إضافة مرفق بـ personKey غير صالح:', {personKey, personId, file, docType, fileIdNumber});
@@ -235,6 +235,7 @@
                     // ⭐ CRITICAL FIX: تعيين الملف فوراً للعرض الفوري
                     processedFile: file,
                     docType: docType,
+                    docTypeName: docTypeName || docType, // اسم الوثيقة للعرض
                     personId: personId.toString().trim(),
                     fileIdNumber: fileIdNumber || '',
                     status: 'pending', // دائماً pending في البداية للعرض الفوري
@@ -930,14 +931,10 @@
                     // عنوان نوع الوثيقة
                     const docType = document.createElement('div');
                     docType.className = 'fw-bold mb-1';
-                    docType.textContent = task.docType || '';
+                    docType.textContent = task.docTypeName || task.docType || '';
                     cardBody.appendChild(docType);
 
-                    // اسم الملف
-                    const docNameDiv = document.createElement('div');
-                    docNameDiv.className = 'small text-muted mb-1';
-                    docNameDiv.textContent = task.processedFile ? (task.processedFile.name || '') : (task.originalFile.name || '');
-                    cardBody.appendChild(docNameDiv);
+                    // لا نعرض اسم الملف للمستخدم - فقط نوع الوثيقة والصورة
 
                     // ⭐ منطق العرض الفوري المحسن
                     let previewFile = null;
@@ -1260,19 +1257,22 @@
                     }
 
                     const docTypeValue = docTypeSelect.value;
+                    // الحصول على اسم الوثيقة من النص المعروض في القائمة
+                    const docTypeName = docTypeSelect.options[docTypeSelect.selectedIndex]?.text || docTypeValue;
                     const fileIdNumber = document.querySelector('input[name="file_id_number"]')?.value || '';
 
                     console.log('📋 تفاصيل الرفع:', {
                         personKey: personKey,
                         personId: personId,
                         docTypeValue: docTypeValue,
+                        docTypeName: docTypeName,
                         fileIdNumber: fileIdNumber,
                         fileName: file.name
                     });
 
                     // إضافة المهمة إلى النظام
-                    console.log('🟢 رفع ملف جديد:', file.name, 'نوع الوثيقة:', docTypeValue, 'في المنطقة:', personKey);
-                    addAttachmentTask(personKey, file, docTypeValue, personId, fileIdNumber);
+                    console.log('🟢 رفع ملف جديد:', file.name, 'نوع الوثيقة:', docTypeName, 'في المنطقة:', personKey);
+                    addAttachmentTask(personKey, file, docTypeValue, personId, fileIdNumber, docTypeName);
 
                     // تنظيف input إذا كان من النوع العادي
                     if (fileInput && fileInput.value) {

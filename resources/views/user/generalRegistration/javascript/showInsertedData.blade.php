@@ -260,8 +260,21 @@
                         attachmentsHtml += `<div class="d-flex flex-wrap gap-3">`;
 
                         docsArr.forEach(doc => {
-                            // استخراج نوع الوثيقة
-                            const docType = doc.docType || doc.typeText || doc.type || '';
+                            // 🔍 Debug: طباعة محتوى doc
+                            console.log('📄 [renderReviewContent] doc object:', doc);
+                            console.log('📄 [renderReviewContent] doc properties:', {
+                                docTypeName: doc.docTypeName,
+                                typeText: doc.typeText,
+                                type: doc.type,
+                                docType: doc.docType,
+                                name: doc.name,
+                                docName: doc.docName
+                            });
+
+                            // استخراج نوع الوثيقة - الأولوية لاسم الوثيقة الحقيقي
+                            const docType = doc.docTypeName || doc.typeText || doc.type || doc.docType || 'وثيقة';
+                            console.log('✅ [renderReviewContent] docType المستخدم:', docType);
+
                             // استخراج اسم الملف
                             const fileName = doc.name || doc.docName || (doc.originalFile && doc.originalFile.name) || (doc.processedFile && doc.processedFile.name) || '';
                             // استخراج الملف نفسه

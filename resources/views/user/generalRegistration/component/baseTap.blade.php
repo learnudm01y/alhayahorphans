@@ -123,7 +123,7 @@
                     <label class="form-label">المدينة <span class="text-danger">*</span></label>
                     <select name="data_city" class="form-select">
                         <option value="">اختر المدينة</option>
-                        @foreach ($city as $city_item)
+                        @foreach ($city->where('city', '!=', 'Unknown') as $city_item)
                             <option value="{{ $city_item->id }}">{{ $city_item->city }}
                             </option>
                         @endforeach
@@ -133,7 +133,7 @@
                     <label class="form-label">المحافظة <span class="text-danger">*</span></label>
                     <select name="data_province" class="form-select">
                         <option value="">اختر المحافظة</option>
-                        @foreach ($province as $province_item)
+                        @foreach ($province->where('description', '!=', 'Unknown') as $province_item)
                             <option value="{{ $province_item->id }}">
                                 {{ $province_item->description }}</option>
                         @endforeach
@@ -147,7 +147,7 @@
                     <label class="form-label">الحالة الصحية <span class="text-danger">*</span></label>
                     <select name="data_health_status" class="form-select">
                         <option value="">اختر الحالة</option>
-                        @foreach ($health_status as $health_status_item)
+                        @foreach ($health_status->where('description', '!=', 'Unknown') as $health_status_item)
                             <option value="{{ $health_status_item->id }}">
                                 {{ $health_status_item->description }}</option>
                         @endforeach
@@ -231,10 +231,16 @@
             <!-- منطقة رفع الملفات للبيانات الأساسية -->
             <div data-upload-zone="main" data-person-id="{{ $data_id_number ?? '' }}">
                 <label class="form-label fw-bold"> رفع الملفات <span class="text-danger">*</span></label>
+                <div class="alert alert-warning py-2 mb-2" style="font-size: 0.9rem;">
+                    <i class="fas fa-star text-danger me-1"></i>
+                    <strong>الوثائق المميزة بعلامة <span class="text-danger">★</span> إجبارية ويجب إدخالها</strong>
+                </div>
                 <select class="form-select mainDocumentTypeSelect" id="mainDocumentTypeSelect_main">
                     <option value="">اختر نوع الوثيقة</option>
-                    @foreach ($documentTypes->where('basic_enabled', 1) as $documentType)
-                        <option value="{{ $documentType->pref }}">{{ $documentType->description }}</option>
+                    @foreach ($documentTypes->where('basic_enabled', 1)->where('description', '!=', 'Unknown') as $documentType)
+                        <option value="{{ $documentType->pref }}" {{ $documentType->basic_required ? 'data-required=true' : '' }}>
+                            {{ $documentType->basic_required ? '★ ' : '' }}{{ $documentType->description }}{{ $documentType->basic_required ? ' (إجباري)' : '' }}
+                        </option>
                     @endforeach
                 </select>
                 <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_main" tabindex="-1" aria-hidden="true"
@@ -441,12 +447,18 @@
                     </select>
                 </div>
                 <div class="mb-2">
-                    <label class="form-label">اسم صاحب حساب البنك <span class="text-primary">(اختياري)</span></label>
-                    <input type="text" name="bank_accounts[${index}][re_guardian_name]" class="form-control" maxlength="100">
+                    <label class="form-label">رقم هوية صاحب الحساب <span class="text-primary">(اختياري)</span></label>
+                    <div class="input-group">
+                        <input type="text" name="bank_accounts[${index}][person_owner_identity_number]" class="form-control bank-owner-id-input" maxlength="20" data-index="${index}" placeholder="أدخل رقم الهوية لجلب الاسم تلقائياً">
+                        <span class="input-group-text bank-owner-search-status" data-index="${index}" style="display:none;">
+                            <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+                        </span>
+                    </div>
+                    <small class="text-muted">سيتم جلب الاسم تلقائياً من قاعدة البيانات المركزية</small>
                 </div>
                 <div class="mb-2">
-                    <label class="form-label">رقم هوية صاحب الحساب <span class="text-primary">(اختياري)</span></label>
-                    <input type="text" name="bank_accounts[${index}][person_owner_identity_number]" class="form-control" maxlength="20">
+                    <label class="form-label">اسم صاحب حساب البنك <span class="text-primary">(اختياري)</span></label>
+                    <input type="text" name="bank_accounts[${index}][re_guardian_name]" class="form-control bank-owner-name-input" data-index="${index}" maxlength="100" placeholder="سيتم جلب الاسم تلقائياً أو يمكنك إدخاله يدوياً">
                 </div>
                 <div class="mb-2">
                     <label class="form-label">رقم هاتف صاحب الحساب <span class="text-primary">(اختياري)</span></label>
@@ -488,6 +500,83 @@
             });
         }
 
+        // دالة جلب اسم صاحب الحساب من قاعدة البيانات المركزية
+        function fetchBankOwnerName(idNumber, formIndex) {
+            const nameInput = document.querySelector(`.bank-owner-name-input[data-index="${formIndex}"]`);
+            const statusSpan = document.querySelector(`.bank-owner-search-status[data-index="${formIndex}"]`);
+
+            if (!idNumber || idNumber.length < 5) {
+                return;
+            }
+
+            // إظهار مؤشر التحميل
+            if (statusSpan) statusSpan.style.display = 'flex';
+
+            fetch(`/api/civil-registry/search-by-id?search_text=${encodeURIComponent(idNumber)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (statusSpan) statusSpan.style.display = 'none';
+
+                    if (data.success && data.data && data.data.length > 0) {
+                        const person = data.data[0];
+                        // تجميع الاسم الكامل من الحقول المختلفة
+                        const fullName = [
+                            person.CI_FIRST_ARB || '',
+                            person.CI_FATHER_ARB || '',
+                            person.CI_GRAND_FATHER_ARB || '',
+                            person.CI_FAMILY_ARB || ''
+                        ].filter(n => n).join(' ');
+
+                        if (fullName && nameInput) {
+                            nameInput.value = fullName;
+                            nameInput.classList.add('is-valid');
+                            nameInput.classList.remove('is-invalid');
+                        }
+                    } else {
+                        // لم يتم العثور على الشخص - السماح بالإدخال اليدوي
+                        if (nameInput) {
+                            nameInput.classList.remove('is-valid');
+                            nameInput.placeholder = 'لم يتم العثور على الاسم - يرجى إدخاله يدوياً';
+                        }
+                    }
+                })
+                .catch(error => {
+                    if (statusSpan) statusSpan.style.display = 'none';
+                    console.error('خطأ في جلب بيانات صاحب الحساب:', error);
+                    if (nameInput) {
+                        nameInput.placeholder = 'يرجى إدخال الاسم يدوياً';
+                    }
+                });
+        }
+
+        // ربط حدث الإدخال بحقول رقم الهوية
+        function attachBankOwnerIdListener() {
+            document.querySelectorAll('.bank-owner-id-input').forEach(input => {
+                if (!input.dataset.listenerAttached) {
+                    input.dataset.listenerAttached = 'true';
+                    let debounceTimer;
+                    input.addEventListener('input', function() {
+                        clearTimeout(debounceTimer);
+                        const idNumber = this.value.trim();
+                        const formIndex = this.dataset.index;
+
+                        debounceTimer = setTimeout(() => {
+                            fetchBankOwnerName(idNumber, formIndex);
+                        }, 500); // انتظار 500 مللي ثانية بعد توقف الكتابة
+                    });
+
+                    // جلب الاسم عند فقدان التركيز أيضاً
+                    input.addEventListener('blur', function() {
+                        const idNumber = this.value.trim();
+                        const formIndex = this.dataset.index;
+                        if (idNumber.length >= 5) {
+                            fetchBankOwnerName(idNumber, formIndex);
+                        }
+                    });
+                }
+            });
+        }
+
         addBankAccountBtn.addEventListener('click', function() {
             if (bankAccountCount < maxBankAccounts) {
                 if (bankAccountsContainer.classList.contains('d-none')) {
@@ -496,6 +585,7 @@
                 bankAccountsContainer.insertAdjacentHTML('beforeend', createBankAccountForm(bankAccountCount));
                 bankAccountCount++;
                 updateRemoveButtons();
+                attachBankOwnerIdListener(); // ربط مستمع الجلب التلقائي
                 if (bankAccountCount >= maxBankAccounts) addBankAccountBtn.disabled = true;
             }
         });

@@ -8,9 +8,15 @@
 </div>
 
 <!-- رقم هوية اليتيم -->
-<div class="col-md-4">
+<div class="col-md-6">
     <label class="form-label">رقم هوية اليتيم</label>
-    <input type="text" name="family_members[{{ $idx }}][person_id]" class="form-control" inputmode="numeric" minlength="9" maxlength="10" pattern="[0-9]{9,10}" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+    <div class="input-group">
+        <input type="text" name="family_members[{{ $idx }}][person_id]" class="form-control family-member-id-input" data-member-index="{{ $idx }}" inputmode="numeric" minlength="9" maxlength="10" pattern="[0-9]{9,10}" oninput="this.value = this.value.replace(/[^0-9]/g, '');" placeholder="أدخل رقم الهوية لجلب البيانات">
+        <span class="input-group-text family-member-search-status" data-member-index="{{ $idx }}" style="display:none;">
+            <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+        </span>
+    </div>
+    <small class="text-muted">سيتم جلب الاسم وتاريخ الميلاد تلقائياً من قاعدة البيانات المركزية إن توفر</small>
 </div>
 
 <!-- الاسم الأول -->
@@ -64,7 +70,7 @@
     <label class="form-label">الحالة الصحية</label>
     <select name="family_members[{{ $idx }}][person_health_status]" class="form-select">
         <option value="">اختر الحالة</option>
-        @foreach ($health_status as $status)
+        @foreach ($health_status->where('description', '!=', 'Unknown') as $status)
             <option value="{{ $status->id }}">{{ $status->description }}</option>
         @endforeach
     </select>
@@ -82,12 +88,18 @@
     <div class="alert alert-primary py-2 mb-2" style="font-size: 0.97rem;">
         يرجى اختيار نوع الوثيقة أولاً، وسوف يتم تحويلك لرفع الصورة المطلوبة.
     </div>
+    <div class="alert alert-warning py-2 mb-2" style="font-size: 0.9rem;">
+        <i class="fas fa-star text-danger me-1"></i>
+        <strong>الوثائق المميزة بعلامة <span class="text-danger">★</span> إجبارية ويجب إدخالها</strong>
+    </div>
     <label class="form-label fw-bold">رفع الملفات <span class="text-danger">*</span></label>
     <div class="upload-zone" data-upload-zone="family_{{ $idx }}">
         <select class="form-select mainDocumentTypeSelect" id="mainDocumentTypeSelect_{{ $idx }}">
             <option value="">اختر نوع الوثيقة</option>
-            @foreach ($documentTypes->where('family_enabled', 1) as $documentType)
-                <option value="{{ $documentType->pref }}">{{ $documentType->description }}</option>
+            @foreach ($documentTypes->where('family_enabled', 1)->where('description', '!=', 'Unknown') as $documentType)
+                <option value="{{ $documentType->pref }}" {{ $documentType->family_required ? 'data-required=true' : '' }}>
+                    {{ $documentType->family_required ? '★ ' : '' }}{{ $documentType->description }}{{ $documentType->family_required ? ' (إجباري)' : '' }}
+                </option>
             @endforeach
         </select>
         <input type="file"

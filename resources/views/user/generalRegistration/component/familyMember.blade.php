@@ -341,6 +341,259 @@
             });
         }, 0);
 
+        // 🆕 دالة جلب بيانات فرد الأسرة من قاعدة البيانات المركزية
+        window.fetchFamilyMemberData = function fetchFamilyMemberData(idNumber, memberIndex, formContainer = null) {
+            console.log('🔍 [fetchFamilyMemberData] تم استدعاء الدالة:', {
+                idNumber,
+                memberIndex,
+                hasFormContainer: !!formContainer,
+                formContainerIndex: formContainer?.dataset?.memberIndex
+            });
+
+            const form = formContainer || document.querySelector(`.family-member-form[data-member-index="${memberIndex}"]`);
+            if (!form) {
+                console.error('❌ [fetchFamilyMemberData] لم يتم العثور على النموذج');
+                console.log('📊 [fetchFamilyMemberData] جميع النماذج المتاحة:', 
+                    Array.from(document.querySelectorAll('.family-member-form')).map(f => ({
+                        index: f.dataset.memberIndex,
+                        id: f.id,
+                        isHidden: f.classList.contains('d-none')
+                    }))
+                );
+                return;
+            }
+
+            console.log('✅ [fetchFamilyMemberData] تم العثور على النموذج:', {
+                formIndex: form.dataset.memberIndex,
+                formId: form.id
+            });
+
+            const firstNameInput = form.querySelector(`[name="family_members[${memberIndex}][first_name]"]`);
+            const secondNameInput = form.querySelector(`[name="family_members[${memberIndex}][second_name]"]`);
+            const thirdNameInput = form.querySelector(`[name="family_members[${memberIndex}][third_name]"]`);
+            const lastNameInput = form.querySelector(`[name="family_members[${memberIndex}][last_name]"]`);
+            const birthDateInput = form.querySelector(`[name="family_members[${memberIndex}][person_birth_date]"]`);
+            const genderSelect = form.querySelector(`[name="family_members[${memberIndex}][person_gender]"]`);
+            const statusSpan = form.querySelector(`.family-member-search-status[data-member-index="${memberIndex}"]`);
+
+            console.log('🔍 [fetchFamilyMemberData] العناصر المستخرجة:', {
+                hasFirstName: !!firstNameInput,
+                firstNameName: firstNameInput?.name,
+                hasSecondName: !!secondNameInput,
+                secondNameName: secondNameInput?.name,
+                hasThirdName: !!thirdNameInput,
+                thirdNameName: thirdNameInput?.name,
+                hasLastName: !!lastNameInput,
+                lastNameName: lastNameInput?.name,
+                hasBirthDate: !!birthDateInput,
+                birthDateName: birthDateInput?.name,
+                hasGender: !!genderSelect,
+                genderName: genderSelect?.name,
+                hasStatus: !!statusSpan
+            });
+
+            if (!idNumber || idNumber.length < 9) {
+                console.warn('⚠️ [fetchFamilyMemberData] رقم الهوية قصير جداً:', idNumber);
+                return;
+            }
+
+            // إظهار مؤشر التحميل
+            if (statusSpan) statusSpan.style.display = 'flex';
+
+            console.log('🌐 [fetchFamilyMemberData] إرسال طلب إلى API:', `/api/civil-registry/search-by-id?search_text=${idNumber}`);
+
+            fetch(`/api/civil-registry/search-by-id?search_text=${encodeURIComponent(idNumber)}`)
+                .then(response => {
+                    console.log('📡 [fetchFamilyMemberData] استلام رد HTTP:', response.status, response.statusText);
+                    return response.json();
+                })
+                .then(data => {
+                    if (statusSpan) statusSpan.style.display = 'none';
+
+                    console.log('📥 [fetchFamilyMemberData] استلام الرد من API:', data);
+
+                    if (data.success && data.data && data.data.length > 0) {
+                        const person = data.data[0];
+
+                        console.log('✅ [fetchFamilyMemberData] تم العثور على الشخص:', person);
+
+                        // توزيع الاسم على الحقول الأربعة
+                        console.log('📝 [fetchFamilyMemberData] بيانات الاسم من API:', {
+                            CI_FIRST_ARB: person.CI_FIRST_ARB,
+                            CI_FATHER_ARB: person.CI_FATHER_ARB,
+                            CI_GRAND_FATHER_ARB: person.CI_GRAND_FATHER_ARB,
+                            CI_FAMILY_ARB: person.CI_FAMILY_ARB
+                        });
+
+                        if (firstNameInput && person.CI_FIRST_ARB) {
+                            console.log('⏳ [fetchFamilyMemberData] قبل التعيين - firstNameInput.value:', firstNameInput.value);
+                            firstNameInput.value = person.CI_FIRST_ARB;
+                            firstNameInput.classList.add('is-valid');
+                            console.log('✅ [fetchFamilyMemberData] بعد التعيين - firstNameInput.value:', firstNameInput.value);
+                        } else {
+                            console.warn('❌ [fetchFamilyMemberData] لم يتم تعيين الاسم الأول:', {
+                                hasInput: !!firstNameInput,
+                                hasData: !!person.CI_FIRST_ARB
+                            });
+                        }
+
+                        if (secondNameInput && person.CI_FATHER_ARB) {
+                            console.log('⏳ [fetchFamilyMemberData] قبل التعيين - secondNameInput.value:', secondNameInput.value);
+                            secondNameInput.value = person.CI_FATHER_ARB;
+                            secondNameInput.classList.add('is-valid');
+                            console.log('✅ [fetchFamilyMemberData] بعد التعيين - secondNameInput.value:', secondNameInput.value);
+                        } else {
+                            console.warn('❌ [fetchFamilyMemberData] لم يتم تعيين الاسم الثاني:', {
+                                hasInput: !!secondNameInput,
+                                hasData: !!person.CI_FATHER_ARB
+                            });
+                        }
+
+                        if (thirdNameInput && person.CI_GRAND_FATHER_ARB) {
+                            console.log('⏳ [fetchFamilyMemberData] قبل التعيين - thirdNameInput.value:', thirdNameInput.value);
+                            thirdNameInput.value = person.CI_GRAND_FATHER_ARB;
+                            thirdNameInput.classList.add('is-valid');
+                            console.log('✅ [fetchFamilyMemberData] بعد التعيين - thirdNameInput.value:', thirdNameInput.value);
+                        } else {
+                            console.warn('❌ [fetchFamilyMemberData] لم يتم تعيين الاسم الثالث:', {
+                                hasInput: !!thirdNameInput,
+                                hasData: !!person.CI_GRAND_FATHER_ARB
+                            });
+                        }
+
+                        if (lastNameInput && person.CI_FAMILY_ARB) {
+                            console.log('⏳ [fetchFamilyMemberData] قبل التعيين - lastNameInput.value:', lastNameInput.value);
+                            lastNameInput.value = person.CI_FAMILY_ARB;
+                            lastNameInput.classList.add('is-valid');
+                            console.log('✅ [fetchFamilyMemberData] بعد التعيين - lastNameInput.value:', lastNameInput.value);
+                        } else {
+                            console.warn('❌ [fetchFamilyMemberData] لم يتم تعيين اسم العائلة:', {
+                                hasInput: !!lastNameInput,
+                                hasData: !!person.CI_FAMILY_ARB
+                            });
+                        }
+
+                        // تاريخ الميلاد (إذا توفر)
+                        if (birthDateInput && person.CI_BIRTH_DATE) {
+                            // تحويل التاريخ إلى الصيغة المطلوبة YYYY-MM-DD
+                            let birthDate = person.CI_BIRTH_DATE;
+                            if (birthDate) {
+                                // محاولة تحويل التاريخ
+                                const dateObj = new Date(birthDate);
+                                if (!isNaN(dateObj.getTime())) {
+                                    const year = dateObj.getFullYear();
+                                    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                                    const day = String(dateObj.getDate()).padStart(2, '0');
+                                    birthDateInput.value = `${year}-${month}-${day}`;
+                                    birthDateInput.classList.add('is-valid');
+                                    console.log('✅ [fetchFamilyMemberData] تم تعيين تاريخ الميلاد:', birthDateInput.value);
+
+                                    // حساب العمر تلقائياً
+                                    const ageInput = form.querySelector(`[name="family_members[${memberIndex}][person_age]"]`);
+                                    if (ageInput) {
+                                        const today = new Date();
+                                        let age = today.getFullYear() - year;
+                                        const m = today.getMonth() - dateObj.getMonth();
+                                        if (m < 0 || (m === 0 && today.getDate() < dateObj.getDate())) {
+                                            age--;
+                                        }
+                                        ageInput.value = age;
+                                        console.log('✅ [fetchFamilyMemberData] تم حساب العمر:', age);
+                                    }
+
+                                    // تفعيل حدث change لتحديث العمر
+                                    birthDateInput.dispatchEvent(new Event('change', { bubbles: true }));
+                                }
+                            }
+                        }
+
+                        // الجنس (إذا توفر)
+                        if (genderSelect && person.CI_SEX) {
+                            // 1 = ذكر، 2 = أنثى
+                            genderSelect.value = person.CI_SEX;
+                            genderSelect.classList.add('is-valid');
+                            console.log('✅ [fetchFamilyMemberData] تم تعيين الجنس:', person.CI_SEX);
+                        }
+
+                        console.log(`✅ تم جلب بيانات فرد الأسرة بنجاح:`, person);
+                    } else {
+                        // لم يتم العثور على الشخص
+                        console.log(`ℹ️ لم يتم العثور على بيانات للهوية: ${idNumber}`);
+                    }
+                })
+                .catch(error => {
+                    if (statusSpan) statusSpan.style.display = 'none';
+                    console.error('❌ [fetchFamilyMemberData] خطأ في جلب بيانات فرد الأسرة:', error);
+                });
+        };
+
+        // 🆕 ربط أحداث الجلب التلقائي بحقول رقم الهوية
+        window.attachFamilyMemberIdListeners = function attachFamilyMemberIdListeners() {
+            console.log('🔧 [attachFamilyMemberIdListeners] بدء ربط المستمعات');
+            const allInputs = document.querySelectorAll('.family-member-id-input');
+            console.log('🔧 [attachFamilyMemberIdListeners] عدد الحقول الموجودة:', allInputs.length);
+
+            allInputs.forEach((input, index) => {
+                console.log(`🔧 [attachFamilyMemberIdListeners] معالجة الحقل ${index}:`, {
+                    hasListener: !!input.dataset.fetchListenerAttached,
+                    memberIndex: input.dataset.memberIndex
+                });
+
+                if (!input.dataset.fetchListenerAttached) {
+                    input.dataset.fetchListenerAttached = 'true';
+                    let debounceTimer;
+
+                    input.addEventListener('input', function() {
+                        clearTimeout(debounceTimer);
+                        const idNumber = this.value.trim();
+                        const memberIndex = this.dataset.memberIndex;
+                        const formContainer = this.closest('.family-member-form');
+
+                        console.log('⌨️ [input event] رقم الهوية:', idNumber, 'طول:', idNumber.length, 'memberIndex:', memberIndex, 'formContainer:', formContainer);
+
+                        debounceTimer = setTimeout(() => {
+                            if (idNumber.length >= 9) {
+                                console.log('✅ [input event] استدعاء fetchFamilyMemberData بعد 500ms');
+                                console.log('📦 [input event] المعاملات المرسلة:', {
+                                    idNumber: idNumber,
+                                    memberIndex: memberIndex,
+                                    formContainer: formContainer,
+                                    formDataMemberIndex: formContainer?.dataset?.memberIndex
+                                });
+                                window.fetchFamilyMemberData(idNumber, memberIndex, formContainer);
+                            } else {
+                                console.log('⏳ [input event] رقم الهوية قصير، انتظار المزيد');
+                            }
+                        }, 500);
+                    });
+
+                    input.addEventListener('blur', function() {
+                        const idNumber = this.value.trim();
+                        const memberIndex = this.dataset.memberIndex;
+                        const formContainer = this.closest('.family-member-form');
+
+                        console.log('👁️ [blur event] رقم الهوية:', idNumber, 'memberIndex:', memberIndex);
+                        console.log('👁️ [blur event] formContainer.dataset.memberIndex:', formContainer?.dataset?.memberIndex);
+                        console.log('👁️ [blur event] input.name:', this.name);
+
+                        if (idNumber.length >= 9) {
+                            console.log('✅ [blur event] استدعاء fetchFamilyMemberData');
+                            window.fetchFamilyMemberData(idNumber, memberIndex, formContainer);
+                        }
+                    });
+
+                    console.log(`✅ [attachFamilyMemberIdListeners] تم ربط المستمعات للحقل ${index}`);
+                }
+            });
+
+            console.log('✅ [attachFamilyMemberIdListeners] اكتمل ربط المستمعات');
+        };
+
+        // تفعيل المستمعات عند تحميل الصفحة
+        setTimeout(() => {
+            window.attachFamilyMemberIdListeners();
+        }, 500);
+
         // دالة إضافة فرد جديد - محدثة مع التحقق من الأخطاء
         window.addFamilyMember = function addFamilyMember() {
             try {
@@ -387,6 +640,19 @@
                         input.selectedIndex = 0;
                     }
                 });
+
+                // 🔧 إزالة data-fetch-listener-attached من النسخة المستنسخة
+                const clonedIdInput = clone.querySelector('.family-member-id-input');
+                if (clonedIdInput) {
+                    delete clonedIdInput.dataset.fetchListenerAttached;
+                    clonedIdInput.dataset.memberIndex = newIndex;
+                    clonedIdInput.classList.remove('is-valid', 'is-invalid');
+                    console.log(`🔧 [addFamilyMember] تم تنظيف data-fetch-listener-attached للنموذج ${newIndex}`);
+                }
+                const clonedStatusSpan = clone.querySelector('.family-member-search-status');
+                if (clonedStatusSpan) {
+                    clonedStatusSpan.dataset.memberIndex = newIndex;
+                }
 
                 // تحديث data-upload-zone
                 const uploadZone = clone.querySelector('[data-upload-zone]');
@@ -520,6 +786,15 @@
                     }
                 }, 300);
 
+                // 🆕 تفعيل الجلب التلقائي للنموذج الجديد
+                setTimeout(() => {
+                    console.log(`🔧 [addFamilyMember] استدعاء attachFamilyMemberIdListeners للنموذج ${newIndex}`);
+                    if (typeof window.attachFamilyMemberIdListeners === 'function') {
+                        window.attachFamilyMemberIdListeners();
+                        console.log(`✅ [addFamilyMember] تم تفعيل الجلب التلقائي للنموذج ${newIndex}`);
+                    }
+                }, 400);
+
                 return true;
             } catch (error) {
                 console.error('❌ خطأ في addFamilyMember:', error);
@@ -570,6 +845,12 @@
                 if (preview) preview.id = `mainDocumentPreview_${idx}`;
                 const names = form.querySelector('.mainDocumentNames');
                 if (names) names.id = `mainDocumentNames_${idx}`;
+
+                // 🆕 تحديث data-member-index لحقول الجلب التلقائي
+                const idInput = form.querySelector('.family-member-id-input');
+                if (idInput) idInput.dataset.memberIndex = idx;
+                const statusSpan = form.querySelector('.family-member-search-status');
+                if (statusSpan) statusSpan.dataset.memberIndex = idx;
 
                 // تحديث window.allDocs
                 if (window.allDocs && window.allDocs instanceof Map && oldPersonKey && oldPersonKey !== newPersonKey) {
