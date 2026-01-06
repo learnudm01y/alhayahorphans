@@ -19,6 +19,7 @@ class Sponsorship extends Model
         'external_file_number',
         'identity_number',
         'orphan_name',
+        'sponsored_birth_date', // تاريخ ميلاد المكفول
         'guardian_name',
         'guardian_identity_number',
         'sponsorship_duration_months',
@@ -26,6 +27,7 @@ class Sponsorship extends Model
         'sponsorship_end_date',
         'sponsorship_type_id',
         'sponsorship_status_id',
+        'person_type', // نوع الشخص: breadwinner, family_member, deceased_father, deceased_mother
         'notes',
         'created_by',
         'updated_by', // مصفوفة المستخدمين الذين عدلوا السجل
@@ -34,6 +36,7 @@ class Sponsorship extends Model
     protected $casts = [
         'sponsorship_start_date' => 'date',
         'sponsorship_end_date' => 'date',
+        'sponsored_birth_date' => 'date', // تاريخ ميلاد المكفول
         'sponsorship_duration_months' => 'integer',
         'updated_by' => 'array', // تحويل JSON إلى مصفوفة تلقائياً
     ];

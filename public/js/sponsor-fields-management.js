@@ -3,6 +3,13 @@
  * هذا الملف يحتوي على كل الوظائف المتعلقة بإدارة حقول الجمعيات
  */
 
+// إعداد CSRF token لجميع طلبات AJAX
+$.ajaxSetup({
+    headers: {
+        'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+    }
+});
+
 class SponsorFieldsManager {
     constructor() {
         this.currentSponsorId = null;

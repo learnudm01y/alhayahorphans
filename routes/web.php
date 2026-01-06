@@ -106,6 +106,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/dashboard', [UserController::class, 'dashboard'])->name('dashboard');
         Route::get('/general-registration', [ShowGeneralRegisrationController::class, 'index'])->name('generalRegistration.index');
         Route::post('/general-registration/update', [ShowGeneralRegisrationController::class, 'updateSponsorshipData'])->name('update-sponsorship-data');
+        Route::post('/general-registration/search-civil-registry', [ShowGeneralRegisrationController::class, 'searchDeadPersonInCivilRegistry'])->name('search-civil-registry');
+        Route::get('/general-registration/search-civil-registry', [ShowGeneralRegisrationController::class, 'searchCivilRegistryAjax'])->name('generalRegistration.searchCivilRegistry');
+        Route::get('/general-registration/attachment/{attachmentId}', [ShowGeneralRegisrationController::class, 'serveRcloneAttachment'])->name('generalRegistration.serveAttachment');
         // profifle management
         Route::get('profile', [UserProfileController::class, 'profile'])->name('index.profile');
         Route::get('settings', [UserProfileController::class, 'settings'])->name('settings');
@@ -376,6 +379,53 @@ Route::prefix('google-drive-test')->group(function () {
     Route::post('/create-folder', [\App\Http\Controllers\Admin\GoogleDriveTestController::class, 'createFolder'])->name('google.drive.test.folder');
     Route::get('/search', [\App\Http\Controllers\Admin\GoogleDriveTestController::class, 'searchFiles'])->name('google.drive.test.search');
     Route::get('/file-info', [\App\Http\Controllers\Admin\GoogleDriveTestController::class, 'getFileInfo'])->name('google.drive.test.info');
+});
+
+// Admin API - البحث في السجل المدني
+Route::middleware(['auth', 'verified'])->prefix('admin/api')->group(function () {
+    Route::get('/search-civil-registry', function (\Illuminate\Http\Request $request) {
+        $identityNumber = $request->get('identity_number');
+
+        if (!$identityNumber || strlen($identityNumber) < 3) {
+            return response()->json(['success' => false, 'message' => 'رقم الهوية مطلوب']);
+        }
+
+        try {
+            $person = \Illuminate\Support\Facades\DB::connection('civilregistry')
+                ->table('persons')
+                ->where('CI_ID_NUM', $identityNumber)
+                ->first();
+
+            if ($person) {
+                // تحويل تاريخ الميلاد إلى صيغة Y-m-d
+                $birthDate = '';
+                if (!empty($person->CI_BIRTH_DT)) {
+                    try {
+                        $birthDate = date('Y-m-d', strtotime($person->CI_BIRTH_DT));
+                    } catch (\Exception $e) {
+                        $birthDate = '';
+                    }
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'identity_number' => $person->CI_ID_NUM,
+                        'first_name' => $person->CI_FIRST_ARB ?? '',
+                        'second_name' => $person->CI_FATHER_ARB ?? '',
+                        'third_name' => $person->CI_GRAND_FATHER_ARB ?? '',
+                        'last_name' => $person->CI_FAMILY_ARB ?? '',
+                        'birth_date' => $birthDate,
+                        'gender' => $person->CI_SEX ?? '',
+                    ]
+                ]);
+            }
+
+            return response()->json(['success' => false, 'message' => 'لم يتم العثور على الشخص']);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => 'خطأ في الاتصال بقاعدة البيانات']);
+        }
+    })->name('admin.api.search-civil-registry');
 });
 
 require __DIR__ . '/auth.php';

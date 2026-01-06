@@ -61,13 +61,24 @@ class SponsorshipController extends Controller
                 'external_file_number' => 'nullable|string|max:100',
                 'identity_number' => 'nullable|string|max:50',
                 'orphan_name' => 'nullable|string|max:255',
+                'orphan_first_name' => 'nullable|string|max:50',
+                'orphan_father_name' => 'nullable|string|max:50',
+                'orphan_grandfather_name' => 'nullable|string|max:50',
+                'orphan_family_name' => 'nullable|string|max:50',
+                'sponsored_birth_date' => 'nullable|date', // تاريخ ميلاد المكفول
                 'guardian_name' => 'nullable|string|max:255',
+                'guardian_first_name' => 'nullable|string|max:50',
+                'guardian_father_name' => 'nullable|string|max:50',
+                'guardian_grandfather_name' => 'nullable|string|max:50',
+                'guardian_family_name' => 'nullable|string|max:50',
                 'guardian_identity_number' => 'nullable|string|max:50',
+                'guardian_birth_date' => 'nullable|date', // تاريخ ميلاد المعيل
                 'sponsorship_duration_months' => 'nullable|integer',
                 'sponsorship_start_date' => 'nullable|date',
                 'sponsorship_end_date' => 'nullable|date',
                 'sponsorship_type_id' => 'nullable|exists:type_of_guarantee,id',
                 'sponsorship_status_id' => 'nullable|exists:sponsorship_statuses,id',
+                'person_type' => 'nullable|string|in:breadwinner,family_member,deceased_father,deceased_mother',
                 'notes' => 'nullable|string',
                 'record_id' => 'nullable|string',
                 'record_type' => 'nullable|string|in:re_people,dead_people,data',
@@ -75,6 +86,54 @@ class SponsorshipController extends Controller
             ]);
 
             $validatedData['created_by'] = auth()->id();
+
+            // 🆕 معالجة الاسم الرباعي للمكفول - دمج 4 حقول في حقل واحد
+            if ($request->has('orphan_first_name') || $request->has('orphan_father_name') ||
+                $request->has('orphan_grandfather_name') || $request->has('orphan_family_name')) {
+                $nameParts = array_filter([
+                    $validatedData['orphan_first_name'] ?? '',
+                    $validatedData['orphan_father_name'] ?? '',
+                    $validatedData['orphan_grandfather_name'] ?? '',
+                    $validatedData['orphan_family_name'] ?? ''
+                ]);
+                $validatedData['orphan_name'] = implode(' ', $nameParts);
+            }
+
+            // 🆕 معالجة الاسم الرباعي للمعيل - دمج 4 حقول في حقل واحد
+            if ($request->has('guardian_first_name') || $request->has('guardian_father_name') ||
+                $request->has('guardian_grandfather_name') || $request->has('guardian_family_name')) {
+                $guardianNameParts = array_filter([
+                    $validatedData['guardian_first_name'] ?? '',
+                    $validatedData['guardian_father_name'] ?? '',
+                    $validatedData['guardian_grandfather_name'] ?? '',
+                    $validatedData['guardian_family_name'] ?? ''
+                ]);
+                $validatedData['guardian_name'] = implode(' ', $guardianNameParts);
+            }
+
+            // حفظ بيانات المعيل الرباعية للاستخدام لاحقاً
+            $guardianFirstName = $validatedData['guardian_first_name'] ?? '';
+            $guardianFatherName = $validatedData['guardian_father_name'] ?? '';
+            $guardianGrandFatherName = $validatedData['guardian_grandfather_name'] ?? '';
+            $guardianFamilyName = $validatedData['guardian_family_name'] ?? '';
+            $guardianBirthDate = $validatedData['guardian_birth_date'] ?? null;
+
+            // حفظ بيانات المكفول الرباعية للاستخدام لاحقاً
+            $orphanFirstName = $validatedData['orphan_first_name'] ?? '';
+            $orphanFatherName = $validatedData['orphan_father_name'] ?? '';
+            $orphanGrandFatherName = $validatedData['orphan_grandfather_name'] ?? '';
+            $orphanFamilyName = $validatedData['orphan_family_name'] ?? '';
+
+            // إزالة الحقول الفردية لأنها غير موجودة في جدول sponsorships
+            unset($validatedData['orphan_first_name']);
+            unset($validatedData['orphan_father_name']);
+            unset($validatedData['orphan_grandfather_name']);
+            unset($validatedData['orphan_family_name']);
+            unset($validatedData['guardian_first_name']);
+            unset($validatedData['guardian_father_name']);
+            unset($validatedData['guardian_grandfather_name']);
+            unset($validatedData['guardian_family_name']);
+            unset($validatedData['guardian_birth_date']);
 
             // 🆕 تعيين الحالة الافتراضية "جديد" (ID = 4) إذا لم يتم تحديد حالة
             if (!isset($validatedData['sponsorship_status_id']) || empty($validatedData['sponsorship_status_id'])) {
@@ -147,6 +206,398 @@ class SponsorshipController extends Controller
 
             if ($relationIdNumber) {
                 $validatedData['relation_id_number'] = $relationIdNumber;
+            }
+
+            // ============================================
+            // 🆕 معالجة إدخال الأشخاص حسب نوع الشخص (person_type)
+            // ============================================
+            $personType = $validatedData['person_type'] ?? null;
+            $sponsoredIdentity = $validatedData['identity_number'] ?? null;
+            $guardianIdentity = $validatedData['guardian_identity_number'] ?? null;
+            $orphanName = $validatedData['orphan_name'] ?? null;
+            $guardianName = $validatedData['guardian_name'] ?? null;
+            $sponsoredBirthDate = $validatedData['sponsored_birth_date'] ?? null;
+
+            Log::info('🎯 معالجة الكفالة حسب نوع الشخص', [
+                'person_type' => $personType,
+                'sponsored_identity' => $sponsoredIdentity,
+                'guardian_identity' => $guardianIdentity,
+                'orphan_name' => $orphanName,
+                'guardian_name' => $guardianName,
+                'sponsored_birth_date' => $sponsoredBirthDate,
+                'guardian_birth_date' => $guardianBirthDate ?? null
+            ]);
+
+            // ============================================
+            // 📌 حالة: معيل (breadwinner)
+            // ============================================
+            if ($personType === 'breadwinner') {
+                // المعيل يدخل في جدول data مع رقم ملف جديد
+                $existingGuardian = Data::where('data_id_number', $sponsoredIdentity)->first();
+
+                if (!$existingGuardian && $sponsoredIdentity && $orphanName) {
+                    // توليد رقم ملف فريد جديد للمعيل
+                    $uniqueFileId = generateUniqueReservedCode('data', 'file_id_number');
+
+                    if (!$uniqueFileId) {
+                        throw new \Exception('فشل في توليد رقم ملف فريد');
+                    }
+
+                    Log::info('🆕 توليد رقم ملف فريد للمعيل الجديد', [
+                        'file_id' => $uniqueFileId,
+                        'breadwinner_identity' => $sponsoredIdentity
+                    ]);
+
+                    // إضافة المعيل إلى جدول data
+                    $newGuardianData = Data::create([
+                        'file_id_number' => $uniqueFileId,
+                        'data_id_number' => $sponsoredIdentity,
+                        'data_first_name' => $orphanFirstName ?: null,
+                        'data_first_name_normalized' => $orphanFirstName ?: null,
+                        'data_father_name' => $orphanFatherName ?: null,
+                        'data_father_name_normalized' => $orphanFatherName ?: null,
+                        'data_grand_father_name' => $orphanGrandFatherName ?: null,
+                        'data_grand_father_name_normalized' => $orphanGrandFatherName ?: null,
+                        'data_family_name' => $orphanFamilyName ?: null,
+                        'data_family_name_normalized' => $orphanFamilyName ?: null,
+                        'data_birth_date' => $validatedData['sponsored_birth_date'] ?? null,
+                        'data_section_id' => 1,
+                        'data_request_status' => 4,
+                        'data_user_insert_data' => auth()->user()->name ?? 'System',
+                    ]);
+
+                    Log::info('✅ تم إضافة المعيل إلى جدول data', [
+                        'data_id' => $newGuardianData->id,
+                        'file_id_number' => $uniqueFileId,
+                        'identity' => $sponsoredIdentity,
+                        'birth_date' => $validatedData['sponsored_birth_date'] ?? null
+                    ]);
+
+                    // تخزين أرقام الملفات للكفالة
+                    $validatedData['relation_id_number'] = $uniqueFileId;
+                    // استخدام الرقم المحجوز أو توليد رقم جديد
+                    $validatedData['internal_file_number'] = $reservedFileId ?: generateUniqueReservedCode('sponsorships', 'internal_file_number');
+                    markCodeAsUsed($uniqueFileId);
+                    if ($validatedData['internal_file_number']) {
+                        markCodeAsUsed($validatedData['internal_file_number']);
+                    }
+                } else if ($existingGuardian) {
+                    // المعيل موجود بالفعل - نستخدم رقم ملف الكفالة المحجوز
+                    $validatedData['relation_id_number'] = $existingGuardian->file_id_number;
+
+                    // 🆕 استخدام الرقم المحجوز من المودال أو توليد رقم جديد
+                    $validatedData['internal_file_number'] = $reservedFileId ?: generateUniqueReservedCode('sponsorships', 'internal_file_number');
+                    if ($validatedData['internal_file_number']) {
+                        markCodeAsUsed($validatedData['internal_file_number']);
+                    }
+
+                    Log::info('✅ المعيل موجود بالفعل في جدول data - تم تعيين internal_file_number', [
+                        'file_id_number' => $existingGuardian->file_id_number,
+                        'internal_file_number' => $validatedData['internal_file_number'],
+                        'was_reserved' => !empty($reservedFileId)
+                    ]);
+                }
+            }
+            // ============================================
+            // 📌 حالة: فرد عائلة (family_member)
+            // ============================================
+            elseif ($personType === 'family_member') {
+                // يجب أن يكون المعيل موجوداً أو يتم إنشاؤه
+                if (!$guardianIdentity || !$guardianName) {
+                    throw new \Exception('يجب إدخال بيانات المعيل كاملة لإضافة فرد عائلة');
+                }
+
+                // التحقق من وجود المعيل أو إنشائه
+                $existingGuardian = Data::where('data_id_number', $guardianIdentity)->first();
+
+                if (!$existingGuardian) {
+                    // إنشاء المعيل أولاً
+                    $uniqueFileId = generateUniqueReservedCode('data', 'file_id_number');
+
+                    if (!$uniqueFileId) {
+                        throw new \Exception('فشل في توليد رقم ملف فريد للمعيل');
+                    }
+
+                    $existingGuardian = Data::create([
+                        'file_id_number' => $uniqueFileId,
+                        'data_id_number' => $guardianIdentity,
+                        'data_first_name' => $guardianFirstName ?: null,
+                        'data_first_name_normalized' => $guardianFirstName ?: null,
+                        'data_father_name' => $guardianFatherName ?: null,
+                        'data_father_name_normalized' => $guardianFatherName ?: null,
+                        'data_grand_father_name' => $guardianGrandFatherName ?: null,
+                        'data_grand_father_name_normalized' => $guardianGrandFatherName ?: null,
+                        'data_family_name' => $guardianFamilyName ?: null,
+                        'data_family_name_normalized' => $guardianFamilyName ?: null,
+                        'data_birth_date' => $guardianBirthDate ?? null,
+                        'data_section_id' => 1,
+                        'data_request_status' => 4,
+                        'data_user_insert_data' => auth()->user()->name ?? 'System',
+                    ]);
+
+                    markCodeAsUsed($uniqueFileId);
+
+                    Log::info('✅ تم إنشاء المعيل لفرد العائلة', [
+                        'guardian_file_id' => $uniqueFileId,
+                        'guardian_identity' => $guardianIdentity
+                    ]);
+                }
+
+                // إضافة فرد العائلة إلى re_people
+                $existingFamilyMember = DB::table('re_people')->where('person_id', $sponsoredIdentity)->first();
+
+                if (!$existingFamilyMember && $sponsoredIdentity) {
+                    RePeople::create([
+                        'registration_id' => $existingGuardian->file_id_number,
+                        'person_id' => $sponsoredIdentity,
+                        'first_name' => $orphanFirstName ?: null,
+                        'first_name_normalized' => $orphanFirstName ?: null,
+                        'second_name' => $orphanFatherName ?: null,
+                        'second_name_normalized' => $orphanFatherName ?: null,
+                        'third_name' => $orphanGrandFatherName ?: null,
+                        'third_name_normalized' => $orphanGrandFatherName ?: null,
+                        'last_name' => $orphanFamilyName ?: null,
+                        'last_name_normalized' => $orphanFamilyName ?: null,
+                        'person_birth_date' => $validatedData['sponsored_birth_date'] ?? null,
+                    ]);
+
+                    Log::info('✅ تم إضافة فرد العائلة إلى re_people', [
+                        'registration_id' => $existingGuardian->file_id_number,
+                        'person_id' => $sponsoredIdentity,
+                        'person_birth_date' => $validatedData['sponsored_birth_date'] ?? null
+                    ]);
+                }
+
+                $validatedData['relation_id_number'] = $existingGuardian->file_id_number;
+                $validatedData['internal_file_number'] = $validatedData['internal_file_number'] ?: generateUniqueReservedCode('sponsorships', 'internal_file_number');
+                if ($validatedData['internal_file_number']) {
+                    markCodeAsUsed($validatedData['internal_file_number']);
+                }
+            }
+            // ============================================
+            // 📌 حالة: أب متوفي أو أم متوفية (deceased_father/deceased_mother)
+            // 🆕 يتم تخزين البيانات في sponsorships فقط حالياً
+            // بدون إنشاء ملف في dead_people - سيتم ذلك لاحقاً من بوابة المستخدم
+            // ============================================
+            elseif (in_array($personType, ['deceased_father', 'deceased_mother'])) {
+                // 🆕 بيانات المعيل اختيارية - لا نجبر على إدخالها
+                Log::info('📌 إضافة شخص متوفي - التخزين في sponsorships فقط', [
+                    'person_type' => $personType,
+                    'sponsored_identity' => $sponsoredIdentity,
+                    'has_guardian' => !empty($guardianIdentity),
+                ]);
+
+                // إذا تم إدخال بيانات المعيل، نتحقق من وجوده أو ننشئه
+                if ($guardianIdentity) {
+                    $existingGuardian = Data::where('data_id_number', $guardianIdentity)->first();
+
+                    if (!$existingGuardian) {
+                        // إنشاء المعيل إذا لم يكن موجوداً
+                        $uniqueFileId = generateUniqueReservedCode('data', 'file_id_number');
+
+                        if ($uniqueFileId) {
+                            $existingGuardian = Data::create([
+                                'file_id_number' => $uniqueFileId,
+                                'data_id_number' => $guardianIdentity,
+                                'data_first_name' => $guardianFirstName ?: null,
+                                'data_first_name_normalized' => $guardianFirstName ?: null,
+                                'data_father_name' => $guardianFatherName ?: null,
+                                'data_father_name_normalized' => $guardianFatherName ?: null,
+                                'data_grand_father_name' => $guardianGrandFatherName ?: null,
+                                'data_grand_father_name_normalized' => $guardianGrandFatherName ?: null,
+                                'data_family_name' => $guardianFamilyName ?: null,
+                                'data_family_name_normalized' => $guardianFamilyName ?: null,
+                                'data_birth_date' => $guardianBirthDate ?? null,
+                                'data_section_id' => 1,
+                                'data_request_status' => 4,
+                                'data_user_insert_data' => auth()->user()->name ?? 'System',
+                            ]);
+
+                            markCodeAsUsed($uniqueFileId);
+
+                            Log::info('✅ تم إنشاء المعيل للشخص المتوفي (اختياري)', [
+                                'guardian_file_id' => $uniqueFileId,
+                                'guardian_identity' => $guardianIdentity
+                            ]);
+                        }
+                    }
+
+                    // ربط رقم الملف إذا وُجد المعيل
+                    if ($existingGuardian) {
+                        $validatedData['relation_id_number'] = $existingGuardian->file_id_number;
+                    }
+                }
+
+                // 🆕 توليد رقم ملف داخلي للكفالة إذا لم يكن موجوداً
+                $validatedData['internal_file_number'] = $validatedData['internal_file_number'] ?: generateUniqueReservedCode('sponsorships', 'internal_file_number');
+                if ($validatedData['internal_file_number']) {
+                    markCodeAsUsed($validatedData['internal_file_number']);
+                }
+
+                Log::info('✅ تم تجهيز بيانات المتوفي للتخزين في sponsorships', [
+                    'person_type' => $personType,
+                    'internal_file_number' => $validatedData['internal_file_number'],
+                    'relation_id_number' => $validatedData['relation_id_number'] ?? null,
+                    'note' => 'لن يتم إنشاء ملف في dead_people حالياً - سيتم ذلك من بوابة المستخدم'
+                ]);
+            }
+            // ============================================
+            // 📌 حالة: بدون نوع محدد (المنطق القديم)
+            // ============================================
+            elseif ($sponsoredIdentity && $guardianIdentity && $orphanName && $guardianName) {
+
+                // التحقق من عدم وجود المكفول في re_people
+                $existingSponsored = DB::table('re_people')->where('person_id', $sponsoredIdentity)->first();
+
+                // التحقق من عدم وجود المعيل في data
+                $existingGuardian = Data::where('data_id_number', $guardianIdentity)->first();
+
+                // إذا لم يكن أي منهما موجوداً، ننشئ سجلات جديدة
+                if (!$existingSponsored && !$existingGuardian) {
+
+                    // توليد رقم ملف فريد جديد
+                    $uniqueFileId = generateUniqueReservedCode('data', 'file_id_number');
+
+                    if (!$uniqueFileId) {
+                        throw new \Exception('فشل في توليد رقم ملف فريد');
+                    }
+
+                    Log::info('🆕 توليد رقم ملف فريد لكفالة جديدة من السجل المدني', [
+                        'file_id' => $uniqueFileId,
+                        'sponsored_identity' => $sponsoredIdentity,
+                        'guardian_identity' => $guardianIdentity
+                    ]);
+
+                    // تقسيم اسم المكفول إلى 4 أجزاء
+                    $sponsoredNameParts = explode(' ', trim($orphanName));
+                    $sponsoredFirstName = $sponsoredNameParts[0] ?? '';
+                    $sponsoredSecondName = $sponsoredNameParts[1] ?? '';
+                    $sponsoredThirdName = $sponsoredNameParts[2] ?? '';
+                    $sponsoredLastName = $sponsoredNameParts[3] ?? (count($sponsoredNameParts) > 3 ? implode(' ', array_slice($sponsoredNameParts, 3)) : '');
+
+                    // تقسيم اسم المعيل إلى 4 أجزاء
+                    $guardianNameParts = explode(' ', trim($guardianName));
+                    $guardianFirstName = $guardianNameParts[0] ?? '';
+                    $guardianFatherName = $guardianNameParts[1] ?? '';
+                    $guardianGrandFatherName = $guardianNameParts[2] ?? '';
+                    $guardianFamilyName = $guardianNameParts[3] ?? (count($guardianNameParts) > 3 ? implode(' ', array_slice($guardianNameParts, 3)) : '');
+
+                    // جلب تاريخ ميلاد المعيل من السجل المدني
+                    $guardianBirthDate = null;
+                    try {
+                        $guardianFromCivilRegistry = DB::connection('civilregistry')
+                            ->table('persons')
+                            ->where('CI_ID_NUM', $guardianIdentity)
+                            ->first();
+
+                        if ($guardianFromCivilRegistry && !empty($guardianFromCivilRegistry->CI_BIRTH_DT)) {
+                            $guardianBirthDate = $guardianFromCivilRegistry->CI_BIRTH_DT;
+                            Log::info('✅ تم جلب تاريخ ميلاد المعيل من السجل المدني', [
+                                'guardian_identity' => $guardianIdentity,
+                                'birth_date' => $guardianBirthDate
+                            ]);
+                        }
+                    } catch (\Exception $e) {
+                        Log::warning('⚠️ فشل في جلب تاريخ ميلاد المعيل من السجل المدني', [
+                            'guardian_identity' => $guardianIdentity,
+                            'error' => $e->getMessage()
+                        ]);
+                    }
+
+                    // إضافة المعيل إلى جدول data
+                    $newGuardianData = Data::create([
+                        'file_id_number' => $uniqueFileId,
+                        'data_id_number' => $guardianIdentity,
+                        'data_first_name' => $guardianFirstName,
+                        'data_first_name_normalized' => $guardianFirstName,
+                        'data_father_name' => $guardianFatherName,
+                        'data_father_name_normalized' => $guardianFatherName,
+                        'data_grand_father_name' => $guardianGrandFatherName,
+                        'data_grand_father_name_normalized' => $guardianGrandFatherName,
+                        'data_family_name' => $guardianFamilyName,
+                        'data_family_name_normalized' => $guardianFamilyName,
+                        'data_birth_date' => $guardianBirthDate,
+                        'data_section_id' => 1,
+                        'data_request_status' => 4,
+                        'data_user_insert_data' => auth()->user()->name ?? 'System',
+                    ]);
+
+                    Log::info('✅ تم إضافة المعيل إلى جدول data', [
+                        'data_id' => $newGuardianData->id,
+                        'file_id_number' => $uniqueFileId,
+                        'guardian_identity' => $guardianIdentity,
+                        'name' => $guardianName
+                    ]);
+
+                    // إضافة المكفول إلى جدول re_people
+                    $newSponsoredPerson = RePeople::create([
+                        'registration_id' => $uniqueFileId,
+                        'person_id' => $sponsoredIdentity,
+                        'first_name' => $sponsoredFirstName,
+                        'first_name_normalized' => $sponsoredFirstName,
+                        'second_name' => $sponsoredSecondName,
+                        'second_name_normalized' => $sponsoredSecondName,
+                        'third_name' => $sponsoredThirdName,
+                        'third_name_normalized' => $sponsoredThirdName,
+                        'last_name' => $sponsoredLastName,
+                        'last_name_normalized' => $sponsoredLastName,
+                        'person_birth_date' => $validatedData['sponsored_birth_date'] ?? null,
+                    ]);
+
+                    Log::info('✅ تم إضافة المكفول إلى جدول re_people', [
+                        're_people_id' => $newSponsoredPerson->id,
+                        'registration_id' => $uniqueFileId,
+                        'person_id' => $sponsoredIdentity,
+                        'name' => $orphanName
+                    ]);
+
+                    // تخزين رقم الملف في relation_id_number (للربط بين data و re_people)
+                    $validatedData['relation_id_number'] = $uniqueFileId;
+
+                    // توليد رقم ملف داخلي منفصل للكفالة (مختلف عن relation_id_number)
+                    $internalFileNumber = generateUniqueReservedCode('sponsorships', 'internal_file_number');
+                    if ($internalFileNumber) {
+                        $validatedData['internal_file_number'] = $internalFileNumber;
+                        markCodeAsUsed($internalFileNumber);
+                    }
+
+                    // وضع علامة على الرقم كمستخدم
+                    markCodeAsUsed($uniqueFileId);
+
+                } elseif ($existingGuardian && !$existingSponsored) {
+                    // المعيل موجود بالفعل، نضيف المكفول فقط
+                    $uniqueFileId = $existingGuardian->file_id_number;
+
+                    // تقسيم اسم المكفول
+                    $sponsoredNameParts = explode(' ', trim($orphanName));
+                    $sponsoredFirstName = $sponsoredNameParts[0] ?? '';
+                    $sponsoredSecondName = $sponsoredNameParts[1] ?? '';
+                    $sponsoredThirdName = $sponsoredNameParts[2] ?? '';
+                    $sponsoredLastName = $sponsoredNameParts[3] ?? (count($sponsoredNameParts) > 3 ? implode(' ', array_slice($sponsoredNameParts, 3)) : '');
+
+                    // إضافة المكفول إلى re_people
+                    $newSponsoredPerson = RePeople::create([
+                        'registration_id' => $uniqueFileId,
+                        'person_id' => $sponsoredIdentity,
+                        'first_name' => $sponsoredFirstName,
+                        'first_name_normalized' => $sponsoredFirstName,
+                        'second_name' => $sponsoredSecondName,
+                        'second_name_normalized' => $sponsoredSecondName,
+                        'third_name' => $sponsoredThirdName,
+                        'third_name_normalized' => $sponsoredThirdName,
+                        'last_name' => $sponsoredLastName,
+                        'last_name_normalized' => $sponsoredLastName,
+                        'person_birth_date' => $validatedData['sponsored_birth_date'] ?? null,
+                    ]);
+
+                    Log::info('✅ تم إضافة المكفول إلى جدول re_people (المعيل موجود مسبقاً)', [
+                        're_people_id' => $newSponsoredPerson->id,
+                        'registration_id' => $uniqueFileId,
+                        'person_id' => $sponsoredIdentity
+                    ]);
+
+                    $validatedData['relation_id_number'] = $uniqueFileId;
+                }
             }
 
             // إزالة sponsor_ids من البيانات لأنه سيتم معالجته بشكل منفصل
@@ -412,6 +863,9 @@ class SponsorshipController extends Controller
             if ($sponsorship->sponsorship_end_date) {
                 $sponsorshipData['sponsorship_end_date'] = $sponsorship->sponsorship_end_date->format('Y-m-d');
             }
+            if ($sponsorship->sponsored_birth_date) {
+                $sponsorshipData['sponsored_birth_date'] = $sponsorship->sponsored_birth_date->format('Y-m-d');
+            }
 
             return response()->json($sponsorshipData);
         } catch (\Exception $e) {
@@ -441,15 +895,61 @@ class SponsorshipController extends Controller
                 'external_file_number' => 'nullable|string|max:100',
                 'identity_number' => 'nullable|string|max:50',
                 'orphan_name' => 'nullable|string|max:255',
+                'orphan_first_name' => 'nullable|string|max:50',
+                'orphan_father_name' => 'nullable|string|max:50',
+                'orphan_grandfather_name' => 'nullable|string|max:50',
+                'orphan_family_name' => 'nullable|string|max:50',
+                'sponsored_birth_date' => 'nullable|date', // تاريخ ميلاد المكفول
                 'guardian_name' => 'nullable|string|max:255',
+                'guardian_first_name' => 'nullable|string|max:50',
+                'guardian_father_name' => 'nullable|string|max:50',
+                'guardian_grandfather_name' => 'nullable|string|max:50',
+                'guardian_family_name' => 'nullable|string|max:50',
                 'guardian_identity_number' => 'nullable|string|max:50',
+                'guardian_birth_date' => 'nullable|date', // تاريخ ميلاد المعيل
                 'sponsorship_duration_months' => 'nullable|integer',
                 'sponsorship_start_date' => 'nullable|date',
                 'sponsorship_end_date' => 'nullable|date',
                 'sponsorship_type_id' => 'nullable|exists:type_of_guarantee,id',
                 'sponsorship_status_id' => 'nullable|exists:sponsorship_statuses,id',
+                'person_type' => 'nullable|string|in:breadwinner,family_member,deceased_father,deceased_mother',
                 'notes' => 'nullable|string',
             ]);
+
+            // 🆕 معالجة الاسم الرباعي للمكفول - دمج 4 حقول في حقل واحد (في حالة التعديل)
+            if ($request->has('orphan_first_name') || $request->has('orphan_father_name') ||
+                $request->has('orphan_grandfather_name') || $request->has('orphan_family_name')) {
+                $nameParts = array_filter([
+                    $validatedData['orphan_first_name'] ?? '',
+                    $validatedData['orphan_father_name'] ?? '',
+                    $validatedData['orphan_grandfather_name'] ?? '',
+                    $validatedData['orphan_family_name'] ?? ''
+                ]);
+                $validatedData['orphan_name'] = implode(' ', $nameParts);
+            }
+
+            // 🆕 معالجة الاسم الرباعي للمعيل - دمج 4 حقول في حقل واحد (في حالة التعديل)
+            if ($request->has('guardian_first_name') || $request->has('guardian_father_name') ||
+                $request->has('guardian_grandfather_name') || $request->has('guardian_family_name')) {
+                $guardianNameParts = array_filter([
+                    $validatedData['guardian_first_name'] ?? '',
+                    $validatedData['guardian_father_name'] ?? '',
+                    $validatedData['guardian_grandfather_name'] ?? '',
+                    $validatedData['guardian_family_name'] ?? ''
+                ]);
+                $validatedData['guardian_name'] = implode(' ', $guardianNameParts);
+            }
+
+            // إزالة الحقول الفردية لأنها غير موجودة في جدول sponsorships
+            unset($validatedData['orphan_first_name']);
+            unset($validatedData['orphan_father_name']);
+            unset($validatedData['orphan_grandfather_name']);
+            unset($validatedData['orphan_family_name']);
+            unset($validatedData['guardian_first_name']);
+            unset($validatedData['guardian_father_name']);
+            unset($validatedData['guardian_grandfather_name']);
+            unset($validatedData['guardian_family_name']);
+            unset($validatedData['guardian_birth_date']);
 
             // إزالة sponsor_ids من البيانات لأنه سيتم معالجته بشكل منفصل
             $sponsorIds = $validatedData['sponsor_ids'] ?? [];
@@ -735,12 +1235,18 @@ class SponsorshipController extends Controller
                 'needs_guardian' => false,
                 'identity_number' => '',
                 'full_name' => '',
+                'first_name' => '', // 🆕 الاسم الأول
+                'second_name' => '', // 🆕 اسم الأب
+                'third_name' => '', // 🆕 اسم الجد
+                'last_name' => '', // 🆕 اسم العائلة
                 'guardian_name' => '',
                 'guardian_identity' => '',
                 'guardian_file_id' => '', // 🔥 إضافة رقم ملف المعيل
                 'file_id' => '',
                 'new_file_id_generated' => false,
                 'reserved_file_id' => null,
+                'birth_date' => null, // 🆕 إضافة تاريخ الميلاد
+                'birth_date_source' => null, // 🆕 مصدر تاريخ الميلاد (database أو civil_registry)
             ];
 
             // 🆕 توليد file_id_number جديد للأشخاص من re_people و dead_people
@@ -768,7 +1274,47 @@ class SponsorshipController extends Controller
                     $personData['needs_guardian'] = false; // المعيل لا يحتاج معيل
                     $personData['identity_number'] = $record->data_id_number;
                     $personData['full_name'] = trim("{$record->data_first_name} {$record->data_father_name} {$record->data_grand_father_name} {$record->data_family_name}");
+                    $personData['first_name'] = $record->data_first_name ?? '';
+                    $personData['second_name'] = $record->data_father_name ?? '';
+                    $personData['third_name'] = $record->data_grand_father_name ?? '';
+                    $personData['last_name'] = $record->data_family_name ?? '';
                     $personData['file_id'] = $record->file_id_number;
+
+                    // 🆕 جلب تاريخ الميلاد
+                    if (!empty($record->data_birth_date)) {
+                        $personData['birth_date'] = $record->data_birth_date;
+                        $personData['birth_date_source'] = 'database';
+                    } else {
+                        // البحث في السجل المدني إذا لم يكن تاريخ الميلاد موجوداً
+                        $civilData = $this->searchCivilRegistryForBirthDate($record->data_id_number);
+                        if ($civilData) {
+                            $personData['birth_date'] = $civilData['birth_date'];
+                            $personData['birth_date_source'] = 'civil_registry';
+                            // تحديث الاسم من السجل المدني إذا كان فارغاً
+                            if (empty($personData['full_name']) && !empty($civilData['full_name'])) {
+                                $personData['full_name'] = $civilData['full_name'];
+                                $personData['first_name'] = $civilData['first_name'];
+                                $personData['second_name'] = $civilData['second_name'];
+                                $personData['third_name'] = $civilData['third_name'];
+                                $personData['last_name'] = $civilData['last_name'];
+                            }
+                        }
+                    }
+
+                    // 🆕 توليد رقم ملف جديد للمعيل (سيتم استخدامه كـ internal_file_number في الكفالة)
+                    $newFileId = generateUniqueReservedCode('sponsorships', 'internal_file_number');
+                    if ($newFileId) {
+                        $personData['reserved_file_id'] = $newFileId;
+                        $personData['new_file_id_generated'] = true;
+
+                        Log::info('🆕 تم توليد وحجز internal_file_number جديد للمعيل', [
+                            'record_type' => $recordType,
+                            'record_id' => $recordId,
+                            'data_file_id' => $record->file_id_number,
+                            'new_internal_file_id' => $newFileId,
+                            'status' => 'محجوز - في انتظار إنشاء الكفالة'
+                        ]);
+                    }
                 }
             }
             elseif ($recordType === 're_people') {
@@ -788,7 +1334,32 @@ class SponsorshipController extends Controller
                     $personData['needs_guardian'] = true; // اليتيم وفرد العائلة يحتاجون معيل
                     $personData['identity_number'] = $record->person_id;
                     $personData['full_name'] = trim("{$record->first_name} {$record->second_name} {$record->third_name} {$record->last_name}");
+                    $personData['first_name'] = $record->first_name ?? '';
+                    $personData['second_name'] = $record->second_name ?? '';
+                    $personData['third_name'] = $record->third_name ?? '';
+                    $personData['last_name'] = $record->last_name ?? '';
                     $personData['file_id'] = $record->registration_id;
+
+                    // 🆕 جلب تاريخ الميلاد
+                    if (!empty($record->birth_date)) {
+                        $personData['birth_date'] = $record->birth_date;
+                        $personData['birth_date_source'] = 'database';
+                    } else {
+                        // البحث في السجل المدني إذا لم يكن تاريخ الميلاد موجوداً
+                        $civilData = $this->searchCivilRegistryForBirthDate($record->person_id);
+                        if ($civilData) {
+                            $personData['birth_date'] = $civilData['birth_date'];
+                            $personData['birth_date_source'] = 'civil_registry';
+                            // تحديث الأسماء من السجل المدني إذا كانت فارغة
+                            if (empty($personData['first_name']) && !empty($civilData['first_name'])) {
+                                $personData['first_name'] = $civilData['first_name'];
+                                $personData['second_name'] = $civilData['second_name'];
+                                $personData['third_name'] = $civilData['third_name'];
+                                $personData['last_name'] = $civilData['last_name'];
+                                $personData['full_name'] = $civilData['full_name'];
+                            }
+                        }
+                    }
 
                     // جلب معلومات المعيل
                     if ($record->dataRecord) {
@@ -813,10 +1384,52 @@ class SponsorshipController extends Controller
                             $personData['person_type'] = 'deceased_father';
                             $personData['identity_number'] = $record->father_id;
                             $personData['full_name'] = trim("{$record->father_first_name} {$record->father_second_name} {$record->father_third_name} {$record->father_last_name}");
+                            $personData['first_name'] = $record->father_first_name ?? '';
+                            $personData['second_name'] = $record->father_second_name ?? '';
+                            $personData['third_name'] = $record->father_third_name ?? '';
+                            $personData['last_name'] = $record->father_last_name ?? '';
+
+                            // 🆕 البحث عن تاريخ الميلاد في السجل المدني
+                            if (!empty($record->father_id)) {
+                                $civilData = $this->searchCivilRegistryForBirthDate($record->father_id);
+                                if ($civilData) {
+                                    $personData['birth_date'] = $civilData['birth_date'];
+                                    $personData['birth_date_source'] = 'civil_registry';
+                                    // تحديث الأسماء من السجل المدني إذا كانت فارغة
+                                    if (empty($personData['first_name']) && !empty($civilData['first_name'])) {
+                                        $personData['first_name'] = $civilData['first_name'];
+                                        $personData['second_name'] = $civilData['second_name'];
+                                        $personData['third_name'] = $civilData['third_name'];
+                                        $personData['last_name'] = $civilData['last_name'];
+                                        $personData['full_name'] = $civilData['full_name'];
+                                    }
+                                }
+                            }
                         } else {
                             $personData['person_type'] = 'deceased_mother';
                             $personData['identity_number'] = $record->mother_id;
                             $personData['full_name'] = trim("{$record->mother_first_name} {$record->mother_second_name} {$record->mother_third_name} {$record->mother_last_name}");
+                            $personData['first_name'] = $record->mother_first_name ?? '';
+                            $personData['second_name'] = $record->mother_second_name ?? '';
+                            $personData['third_name'] = $record->mother_third_name ?? '';
+                            $personData['last_name'] = $record->mother_last_name ?? '';
+
+                            // 🆕 البحث عن تاريخ الميلاد في السجل المدني
+                            if (!empty($record->mother_id)) {
+                                $civilData = $this->searchCivilRegistryForBirthDate($record->mother_id);
+                                if ($civilData) {
+                                    $personData['birth_date'] = $civilData['birth_date'];
+                                    $personData['birth_date_source'] = 'civil_registry';
+                                    // تحديث الأسماء من السجل المدني إذا كانت فارغة
+                                    if (empty($personData['first_name']) && !empty($civilData['first_name'])) {
+                                        $personData['first_name'] = $civilData['first_name'];
+                                        $personData['second_name'] = $civilData['second_name'];
+                                        $personData['third_name'] = $civilData['third_name'];
+                                        $personData['last_name'] = $civilData['last_name'];
+                                        $personData['full_name'] = $civilData['full_name'];
+                                    }
+                                }
+                            }
                         }
                         $personData['needs_guardian'] = false; // المتوفي لا يحتاج معيل
                         $personData['file_id'] = $record->re_file_id;
@@ -993,14 +1606,14 @@ class SponsorshipController extends Controller
                 foreach ($sponsorships as $sponsorship) {
                     $sponsorNames = $sponsorship->sponsors->pluck('sponsor_name')->implode(' + ');
 
-                    // تحديد رقم الملف (خارجي أو داخلي)
-                    $fileNumber = $sponsorship->external_file_number ?: $sponsorship->internal_file_number;
+                    // 🔐 استخدام الرقم الداخلي (internal_file_number) ككلمة مرور
+                    $fileNumber = $sponsorship->internal_file_number ?: $sponsorship->external_file_number;
 
                     $data = [
                         $sponsorNames ?: '-',
                         $sponsorship->orphan_name ?: '-',
                         $sponsorship->identity_number ?: '-',  // اسم المستخدم
-                        $fileNumber ?: '-',                    // كلمة المرور
+                        $fileNumber ?: '-',                    // كلمة المرور (الرقم الداخلي)
                     ];
 
                     $sheet->fromArray($data, NULL, 'A' . $row);
@@ -1471,35 +2084,39 @@ class SponsorshipController extends Controller
                     'message' => 'تم فحص الملف بنجاح',
                     'validation' => [
                         'total_rows' => count($rows),
-                        'missing_persons' => $missingPersons, // قائمة الأشخاص المفقودين مع تفاصيلهم
+                        'missing_persons' => $missingPersons, // قائمة الأشخاص غير الموجودين (سيتم إدخالهم بدون relation_id_number)
                         'missing_banks' => $missingBanks,
                         'updated_phones' => $updatedPhones, // قائمة المعيلين الذين تم تحديث أرقامهم
+                        'allow_import_without_relation' => true, // 🆕 إشارة للسماح بالاستيراد بدون relation_id_number
                     ]
                 ]);
             }
 
-            // إذا كانت هناك بيانات مفقودة، أخبر المستخدم (في حالة الاستيراد المباشر)
+            // 🆕 تحسين: السماح بالاستيراد حتى لو كان الأشخاص غير موجودين
+            // سيتم إدخال البيانات في جدول sponsorships مع حفظ person_type
+            // وسيتم محاولة البحث عن relation_id_number من الجداول الثلاثة عند الإدخال
+
+            // تسجيل معلومات الأشخاص المفقودين (للتقرير فقط)
             if (!empty($missingPersons)) {
-                $preValidationErrors[] = "<strong>أشخاص غير موجودين في النظام (" . count($missingPersons) . "):</strong><br>"
-                    . "يجب إنشاء سجلات لهؤلاء الأشخاص أولاً";
+                Log::info('📋 أشخاص غير موجودين في النظام (سيتم إدخالهم بدون relation_id_number):', [
+                    'count' => count($missingPersons),
+                    'details' => array_slice($missingPersons, 0, 5) // أول 5 فقط للتوضيح
+                ]);
             }
 
+            // البنوك المفقودة فقط تمنع الاستيراد (اختياري - يمكن تعليقها لاحقاً)
             if (!empty($missingBanks)) {
                 $preValidationErrors[] = "<strong>بنوك غير موجودة في النظام (" . count($missingBanks) . "):</strong><br>"
                     . implode(', ', $missingBanks);
             }
 
-            // إذا كانت هناك أخطاء في التحقق المسبق، أخبر المستخدم
+            // إذا كانت هناك أخطاء في التحقق المسبق (البنوك فقط)، أخبر المستخدم
             if (!empty($preValidationErrors)) {
                 $errorMessage = "<div style='text-align: right;'>";
                 $errorMessage .= "<p><strong>⚠️ لا يمكن بدء الاستيراد بسبب وجود بيانات مفقودة:</strong></p>";
                 $errorMessage .= implode('<br><br>', $preValidationErrors);
                 $errorMessage .= "<br><br><p><strong>يرجى القيام بما يلي:</strong></p>";
                 $errorMessage .= "<ul style='text-align: right; direction: rtl;'>";
-
-                if (!empty($missingPersons)) {
-                    $errorMessage .= "<li>إنشاء سجلات للأشخاص المفقودين أولاً</li>";
-                }
 
                 if (!empty($missingBanks)) {
                     $errorMessage .= "<li>إضافة البنوك المفقودة من قسم إدارة البنوك</li>";
@@ -1513,6 +2130,8 @@ class SponsorshipController extends Controller
             // الخطوة 2: بدء عملية الاستيراد الفعلية
             $successCount = 0;
             $errorCount = 0;
+            $linkedCount = 0; // 🆕 عداد للسجلات التي تم ربطها بـ relation_id_number
+            $unlinkedCount = 0; // 🆕 عداد للسجلات التي تم إدخالها بدون ربط
             $errors = [];
 
             foreach ($rows as $index => $row) {
@@ -1539,87 +2158,129 @@ class SponsorshipController extends Controller
                     $reGuardianName = trim($row[$columnMap[$requiredColumns['re_guardian_name']] ?? 0] ?? '');
                     $rePhoneNumber = trim($row[$columnMap[$requiredColumns['re_phone_number']] ?? 0] ?? '');
 
-                    // التحقق من الحقول المطلوبة
-                    if (empty($guardianIdentity)) {
-                        $errors[] = "الصف {$rowNumber}: هوية المعيل مطلوبة";
+                    // التحقق من الحقول المطلوبة - تم تعديله للسماح بالإدخال بدون هوية المعيل
+                    // سيتم البحث عن relation_id_number باستخدام رقم هوية المكفول أو المعيل
+                    if (empty($guardianIdentity) && empty($sponsoredIdentity)) {
+                        $errors[] = "الصف {$rowNumber}: يجب توفير هوية المكفول أو هوية المعيل على الأقل";
                         $errorCount++;
                         continue;
                     }
 
-                    // تحديد رقم الملف بناءً على نوع الشخص المكفول
+                    // 🆕 البحث الموسع في الجداول الثلاثة (data, dead_people, re_people)
+                    // للعثور على relation_id_number
                     $internalFileNumber = null; // رقم الملف للربط الداخلي (relation_id_number)
                     $normalizedPersonType = $this->normalizeArabicText($personType);
+                    $foundInTable = null; // لتتبع الجدول الذي تم العثور على الشخص فيه
 
-                    // تحديد رقم الملف حسب نوع الشخص
-                    if (in_array($normalizedPersonType, ['معيل', 'معيل اسره', 'معيل اسرة', 'معيل أسرة', 'معيل عائله', 'معيل عائلة'])) {
-                        // 🎯 حالة خاصة: المعيل هو نفسه المكفول
-                        // البحث عن المعيل في data باستخدام رقم هوية المكفول
-                        $guardianRecord = Data::where('data_id_number', $sponsoredIdentity)->first();
-
-                        if ($guardianRecord) {
-                            // ⚠️ المعيل موجود - استخدام رقم ملفه (لا يتم توليد رقم جديد)
-                            $internalFileNumber = $guardianRecord->file_id_number;
-                            Log::info("✅ المعيل موجود - استخدام رقم ملفه الموجود", [
+                    // ========================================
+                    // 🔍 البحث في الجداول الثلاثة باستخدام رقم هوية المكفول
+                    // ========================================
+                    if (!empty($sponsoredIdentity)) {
+                        // 1. البحث في جدول data (المعيلين)
+                        $dataRecord = Data::where('data_id_number', $sponsoredIdentity)->first();
+                        if ($dataRecord) {
+                            $internalFileNumber = $dataRecord->file_id_number;
+                            $foundInTable = 'data';
+                            Log::info("✅ تم العثور على الشخص في جدول data", [
                                 'row' => $rowNumber,
-                                'guardian_identity' => $sponsoredIdentity,
-                                'existing_file_id' => $internalFileNumber
-                            ]);
-                        } else {
-                            // المعيل غير موجود - إنشاء ملف جديد له
-                            $internalFileNumber = generateUniqueReservedCode('data', 'file_id_number');
-                            Log::info("➕ المعيل غير موجود - تم توليد رقم ملف جديد", [
-                                'row' => $rowNumber,
-                                'guardian_identity' => $sponsoredIdentity,
-                                'new_file_id' => $internalFileNumber
+                                'identity' => $sponsoredIdentity,
+                                'file_id_number' => $internalFileNumber
                             ]);
                         }
 
-                    } else {
-                        // 📌 للأنواع الأخرى (فرد أسرة، متوفي): نستخدم رقم ملف المعيل للربط فقط
-                        $guardianFileId = null;
-                        $guardianRecord = Data::where('data_id_number', $guardianIdentity)->first();
+                        // 2. البحث في جدول re_people (أفراد العائلة) إذا لم يتم العثور
+                        if (!$internalFileNumber) {
+                            $rePeopleRecord = RePeople::where('person_id', $sponsoredIdentity)->first();
+                            if ($rePeopleRecord) {
+                                $internalFileNumber = $rePeopleRecord->registration_id;
+                                $foundInTable = 're_people';
+                                Log::info("✅ تم العثور على الشخص في جدول re_people", [
+                                    'row' => $rowNumber,
+                                    'identity' => $sponsoredIdentity,
+                                    'registration_id' => $internalFileNumber
+                                ]);
+                            }
+                        }
 
+                        // 3. البحث في جدول dead_people (المتوفين) إذا لم يتم العثور
+                        if (!$internalFileNumber) {
+                            // البحث بهوية الأب أو الأم
+                            $deadRecord = DeadPepole::where('father_id', $sponsoredIdentity)
+                                ->orWhere('mother_id', $sponsoredIdentity)
+                                ->first();
+                            if ($deadRecord) {
+                                $internalFileNumber = $deadRecord->re_file_id;
+                                $foundInTable = 'dead_people';
+                                Log::info("✅ تم العثور على الشخص في جدول dead_people", [
+                                    'row' => $rowNumber,
+                                    'identity' => $sponsoredIdentity,
+                                    're_file_id' => $internalFileNumber
+                                ]);
+                            }
+                        }
+                    }
+
+                    // ========================================
+                    // 🔍 البحث باستخدام رقم هوية المعيل إذا لم يتم العثور بهوية المكفول
+                    // ========================================
+                    if (!$internalFileNumber && !empty($guardianIdentity)) {
+                        // 1. البحث في جدول data (المعيلين)
+                        $guardianRecord = Data::where('data_id_number', $guardianIdentity)->first();
                         if ($guardianRecord) {
-                            $guardianFileId = $guardianRecord->file_id_number;
-                            Log::info("🔍 معلومات المعيل", [
+                            $internalFileNumber = $guardianRecord->file_id_number;
+                            $foundInTable = 'data (guardian)';
+                            Log::info("✅ تم العثور على المعيل في جدول data", [
                                 'row' => $rowNumber,
                                 'guardian_identity' => $guardianIdentity,
-                                'guardian_file_id' => $guardianFileId
-                            ]);
-                        } else {
-                            Log::warning("⚠️ المعيل غير موجود في جدول data", [
-                                'row' => $rowNumber,
-                                'guardian_identity' => $guardianIdentity
+                                'file_id_number' => $internalFileNumber
                             ]);
                         }
 
-                        // استخدام رقم ملف المعيل للربط الداخلي (relation_id_number)
-                        if ($guardianFileId) {
-                            $internalFileNumber = $guardianFileId;
-                        } else {
-                            // المعيل غير موجود - توليد رقم جديد (حالة استثنائية)
-                            $internalFileNumber = generateUniqueReservedCode('data', 'file_id_number');
-                            Log::warning("⚠️ المعيل غير موجود - تم توليد رقم جديد", [
-                                'row' => $rowNumber,
-                                'new_file_id' => $internalFileNumber
-                            ]);
+                        // 2. البحث في جدول re_people إذا لم يتم العثور
+                        if (!$internalFileNumber) {
+                            $rePeopleRecord = RePeople::where('person_id', $guardianIdentity)->first();
+                            if ($rePeopleRecord) {
+                                $internalFileNumber = $rePeopleRecord->registration_id;
+                                $foundInTable = 're_people (guardian)';
+                                Log::info("✅ تم العثور على المعيل في جدول re_people", [
+                                    'row' => $rowNumber,
+                                    'guardian_identity' => $guardianIdentity,
+                                    'registration_id' => $internalFileNumber
+                                ]);
+                            }
+                        }
+
+                        // 3. البحث في جدول dead_people إذا لم يتم العثور
+                        if (!$internalFileNumber) {
+                            $deadRecord = DeadPepole::where('father_id', $guardianIdentity)
+                                ->orWhere('mother_id', $guardianIdentity)
+                                ->first();
+                            if ($deadRecord) {
+                                $internalFileNumber = $deadRecord->re_file_id;
+                                $foundInTable = 'dead_people (guardian)';
+                                Log::info("✅ تم العثور على المعيل في جدول dead_people", [
+                                    'row' => $rowNumber,
+                                    'guardian_identity' => $guardianIdentity,
+                                    're_file_id' => $internalFileNumber
+                                ]);
+                            }
                         }
                     }
 
+                    // ========================================
+                    // 🆕 إذا لم يتم العثور على الشخص - إدخال البيانات بدون relation_id_number
+                    // ========================================
                     if (!$internalFileNumber) {
-                        $errors[] = "الصف {$rowNumber}: فشل في تحديد رقم الملف - نوع الشخص: '{$personType}' (normalized: '{$normalizedPersonType}')";
-                        $errorCount++;
-
-                        Log::error("❌ فشل في تحديد رقم الملف", [
+                        Log::info("📝 لم يتم العثور على الشخص في أي جدول - سيتم الإدخال بدون relation_id_number", [
                             'row' => $rowNumber,
-                            'person_type' => $personType,
-                            'normalized_person_type' => $normalizedPersonType,
+                            'sponsored_identity' => $sponsoredIdentity,
                             'guardian_identity' => $guardianIdentity,
-                            'guardian_file_id' => $guardianFileId
+                            'person_type' => $personType
                         ]);
-
-                        continue;
+                        // سيتم ترك relation_id_number فارغاً
                     }
+
+                    // تسجيل نتيجة البحث
 
                     // التحقق من وجود البنك
                     $bankId = null;
@@ -1636,22 +2297,24 @@ class SponsorshipController extends Controller
                     // إنشاء سجل الكفالة
                     DB::beginTransaction();
 
-                    // ⚠️ توليد رقم ملف للعرض: فقط إذا لم يكن الشخص معيل موجود مسبقاً
+                    // ⚠️ توليد رقم ملف للعرض
                     $displayFileNumber = null;
 
+                    // 🆕 تحسين: توليد رقم ملف للعرض في جميع الحالات
                     if (in_array($normalizedPersonType, ['معيل', 'معيل اسره', 'معيل اسرة', 'معيل أسرة', 'معيل عائله', 'معيل عائلة'])) {
-                        // المعيل: لا يتم توليد رقم جديد، يستخدم نفس الرقم الموجود/الجديد
-                        $displayFileNumber = $internalFileNumber;
-                        Log::info("📋 المعيل: استخدام نفس الرقم للعرض والربط", [
+                        // المعيل: استخدام نفس الرقم الموجود إذا تم العثور عليه، وإلا توليد رقم جديد
+                        $displayFileNumber = $internalFileNumber ?: generateUniqueReservedCode('data', 'file_id_number');
+                        Log::info("📋 المعيل: تحديد رقم الملف للعرض", [
                             'row' => $rowNumber,
-                            'file_number' => $displayFileNumber
+                            'file_number' => $displayFileNumber,
+                            'was_found' => !empty($internalFileNumber)
                         ]);
                     } else {
-                        // الأنواع الأخرى: توليد رقم جديد للعرض
+                        // الأنواع الأخرى: توليد رقم جديد للعرض دائماً
                         $displayFileNumber = generateUniqueReservedCode('data', 'file_id_number');
-                        Log::info("📋 توليد أرقام الملفات", [
+                        Log::info("📋 توليد رقم ملف للعرض", [
                             'row' => $rowNumber,
-                            'relation_id' => $internalFileNumber, // الرقم الداخلي للربط (مخفي)
+                            'relation_id' => $internalFileNumber, // الرقم الداخلي للربط (قد يكون null)
                             'display_file_number' => $displayFileNumber // الرقم المعروض للمستخدم
                         ]);
                     }
@@ -1674,6 +2337,8 @@ class SponsorshipController extends Controller
                     $sponsorship->sponsorship_type_id = $request->sponsorship_type_id;
                     // استخدام الحالة المحددة أو "جديد" (ID = 4) كحالة افتراضية
                     $sponsorship->sponsorship_status_id = $request->sponsorship_status_id ?: 4;
+                    // ✅ حفظ نوع الشخص بالإنجليزية (تحويل من العربية)
+                    $sponsorship->person_type = $this->convertPersonTypeToEnglish($personType);
                     $sponsorship->created_by = auth()->id();
                     $sponsorship->save();
 
@@ -1776,12 +2441,21 @@ class SponsorshipController extends Controller
                     DB::commit();
                     $successCount++;
 
+                    // 🆕 تحديث عدادات الربط
+                    if ($internalFileNumber) {
+                        $linkedCount++;
+                    } else {
+                        $unlinkedCount++;
+                    }
+
                     Log::info("✅ تم استيراد الصف {$rowNumber} بنجاح", [
                         'person_type' => $personType,
                         'sponsored_identity' => $sponsoredIdentity,
                         'guardian_identity' => $guardianIdentity,
                         'relation_id_number' => $internalFileNumber, // الرقم الداخلي للربط
-                        'internal_file_number' => $displayFileNumber // الرقم المعروض
+                        'internal_file_number' => $displayFileNumber, // الرقم المعروض
+                        'was_linked' => !empty($internalFileNumber),
+                        'found_in_table' => $foundInTable ?? 'none'
                     ]);
 
                 } catch (\Exception $e) {
@@ -1804,11 +2478,19 @@ class SponsorshipController extends Controller
                     'total' => count($rows),
                     'success' => $successCount,
                     'errors' => $errorCount,
+                    'linked' => $linkedCount, // 🆕 عدد السجلات المرتبطة
+                    'unlinked' => $unlinkedCount, // 🆕 عدد السجلات غير المرتبطة
                 ],
                 'errors' => $errors,
             ];
 
-            Log::info('✅ اكتملت عملية الاستيراد', $result['summary']);
+            Log::info('✅ اكتملت عملية الاستيراد', [
+                'total' => count($rows),
+                'success' => $successCount,
+                'errors' => $errorCount,
+                'linked_with_relation_id' => $linkedCount,
+                'without_relation_id' => $unlinkedCount
+            ]);
 
             return response()->json($result);
 
@@ -1827,252 +2509,85 @@ class SponsorshipController extends Controller
     }
 
     /**
-     * إنشاء الأشخاص المفقودين في قاعدة البيانات
+     * 🚫 هذه الدالة معطلة - إنشاء الأشخاص يجب أن يتم من البوابات المخصصة فقط
+     * لمنع إدخال بيانات خاطئة أو ناقصة في جداول (data, re_people, dead_people)
+     *
+     * @deprecated هذه الدالة معطلة ولا يجب استخدامها
      */
     public function createMissingPersons(Request $request)
     {
+        Log::warning('🚫 محاولة استخدام دالة createMissingPersons المعطلة', [
+            'user_id' => auth()->id(),
+            'ip' => $request->ip()
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'هذه الوظيفة معطلة. يجب إنشاء سجلات الأشخاص من خلال بوابة إدارة الملفات المخصصة لضمان صحة البيانات.'
+        ], 403);
+    }
+
+    /**
+     * 🆕 البحث في السجل المدني عن تاريخ الميلاد والبيانات الأساسية
+     *
+     * @param string $identityNumber رقم الهوية
+     * @return array|null البيانات المُرجعة أو null إذا لم يُعثر على الشخص
+     */
+    private function searchCivilRegistryForBirthDate($identityNumber)
+    {
+        if (empty($identityNumber)) {
+            return null;
+        }
+
         try {
-            DB::beginTransaction();
+            $person = DB::connection('civilregistry')
+                ->table('persons')
+                ->where('CI_ID_NUM', $identityNumber)
+                ->first();
 
-            $persons = $request->input('persons', []);
-            $createdPersons = [];
-            $errors = [];
-            $familyFileIds = []; // لتتبع أرقام الملفات الموحدة للعائلات
-
-            foreach ($persons as $personData) {
-                try {
-                    $type = $personData['type'];
-                    $identity = $personData['identity'];
-                    $name = $personData['name'];
-                    $guardianIdentity = $personData['guardian_identity'] ?? null;
-
-                    // الحصول على رقم الملف الموحد للعائلة
-                    $fileIdNumber = null;
-
-                    // حالة خاصة: إذا كان النوع "معيل"، فهو نفسه المكفول
-                    if (in_array($type, ['معيل', 'معيل اسره', 'معيل اسرة', 'معيل أسرة', 'معيل عائله', 'معيل عائلة'])) {
-                        // البحث عن المعيل في جدول data باستخدام identity (رقم هوية المعيل)
-                        $guardianRecord = Data::where('data_id_number', $identity)->first();
-                        if ($guardianRecord) {
-                            // المعيل موجود - استخدام رقم ملفه
-                            $fileIdNumber = $guardianRecord->file_id_number;
-                            Log::info('✅ المعيل موجود - استخدام رقم ملفه', [
-                                'identity' => $identity,
-                                'file_id_number' => $fileIdNumber
-                            ]);
-                        } else {
-                            // المعيل غير موجود - توليد رقم جديد
-                            $fileIdNumber = generateUniqueReservedCode('data', 'file_id_number');
-                            Log::info('➕ المعيل غير موجود - تم توليد رقم ملف جديد', [
-                                'identity' => $identity,
-                                'new_file_id' => $fileIdNumber
-                            ]);
-                        }
-                    } else {
-                        // للأنواع الأخرى: البحث عن رقم ملف المعيل في جدول data
-                        if ($guardianIdentity) {
-                            if (isset($familyFileIds[$guardianIdentity])) {
-                                // استخدام رقم الملف المحفوظ مسبقاً
-                                $fileIdNumber = $familyFileIds[$guardianIdentity];
-                            } else {
-                                // البحث عن المعيل في قاعدة البيانات
-                                $guardianRecord = Data::where('data_id_number', $guardianIdentity)->first();
-                                if ($guardianRecord) {
-                                    // استخدام رقم ملف المعيل الموجود
-                                    $fileIdNumber = $guardianRecord->file_id_number;
-                                    $familyFileIds[$guardianIdentity] = $fileIdNumber;
-
-                                    Log::info('✅ استخدام رقم ملف المعيل الموجود', [
-                                        'guardian_identity' => $guardianIdentity,
-                                        'file_id_number' => $fileIdNumber
-                                    ]);
-                                } else {
-                                    // المعيل غير موجود - توليد رقم جديد (حالة نادرة)
-                                    $fileIdNumber = generateUniqueReservedCode('data', 'file_id_number');
-                                    $familyFileIds[$guardianIdentity] = $fileIdNumber;
-
-                                    Log::warning('⚠️ المعيل غير موجود - تم توليد رقم جديد', [
-                                        'guardian_identity' => $guardianIdentity,
-                                        'new_file_id' => $fileIdNumber
-                                    ]);
-                                }
-                            }
-                        } else {
-                            // لا يوجد معيل - توليد رقم جديد
-                            $fileIdNumber = generateUniqueReservedCode('data', 'file_id_number');
-                        }
+            if ($person) {
+                // تحويل تاريخ الميلاد إلى صيغة Y-m-d
+                $birthDate = null;
+                if (!empty($person->CI_BIRTH_DT)) {
+                    try {
+                        $birthDate = date('Y-m-d', strtotime($person->CI_BIRTH_DT));
+                    } catch (\Exception $e) {
+                        $birthDate = null;
                     }
-
-                    // تصنيف وإنشاء السجل حسب نوع الشخص
-                    if (in_array($type, ['فرد عايله', 'فرد عائله', 'فرد عائلة', 'فرد اسره', 'فرد اسرة', 'فرد أسرة', 'فرد الع ائله'])) {
-                        // إنشاء سجل في re_people
-                        $nameParts = explode(' ', $name);
-                        RePeople::create([
-                            'registration_id' => $fileIdNumber,
-                            'first_name' => $nameParts[0] ?? '',
-                            'second_name' => $nameParts[1] ?? null,
-                            'third_name' => $nameParts[2] ?? null,
-                            'last_name' => $nameParts[3] ?? null,
-                            'person_id' => $identity,
-                        ]);
-
-                        Log::info('✅ تم إنشاء فرد أسرة', [
-                            'identity' => $identity,
-                            'name' => $name,
-                            'file_id' => $fileIdNumber,
-                            'guardian_identity' => $guardianIdentity
-                        ]);
-
-                        $createdPersons[] = [
-                            'type' => 'family_member',
-                            'identity' => $identity,
-                            'name' => $name,
-                            'file_id' => $fileIdNumber
-                        ];
-
-                    } elseif (in_array($type, ['معيل', 'معيل اسره', 'معيل اسرة', 'معيل أسرة', 'معيل عائله', 'معيل عائلة'])) {
-                        // إنشاء سجل في data
-                        $nameParts = explode(' ', $name);
-                        Data::create([
-                            'file_id_number' => $fileIdNumber,
-                            'data_id_number' => $identity,
-                            'data_first_name' => $nameParts[0] ?? '',
-                            'data_father_name' => $nameParts[1] ?? null,
-                            'data_grand_father_name' => $nameParts[2] ?? null,
-                            'data_family_name' => $nameParts[3] ?? null,
-                            'data_section_id' => 1, // قسم افتراضي
-                            'data_request_status' => 2,
-                        ]);
-
-                        Log::info('✅ تم إنشاء معيل', [
-                            'identity' => $identity,
-                            'name' => $name,
-                            'file_id' => $fileIdNumber
-                        ]);
-
-                        $createdPersons[] = [
-                            'type' => 'guardian',
-                            'identity' => $identity,
-                            'name' => $name,
-                            'file_id' => $fileIdNumber
-                        ];
-
-                    } elseif (in_array($type, ['أب متوفي', 'اب متوفي', 'الاب المتوفي'])) {
-                        // إنشاء/تحديث سجل في dead_people
-                        $nameParts = explode(' ', $name);
-                        $existing = DeadPepole::where('re_file_id', $fileIdNumber)->first();
-
-                        if ($existing) {
-                            $existing->update([
-                                'father_first_name' => $nameParts[0] ?? '',
-                                'father_second_name' => $nameParts[1] ?? null,
-                                'father_third_name' => $nameParts[2] ?? null,
-                                'father_last_name' => $nameParts[3] ?? null,
-                                'father_id' => $identity,
-                            ]);
-
-                            Log::info('✅ تم تحديث بيانات أب متوفي', [
-                                'identity' => $identity,
-                                'file_id' => $fileIdNumber
-                            ]);
-                        } else {
-                            DeadPepole::create([
-                                're_file_id' => $fileIdNumber,
-                                'father_first_name' => $nameParts[0] ?? '',
-                                'father_second_name' => $nameParts[1] ?? null,
-                                'father_third_name' => $nameParts[2] ?? null,
-                                'father_last_name' => $nameParts[3] ?? null,
-                                'father_id' => $identity,
-                            ]);
-
-                            Log::info('✅ تم إنشاء بيانات أب متوفي', [
-                                'identity' => $identity,
-                                'file_id' => $fileIdNumber,
-                                'guardian_identity' => $guardianIdentity
-                            ]);
-                        }
-
-                        $createdPersons[] = [
-                            'type' => 'deceased_father',
-                            'identity' => $identity,
-                            'name' => $name,
-                            'file_id' => $fileIdNumber
-                        ];
-
-                    } elseif (in_array($type, ['أم متوفيه', 'ام متوفيه', 'الام المتوفيه', 'أم متوفية', 'ام متوفية'])) {
-                        // إنشاء/تحديث سجل في dead_people
-                        $nameParts = explode(' ', $name);
-                        $existing = DeadPepole::where('re_file_id', $fileIdNumber)->first();
-
-                        if ($existing) {
-                            $existing->update([
-                                'mother_first_name' => $nameParts[0] ?? '',
-                                'mother_second_name' => $nameParts[1] ?? null,
-                                'mother_third_name' => $nameParts[2] ?? null,
-                                'mother_last_name' => $nameParts[3] ?? null,
-                                'mother_id' => $identity,
-                            ]);
-
-                            Log::info('✅ تم تحديث بيانات أم متوفية', [
-                                'identity' => $identity,
-                                'file_id' => $fileIdNumber
-                            ]);
-                        } else {
-                            DeadPepole::create([
-                                're_file_id' => $fileIdNumber,
-                                'mother_first_name' => $nameParts[0] ?? '',
-                                'mother_second_name' => $nameParts[1] ?? null,
-                                'mother_third_name' => $nameParts[2] ?? null,
-                                'mother_last_name' => $nameParts[3] ?? null,
-                                'mother_id' => $identity,
-                            ]);
-
-                            Log::info('✅ تم إنشاء بيانات أم متوفية', [
-                                'identity' => $identity,
-                                'file_id' => $fileIdNumber,
-                                'guardian_identity' => $guardianIdentity
-                            ]);
-                        }
-
-                        $createdPersons[] = [
-                            'type' => 'deceased_mother',
-                            'identity' => $identity,
-                            'name' => $name,
-                            'file_id' => $fileIdNumber
-                        ];
-                    }
-
-                } catch (\Exception $e) {
-                    $errors[] = "فشل إنشاء {$personData['name']} (هوية: {$personData['identity']}): {$e->getMessage()}";
-                    Log::error('خطأ في إنشاء شخص:', [
-                        'person' => $personData,
-                        'error' => $e->getMessage()
-                    ]);
                 }
+
+                $fullName = trim(
+                    ($person->CI_FIRST_ARB ?? '') . ' ' .
+                    ($person->CI_FATHER_ARB ?? '') . ' ' .
+                    ($person->CI_GRAND_FATHER_ARB ?? '') . ' ' .
+                    ($person->CI_FAMILY_ARB ?? '')
+                );
+
+                Log::info('🔍 تم جلب بيانات من السجل المدني', [
+                    'identity_number' => $identityNumber,
+                    'birth_date' => $birthDate,
+                    'full_name' => $fullName
+                ]);
+
+                return [
+                    'identity_number' => $person->CI_ID_NUM,
+                    'first_name' => $person->CI_FIRST_ARB ?? '',
+                    'second_name' => $person->CI_FATHER_ARB ?? '',
+                    'third_name' => $person->CI_GRAND_FATHER_ARB ?? '',
+                    'last_name' => $person->CI_FAMILY_ARB ?? '',
+                    'full_name' => $fullName,
+                    'birth_date' => $birthDate,
+                    'gender' => $person->CI_SEX ?? '',
+                ];
             }
 
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'تم إنشاء الأشخاص بنجاح',
-                'created_count' => count($createdPersons),
-                'created_persons' => $createdPersons,
-                'errors' => $errors,
-                'family_file_ids' => $familyFileIds
-            ]);
-
+            return null;
         } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('خطأ في إنشاء الأشخاص المفقودين:', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+            Log::warning('⚠️ فشل البحث في السجل المدني', [
+                'identity_number' => $identityNumber,
+                'error' => $e->getMessage()
             ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'حدث خطأ: ' . $e->getMessage()
-            ], 500);
+            return null;
         }
     }
 
@@ -2098,6 +2613,82 @@ class SponsorshipController extends Controller
         $text = preg_replace('/\s+/', ' ', $text);
 
         return trim($text);
+    }
+
+    /**
+     * 🆕 تحويل نوع الشخص من العربية إلى الإنجليزية
+     * للتوافق مع قاعدة البيانات والجداول المرتبطة
+     *
+     * فرد عائلة => family_member (re_people)
+     * معيل => breadwinner (data)
+     * أب متوفي => deceased_father (dead_people)
+     * أم متوفية => deceased_mother (dead_people)
+     *
+     * @param string $arabicType نوع الشخص بالعربية من ملف Excel
+     * @return string|null نوع الشخص بالإنجليزية
+     */
+    private function convertPersonTypeToEnglish($arabicType)
+    {
+        if (empty($arabicType)) {
+            return null;
+        }
+
+        // تطبيع النص للمقارنة
+        $normalized = $this->normalizeArabicText($arabicType);
+
+        // خريطة التحويل من العربية إلى الإنجليزية
+        $typeMapping = [
+            // فرد عائلة => family_member (re_people)
+            'فرد عايله' => 'family_member',
+            'فرد عائله' => 'family_member',
+            'فرد عائلة' => 'family_member',
+            'فرد اسره' => 'family_member',
+            'فرد اسرة' => 'family_member',
+            'فرد أسرة' => 'family_member',
+            'فرد الع ائله' => 'family_member',
+
+            // معيل => breadwinner (data)
+            'معيل' => 'breadwinner',
+            'معيل اسره' => 'breadwinner',
+            'معيل اسرة' => 'breadwinner',
+            'معيل أسرة' => 'breadwinner',
+            'معيل عائله' => 'breadwinner',
+            'معيل عائلة' => 'breadwinner',
+
+            // أب متوفي => deceased_father (dead_people)
+            'أب متوفي' => 'deceased_father',
+            'اب متوفي' => 'deceased_father',
+            'الاب المتوفي' => 'deceased_father',
+            'الأب المتوفي' => 'deceased_father',
+
+            // أم متوفية => deceased_mother (dead_people)
+            'أم متوفيه' => 'deceased_mother',
+            'ام متوفيه' => 'deceased_mother',
+            'الام المتوفيه' => 'deceased_mother',
+            'الأم المتوفية' => 'deceased_mother',
+            'أم متوفية' => 'deceased_mother',
+            'ام متوفية' => 'deceased_mother',
+        ];
+
+        // البحث في الخريطة بالنص الأصلي
+        if (isset($typeMapping[$arabicType])) {
+            return $typeMapping[$arabicType];
+        }
+
+        // البحث في الخريطة بالنص المطبّع
+        foreach ($typeMapping as $arabic => $english) {
+            if ($this->normalizeArabicText($arabic) === $normalized) {
+                return $english;
+            }
+        }
+
+        // إذا لم يتم العثور على تطابق، نسجل تحذير ونرجع القيمة الأصلية
+        Log::warning('⚠️ نوع شخص غير معروف - لم يتم تحويله', [
+            'original' => $arabicType,
+            'normalized' => $normalized
+        ]);
+
+        return $arabicType; // إرجاع القيمة الأصلية إذا لم يتم التعرف عليها
     }
 
     /**

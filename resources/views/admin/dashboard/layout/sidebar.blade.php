@@ -221,6 +221,30 @@
                     <!--end:Menu link-->
                 </div>
                 <!--end:Menu item-->
+                <!--begin:Menu item-->
+                <div class="menu-item">
+                    <!--begin:Menu link-->
+                    <a class="menu-link" href="{{ route('admin.orphan_needs.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-hand-holding-heart"></i>
+                        </span>
+                        <span class="menu-title"> احتياجات المكفول </span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                <!--end:Menu item-->
+                <!--begin:Menu item-->
+                <div class="menu-item">
+                    <!--begin:Menu link-->
+                    <a class="menu-link" href="{{ route('admin.creativity_aspects.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-lightbulb"></i>
+                        </span>
+                        <span class="menu-title"> جوانب الإبداع </span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                <!--end:Menu item-->
                 <!--end:Menu item-->
                 <div class="menu-item">
                     <!--begin:Menu link-->

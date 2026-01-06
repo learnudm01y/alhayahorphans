@@ -18,6 +18,8 @@ use App\Http\Controllers\Admin\GeneralCategoryCotroller;
 use App\Http\Controllers\Admin\HealthStatusCotroller;
 use App\Http\Controllers\Admin\HousingStatusController;
 use App\Http\Controllers\Admin\MaritalStatusController;
+use App\Http\Controllers\Admin\OrphanNeedController;
+use App\Http\Controllers\Admin\CreativityAspectController;
 use App\Http\Controllers\Admin\PersonsController;
 use App\Http\Controllers\Admin\PersonSearchController;
 use App\Http\Controllers\Admin\ScoutSearchController;
@@ -190,6 +192,10 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::resource('GeneralCategory_name', GeneralCategoryCotroller::class);
     //   Health  Status Management
     Route::resource('HealthStatus_name', HealthStatusCotroller::class);
+    //   Orphan Needs Management
+    Route::resource('orphan_needs', OrphanNeedController::class);
+    //   Creativity Aspects Management
+    Route::resource('creativity_aspects', CreativityAspectController::class);
     //   Housing Status Management
     Route::resource('HousingStatus_name', HousingStatusController::class);
     //   Marital Status Management

@@ -8,7 +8,7 @@ if (!function_exists('findSmallestGap')) {
     /**
      * البحث عن أصغر فجوة (رقم غير مستخدم) في التسلسل
      * Find the smallest gap (unused number) in the sequence
-     * يبحث في جدولي data و sponsorships معاً
+     * يبحث في جداول data, sponsorships, dead_people, re_people معاً
      */
     function findSmallestGap(string $table, string $column): ?int
     {
@@ -19,7 +19,7 @@ if (!function_exists('findSmallestGap')) {
                 return null; // الميزة معطلة، استخدم MAX + 1
             }
 
-            // جلب جميع الأرقام المستخدمة من الجدول الرئيسي
+            // جلب جميع الأرقام المستخدمة من الجدول الرئيسي (data)
             $usedCodesInTable = DB::table($table)
                 ->select(DB::raw("CAST($column as UNSIGNED) as code_num"))
                 ->whereRaw("LENGTH($column) = 6 AND $column REGEXP '^[0-9]+$'")
@@ -34,8 +34,30 @@ if (!function_exists('findSmallestGap')) {
                 ->pluck('code_num')
                 ->toArray();
 
+            // 🆕 جلب جميع الأرقام المستخدمة من جدول dead_people (re_file_id)
+            $usedCodesInDeadPeople = DB::table('dead_people')
+                ->select(DB::raw("CAST(re_file_id as UNSIGNED) as code_num"))
+                ->whereRaw("LENGTH(re_file_id) = 6 AND re_file_id REGEXP '^[0-9]+$'")
+                ->pluck('code_num')
+                ->toArray();
+
+            // 🆕 جلب جميع الأرقام المستخدمة من جدول re_people (registration_id)
+            $usedCodesInRePeople = DB::table('re_people')
+                ->select(DB::raw("CAST(registration_id as UNSIGNED) as code_num"))
+                ->whereRaw("LENGTH(registration_id) = 6 AND registration_id REGEXP '^[0-9]+$'")
+                ->pluck('code_num')
+                ->toArray();
+
+            // 🆕 جلب أرقام relation_id_number من sponsorships (للمتوفين)
+            $usedCodesInRelationId = DB::table('sponsorships')
+                ->select(DB::raw("CAST(relation_id_number as UNSIGNED) as code_num"))
+                ->whereRaw("LENGTH(relation_id_number) = 6 AND relation_id_number REGEXP '^[0-9]+$'")
+                ->pluck('code_num')
+                ->toArray();
+
             // التحقق من الحد الأقصى للبحث (لتحسين الأداء)
-            $totalCodes = count($usedCodesInTable) + count($usedCodesInSponsorships);
+            $totalCodes = count($usedCodesInTable) + count($usedCodesInSponsorships) +
+                         count($usedCodesInDeadPeople) + count($usedCodesInRePeople) + count($usedCodesInRelationId);
             $searchLimit = config('code_generation.gap_search_limit', 10000);
             if ($totalCodes > $searchLimit) {
                 Log::info("⚠️ تجاوز حد البحث عن الفجوات ({$searchLimit})، استخدام MAX + 1");
@@ -49,8 +71,15 @@ if (!function_exists('findSmallestGap')) {
                 ->pluck('code_num')
                 ->toArray();
 
-            // دمج القوائم الثلاث
-            $allUsedCodes = array_unique(array_merge($usedCodesInTable, $usedCodesInSponsorships, $reservedCodes));
+            // دمج جميع القوائم
+            $allUsedCodes = array_unique(array_merge(
+                $usedCodesInTable,
+                $usedCodesInSponsorships,
+                $usedCodesInDeadPeople,
+                $usedCodesInRePeople,
+                $usedCodesInRelationId,
+                $reservedCodes
+            ));
             sort($allUsedCodes);
 
             // إذا لم يوجد أي أرقام، ابدأ من 1
@@ -87,7 +116,7 @@ if (!function_exists('generateUniqueReservedCode')) {
     /**
      * Generate unique 6-digit code with gap filling support
      * يولد رقم فريد من 6 أرقام مع إعادة استخدام الفجوات
-     * يتحقق من جدولي data و sponsorships معاً لضمان عدم التكرار
+     * يتحقق من جداول data, sponsorships, dead_people, re_people معاً لضمان عدم التكرار
      */
      function generateUniqueReservedCode(string $table, string $column, ?string $sessionId = null): ?string
     {
@@ -99,11 +128,14 @@ if (!function_exists('generateUniqueReservedCode')) {
                 // وجدنا فجوة! استخدمها
                 $code = str_pad($smallestGap, 6, '0', STR_PAD_LEFT);
 
-                // التحقق من عدم وجود الرقم في reserved_codes أو sponsorships
+                // التحقق من عدم وجود الرقم في جميع الجداول
                 $existsReserved = DB::table('reserved_codes')->where('code', $code)->lockForUpdate()->exists();
                 $existsSponsorship = DB::table('sponsorships')->where('internal_file_number', $code)->exists();
+                $existsSponsorshipRelation = DB::table('sponsorships')->where('relation_id_number', $code)->exists();
+                $existsDeadPeople = DB::table('dead_people')->where('re_file_id', $code)->exists();
+                $existsRePeople = DB::table('re_people')->where('registration_id', $code)->exists();
 
-                if (!$existsReserved && !$existsSponsorship) {
+                if (!$existsReserved && !$existsSponsorship && !$existsSponsorshipRelation && !$existsDeadPeople && !$existsRePeople) {
                     DB::table('reserved_codes')->insert([
                         'code' => $code,
                         'session_id' => $sessionId ?? Str::uuid(),
@@ -118,16 +150,34 @@ if (!function_exists('generateUniqueReservedCode')) {
                 }
             }
 
-            // الخطوة 2: إذا لم توجد فجوات، استخدم MAX + 1
+            // الخطوة 2: إذا لم توجد فجوات، استخدم MAX + 1 من جميع الجداول
             $maxMain = DB::table($table)
                 ->select(DB::raw("MAX(CAST($column as UNSIGNED)) as max_code"))
                 ->whereRaw("LENGTH($column) = 6 AND $column REGEXP '^[0-9]+$'")
                 ->value('max_code');
 
-            // التحقق من جدول sponsorships أيضاً
+            // التحقق من جدول sponsorships (internal_file_number)
             $maxSponsorship = DB::table('sponsorships')
                 ->select(DB::raw("MAX(CAST(internal_file_number as UNSIGNED)) as max_code"))
                 ->whereRaw("LENGTH(internal_file_number) = 6 AND internal_file_number REGEXP '^[0-9]+$'")
+                ->value('max_code');
+
+            // 🆕 التحقق من جدول sponsorships (relation_id_number)
+            $maxSponsorshipRelation = DB::table('sponsorships')
+                ->select(DB::raw("MAX(CAST(relation_id_number as UNSIGNED)) as max_code"))
+                ->whereRaw("LENGTH(relation_id_number) = 6 AND relation_id_number REGEXP '^[0-9]+$'")
+                ->value('max_code');
+
+            // 🆕 التحقق من جدول dead_people (re_file_id)
+            $maxDeadPeople = DB::table('dead_people')
+                ->select(DB::raw("MAX(CAST(re_file_id as UNSIGNED)) as max_code"))
+                ->whereRaw("LENGTH(re_file_id) = 6 AND re_file_id REGEXP '^[0-9]+$'")
+                ->value('max_code');
+
+            // 🆕 التحقق من جدول re_people (registration_id)
+            $maxRePeople = DB::table('re_people')
+                ->select(DB::raw("MAX(CAST(registration_id as UNSIGNED)) as max_code"))
+                ->whereRaw("LENGTH(registration_id) = 6 AND registration_id REGEXP '^[0-9]+$'")
                 ->value('max_code');
 
             $maxReserved = DB::table('reserved_codes')
@@ -136,12 +186,25 @@ if (!function_exists('generateUniqueReservedCode')) {
                 ->lockForUpdate()
                 ->value('max_code');
 
-            $next = max((int)$maxMain, (int)$maxSponsorship, (int)$maxReserved) + 1;
+            // حساب أعلى رقم من جميع الجداول
+            $next = max(
+                (int)$maxMain,
+                (int)$maxSponsorship,
+                (int)$maxSponsorshipRelation,
+                (int)$maxDeadPeople,
+                (int)$maxRePeople,
+                (int)$maxReserved
+            ) + 1;
             $code = str_pad($next, 6, '0', STR_PAD_LEFT);
 
+            // التحقق من عدم وجود الرقم في جميع الجداول
             $existsReserved = DB::table('reserved_codes')->where('code', $code)->lockForUpdate()->exists();
             $existsSponsorship = DB::table('sponsorships')->where('internal_file_number', $code)->exists();
-            if (!$existsReserved && !$existsSponsorship) {
+            $existsSponsorshipRelation = DB::table('sponsorships')->where('relation_id_number', $code)->exists();
+            $existsDeadPeople = DB::table('dead_people')->where('re_file_id', $code)->exists();
+            $existsRePeople = DB::table('re_people')->where('registration_id', $code)->exists();
+
+            if (!$existsReserved && !$existsSponsorship && !$existsSponsorshipRelation && !$existsDeadPeople && !$existsRePeople) {
                 DB::table('reserved_codes')->insert([
                     'code' => $code,
                     'session_id' => $sessionId ?? Str::uuid(),
@@ -158,9 +221,14 @@ if (!function_exists('generateUniqueReservedCode')) {
             for ($i = 1; $i <= 10; $i++) {
                 $next++;
                 $code = str_pad($next, 6, '0', STR_PAD_LEFT);
+
                 $existsReserved = DB::table('reserved_codes')->where('code', $code)->lockForUpdate()->exists();
                 $existsSponsorship = DB::table('sponsorships')->where('internal_file_number', $code)->exists();
-                if (!$existsReserved && !$existsSponsorship) {
+                $existsSponsorshipRelation = DB::table('sponsorships')->where('relation_id_number', $code)->exists();
+                $existsDeadPeople = DB::table('dead_people')->where('re_file_id', $code)->exists();
+                $existsRePeople = DB::table('re_people')->where('registration_id', $code)->exists();
+
+                if (!$existsReserved && !$existsSponsorship && !$existsSponsorshipRelation && !$existsDeadPeople && !$existsRePeople) {
                     DB::table('reserved_codes')->insert([
                         'code' => $code,
                         'session_id' => $sessionId ?? Str::uuid(),

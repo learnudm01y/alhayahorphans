@@ -6,36 +6,42 @@ $app = require_once __DIR__ . '/bootstrap/app.php';
 $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
 $kernel->bootstrap();
 
-echo "=== البحث عن بيانات الكفالة 71 ===\n\n";
+use Illuminate\Support\Facades\DB;
 
-// Get sponsorship
-$sponsorship = DB::table('sponsorships')->where('id', 71)->first();
+echo "=== فحص بيانات الكفالة للهوية 666665457 ===\n\n";
+
+// البحث في sponsorships
+$sponsorship = DB::table('sponsorships')
+    ->where('identity_number', '666665457')
+    ->first();
+
 if ($sponsorship) {
-    echo "Guardian File Number: {$sponsorship->internal_file_number}\n\n";
-
-    // Get data by file_no
-    $data = DB::table('data')->where('file_no', $sponsorship->internal_file_number)->first();
-    if ($data) {
-        echo "Data found:\n";
-        echo "  - ID: {$data->id}\n";
-        echo "  - data_province: " . ($data->data_province ?? 'NULL') . "\n";
-        echo "  - data_city: " . ($data->data_city ?? 'NULL') . "\n";
-
-        // Fetch relations
-        if ($data->data_province) {
-            $province = DB::table('provinces')->where('id', $data->data_province)->first();
-            echo "  - Province Name: " . ($province ? $province->description : 'Not Found') . "\n";
-        }
-
-        if ($data->data_city) {
-            $city = DB::table('city')->where('id', $data->data_city)->first();
-            echo "  - City Name: " . ($city ? $city->city : 'Not Found') . "\n";
-        }
-    } else {
-        echo "No data record found for file_no: {$sponsorship->file_no}\n";
-    }
+    echo "الكفالة #" . $sponsorship->id . ":\n";
+    echo "  - internal_file_number: " . ($sponsorship->internal_file_number ?? 'NULL') . "\n";
+    echo "  - relation_id_number: " . ($sponsorship->relation_id_number ?? 'NULL') . "\n";
+    echo "  - orphan_name: " . ($sponsorship->orphan_name ?? 'NULL') . "\n";
 } else {
-    echo "Sponsorship 71 not found\n";
+    echo "لم يتم العثور على كفالة\n";
 }
 
-echo "\n=== انتهى البحث ===\n";
+echo "\n=== البحث في re_people ===\n";
+$rePerson = DB::table('re_people')
+    ->where('person_id', '666665457')
+    ->first();
+
+if ($rePerson) {
+    echo "re_people:\n";
+    echo "  - registration_id: " . ($rePerson->registration_id ?? 'NULL') . "\n";
+    echo "  - first_name: " . ($rePerson->first_name ?? 'NULL') . "\n";
+}
+
+echo "\n=== جميع الكفالات للهوية 666665457 ===\n";
+$allSponsorships = DB::table('sponsorships')
+    ->where('identity_number', '666665457')
+    ->get();
+
+foreach ($allSponsorships as $s) {
+    echo "  - ID: {$s->id}, internal: " . ($s->internal_file_number ?? 'NULL') . ", relation: " . ($s->relation_id_number ?? 'NULL') . "\n";
+}
+
+echo "\n=== انتهى ===\n";

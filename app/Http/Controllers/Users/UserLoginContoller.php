@@ -35,19 +35,37 @@ class UserLoginContoller extends Controller
             'file_number_length' => strlen($fileNumber)
         ]);
 
-        // البحث عن كفالة بناءً على رقم هوية المكفول
+        // البحث عن كفالة بناءً على رقم هوية المكفول ورقم الملف الداخلي
+        // أولاً: البحث عن كفالة تطابق كلا المعيارين
         $sponsorship = Sponsorship::with('relationData')
             ->where('identity_number', $identityNumber)
+            ->where('internal_file_number', $fileNumber)
             ->first();
 
+        // إذا لم يتم العثور، نبحث عن أي كفالة بنفس الهوية للتحقق من وجودها
         if (!$sponsorship) {
-            Log::warning('⚠️ لم يتم العثور على كفالة برقم الهوية', ['identity_number' => $identityNumber]);
-            return back()->withErrors([
-                'login_email' => 'رقم الهوية غير مسجل في النظام أو لا توجد كفالة مرتبطة به.',
-            ])->withInput();
+            $anySponsorshipWithIdentity = Sponsorship::where('identity_number', $identityNumber)->first();
+
+            if (!$anySponsorshipWithIdentity) {
+                Log::warning('⚠️ لم يتم العثور على كفالة برقم الهوية', ['identity_number' => $identityNumber]);
+                return back()->withErrors([
+                    'login_email' => 'رقم الهوية غير مسجل في النظام أو لا توجد كفالة مرتبطة به.',
+                ])->withInput();
+            } else {
+                // الهوية موجودة لكن رقم الملف غير صحيح
+                Log::warning('❌ رقم الملف الداخلي غير صحيح', [
+                    'identity_number' => $identityNumber,
+                    'provided_file_number' => $fileNumber,
+                    'available_sponsorships' => Sponsorship::where('identity_number', $identityNumber)
+                        ->pluck('internal_file_number')->toArray()
+                ]);
+                return back()->withErrors([
+                    'login_password' => 'رقم الملف الداخلي غير صحيح.',
+                ])->withInput();
+            }
         }
 
-        // التحقق من رقم الملف الداخلي فقط
+        // التحقق من وجود رقم الملف الداخلي
         $correctFileNumber = $sponsorship->internal_file_number;
 
         if (empty($correctFileNumber)) {
@@ -60,16 +78,11 @@ class UserLoginContoller extends Controller
             ])->withInput();
         }
 
-        if ($fileNumber !== $correctFileNumber) {
-            Log::warning('❌ رقم الملف الداخلي غير صحيح', [
-                'identity_number' => $identityNumber,
-                'provided_file_number' => $fileNumber,
-                'expected_file_number' => $correctFileNumber
-            ]);
-            return back()->withErrors([
-                'login_password' => 'رقم الملف الداخلي غير صحيح.',
-            ])->withInput();
-        }
+        Log::info('✅ تم العثور على الكفالة المطابقة', [
+            'sponsorship_id' => $sponsorship->id,
+            'identity_number' => $identityNumber,
+            'internal_file_number' => $correctFileNumber
+        ]);
 
         // البحث عن المستخدم المرتبط - البحث فقط برقم هوية المكفول (identity_number)
         $user = \App\Models\User::where('email', $identityNumber)->first();
@@ -101,11 +114,16 @@ class UserLoginContoller extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
+        // 🆕 حفظ معرف الكفالة في الجلسة لاستخدامه في صفحة general-registration
+        $request->session()->put('active_sponsorship_id', $sponsorship->id);
+        $request->session()->put('active_internal_file_number', $sponsorship->internal_file_number);
+
         Log::info('✅ تم تسجيل الدخول بنجاح', [
             'user_id' => $user->id,
             'user_email' => $user->email,
             'identity_number' => $identityNumber,
-            'sponsorship_id' => $sponsorship->id
+            'sponsorship_id' => $sponsorship->id,
+            'session_sponsorship_id' => $sponsorship->id
         ]);
 
         return redirect()->route('user.generalRegistration.index')->with('success', 'تم تسجيل الدخول بنجاح.');

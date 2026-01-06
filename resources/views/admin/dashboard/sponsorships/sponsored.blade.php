@@ -474,10 +474,23 @@
 
                         <div class="row g-9 mb-7">
                             <div class="col-md-6 fv-row">
-                                <label class="fs-6 fw-semibold mb-2">رقم الملف الداخلي</label>
-                                <input type="text" class="form-control form-control-solid"
-                                       placeholder="رقم الملف الداخلي" name="internal_file_number"
-                                       id="internal_file_number" />
+                                <label class="fs-6 fw-semibold mb-2">
+                                    <i class="bi bi-file-earmark-text text-primary me-1"></i>
+                                    رقم الملف الداخلي
+                                    <span class="badge badge-light-success ms-2">يُولّد تلقائياً</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light-primary">
+                                        <i class="bi bi-hash text-primary"></i>
+                                    </span>
+                                    <input type="text" class="form-control form-control-solid bg-light-primary fw-bold"
+                                           placeholder="سيتم توليده تلقائياً" name="internal_file_number"
+                                           id="internal_file_number" readonly />
+                                </div>
+                                <div class="form-text text-muted">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    رقم الملف يُولّد تلقائياً عند فتح النموذج
+                                </div>
                             </div>
 
                             <div class="col-md-6 fv-row">
@@ -490,49 +503,136 @@
 
                         <div class="row g-9 mb-7">
                             <div class="col-md-6 fv-row">
-                                <label class="fs-6 fw-semibold mb-2">رقم الهوية</label>
-                                <input type="text" class="form-control form-control-solid"
-                                       placeholder="رقم الهوية" name="identity_number"
-                                       id="identity_number" />
+                                <label class="fs-6 fw-semibold mb-2">رقم هوية المكفول</label>
+                                <div class="position-relative">
+                                    <input type="text" class="form-control form-control-solid"
+                                           placeholder="ابحث برقم هوية المكفول" name="identity_number"
+                                           id="identity_number" autocomplete="off" />
+                                    <div id="sponsored_search_results" class="position-absolute w-100 bg-white border rounded shadow-sm" style="display: none; z-index: 1050; max-height: 200px; overflow-y: auto;"></div>
+                                </div>
+                                <div class="form-text">أدخل رقم الهوية للبحث في قاعدة البيانات المركزية</div>
                             </div>
 
                             <div class="col-md-6 fv-row">
-                                <label class="fs-6 fw-semibold mb-2">الإسم</label>
-                                <input type="text" class="form-control form-control-solid"
-                                       placeholder="إسم المكفول" name="orphan_name"
-                                       id="orphan_name" />
+                                <label class="fs-6 fw-semibold mb-2">نوع الشخص</label>
+                                <select class="form-select form-select-solid" name="person_type" id="person_type">
+                                    <option value="">اختر نوع الشخص</option>
+                                    <option value="breadwinner">معيل</option>
+                                    <option value="family_member">فرد عائلة</option>
+                                    <option value="deceased_father">أب متوفي</option>
+                                    <option value="deceased_mother">أم متوفية</option>
+                                </select>
                             </div>
+                        </div>
+
+                        <!--begin::الاسم الرباعي-->
+                        <div class="row g-9 mb-7">
+                            <div class="col-md-3 fv-row">
+                                <label class="fs-6 fw-semibold mb-2">الاسم الأول</label>
+                                <input type="text" class="form-control form-control-solid"
+                                       placeholder="الاسم الأول" name="orphan_first_name"
+                                       id="orphan_first_name" />
+                            </div>
+                            <div class="col-md-3 fv-row">
+                                <label class="fs-6 fw-semibold mb-2">اسم الأب</label>
+                                <input type="text" class="form-control form-control-solid"
+                                       placeholder="اسم الأب" name="orphan_father_name"
+                                       id="orphan_father_name" />
+                            </div>
+                            <div class="col-md-3 fv-row">
+                                <label class="fs-6 fw-semibold mb-2">اسم الجد</label>
+                                <input type="text" class="form-control form-control-solid"
+                                       placeholder="اسم الجد" name="orphan_grandfather_name"
+                                       id="orphan_grandfather_name" />
+                            </div>
+                            <div class="col-md-3 fv-row">
+                                <label class="fs-6 fw-semibold mb-2">اسم العائلة</label>
+                                <input type="text" class="form-control form-control-solid"
+                                       placeholder="اسم العائلة" name="orphan_family_name"
+                                       id="orphan_family_name" />
+                            </div>
+                            <input type="hidden" name="orphan_name" id="orphan_name" />
+                        </div>
+                        <!--end::الاسم الرباعي-->
+
+                        <div class="row g-9 mb-7">
+                            <div class="col-md-6 fv-row">
+                                <label class="fs-6 fw-semibold mb-2">تاريخ ميلاد المكفول</label>
+                                <input type="date" class="form-control form-control-solid"
+                                       name="sponsored_birth_date"
+                                       id="sponsored_birth_date" />
+                            </div>
+                        </div>
+
+                        <!--begin::بيانات المعيل-->
+                        <div class="mb-7 mt-10">
+                            <h3 class="fw-bold text-gray-900 mb-5">
+                                <i class="bi bi-person-badge me-2"></i>بيانات المعيل
+                            </h3>
+                            <div class="separator mb-5"></div>
                         </div>
 
                         <div class="row g-9 mb-7">
                             <div class="col-md-6 fv-row">
-                                <label class="fs-6 fw-semibold mb-2">إسم المعيل</label>
-                                <input type="text" class="form-control form-control-solid"
-                                       placeholder="إسم المعيل" name="guardian_name"
-                                       id="guardian_name" />
+                                <label class="fs-6 fw-semibold mb-2">رقم هوية المعيل</label>
+                                <div class="position-relative">
+                                    <input type="text" class="form-control form-control-solid"
+                                           placeholder="ابحث برقم هوية المعيل" name="guardian_identity_number"
+                                           id="guardian_identity_number" autocomplete="off" />
+                                    <div id="guardian_search_results" class="position-absolute w-100 bg-white border rounded shadow-sm" style="display: none; z-index: 1050; max-height: 200px; overflow-y: auto;"></div>
+                                </div>
+                                <div class="form-text">أدخل رقم الهوية للبحث في قاعدة البيانات المركزية</div>
                             </div>
                             <div class="col-md-6 fv-row">
-                                <label class="fs-6 fw-semibold mb-2">رقم هوية المعيل</label>
-                                <input type="text" class="form-control form-control-solid"
-                                       placeholder="رقم هوية المعيل" name="guardian_identity_number"
-                                       id="guardian_identity_number" />
+                                <label class="fs-6 fw-semibold mb-2">تاريخ ميلاد المعيل</label>
+                                <input type="date" class="form-control form-control-solid"
+                                       name="guardian_birth_date"
+                                       id="guardian_birth_date" />
                             </div>
                         </div>
+
+                        <!--begin::الاسم الرباعي للمعيل-->
+                        <div class="row g-9 mb-7">
+                            <div class="col-md-3 fv-row">
+                                <label class="fs-6 fw-semibold mb-2">الاسم الأول للمعيل</label>
+                                <input type="text" class="form-control form-control-solid"
+                                       placeholder="الاسم الأول" name="guardian_first_name"
+                                       id="guardian_first_name" />
+                            </div>
+                            <div class="col-md-3 fv-row">
+                                <label class="fs-6 fw-semibold mb-2">اسم أب المعيل</label>
+                                <input type="text" class="form-control form-control-solid"
+                                       placeholder="اسم الأب" name="guardian_father_name"
+                                       id="guardian_father_name" />
+                            </div>
+                            <div class="col-md-3 fv-row">
+                                <label class="fs-6 fw-semibold mb-2">اسم جد المعيل</label>
+                                <input type="text" class="form-control form-control-solid"
+                                       placeholder="اسم الجد" name="guardian_grandfather_name"
+                                       id="guardian_grandfather_name" />
+                            </div>
+                            <div class="col-md-3 fv-row">
+                                <label class="fs-6 fw-semibold mb-2">اسم عائلة المعيل</label>
+                                <input type="text" class="form-control form-control-solid"
+                                       placeholder="اسم العائلة" name="guardian_family_name"
+                                       id="guardian_family_name" />
+                            </div>
+                            <input type="hidden" name="guardian_name" id="guardian_name" />
+                        </div>
+                        <!--end::الاسم الرباعي للمعيل-->
 
                         <div class="row g-9 mb-7">
                             <div class="col-md-6 fv-row">
                                 <label class="fs-6 fw-semibold mb-2">رقم هاتف المعيل</label>
                                 <input type="text" class="form-control form-control-solid"
                                        placeholder="رقم هاتف المعيل" name="guardian_phone"
-                                       id="guardian_phone" readonly />
-                                <div class="form-text">يتم جلب هذا الحقل تلقائياً من قاعدة البيانات</div>
+                                       id="guardian_phone" />
                             </div>
                             <div class="col-md-6 fv-row">
                                 <label class="fs-6 fw-semibold mb-2">جوال بديل للمعيل</label>
                                 <input type="text" class="form-control form-control-solid"
                                        placeholder="جوال بديل للمعيل" name="guardian_alt_phone"
-                                       id="guardian_alt_phone" readonly />
-                                <div class="form-text">يتم جلب هذا الحقل تلقائياً من قاعدة البيانات</div>
+                                       id="guardian_alt_phone" />
                             </div>
                         </div>
 
@@ -1033,6 +1133,217 @@
                 $('#existingBankAccountsList').html('');
                 sponsoredBankAccountCount = 0;
                 $('#addSponsoredBankAccount').prop('disabled', false);
+                // مسح نتائج البحث في السجل المدني
+                $('#guardian_search_results').hide().html('');
+                $('#sponsored_search_results').hide().html('');
+                // مسح حقول الاسم الرباعي للمكفول
+                $('#orphan_first_name').val('');
+                $('#orphan_father_name').val('');
+                $('#orphan_grandfather_name').val('');
+                $('#orphan_family_name').val('');
+                $('#orphan_name').val('');
+                // مسح حقول الاسم الرباعي للمعيل
+                $('#guardian_first_name').val('');
+                $('#guardian_father_name').val('');
+                $('#guardian_grandfather_name').val('');
+                $('#guardian_family_name').val('');
+                $('#guardian_name').val('');
+                $('#guardian_birth_date').val('');
+                // مسح حقل نوع الشخص
+                $('#person_type').val('');
+            });
+
+            // ============================================
+            // البحث في السجل المدني لرقم هوية المكفول
+            // ============================================
+            let sponsoredSearchTimeout = null;
+
+            $('#identity_number').on('input', function() {
+                const query = $(this).val().trim();
+                const resultsDiv = $('#sponsored_search_results');
+
+                // إلغاء البحث السابق
+                if (sponsoredSearchTimeout) {
+                    clearTimeout(sponsoredSearchTimeout);
+                }
+
+                // إخفاء النتائج إذا كان الحقل فارغاً
+                if (query.length < 3) {
+                    resultsDiv.hide().html('');
+                    return;
+                }
+
+                // تأخير البحث لتجنب الطلبات المتكررة
+                sponsoredSearchTimeout = setTimeout(function() {
+                    resultsDiv.html('<div class="p-2 text-center text-muted"><i class="bi bi-hourglass-split me-1"></i>جاري البحث...</div>').show();
+
+                    $.ajax({
+                        url: '/admin/api/search-civil-registry',
+                        type: 'GET',
+                        data: { identity_number: query },
+                        success: function(response) {
+                            if (response.success && response.data) {
+                                const person = response.data;
+                                const fullName = `${person.first_name} ${person.second_name} ${person.third_name} ${person.last_name}`.trim();
+                                resultsDiv.html(`
+                                    <div class="sponsored-result p-2 border-bottom cursor-pointer" style="cursor: pointer;"
+                                         data-identity="${person.identity_number}"
+                                         data-name="${fullName}"
+                                         data-first="${person.first_name}"
+                                         data-second="${person.second_name}"
+                                         data-third="${person.third_name}"
+                                         data-last="${person.last_name}"
+                                         data-birth="${person.birth_date || ''}">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <strong class="text-primary">${person.identity_number}</strong>
+                                                <span class="text-muted mx-2">-</span>
+                                                <span>${fullName}</span>
+                                            </div>
+                                            <span class="badge bg-info">السجل المدني</span>
+                                        </div>
+                                    </div>
+                                `).show();
+                            } else {
+                                resultsDiv.html('<div class="p-2 text-center text-muted"><i class="bi bi-x-circle me-1"></i>لم يتم العثور على نتائج</div>').show();
+                            }
+                        },
+                        error: function() {
+                            resultsDiv.html('<div class="p-2 text-center text-danger"><i class="bi bi-exclamation-triangle me-1"></i>حدث خطأ أثناء البحث</div>').show();
+                        }
+                    });
+                }, 300);
+            });
+
+            // اختيار نتيجة من بحث المكفول
+            $(document).on('click', '.sponsored-result', function() {
+                const identity = $(this).data('identity');
+                const firstName = $(this).data('first');
+                const secondName = $(this).data('second');
+                const thirdName = $(this).data('third');
+                const lastName = $(this).data('last');
+                const birthDate = $(this).data('birth');
+
+                // ملء حقول الاسم الرباعي
+                $('#identity_number').val(identity);
+                $('#orphan_first_name').val(firstName || '');
+                $('#orphan_father_name').val(secondName || '');
+                $('#orphan_grandfather_name').val(thirdName || '');
+                $('#orphan_family_name').val(lastName || '');
+                // تحديث الحقل المخفي بالاسم الكامل
+                const fullName = [firstName, secondName, thirdName, lastName].filter(n => n).join(' ');
+                $('#orphan_name').val(fullName);
+
+                if (birthDate) {
+                    $('#sponsored_birth_date').val(birthDate);
+                }
+                $('#sponsored_search_results').hide().html('');
+            });
+
+            // إخفاء نتائج بحث المكفول عند النقر خارجها
+            $(document).on('click', function(e) {
+                if (!$(e.target).closest('#identity_number, #sponsored_search_results').length) {
+                    $('#sponsored_search_results').hide();
+                }
+            });
+
+            // ============================================
+            // البحث في السجل المدني لرقم هوية المعيل
+            // ============================================
+            let guardianSearchTimeout = null;
+
+            $('#guardian_identity_number').on('input', function() {
+                const query = $(this).val().trim();
+                const resultsDiv = $('#guardian_search_results');
+
+                // إلغاء البحث السابق
+                if (guardianSearchTimeout) {
+                    clearTimeout(guardianSearchTimeout);
+                }
+
+                // إخفاء النتائج إذا كان الحقل فارغاً
+                if (query.length < 3) {
+                    resultsDiv.hide().html('');
+                    return;
+                }
+
+                // تأخير البحث لتجنب الطلبات المتكررة
+                guardianSearchTimeout = setTimeout(function() {
+                    resultsDiv.html('<div class="p-2 text-center text-muted"><i class="bi bi-hourglass-split me-1"></i>جاري البحث...</div>').show();
+
+                    $.ajax({
+                        url: '/admin/api/search-civil-registry',
+                        type: 'GET',
+                        data: { identity_number: query },
+                        success: function(response) {
+                            if (response.success && response.data) {
+                                const person = response.data;
+                                const fullName = `${person.first_name} ${person.second_name} ${person.third_name} ${person.last_name}`.trim();
+                                resultsDiv.html(`
+                                    <div class="guardian-result p-2 border-bottom cursor-pointer" style="cursor: pointer;"
+                                         data-identity="${person.identity_number}"
+                                         data-name="${fullName}"
+                                         data-first="${person.first_name}"
+                                         data-second="${person.second_name}"
+                                         data-third="${person.third_name}"
+                                         data-last="${person.last_name}"
+                                         data-birth="${person.birth_date || ''}">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <strong class="text-primary">${person.identity_number}</strong>
+                                                <span class="text-muted mx-2">-</span>
+                                                <span>${fullName}</span>
+                                            </div>
+                                            <span class="badge bg-success">السجل المدني</span>
+                                        </div>
+                                    </div>
+                                `).show();
+                            } else {
+                                resultsDiv.html('<div class="p-2 text-center text-muted"><i class="bi bi-x-circle me-1"></i>لم يتم العثور على نتائج</div>').show();
+                            }
+                        },
+                        error: function() {
+                            resultsDiv.html('<div class="p-2 text-center text-danger"><i class="bi bi-exclamation-triangle me-1"></i>حدث خطأ أثناء البحث</div>').show();
+                        }
+                    });
+                }, 300);
+            });
+
+            // اختيار نتيجة من البحث
+            $(document).on('click', '.guardian-result', function() {
+                const identity = $(this).data('identity');
+                const firstName = $(this).data('first');
+                const secondName = $(this).data('second');
+                const thirdName = $(this).data('third');
+                const lastName = $(this).data('last');
+                const birthDate = $(this).data('birth');
+
+                // ملء رقم الهوية
+                $('#guardian_identity_number').val(identity);
+
+                // ملء حقول الاسم الرباعي للمعيل
+                $('#guardian_first_name').val(firstName || '');
+                $('#guardian_father_name').val(secondName || '');
+                $('#guardian_grandfather_name').val(thirdName || '');
+                $('#guardian_family_name').val(lastName || '');
+
+                // تحديث الحقل المخفي بالاسم الكامل
+                const fullName = [firstName, secondName, thirdName, lastName].filter(n => n).join(' ');
+                $('#guardian_name').val(fullName);
+
+                // ملء تاريخ ميلاد المعيل
+                if (birthDate) {
+                    $('#guardian_birth_date').val(birthDate);
+                }
+
+                $('#guardian_search_results').hide().html('');
+            });
+
+            // إخفاء النتائج عند النقر خارجها
+            $(document).on('click', function(e) {
+                if (!$(e.target).closest('#guardian_identity_number, #guardian_search_results').length) {
+                    $('#guardian_search_results').hide();
+                }
             });
 
             // ============================================
@@ -1222,6 +1533,54 @@
                 dropdownParent: $('#sponsorshipModal')
             });
 
+            // ============================================
+            // 🆕 توليد رقم الملف الداخلي عند فتح المودال
+            // ============================================
+            $('#sponsorshipModal').on('show.bs.modal', function (e) {
+                // التحقق من أنه ليس تعديل (في حالة التعديل، الرقم موجود مسبقاً)
+                const isEdit = $('#sponsorship_id').val() !== '';
+
+                if (!isEdit) {
+                    // توليد رقم ملف جديد
+                    generateNewFileNumber();
+                }
+            });
+
+            // دالة توليد رقم الملف
+            function generateNewFileNumber() {
+                $('#internal_file_number').val('جاري التوليد...').prop('readonly', true);
+
+                $.ajax({
+                    url: '/api/files/generate-record-number',
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        table: 'sponsorships',
+                        column: 'internal_file_number'
+                    },
+                    success: function(response) {
+                        if (response.success && response.record_number) {
+                            $('#internal_file_number').val(response.record_number);
+                            console.log('✅ تم توليد رقم الملف:', response.record_number);
+                        } else {
+                            // محاولة بديلة باستخدام timestamp
+                            const fallbackNumber = 'SP' + Date.now().toString().slice(-8);
+                            $('#internal_file_number').val(fallbackNumber);
+                            console.warn('⚠️ استخدام رقم بديل:', fallbackNumber);
+                        }
+                    },
+                    error: function(xhr) {
+                        console.error('❌ خطأ في توليد رقم الملف:', xhr);
+                        // رقم بديل في حالة الخطأ
+                        const fallbackNumber = 'SP' + Date.now().toString().slice(-8);
+                        $('#internal_file_number').val(fallbackNumber);
+                    },
+                    complete: function() {
+                        $('#internal_file_number').prop('readonly', true);
+                    }
+                });
+            }
+
             // Reset form when modal is hidden
             $('#sponsorshipModal').on('hidden.bs.modal', function () {
                 $('#sponsorshipForm')[0].reset();
@@ -1256,6 +1615,9 @@
                     success: function(response) {
                         $('#sponsorshipModal').modal('hide');
 
+                        // تنظيف modal backdrop بعد إغلاق المودال
+                        cleanupModalBackdrop();
+
                         // 🔍 التحقق من وجود تحذيرات حسابات بنكية مكررة
                         let message = response.message;
                         let icon = 'success';
@@ -1275,6 +1637,9 @@
                             timer: icon === 'success' ? 2000 : null,
                             showConfirmButton: true,
                             confirmButtonText: 'حسناً'
+                        }).then(function() {
+                            // تنظيف modal backdrop مرة أخرى بعد إغلاق SweetAlert
+                            cleanupModalBackdrop();
                         });
 
                         if ($.fn.DataTable.isDataTable('#sponsorships-table')) {
@@ -1326,9 +1691,34 @@
                         $('#internal_file_number').val(response.internal_file_number);
                         $('#external_file_number').val(response.external_file_number);
                         $('#identity_number').val(response.identity_number);
-                        $('#orphan_name').val(response.orphan_name);
-                        $('#guardian_name').val(response.guardian_name);
+
+                        // ملء حقول الاسم الرباعي من الاسم الكامل
+                        const fullName = response.orphan_name || '';
+                        const nameParts = fullName.split(' ').filter(n => n);
+                        $('#orphan_first_name').val(nameParts[0] || '');
+                        $('#orphan_father_name').val(nameParts[1] || '');
+                        $('#orphan_grandfather_name').val(nameParts[2] || '');
+                        $('#orphan_family_name').val(nameParts.slice(3).join(' ') || '');
+                        $('#orphan_name').val(fullName);
+
+                        // ملء نوع الشخص
+                        $('#person_type').val(response.person_type || '');
+
+                        $('#sponsored_birth_date').val(response.sponsored_birth_date || '');
+
+                        // ملء حقول الاسم الرباعي للمعيل
+                        const guardianFullName = response.guardian_name || '';
+                        const guardianNameParts = guardianFullName.split(' ').filter(n => n);
+                        $('#guardian_first_name').val(guardianNameParts[0] || '');
+                        $('#guardian_father_name').val(guardianNameParts[1] || '');
+                        $('#guardian_grandfather_name').val(guardianNameParts[2] || '');
+                        $('#guardian_family_name').val(guardianNameParts.slice(3).join(' ') || '');
+                        $('#guardian_name').val(guardianFullName);
+
                         $('#guardian_identity_number').val(response.guardian_identity_number);
+
+                        // ملء تاريخ ميلاد المعيل
+                        $('#guardian_birth_date').val(response.guardian_birth_date || '');
 
                         // 📞 تحميل أرقام هواتف المعيل
                         $('#guardian_phone').val(response.guardian_phone || '-');
@@ -1909,20 +2299,23 @@
                 `;
                 container.append(summaryHtml);
 
-                // الأشخاص المفقودين (معيلين، أفراد عائلة، متوفين)
+                // الأشخاص غير الموجودين (معيلين، أفراد عائلة، متوفين) - تحذير فقط، لا يمنع الاستيراد
                 if (response.validation.missing_persons && response.validation.missing_persons.length > 0) {
-                    hasErrors = true;
+                    // 🆕 لا يعتبر خطأ - سيتم الإدخال بدون relation_id_number
+                    // hasErrors = false; // لا نغير hasErrors
 
                     let personsTableHtml = `
-                        <div class="alert alert-danger mb-5">
+                        <div class="alert alert-warning mb-5">
                             <div class="d-flex align-items-start mb-3">
-                                <i class="ki-duotone ki-cross-circle fs-2x text-danger me-4">
+                                <i class="ki-duotone ki-information-5 fs-2x text-warning me-4">
                                     <span class="path1"></span>
                                     <span class="path2"></span>
+                                    <span class="path3"></span>
                                 </i>
                                 <div class="flex-grow-1">
-                                    <h5 class="mb-2">❌ أشخاص مفقودين في قاعدة البيانات (${response.validation.missing_persons.length})</h5>
-                                    <p class="mb-3">يجب إنشاء سجلات لهؤلاء الأشخاص قبل الاستيراد:</p>
+                                    <h5 class="mb-2">⚠️ أشخاص غير موجودين في قاعدة البيانات (${response.validation.missing_persons.length})</h5>
+                                    <p class="mb-1"><strong>ملاحظة:</strong> سيتم إدخال هؤلاء الأشخاص في جدول الكفالات <strong>بدون ربطهم</strong> برقم ملف (relation_id_number).</p>
+                                    <p class="mb-3">يمكنك إنشاء سجلاتهم أولاً ثم إعادة الفحص، أو المتابعة بالاستيراد مباشرة:</p>
                                 </div>
                             </div>
 
@@ -1981,30 +2374,18 @@
                                 </table>
                             </div>
 
-                            <div class="d-flex justify-content-between align-items-center mt-4">
-                                <div class="alert alert-info mb-0 flex-grow-1 me-3">
-                                    <i class="ki-duotone ki-information-5 fs-2x text-info me-2">
-                                        <span class="path1"></span>
-                                        <span class="path2"></span>
-                                        <span class="path3"></span>
-                                    </i>
-                                    <strong>ملاحظة:</strong> يمكنك إنشاء هذه السجلات تلقائياً بالضغط على الزر
-                                </div>
-
-                                <button type="button" class="btn btn-success btn-lg" id="create_missing_persons_btn">
-                                    <i class="ki-duotone ki-plus-circle fs-2">
-                                        <span class="path1"></span>
-                                        <span class="path2"></span>
-                                    </i>
-                                    إنشاء السجلات المفقودة
-                                </button>
+                            <div class="alert alert-success mt-4 mb-0">
+                                <i class="ki-duotone ki-information-5 fs-2x text-success me-2">
+                                    <span class="path1"></span>
+                                    <span class="path2"></span>
+                                    <span class="path3"></span>
+                                </i>
+                                <strong>ملاحظة:</strong> هؤلاء الأشخاص غير مسجلين في النظام. سيتم إدخال بيانات الكفالة الخاصة بهم في جدول الكفالات فقط بدون ربطهم بالملف الذي يحمل المعلومات المسبقة عنهم.
+                                <br><small class="text-muted">لإضافة بياناتهم الكاملة، يرجى استخدام بوابة إدارة  التسجيلات.</small>
                             </div>
                         </div>
                     `;
                     container.append(personsTableHtml);
-
-                    // تخزين البيانات المفقودة لاستخدامها عند الإنشاء
-                    window.missingPersonsData = response.validation.missing_persons;
                 }
 
                 // عرض المعيلين الذين تم تحديث أرقام هواتفهم
@@ -2068,21 +2449,20 @@
                     container.append(updatedPhonesHtml);
                 }
 
-                // البنوك المفقودة
+                // البنوك المفقودة - هذه فقط تمنع الاستيراد
                 if (response.validation.missing_banks && response.validation.missing_banks.length > 0) {
-                    hasErrors = true;
+                    hasErrors = true; // البنوك فقط تمنع الاستيراد
                     let banksHtml = `
-                        <div class="alert alert-warning d-flex align-items-start mb-5">
-                            <i class="ki-duotone ki-information-5 fs-2x text-warning me-4">
+                        <div class="alert alert-danger d-flex align-items-start mb-5">
+                            <i class="ki-duotone ki-cross-circle fs-2x text-danger me-4">
                                 <span class="path1"></span>
                                 <span class="path2"></span>
-                                <span class="path3"></span>
                             </i>
                             <div class="flex-grow-1">
-                                <h5 class="mb-2">⚠️ بنوك غير موجودة (${response.validation.missing_banks.length})</h5>
-                                <p class="mb-2">يجب إضافة هذه البنوك من قسم إدارة البنوك:</p>
-                                <div class="bg-light-warning p-3 rounded">
-                                    ${response.validation.missing_banks.map(bank => `<span class="badge badge-warning me-2 mb-2">${bank}</span>`).join('')}
+                                <h5 class="mb-2">❌ بنوك غير موجودة (${response.validation.missing_banks.length})</h5>
+                                <p class="mb-2">يجب إضافة هذه البنوك من قسم إدارة البنوك قبل الاستيراد:</p>
+                                <div class="bg-light-danger p-3 rounded">
+                                    ${response.validation.missing_banks.map(bank => `<span class="badge badge-danger me-2 mb-2">${bank}</span>`).join('')}
                                 </div>
                             </div>
                         </div>
@@ -2101,82 +2481,9 @@
                 }
             }
 
-            // إنشاء السجلات المفقودة
-            $(document).on('click', '#create_missing_persons_btn', function() {
-                if (!window.missingPersonsData || window.missingPersonsData.length === 0) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'خطأ',
-                        text: 'لا توجد بيانات لإنشائها'
-                    });
-                    return;
-                }
-
-                Swal.fire({
-                    title: 'تأكيد الإنشاء',
-                    html: `هل تريد إنشاء <strong>${window.missingPersonsData.length}</strong> سجل في قاعدة البيانات؟`,
-                    icon: 'question',
-                    showCancelButton: true,
-                    confirmButtonColor: '#3085d6',
-                    cancelButtonColor: '#d33',
-                    confirmButtonText: 'نعم، إنشاء',
-                    cancelButtonText: 'إلغاء'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        createMissingPersons();
-                    }
-                });
-            });
-
-            function createMissingPersons() {
-                const btn = $('#create_missing_persons_btn');
-                btn.prop('disabled', true);
-                btn.html('<span class="spinner-border spinner-border-sm me-2"></span>جاري الإنشاء...');
-
-                $.ajax({
-                    url: '{{ route("admin.sponsorships.createMissingPersons") }}',
-                    type: 'POST',
-                    data: {
-                        _token: '{{ csrf_token() }}',
-                        persons: window.missingPersonsData
-                    },
-                    success: function(response) {
-                        if (response.success) {
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'تم الإنشاء بنجاح',
-                                html: `تم إنشاء ${response.created_count} سجل بنجاح`,
-                                confirmButtonText: 'إعادة فحص الملف'
-                            }).then(() => {
-                                // إعادة فحص الملف تلقائياً
-                                $('#check_file_btn').trigger('click');
-                            });
-                        } else {
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'خطأ',
-                                html: response.message || 'حدث خطأ أثناء إنشاء السجلات'
-                            });
-                        }
-                    },
-                    error: function(xhr) {
-                        let errorMessage = 'حدث خطأ أثناء إنشاء السجلات';
-                        if (xhr.responseJSON && xhr.responseJSON.message) {
-                            errorMessage = xhr.responseJSON.message;
-                        }
-
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'خطأ',
-                            html: errorMessage
-                        });
-                    },
-                    complete: function() {
-                        btn.prop('disabled', false);
-                        btn.html('<i class="ki-duotone ki-plus-circle fs-2"><span class="path1"></span><span class="path2"></span></i> إنشاء السجلات المفقودة');
-                    }
-                });
-            }
+            // 🚫 تم إزالة كود إنشاء السجلات المفقودة
+            // لأنه يُسبب إدخال بيانات خاطئة في الجداول (data, re_people, dead_people)
+            // يجب إدخال هذه البيانات من خلال البوابات المخصصة فقط
 
             // تنفيذ الاستيراد الفعلي
             $('#import_submit_btn').on('click', function() {
@@ -2202,6 +2509,17 @@
                         if (response.success) {
                             $('#importExcelModal').modal('hide');
 
+                            // 🆕 إضافة معلومات الربط في الرسالة
+                            let linkedInfo = '';
+                            if (response.summary.linked !== undefined && response.summary.unlinked !== undefined) {
+                                linkedInfo = `
+                                    <hr>
+                                    <p><strong>📊 تفاصيل الربط:</strong></p>
+                                    <p><i class="ki-duotone ki-check-circle text-success"></i> <strong>مرتبطين بملفات موجودة:</strong> <span class="text-success">${response.summary.linked}</span></p>
+                                    <p><i class="ki-duotone ki-information text-warning"></i> <strong>بدون ربط (سجلات جديدة):</strong> <span class="text-warning">${response.summary.unlinked}</span></p>
+                                `;
+                            }
+
                             Swal.fire({
                                 icon: 'success',
                                 title: 'اكتملت عملية الاستيراد',
@@ -2209,6 +2527,11 @@
                                     <p><strong>إجمالي السجلات:</strong> ${response.summary.total}</p>
                                     <p><strong>تم الإدخال بنجاح:</strong> <span class="text-success">${response.summary.success}</span></p>
                                     <p><strong>أخطاء:</strong> <span class="text-danger">${response.summary.errors}</span></p>
+                                    ${linkedInfo}
+                                    <div class="alert alert-info mt-3 text-start" style="font-size: 0.9rem;">
+                                        <strong>ℹ️ ملاحظة:</strong> السجلات غير المرتبطة تم إدخالها في جدول الكفالات فقط.
+                                        يمكنك لاحقاً ربطها يدوياً عند إضافة بيانات الأشخاص.
+                                    </div>
                                 `
                             }).then(() => {
                                 // تنظيف modal backdrop بعد إغلاق SweetAlert
