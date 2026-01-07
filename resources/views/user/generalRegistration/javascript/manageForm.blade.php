@@ -373,8 +373,7 @@
         });
     </script>
 
-    {{-- cropper modal --}}
-    @include('user.generalRegistration.javascript.cropper')
+    {{-- cropper modal - تم نقله إلى javascript.blade.php لتجنب التكرار --}}
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -652,72 +651,8 @@
     </script>
 @endpush
 
-{{-- cropper modal --}}
-@include('user.generalRegistration.javascript.cropper')
+{{-- cropper modal - تم نقله إلى javascript.blade.php لتجنب التكرار --}}
 
-
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // دعم جميع بوابات أفراد الأسرة بشكل ديناميكي
-        // إزالة تعريف setupDocumentUploadHandlersForMember من هنا لأنه موجود في familyMember.blade.php
-
-        // تفعيل رفع الملفات لكل فرد حالي عند تحميل الصفحة
-        document.querySelectorAll('.family-member-form').forEach((form, idx) => {
-            // حل مبتكر: اجعل كل نموذج يأخذ data-upload-zone فريد إذا لم يكن موجوداً
-            let dataUploadZone = form.getAttribute('data-upload-zone');
-            if (!dataUploadZone) {
-                // إذا كان هناك نموذج آخر بنفس data-upload-zone، أعطه index جديد
-                let usedZones = Array.from(document.querySelectorAll('.family-member-form'))
-                    .map(f => f.getAttribute('data-upload-zone'))
-                    .filter(Boolean);
-                let newZone = `family_${idx}`;
-                let tryIdx = idx;
-                while (usedZones.includes(newZone)) {
-                    tryIdx++;
-                    newZone = `family_${tryIdx}`;
-                }
-                form.setAttribute('data-upload-zone', newZone);
-            }
-
-            // استخدام الدالة المركزية فقط
-            if (typeof window.setupDocumentUploadHandlersForMember === 'function') {
-                window.setupDocumentUploadHandlersForMember(form, idx);
-            }
-        });
-
-        // عند إضافة فرد جديد، اربط الأحداث له فقط
-        const addFamilyMemberBtn = document.getElementById('addFamilyMember');
-        if (addFamilyMemberBtn) {
-            addFamilyMemberBtn.addEventListener('click', function() {
-                setTimeout(() => {
-                    const forms = document.querySelectorAll('.family-member-form');
-                    // حل مبتكر: أعط كل نموذج جديد data-upload-zone فريد
-                    let usedZones = Array.from(forms).map(f => f.getAttribute(
-                        'data-upload-zone')).filter(Boolean);
-                    forms.forEach((form, idx) => {
-                        let dataUploadZone = form.getAttribute('data-upload-zone');
-                        if (!dataUploadZone) {
-                            let newZone = `family_${idx}`;
-                            let tryIdx = idx;
-                            while (usedZones.includes(newZone)) {
-                                tryIdx++;
-                                newZone = `family_${tryIdx}`;
-                            }
-                            form.setAttribute('data-upload-zone', newZone);
-                            usedZones.push(newZone);
-                        }
-
-                        // استخدام الدالة المركزية فقط
-                        if (typeof window.setupDocumentUploadHandlersForMember ===
-                            'function') {
-                            window.setupDocumentUploadHandlersForMember(form, idx);
-                        }
-                    });
-                }, 100);
-            });
-        }
-    });
-</script>
 @push('scriptsCodeUserRegistration')
     <script>
         // منع ظهور خطأ "input غير قابل للتركيز" عند التحقق من الحقول المطلوبة في تبويبات مخفية
@@ -1158,6 +1093,29 @@
                         }
                     });
                 });
+
+                // 🆕 حذف أي بيانات متوفين إضافيين قديمة من FormData
+                Array.from(formData.keys()).forEach(key => {
+                    if (key.startsWith('additional_deceased')) {
+                        formData.delete(key);
+                    }
+                });
+
+                // 🆕 جمع بيانات المتوفين الإضافيين من النماذج المولدة ديناميكياً
+                let additionalDeceasedDebug = [];
+                document.querySelectorAll('.additional-deceased-form').forEach(function(form, idx) {
+                    console.log(`🔵 [manageForm] جمع بيانات متوفي إضافي #${idx}:`, form);
+                    form.querySelectorAll('[name]').forEach(function(input) {
+                        const name = input.name;
+                        const value = input.type === 'checkbox' ? (input.checked ? '1' : '0') : input.value;
+                        if (name.startsWith('additional_deceased[')) {
+                            formData.append(name, value);
+                            console.log(`   📋 ${name} = ${value}`);
+                            additionalDeceasedDebug.push({ name, value });
+                        }
+                    });
+                });
+                console.log('🟢 [manageForm] جميع بيانات المتوفين الإضافيين:', additionalDeceasedDebug);
 
                 // حذف أي مرفقات قديمة من FormData
                 Array.from(formData.keys()).forEach(key => {

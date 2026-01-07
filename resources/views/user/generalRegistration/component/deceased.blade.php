@@ -465,7 +465,7 @@
                               const docTypeValue = docSelect.value;
                               const idInput = document.querySelector(`[name="additional_deceased[${index}][id_number]"]`);
                               const personId = idInput ? idInput.value.trim() : '';
-                              
+
                               // الحصول على اسم الوثيقة من النص المعروض
                               const docTypeName = docSelect.options[docSelect.selectedIndex]?.text || docTypeValue;
 
@@ -505,7 +505,7 @@
                   document.querySelectorAll('.additional-deceased-form').forEach(form => {
                       const idInput = form.querySelector('.deceased-id-input');
                       const docSelect = form.querySelector('.additional-deceased-doc-select');
-                      
+
                       if (idInput && docSelect) {
                           function checkAndToggleDocSelect() {
                               const idValue = idInput.value.trim();

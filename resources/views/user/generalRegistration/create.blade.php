@@ -263,7 +263,7 @@
                                                     </div>
                                                 `;
                                             } else if (data.source === 'civil_registry') {
-                                                // موجود في السجل المدني فقط - عرض البيانات وملء الحقول
+                                                // موجود في قاعدة البيانات المركزية فقط - عرض البيانات وملء الحقول
                                                 // معالجة تاريخ الميلاد بشكل صحيح
                                                 let birthDateDisplay = 'غير متوفر';
                                                 if (data.data.birth_date_display) {
@@ -341,7 +341,7 @@
                                                     'data_current_address': personData.street
                                                 };
 
-                                                console.log('ملء الحقول من السجل المدني:', personData);
+                                                console.log('ملء الحقول من قاعدة البيانات المركزية:', personData);
 
                                                 Object.keys(fields).forEach(fieldName => {
                                                     const field = document.querySelector('[name="' + fieldName + '"]');
@@ -375,8 +375,14 @@
                                                     }
                                                 });
 
-                                                // عرض رسالة نجاح
-                                                alert('✅ تم ملء الحقول بنجاح من السجل المدني!\n\nيرجى مراجعة البيانات وإكمال الحقول الناقصة.');
+                                                // عرض رسالة نجاح باستخدام SweetAlert
+                                                Swal.fire({
+                                                    icon: 'success',
+                                                    title: 'تم ملء الحقول بنجاح',
+                                                    text: 'تم جلب البيانات من قاعدة البيانات المركزية. يرجى مراجعة البيانات وإكمال الحقول الناقصة.',
+                                                    confirmButtonText: 'حسناً',
+                                                    confirmButtonColor: '#28a745'
+                                                });
 
                                                 // التمرير للأعلى
                                                 window.scrollTo({ top: 0, behavior: 'smooth' });

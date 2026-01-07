@@ -11,13 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        if (!Schema::hasTable('city')) {
-            Schema::create('city', function (Blueprint $table) {
-                $table->id();
-                $table->string('city', 255);
-                $table->timestamps();
-            });
-        }
+        Schema::create('additional_deceased_people', function (Blueprint $table) {
+            $table->id();
+            $table->timestamps();
+        });
     }
 
     /**
@@ -25,6 +22,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('city');
+        Schema::dropIfExists('additional_deceased_people');
     }
 };

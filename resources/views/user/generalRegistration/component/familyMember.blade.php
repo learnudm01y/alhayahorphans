@@ -353,7 +353,7 @@
             const form = formContainer || document.querySelector(`.family-member-form[data-member-index="${memberIndex}"]`);
             if (!form) {
                 console.error('❌ [fetchFamilyMemberData] لم يتم العثور على النموذج');
-                console.log('📊 [fetchFamilyMemberData] جميع النماذج المتاحة:', 
+                console.log('📊 [fetchFamilyMemberData] جميع النماذج المتاحة:',
                     Array.from(document.querySelectorAll('.family-member-form')).map(f => ({
                         index: f.dataset.memberIndex,
                         id: f.id,
@@ -416,6 +416,14 @@
                         const person = data.data[0];
 
                         console.log('✅ [fetchFamilyMemberData] تم العثور على الشخص:', person);
+                        console.log('🔍 [fetchFamilyMemberData] جميع الحقول المتاحة:', Object.keys(person));
+                        console.log('📅 [fetchFamilyMemberData] بيانات تاريخ الميلاد والجنس:', {
+                            CI_BIRTH_DT: person.CI_BIRTH_DT,
+                            CI_SEX_CD: person.CI_SEX_CD,
+                            CI_BIRTH_DATE: person.CI_BIRTH_DATE,
+                            CI_SEX: person.CI_SEX,
+                            CI_GENDER: person.CI_GENDER
+                        });
 
                         // توزيع الاسم على الحقول الأربعة
                         console.log('📝 [fetchFamilyMemberData] بيانات الاسم من API:', {
@@ -474,19 +482,31 @@
                         }
 
                         // تاريخ الميلاد (إذا توفر)
-                        if (birthDateInput && person.CI_BIRTH_DATE) {
+                        console.log('📅 [fetchFamilyMemberData] محاولة تعيين تاريخ الميلاد:', {
+                            hasBirthDateInput: !!birthDateInput,
+                            birthDateValue: person.CI_BIRTH_DT
+                        });
+
+                        if (birthDateInput && person.CI_BIRTH_DT) {
                             // تحويل التاريخ إلى الصيغة المطلوبة YYYY-MM-DD
-                            let birthDate = person.CI_BIRTH_DATE;
+                            let birthDate = person.CI_BIRTH_DT;
+                            console.log('📅 [fetchFamilyMemberData] تاريخ الميلاد الخام:', birthDate);
+
                             if (birthDate) {
                                 // محاولة تحويل التاريخ
                                 const dateObj = new Date(birthDate);
+                                console.log('📅 [fetchFamilyMemberData] كائن التاريخ:', dateObj, 'صالح؟', !isNaN(dateObj.getTime()));
+
                                 if (!isNaN(dateObj.getTime())) {
                                     const year = dateObj.getFullYear();
                                     const month = String(dateObj.getMonth() + 1).padStart(2, '0');
                                     const day = String(dateObj.getDate()).padStart(2, '0');
-                                    birthDateInput.value = `${year}-${month}-${day}`;
+                                    const formattedDate = `${year}-${month}-${day}`;
+
+                                    console.log('📅 [fetchFamilyMemberData] قبل التعيين - birthDateInput.value:', birthDateInput.value);
+                                    birthDateInput.value = formattedDate;
                                     birthDateInput.classList.add('is-valid');
-                                    console.log('✅ [fetchFamilyMemberData] تم تعيين تاريخ الميلاد:', birthDateInput.value);
+                                    console.log('✅ [fetchFamilyMemberData] بعد التعيين - birthDateInput.value:', birthDateInput.value);
 
                                     // حساب العمر تلقائياً
                                     const ageInput = form.querySelector(`[name="family_members[${memberIndex}][person_age]"]`);
@@ -503,16 +523,34 @@
 
                                     // تفعيل حدث change لتحديث العمر
                                     birthDateInput.dispatchEvent(new Event('change', { bubbles: true }));
+                                } else {
+                                    console.error('❌ [fetchFamilyMemberData] تاريخ الميلاد غير صالح:', birthDate);
                                 }
                             }
+                        } else {
+                            console.warn('⚠️ [fetchFamilyMemberData] لم يتم تعيين تاريخ الميلاد:', {
+                                hasBirthDateInput: !!birthDateInput,
+                                hasBirthDateData: !!person.CI_BIRTH_DT
+                            });
                         }
 
                         // الجنس (إذا توفر)
-                        if (genderSelect && person.CI_SEX) {
+                        console.log('⚧ [fetchFamilyMemberData] محاولة تعيين الجنس:', {
+                            hasGenderSelect: !!genderSelect,
+                            genderValue: person.CI_SEX_CD
+                        });
+
+                        if (genderSelect && person.CI_SEX_CD) {
+                            console.log('⚧ [fetchFamilyMemberData] قبل التعيين - genderSelect.value:', genderSelect.value);
                             // 1 = ذكر، 2 = أنثى
-                            genderSelect.value = person.CI_SEX;
+                            genderSelect.value = person.CI_SEX_CD;
                             genderSelect.classList.add('is-valid');
-                            console.log('✅ [fetchFamilyMemberData] تم تعيين الجنس:', person.CI_SEX);
+                            console.log('✅ [fetchFamilyMemberData] بعد التعيين - genderSelect.value:', genderSelect.value, 'person.CI_SEX_CD:', person.CI_SEX_CD);
+                        } else {
+                            console.warn('⚠️ [fetchFamilyMemberData] لم يتم تعيين الجنس:', {
+                                hasGenderSelect: !!genderSelect,
+                                hasGenderData: !!person.CI_SEX_CD
+                            });
                         }
 
                         console.log(`✅ تم جلب بيانات فرد الأسرة بنجاح:`, person);

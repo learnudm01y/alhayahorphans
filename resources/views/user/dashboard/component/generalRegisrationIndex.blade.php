@@ -1029,7 +1029,7 @@
                                             {{ ($field['required'] ?? false) ? 'required' : '' }}
                                         >
                                     @elseif($field['db_column'] == 'field_guardian_id_owner')
-                                        {{-- حقل رقم هوية صاحب الحساب مع البحث في السجل المدني --}}
+                                        {{-- حقل رقم هوية صاحب الحساب مع البحث في قاعدة البيانات المركزية --}}
                                         <div class="input-group">
                                             <input
                                                 type="text"
@@ -1126,7 +1126,7 @@
                                     <input type="hidden" name="family_members[{{ $index }}][person_id]" value="{{ $member->person_id }}">
 
                                     <div class="row">
-                                        {{-- حقل رقم الهوية مع البحث في السجل المدني --}}
+                                        {{-- حقل رقم الهوية مع البحث في قاعدة البيانات المركزية --}}
                                         <div class="col-12 mb-3">
                                             <label class="form-label fw-bold">
                                                 <i class="bi bi-card-text me-1"></i>
@@ -2147,7 +2147,7 @@
                     <input type="hidden" name="family_members[${familyMemberIndex}][is_new]" value="1">
 
                     <div class="row">
-                        <!-- حقل رقم الهوية مع البحث في السجل المدني -->
+                        <!-- حقل رقم الهوية مع البحث في قاعدة البيانات المركزية -->
                         <div class="col-12 mb-3">
                             <label class="form-label fw-bold">
                                 <i class="bi bi-card-text me-1"></i>
@@ -2276,7 +2276,7 @@
             });
         }
 
-        // 🆕 دالة البحث في السجل المدني لأفراد العائلة
+        // 🆕 دالة البحث في قاعدة البيانات المركزية لأفراد العائلة
         let familyMemberSearchTimeout = {};
 
         function searchFamilyMemberInCivil(index, identityNumber) {
@@ -2352,7 +2352,7 @@
             }, 500);
         }
 
-        // 🆕 دالة البحث في السجل المدني لصاحب الحساب البنكي
+        // 🆕 دالة البحث في قاعدة البيانات المركزية لصاحب الحساب البنكي
         let bankOwnerSearchTimeout = null;
 
         function searchBankOwnerInCivil(identityNumber) {

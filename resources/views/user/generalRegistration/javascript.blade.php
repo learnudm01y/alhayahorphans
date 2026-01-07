@@ -212,29 +212,44 @@ document.addEventListener('DOMContentLoaded', function() {
 // }, true);
 // new code
 function checkDuplicateIdsInForm(input) {
+    // جمع جميع حقول رقم الهوية من جميع البوابات
     const idInputs = [
-        ...document.querySelectorAll('input[name="data_id_number"]'),
-        ...document.querySelectorAll('input[name="father_id"]'),
-        ...document.querySelectorAll('input[name="mother_id"]'),
-        ...document.querySelectorAll('input[name^="family_members"][name$="[person_id]"]')
+        ...document.querySelectorAll('input[name="data_id_number"]'), // البيانات الأساسية
+        ...document.querySelectorAll('input[name="father_id"]'), // الأب المتوفى
+        ...document.querySelectorAll('input[name="mother_id"]'), // الأم المتوفاة
+        ...document.querySelectorAll('input[name^="additional_deceased"][name$="[id_number]"]'), // المتوفين الإضافيين
+        ...document.querySelectorAll('input[name^="family_members"][name$="[person_id]"]') // أفراد الأسرة
     ];
 
     const ids = {};
     let duplicate = null;
     let isCurrentDuplicate = false;
+    let duplicateInputs = []; // لتتبع جميع الحقول المكررة
 
     idInputs.forEach(inp => {
         const val = inp.value.trim();
-        if (!val) return;
+        if (!val || val.length < 9) return; // تجاهل القيم الفارغة أو القصيرة
+
         if (ids[val]) {
+            // وجدنا تكرار
             if (input && inp === input) isCurrentDuplicate = true;
             inp.classList.add('is-invalid');
             inp.classList.remove('is-valid');
             duplicate = val;
+            duplicateInputs.push(inp);
+
+            // أضف الحقل الأول المكرر أيضاً
+            if (ids[val].input) {
+                ids[val].input.classList.add('is-invalid');
+                ids[val].input.classList.remove('is-valid');
+                if (!duplicateInputs.includes(ids[val].input)) {
+                    duplicateInputs.push(ids[val].input);
+                }
+            }
         } else {
-            ids[val] = true;
+            ids[val] = { input: inp };
+            // فقط أزل is-invalid، لا تضف is-valid حتى يتم التحقق من قاعدة البيانات
             inp.classList.remove('is-invalid');
-            inp.classList.remove('is-valid');
         }
     });
 
@@ -243,8 +258,9 @@ function checkDuplicateIdsInForm(input) {
         input.classList.remove('is-valid');
         Swal.fire({
             icon: 'error',
-            title: 'تنبيه',
-            text: `رقم الهوية ${input.value.trim()} مكرر في النموذج!`
+            title: 'رقم هوية مكرر',
+            text: `رقم الهوية ${input.value.trim()} مكرر في النموذج! يجب أن يكون كل رقم هوية فريداً.`,
+            confirmButtonText: 'حسناً'
         });
         return false;
     }
@@ -252,8 +268,15 @@ function checkDuplicateIdsInForm(input) {
     if (duplicate) {
         Swal.fire({
             icon: 'error',
-            title: 'تنبيه',
-            text: `رقم الهوية ${duplicate} مكرر في النموذج!`
+            title: 'رقم هوية مكرر',
+            text: `رقم الهوية ${duplicate} مكرر في النموذج! يجب أن يكون كل رقم هوية فريداً.`,
+            confirmButtonText: 'حسناً',
+            didClose: () => {
+                // ركز على أول حقل مكرر
+                if (duplicateInputs.length > 0) {
+                    duplicateInputs[0].focus();
+                }
+            }
         });
         return false;
     }
@@ -262,41 +285,55 @@ function checkDuplicateIdsInForm(input) {
 
 // التحقق على مستوى قاعدة البيانات فقط إذا لم يكن مكرر في النموذج
 async function checkIdNumbersInDatabase() {
+    // جمع جميع حقول رقم الهوية من جميع البوابات
     const idInputs = [
-        ...document.querySelectorAll('input[name="data_id_number"]'),
-        ...document.querySelectorAll('input[name="father_id"]'),
-        ...document.querySelectorAll('input[name="mother_id"]'),
-        ...document.querySelectorAll('input[name^="family_members"][name$="[person_id]"]')
+        ...document.querySelectorAll('input[name="data_id_number"]'), // البيانات الأساسية
+        ...document.querySelectorAll('input[name="father_id"]'), // الأب المتوفى
+        ...document.querySelectorAll('input[name="mother_id"]'), // الأم المتوفاة
+        ...document.querySelectorAll('input[name^="additional_deceased"][name$="[id_number]"]'), // المتوفين الإضافيين
+        ...document.querySelectorAll('input[name^="family_members"][name$="[person_id]"]') // أفراد الأسرة
     ];
+
     for (const input of idInputs) {
         const id = input.value.trim();
-        if (!id) continue;
+        if (!id || id.length < 9) continue; // تجاهل القيم الفارغة أو القصيرة
+
         // تحقق من التكرار في النموذج أولاً
         if (!checkDuplicateIdsInForm(input)) {
             return false;
         }
+
         // تحقق من قاعدة البيانات
-        const res = await fetch('/check-id-number', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-            },
-            body: JSON.stringify({ id_number: id })
-        });
-        const data = await res.json();
-        if (data.exists) {
-            input.classList.add('is-invalid');
-            input.classList.remove('is-valid');
-            Swal.fire({
-                icon: 'error',
-                title: 'تنبيه',
-                text: `رقم الهوية ${id} موجود بالفعل في قاعدة البيانات!`
+        try {
+            const res = await fetch('/check-id-number', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                },
+                body: JSON.stringify({ id_number: id })
             });
-            return false;
-        } else {
-            input.classList.remove('is-invalid');
-            input.classList.add('is-valid');
+            const data = await res.json();
+
+            if (data.exists) {
+                input.classList.add('is-invalid');
+                input.classList.remove('is-valid');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'رقم هوية موجود مسبقاً',
+                    text: `رقم الهوية ${id} موجود بالفعل في قاعدة البيانات!`,
+                    confirmButtonText: 'حسناً',
+                    didClose: () => {
+                        input.focus();
+                    }
+                });
+                return false;
+            } else {
+                input.classList.remove('is-invalid');
+                input.classList.add('is-valid');
+            }
+        } catch (error) {
+            console.error('خطأ في التحقق من رقم الهوية:', error);
         }
     }
     return true;
@@ -305,7 +342,7 @@ async function checkIdNumbersInDatabase() {
 // استدعِ الدالة عند كل إدخال
 document.addEventListener('input', function(e) {
     if (
-        e.target.matches('input[name="data_id_number"], input[name="father_id"], input[name="mother_id"], input[name^="family_members"][name$="[person_id]"]')
+        e.target.matches('input[name="data_id_number"], input[name="father_id"], input[name="mother_id"], input[name^="additional_deceased"][name$="[id_number]"], input[name^="family_members"][name$="[person_id]"]')
     ) {
         checkDuplicateIdsInForm(e.target);
     }
@@ -314,7 +351,7 @@ document.addEventListener('input', function(e) {
 // اربطها مع جميع حقول الهوية عند الخروج من الحقل
 document.addEventListener('blur', function(e) {
     if (
-        e.target.matches('input[name="data_id_number"], input[name="father_id"], input[name="mother_id"], input[name^="family_members"][name$="[person_id]"]')
+        e.target.matches('input[name="data_id_number"], input[name="father_id"], input[name="mother_id"], input[name^="additional_deceased"][name$="[id_number]"], input[name^="family_members"][name$="[person_id]"]')
     ) {
         // تحقق من التكرار في النموذج أولاً
         if (!checkDuplicateIdsInForm(e.target)) return;

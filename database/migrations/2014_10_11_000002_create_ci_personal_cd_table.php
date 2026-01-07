@@ -11,11 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('ci_personal_cd', function (Blueprint $table) {
-            $table->id();
-            $table->string('CI_PERSONAL_CD', 255);
-            $table->timestamps();
-        });
+        // التحقق من عدم وجود الجدول مسبقاً لتجنب خطأ التكرار
+        if (!Schema::hasTable('ci_personal_cd')) {
+            Schema::create('ci_personal_cd', function (Blueprint $table) {
+                $table->id();
+                $table->string('CI_PERSONAL_CD', 255);
+                $table->timestamps();
+            });
+        }
     }
 
     /**

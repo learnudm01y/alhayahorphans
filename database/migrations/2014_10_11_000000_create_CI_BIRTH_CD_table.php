@@ -11,13 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('ci_birth_cd', function (Blueprint $table) {
-            $table->id();
-            $table->string('ci_birth_cd')->unique();
-            $table->string('flag');
-            $table->string('code')->unique();
-            $table->timestamps();
-        });
+        // التحقق من عدم وجود الجدول مسبقاً لتجنب خطأ التكرار
+        if (!Schema::hasTable('ci_birth_cd')) {
+            Schema::create('ci_birth_cd', function (Blueprint $table) {
+                $table->id();
+                $table->string('ci_birth_cd')->unique();
+                $table->string('flag');
+                $table->string('code')->unique();
+                $table->timestamps();
+            });
+        }
     }
 
     /**

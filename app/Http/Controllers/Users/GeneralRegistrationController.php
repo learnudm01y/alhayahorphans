@@ -301,7 +301,62 @@ class GeneralRegistrationController extends Controller
                         'mother_death_reason' => $request->input('mother_death_reason'),
                     ]);
                 }
-            }
+
+                // 🆕 حفظ المتوفين الإضافيين (غير الأب والأم) - يتم تنفيذه دائماً للقسم 1 (أيتام)
+                $additionalDeceased = $request->input('additional_deceased', []);
+
+                // تتبع البيانات المستلمة
+                Log::info('📋 البيانات المستلمة من النموذج للمتوفين الإضافيين:', [
+                    'additional_deceased_raw' => $request->input('additional_deceased'),
+                    'additional_deceased_array' => $additionalDeceased,
+                    'is_array' => is_array($additionalDeceased),
+                    'count' => is_array($additionalDeceased) ? count($additionalDeceased) : 0,
+                    'all_input_keys' => array_keys($request->all())
+                ]);
+
+                if (is_array($additionalDeceased) && count($additionalDeceased) > 0) {
+                    Log::info('🟢 بدء حفظ المتوفين الإضافيين:', ['count' => count($additionalDeceased)]);
+
+                    foreach ($additionalDeceased as $index => $deceased) {
+                        // الحصول على رقم الهوية (يمكن أن يكون id_number أو person_id)
+                        $personId = $deceased['id_number'] ?? $deceased['person_id'] ?? null;
+
+                        // تجاهل السجلات الفارغة
+                        if (empty($deceased['first_name']) && empty($deceased['last_name']) && empty($personId)) {
+                            Log::info('⏭️ تجاهل متوفي إضافي فارغ:', ['index' => $index]);
+                            continue;
+                        }
+
+                        // التحقق من صحة رقم الهوية إذا تم إدخاله
+                        if (!empty($personId) && !preg_match('/^\d{9}$/', $personId)) {
+                            Log::warning('⚠️ رقم هوية متوفي إضافي غير صالح:', [
+                                'index' => $index,
+                                'person_id' => $personId
+                            ]);
+                        }
+
+                        \App\Models\AdditionalDeceased::create([
+                            're_file_id' => $fileIdNumber,
+                            'person_id' => $personId,
+                            'first_name' => $deceased['first_name'] ?? null,
+                            'second_name' => $deceased['second_name'] ?? null,
+                            'third_name' => $deceased['third_name'] ?? null,
+                            'last_name' => $deceased['last_name'] ?? null,
+                            'relationship' => $deceased['relationship'] ?? 'other',
+                            'death_date' => $deceased['death_date'] ?? null,
+                            'death_reason' => $deceased['death_reason'] ?? null,
+                        ]);
+
+                        Log::info('✅ تم حفظ متوفي إضافي:', [
+                            'index' => $index,
+                            'file_id' => $fileIdNumber,
+                            'person_id' => $personId,
+                            'relationship' => $deceased['relationship'] ?? 'other',
+                            'name' => ($deceased['first_name'] ?? '') . ' ' . ($deceased['last_name'] ?? '')
+                        ]);
+                    }
+                }
+            } // نهاية شرط if ($request->input('data_section_id') == 1)
 
 
             // 4. Store family members

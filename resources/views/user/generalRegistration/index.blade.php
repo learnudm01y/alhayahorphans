@@ -4,22 +4,22 @@
 
 <head>
     <base href="../" />
-    <title> بوابة الإدخال للمستخدمين   </title>
+    <title>الحياة للتنمية الأسرية</title>
     <meta charset="utf-8" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description"
-        content="The most advanced Bootstrap 5 Admin Theme with 40 unique prebuilt layouts on Themeforest trusted by 100,000 beginners and professionals. Multi-demo, Dark Mode, RTL support and complete React, Angular, Vue, Asp.Net Core, Rails, Spring, Blazor, Django, Express.js, Node.js, Flask, Symfony & Laravel versions. Grab your copy now and get life-time updates for free." />
-    <meta name="keywords"
-        content="metronic, bootstrap, bootstrap 5, angular, VueJs, React, Asp.Net Core, Rails, Spring, Blazor, Django, Express.js, Node.js, Flask, Symfony & Laravel starter kits, admin themes, web design, figma, web development, free templates, free admin themes, bootstrap theme, bootstrap template, bootstrap dashboard, bootstrap dak mode, bootstrap button, bootstrap datepicker, bootstrap timepicker, fullcalendar, datatables, flaticon" />
+    <meta name="description" content="الحياة للتنمية الأسرية - بوابة تسجيل الأيتام والمستفيدين" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta property="og:locale" content="en_US" />
-    <meta property="og:type" content="article" />
-    <meta property="og:title"
-        content="Metronic - Bootstrap Admin Template, HTML, VueJS, React, Angular. Laravel, Asp.Net Core, Ruby on Rails, Spring Boot, Blazor, Django, Express.js, Node.js, Flask Admin Dashboard Theme & Template" />
-    <meta property="og:url" content="https://keenthemes.com/metronic" />
-    <meta property="og:site_name" content="Keenthemes | Metronic" />
-    <link rel="canonical" href="https://preview.keenthemes.com/metronic8" />
+    <meta property="og:locale" content="ar_SA" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="الحياة للتنمية الأسرية" />
+    <meta property="og:description" content="بوابة تسجيل الأيتام والمستفيدين - الحياة للتنمية الأسرية" />
+    <meta property="og:url" content="{{ url()->current() }}" />
+    <meta property="og:site_name" content="الحياة للتنمية الأسرية" />
+    <meta property="og:image" content="{{ asset('uploads/logo02small.png') }}" />
+    <meta property="og:image:width" content="200" />
+    <meta property="og:image:height" content="200" />
+    <link rel="canonical" href="{{ url()->current() }}" />
     <link rel="shortcut icon" href="{{ asset('admin/assets/media/logos/favicon.ico') }}" />
     <!--begin::Fonts(mandatory for all pages)-->
     {{-- <link rel="stylesheet" href="{{ asset('admin/assets/fonts/iranyekan/fontface.css') }}"> --}}
@@ -139,14 +139,53 @@
                 height: 50px;
             }
         }
+
+        /* إصلاح الإزاحة الزائدة - جعل المحتوى في المنتصف */
+        body#kt_app_body {
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        /* إزالة تأثير الـ sidebar على الجوال والشاشات الصغيرة */
+        @media (max-width: 991.98px) {
+            body#kt_app_body,
+            body[data-kt-app-sidebar-enabled="true"] {
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+            }
+
+            .container-fluid {
+                padding-left: 10px !important;
+                padding-right: 10px !important;
+                margin: 0 auto !important;
+            }
+
+            .row {
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+            }
+
+            .col-12 {
+                padding-left: 5px !important;
+                padding-right: 5px !important;
+            }
+        }
+
+        /* إصلاح للشاشات الكبيرة */
+        @media (min-width: 992px) {
+            .container-fluid {
+                max-width: 1400px;
+                margin: 0 auto !important;
+                padding-left: 20px !important;
+                padding-right: 20px !important;
+            }
+        }
     </style>
 
 </head>
-<body id="kt_app_body" data-kt-app-layout="dark-sidebar" data-kt-app-header-fixed="true"
-    data-kt-app-sidebar-enabled="true" data-kt-app-sidebar-fixed="true" data-kt-app-sidebar-hoverable="true"
-    data-kt-app-sidebar-push-header="true" data-kt-app-sidebar-push-toolbar="true"
-    data-kt-app-sidebar-push-footer="true" data-kt-app-toolbar-enabled="true" data-kt-app-toolbar-fixed="true"
-    class="app-default">
+<body id="kt_app_body" class="app-default" style="margin: 0; padding: 0;">
 
     <!--begin::Logo-->
     <div class="logo-container">

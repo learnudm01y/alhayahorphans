@@ -11,12 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('general_category', function (Blueprint $table) {
-            $table->bigIncrements('id');
-            $table->string('description');
-            $table->timestamps();
-        });
-
+        if (!Schema::hasTable('general_category')) {
+            Schema::create('general_category', function (Blueprint $table) {
+                $table->bigIncrements('id');
+                $table->string('description');
+                $table->timestamps();
+            });
+        }
     }
 
     /**

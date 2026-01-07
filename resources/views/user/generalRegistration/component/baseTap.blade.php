@@ -43,7 +43,7 @@
             <label class="form-label">صلة القرابة <span class="text-danger">*</span></label>
             <select name="data_relationship" class="form-select">
                 <option value="">اختر صلة القرابة</option>
-                @foreach ($category_of_relationship as $category)
+                @foreach ($category_of_relationship->where('attribute', '!=', 'Unknown') as $category)
                     <option value="{{ $category->id }}">{{ $category->attribute }}</option>
                 @endforeach
             </select>
@@ -92,7 +92,7 @@
             <label class="form-label">المؤهل العلمي <span class="text-primary">(اختياري)</span></label>
             <select name="data_academic_qualification" class="form-select">
                 <option value="">اختر المؤهل</option>
-                @foreach ($academic_qualification as $qualification)
+                @foreach ($academic_qualification->where('description', '!=', 'Unknown') as $qualification)
                     <option value="{{ $qualification->id }}">
                         {{ $qualification->description }}
                     </option>
@@ -103,7 +103,7 @@
             <label class="form-label">حالة النزوح <span class="text-danger">*</span></label>
             <select name="data_displacement_status" class="form-select">
                 <option value="">اختر الحالة</option>
-                @foreach ($displacement_status as $displacement_status_item)
+                @foreach ($displacement_status->where('description', '!=', 'Unknown') as $displacement_status_item)
                     <option value="{{ $displacement_status_item->id }}">
                         {{ $displacement_status_item->description }}</option>
                 @endforeach
@@ -185,7 +185,7 @@
             <label class="form-label">الحالة الوظيفية المعيل <span class="text-danger">*</span></label>
             <select name="data_employment_status_breadwinner" class="form-select">
                 <option value="">اختر الحالة</option>
-                @foreach ($employment_status_breadwinner as $employment_status_item)
+                @foreach ($employment_status_breadwinner->where('description', '!=', 'Unknown') as $employment_status_item)
                     <option value="{{ $employment_status_item->id }}">
                         {{ $employment_status_item->description }}</option>
                 @endforeach
@@ -195,7 +195,7 @@
             <label class="form-label">حالة السكن <span class="text-danger">*</span></label>
             <select name="data_housing_status" class="form-select">
                 <option value="">اختر الحالة</option>
-                @foreach ($HousingStatus as $HousingStatusItem)
+                @foreach ($HousingStatus->where('description', '!=', 'Unknown') as $HousingStatusItem)
                     <option value="{{ $HousingStatusItem->id }}">
                         {{ $HousingStatusItem->description }}</option>
                 @endforeach
@@ -205,7 +205,7 @@
             <label class="form-label">نوع السكن الحالي <span class="text-danger">*</span></label>
             <select name="data_current_housing_type" class="form-select">
                 <option value="">اختر الحالة</option>
-                @foreach ($TypeOfAccommodation as $TypeOfAccommodationItem)
+                @foreach ($TypeOfAccommodation->where('description', '!=', 'Unknown') as $TypeOfAccommodationItem)
                     <option value="{{ $TypeOfAccommodationItem->id }}">
                         {{ $TypeOfAccommodationItem->description }}</option>
                 @endforeach

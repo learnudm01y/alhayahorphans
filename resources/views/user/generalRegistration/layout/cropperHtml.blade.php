@@ -23,26 +23,24 @@
         </h5>
       </div>
 
-      <!-- Body -->
+      <!-- Body - منطقة القص -->
       <div class="cropper-modal-body">
-        <!-- منطقة الصورة مع حاوية محددة -->
         <div class="crop-area">
           <img id="cropperImage" src="" alt="الصورة المراد قصها" />
         </div>
+      </div>
 
-        <!-- منطقة التحكم -->
-        <!-- أزرار الحفظ والإلغاء -->
-    </div>
-    <div class="action-buttons" style="display: flex !important; visibility: visible !important;">
-      <button id="cropperCropBtn" class="btn btn-success btn-lg" disabled style="display: flex !important;">
-        <i class="fas fa-check me-2"></i>
-        <span>حفظ التعديلات</span>
-      </button>
-      <button type="button" class="btn btn-danger btn-lg" data-bs-dismiss="modal" id="cropperCancelBtn" style="display: flex !important;">
-        <i class="fas fa-times me-2"></i>
-        <span>إلغاء</span>
-      </button>
-    </div>
+      <!-- Footer - أزرار الحفظ والإلغاء -->
+      <div class="action-buttons">
+        <button id="cropperCropBtn" class="btn btn-success btn-lg" disabled>
+          <i class="fas fa-check me-2"></i>
+          <span>حفظ التعديلات</span>
+        </button>
+        <button type="button" class="btn btn-danger btn-lg" data-bs-dismiss="modal" id="cropperCancelBtn">
+          <i class="fas fa-times me-2"></i>
+          <span>إلغاء</span>
+        </button>
+      </div>
     </div>
   </div>
 </div>

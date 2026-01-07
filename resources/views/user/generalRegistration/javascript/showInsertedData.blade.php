@@ -230,6 +230,64 @@
                         </div>
                     </div>
                 `;
+
+                    // --- المتوفين الإضافيين ---
+                    const additionalDeceasedForms = document.querySelectorAll('.additional-deceased-form');
+                    if (additionalDeceasedForms.length > 0) {
+                        deceasedHtml += `
+                        <div class="card shadow border-0 mb-4" style="border-radius:14px;">
+                            <div class="card-header bg-warning text-dark fw-bold d-flex align-items-center" style="border-radius:14px 14px 0 0;">
+                                <span style="font-size:1.1rem;">المتوفين الإضافيين (${additionalDeceasedForms.length})</span>
+                                <i class="fas fa-users me-2"></i>
+                            </div>
+                            <div class="card-body bg-white">
+                                <div class="row g-4">
+                        `;
+
+                        additionalDeceasedForms.forEach((form, idx) => {
+                            // استخراج قيم الحقول من النموذج
+                            const getFormVal = (fieldName) => {
+                                const input = form.querySelector(`[name*="[${fieldName}]"]`);
+                                return input ? (input.value || '-') : '-';
+                            };
+
+                            const getFormSelText = (fieldName) => {
+                                const sel = form.querySelector(`[name*="[${fieldName}]"]`);
+                                if (sel && sel.selectedIndex >= 0) {
+                                    return sel.options[sel.selectedIndex].text || '-';
+                                }
+                                return '-';
+                            };
+
+                            const firstName = getFormVal('first_name');
+                            const lastName = getFormVal('last_name');
+                            const idNumber = getFormVal('id_number');
+                            const deathDate = getFormVal('death_date');
+                            const deathReason = getFormSelText('death_reason');
+                            const relationship = getFormSelText('relationship');
+
+                            deceasedHtml += `
+                                <div class="col-md-6">
+                                    <div class="border rounded p-3 mb-2" style="background:#fffbf0;">
+                                        <span class="fw-bold text-warning"><i class="fas fa-user-times me-1"></i>المتوفي الإضافي #${idx + 1}</span>
+                                        <div class="mt-2">
+                                            <span class="fw-bold"><i class="fas fa-user me-1"></i>الاسم:</span> ${firstName} ${lastName}<br>
+                                            <span class="fw-bold"><i class="fas fa-id-badge me-1"></i>رقم الهوية:</span> ${idNumber}<br>
+                                            <span class="fw-bold"><i class="fas fa-users me-1"></i>صلة القرابة:</span> ${relationship}<br>
+                                            <span class="fw-bold"><i class="fas fa-calendar-alt me-1"></i>تاريخ الوفاة:</span> ${deathDate}<br>
+                                            <span class="fw-bold"><i class="fas fa-skull-crossbones me-1"></i>سبب الوفاة:</span> ${deathReason}
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        });
+
+                        deceasedHtml += `
+                                </div>
+                            </div>
+                        </div>
+                        `;
+                    }
                 }
 
                 // --- المرفقات (من Map البرمجية) ---
@@ -260,30 +318,67 @@
                         attachmentsHtml += `<div class="d-flex flex-wrap gap-3">`;
 
                         docsArr.forEach(doc => {
-                            // 🔍 Debug: طباعة محتوى doc
+                            // 🔍 Debug: طباعة محتوى doc بالكامل
                             console.log('📄 [renderReviewContent] doc object:', doc);
+                            console.log('📄 [renderReviewContent] doc keys:', Object.keys(doc));
                             console.log('📄 [renderReviewContent] doc properties:', {
                                 docTypeName: doc.docTypeName,
                                 typeText: doc.typeText,
                                 type: doc.type,
                                 docType: doc.docType,
                                 name: doc.name,
-                                docName: doc.docName
+                                docName: doc.docName,
+                                status: doc.status
                             });
 
-                            // استخراج نوع الوثيقة - الأولوية لاسم الوثيقة الحقيقي
-                            const docType = doc.docTypeName || doc.typeText || doc.type || doc.docType || 'وثيقة';
-                            console.log('✅ [renderReviewContent] docType المستخدم:', docType);
+                            // ⭐ استخراج نوع الوثيقة بشكل قوي وإجباري
+                            let docTypeName = 'وثيقة';
+
+                            // الأولوية 1: docTypeName المخزن مباشرة
+                            if (doc.docTypeName && doc.docTypeName.trim() !== '') {
+                                docTypeName = doc.docTypeName.trim();
+                                console.log('✅ [renderReviewContent] استخدام docTypeName مباشرة:', docTypeName);
+                            }
+                            // الأولوية 2: محاولة إيجاد اسم الوثيقة من docType رقمياً
+                            else if (doc.docType) {
+                                const docTypeNum = doc.docType.toString().trim();
+                                console.log('🔍 [renderReviewContent] محاولة إيجاد اسم الوثيقة لرقم:', docTypeNum);
+
+                                // ابحث في جميع قوائم الوثائق المتاحة
+                                const allSelects = document.querySelectorAll('.mainDocumentTypeSelect');
+                                for (let select of allSelects) {
+                                    const option = Array.from(select.options).find(opt => opt.value === docTypeNum);
+                                    if (option && option.text && option.text.trim() !== '') {
+                                        docTypeName = option.text.trim();
+                                        console.log('✅ [renderReviewContent] وجدت اسم الوثيقة من القائمة:', docTypeName);
+                                        break;
+                                    }
+                                }
+
+                                // إذا لم نجد في القوائم، حاول استخدام رقم الوثيقة كما هو
+                                if (docTypeName === 'وثيقة') {
+                                    docTypeName = `وثيقة رقم ${docTypeNum}`;
+                                    console.log('⚠️ [renderReviewContent] استخدام رقم الوثيقة:', docTypeName);
+                                }
+                            }
+
+                            console.log('✅ [renderReviewContent] docTypeName النهائي:', docTypeName);
 
                             // استخراج اسم الملف
                             const fileName = doc.name || doc.docName || (doc.originalFile && doc.originalFile.name) || (doc.processedFile && doc.processedFile.name) || '';
-                            // استخراج الملف نفسه
-                            const fileObj = doc.file || doc.originalFile || doc.processedFile || null;
+                            // استخراج الملف نفسه - الأولوية للملف المعالج (processedFile)
+                            const fileObj = doc.processedFile || doc.file || doc.originalFile || null;
                             // نوع الملف
                             const fileType = fileObj && fileObj.type ? fileObj.type : '';
 
+                            console.log('📎 [renderReviewContent] file details:', {
+                                fileName: fileName,
+                                hasFileObj: !!fileObj,
+                                fileType: fileType
+                            });
+
                             attachmentsHtml += `<div class="card shadow-sm border-0" style="width:170px;min-height:180px;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;">`;
-                            attachmentsHtml += `<div class="bg-light text-dark fw-bold py-2 px-2 w-100 text-center" style="font-size:0.97rem;border-bottom:1px solid #eee;">${docType}</div>`;
+                            attachmentsHtml += `<div class="bg-light text-dark fw-bold py-2 px-2 w-100 text-center" style="font-size:0.97rem;border-bottom:1px solid #eee;">${docTypeName}</div>`;
                             attachmentsHtml += `<div class="p-2 w-100 d-flex flex-column align-items-center justify-content-center" style="min-height:120px;">`;
                             if (fileObj && fileType.startsWith('image/')) {
                                 const url = URL.createObjectURL(fileObj);

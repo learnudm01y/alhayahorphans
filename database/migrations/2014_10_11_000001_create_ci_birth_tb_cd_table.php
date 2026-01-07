@@ -11,11 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('ci_birth_tb_cd', function (Blueprint $table) {
-            $table->id();
-            $table->string('CI_BIRTH_TB_CD', 255);
-            $table->timestamps();
-        });
+        // التحقق من عدم وجود الجدول مسبقاً لتجنب خطأ التكرار
+        if (!Schema::hasTable('ci_birth_tb_cd')) {
+            Schema::create('ci_birth_tb_cd', function (Blueprint $table) {
+                $table->id();
+                $table->string('CI_BIRTH_TB_CD', 255);
+                $table->timestamps();
+            });
+        }
     }
 
     /**

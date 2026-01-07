@@ -193,7 +193,7 @@
                 return 'att_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
             }
 
-            function addAttachmentTask(personKey, file, docType, personId, fileIdNumber, docTypeName) {
+            window.addAttachmentTask = function addAttachmentTask(personKey, file, docType, personId, fileIdNumber, docTypeName) {
                 // التحقق الصارم من صحة البيانات المدخلة
                 if (!personKey || personKey === 'template' || personKey.includes('template')) {
                     console.warn('[addAttachmentTask] محاولة إضافة مرفق بـ personKey غير صالح:', {personKey, personId, file, docType, fileIdNumber});
@@ -320,7 +320,7 @@
                 return id;
             }
 
-            function updateAttachmentTaskStatus(id, status, processedFile = null, errorMessage = null) {
+            window.updateAttachmentTaskStatus = function updateAttachmentTaskStatus(id, status, processedFile = null, errorMessage = null) {
                 // عند اكتمال مهمة بنجاح (قص صورة)، احذف أي مهمة سابقة (فشلت أو قيد التنفيذ) لنفس الملف ولنفس الشخص ولنفس نوع الوثيقة
                 if (status === 'completed') {
                     for (let [personKey, arr] of allDocs.entries()) {
@@ -479,7 +479,7 @@
                 }
             }
 
-            async function processAttachment(id) {
+            window.processAttachment = async function processAttachment(id) {
                 let task;
                 let personKey;
                 for (let [pk, arr] of allDocs.entries()) {
@@ -788,7 +788,7 @@
                 });
             }
 
-            function removeAttachmentTask(personKey, taskId) {
+            window.removeAttachmentTask = function removeAttachmentTask(personKey, taskId) {
                 if (!allDocs.has(personKey)) return;
                 const arr = allDocs.get(personKey);
                 const idx = arr.findIndex(t => t.id === taskId);
@@ -812,7 +812,7 @@
             }
 
             // حذف جميع المهام المرتبطة ببوابة معينة (مثلاً عند حذف فرد أسرة)
-            function removeAllAttachmentTasksForPersonKey(personKey) {
+            window.removeAllAttachmentTasksForPersonKey = function removeAllAttachmentTasksForPersonKey(personKey) {
                 if (window.allDocs && window.allDocs.has(personKey)) {
                     const tasks = window.allDocs.get(personKey);
                     // تنظيف جميع المؤقتات
@@ -1272,7 +1272,7 @@
 
                     // إضافة المهمة إلى النظام
                     console.log('🟢 رفع ملف جديد:', file.name, 'نوع الوثيقة:', docTypeName, 'في المنطقة:', personKey);
-                    addAttachmentTask(personKey, file, docTypeValue, personId, fileIdNumber, docTypeName);
+                    window.addAttachmentTask(personKey, file, docTypeValue, personId, fileIdNumber, docTypeName);
 
                     // تنظيف input إذا كان من النوع العادي
                     if (fileInput && fileInput.value) {
