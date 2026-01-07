@@ -34,12 +34,18 @@ class RcloneGoogleDriveService
      */
     private string $rootFolder;
 
+    /**
+     * مسار ملف إعدادات Rclone
+     */
+    private ?string $configPath;
+
     public function __construct()
     {
         // قراءة الإعدادات من .env أو استخدام القيم الافتراضية
-        $this->rclonePath = env('RCLONE_PATH', 'C:\\rclone-v1.72.1-windows-amd64\\rclone.exe');
+        $this->rclonePath = env('RCLONE_PATH', '/usr/bin/rclone');
         $this->remoteName = env('RCLONE_REMOTE_NAME', 'alhayah');
         $this->rootFolder = env('RCLONE_ROOT_FOLDER', 'temp');
+        $this->configPath = env('RCLONE_CONFIG', null);
 
         // التحقق من وجود Rclone
         if (!file_exists($this->rclonePath)) {
@@ -92,6 +98,11 @@ class RcloneGoogleDriveService
      */
     private function executeRclone(array $arguments): array
     {
+        // إضافة مسار ملف الإعدادات إذا كان محدداً
+        if ($this->configPath && file_exists($this->configPath)) {
+            array_unshift($arguments, '--config', $this->configPath);
+        }
+
         $command = $this->rclonePath . ' ' . implode(' ', array_map('escapeshellarg', $arguments));
 
         Log::info('RCLONE_COMMAND', ['command' => $command]);
