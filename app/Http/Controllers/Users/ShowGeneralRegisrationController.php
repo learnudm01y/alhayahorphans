@@ -216,6 +216,34 @@ class ShowGeneralRegisrationController extends Controller
             ]);
         }
 
+        // 🆕 التحكم في إظهار/إخفاء الأقسام
+        $showFamilyMembersSection = true; // افتراضياً مفعل
+        $showAttachmentsSection = true;   // افتراضياً مفعل
+
+        if ($fieldSettings) {
+            // التحقق من إعداد قسم أفراد الأسرة
+            if (isset($fieldSettings->field_family_members_section)) {
+                $showFamilyMembersSection = (bool) $fieldSettings->field_family_members_section;
+            }
+
+            // التحقق من إعداد قسم المرفقات
+            if (isset($fieldSettings->field_attachments_section)) {
+                $showAttachmentsSection = (bool) $fieldSettings->field_attachments_section;
+            }
+
+            // 🆕 إذا كان قسم المرفقات مفعل لكن لا توجد وثائق مفعلة، نخفيه تلقائياً
+            if ($showAttachmentsSection && $documentTypes->isEmpty()) {
+                $showAttachmentsSection = false;
+            }
+
+            Log::info('SECTION_VISIBILITY_SETTINGS', [
+                'sponsor_id' => $sponsorId,
+                'show_family_members_section' => $showFamilyMembersSection,
+                'show_attachments_section' => $showAttachmentsSection,
+                'documents_count' => $documentTypes->count()
+            ]);
+        }
+
         // جلب المرفقات الموجودة حالياً
         $existingAttachments = collect();
         if ($sponsorship->identity_number) {
@@ -245,7 +273,9 @@ class ShowGeneralRegisrationController extends Controller
             'orphanNeeds',
             'creativityAspects',
             'documentTypes',
-            'existingAttachments'
+            'existingAttachments',
+            'showFamilyMembersSection',
+            'showAttachmentsSection'
         ));
     }
 
@@ -1081,8 +1111,9 @@ class ShowGeneralRegisrationController extends Controller
             }
 
             // تحديث الحقول الأساسية في جدول sponsorships
+            // ملاحظة: guardian_relationship غير موجود في جدول sponsorships - يتم تخزينه في portal_general_registration_field_values
             $sponsorshipFields = ['orphan_name', 'identity_number', 'birth_date', 'internal_file_number',
-                                 'guardian_name', 'guardian_phone', 'guardian_relationship'];
+                                 'guardian_name', 'guardian_phone'];
 
             // $fieldsData تم تعريفه مسبقاً
 
@@ -1465,26 +1496,36 @@ class ShowGeneralRegisrationController extends Controller
                                 'guardian_file_number' => $guardianFileNumber
                             ]);
                         } else {
-                            // إنشاء حساب جديد
-                            $newBankAccountId = DB::table('guardian_bank_accounts')->insertGetId([
-                                'guardian_registration' => $guardianFileNumber,
-                                're_id_number' => $sponsorship->identity_number,
-                                're_guardian_name' => $bankFields['field_guardian_account_owner_name'] ?? '',
-                                'bank_name' => $bankFields['field_guardian_bank_name'] ?? null,
-                                'person_owner_identity_number' => $bankFields['field_guardian_id_owner'] ?? '',
-                                're_phone_number' => $bankFields['field_guardian_phone_number'] ?? '',
-                                'iban_usd' => $bankFields['field_guardian_iban_usd'] ?? '',
-                                'iban_shekel' => $bankFields['field_guardian_iban_shekel'] ?? '',
-                                'check_account' => 1, // الحساب المعتمد الأول
-                                'created_at' => now(),
-                                'updated_at' => now(),
-                            ]);
+                            // إنشاء حساب جديد - فقط إذا كان bank_name موجوداً (حقل إلزامي في قاعدة البيانات)
+                            $bankNameValue = $bankFields['field_guardian_bank_name'] ?? null;
 
-                            Log::info('BANK_ACCOUNT_CREATED', [
-                                'new_bank_account_id' => $newBankAccountId,
-                                'guardian_file_number' => $guardianFileNumber,
-                                'person_type' => $personType
-                            ]);
+                            if (!empty($bankNameValue)) {
+                                $newBankAccountId = DB::table('guardian_bank_accounts')->insertGetId([
+                                    'guardian_registration' => $guardianFileNumber,
+                                    're_id_number' => $sponsorship->identity_number,
+                                    're_guardian_name' => $bankFields['field_guardian_account_owner_name'] ?? '',
+                                    'bank_name' => $bankNameValue,
+                                    'person_owner_identity_number' => $bankFields['field_guardian_id_owner'] ?? '',
+                                    're_phone_number' => $bankFields['field_guardian_phone_number'] ?? '',
+                                    'iban_usd' => $bankFields['field_guardian_iban_usd'] ?? '',
+                                    'iban_shekel' => $bankFields['field_guardian_iban_shekel'] ?? '',
+                                    'check_account' => 1, // الحساب المعتمد الأول
+                                    'created_at' => now(),
+                                    'updated_at' => now(),
+                                ]);
+
+                                Log::info('BANK_ACCOUNT_CREATED', [
+                                    'new_bank_account_id' => $newBankAccountId,
+                                    'guardian_file_number' => $guardianFileNumber,
+                                    'person_type' => $personType
+                                ]);
+                            } else {
+                                Log::warning('BANK_ACCOUNT_SKIPPED_NO_BANK_NAME', [
+                                    'guardian_file_number' => $guardianFileNumber,
+                                    'person_type' => $personType,
+                                    'reason' => 'bank_name is required but was not provided'
+                                ]);
+                            }
                         }
                     }
 

@@ -1009,10 +1009,38 @@ class RecordsManagementEditController extends Controller
                 }
             }
 
+            // 🆕 إذا لم نجد في data، نبحث في dead_people (للمتوفين)
+            if (!$guardianFileId) {
+                $deadPeopleRecord = DB::table('dead_people')
+                    ->where('father_id', $guardianIdentity)
+                    ->orWhere('mother_id', $guardianIdentity)
+                    ->first();
+
+                if ($deadPeopleRecord) {
+                    $guardianFileId = $deadPeopleRecord->re_file_id;
+                    Log::info('🏦 تم العثور على file_id من dead_people', [
+                        'guardian_identity' => $guardianIdentity,
+                        'guardian_file_id' => $guardianFileId
+                    ]);
+                }
+            }
+
+            // 🆕 محاولة إضافية: البحث مباشرة في guardian_bank_accounts باستخدام re_id_number
+            if (!$guardianFileId) {
+                $directAccount = GuardianBankAccount::where('re_id_number', $guardianIdentity)->first();
+                if ($directAccount) {
+                    $guardianFileId = $directAccount->guardian_registration;
+                    Log::info('🏦 تم العثور على file_id من guardian_bank_accounts مباشرة', [
+                        'guardian_identity' => $guardianIdentity,
+                        'guardian_file_id' => $guardianFileId
+                    ]);
+                }
+            }
+
             if (!$guardianFileId) {
                 return response()->json([
                     'success' => true,
-                    'bank_accounts' => [],
+                    'accounts' => [],
                     'message' => 'لا توجد حسابات بنكية'
                 ]);
             }
@@ -1039,6 +1067,50 @@ class RecordsManagementEditController extends Controller
                 'message' => $e->getMessage(),
                 'line' => $e->getLine(),
                 'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء جلب الحسابات البنكية'
+            ], 500);
+        }
+    }
+
+    /**
+     * جلب الحسابات البنكية باستخدام رقم الملف مباشرة (file_id)
+     */
+    public function getBankAccountsByFileId(Request $request)
+    {
+        try {
+            $fileId = $request->input('file_id');
+
+            if (!$fileId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'رقم الملف مطلوب'
+                ], 400);
+            }
+
+            // جلب الحسابات البنكية مباشرة باستخدام file_id
+            $bankAccounts = GuardianBankAccount::with('bank')
+                ->where('guardian_registration', $fileId)
+                ->get();
+
+            Log::info('🏦 تم جلب الحسابات البنكية برقم الملف', [
+                'file_id' => $fileId,
+                'accounts_count' => $bankAccounts->count()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'accounts' => $bankAccounts,
+                'guardian_file_id' => $fileId
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('❌ خطأ في جلب الحسابات البنكية برقم الملف:', [
+                'message' => $e->getMessage(),
+                'line' => $e->getLine()
             ]);
 
             return response()->json([

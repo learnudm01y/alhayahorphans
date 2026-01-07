@@ -122,6 +122,9 @@ class SponsorFieldSetting extends Model
         'field_guardian_phone_number',
         'field_guardian_iban_usd',
         'field_guardian_iban_shekel',
+        // Section Control Fields - التحكم في الأقسام
+        'field_family_members_section',
+        'field_attachments_section',
     ];
 
     protected $casts = [
@@ -233,6 +236,9 @@ class SponsorFieldSetting extends Model
         'field_guardian_phone_number' => 'boolean',
         'field_guardian_iban_usd' => 'boolean',
         'field_guardian_iban_shekel' => 'boolean',
+        // Section Control Fields - التحكم في الأقسام
+        'field_family_members_section' => 'boolean',
+        'field_attachments_section' => 'boolean',
         // Enabled Documents - JSON array
         'enabled_documents' => 'array',
     ];

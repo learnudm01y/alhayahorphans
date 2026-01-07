@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#2a8b8b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="الحياة">
+    <meta name="description" content="تطبيق الحياة لتنمية الأسرة - البيانات">
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="logo01.png">
+    <link rel="apple-touch-icon" href="logo01.png">
+
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="css/style.css">
+
+    <title>الحياة - بيانات</title>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-logo">
+                <img src="logo01.png" alt="شعار الحياة">
+                <div class="header-text">
+                    <span class="header-text-arabic">الحياة لتنمية الأسرة</span>
+                    <span class="header-text-english">Al Hayah For Family Development</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="nav-tabs">
+            <a href="data.html" class="nav-tab active">بيانات</a>
+            <a href="photography.html" class="nav-tab inactive">تصوير</a>
+        </nav>
+
+        <!-- Filter Section -->
+        <div class="filter-section">
+            <button class="filter-btn" id="filterOrg">المؤسسة</button>
+            <button class="filter-btn" id="filterStatus">الحالة</button>
+            <button class="filter-btn" id="filterBtn">فلتر</button>
+        </div>
+
+        <!-- Search Box -->
+        <div class="search-box">
+            <input type="text" class="search-input" id="searchInput" placeholder="البحث الإسم">
+        </div>
+
+        <!-- Data Sections -->
+        <div class="data-sections">
+            <!-- Orphan Data Section -->
+            <div class="data-section" id="orphanSection">
+                <h3 class="data-section-title">بيانات اليتيم</h3>
+                <div class="data-section-content" id="orphanData">
+                    <!-- Data will be loaded dynamically -->
+                </div>
+            </div>
+
+            <!-- Guardian Data Section -->
+            <div class="data-section" id="guardianSection">
+                <h3 class="data-section-title">بيانات المعيل</h3>
+                <div class="data-section-content" id="guardianData">
+                    <!-- Data will be loaded dynamically -->
+                </div>
+            </div>
+
+            <!-- Bank Account Data Section -->
+            <div class="data-section" id="bankSection">
+                <h3 class="data-section-title">بيانات الحساب البنكي</h3>
+                <div class="data-section-content" id="bankData">
+                    <!-- Data will be loaded dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Basic functionality placeholder
+        document.addEventListener('DOMContentLoaded', function() {
+            // Filter buttons
+            const filterBtns = document.querySelectorAll('.filter-btn');
+            filterBtns.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    this.classList.toggle('active');
+                });
+            });
+
+            // Search functionality
+            document.getElementById('searchInput').addEventListener('input', function() {
+                const searchTerm = this.value;
+                // Search logic will be added
+                console.log('Searching for:', searchTerm);
+            });
+
+            // Load data function (placeholder)
+            function loadOrphanData(orphanId) {
+                // API call will be added here
+                console.log('Loading orphan data for ID:', orphanId);
+            }
+
+            function loadGuardianData(guardianId) {
+                // API call will be added here
+                console.log('Loading guardian data for ID:', guardianId);
+            }
+
+            function loadBankData(bankId) {
+                // API call will be added here
+                console.log('Loading bank data for ID:', bankId);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -121,6 +121,10 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::get('records-management/get-bank-accounts', [RecordsManagementEditController::class, 'getBankAccounts'])
         ->name('records.management.getBankAccounts');
 
+    // مسار جلب الحسابات البنكية باستخدام رقم الملف مباشرة
+    Route::get('records-management/get-bank-accounts-by-file-id', [RecordsManagementEditController::class, 'getBankAccountsByFileId'])
+        ->name('records.management.getBankAccountsByFileId');
+
     // مسار اعتماد حساب بنكي
     Route::post('records-management/approve-bank-account', [RecordsManagementEditController::class, 'approveBankAccount'])
         ->name('records.management.approveBankAccount');

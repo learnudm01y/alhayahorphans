@@ -349,6 +349,7 @@ class SponsorController extends Controller
 
             // تحميل ملف الـ config
             $fieldsConfig = config('sponsor_fields.fields');
+            $sectionFields = config('sponsor_fields.section_fields', []);
 
             // بناء مصفوفة الحقول مع حالتها
             $fields = [];
@@ -362,6 +363,21 @@ class SponsorController extends Controller
                     'order' => $fieldInfo['order'],
                     'required' => $fieldInfo['required'],
                     'active' => (bool) $fieldSettings->{$key},
+                ];
+            }
+
+            // إضافة حقول التحكم في الأقسام
+            foreach ($sectionFields as $key => $fieldInfo) {
+                $fields[] = [
+                    'id' => $fieldInfo['id'],
+                    'name' => $fieldInfo['display_name'],
+                    'db_column' => $fieldInfo['db_column'],
+                    'category' => $fieldInfo['category'],
+                    'category_id' => $fieldInfo['category_id'],
+                    'order' => $fieldInfo['order'],
+                    'required' => $fieldInfo['required'] ?? false,
+                    'active' => (bool) ($fieldSettings->{$key} ?? true), // افتراضياً مفعل
+                    'is_section' => true,
                 ];
             }
 
@@ -413,16 +429,23 @@ class SponsorController extends Controller
 
             // تحميل جميع الحقول من الـ config
             $fieldsConfig = config('sponsor_fields.fields');
+            $sectionFields = config('sponsor_fields.section_fields', []);
             $allDbColumns = array_column($fieldsConfig, 'db_column');
+            $sectionDbColumns = array_column($sectionFields, 'db_column');
 
             // تعيين جميع الحقول إلى 0 (غير مفعل)
             foreach ($allDbColumns as $column) {
                 $fieldSettings->{$column} = 0;
             }
+            // تعيين حقول الأقسام إلى 0 (غير مفعل)
+            foreach ($sectionDbColumns as $column) {
+                $fieldSettings->{$column} = 0;
+            }
 
             // تفعيل الحقول المختارة فقط
+            $allColumns = array_merge($allDbColumns, $sectionDbColumns);
             foreach ($validated['fields'] as $dbColumn) {
-                if (in_array($dbColumn, $allDbColumns)) {
+                if (in_array($dbColumn, $allColumns)) {
                     $fieldSettings->{$dbColumn} = 1;
                 }
             }

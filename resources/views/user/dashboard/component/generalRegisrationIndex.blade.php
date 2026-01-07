@@ -1099,6 +1099,7 @@
                 @endforeach
 
                 {{-- أفراد الأسرة - عرض ديناميكي من re_people --}}
+                @if($showFamilyMembersSection ?? true)
                 <div class="card card-custom p-4 mb-4">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h3 class="category-title mb-0">
@@ -1230,8 +1231,10 @@
                         @endif
                     </div>
                 </div>
+                @endif
 
                 {{-- قسم المرفقات --}}
+                @if($showAttachmentsSection ?? true)
                 <div class="card card-custom mb-4">
                     <div class="card-body">
                         <div class="category-title">
@@ -1358,6 +1361,7 @@
                         </div>
                     </div>
                 </div>
+                @endif
 
                 {{-- تم إزالة القسم المنفصل للحساب البنكي - الحقول الآن ضمن النموذج القابل للتعديل --}}
 

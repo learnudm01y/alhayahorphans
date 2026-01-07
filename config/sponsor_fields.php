@@ -457,100 +457,6 @@ return [
             'required' => false,
         ],
 
-        // معلومات المؤسسة والمرفقات
-        'field_institution_name' => [
-            'id' => 52,
-            'db_column' => 'field_institution_name',
-            'display_name' => 'إسم المؤسسة',
-            'category' => 'معلومات المؤسسة والمرفقات',
-            'category_id' => 11,
-            'order' => 52,
-            'required' => false,
-        ],
-        'field_attachments' => [
-            'id' => 53,
-            'db_column' => 'field_attachments',
-            'display_name' => 'المرفقات',
-            'category' => 'معلومات المؤسسة والمرفقات',
-            'category_id' => 11,
-            'order' => 53,
-            'required' => false,
-        ],
-
-        // ===== NEW FIELDS - From Sponsorships =====
-        'field_sponsoring_organization' => [
-            'id' => 54,
-            'db_column' => 'field_sponsoring_organization',
-            'display_name' => 'الجهة الكافلة',
-            'category' => 'معلومات الكفالة',
-            'category_id' => 12,
-            'order' => 54,
-            'required' => false,
-        ],
-        'field_external_file_number' => [
-            'id' => 55,
-            'db_column' => 'field_external_file_number',
-            'display_name' => 'رقم الملف الخارجي',
-            'category' => 'معلومات الكفالة',
-            'category_id' => 12,
-            'order' => 55,
-            'required' => false,
-        ],
-        'field_guardian_identity_number' => [
-            'id' => 56,
-            'db_column' => 'field_guardian_identity_number',
-            'display_name' => 'رقم هوية الولي',
-            'category' => 'معلومات الكفالة',
-            'category_id' => 12,
-            'order' => 56,
-            'required' => false,
-        ],
-        'field_sponsorship_duration_months' => [
-            'id' => 57,
-            'db_column' => 'field_sponsorship_duration_months',
-            'display_name' => 'مدة الكفالة (بالأشهر)',
-            'category' => 'معلومات الكفالة',
-            'category_id' => 12,
-            'order' => 57,
-            'required' => false,
-        ],
-        'field_sponsorship_start_date' => [
-            'id' => 58,
-            'db_column' => 'field_sponsorship_start_date',
-            'display_name' => 'تاريخ بداية الكفالة',
-            'category' => 'معلومات الكفالة',
-            'category_id' => 12,
-            'order' => 58,
-            'required' => false,
-        ],
-        'field_sponsorship_end_date' => [
-            'id' => 59,
-            'db_column' => 'field_sponsorship_end_date',
-            'display_name' => 'تاريخ نهاية الكفالة',
-            'category' => 'معلومات الكفالة',
-            'category_id' => 12,
-            'order' => 59,
-            'required' => false,
-        ],
-        'field_sponsorship_type_id' => [
-            'id' => 60,
-            'db_column' => 'field_sponsorship_type_id',
-            'display_name' => 'نوع الكفالة',
-            'category' => 'معلومات الكفالة',
-            'category_id' => 12,
-            'order' => 60,
-            'required' => false,
-        ],
-        'field_sponsorship_status_id' => [
-            'id' => 61,
-            'db_column' => 'field_sponsorship_status_id',
-            'display_name' => 'حالة الكفالة',
-            'category' => 'معلومات الكفالة',
-            'category_id' => 12,
-            'order' => 61,
-            'required' => false,
-        ],
-
         // ===== NEW FIELDS - Guardian Data from DATA table =====
         'field_data_id_number' => [
             'id' => 62,
@@ -735,71 +641,6 @@ return [
             'required' => false,
         ],
 
-        // ===== NEW FIELDS - Orphan Info from RE_PEOPLE =====
-        'field_first_name' => [
-            'id' => 82,
-            'db_column' => 'field_first_name',
-            'display_name' => 'الاسم الأول',
-            'category' => 'معلومات اليتيم',
-            'category_id' => 15,
-            'order' => 82,
-            'required' => false,
-        ],
-        'field_person_id' => [
-            'id' => 83,
-            'db_column' => 'field_person_id',
-            'display_name' => 'رقم الهوية',
-            'category' => 'معلومات اليتيم',
-            'category_id' => 15,
-            'order' => 83,
-            'required' => false,
-        ],
-        'field_person_age' => [
-            'id' => 85,
-            'db_column' => 'field_person_age',
-            'display_name' => 'العمر',
-            'category' => 'معلومات اليتيم',
-            'category_id' => 15,
-            'order' => 85,
-            'required' => false,
-        ],
-        'field_person_gender' => [
-            'id' => 86,
-            'db_column' => 'field_person_gender',
-            'display_name' => 'الجنس',
-            'category' => 'معلومات اليتيم',
-            'category_id' => 15,
-            'order' => 86,
-            'required' => false,
-        ],
-        'field_person_health_status' => [
-            'id' => 87,
-            'db_column' => 'field_person_health_status',
-            'display_name' => 'الحالة الصحية',
-            'category' => 'معلومات اليتيم',
-            'category_id' => 15,
-            'order' => 87,
-            'required' => false,
-        ],
-        'field_person_type_of_guarantee' => [
-            'id' => 88,
-            'db_column' => 'field_person_type_of_guarantee',
-            'display_name' => 'نوع الكفالة',
-            'category' => 'معلومات اليتيم',
-            'category_id' => 15,
-            'order' => 88,
-            'required' => false,
-        ],
-        'field_person_note' => [
-            'id' => 89,
-            'db_column' => 'field_person_note',
-            'display_name' => 'ملاحظات',
-            'category' => 'معلومات اليتيم',
-            'category_id' => 15,
-            'order' => 89,
-            'required' => false,
-        ],
-
         // ===== BANK ACCOUNT FIELDS - بنفس الترتيب في الصورة =====
         'field_guardian_id_owner' => [
             'id' => 89,
@@ -857,6 +698,30 @@ return [
         ],
     ],
 
+    // ===== SECTION CONTROL FIELDS - حقول التحكم في الأقسام =====
+    'section_fields' => [
+        'field_family_members_section' => [
+            'id' => 100,
+            'db_column' => 'field_family_members_section',
+            'display_name' => 'قسم أفراد الأسرة',
+            'category' => 'أقسام الصفحة',
+            'category_id' => 17,
+            'order' => 100,
+            'required' => false,
+            'is_section' => true,
+        ],
+        'field_attachments_section' => [
+            'id' => 101,
+            'db_column' => 'field_attachments_section',
+            'display_name' => 'قسم المرفقات والوثائق',
+            'category' => 'أقسام الصفحة',
+            'category_id' => 17,
+            'order' => 101,
+            'required' => false,
+            'is_section' => true,
+        ],
+    ],
+
     'categories' => [
         1 => 'معلومات المكفول الأساسية',
         2 => 'معلومات السكن',
@@ -868,11 +733,12 @@ return [
         8 => 'معلومات المعيل',
         9 => 'معلومات اخوة المكفول',
         10 => 'تأثير الكفالة والمتابعة',
-        11 => 'معلومات المؤسسة والمرفقات',
-        12 => 'معلومات الكفالة',
+        // 11 => 'معلومات المؤسسة والمرفقات', // تم حذفها - غير مستخدمة
+        // 12 => 'معلومات الكفالة', // تم حذفها - غير مستخدمة
         13 => 'معلومات المعيل التفصيلية',
         14 => 'معلومات الوالدين المتوفين',
-        15 => 'معلومات اليتيم',
+        // 15 => 'معلومات اليتيم', // تم حذفها - غير مستخدمة
         16 => 'المعلومات البنكية',
+        17 => 'أقسام الصفحة',
     ],
 ];

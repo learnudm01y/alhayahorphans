@@ -829,28 +829,62 @@ class SponsorshipController extends Controller
             // إضافة قائمة IDs المؤسسات المرتبطة
             $sponsorship->sponsor_ids = $sponsorship->sponsors->pluck('id')->toArray();
 
-            // 🏦 جلب الحسابات البنكية إذا كان هناك رقم هوية للمعيل
+            // 🏦 جلب الحسابات البنكية - البحث باستخدام file_id_number من data أو relation_id_number
+            $guardianFileId = null;
+            $guardianData = null;
+
+            // 1. محاولة البحث باستخدام guardian_identity_number
             if (!empty($sponsorship->guardian_identity_number)) {
-                $sponsorship->bank_accounts = GuardianBankAccount::where('guardian_registration', $sponsorship->guardian_identity_number)
+                $guardianData = Data::where('data_id_number', $sponsorship->guardian_identity_number)->first();
+                if ($guardianData) {
+                    $guardianFileId = $guardianData->file_id_number;
+                }
+            }
+
+            // 2. إذا لم نجد، نستخدم relation_id_number مباشرة
+            if (!$guardianFileId && !empty($sponsorship->relation_id_number)) {
+                $guardianFileId = $sponsorship->relation_id_number;
+                // جلب بيانات المعيل من data باستخدام file_id_number
+                if (!$guardianData) {
+                    $guardianData = Data::where('file_id_number', $guardianFileId)->first();
+                }
+            }
+
+            // 3. محاولة أخيرة: استخدام internal_file_number
+            if (!$guardianFileId && !empty($sponsorship->internal_file_number)) {
+                $guardianFileId = $sponsorship->internal_file_number;
+                if (!$guardianData) {
+                    $guardianData = Data::where('file_id_number', $guardianFileId)->first();
+                }
+            }
+
+            // جلب الحسابات البنكية باستخدام file_id_number
+            if ($guardianFileId) {
+                $sponsorship->bank_accounts = GuardianBankAccount::with('bank')
+                    ->where('guardian_registration', $guardianFileId)
                     ->get()
                     ->toArray();
 
                 // 📞 جلب معلومات المعيل من جدول data (بما في ذلك أرقام الهاتف)
-                $guardianData = Data::where('data_id_number', $sponsorship->guardian_identity_number)->first();
                 if ($guardianData) {
                     $sponsorship->guardian_phone = $guardianData->data_phone_number;
                     $sponsorship->guardian_alt_phone = $guardianData->data_alt_phone_number;
                 }
 
+                // إضافة guardian_file_id للاستجابة
+                $sponsorship->guardian_file_id = $guardianFileId;
+
                 Log::info('🏦 تم جلب الحسابات البنكية للكفالة', [
                     'sponsorship_id' => $id,
                     'guardian_identity' => $sponsorship->guardian_identity_number,
+                    'guardian_file_id' => $guardianFileId,
                     'accounts_count' => count($sponsorship->bank_accounts),
                     'guardian_phone' => $sponsorship->guardian_phone ?? null,
                     'guardian_alt_phone' => $sponsorship->guardian_alt_phone ?? null
                 ]);
             } else {
                 $sponsorship->bank_accounts = [];
+                $sponsorship->guardian_file_id = null;
             }
 
             // تحويل إلى مصفوفة
