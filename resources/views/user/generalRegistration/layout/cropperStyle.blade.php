@@ -185,31 +185,12 @@
     /* =====================================================
        الشاشات الكبيرة
        =====================================================*/
-    @media (min-width: 992px) {
-        #cropperModal.show .modal-dialog {
-            width: 90%;
-            max-width: 900px;
-            height: auto;
-            max-height: 85vh;
-            margin: auto;
-        }
-
-        #cropperModal.show .modal-content {
-            height: 80vh;
-            border-radius: 6px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-        }
-
-        #cropperModal .modal-header {
-            border-radius: 6px 6px 0 0;
-        }
-
-        .action-buttons {
-            border-radius: 0 0 6px 6px;
-        }
-
-        .crop-area {
-            min-height: 300px;
+    @media (min-width: 768px) {
+        #cropperModal .modal-content {
+            bottom: 0.33vh;
+            border-radius: 20px;
+            width: 80%;
+            max-width: 600px;
         }
     }
 </style>
