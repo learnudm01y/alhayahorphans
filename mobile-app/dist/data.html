@@ -18,7 +18,7 @@
 
     <!-- Stylesheet -->
     <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" href="css/custom-select.css">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
     <title>الحياة - بيانات</title>
 
@@ -34,7 +34,37 @@
             -webkit-overflow-scrolling: auto;
         }
 
-        /* قائمة الأيتام */
+        /* رسائل الحالة */
+        .status-message {
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin: 10px 15px;
+            text-align: center;
+            font-size: 14px;
+            display: none;
+        }
+        .status-message.info {
+            background: #e3f2fd;
+            color: #1565c0;
+            display: block;
+        }
+        .status-message.warning {
+            background: #fff3e0;
+            color: #e65100;
+            display: block;
+        }
+        .status-message.error {
+            background: #ffebee;
+            color: #c62828;
+            display: block;
+        }
+        .status-message.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            display: block;
+        }
+
+        /* قائمة الكفالات */
         .orphan-list {
             padding: 0 15px;
             margin-bottom: 20px;
@@ -119,10 +149,13 @@
 
         /* Loading */
         .loading-spinner {
-            display: flex;
+            display: none;
             justify-content: center;
             align-items: center;
             padding: 40px;
+        }
+        .loading-spinner.active {
+            display: flex;
         }
 
         .spinner {
@@ -145,35 +178,10 @@
             font-size: 0.85rem;
             background: #f8f9fa;
             border-bottom: 1px solid #eee;
+            display: none;
         }
-
-        /* Pagination */
-        .pagination {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-            padding: 15px;
-        }
-
-        .pagination button {
-            padding: 10px 20px;
-            background: #2a8b8b;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 0.9rem;
-            cursor: pointer;
-        }
-
-        .pagination button:disabled {
-            background: #ccc;
-        }
-
-        .pagination .page-info {
-            display: flex;
-            align-items: center;
-            color: #666;
-            font-size: 0.9rem;
+        .results-count.visible {
+            display: block;
         }
 
         /* Empty state */
@@ -214,6 +222,55 @@
         .data-section-content {
             padding: 15px;
         }
+
+        /* قسم الفلاتر */
+        .filter-section {
+            display: flex;
+            gap: 8px;
+            padding: 10px 15px;
+            background: #f8f9fa;
+        }
+        .select-wrapper {
+            flex: 1;
+        }
+        .filter-select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+        }
+        .filter-action-btn {
+            padding: 10px 15px;
+            background: #2a8b8b;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .filter-action-btn:active {
+            background: #1e6b6b;
+        }
+        .filter-action-btn .material-icons {
+            font-size: 20px;
+        }
+
+        /* صندوق البحث */
+        .search-box {
+            padding: 10px 15px;
+        }
+        .search-input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
     </style>
 </head>
 <body>
@@ -231,17 +288,25 @@
             <a href="photography.html" class="nav-tab inactive">تصوير</a>
         </nav>
 
+        <!-- رسالة الحالة -->
+        <div id="statusMessage" class="status-message info">
+            يجب اختيار الجمعية والحالة ثم الضغط على زر البحث
+        </div>
+
         <!-- Filter Section -->
         <div class="filter-section">
             <div class="select-wrapper">
-                <select class="filter-select" id="filterStatus">
-                    <option value="">كل الحالات</option>
+                <select class="filter-select" id="filterSponsor">
+                    <option value="" disabled selected>الجمعية</option>
                 </select>
             </div>
-            <button class="filter-action-btn" id="filterBtn">
-                <svg class="filter-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-                </svg>
+            <div class="select-wrapper">
+                <select class="filter-select" id="filterStatus">
+                    <option value="">-- كل الحالات --</option>
+                </select>
+            </div>
+            <button class="filter-action-btn" id="filterBtn" title="بحث">
+                <span class="material-icons">search</span>
             </button>
         </div>
 
@@ -251,288 +316,352 @@
         </div>
 
         <!-- Results Count -->
-        <div class="results-count" id="resultsCount">
-            جاري التحميل...
+        <div class="results-count" id="resultsCount"></div>
+
+        <!-- Loading -->
+        <div class="loading-spinner" id="loadingSpinner">
+            <div class="spinner"></div>
         </div>
 
         <!-- Orphan List -->
         <div class="orphan-list" id="orphanList">
-            <div class="loading-spinner">
-                <div class="spinner"></div>
+            <div class="empty-state">
+                <div class="empty-state-icon">📋</div>
+                <p>اختر الجمعية والحالة ثم اضغط على زر البحث</p>
             </div>
-        </div>
-
-        <!-- Pagination -->
-        <div class="pagination" id="pagination" style="display: none;">
-            <button id="prevPage">السابق</button>
-            <span class="page-info" id="pageInfo">1 / 1</span>
-            <button id="nextPage">التالي</button>
         </div>
 
         <!-- Data Sections (shown when orphan selected) -->
         <div class="data-sections" id="dataSections" style="display: none;">
             <!-- Orphan Data Section -->
             <div class="data-section" id="orphanSection">
-                <h3 class="data-section-title">بيانات اليتيم</h3>
+                <h3 class="data-section-title">بيانات المكفول</h3>
                 <div class="data-section-content" id="orphanData">
                 </div>
             </div>
 
             <!-- Guardian Data Section -->
             <div class="data-section" id="guardianSection">
-                <h3 class="data-section-title">بيانات المعيل</h3>
+                <h3 class="data-section-title">بيانات الولي</h3>
                 <div class="data-section-content" id="guardianData">
                 </div>
             </div>
 
-            <!-- Bank Account Data Section -->
-            <div class="data-section" id="bankSection">
-                <h3 class="data-section-title">بيانات الحساب البنكي</h3>
-                <div class="data-section-content" id="bankData">
+            <!-- Sponsorship Data Section -->
+            <div class="data-section" id="sponsorshipSection">
+                <h3 class="data-section-title">بيانات الكفالة</h3>
+                <div class="data-section-content" id="sponsorshipData">
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="js/api-service.js"></script>
-    <script>
-        // State
-        let currentPage = 1;
-        let totalPages = 1;
-        let searchTimeout = null;
-        let selectedOrphanId = null;
+    <!-- خدمة المزامنة -->
+    <script src="js/sync-service.js"></script>
 
-        // Initialize
+    <script>
+        // ========================================
+        // متغيرات الصفحة
+        // ========================================
+        let currentSponsorships = [];
+        let selectedSponsorship = null;
+        let sponsors = [];
+        let statuses = [];
+
+        // ========================================
+        // تهيئة الصفحة
+        // ========================================
         document.addEventListener('DOMContentLoaded', async function() {
-            // Check authentication
-            ApiService.init();
-            if (!ApiService.isAuthenticated()) {
-                window.location.href = 'login.html';
+            try {
+                // تهيئة خدمة المزامنة
+                await SyncService.init();
+
+                // التحقق من المصادقة
+                if (!SyncService.isAuthenticated()) {
+                    window.location.href = 'login.html';
+                    return;
+                }
+
+                // تحميل الجمعيات والحالات من التخزين المحلي
+                await loadFilters();
+
+                // ربط الأحداث
+                bindEvents();
+
+            } catch (error) {
+                console.error('Init error:', error);
+                showStatus('error', 'حدث خطأ في تهيئة الصفحة');
+            }
+        });
+
+        // ========================================
+        // تحميل الفلاتر
+        // ========================================
+        async function loadFilters() {
+            try {
+                // تحميل الجمعيات
+                sponsors = await SyncService.getLocalSponsors();
+                const sponsorSelect = document.getElementById('filterSponsor');
+
+                if (sponsors.length === 0) {
+                    // لا توجد بيانات محلية، حاول المزامنة
+                    showStatus('warning', 'لا توجد بيانات محلية. يرجى المزامنة أولاً');
+
+                    // محاولة المزامنة الأولية
+                    await SyncService.performInitialSync();
+                    sponsors = await SyncService.getLocalSponsors();
+                }
+
+                sponsorSelect.innerHTML = '<option value="" disabled selected>الجمعية</option>';
+                sponsors.forEach(sponsor => {
+                    sponsorSelect.innerHTML += `<option value="${sponsor.id}">${sponsor.name}</option>`;
+                });
+
+                // تحميل الحالات
+                statuses = await SyncService.getLocalStatuses();
+                const statusSelect = document.getElementById('filterStatus');
+
+                statusSelect.innerHTML = '<option value="">-- كل الحالات --</option>';
+                statuses.forEach(status => {
+                    statusSelect.innerHTML += `<option value="${status.id}">${status.name}</option>`;
+                });
+
+                if (sponsors.length > 0) {
+                    showStatus('info', `تم تحميل ${sponsors.length} جمعية و ${statuses.length} حالة`);
+                }
+
+            } catch (error) {
+                console.error('Load filters error:', error);
+                showStatus('error', 'فشل في تحميل الفلاتر: ' + error.message);
+            }
+        }
+
+        // ========================================
+        // ربط الأحداث
+        // ========================================
+        function bindEvents() {
+            // زر البحث
+            document.getElementById('filterBtn').addEventListener('click', performSearch);
+
+            // البحث النصي
+            document.getElementById('searchInput').addEventListener('input', debounce(filterLocalResults, 300));
+        }
+
+        // ========================================
+        // البحث
+        // ========================================
+        async function performSearch() {
+            const sponsorId = document.getElementById('filterSponsor').value;
+            const statusId = document.getElementById('filterStatus').value;
+
+            if (!sponsorId) {
+                showStatus('warning', 'يجب اختيار الجمعية أولاً');
                 return;
             }
 
-            // Load filters
-            await loadFilters();
+            showLoading(true);
+            showStatus('info', 'جاري البحث...');
+            hideDataSections();
 
-            // Load orphans
-            await loadOrphans();
-
-            // Event listeners
-            document.getElementById('filterBtn').addEventListener('click', function() {
-                currentPage = 1;
-                loadOrphans();
-            });
-
-            document.getElementById('searchInput').addEventListener('input', function() {
-                clearTimeout(searchTimeout);
-                searchTimeout = setTimeout(function() {
-                    currentPage = 1;
-                    loadOrphans();
-                }, 500);
-            });
-
-            document.getElementById('prevPage').addEventListener('click', function() {
-                if (currentPage > 1) {
-                    currentPage--;
-                    loadOrphans();
-                }
-            });
-
-            document.getElementById('nextPage').addEventListener('click', function() {
-                if (currentPage < totalPages) {
-                    currentPage++;
-                    loadOrphans();
-                }
-            });
-        });
-
-        // Load status filter options
-        async function loadFilters() {
             try {
-                // Try to get from cache first
-                let statuses = ApiService.getCachedStatuses();
+                // أولاً: جلب من التخزين المحلي
+                currentSponsorships = await SyncService.getLocalSponsorships({
+                    sponsor_id: sponsorId,
+                    status_id: statusId
+                });
 
-                // If no cache, fetch from API
-                if (statuses.length === 0) {
-                    const result = await ApiService.getSponsorshipStatuses();
-                    if (result.success) {
-                        statuses = result.statuses;
+                // إذا لم توجد بيانات محلية، حاول المزامنة من الخادم
+                if (currentSponsorships.length === 0) {
+                    showStatus('info', 'لا توجد بيانات محلية، جاري المزامنة من الخادم...');
+
+                    const syncResult = await SyncService.syncSponsorships(sponsorId, statusId);
+
+                    if (syncResult.success) {
+                        currentSponsorships = await SyncService.getLocalSponsorships({
+                            sponsor_id: sponsorId,
+                            status_id: statusId
+                        });
                     }
                 }
 
-                // Populate dropdown
-                const select = document.getElementById('filterStatus');
-                statuses.forEach(status => {
-                    const option = document.createElement('option');
-                    option.value = status.id;
-                    option.textContent = status.name;
-                    select.appendChild(option);
-                });
+                displayResults(currentSponsorships);
+
+                if (currentSponsorships.length > 0) {
+                    showStatus('success', `تم العثور على ${currentSponsorships.length} كفالة`);
+                } else {
+                    showStatus('warning', 'لا توجد كفالات لهذه الجمعية/الحالة');
+                }
 
             } catch (error) {
-                console.error('Failed to load filters:', error);
+                console.error('Search error:', error);
+                showStatus('error', 'خطأ في البحث: ' + error.message);
+            } finally {
+                showLoading(false);
             }
         }
 
-        // Load orphans from API
-        async function loadOrphans() {
+        // ========================================
+        // فلترة النتائج المحلية
+        // ========================================
+        function filterLocalResults() {
+            const searchText = document.getElementById('searchInput').value.trim().toLowerCase();
+
+            if (!searchText) {
+                displayResults(currentSponsorships);
+                return;
+            }
+
+            const filtered = currentSponsorships.filter(s =>
+                (s.orphan_name && s.orphan_name.toLowerCase().includes(searchText)) ||
+                (s.identity_number && s.identity_number.includes(searchText)) ||
+                (s.internal_file_number && s.internal_file_number.includes(searchText)) ||
+                (s.external_file_number && s.external_file_number.includes(searchText)) ||
+                (s.guardian_name && s.guardian_name.toLowerCase().includes(searchText)) ||
+                (s.guardian_identity_number && s.guardian_identity_number.includes(searchText))
+            );
+
+            displayResults(filtered);
+        }
+
+        // ========================================
+        // عرض النتائج
+        // ========================================
+        function displayResults(results) {
             const orphanList = document.getElementById('orphanList');
             const resultsCount = document.getElementById('resultsCount');
-            const pagination = document.getElementById('pagination');
 
-            // Show loading
-            orphanList.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
-
-            try {
-                const statusId = document.getElementById('filterStatus').value;
-                const search = document.getElementById('searchInput').value.trim();
-
-                const result = await ApiService.getOrphans({
-                    statusId: statusId,
-                    search: search,
-                    page: currentPage,
-                    perPage: 20
-                });
-
-                if (result.success) {
-                    const orphans = result.data;
-                    totalPages = result.pagination.last_page;
-
-                    // Update results count
-                    resultsCount.textContent = 'عرض ' + orphans.length + ' من ' + result.pagination.total + ' نتيجة';
-
-                    // Update pagination
-                    document.getElementById('pageInfo').textContent = currentPage + ' / ' + totalPages;
-                    document.getElementById('prevPage').disabled = currentPage <= 1;
-                    document.getElementById('nextPage').disabled = currentPage >= totalPages;
-                    pagination.style.display = totalPages > 1 ? 'flex' : 'none';
-
-                    // Render orphans
-                    if (orphans.length === 0) {
-                        orphanList.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📋</div><p>لا توجد نتائج</p></div>';
-                    } else {
-                        orphanList.innerHTML = orphans.map(function(orphan) {
-                            return '<div class="orphan-card" onclick="selectOrphan(\'' + orphan.registration_id + '\', this)">' +
-                                '<div class="orphan-card-header">' +
-                                    '<div class="orphan-name">' + orphan.full_name + '</div>' +
-                                    '<div class="orphan-status">' + getStatusName(orphan.sponsorship_status) + '</div>' +
-                                '</div>' +
-                                '<div class="orphan-meta">' +
-                                    '<span>📄 ' + orphan.registration_id + '</span>' +
-                                    '<span>🪪 ' + (orphan.identity_number || 'غير محدد') + '</span>' +
-                                    '<span>👤 ' + (orphan.gender || '') + '</span>' +
-                                '</div>' +
-                            '</div>';
-                        }).join('');
-                    }
-
-                } else {
-                    orphanList.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><p>' + (result.message || 'فشل تحميل البيانات') + '</p></div>';
-                }
-
-            } catch (error) {
-                console.error('Failed to load orphans:', error);
-                orphanList.innerHTML = '<div class="empty-state"><div class="empty-state-icon">❌</div><p>' + (error.message || 'حدث خطأ في الاتصال') + '</p></div>';
+            if (!results || results.length === 0) {
+                orphanList.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📋</div><p>لا توجد نتائج</p></div>';
+                resultsCount.textContent = '';
+                resultsCount.classList.remove('visible');
+                return;
             }
+
+            resultsCount.textContent = `عدد النتائج: ${results.length}`;
+            resultsCount.classList.add('visible');
+
+            orphanList.innerHTML = results.map(s => {
+                const statusObj = statuses.find(st => st.id == s.sponsorship_status_id);
+                const statusName = statusObj ? statusObj.name : 'غير محدد';
+                const sponsor = sponsors.find(sp => sp.id == s.sponsor_id);
+                const sponsorName = sponsor ? sponsor.name : '-';
+
+                return `
+                    <div class="orphan-card" data-id="${s.id}">
+                        <div class="orphan-card-header">
+                            <div class="orphan-name">${s.orphan_name || 'بدون اسم'}</div>
+                            <div class="orphan-status">${statusName}</div>
+                        </div>
+                        <div class="orphan-meta">
+                            <span>📄 ${s.internal_file_number || '-'}</span>
+                            <span>🪪 ${s.identity_number || 'غير محدد'}</span>
+                        </div>
+                        <div class="orphan-meta" style="margin-top: 5px;">
+                            <span>🏢 ${sponsorName}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // ربط أحداث النقر
+            orphanList.querySelectorAll('.orphan-card').forEach(card => {
+                card.addEventListener('click', () => selectSponsorship(card.dataset.id, card));
+            });
         }
 
-        // Get status name from ID
-        function getStatusName(statusId) {
-            var statuses = ApiService.getCachedStatuses();
-            for (var i = 0; i < statuses.length; i++) {
-                if (statuses[i].id == statusId) {
-                    return statuses[i].name;
-                }
-            }
-            return 'غير محدد';
-        }
-
-        // Select an orphan and show details
-        async function selectOrphan(registrationId, element) {
-            selectedOrphanId = registrationId;
-
-            // Highlight selected card
-            document.querySelectorAll('.orphan-card').forEach(function(card) {
+        // ========================================
+        // اختيار كفالة
+        // ========================================
+        function selectSponsorship(id, element) {
+            // إزالة الاختيار السابق
+            document.querySelectorAll('.orphan-card').forEach(card => {
                 card.classList.remove('selected');
             });
-            element.classList.add('selected');
 
-            // Show data sections
-            var dataSections = document.getElementById('dataSections');
-            dataSections.style.display = 'block';
-
-            // Show loading in sections
-            document.getElementById('orphanData').innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
-            document.getElementById('guardianData').innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
-            document.getElementById('bankData').innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
-
-            try {
-                var result = await ApiService.getOrphanDetails(registrationId);
-
-                if (result.success) {
-                    renderOrphanDetails(result.data);
-                } else {
-                    document.getElementById('orphanData').innerHTML = '<p style="color: #dc3545;">' + result.message + '</p>';
-                }
-
-            } catch (error) {
-                console.error('Failed to load orphan details:', error);
-                document.getElementById('orphanData').innerHTML = '<p style="color: #dc3545;">' + error.message + '</p>';
+            // تحديد العنصر الجديد
+            if (element) {
+                element.classList.add('selected');
             }
 
-            // Scroll to details
+            // البحث عن الكفالة
+            selectedSponsorship = currentSponsorships.find(s => s.id == id);
+
+            if (selectedSponsorship) {
+                renderDetails(selectedSponsorship);
+            }
+        }
+
+        // ========================================
+        // عرض التفاصيل
+        // ========================================
+        function renderDetails(s) {
+            const dataSections = document.getElementById('dataSections');
+            dataSections.style.display = 'block';
+
+            // بيانات المكفول
+            const statusObj = statuses.find(st => st.id == s.sponsorship_status_id);
+            const statusName = statusObj ? statusObj.name : 'غير محدد';
+
+            document.getElementById('orphanData').innerHTML = `
+                <div class="data-field"><span class="data-label">الاسم</span><span class="data-value">${s.orphan_name || '-'}</span></div>
+                <div class="data-field"><span class="data-label">رقم الهوية</span><span class="data-value">${s.identity_number || '-'}</span></div>
+                <div class="data-field"><span class="data-label">تاريخ الميلاد</span><span class="data-value">${s.birth_date || s.sponsored_birth_date || '-'}</span></div>
+                <div class="data-field"><span class="data-label">الجنس</span><span class="data-value">${s.gender == 1 ? 'ذكر' : (s.gender == 2 ? 'أنثى' : '-')}</span></div>
+                ${s.civil_registry_full_name ? `<div class="data-field"><span class="data-label">الاسم (السجل المدني)</span><span class="data-value">${s.civil_registry_full_name}</span></div>` : ''}
+            `;
+
+            // بيانات الولي
+            document.getElementById('guardianData').innerHTML = `
+                <div class="data-field"><span class="data-label">اسم الولي</span><span class="data-value">${s.guardian_name || '-'}</span></div>
+                <div class="data-field"><span class="data-label">رقم هوية الولي</span><span class="data-value">${s.guardian_identity_number || '-'}</span></div>
+                ${s.guardian_full_name ? `<div class="data-field"><span class="data-label">الاسم الكامل (السجل المدني)</span><span class="data-value">${s.guardian_full_name}</span></div>` : ''}
+            `;
+
+            // بيانات الكفالة
+            const sponsor = sponsors.find(sp => sp.id == s.sponsor_id);
+            document.getElementById('sponsorshipData').innerHTML = `
+                <div class="data-field"><span class="data-label">الجمعية</span><span class="data-value">${sponsor ? sponsor.name : '-'}</span></div>
+                <div class="data-field"><span class="data-label">حالة الكفالة</span><span class="data-value">${statusName}</span></div>
+                <div class="data-field"><span class="data-label">رقم الملف الداخلي</span><span class="data-value">${s.internal_file_number || '-'}</span></div>
+                <div class="data-field"><span class="data-label">رقم الملف الخارجي</span><span class="data-value">${s.external_file_number || '-'}</span></div>
+                <div class="data-field"><span class="data-label">مدة الكفالة</span><span class="data-value">${s.sponsorship_duration_months ? s.sponsorship_duration_months + ' شهر' : '-'}</span></div>
+                <div class="data-field"><span class="data-label">تاريخ بدء الكفالة</span><span class="data-value">${s.sponsorship_start_date || '-'}</span></div>
+                <div class="data-field"><span class="data-label">تاريخ انتهاء الكفالة</span><span class="data-value">${s.sponsorship_end_date || '-'}</span></div>
+                ${s.notes ? `<div class="data-field"><span class="data-label">ملاحظات</span><span class="data-value">${s.notes}</span></div>` : ''}
+            `;
+
+            // التمرير للتفاصيل
             dataSections.scrollIntoView({ behavior: 'smooth' });
         }
 
-        // Render orphan details
-        function renderOrphanDetails(data) {
-            var orphan = data.orphan;
-            var guardian = data.guardian;
-            var bankAccounts = data.bank_accounts || [];
-
-            // Orphan data
-            document.getElementById('orphanData').innerHTML =
-                '<div class="data-field"><span class="data-label">رقم الملف</span><span class="data-value">' + (orphan.registration_id || '-') + '</span></div>' +
-                '<div class="data-field"><span class="data-label">الاسم الكامل</span><span class="data-value">' + (orphan.full_name || '-') + '</span></div>' +
-                '<div class="data-field"><span class="data-label">رقم الهوية</span><span class="data-value">' + (orphan.identity_number || '-') + '</span></div>' +
-                '<div class="data-field"><span class="data-label">الجنس</span><span class="data-value">' + (orphan.gender == 1 ? 'ذكر' : (orphan.gender == 2 ? 'أنثى' : '-')) + '</span></div>' +
-                '<div class="data-field"><span class="data-label">تاريخ الميلاد</span><span class="data-value">' + (orphan.birth_date || '-') + '</span></div>' +
-                '<div class="data-field"><span class="data-label">العمر</span><span class="data-value">' + (orphan.age || '-') + '</span></div>' +
-                '<div class="data-field"><span class="data-label">حالة الكفالة</span><span class="data-value">' + (orphan.sponsorship_status_name || '-') + '</span></div>' +
-                '<div class="data-field"><span class="data-label">الحالة الصحية</span><span class="data-value">' + (orphan.health_status || '-') + '</span></div>';
-
-            // Guardian data
-            if (guardian) {
-                document.getElementById('guardianData').innerHTML =
-                    '<div class="data-field"><span class="data-label">الاسم الكامل</span><span class="data-value">' + (guardian.full_name || '-') + '</span></div>' +
-                    '<div class="data-field"><span class="data-label">رقم الهوية</span><span class="data-value">' + (guardian.identity_number || '-') + '</span></div>' +
-                    '<div class="data-field"><span class="data-label">رقم الهاتف</span><span class="data-value">' + (guardian.phone || '-') + '</span></div>' +
-                    '<div class="data-field"><span class="data-label">المحافظة</span><span class="data-value">' + (guardian.province || '-') + '</span></div>' +
-                    '<div class="data-field"><span class="data-label">المدينة</span><span class="data-value">' + (guardian.city || '-') + '</span></div>' +
-                    '<div class="data-field"><span class="data-label">العنوان</span><span class="data-value">' + (guardian.address || '-') + '</span></div>';
-            } else {
-                document.getElementById('guardianData').innerHTML = '<p style="color: #888;">لا توجد بيانات معيل مرتبطة</p>';
-            }
-
-            // Bank accounts
-            if (bankAccounts.length > 0) {
-                var html = '';
-                for (var i = 0; i < bankAccounts.length; i++) {
-                    var account = bankAccounts[i];
-                    html += '<div style="margin-bottom: 15px; ' + (i > 0 ? 'border-top: 2px solid #eee; padding-top: 15px;' : '') + '">' +
-                        '<div class="data-field"><span class="data-label">البنك</span><span class="data-value">' + (account.bank_name_text || account.bank_name || '-') + '</span></div>' +
-                        '<div class="data-field"><span class="data-label">صاحب الحساب</span><span class="data-value">' + (account.re_guardian_name || '-') + '</span></div>' +
-                        '<div class="data-field"><span class="data-label">IBAN (دولار)</span><span class="data-value" style="direction: ltr; text-align: left;">' + (account.iban_usd || '-') + '</span></div>' +
-                        '<div class="data-field"><span class="data-label">IBAN (شيكل)</span><span class="data-value" style="direction: ltr; text-align: left;">' + (account.iban_shekel || '-') + '</span></div>' +
-                    '</div>';
-                }
-                document.getElementById('bankData').innerHTML = html;
-            } else {
-                document.getElementById('bankData').innerHTML = '<p style="color: #888;">لا توجد حسابات بنكية</p>';
-            }
+        // ========================================
+        // دوال مساعدة
+        // ========================================
+        function showStatus(type, message) {
+            const statusEl = document.getElementById('statusMessage');
+            statusEl.className = 'status-message ' + type;
+            statusEl.textContent = message;
         }
 
-        // ========== BACK BUTTON HANDLING ==========
+        function showLoading(show) {
+            document.getElementById('loadingSpinner').classList.toggle('active', show);
+        }
+
+        function hideDataSections() {
+            document.getElementById('dataSections').style.display = 'none';
+        }
+
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+
+        // ========================================
+        // معالجة زر الرجوع
+        // ========================================
         document.addEventListener('backbutton', function(e) {
             e.preventDefault();
             window.location.href = 'index.html';

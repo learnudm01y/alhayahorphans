@@ -19,6 +19,7 @@
     <!-- Stylesheet -->
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/custom-select.css">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
     <title>الحياة - تصوير</title>
 
@@ -32,6 +33,160 @@
             overscroll-behavior: none;
             overscroll-behavior-y: none;
             -webkit-overflow-scrolling: auto;
+        }
+
+        /* رسائل الحالة */
+        .status-message {
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            text-align: center;
+            font-size: 14px;
+            display: none;
+        }
+        .status-message.info {
+            background: #e3f2fd;
+            color: #1565c0;
+            display: block;
+        }
+        .status-message.warning {
+            background: #fff3e0;
+            color: #e65100;
+            display: block;
+        }
+        .status-message.error {
+            background: #ffebee;
+            color: #c62828;
+            display: block;
+        }
+        .status-message.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            display: block;
+        }
+
+        /* التحميل */
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .loading-spinner.active {
+            display: block;
+        }
+        .loading-spinner .material-icons {
+            font-size: 40px;
+            color: #2a8b8b;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            100% { transform: rotate(360deg); }
+        }
+
+        /* قائمة الأسماء */
+        .names-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #fff;
+        }
+        .name-item {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+        }
+        .name-item:last-child {
+            border-bottom: none;
+        }
+        .name-item:hover, .name-item.selected {
+            background: #e8f5f5;
+        }
+        .name-item .name-text {
+            font-weight: 500;
+        }
+        .name-item .identity-text {
+            font-size: 12px;
+            color: #666;
+        }
+        .name-item .status-badge {
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 10px;
+            background: #e0e0e0;
+        }
+
+        /* عداد النتائج */
+        .results-count {
+            padding: 8px 15px;
+            background: #f5f5f5;
+            font-size: 13px;
+            color: #666;
+            display: none;
+        }
+        .results-count.visible {
+            display: block;
+        }
+
+        /* معلومات المكفول المختار */
+        .selected-info {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 10px 0;
+            display: none;
+        }
+        .selected-info.visible {
+            display: block;
+        }
+        .selected-info .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            font-size: 13px;
+        }
+        .selected-info .info-label {
+            color: #666;
+        }
+        .selected-info .info-value {
+            font-weight: 500;
+        }
+
+        /* أزرار التصوير */
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .action-btn {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .action-btn.photo {
+            background: #2a8b8b;
+            color: white;
+        }
+        .action-btn.video {
+            background: #1565c0;
+            color: white;
+        }
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
     </style>
 </head>
@@ -50,131 +205,443 @@
             <a href="photography.html" class="nav-tab active">تصوير</a>
         </nav>
 
+        <!-- رسالة الحالة -->
+        <div id="statusMessage" class="status-message info">
+            يجب اختيار الجمعية والحالة ثم الضغط على زر البحث
+        </div>
+
         <!-- Filter Section -->
         <div class="filter-section">
             <div class="select-wrapper">
-                <select class="filter-select custom-select" id="filterOrg">
-                    <option value="" disabled selected>المؤسسة</option>
-                    <option value="org1">مؤسسة الحياة</option>
-                    <option value="org2">مؤسسة الأمل</option>
-                    <option value="org3">مؤسسة النور</option>
-                    <option value="org4">مؤسسة الرحمة</option>
-                    <option value="org5">مؤسسة الخير</option>
+                <select class="filter-select" id="filterSponsor">
+                    <option value="" disabled selected>الجمعية</option>
                 </select>
             </div>
             <div class="select-wrapper">
-                <select class="filter-select custom-select" id="filterStatus">
-                    <option value="" disabled selected>الحالة</option>
-                    <option value="active">نشط</option>
-                    <option value="inactive">غير نشط</option>
-                    <option value="pending">قيد المراجعة</option>
-                    <option value="approved">معتمد</option>
-                    <option value="rejected">مرفوض</option>
+                <select class="filter-select" id="filterStatus">
+                    <option value="">-- كل الحالات --</option>
                 </select>
             </div>
-            <button class="filter-action-btn" id="filterBtn">
-                <svg class="filter-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
+            <button class="filter-action-btn" id="filterBtn" title="بحث">
+                <span class="material-icons">search</span>
             </button>
         </div>
 
         <!-- Search Box -->
         <div class="search-box">
-            <input type="text" class="search-input" id="searchInput" placeholder="البحث الإسم">
+            <input type="text" class="search-input" id="searchInput" placeholder="البحث بالاسم أو الهوية">
+        </div>
+
+        <!-- عداد النتائج -->
+        <div id="resultsCount" class="results-count"></div>
+
+        <!-- Loading -->
+        <div id="loadingSpinner" class="loading-spinner">
+            <span class="material-icons">sync</span>
+            <p>جاري التحميل...</p>
         </div>
 
         <!-- Names List -->
         <div class="names-list-container">
             <div class="names-list" id="namesList">
                 <div class="names-list-placeholder">
-                    قائمة الأسماء
+                    اختر الجمعية والحالة ثم اضغط على زر البحث
                 </div>
+            </div>
+        </div>
+
+        <!-- Selected Name Info -->
+        <div id="selectedInfo" class="selected-info">
+            <div class="info-row">
+                <span class="info-label">الاسم:</span>
+                <span class="info-value" id="infoName">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">رقم الهوية:</span>
+                <span class="info-value" id="infoIdentity">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">الجمعية:</span>
+                <span class="info-value" id="infoSponsor">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">رقم الملف:</span>
+                <span class="info-value" id="infoFileNumber">-</span>
             </div>
         </div>
 
         <!-- Selected Name -->
         <div class="selected-name-box">
-            <input type="text" class="selected-name-input" id="selectedName" placeholder="الإسم المختار" readonly>
+            <input type="text" class="selected-name-input" id="selectedName" placeholder="اضغط على اسم للاختيار" readonly>
         </div>
 
         <!-- Action Buttons -->
         <div class="action-buttons">
-            <button class="action-btn photo" id="photoBtn">صورة</button>
-            <button class="action-btn video" id="videoBtn">فيديو</button>
+            <button class="action-btn photo" id="photoBtn" disabled>
+                <span class="material-icons">photo_camera</span>
+                صورة
+            </button>
+            <button class="action-btn video" id="videoBtn" disabled>
+                <span class="material-icons">videocam</span>
+                فيديو
+            </button>
         </div>
     </div>
 
+    <!-- خدمة المزامنة -->
+    <script src="js/sync-service.js"></script>
+
     <script>
-        // Basic functionality placeholder
-        document.addEventListener('DOMContentLoaded', function() {
-            // Filter logic
-            document.getElementById('filterBtn').addEventListener('click', function() {
-                const org = document.getElementById('filterOrg').value;
-                const status = document.getElementById('filterStatus').value;
-                // Filter logic will be added here
-                console.log('Filter applied:', { org, status });
-            });
+        // ========================================
+        // متغيرات الصفحة
+        // ========================================
+        let currentSponsorships = [];
+        let selectedSponsorship = null;
+        let sponsors = [];
+        let statuses = [];
 
-            // Photo button
-            document.getElementById('photoBtn').addEventListener('click', function() {
-                const selectedName = document.getElementById('selectedName').value;
-                if (!selectedName) {
-                    alert('الرجاء اختيار اسم أولاً');
+        // ========================================
+        // تهيئة الصفحة
+        // ========================================
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // تهيئة خدمة المزامنة
+                await SyncService.init();
+
+                // التحقق من المصادقة
+                if (!SyncService.isAuthenticated()) {
+                    window.location.href = 'login.html';
                     return;
                 }
-                // Photo capture logic will be added
-                console.log('Capture photo for:', selectedName);
-            });
 
-            // Video button
-            document.getElementById('videoBtn').addEventListener('click', function() {
-                const selectedName = document.getElementById('selectedName').value;
-                if (!selectedName) {
-                    alert('الرجاء اختيار اسم أولاً');
-                    return;
-                }
-                // Video capture logic will be added
-                console.log('Capture video for:', selectedName);
-            });
+                // تحميل الجمعيات والحالات من التخزين المحلي
+                await loadFilters();
 
-            // Search functionality
-            document.getElementById('searchInput').addEventListener('input', function() {
-                const searchTerm = this.value;
-                // Search logic will be added
-                console.log('Searching for:', searchTerm);
-            });
+                // ربط الأحداث
+                bindEvents();
 
-            // Initialize Custom Selects
-            if (typeof CustomSelect !== 'undefined') {
-                CustomSelect.initAll('.custom-select', {
-                    placeholder: 'اختر...',
-                    searchPlaceholder: 'بحث...',
-                    noResults: 'لا توجد نتائج'
-                });
+            } catch (error) {
+                console.error('Init error:', error);
+                showStatus('error', 'حدث خطأ في تهيئة الصفحة');
             }
         });
 
-        // ========== BACK BUTTON HANDLING ==========
-        // معالجة زر الرجوع للأندرويد
+        // ========================================
+        // تحميل الفلاتر
+        // ========================================
+        async function loadFilters() {
+            try {
+                // تحميل الجمعيات
+                sponsors = await SyncService.getLocalSponsors();
+                const sponsorSelect = document.getElementById('filterSponsor');
+
+                if (sponsors.length === 0) {
+                    // لا توجد بيانات محلية، حاول المزامنة
+                    showStatus('warning', 'لا توجد بيانات محلية. يرجى المزامنة أولاً');
+
+                    // محاولة المزامنة الأولية
+                    await SyncService.performInitialSync();
+                    sponsors = await SyncService.getLocalSponsors();
+                }
+
+                sponsorSelect.innerHTML = '<option value="" disabled selected>الجمعية</option>';
+                sponsors.forEach(sponsor => {
+                    sponsorSelect.innerHTML += `<option value="${sponsor.id}">${sponsor.name}</option>`;
+                });
+
+                // تحميل الحالات
+                statuses = await SyncService.getLocalStatuses();
+                const statusSelect = document.getElementById('filterStatus');
+
+                statusSelect.innerHTML = '<option value="">-- كل الحالات --</option>';
+                statuses.forEach(status => {
+                    statusSelect.innerHTML += `<option value="${status.id}">${status.name}</option>`;
+                });
+
+                if (sponsors.length > 0) {
+                    showStatus('info', `تم تحميل ${sponsors.length} جمعية و ${statuses.length} حالة`);
+                }
+
+            } catch (error) {
+                console.error('Load filters error:', error);
+                showStatus('error', 'فشل في تحميل الفلاتر: ' + error.message);
+            }
+        }
+
+        // ========================================
+        // ربط الأحداث
+        // ========================================
+        function bindEvents() {
+            // زر البحث
+            document.getElementById('filterBtn').addEventListener('click', performSearch);
+
+            // البحث النصي
+            document.getElementById('searchInput').addEventListener('input', debounce(filterLocalResults, 300));
+
+            // زر الصورة
+            document.getElementById('photoBtn').addEventListener('click', capturePhoto);
+
+            // زر الفيديو
+            document.getElementById('videoBtn').addEventListener('click', captureVideo);
+        }
+
+        // ========================================
+        // البحث
+        // ========================================
+        async function performSearch() {
+            const sponsorId = document.getElementById('filterSponsor').value;
+            const statusId = document.getElementById('filterStatus').value;
+
+            if (!sponsorId) {
+                showStatus('warning', 'يجب اختيار الجمعية أولاً');
+                return;
+            }
+
+            showLoading(true);
+            showStatus('info', 'جاري البحث...');
+
+            try {
+                // أولاً: جلب من التخزين المحلي
+                currentSponsorships = await SyncService.getLocalSponsorships({
+                    sponsor_id: sponsorId,
+                    status_id: statusId
+                });
+
+                // إذا لم توجد بيانات محلية، حاول المزامنة من الخادم
+                if (currentSponsorships.length === 0) {
+                    showStatus('info', 'لا توجد بيانات محلية، جاري المزامنة من الخادم...');
+
+                    const syncResult = await SyncService.syncSponsorships(sponsorId, statusId);
+
+                    if (syncResult.success) {
+                        currentSponsorships = await SyncService.getLocalSponsorships({
+                            sponsor_id: sponsorId,
+                            status_id: statusId
+                        });
+                    }
+                }
+
+                displayResults(currentSponsorships);
+
+                if (currentSponsorships.length > 0) {
+                    showStatus('success', `تم العثور على ${currentSponsorships.length} كفالة`);
+                } else {
+                    showStatus('warning', 'لا توجد كفالات لهذه الجمعية/الحالة');
+                }
+
+            } catch (error) {
+                console.error('Search error:', error);
+                showStatus('error', 'خطأ في البحث: ' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // ========================================
+        // فلترة النتائج المحلية
+        // ========================================
+        function filterLocalResults() {
+            const searchText = document.getElementById('searchInput').value.trim().toLowerCase();
+
+            if (!searchText) {
+                displayResults(currentSponsorships);
+                return;
+            }
+
+            const filtered = currentSponsorships.filter(s =>
+                (s.orphan_name && s.orphan_name.toLowerCase().includes(searchText)) ||
+                (s.identity_number && s.identity_number.includes(searchText)) ||
+                (s.internal_file_number && s.internal_file_number.includes(searchText)) ||
+                (s.guardian_name && s.guardian_name.toLowerCase().includes(searchText))
+            );
+
+            displayResults(filtered);
+        }
+
+        // ========================================
+        // عرض النتائج
+        // ========================================
+        function displayResults(results) {
+            const namesList = document.getElementById('namesList');
+            const resultsCount = document.getElementById('resultsCount');
+
+            if (!results || results.length === 0) {
+                namesList.innerHTML = '<div class="names-list-placeholder">لا توجد نتائج</div>';
+                resultsCount.textContent = '';
+                resultsCount.classList.remove('visible');
+                return;
+            }
+
+            resultsCount.textContent = `عدد النتائج: ${results.length}`;
+            resultsCount.classList.add('visible');
+
+            namesList.innerHTML = results.map(s => {
+                const statusObj = statuses.find(st => st.id == s.sponsorship_status_id);
+                const statusName = statusObj ? statusObj.name : 'غير محدد';
+
+                return `
+                    <div class="name-item" data-id="${s.id}">
+                        <div>
+                            <div class="name-text">${s.orphan_name || 'بدون اسم'}</div>
+                            <div class="identity-text">${s.identity_number || 'بدون هوية'}</div>
+                        </div>
+                        <span class="status-badge">${statusName}</span>
+                    </div>
+                `;
+            }).join('');
+
+            // ربط أحداث النقر
+            namesList.querySelectorAll('.name-item').forEach(item => {
+                item.addEventListener('click', () => selectSponsorship(item.dataset.id));
+            });
+        }
+
+        // ========================================
+        // اختيار كفالة
+        // ========================================
+        function selectSponsorship(id) {
+            // إزالة الاختيار السابق
+            document.querySelectorAll('.name-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+
+            // تحديد العنصر الجديد
+            const selectedItem = document.querySelector(`.name-item[data-id="${id}"]`);
+            if (selectedItem) {
+                selectedItem.classList.add('selected');
+            }
+
+            // البحث عن الكفالة
+            selectedSponsorship = currentSponsorships.find(s => s.id == id);
+
+            if (selectedSponsorship) {
+                // تحديث حقل الاسم
+                document.getElementById('selectedName').value = selectedSponsorship.orphan_name || 'بدون اسم';
+
+                // عرض المعلومات
+                document.getElementById('infoName').textContent = selectedSponsorship.orphan_name || '-';
+                document.getElementById('infoIdentity').textContent = selectedSponsorship.identity_number || '-';
+
+                const sponsor = sponsors.find(sp => sp.id == selectedSponsorship.sponsor_id);
+                document.getElementById('infoSponsor').textContent = sponsor ? sponsor.name : '-';
+                document.getElementById('infoFileNumber').textContent = selectedSponsorship.internal_file_number || '-';
+
+                document.getElementById('selectedInfo').classList.add('visible');
+
+                // تفعيل أزرار التصوير
+                document.getElementById('photoBtn').disabled = false;
+                document.getElementById('videoBtn').disabled = false;
+            }
+        }
+
+        // ========================================
+        // التصوير
+        // ========================================
+        async function capturePhoto() {
+            if (!selectedSponsorship) {
+                showStatus('warning', 'يجب اختيار مكفول أولاً');
+                return;
+            }
+
+            try {
+                // استخدام Capacitor Camera
+                if (window.Capacitor && Capacitor.Plugins.Camera) {
+                    const Camera = Capacitor.Plugins.Camera;
+
+                    const image = await Camera.getPhoto({
+                        quality: 90,
+                        allowEditing: false,
+                        resultType: 'base64',
+                        source: 'CAMERA'
+                    });
+
+                    // حفظ الصورة محلياً
+                    const fileName = `photo_${selectedSponsorship.id}_${Date.now()}.jpg`;
+                    await SyncService.saveFile(
+                        selectedSponsorship.id,
+                        image.base64String,
+                        fileName,
+                        'image/jpeg'
+                    );
+
+                    showStatus('success', 'تم حفظ الصورة بنجاح');
+
+                } else {
+                    // Fallback للمتصفح
+                    alert('التصوير متاح فقط في تطبيق الهاتف');
+                }
+
+            } catch (error) {
+                console.error('Photo error:', error);
+                if (error.message !== 'User cancelled photos app') {
+                    showStatus('error', 'خطأ في التصوير: ' + error.message);
+                }
+            }
+        }
+
+        async function captureVideo() {
+            if (!selectedSponsorship) {
+                showStatus('warning', 'يجب اختيار مكفول أولاً');
+                return;
+            }
+
+            try {
+                // استخدام Capacitor Camera للفيديو
+                if (window.Capacitor && Capacitor.Plugins.Camera) {
+                    const Camera = Capacitor.Plugins.Camera;
+
+                    // ملاحظة: Capacitor لا يدعم تسجيل الفيديو مباشرة
+                    // يمكن استخدام plugin إضافي
+                    showStatus('info', 'تسجيل الفيديو قيد التطوير');
+
+                } else {
+                    alert('التصوير متاح فقط في تطبيق الهاتف');
+                }
+
+            } catch (error) {
+                console.error('Video error:', error);
+                showStatus('error', 'خطأ في التسجيل: ' + error.message);
+            }
+        }
+
+        // ========================================
+        // دوال مساعدة
+        // ========================================
+        function showStatus(type, message) {
+            const statusEl = document.getElementById('statusMessage');
+            statusEl.className = 'status-message ' + type;
+            statusEl.textContent = message;
+        }
+
+        function showLoading(show) {
+            document.getElementById('loadingSpinner').classList.toggle('active', show);
+        }
+
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+
+        // ========================================
+        // معالجة زر الرجوع
+        // ========================================
         document.addEventListener('backbutton', function(e) {
             e.preventDefault();
             window.location.href = 'index.html';
         }, false);
 
-        // للـ Capacitor
         if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
             window.Capacitor.Plugins.App.addListener('backButton', function() {
                 window.location.href = 'index.html';
             });
         }
 
-        // للمتصفح العادي - منع الرجوع للـ splash
         window.addEventListener('popstate', function(e) {
             window.location.href = 'index.html';
         });
     </script>
-    <script src="js/custom-select.js"></script>
 </body>
 </html>

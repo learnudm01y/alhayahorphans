@@ -255,12 +255,15 @@
         </div>
     </div>
 
-    <script src="js/api-service.js"></script>
+    <script src="js/sync-service.js"></script>
     <script>
-        // Check if already logged in
-        if (ApiService.isAuthenticated()) {
-            window.location.href = 'index.html';
-        }
+        // Initialize and check if already logged in
+        (async function() {
+            await SyncService.init();
+            if (SyncService.isAuthenticated()) {
+                window.location.href = 'index.html';
+            }
+        })();
 
         // Load saved server URL
         const savedUrl = localStorage.getItem('api_base_url');
@@ -275,8 +278,8 @@
             const serverUrl = document.getElementById('serverUrl').value;
 
             try {
-                ApiService.setBaseUrl(serverUrl);
-                const health = await ApiService.checkHealth();
+                SyncService.setBaseUrl(serverUrl);
+                const health = await SyncService.checkHealth();
 
                 if (health.status === 'healthy') {
                     statusDot.classList.add('online');
@@ -316,7 +319,7 @@
             }
 
             // Set server URL
-            ApiService.setBaseUrl(serverUrl);
+            SyncService.setBaseUrl(serverUrl);
 
             // Show loading
             loginBtn.classList.add('loading');
@@ -324,7 +327,7 @@
 
             try {
                 // Attempt login
-                const result = await ApiService.login(username, password);
+                const result = await SyncService.login(username, password);
 
                 if (result.success) {
                     // Login successful - redirect to main page

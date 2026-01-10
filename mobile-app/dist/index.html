@@ -577,12 +577,12 @@
         </nav>
     </div>
 
-    <script src="js/api-service.js"></script>
+    <script src="js/sync-service.js"></script>
     <script>
         // ========== SPLASH SCREEN & LOTTIE ==========
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize API Service
-            ApiService.init();
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Initialize Sync Service
+            await SyncService.init();
 
             // Initialize Lottie animation
             const animation = lottie.loadAnimation({
@@ -616,9 +616,9 @@
 
         // ========== LOGIN MANAGEMENT ==========
         function checkLoginStatus() {
-            // Check if user is authenticated via API
-            if (ApiService.isAuthenticated()) {
-                showApp(ApiService.user ? ApiService.user.name : 'المستخدم');
+            // Check if user is authenticated via SyncService
+            if (SyncService.isAuthenticated()) {
+                showApp(SyncService.user ? SyncService.user.name : 'المستخدم');
                 performInitialSync();
             } else {
                 // Also check old localStorage for backwards compatibility
@@ -647,12 +647,12 @@
             updateNetworkStatus();
 
             // Update stats from cached data
-            updateStatsFromCache();
+            updateStatsFromLocal();
         }
 
         async function logout() {
             try {
-                await ApiService.logout();
+                await SyncService.logout();
             } catch(e) {
                 console.log('Logout error:', e);
             }
@@ -674,15 +674,15 @@
                 syncProgress.style.width = '10%';
 
                 // Get initial sync data
-                const result = await ApiService.getInitialSync();
+                const result = await SyncService.performInitialSync();
 
                 if (result.success) {
                     syncProgress.style.width = '100%';
-                    syncCompleted.textContent = result.data.associations.length + result.data.sponsorship_statuses.length;
+                    syncCompleted.textContent = result.sponsors_count + result.statuses_count;
                     syncPending.textContent = '0';
 
                     // Update stats
-                    updateStatsFromCache();
+                    updateStatsFromLocal();
 
                     console.log('Initial sync completed:', result);
                 }
@@ -690,23 +690,26 @@
             } catch (error) {
                 console.error('Initial sync failed:', error);
                 // Use cached data if available
-                updateStatsFromCache();
+                updateStatsFromLocal();
             }
         }
 
-        function updateStatsFromCache() {
-            const counts = ApiService.getCachedOrphanCounts();
-            const statLocal = document.getElementById('stat-local');
-            const statPending = document.getElementById('stat-pending');
-            const statSynced = document.getElementById('stat-synced');
+        async function updateStatsFromLocal() {
+            try {
+                const stats = await SyncService.getLocalStats();
+                const statLocal = document.getElementById('stat-local');
+                const statPending = document.getElementById('stat-pending');
+                const statSynced = document.getElementById('stat-synced');
 
-            // Calculate total from counts
-            let total = 0;
-            counts.forEach(c => { total += c.count; });
+                statLocal.textContent = stats.sponsorships_count || 0;
+                statPending.textContent = stats.pending_uploads || 0;
+                statSynced.textContent = stats.files_count || 0;
 
-            statLocal.textContent = total;
-            statSynced.textContent = ApiService.getCachedStatuses().length;
-            statPending.textContent = '0';
+                // Update sync pending count
+                document.getElementById('syncPending').textContent = stats.pending_uploads || 0;
+            } catch (error) {
+                console.error('Failed to update stats:', error);
+            }
         }
 
         // Login form submission
@@ -732,7 +735,7 @@
             loginBtn.textContent = 'جاري الدخول...';
 
             try {
-                const result = await ApiService.login(username, password);
+                const result = await SyncService.login(username, password);
 
                 if (result.success) {
                     // Also set old localStorage for compatibility
@@ -769,7 +772,7 @@
         window.addEventListener('online', function() {
             updateNetworkStatus();
             // Try to sync when coming back online
-            if (ApiService.isAuthenticated()) {
+            if (SyncService.isAuthenticated()) {
                 performInitialSync();
             }
         });

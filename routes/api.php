@@ -827,20 +827,20 @@ Route::prefix('sync/public')->group(function () {
         return response()->json([
             'status' => 'healthy',
             'timestamp' => now()->toISOString(),
-            'version' => '1.0.0'
+            'version' => '2.0.0'
         ]);
     });
 });
 
 // ====================================================================
-// Mobile App API Routes - Authentication & Initial Sync
+// Mobile App API Routes V2 - Sponsorship-Based Sync
 // ====================================================================
-use App\Http\Controllers\Api\MobileSyncController;
+use App\Http\Controllers\Api\SponsorshipSyncController;
 
 // Public routes (no auth required)
 Route::prefix('mobile')->group(function () {
     // Login endpoint
-    Route::post('/login', [MobileSyncController::class, 'login']);
+    Route::post('/login', [SponsorshipSyncController::class, 'login']);
 
     // Health check
     Route::get('/health', function () {
@@ -848,7 +848,7 @@ Route::prefix('mobile')->group(function () {
             'status' => 'healthy',
             'app' => 'alhayah-sponsorships',
             'timestamp' => now()->toISOString(),
-            'version' => '1.0.0'
+            'version' => '2.0.0'
         ]);
     });
 });
@@ -856,16 +856,20 @@ Route::prefix('mobile')->group(function () {
 // Protected routes (requires auth:sanctum)
 Route::prefix('mobile')->middleware(['auth:sanctum'])->group(function () {
     // Logout
-    Route::post('/logout', [MobileSyncController::class, 'logout']);
+    Route::post('/logout', [SponsorshipSyncController::class, 'logout']);
 
-    // Initial sync data (associations + statuses + counts)
-    Route::get('/initial-sync', [MobileSyncController::class, 'getInitialSync']);
+    // Lookup tables (الجمعيات وحالات الكفالة)
+    Route::get('/sponsors', [SponsorshipSyncController::class, 'getSponsors']);
+    Route::get('/sponsorship-statuses', [SponsorshipSyncController::class, 'getSponsorshipStatuses']);
 
-    // Lookup tables
-    Route::get('/associations', [MobileSyncController::class, 'getAssociations']);
-    Route::get('/sponsorship-statuses', [MobileSyncController::class, 'getSponsorshipStatuses']);
+    // Sync endpoints
+    Route::get('/sync/initial', [SponsorshipSyncController::class, 'getInitialSync']);
+    Route::get('/sync/sponsorships', [SponsorshipSyncController::class, 'getSponsorships']);
+    Route::get('/sync/sponsorship/{id}', [SponsorshipSyncController::class, 'getSponsorshipDetails']);
+    Route::post('/sync/upload', [SponsorshipSyncController::class, 'uploadSyncData']);
+    Route::get('/sync/stats', [SponsorshipSyncController::class, 'getSyncStats']);
 
-    // Orphans with filters and search
-    Route::get('/orphans', [MobileSyncController::class, 'getOrphans']);
-    Route::get('/orphan/{registrationId}', [MobileSyncController::class, 'getOrphanDetails']);
+    // File upload
+    Route::post('/upload-file', [SponsorshipSyncController::class, 'uploadFile']);
 });
+
