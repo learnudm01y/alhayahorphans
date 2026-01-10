@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2a8b8b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <title>الحياة لتنمية الأسرة - الكفالات</title>
+
+    <link rel="manifest" href="./assets/manifest-BNgtSlBF.json">
+    <link rel="icon" type="image/png" href="assets/logo.png">
+    <link rel="apple-touch-icon" href="assets/logo.png">
+
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+    <!-- Lottie Animation Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
+
+    <style>
+        :root {
+            --primary-color: #2a8b8b;
+            --primary-dark: #1e6b6b;
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+            --light-bg: #f8f9fa;
+            --border-color: #dee2e6;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* منع التأثير المطاطي */
+        html, body {
+            overscroll-behavior: none;
+            overscroll-behavior-y: none;
+            -webkit-overflow-scrolling: auto;
+            overflow-x: hidden;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--light-bg);
+            color: #333;
+            min-height: 100vh;
+            direction: rtl;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        /* ========== SPLASH SCREEN ========== */
+        #splash-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #ffffff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease;
+        }
+
+        #splash-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #lottie-container {
+            width: 80%;
+            max-width: 350px;
+            height: 300px;
+        }
+
+        .splash-title {
+            color: #333;
+            font-size: 1.8rem;
+            margin-top: 20px;
+            text-align: center;
+            opacity: 0;
+            animation: fadeInUp 1s ease-in forwards;
+            animation-delay: 0.3s;
+        }
+
+        .splash-subtitle {
+            color: #666;
+            font-size: 1rem;
+            margin-top: 10px;
+            text-align: center;
+            opacity: 0;
+            animation: fadeInUp 1s ease-in forwards;
+            animation-delay: 0.6s;
+        }
+
+        .splash-progress {
+            width: 60%;
+            max-width: 200px;
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            margin-top: 40px;
+            overflow: hidden;
+        }
+
+        .splash-progress-bar {
+            height: 100%;
+            background: var(--primary-color);
+            border-radius: 2px;
+            animation: progress 5s linear forwards;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes progress {
+            from { width: 0%; }
+            to { width: 100%; }
+        }
+
+        /* ========== LOGIN SCREEN ========== */
+        #login-screen {
+            display: none;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #2a8b8b, #1e6b6b);
+            padding: 20px;
+        }
+
+        #login-screen.active {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .login-container {
+            background: white;
+            border-radius: 16px;
+            padding: 40px 30px;
+            width: 100%;
+            max-width: 380px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        .login-logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .login-logo img {
+            width: 80px;
+            height: 80px;
+            border-radius: 16px;
+        }
+
+        .login-logo h2 {
+            color: var(--primary-color);
+            margin-top: 15px;
+            font-size: 1.3rem;
+        }
+
+        .login-form .form-group {
+            margin-bottom: 20px;
+        }
+
+        .login-form label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .login-form input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .login-form input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .login-btn:active {
+            transform: scale(0.98);
+        }
+
+        .login-error {
+            color: var(--danger-color);
+            text-align: center;
+            margin-top: 15px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        /* ========== MAIN APP ========== */
+        #app {
+            display: none;
+            max-width: 100%;
+            min-height: 100vh;
+        }
+
+        #app.active {
+            display: block;
+        }
+
+        /* Header */
+        .app-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            color: white;
+            padding: 15px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .app-header h1 {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .app-header .subtitle {
+            font-size: 0.8rem;
+            opacity: 0.9;
+        }
+
+        .logout-btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        /* Sync Status Bar */
+        .sync-status-container {
+            background: white;
+            border-bottom: 1px solid var(--border-color);
+            padding: 10px 15px;
+        }
+
+        .sync-status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+
+        .network-status {
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .sync-details {
+            display: flex;
+            gap: 15px;
+            font-size: 0.8rem;
+            color: #888;
+        }
+
+        .sync-progress-bar {
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .sync-progress-fill {
+            height: 100%;
+            background: var(--primary-color);
+            transition: width 0.3s ease;
+        }
+
+        /* User Info */
+        .user-info {
+            background: white;
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .user-avatar {
+            width: 45px;
+            height: 45px;
+            background: var(--primary-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .user-avatar .material-icons-round {
+            font-size: 24px;
+        }
+
+        .user-details h3 {
+            font-size: 1rem;
+            color: #333;
+        }
+
+        .user-details p {
+            font-size: 0.8rem;
+            color: #888;
+        }
+
+        /* Navigation */
+        .nav-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            padding: 20px;
+        }
+
+        .nav-card {
+            background: white;
+            border-radius: 16px;
+            padding: 25px 15px;
+            text-align: center;
+            text-decoration: none;
+            color: #333;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 1px solid #f0f0f0;
+        }
+
+        .nav-card:active {
+            transform: scale(0.98);
+        }
+
+        .nav-card .icon-wrapper {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 15px;
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .nav-card .icon-wrapper .material-icons-round {
+            font-size: 32px;
+            color: white;
+        }
+
+        .nav-card .label {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .nav-card .count {
+            font-size: 0.75rem;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        /* Quick Stats */
+        .stats-section {
+            padding: 15px 20px;
+        }
+
+        .stats-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .stats-header .material-icons-round {
+            color: var(--primary-color);
+            font-size: 22px;
+        }
+
+        .stats-header h3 {
+            font-size: 1rem;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .stat-item {
+            background: white;
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            border: 1px solid #f0f0f0;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: #888;
+            margin-top: 3px;
+        }
+    </style>
+</head>
+<body>
+    <!-- ========== SPLASH SCREEN ========== -->
+    <div id="splash-screen">
+        <div id="lottie-container"></div>
+        <h1 class="splash-title">الحياة لتنمية الأسرة</h1>
+        <p class="splash-subtitle">نظام إدارة الكفالات</p>
+        <div class="splash-progress">
+            <div class="splash-progress-bar"></div>
+        </div>
+    </div>
+
+    <!-- ========== LOGIN SCREEN ========== -->
+    <div id="login-screen">
+        <div class="login-container">
+            <div class="login-logo">
+                <img src="assets/logo.png" alt="Logo" onerror="this.style.display='none'">
+                <h2>تسجيل الدخول</h2>
+            </div>
+            <form class="login-form" id="loginForm">
+                <div class="form-group">
+                    <label for="username">اسم المستخدم</label>
+                    <input type="text" id="username" placeholder="أدخل اسم المستخدم" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">كلمة المرور</label>
+                    <input type="password" id="password" placeholder="أدخل كلمة المرور" required>
+                </div>
+                <button type="submit" class="login-btn">دخول</button>
+                <p class="login-error" id="loginError">اسم المستخدم أو كلمة المرور غير صحيحة</p>
+            </form>
+        </div>
+    </div>
+
+    <!-- ========== MAIN APP ========== -->
+    <div id="app">
+        <!-- Header -->
+        <header class="app-header">
+            <div>
+                <h1>الحياة لتنمية الأسرة</h1>
+                <div class="subtitle">نظام إدارة الكفالات</div>
+            </div>
+            <button class="logout-btn" onclick="logout()">خروج</button>
+        </header>
+
+        <!-- User Info -->
+        <div class="user-info">
+            <div class="user-avatar">
+                <span class="material-icons-round">person</span>
+            </div>
+            <div class="user-details">
+                <h3 id="displayName">المستخدم</h3>
+                <p>مرحباً بك في النظام</p>
+            </div>
+        </div>
+
+        <!-- Sync Status -->
+        <div class="sync-status-container">
+            <div id="sync-status">
+                <div class="sync-status-bar">
+                    <span class="network-status" id="networkStatus">
+                        <span class="material-icons-round" style="color: #28a745; font-size: 16px;">wifi</span>
+                        متصل
+                    </span>
+                </div>
+                <div class="sync-details">
+                    <span>المكتملة: <span id="syncCompleted">0</span></span>
+                    <span>المعلقة: <span id="syncPending">0</span></span>
+                </div>
+            </div>
+            <div class="sync-progress-bar">
+                <div id="sync-progress" class="sync-progress-fill" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="stats-section">
+            <div class="stats-header">
+                <span class="material-icons-round">analytics</span>
+                <h3>إحصائيات سريعة</h3>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-value" id="stat-local">0</div>
+                    <div class="stat-label">محلي</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="stat-pending">0</div>
+                    <div class="stat-label">معلق</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="stat-synced">0</div>
+                    <div class="stat-label">مزامن</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="nav-grid">
+            <a href="photography.html" class="nav-card">
+                <div class="icon-wrapper">
+                    <span class="material-icons-round">photo_camera</span>
+                </div>
+                <div class="label">التصوير</div>
+                <div class="count">إلتقاط صور المستندات</div>
+            </a>
+
+            <a href="data.html" class="nav-card">
+                <div class="icon-wrapper">
+                    <span class="material-icons-round">edit_note</span>
+                </div>
+                <div class="label">البيانات</div>
+                <div class="count">إدخال بيانات الأشخاص</div>
+            </a>
+
+            <a href="sync-monitor.html" class="nav-card">
+                <div class="icon-wrapper">
+                    <span class="material-icons-round">sync</span>
+                </div>
+                <div class="label">المزامنة</div>
+                <div class="count">مراقبة حالة المزامنة</div>
+            </a>
+
+            <a href="upload.html" class="nav-card">
+                <div class="icon-wrapper">
+                    <span class="material-icons-round">cloud_upload</span>
+                </div>
+                <div class="label">الرفع</div>
+                <div class="count">رفع الملفات لـ Google Drive</div>
+            </a>
+        </nav>
+    </div>
+
+    <script src="js/api-service.js"></script>
+    <script>
+        // ========== SPLASH SCREEN & LOTTIE ==========
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize API Service
+            ApiService.init();
+
+            // Initialize Lottie animation
+            const animation = lottie.loadAnimation({
+                container: document.getElementById('lottie-container'),
+                renderer: 'svg',
+                loop: true,
+                autoplay: true,
+                path: 'assets/splash-animation.json'
+            });
+
+            // Handle animation load error - show fallback
+            animation.addEventListener('data_failed', function() {
+                document.getElementById('lottie-container').innerHTML = '<img src="assets/logo.png" style="width: 150px; height: auto;">';
+            });
+
+            // After 5 seconds, hide splash and check login
+            setTimeout(function() {
+                hideSplash();
+            }, 5000);
+        });
+
+        function hideSplash() {
+            const splash = document.getElementById('splash-screen');
+            splash.classList.add('hidden');
+
+            setTimeout(function() {
+                splash.style.display = 'none';
+                checkLoginStatus();
+            }, 500);
+        }
+
+        // ========== LOGIN MANAGEMENT ==========
+        function checkLoginStatus() {
+            // Check if user is authenticated via API
+            if (ApiService.isAuthenticated()) {
+                showApp(ApiService.user ? ApiService.user.name : 'المستخدم');
+                performInitialSync();
+            } else {
+                // Also check old localStorage for backwards compatibility
+                const isLoggedIn = localStorage.getItem('isLoggedIn');
+                const username = localStorage.getItem('username');
+
+                if (isLoggedIn === 'true' && username) {
+                    showApp(username);
+                } else {
+                    showLogin();
+                }
+            }
+        }
+
+        function showLogin() {
+            document.getElementById('login-screen').classList.add('active');
+            document.getElementById('app').classList.remove('active');
+        }
+
+        function showApp(username) {
+            document.getElementById('login-screen').classList.remove('active');
+            document.getElementById('app').classList.add('active');
+            document.getElementById('displayName').textContent = username || 'المستخدم';
+
+            // Check network status
+            updateNetworkStatus();
+
+            // Update stats from cached data
+            updateStatsFromCache();
+        }
+
+        async function logout() {
+            try {
+                await ApiService.logout();
+            } catch(e) {
+                console.log('Logout error:', e);
+            }
+
+            // Clear old storage too
+            localStorage.removeItem('isLoggedIn');
+            localStorage.removeItem('username');
+
+            showLogin();
+        }
+
+        // Perform initial sync after login
+        async function performInitialSync() {
+            try {
+                const syncProgress = document.getElementById('sync-progress');
+                const syncCompleted = document.getElementById('syncCompleted');
+                const syncPending = document.getElementById('syncPending');
+
+                syncProgress.style.width = '10%';
+
+                // Get initial sync data
+                const result = await ApiService.getInitialSync();
+
+                if (result.success) {
+                    syncProgress.style.width = '100%';
+                    syncCompleted.textContent = result.data.associations.length + result.data.sponsorship_statuses.length;
+                    syncPending.textContent = '0';
+
+                    // Update stats
+                    updateStatsFromCache();
+
+                    console.log('Initial sync completed:', result);
+                }
+
+            } catch (error) {
+                console.error('Initial sync failed:', error);
+                // Use cached data if available
+                updateStatsFromCache();
+            }
+        }
+
+        function updateStatsFromCache() {
+            const counts = ApiService.getCachedOrphanCounts();
+            const statLocal = document.getElementById('stat-local');
+            const statPending = document.getElementById('stat-pending');
+            const statSynced = document.getElementById('stat-synced');
+
+            // Calculate total from counts
+            let total = 0;
+            counts.forEach(c => { total += c.count; });
+
+            statLocal.textContent = total;
+            statSynced.textContent = ApiService.getCachedStatuses().length;
+            statPending.textContent = '0';
+        }
+
+        // Login form submission
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const loginError = document.getElementById('loginError');
+            const loginBtn = document.querySelector('.login-btn');
+
+            // Hide previous error
+            loginError.style.display = 'none';
+
+            if (!username || !password) {
+                loginError.textContent = 'يرجى إدخال اسم المستخدم وكلمة المرور';
+                loginError.style.display = 'block';
+                return;
+            }
+
+            // Disable button during login
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'جاري الدخول...';
+
+            try {
+                const result = await ApiService.login(username, password);
+
+                if (result.success) {
+                    // Also set old localStorage for compatibility
+                    localStorage.setItem('isLoggedIn', 'true');
+                    localStorage.setItem('username', result.user.name);
+
+                    showApp(result.user.name);
+                    performInitialSync();
+                } else {
+                    loginError.textContent = result.message || 'فشل تسجيل الدخول';
+                    loginError.style.display = 'block';
+                }
+
+            } catch (error) {
+                console.error('Login error:', error);
+                loginError.textContent = error.message || 'حدث خطأ في الاتصال';
+                loginError.style.display = 'block';
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'دخول';
+            }
+        });
+
+        // ========== NETWORK STATUS ==========
+        function updateNetworkStatus() {
+            const statusEl = document.getElementById('networkStatus');
+            if (navigator.onLine) {
+                statusEl.innerHTML = '<span class="material-icons-round" style="color: #28a745; font-size: 16px;">wifi</span> متصل';
+            } else {
+                statusEl.innerHTML = '<span class="material-icons-round" style="color: #dc3545; font-size: 16px;">wifi_off</span> غير متصل';
+            }
+        }
+
+        window.addEventListener('online', function() {
+            updateNetworkStatus();
+            // Try to sync when coming back online
+            if (ApiService.isAuthenticated()) {
+                performInitialSync();
+            }
+        });
+        window.addEventListener('offline', updateNetworkStatus);
+
+        // ========== BACK BUTTON HANDLING ==========
+        // تخزين أن المستخدم مر بـ splash screen بالفعل
+        sessionStorage.setItem('splashShown', 'true');
+
+        // معالجة زر الرجوع في الأندرويد
+        document.addEventListener('backbutton', function(e) {
+            e.preventDefault();
+            handleBackButton();
+        }, false);
+
+        // للـ Capacitor
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+            window.Capacitor.Plugins.App.addListener('backButton', function() {
+                handleBackButton();
+            });
+        }
+
+        function handleBackButton() {
+            const app = document.getElementById('app');
+            const loginScreen = document.getElementById('login-screen');
+
+            // إذا كنا في صفحة التطبيق الرئيسية
+            if (app.classList.contains('active')) {
+                // إغلاق التطبيق
+                if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+                    window.Capacitor.Plugins.App.exitApp();
+                }
+            } else if (loginScreen.classList.contains('active')) {
+                // إغلاق التطبيق من شاشة تسجيل الدخول
+                if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+                    window.Capacitor.Plugins.App.exitApp();
+                }
+            }
+        }
+
+        // منع إعادة عرض splash عند الرجوع
+        window.addEventListener('pageshow', function(event) {
+            if (sessionStorage.getItem('splashShown') === 'true') {
+                const splash = document.getElementById('splash-screen');
+                if (splash) {
+                    splash.style.display = 'none';
+                    checkLoginStatus();
+                }
+            }
+        });
+    </script>
+</body>
+</html>

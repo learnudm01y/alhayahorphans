@@ -1,0 +1,32 @@
+{
+  "appId": "org.alhayah.sponsorships",
+  "appName": "Sponsorships",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 0,
+      "launchAutoHide": true,
+      "backgroundColor": "#2a8b8b",
+      "showSpinner": false
+    },
+    "Camera": {
+      "presentationStyle": "fullscreen",
+      "saveToGallery": true
+    },
+    "Filesystem": {
+      "writeOptions": {
+        "encoding": "utf8"
+      }
+    }
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true,
+    "minWebViewVersion": 60
+  }
+}

@@ -18,6 +18,7 @@
 
     <!-- Stylesheet -->
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/custom-select.css">
 
     <title>الحياة - بيانات</title>
 </head>
@@ -27,10 +28,6 @@
         <header class="header">
             <div class="header-logo">
                 <img src="logo01.png" alt="شعار الحياة">
-                <div class="header-text">
-                    <span class="header-text-arabic">الحياة لتنمية الأسرة</span>
-                    <span class="header-text-english">Al Hayah For Family Development</span>
-                </div>
             </div>
         </header>
 
@@ -42,9 +39,32 @@
 
         <!-- Filter Section -->
         <div class="filter-section">
-            <button class="filter-btn" id="filterOrg">المؤسسة</button>
-            <button class="filter-btn" id="filterStatus">الحالة</button>
-            <button class="filter-btn" id="filterBtn">فلتر</button>
+            <div class="select-wrapper">
+                <select class="filter-select custom-select" id="filterOrg">
+                    <option value="" disabled selected>المؤسسة</option>
+                    <option value="org1">مؤسسة الحياة</option>
+                    <option value="org2">مؤسسة الأمل</option>
+                    <option value="org3">مؤسسة النور</option>
+                    <option value="org4">مؤسسة الرحمة</option>
+                    <option value="org5">مؤسسة الخير</option>
+                </select>
+            </div>
+            <div class="select-wrapper">
+                <select class="filter-select custom-select" id="filterStatus">
+                    <option value="" disabled selected>الحالة</option>
+                    <option value="active">نشط</option>
+                    <option value="inactive">غير نشط</option>
+                    <option value="pending">قيد المراجعة</option>
+                    <option value="approved">معتمد</option>
+                    <option value="rejected">مرفوض</option>
+                </select>
+            </div>
+            <button class="filter-action-btn" id="filterBtn">
+                <svg class="filter-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+            </button>
         </div>
 
         <!-- Search Box -->
@@ -83,12 +103,12 @@
     <script>
         // Basic functionality placeholder
         document.addEventListener('DOMContentLoaded', function() {
-            // Filter buttons
-            const filterBtns = document.querySelectorAll('.filter-btn');
-            filterBtns.forEach(btn => {
-                btn.addEventListener('click', function() {
-                    this.classList.toggle('active');
-                });
+            // Filter logic
+            document.getElementById('filterBtn').addEventListener('click', function() {
+                const org = document.getElementById('filterOrg').value;
+                const status = document.getElementById('filterStatus').value;
+                // Filter logic will be added here
+                console.log('Filter applied:', { org, status });
             });
 
             // Search functionality
@@ -113,7 +133,15 @@
                 // API call will be added here
                 console.log('Loading bank data for ID:', bankId);
             }
+
+            // Initialize Custom Selects
+            CustomSelect.initAll('.custom-select', {
+                placeholder: 'اختر...',
+                searchPlaceholder: 'بحث...',
+                noResults: 'لا توجد نتائج'
+            });
         });
     </script>
+    <script src="js/custom-select.js"></script>
 </body>
 </html>

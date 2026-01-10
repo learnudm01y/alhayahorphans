@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#2a8b8b">
+    <title>رفع الملفات - Google Drive</title>
+
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary-color: #2a8b8b;
+            --primary-dark: #1e6b6b;
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+            --light-bg: #f8f9fa;
+            --border-color: #dee2e6;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* منع التأثير المطاطي */
+        html, body {
+            overscroll-behavior: none;
+            overscroll-behavior-y: none;
+            -webkit-overflow-scrolling: auto;
+            overflow-x: hidden;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--light-bg);
+            color: #333;
+            min-height: 100vh;
+            direction: rtl;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .back-btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .header h1 {
+            font-size: 1.2rem;
+            flex: 1;
+        }
+
+        /* Main Content */
+        .container {
+            padding: 20px;
+        }
+
+        /* Status Card */
+        .status-card {
+            background: white;
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        .status-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .status-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #4285f4, #34a853);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .status-icon .material-icons-round {
+            font-size: 32px;
+            color: white;
+        }
+
+        .status-info h3 {
+            font-size: 1.1rem;
+            color: #333;
+        }
+
+        .status-info p {
+            font-size: 0.85rem;
+            color: #888;
+        }
+
+        /* Progress Section */
+        .progress-section {
+            margin-top: 20px;
+        }
+
+        .progress-bar-container {
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4285f4, #34a853);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .progress-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        /* Upload Actions */
+        .upload-actions {
+            display: grid;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .action-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 16px 24px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .action-btn:active {
+            transform: scale(0.98);
+        }
+
+        .action-btn.primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            color: white;
+        }
+
+        .action-btn.secondary {
+            background: white;
+            color: var(--primary-color);
+            border: 2px solid var(--primary-color);
+        }
+
+        .action-btn.success {
+            background: linear-gradient(135deg, #28a745, #20883a);
+            color: white;
+        }
+
+        /* Files List */
+        .files-section {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+            font-size: 1rem;
+            color: #333;
+        }
+
+        .section-title .material-icons-round {
+            color: var(--primary-color);
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+
+        .file-icon {
+            width: 45px;
+            height: 45px;
+            background: linear-gradient(135deg, #4285f4, #5c9aff);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .file-icon .material-icons-round {
+            font-size: 24px;
+            color: white;
+        }
+
+        .file-info {
+            flex: 1;
+        }
+
+        .file-name {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .file-size {
+            font-size: 0.75rem;
+            color: #888;
+        }
+
+        .file-status {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .file-status.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .file-status.uploading {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        .file-status.done {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .file-status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #888;
+        }
+
+        .empty-state .material-icons-round {
+            font-size: 64px;
+            color: #ddd;
+            margin-bottom: 15px;
+        }
+
+        .empty-state p {
+            font-size: 0.95rem;
+        }
+
+        /* Logs Section */
+        .logs-section {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        .log-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .log-item:last-child {
+            border-bottom: none;
+        }
+
+        .log-time {
+            font-size: 0.75rem;
+            color: #888;
+            white-space: nowrap;
+        }
+
+        .log-message {
+            font-size: 0.85rem;
+            color: #333;
+        }
+
+        .log-message.success {
+            color: #28a745;
+        }
+
+        .log-message.error {
+            color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <a href="index.html" class="back-btn">
+            <span class="material-icons-round">arrow_forward</span>
+        </a>
+        <h1>رفع الملفات إلى Google Drive</h1>
+    </header>
+
+    <div class="container">
+        <!-- Status Card -->
+        <div class="status-card">
+            <div class="status-header">
+                <div class="status-icon">
+                    <span class="material-icons-round">cloud_upload</span>
+                </div>
+                <div class="status-info">
+                    <h3>Google Drive</h3>
+                    <p id="connectionStatus">متصل - جاهز للرفع</p>
+                </div>
+            </div>
+
+            <div class="progress-section">
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill" id="uploadProgress" style="width: 0%"></div>
+                </div>
+                <div class="progress-stats">
+                    <span>تم رفع: <strong id="uploadedCount">0</strong> ملف</span>
+                    <span>متبقي: <strong id="pendingCount">0</strong> ملف</span>
+                </div>
+            </div>
+
+            <div class="upload-actions">
+                <button class="action-btn primary" onclick="startUpload()">
+                    <span class="material-icons-round">cloud_upload</span>
+                    بدء الرفع
+                </button>
+                <button class="action-btn secondary" onclick="scanFiles()">
+                    <span class="material-icons-round">folder_open</span>
+                    فحص الملفات
+                </button>
+            </div>
+        </div>
+
+        <!-- Files Section -->
+        <div class="files-section">
+            <h3 class="section-title">
+                <span class="material-icons-round">folder</span>
+                الملفات المعلقة
+            </h3>
+
+            <div id="filesList">
+                <div class="empty-state">
+                    <span class="material-icons-round">cloud_done</span>
+                    <p>لا توجد ملفات معلقة للرفع</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs Section -->
+        <div class="logs-section">
+            <h3 class="section-title">
+                <span class="material-icons-round">history</span>
+                سجل العمليات
+            </h3>
+
+            <div id="logsList">
+                <div class="log-item">
+                    <span class="log-time">--:--</span>
+                    <span class="log-message">في انتظار بدء العملية...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let pendingFiles = [];
+        let uploadedFiles = 0;
+
+        function addLog(message, type = 'info') {
+            const now = new Date();
+            const time = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+
+            const logsList = document.getElementById('logsList');
+            const logItem = document.createElement('div');
+            logItem.className = 'log-item';
+            logItem.innerHTML = `
+                <span class="log-time">${time}</span>
+                <span class="log-message ${type}">${message}</span>
+            `;
+
+            logsList.insertBefore(logItem, logsList.firstChild);
+
+            // Keep only last 20 logs
+            while (logsList.children.length > 20) {
+                logsList.removeChild(logsList.lastChild);
+            }
+        }
+
+        function scanFiles() {
+            addLog('جاري فحص الملفات المحلية...');
+
+            // Simulate scanning
+            setTimeout(() => {
+                pendingFiles = [
+                    { name: 'document_001.jpg', size: '2.5 MB', status: 'pending' },
+                    { name: 'document_002.jpg', size: '1.8 MB', status: 'pending' },
+                    { name: 'document_003.jpg', size: '3.2 MB', status: 'pending' }
+                ];
+
+                updateFilesList();
+                document.getElementById('pendingCount').textContent = pendingFiles.length;
+                addLog(`تم العثور على ${pendingFiles.length} ملفات للرفع`, 'success');
+            }, 1000);
+        }
+
+        function updateFilesList() {
+            const filesList = document.getElementById('filesList');
+
+            if (pendingFiles.length === 0) {
+                filesList.innerHTML = `
+                    <div class="empty-state">
+                        <span class="material-icons-round">cloud_done</span>
+                        <p>لا توجد ملفات معلقة للرفع</p>
+                    </div>
+                `;
+                return;
+            }
+
+            filesList.innerHTML = pendingFiles.map((file, index) => `
+                <div class="file-item" id="file-${index}">
+                    <div class="file-icon">
+                        <span class="material-icons-round">image</span>
+                    </div>
+                    <div class="file-info">
+                        <div class="file-name">${file.name}</div>
+                        <div class="file-size">${file.size}</div>
+                    </div>
+                    <div class="file-status ${file.status}">
+                        <span class="material-icons-round">${getStatusIcon(file.status)}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getStatusIcon(status) {
+            switch(status) {
+                case 'pending': return 'schedule';
+                case 'uploading': return 'sync';
+                case 'done': return 'check';
+                case 'error': return 'error';
+                default: return 'schedule';
+            }
+        }
+
+        function startUpload() {
+            if (pendingFiles.length === 0) {
+                addLog('لا توجد ملفات للرفع', 'error');
+                return;
+            }
+
+            addLog('بدء عملية الرفع...');
+
+            let currentIndex = 0;
+
+            function uploadNext() {
+                if (currentIndex >= pendingFiles.length) {
+                    addLog('تم رفع جميع الملفات بنجاح!', 'success');
+                    document.getElementById('uploadProgress').style.width = '100%';
+                    return;
+                }
+
+                const file = pendingFiles[currentIndex];
+                file.status = 'uploading';
+                updateFilesList();
+                addLog(`جاري رفع: ${file.name}...`);
+
+                // Simulate upload
+                setTimeout(() => {
+                    file.status = 'done';
+                    uploadedFiles++;
+
+                    document.getElementById('uploadedCount').textContent = uploadedFiles;
+                    document.getElementById('pendingCount').textContent = pendingFiles.length - uploadedFiles;
+
+                    const progress = (uploadedFiles / pendingFiles.length) * 100;
+                    document.getElementById('uploadProgress').style.width = progress + '%';
+
+                    updateFilesList();
+                    addLog(`تم رفع: ${file.name}`, 'success');
+
+                    currentIndex++;
+                    uploadNext();
+                }, 1500);
+            }
+
+            uploadNext();
+        }
+
+        // Initialize
+        addLog('تم تحميل صفحة الرفع');
+
+        // ========== BACK BUTTON HANDLING ==========
+        // معالجة زر الرجوع للأندرويد
+        document.addEventListener('backbutton', function(e) {
+            e.preventDefault();
+            window.location.href = 'index.html';
+        }, false);
+
+        // للـ Capacitor
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+            window.Capacitor.Plugins.App.addListener('backButton', function() {
+                window.location.href = 'index.html';
+            });
+        }
+
+        // للمتصفح العادي - منع الرجوع للـ splash
+        window.addEventListener('popstate', function(e) {
+            window.location.href = 'index.html';
+        });
+    </script>
+</body>
+</html>

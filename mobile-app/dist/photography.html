@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#2a8b8b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="الحياة">
+    <meta name="description" content="تطبيق الحياة لتنمية الأسرة - التصوير">
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="logo01.png">
+    <link rel="apple-touch-icon" href="logo01.png">
+
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/custom-select.css">
+
+    <title>الحياة - تصوير</title>
+
+    <style>
+        /* منع التأثير المطاطي */
+        html {
+            overscroll-behavior: none;
+            overscroll-behavior-y: none;
+        }
+        body {
+            overscroll-behavior: none;
+            overscroll-behavior-y: none;
+            -webkit-overflow-scrolling: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-logo">
+                <img src="logo01.png" alt="شعار الحياة">
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="nav-tabs">
+            <a href="data.html" class="nav-tab inactive">بيانات</a>
+            <a href="photography.html" class="nav-tab active">تصوير</a>
+        </nav>
+
+        <!-- Filter Section -->
+        <div class="filter-section">
+            <div class="select-wrapper">
+                <select class="filter-select custom-select" id="filterOrg">
+                    <option value="" disabled selected>المؤسسة</option>
+                    <option value="org1">مؤسسة الحياة</option>
+                    <option value="org2">مؤسسة الأمل</option>
+                    <option value="org3">مؤسسة النور</option>
+                    <option value="org4">مؤسسة الرحمة</option>
+                    <option value="org5">مؤسسة الخير</option>
+                </select>
+            </div>
+            <div class="select-wrapper">
+                <select class="filter-select custom-select" id="filterStatus">
+                    <option value="" disabled selected>الحالة</option>
+                    <option value="active">نشط</option>
+                    <option value="inactive">غير نشط</option>
+                    <option value="pending">قيد المراجعة</option>
+                    <option value="approved">معتمد</option>
+                    <option value="rejected">مرفوض</option>
+                </select>
+            </div>
+            <button class="filter-action-btn" id="filterBtn">
+                <svg class="filter-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Search Box -->
+        <div class="search-box">
+            <input type="text" class="search-input" id="searchInput" placeholder="البحث الإسم">
+        </div>
+
+        <!-- Names List -->
+        <div class="names-list-container">
+            <div class="names-list" id="namesList">
+                <div class="names-list-placeholder">
+                    قائمة الأسماء
+                </div>
+            </div>
+        </div>
+
+        <!-- Selected Name -->
+        <div class="selected-name-box">
+            <input type="text" class="selected-name-input" id="selectedName" placeholder="الإسم المختار" readonly>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+            <button class="action-btn photo" id="photoBtn">صورة</button>
+            <button class="action-btn video" id="videoBtn">فيديو</button>
+        </div>
+    </div>
+
+    <script>
+        // Basic functionality placeholder
+        document.addEventListener('DOMContentLoaded', function() {
+            // Filter logic
+            document.getElementById('filterBtn').addEventListener('click', function() {
+                const org = document.getElementById('filterOrg').value;
+                const status = document.getElementById('filterStatus').value;
+                // Filter logic will be added here
+                console.log('Filter applied:', { org, status });
+            });
+
+            // Photo button
+            document.getElementById('photoBtn').addEventListener('click', function() {
+                const selectedName = document.getElementById('selectedName').value;
+                if (!selectedName) {
+                    alert('الرجاء اختيار اسم أولاً');
+                    return;
+                }
+                // Photo capture logic will be added
+                console.log('Capture photo for:', selectedName);
+            });
+
+            // Video button
+            document.getElementById('videoBtn').addEventListener('click', function() {
+                const selectedName = document.getElementById('selectedName').value;
+                if (!selectedName) {
+                    alert('الرجاء اختيار اسم أولاً');
+                    return;
+                }
+                // Video capture logic will be added
+                console.log('Capture video for:', selectedName);
+            });
+
+            // Search functionality
+            document.getElementById('searchInput').addEventListener('input', function() {
+                const searchTerm = this.value;
+                // Search logic will be added
+                console.log('Searching for:', searchTerm);
+            });
+
+            // Initialize Custom Selects
+            if (typeof CustomSelect !== 'undefined') {
+                CustomSelect.initAll('.custom-select', {
+                    placeholder: 'اختر...',
+                    searchPlaceholder: 'بحث...',
+                    noResults: 'لا توجد نتائج'
+                });
+            }
+        });
+
+        // ========== BACK BUTTON HANDLING ==========
+        // معالجة زر الرجوع للأندرويد
+        document.addEventListener('backbutton', function(e) {
+            e.preventDefault();
+            window.location.href = 'index.html';
+        }, false);
+
+        // للـ Capacitor
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+            window.Capacitor.Plugins.App.addListener('backButton', function() {
+                window.location.href = 'index.html';
+            });
+        }
+
+        // للمتصفح العادي - منع الرجوع للـ splash
+        window.addEventListener('popstate', function(e) {
+            window.location.href = 'index.html';
+        });
+    </script>
+    <script src="js/custom-select.js"></script>
+</body>
+</html>

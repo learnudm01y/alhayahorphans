@@ -774,3 +774,98 @@ Route::get('/sponsorships/get-bank-accounts', function (Request $request) {
 // ====================================================================
 Route::post('/check-duplicate-file', [UnifiedFileManagementController::class, 'checkSingleDuplicate']);
 Route::post('/replace-duplicate-file', [UnifiedFileManagementController::class, 'handleDuplicate']);
+
+// ====================================================================
+// Sync API Routes - Mobile App Synchronization
+// ====================================================================
+use App\Http\Controllers\Api\SyncController;
+use App\Http\Controllers\Api\GoogleDriveUploadController;
+
+Route::prefix('sync')->middleware(['auth:sanctum'])->group(function () {
+    // Person existence checks
+    Route::post('/check-person-all-tables', [SyncController::class, 'checkPersonAllTables']);
+    Route::post('/check-person-exists', [SyncController::class, 'checkPersonExists']);
+
+    // File ID generation
+    Route::post('/generate-file-id', [SyncController::class, 'generateFileID']);
+    Route::post('/activate-file-id', [SyncController::class, 'activateFileID']);
+
+    // New person entry
+    Route::post('/new-person-entry', [SyncController::class, 'newPersonEntry']);
+
+    // Sponsorship operations
+    Route::get('/eligible-sponsorships', [SyncController::class, 'getEligibleSponsorships']);
+    Route::post('/sponsorships/update-relation-id', [SyncController::class, 'updateSponsorshipRelationId']);
+
+    // Person data by relation
+    Route::get('/person-by-relation/{relationId}', [SyncController::class, 'getPersonByRelation']);
+});
+
+// ====================================================================
+// Google Drive Upload API Routes - Direct Upload Tracking
+// ====================================================================
+Route::prefix('uploads')->middleware(['auth:sanctum'])->group(function () {
+    // Duplicate checking
+    Route::post('/check-duplicate', [GoogleDriveUploadController::class, 'checkDuplicate']);
+
+    // Upload notifications
+    Route::post('/notify-completed', [GoogleDriveUploadController::class, 'notifyCompleted']);
+    Route::post('/mark-failed', [GoogleDriveUploadController::class, 'markFailed']);
+
+    // Statistics and listing
+    Route::get('/stats', [GoogleDriveUploadController::class, 'getStats']);
+    Route::get('/pending', [GoogleDriveUploadController::class, 'getPendingUploads']);
+    Route::get('/entity/{type}/{id}', [GoogleDriveUploadController::class, 'getEntityUploads']);
+});
+
+// ====================================================================
+// Public Sync API (No Auth Required for initial checks)
+// ====================================================================
+Route::prefix('sync/public')->group(function () {
+    // Health check endpoint
+    Route::get('/health', function () {
+        return response()->json([
+            'status' => 'healthy',
+            'timestamp' => now()->toISOString(),
+            'version' => '1.0.0'
+        ]);
+    });
+});
+
+// ====================================================================
+// Mobile App API Routes - Authentication & Initial Sync
+// ====================================================================
+use App\Http\Controllers\Api\MobileSyncController;
+
+// Public routes (no auth required)
+Route::prefix('mobile')->group(function () {
+    // Login endpoint
+    Route::post('/login', [MobileSyncController::class, 'login']);
+
+    // Health check
+    Route::get('/health', function () {
+        return response()->json([
+            'status' => 'healthy',
+            'app' => 'alhayah-sponsorships',
+            'timestamp' => now()->toISOString(),
+            'version' => '1.0.0'
+        ]);
+    });
+});
+
+// Protected routes (requires auth:sanctum)
+Route::prefix('mobile')->middleware(['auth:sanctum'])->group(function () {
+    // Logout
+    Route::post('/logout', [MobileSyncController::class, 'logout']);
+
+    // Initial sync data (associations + statuses + counts)
+    Route::get('/initial-sync', [MobileSyncController::class, 'getInitialSync']);
+
+    // Lookup tables
+    Route::get('/associations', [MobileSyncController::class, 'getAssociations']);
+    Route::get('/sponsorship-statuses', [MobileSyncController::class, 'getSponsorshipStatuses']);
+
+    // Orphans with filters and search
+    Route::get('/orphans', [MobileSyncController::class, 'getOrphans']);
+    Route::get('/orphan/{registrationId}', [MobileSyncController::class, 'getOrphanDetails']);
+});

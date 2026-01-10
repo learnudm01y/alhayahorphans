@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>مراقبة المزامنة - الحياة</title>
+
+    <style>
+        :root {
+            --primary-color: #2a8b8b;
+            --primary-dark: #1e6b6b;
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+            --info-color: #17a2b8;
+            --light-bg: #f8f9fa;
+            --border-color: #dee2e6;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--light-bg);
+            color: #333;
+            min-height: 100vh;
+            direction: rtl;
+        }
+
+        /* Header */
+        .page-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .back-btn {
+            color: white;
+            text-decoration: none;
+            font-size: 1.5rem;
+        }
+
+        .page-header h1 {
+            font-size: 1.2rem;
+            flex: 1;
+        }
+
+        /* Status Overview */
+        .status-overview {
+            background: white;
+            padding: 20px;
+            margin: 15px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .status-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1.1rem;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.online { background: var(--success-color); }
+        .status-dot.offline { background: var(--danger-color); animation: none; }
+        .status-dot.syncing { background: var(--info-color); }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            margin: 20px 0;
+        }
+
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .progress-bar {
+            height: 24px;
+            background: #e0e0e0;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), var(--success-color));
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin: 15px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+
+        .stat-icon {
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+
+        .stat-label {
+            font-size: 0.7rem;
+            color: #888;
+            margin-top: 2px;
+        }
+
+        .stat-card.pending .stat-value { color: var(--warning-color); }
+        .stat-card.completed .stat-value { color: var(--success-color); }
+        .stat-card.failed .stat-value { color: var(--danger-color); }
+        .stat-card.syncing .stat-value { color: var(--info-color); }
+
+        /* Task List */
+        .task-section {
+            margin: 15px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .section-header h2 {
+            font-size: 1rem;
+            color: #555;
+        }
+
+        .refresh-btn {
+            background: none;
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .task-list {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .task-item {
+            padding: 15px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .task-item:last-child {
+            border-bottom: none;
+        }
+
+        .task-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .task-icon.upload { background: #e3f2fd; }
+        .task-icon.sync { background: #f3e5f5; }
+        .task-icon.person { background: #e8f5e9; }
+
+        .task-info {
+            flex: 1;
+        }
+
+        .task-name {
+            font-weight: 500;
+            margin-bottom: 3px;
+        }
+
+        .task-details {
+            font-size: 0.8rem;
+            color: #888;
+        }
+
+        .task-status {
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+
+        .task-status.pending { background: #fff3cd; color: #856404; }
+        .task-status.in-progress { background: #cce5ff; color: #004085; }
+        .task-status.completed { background: #d4edda; color: #155724; }
+        .task-status.failed { background: #f8d7da; color: #721c24; }
+
+        /* Action Buttons */
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            padding: 15px;
+            margin: 15px;
+            background: white;
+            border-radius: 12px;
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .action-btn.primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .action-btn.secondary {
+            background: #e9ecef;
+            color: #333;
+        }
+
+        .action-btn.danger {
+            background: var(--danger-color);
+            color: white;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #888;
+        }
+
+        .empty-state .icon {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+
+        /* Last Sync */
+        .last-sync {
+            text-align: center;
+            padding: 15px;
+            font-size: 0.85rem;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <header class="page-header">
+        <a href="index.html" class="back-btn">→</a>
+        <h1>🔄 مراقبة المزامنة</h1>
+    </header>
+
+    <!-- Status Overview -->
+    <div class="status-overview">
+        <div class="status-header">
+            <div class="status-indicator" id="status-indicator">
+                <span class="status-dot online"></span>
+                <span>متصل</span>
+            </div>
+            <span id="sync-state">جاهز للمزامنة</span>
+        </div>
+
+        <div class="progress-container">
+            <div class="progress-label">
+                <span>تقدم المزامنة</span>
+                <span id="progress-percent">0%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill" style="width: 0%">
+                    <span id="progress-text"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="stats-grid">
+        <div class="stat-card pending">
+            <div class="stat-icon">⏳</div>
+            <div class="stat-value" id="stat-pending">0</div>
+            <div class="stat-label">معلق</div>
+        </div>
+        <div class="stat-card syncing">
+            <div class="stat-icon">🔄</div>
+            <div class="stat-value" id="stat-syncing">0</div>
+            <div class="stat-label">جاري</div>
+        </div>
+        <div class="stat-card completed">
+            <div class="stat-icon">✅</div>
+            <div class="stat-value" id="stat-completed">0</div>
+            <div class="stat-label">مكتمل</div>
+        </div>
+        <div class="stat-card failed">
+            <div class="stat-icon">❌</div>
+            <div class="stat-value" id="stat-failed">0</div>
+            <div class="stat-label">فاشل</div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="action-buttons">
+        <button class="action-btn primary" id="btn-sync-now">
+            <span>🚀</span>
+            <span>مزامنة الآن</span>
+        </button>
+        <button class="action-btn secondary" id="btn-retry-failed">
+            <span>🔁</span>
+            <span>إعادة الفاشلة</span>
+        </button>
+    </div>
+
+    <!-- Recent Tasks -->
+    <div class="task-section">
+        <div class="section-header">
+            <h2>📋 المهام الأخيرة</h2>
+            <button class="refresh-btn" id="btn-refresh">🔄</button>
+        </div>
+
+        <div class="task-list" id="task-list">
+            <div class="empty-state">
+                <div class="icon">📭</div>
+                <p>لا توجد مهام حالياً</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Tasks -->
+    <div class="task-section">
+        <div class="section-header">
+            <h2>☁️ عمليات الرفع</h2>
+        </div>
+
+        <div class="task-list" id="upload-list">
+            <div class="empty-state">
+                <div class="icon">📤</div>
+                <p>لا توجد ملفات للرفع</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Last Sync -->
+    <div class="last-sync" id="last-sync">
+        آخر مزامنة: لم تتم بعد
+    </div>
+
+    <script type="module">
+        import { syncProgress, uploadsTracker, rclone } from '/src/services/index.ts';
+
+        // Elements
+        const statusIndicator = document.getElementById('status-indicator');
+        const syncState = document.getElementById('sync-state');
+        const progressFill = document.getElementById('progress-fill');
+        const progressPercent = document.getElementById('progress-percent');
+        const taskList = document.getElementById('task-list');
+        const uploadList = document.getElementById('upload-list');
+        const lastSyncEl = document.getElementById('last-sync');
+
+        // Stats elements
+        const statPending = document.getElementById('stat-pending');
+        const statSyncing = document.getElementById('stat-syncing');
+        const statCompleted = document.getElementById('stat-completed');
+        const statFailed = document.getElementById('stat-failed');
+
+        // Subscribe to sync progress
+        syncProgress.onProgress(updateUI);
+
+        function updateUI(status) {
+            // Update connection status
+            const dot = statusIndicator.querySelector('.status-dot');
+            const text = statusIndicator.querySelector('span:last-child');
+
+            if (status.isOnline) {
+                dot.className = 'status-dot ' + (status.isSyncing ? 'syncing' : 'online');
+                text.textContent = status.isSyncing ? 'جاري المزامنة' : 'متصل';
+            } else {
+                dot.className = 'status-dot offline';
+                text.textContent = 'غير متصل';
+            }
+
+            syncState.textContent = status.isSyncing ? 'جاري المزامنة...' : 'جاهز للمزامنة';
+
+            // Update progress
+            progressFill.style.width = status.overallProgress + '%';
+            progressPercent.textContent = Math.round(status.overallProgress) + '%';
+
+            // Update stats
+            statPending.textContent = status.pendingTasks;
+            statSyncing.textContent = status.isSyncing ? 1 : 0;
+            statCompleted.textContent = status.completedTasks;
+            statFailed.textContent = status.failedTasks;
+
+            // Update current task
+            if (status.currentTask) {
+                updateTaskList([status.currentTask]);
+            }
+
+            // Update last sync
+            if (status.lastSyncAt) {
+                lastSyncEl.textContent = 'آخر مزامنة: ' + formatDate(status.lastSyncAt);
+            }
+        }
+
+        function updateTaskList(tasks) {
+            if (!tasks || tasks.length === 0) {
+                taskList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">📭</div>
+                        <p>لا توجد مهام حالياً</p>
+                    </div>
+                `;
+                return;
+            }
+
+            taskList.innerHTML = tasks.map(task => `
+                <div class="task-item">
+                    <div class="task-icon ${getTaskIconClass(task.operationType)}">
+                        ${getTaskIcon(task.operationType)}
+                    </div>
+                    <div class="task-info">
+                        <div class="task-name">${getTaskName(task.operationType)}</div>
+                        <div class="task-details">${task.entityType}: ${task.entityId}</div>
+                    </div>
+                    <span class="task-status ${task.status}">${getStatusText(task.status)}</span>
+                </div>
+            `).join('');
+        }
+
+        function getTaskIcon(type) {
+            const icons = {
+                'file_upload': '☁️',
+                'person_creation': '👤',
+                'file_id_generation': '🔢',
+                'server_notification': '📡',
+                'batch_sync': '🔄'
+            };
+            return icons[type] || '📋';
+        }
+
+        function getTaskIconClass(type) {
+            if (type.includes('upload')) return 'upload';
+            if (type.includes('person')) return 'person';
+            return 'sync';
+        }
+
+        function getTaskName(type) {
+            const names = {
+                'file_upload': 'رفع ملف',
+                'person_creation': 'إنشاء شخص',
+                'file_id_generation': 'توليد رقم ملف',
+                'server_notification': 'إشعار الخادم',
+                'batch_sync': 'مزامنة مجمعة'
+            };
+            return names[type] || type;
+        }
+
+        function getStatusText(status) {
+            const texts = {
+                'pending': 'معلق',
+                'in_progress': 'جاري',
+                'in-progress': 'جاري',
+                'completed': 'مكتمل',
+                'failed': 'فاشل'
+            };
+            return texts[status] || status;
+        }
+
+        function formatDate(date) {
+            if (!date) return 'غير معروف';
+            const d = new Date(date);
+            return d.toLocaleDateString('ar') + ' ' + d.toLocaleTimeString('ar');
+        }
+
+        // Button handlers
+        document.getElementById('btn-sync-now').addEventListener('click', async () => {
+            await syncProgress.forceSyncNow();
+        });
+
+        document.getElementById('btn-retry-failed').addEventListener('click', async () => {
+            const retried = await syncProgress.retryFailedTasks();
+            alert(`تم إعادة ${retried} مهمة`);
+        });
+
+        document.getElementById('btn-refresh').addEventListener('click', async () => {
+            const status = await syncProgress.getOverallStatus();
+            updateUI(status);
+        });
+
+        // Initial load
+        (async () => {
+            const status = await syncProgress.getOverallStatus();
+            updateUI(status);
+
+            // Load upload stats
+            const uploadStats = await uploadsTracker.getStats();
+            // Update upload list...
+        })();
+    </script>
+</body>
+</html>

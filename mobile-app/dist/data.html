@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#2a8b8b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="الحياة">
+    <meta name="description" content="تطبيق الحياة لتنمية الأسرة - البيانات">
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="logo01.png">
+    <link rel="apple-touch-icon" href="logo01.png">
+
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/custom-select.css">
+
+    <title>الحياة - بيانات</title>
+
+    <style>
+        /* منع التأثير المطاطي */
+        html {
+            overscroll-behavior: none;
+            overscroll-behavior-y: none;
+        }
+        body {
+            overscroll-behavior: none;
+            overscroll-behavior-y: none;
+            -webkit-overflow-scrolling: auto;
+        }
+
+        /* قائمة الأيتام */
+        .orphan-list {
+            padding: 0 15px;
+            margin-bottom: 20px;
+        }
+
+        .orphan-card {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .orphan-card:active {
+            transform: scale(0.98);
+        }
+
+        .orphan-card.selected {
+            border-color: #2a8b8b;
+            box-shadow: 0 2px 12px rgba(42, 139, 139, 0.2);
+        }
+
+        .orphan-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+
+        .orphan-name {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .orphan-status {
+            font-size: 0.7rem;
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: #e8f5f5;
+            color: #2a8b8b;
+        }
+
+        .orphan-meta {
+            display: flex;
+            gap: 15px;
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .orphan-meta span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* تفاصيل */
+        .data-field {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .data-field:last-child {
+            border-bottom: none;
+        }
+
+        .data-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .data-value {
+            color: #333;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        /* Loading */
+        .loading-spinner {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f0f0f0;
+            border-top-color: #2a8b8b;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* عداد النتائج */
+        .results-count {
+            padding: 10px 15px;
+            color: #666;
+            font-size: 0.85rem;
+            background: #f8f9fa;
+            border-bottom: 1px solid #eee;
+        }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            padding: 15px;
+        }
+
+        .pagination button {
+            padding: 10px 20px;
+            background: #2a8b8b;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        .pagination button:disabled {
+            background: #ccc;
+        }
+
+        .pagination .page-info {
+            display: flex;
+            align-items: center;
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #888;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        /* Data sections */
+        .data-sections {
+            padding: 0 15px;
+            margin-bottom: 20px;
+        }
+
+        .data-section {
+            background: white;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .data-section-title {
+            background: linear-gradient(135deg, #2a8b8b, #1e6b6b);
+            color: white;
+            padding: 12px 15px;
+            font-size: 1rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .data-section-content {
+            padding: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-logo">
+                <img src="logo01.png" alt="شعار الحياة">
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="nav-tabs">
+            <a href="data.html" class="nav-tab active">بيانات</a>
+            <a href="photography.html" class="nav-tab inactive">تصوير</a>
+        </nav>
+
+        <!-- Filter Section -->
+        <div class="filter-section">
+            <div class="select-wrapper">
+                <select class="filter-select" id="filterStatus">
+                    <option value="">كل الحالات</option>
+                </select>
+            </div>
+            <button class="filter-action-btn" id="filterBtn">
+                <svg class="filter-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Search Box -->
+        <div class="search-box">
+            <input type="text" class="search-input" id="searchInput" placeholder="البحث بالاسم أو رقم الهوية أو رقم الملف...">
+        </div>
+
+        <!-- Results Count -->
+        <div class="results-count" id="resultsCount">
+            جاري التحميل...
+        </div>
+
+        <!-- Orphan List -->
+        <div class="orphan-list" id="orphanList">
+            <div class="loading-spinner">
+                <div class="spinner"></div>
+            </div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination" id="pagination" style="display: none;">
+            <button id="prevPage">السابق</button>
+            <span class="page-info" id="pageInfo">1 / 1</span>
+            <button id="nextPage">التالي</button>
+        </div>
+
+        <!-- Data Sections (shown when orphan selected) -->
+        <div class="data-sections" id="dataSections" style="display: none;">
+            <!-- Orphan Data Section -->
+            <div class="data-section" id="orphanSection">
+                <h3 class="data-section-title">بيانات اليتيم</h3>
+                <div class="data-section-content" id="orphanData">
+                </div>
+            </div>
+
+            <!-- Guardian Data Section -->
+            <div class="data-section" id="guardianSection">
+                <h3 class="data-section-title">بيانات المعيل</h3>
+                <div class="data-section-content" id="guardianData">
+                </div>
+            </div>
+
+            <!-- Bank Account Data Section -->
+            <div class="data-section" id="bankSection">
+                <h3 class="data-section-title">بيانات الحساب البنكي</h3>
+                <div class="data-section-content" id="bankData">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api-service.js"></script>
+    <script>
+        // State
+        let currentPage = 1;
+        let totalPages = 1;
+        let searchTimeout = null;
+        let selectedOrphanId = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Check authentication
+            ApiService.init();
+            if (!ApiService.isAuthenticated()) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            // Load filters
+            await loadFilters();
+
+            // Load orphans
+            await loadOrphans();
+
+            // Event listeners
+            document.getElementById('filterBtn').addEventListener('click', function() {
+                currentPage = 1;
+                loadOrphans();
+            });
+
+            document.getElementById('searchInput').addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(function() {
+                    currentPage = 1;
+                    loadOrphans();
+                }, 500);
+            });
+
+            document.getElementById('prevPage').addEventListener('click', function() {
+                if (currentPage > 1) {
+                    currentPage--;
+                    loadOrphans();
+                }
+            });
+
+            document.getElementById('nextPage').addEventListener('click', function() {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    loadOrphans();
+                }
+            });
+        });
+
+        // Load status filter options
+        async function loadFilters() {
+            try {
+                // Try to get from cache first
+                let statuses = ApiService.getCachedStatuses();
+
+                // If no cache, fetch from API
+                if (statuses.length === 0) {
+                    const result = await ApiService.getSponsorshipStatuses();
+                    if (result.success) {
+                        statuses = result.statuses;
+                    }
+                }
+
+                // Populate dropdown
+                const select = document.getElementById('filterStatus');
+                statuses.forEach(status => {
+                    const option = document.createElement('option');
+                    option.value = status.id;
+                    option.textContent = status.name;
+                    select.appendChild(option);
+                });
+
+            } catch (error) {
+                console.error('Failed to load filters:', error);
+            }
+        }
+
+        // Load orphans from API
+        async function loadOrphans() {
+            const orphanList = document.getElementById('orphanList');
+            const resultsCount = document.getElementById('resultsCount');
+            const pagination = document.getElementById('pagination');
+
+            // Show loading
+            orphanList.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
+
+            try {
+                const statusId = document.getElementById('filterStatus').value;
+                const search = document.getElementById('searchInput').value.trim();
+
+                const result = await ApiService.getOrphans({
+                    statusId: statusId,
+                    search: search,
+                    page: currentPage,
+                    perPage: 20
+                });
+
+                if (result.success) {
+                    const orphans = result.data;
+                    totalPages = result.pagination.last_page;
+
+                    // Update results count
+                    resultsCount.textContent = 'عرض ' + orphans.length + ' من ' + result.pagination.total + ' نتيجة';
+
+                    // Update pagination
+                    document.getElementById('pageInfo').textContent = currentPage + ' / ' + totalPages;
+                    document.getElementById('prevPage').disabled = currentPage <= 1;
+                    document.getElementById('nextPage').disabled = currentPage >= totalPages;
+                    pagination.style.display = totalPages > 1 ? 'flex' : 'none';
+
+                    // Render orphans
+                    if (orphans.length === 0) {
+                        orphanList.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📋</div><p>لا توجد نتائج</p></div>';
+                    } else {
+                        orphanList.innerHTML = orphans.map(function(orphan) {
+                            return '<div class="orphan-card" onclick="selectOrphan(\'' + orphan.registration_id + '\', this)">' +
+                                '<div class="orphan-card-header">' +
+                                    '<div class="orphan-name">' + orphan.full_name + '</div>' +
+                                    '<div class="orphan-status">' + getStatusName(orphan.sponsorship_status) + '</div>' +
+                                '</div>' +
+                                '<div class="orphan-meta">' +
+                                    '<span>📄 ' + orphan.registration_id + '</span>' +
+                                    '<span>🪪 ' + (orphan.identity_number || 'غير محدد') + '</span>' +
+                                    '<span>👤 ' + (orphan.gender || '') + '</span>' +
+                                '</div>' +
+                            '</div>';
+                        }).join('');
+                    }
+
+                } else {
+                    orphanList.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><p>' + (result.message || 'فشل تحميل البيانات') + '</p></div>';
+                }
+
+            } catch (error) {
+                console.error('Failed to load orphans:', error);
+                orphanList.innerHTML = '<div class="empty-state"><div class="empty-state-icon">❌</div><p>' + (error.message || 'حدث خطأ في الاتصال') + '</p></div>';
+            }
+        }
+
+        // Get status name from ID
+        function getStatusName(statusId) {
+            var statuses = ApiService.getCachedStatuses();
+            for (var i = 0; i < statuses.length; i++) {
+                if (statuses[i].id == statusId) {
+                    return statuses[i].name;
+                }
+            }
+            return 'غير محدد';
+        }
+
+        // Select an orphan and show details
+        async function selectOrphan(registrationId, element) {
+            selectedOrphanId = registrationId;
+
+            // Highlight selected card
+            document.querySelectorAll('.orphan-card').forEach(function(card) {
+                card.classList.remove('selected');
+            });
+            element.classList.add('selected');
+
+            // Show data sections
+            var dataSections = document.getElementById('dataSections');
+            dataSections.style.display = 'block';
+
+            // Show loading in sections
+            document.getElementById('orphanData').innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
+            document.getElementById('guardianData').innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
+            document.getElementById('bankData').innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
+
+            try {
+                var result = await ApiService.getOrphanDetails(registrationId);
+
+                if (result.success) {
+                    renderOrphanDetails(result.data);
+                } else {
+                    document.getElementById('orphanData').innerHTML = '<p style="color: #dc3545;">' + result.message + '</p>';
+                }
+
+            } catch (error) {
+                console.error('Failed to load orphan details:', error);
+                document.getElementById('orphanData').innerHTML = '<p style="color: #dc3545;">' + error.message + '</p>';
+            }
+
+            // Scroll to details
+            dataSections.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Render orphan details
+        function renderOrphanDetails(data) {
+            var orphan = data.orphan;
+            var guardian = data.guardian;
+            var bankAccounts = data.bank_accounts || [];
+
+            // Orphan data
+            document.getElementById('orphanData').innerHTML =
+                '<div class="data-field"><span class="data-label">رقم الملف</span><span class="data-value">' + (orphan.registration_id || '-') + '</span></div>' +
+                '<div class="data-field"><span class="data-label">الاسم الكامل</span><span class="data-value">' + (orphan.full_name || '-') + '</span></div>' +
+                '<div class="data-field"><span class="data-label">رقم الهوية</span><span class="data-value">' + (orphan.identity_number || '-') + '</span></div>' +
+                '<div class="data-field"><span class="data-label">الجنس</span><span class="data-value">' + (orphan.gender == 1 ? 'ذكر' : (orphan.gender == 2 ? 'أنثى' : '-')) + '</span></div>' +
+                '<div class="data-field"><span class="data-label">تاريخ الميلاد</span><span class="data-value">' + (orphan.birth_date || '-') + '</span></div>' +
+                '<div class="data-field"><span class="data-label">العمر</span><span class="data-value">' + (orphan.age || '-') + '</span></div>' +
+                '<div class="data-field"><span class="data-label">حالة الكفالة</span><span class="data-value">' + (orphan.sponsorship_status_name || '-') + '</span></div>' +
+                '<div class="data-field"><span class="data-label">الحالة الصحية</span><span class="data-value">' + (orphan.health_status || '-') + '</span></div>';
+
+            // Guardian data
+            if (guardian) {
+                document.getElementById('guardianData').innerHTML =
+                    '<div class="data-field"><span class="data-label">الاسم الكامل</span><span class="data-value">' + (guardian.full_name || '-') + '</span></div>' +
+                    '<div class="data-field"><span class="data-label">رقم الهوية</span><span class="data-value">' + (guardian.identity_number || '-') + '</span></div>' +
+                    '<div class="data-field"><span class="data-label">رقم الهاتف</span><span class="data-value">' + (guardian.phone || '-') + '</span></div>' +
+                    '<div class="data-field"><span class="data-label">المحافظة</span><span class="data-value">' + (guardian.province || '-') + '</span></div>' +
+                    '<div class="data-field"><span class="data-label">المدينة</span><span class="data-value">' + (guardian.city || '-') + '</span></div>' +
+                    '<div class="data-field"><span class="data-label">العنوان</span><span class="data-value">' + (guardian.address || '-') + '</span></div>';
+            } else {
+                document.getElementById('guardianData').innerHTML = '<p style="color: #888;">لا توجد بيانات معيل مرتبطة</p>';
+            }
+
+            // Bank accounts
+            if (bankAccounts.length > 0) {
+                var html = '';
+                for (var i = 0; i < bankAccounts.length; i++) {
+                    var account = bankAccounts[i];
+                    html += '<div style="margin-bottom: 15px; ' + (i > 0 ? 'border-top: 2px solid #eee; padding-top: 15px;' : '') + '">' +
+                        '<div class="data-field"><span class="data-label">البنك</span><span class="data-value">' + (account.bank_name_text || account.bank_name || '-') + '</span></div>' +
+                        '<div class="data-field"><span class="data-label">صاحب الحساب</span><span class="data-value">' + (account.re_guardian_name || '-') + '</span></div>' +
+                        '<div class="data-field"><span class="data-label">IBAN (دولار)</span><span class="data-value" style="direction: ltr; text-align: left;">' + (account.iban_usd || '-') + '</span></div>' +
+                        '<div class="data-field"><span class="data-label">IBAN (شيكل)</span><span class="data-value" style="direction: ltr; text-align: left;">' + (account.iban_shekel || '-') + '</span></div>' +
+                    '</div>';
+                }
+                document.getElementById('bankData').innerHTML = html;
+            } else {
+                document.getElementById('bankData').innerHTML = '<p style="color: #888;">لا توجد حسابات بنكية</p>';
+            }
+        }
+
+        // ========== BACK BUTTON HANDLING ==========
+        document.addEventListener('backbutton', function(e) {
+            e.preventDefault();
+            window.location.href = 'index.html';
+        }, false);
+
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+            window.Capacitor.Plugins.App.addListener('backButton', function() {
+                window.location.href = 'index.html';
+            });
+        }
+
+        window.addEventListener('popstate', function(e) {
+            window.location.href = 'index.html';
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#2a8b8b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="الحياة">
+    <meta name="description" content="تطبيق الحياة لتنمية الأسرة - متابعة المزامنة">
+
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="logo01.png">
+    <link rel="apple-touch-icon" href="logo01.png">
+
+    <title>الحياة - متابعة المزامنة</title>
+
+    <style>
+        :root {
+            --primary-color: #2a8b8b;
+            --primary-dark: #1e6b6b;
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+            --info-color: #17a2b8;
+            --light-bg: #f8f9fa;
+            --border-color: #dee2e6;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* منع التأثير المطاطي */
+        html, body {
+            overscroll-behavior: none;
+            overscroll-behavior-y: none;
+            -webkit-overflow-scrolling: auto;
+            overflow-x: hidden;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--light-bg);
+            color: #333;
+            min-height: 100vh;
+            direction: rtl;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        .container {
+            max-width: 100%;
+            padding-bottom: 30px;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .back-btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .header-title {
+            font-size: 1.2rem;
+            flex: 1;
+        }
+
+        /* Sync Control Panel */
+        .sync-control-panel {
+            background: white;
+            margin: 15px;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        .control-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .control-header h2 {
+            font-size: 1.1rem;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .control-header .material-icons-round {
+            color: var(--primary-color);
+        }
+
+        .control-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            color: white;
+            flex: 1;
+        }
+
+        .btn-secondary {
+            background: #e9ecef;
+            color: #333;
+        }
+
+        .btn-warning {
+            background: var(--warning-color);
+            color: #333;
+        }
+
+        .btn-lg {
+            padding: 16px 24px;
+            font-size: 1rem;
+        }
+
+        /* Stats Dashboard */
+        .stats-dashboard {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            padding: 0 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 14px;
+            padding: 15px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .stat-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .stat-icon .material-icons-round {
+            font-size: 26px;
+            color: white;
+        }
+
+        .total-card .stat-icon { background: linear-gradient(135deg, #6c757d, #495057); }
+        .pending-card .stat-icon { background: linear-gradient(135deg, #ffc107, #e0a800); }
+        .progress-card .stat-icon { background: linear-gradient(135deg, #17a2b8, #138496); }
+        .success-card .stat-icon { background: linear-gradient(135deg, #28a745, #1e7e34); }
+        .failed-card .stat-icon { background: linear-gradient(135deg, #dc3545, #bd2130); }
+        .conflict-card .stat-icon { background: linear-gradient(135deg, #fd7e14, #e66c00); }
+
+        .stat-content {
+            flex: 1;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: #888;
+        }
+
+        /* Overall Progress */
+        .overall-progress-section {
+            background: white;
+            margin: 0 15px 20px;
+            border-radius: 14px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            font-size: 0.9rem;
+            color: #555;
+        }
+
+        .progress-percentage {
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .progress-bar-track {
+            height: 10px;
+            background: #e9ecef;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), var(--success-color));
+            border-radius: 5px;
+            transition: width 0.3s ease;
+        }
+
+        /* Filters Section */
+        .filters-section {
+            background: white;
+            margin: 0 15px 20px;
+            border-radius: 14px;
+            padding: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .filter-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .filter-item {
+            flex: 1;
+            min-width: 120px;
+        }
+
+        .filter-item label {
+            display: block;
+            font-size: 0.75rem;
+            color: #888;
+            margin-bottom: 5px;
+        }
+
+        .filter-select, .filter-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            background: #f8f9fa;
+        }
+
+        .btn-clear {
+            background: #e9ecef;
+            color: #666;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            margin-top: 15px;
+            width: 100%;
+        }
+
+        /* Progress List */
+        .progress-list-container {
+            background: white;
+            margin: 0 15px 20px;
+            border-radius: 14px;
+            padding: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+
+        .section-header h3 {
+            font-size: 1rem;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-header .material-icons-round {
+            color: var(--primary-color);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #888;
+        }
+
+        .empty-state .material-icons-round {
+            font-size: 64px;
+            color: #ddd;
+            margin-bottom: 15px;
+        }
+
+        .empty-state h4 {
+            font-size: 1rem;
+            margin-bottom: 5px;
+        }
+
+        .empty-state p {
+            font-size: 0.85rem;
+        }
+
+        /* Progress Item */
+        .progress-item {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .progress-item-icon {
+            width: 45px;
+            height: 45px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--primary-color);
+        }
+
+        .progress-item-icon .material-icons-round {
+            color: white;
+            font-size: 24px;
+        }
+
+        .progress-item-info {
+            flex: 1;
+        }
+
+        .progress-item-name {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .progress-item-type {
+            font-size: 0.75rem;
+            color: #888;
+        }
+
+        .progress-item-status {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .status-pending { background: #fff3cd; color: #856404; }
+        .status-progress { background: #cce5ff; color: #004085; }
+        .status-success { background: #d4edda; color: #155724; }
+        .status-failed { background: #f8d7da; color: #721c24; }
+
+        /* Session History */
+        .session-history-container {
+            background: white;
+            margin: 0 15px;
+            border-radius: 14px;
+            padding: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .session-item {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 12px 15px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .session-item .material-icons-round {
+            color: var(--primary-color);
+        }
+
+        .session-info {
+            flex: 1;
+        }
+
+        .session-date {
+            font-size: 0.85rem;
+            color: #333;
+        }
+
+        .session-stats {
+            font-size: 0.75rem;
+            color: #888;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <a href="index.html" class="back-btn">
+                <span class="material-icons-round">arrow_forward</span>
+            </a>
+            <h1 class="header-title">متابعة المزامنة</h1>
+        </header>
+
+        <!-- Sync Control Panel -->
+        <div class="sync-control-panel">
+            <div class="control-header">
+                <h2>
+                    <span class="material-icons-round">sync</span>
+                    لوحة التحكم بالمزامنة
+                </h2>
+            </div>
+            <div class="control-buttons">
+                <button class="btn btn-primary btn-lg" id="btnStartSync">
+                    <span class="material-icons-round">play_arrow</span>
+                    <span>بدء المزامنة الكاملة</span>
+                </button>
+                <button class="btn btn-secondary" id="btnRefresh">
+                    <span class="material-icons-round">refresh</span>
+                    <span>تحديث</span>
+                </button>
+                <button class="btn btn-warning" id="btnPauseSync" style="display:none;">
+                    <span class="material-icons-round">pause</span>
+                    <span>إيقاف مؤقت</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Statistics Dashboard -->
+        <div class="stats-dashboard">
+            <div class="stat-card total-card">
+                <div class="stat-icon">
+                    <span class="material-icons-round">analytics</span>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="statTotal">0</div>
+                    <div class="stat-label">إجمالي العمليات</div>
+                </div>
+            </div>
+
+            <div class="stat-card pending-card">
+                <div class="stat-icon">
+                    <span class="material-icons-round">schedule</span>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="statPending">0</div>
+                    <div class="stat-label">قيد الانتظار</div>
+                </div>
+            </div>
+
+            <div class="stat-card progress-card">
+                <div class="stat-icon">
+                    <span class="material-icons-round">sync</span>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="statInProgress">0</div>
+                    <div class="stat-label">قيد التنفيذ</div>
+                </div>
+            </div>
+
+            <div class="stat-card success-card">
+                <div class="stat-icon">
+                    <span class="material-icons-round">check_circle</span>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="statSuccess">0</div>
+                    <div class="stat-label">نجح</div>
+                </div>
+            </div>
+
+            <div class="stat-card failed-card">
+                <div class="stat-icon">
+                    <span class="material-icons-round">error</span>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="statFailed">0</div>
+                    <div class="stat-label">فشل</div>
+                </div>
+            </div>
+
+            <div class="stat-card conflict-card">
+                <div class="stat-icon">
+                    <span class="material-icons-round">warning</span>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" id="statConflict">0</div>
+                    <div class="stat-label">تعارض</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Overall Progress Bar -->
+        <div class="overall-progress-section">
+            <div class="progress-header">
+                <span>التقدم الإجمالي</span>
+                <span class="progress-percentage" id="overallPercentage">0%</span>
+            </div>
+            <div class="progress-bar-track">
+                <div class="progress-bar-fill" id="overallProgressBar" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters-section">
+            <div class="filter-row">
+                <div class="filter-item">
+                    <label>نوع العملية</label>
+                    <select class="filter-select" id="filterOperationType">
+                        <option value="">الكل</option>
+                        <option value="data_upload">رفع البيانات</option>
+                        <option value="data_download">تنزيل البيانات</option>
+                        <option value="media_upload">رفع الملفات</option>
+                        <option value="media_download">تنزيل الملفات</option>
+                    </select>
+                </div>
+
+                <div class="filter-item">
+                    <label>الحالة</label>
+                    <select class="filter-select" id="filterStatus">
+                        <option value="">الكل</option>
+                        <option value="pending">قيد الانتظار</option>
+                        <option value="in_progress">قيد التنفيذ</option>
+                        <option value="success">نجح</option>
+                        <option value="failed">فشل</option>
+                        <option value="conflict">تعارض</option>
+                    </select>
+                </div>
+
+                <div class="filter-item">
+                    <label>بحث</label>
+                    <input
+                        type="text"
+                        class="filter-input"
+                        id="searchEntityName"
+                        placeholder="ابحث بالاسم..."
+                    />
+                </div>
+            </div>
+            <button class="btn btn-clear" id="btnClearFilters">
+                <span class="material-icons-round" style="font-size:16px;">delete_outline</span>
+                مسح الفلاتر
+            </button>
+        </div>
+
+        <!-- Progress List -->
+        <div class="progress-list-container">
+            <div class="section-header">
+                <h3>
+                    <span class="material-icons-round">list_alt</span>
+                    قائمة العمليات الحالية
+                </h3>
+            </div>
+            <div class="progress-list" id="progressList">
+                <!-- Example items -->
+                <div class="progress-item">
+                    <div class="progress-item-icon">
+                        <span class="material-icons-round">cloud_upload</span>
+                    </div>
+                    <div class="progress-item-info">
+                        <div class="progress-item-name">محمد أحمد علي</div>
+                        <div class="progress-item-type">رفع بيانات</div>
+                    </div>
+                    <span class="progress-item-status status-success">تم</span>
+                </div>
+
+                <div class="progress-item">
+                    <div class="progress-item-icon" style="background: var(--info-color);">
+                        <span class="material-icons-round">image</span>
+                    </div>
+                    <div class="progress-item-info">
+                        <div class="progress-item-name">صورة_001.jpg</div>
+                        <div class="progress-item-type">رفع ملف</div>
+                    </div>
+                    <span class="progress-item-status status-progress">جاري</span>
+                </div>
+
+                <div class="empty-state" id="emptyState" style="display:none;">
+                    <span class="material-icons-round">inbox</span>
+                    <h4>لا توجد عمليات مزامنة حالياً</h4>
+                    <p>اضغط على "بدء المزامنة الكاملة" لبدء عملية جديدة</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Session History -->
+        <div class="session-history-container">
+            <div class="section-header">
+                <h3>
+                    <span class="material-icons-round">history</span>
+                    سجل جلسات المزامنة السابقة
+                </h3>
+                <button class="btn btn-sm btn-secondary" id="btnLoadMoreHistory">عرض المزيد</button>
+            </div>
+            <div class="session-history" id="sessionHistory">
+                <div class="session-item">
+                    <span class="material-icons-round">event</span>
+                    <div class="session-info">
+                        <div class="session-date">اليوم - 10:30 ص</div>
+                        <div class="session-stats">15 عملية ناجحة • 2 فشلت</div>
+                    </div>
+                </div>
+                <div class="session-item">
+                    <span class="material-icons-round">event</span>
+                    <div class="session-info">
+                        <div class="session-date">أمس - 3:45 م</div>
+                        <div class="session-stats">28 عملية ناجحة • 0 فشلت</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // Sync Monitor functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const btnStartSync = document.getElementById('btnStartSync');
+            const btnRefresh = document.getElementById('btnRefresh');
+            const btnClearFilters = document.getElementById('btnClearFilters');
+
+            btnStartSync.addEventListener('click', function() {
+                console.log('Starting full sync...');
+                alert('بدء المزامنة الكاملة...');
+            });
+
+            btnRefresh.addEventListener('click', function() {
+                console.log('Refreshing...');
+                location.reload();
+            });
+
+            btnClearFilters.addEventListener('click', function() {
+                document.getElementById('filterOperationType').value = '';
+                document.getElementById('filterStatus').value = '';
+                document.getElementById('searchEntityName').value = '';
+            });
+        });
+
+        // ========== BACK BUTTON HANDLING ==========
+        // معالجة زر الرجوع للأندرويد
+        document.addEventListener('backbutton', function(e) {
+            e.preventDefault();
+            window.location.href = 'index.html';
+        }, false);
+
+        // للـ Capacitor
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+            window.Capacitor.Plugins.App.addListener('backButton', function() {
+                window.location.href = 'index.html';
+            });
+        }
+
+        // للمتصفح العادي - منع الرجوع للـ splash
+        window.addEventListener('popstate', function(e) {
+            window.location.href = 'index.html';
+        });
+    </script>
+</body>
+</html>
