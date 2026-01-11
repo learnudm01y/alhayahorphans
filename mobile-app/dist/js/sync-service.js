@@ -52,6 +52,21 @@ const SyncService = {
 
         // تهيئة العمل في الخلفية
         await this.initBackgroundTask();
+
+        // حذف جميع الإشعارات عند بدء التطبيق
+        await this.clearAllNotifications();
+    },
+
+    // حذف جميع الإشعارات
+    async clearAllNotifications() {
+        try {
+            if (this.LocalNotifications) {
+                await this.LocalNotifications.removeAllDeliveredNotifications();
+                console.log('All notifications cleared');
+            }
+        } catch (error) {
+            console.log('Failed to clear notifications:', error.message);
+        }
     },
 
     // تهيئة الإشعارات المحلية
@@ -83,7 +98,7 @@ const SyncService = {
     // إرسال إشعار محلي (فقط في الخلفية أو للعمليات الهامة)
     async sendNotification(title, body, progress = null, force = false) {
         try {
-            if (!this.LocalNotifications) return;
+            if (!this.LocalNotifications) return null;
 
             // لا ترسل إشعارات إذا كان التطبيق في المقدمة (إلا إذا كانت للملفات أو رفع Google Drive)
             if (!force && !this.isAppInBackground) {
@@ -102,12 +117,13 @@ const SyncService = {
                     autoCancel: progress === null || progress >= 100,
                     smallIcon: 'ic_stat_notification',
                     largeIcon: 'ic_launcher',
-                    // إضافة شريط التقدم
-                    extra: progress !== null ? {
-                        progress: Math.round(progress),
-                        progressMax: 100,
-                        progressIndeterminate: false
-                    } : {}
+                    // شريط التقدم الحقيقي بدون extra
+                    ...(progress !== null && {
+                        progress: {
+                            current: Math.round(progress),
+                            max: 100
+                        }
+                    })
                 }]
             };
 
@@ -115,9 +131,7 @@ const SyncService = {
             return id;
         } catch (error) {
             console.log('Failed to send notification:', error.message);
-        }
-    },
-
+            return null;
     // إخفاء إشعار محدد
     async cancelNotification(id) {
         try {
@@ -1008,10 +1022,14 @@ const SyncService = {
         for (const item of pending) {
             // محاولة جلب معلومات الكفالة
             const sponsorship = await this.dbGet('sponsorships', item.sponsorship_id);
+            const orphanName = sponsorship?.orphan_name ||
+                              sponsorship?.first_name ||
+                              'غير معروف';
+
             detailedList.push({
                 id: item.id,
                 sponsorship_id: item.sponsorship_id,
-                orphan_name: sponsorship?.orphan_full_name || sponsorship?.name || 'غير معروف',
+                orphan_name: orphanName,
                 updates: item.updates,
                 created_at: item.created_at || 'غير محدد',
                 field_count: Object.keys(item.updates || {}).length

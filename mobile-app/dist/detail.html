@@ -70,12 +70,12 @@
             <h3 class="section-title"><span class="material-icons">person</span> بيانات المكفول</h3>
             <div class="section-content">
                 <div class="form-row">
-                    <div class="form-field"><label class="form-label">الاسم الأول</label><input type="text" class="form-input" id="orphan_first_name" data-field="orphan_first_name"></div>
-                    <div class="form-field"><label class="form-label">اسم الأب</label><input type="text" class="form-input" id="orphan_father_name" data-field="orphan_father_name"></div>
+                    <div class="form-field"><label class="form-label">الاسم الأول</label><input type="text" class="form-input" id="first_name" data-field="first_name"></div>
+                    <div class="form-field"><label class="form-label">اسم الأب</label><input type="text" class="form-input" id="second_name" data-field="second_name"></div>
                 </div>
                 <div class="form-row">
-                    <div class="form-field"><label class="form-label">اسم الجد</label><input type="text" class="form-input" id="orphan_grandfather_name" data-field="orphan_grandfather_name"></div>
-                    <div class="form-field"><label class="form-label">اسم العائلة</label><input type="text" class="form-input" id="orphan_family_name" data-field="orphan_family_name"></div>
+                    <div class="form-field"><label class="form-label">اسم الجد</label><input type="text" class="form-input" id="third_name" data-field="third_name"></div>
+                    <div class="form-field"><label class="form-label">اسم العائلة</label><input type="text" class="form-input" id="last_name" data-field="last_name"></div>
                 </div>
                 <div class="form-row">
                     <div class="form-field"><label class="form-label">رقم الهوية</label><input type="text" class="form-input" id="identity_number" data-field="identity_number"></div>
@@ -198,7 +198,7 @@
                     document.getElementById('bankSection').style.display = 'block';
                 }
                 document.getElementById('noDataMessage').style.display = 'none';
-                document.getElementById('pageTitle').textContent = currentSponsorship.orphan_first_name || currentSponsorship.orphan_name || 'تفاصيل الكفالة';
+                document.getElementById('pageTitle').textContent = currentSponsorship.first_name || currentSponsorship.orphan_name || 'تفاصيل الكفالة';
                 bindChangeEvents();
             } catch (error) {
                 console.error('Load error:', error);
@@ -207,10 +207,10 @@
         }
 
         function populateForm(data) {
-            setValue('orphan_first_name', data.orphan_first_name || '');
-            setValue('orphan_father_name', data.orphan_father_name || '');
-            setValue('orphan_grandfather_name', data.orphan_grandfather_name || '');
-            setValue('orphan_family_name', data.orphan_family_name || '');
+            setValue('first_name', data.first_name || '');
+            setValue('second_name', data.second_name || '');
+            setValue('third_name', data.third_name || '');
+            setValue('last_name', data.last_name || '');
             setValue('identity_number', data.identity_number);
             setValue('birth_date', formatDate(data.sponsored_birth_date));
             setValue('orphan_gender', data.orphan_gender || '');
@@ -319,15 +319,23 @@
             showLoading(true);
             try {
                 const dataToSave = { ...modifiedFields };
-                const oldOrphanName = originalData.orphan_name || `${originalData.orphan_first_name || ''} ${originalData.orphan_father_name || ''} ${originalData.orphan_grandfather_name || ''} ${originalData.orphan_family_name || ''}`.trim();
+                const oldOrphanName = originalData.orphan_name || `${originalData.first_name || ''} ${originalData.second_name || ''} ${originalData.third_name || ''} ${originalData.last_name || ''}`.trim();
 
-                if (modifiedFields.orphan_first_name || modifiedFields.orphan_father_name || modifiedFields.orphan_grandfather_name || modifiedFields.orphan_family_name) {
-                    dataToSave.orphan_name = [modifiedFields.orphan_first_name || originalData.orphan_first_name || '', modifiedFields.orphan_father_name || originalData.orphan_father_name || '', modifiedFields.orphan_grandfather_name || originalData.orphan_grandfather_name || '', modifiedFields.orphan_family_name || originalData.orphan_family_name || ''].filter(n => n).join(' ');
+                if (modifiedFields.first_name || modifiedFields.second_name || modifiedFields.third_name || modifiedFields.last_name) {
+                    dataToSave.orphan_name = [modifiedFields.first_name || originalData.first_name || '', modifiedFields.second_name || originalData.second_name || '', modifiedFields.third_name || originalData.third_name || '', modifiedFields.last_name || originalData.last_name || ''].filter(n => n).join(' ');
                     dataToSave.old_orphan_name = oldOrphanName;
                 }
 
                 if (modifiedFields.guardian_first_name || modifiedFields.guardian_father_name || modifiedFields.guardian_grandfather_name || modifiedFields.guardian_family_name) {
                     dataToSave.guardian_name = [modifiedFields.guardian_first_name || originalData.guardian_first_name || '', modifiedFields.guardian_father_name || originalData.guardian_father_name || '', modifiedFields.guardian_grandfather_name || originalData.guardian_grandfather_name || '', modifiedFields.guardian_family_name || originalData.guardian_family_name || ''].filter(n => n).join(' ');
+                }
+
+                // إرسال person_type للمكفول دائماً (مهم جداً لتوجيه البيانات للجدول الصحيح)
+                if (modifiedFields.first_name || modifiedFields.second_name || modifiedFields.third_name ||
+                    modifiedFields.last_name || modifiedFields.identity_number || modifiedFields.orphan_gender ||
+                    modifiedFields.birth_date) {
+                    // إضافة person_type من الكفالة الحالية
+                    dataToSave.person_type = currentSponsorship.person_type || 'orphan';
                 }
 
                 // إرسال نوع الشخص (المعيل) دائماً مع أي تعديل على بيانات المعيل
@@ -353,7 +361,7 @@
                 document.querySelectorAll('.modified').forEach(el => el.classList.remove('modified'));
                 document.getElementById('saveBtn').disabled = true;
                 showToast('تم حفظ التغييرات بنجاح', 'success');
-                document.getElementById('pageTitle').textContent = currentSponsorship.orphan_first_name || currentSponsorship.orphan_name || 'تفاصيل الكفالة';
+                document.getElementById('pageTitle').textContent = currentSponsorship.first_name || currentSponsorship.orphan_name || 'تفاصيل الكفالة';
             } catch (error) {
                 console.error('Save error:', error);
                 showToast('فشل في حفظ التغييرات: ' + error.message, 'error');

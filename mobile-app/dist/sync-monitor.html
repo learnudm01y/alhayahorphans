@@ -562,6 +562,9 @@
             updateProgress(5, 'جاري الاتصال بالخادم...');
             addLog('بدء عملية المزامنة الكاملة');
 
+            // بدء العمل في الخلفية
+            await startSyncBackgroundTask();
+
             try {
                 // أولاً: مزامنة الجمعيات والحالات والجداول المرجعية
                 updateProgress(10, 'جاري تحميل الجداول المرجعية...');
@@ -605,6 +608,9 @@
             } finally {
                 btn.disabled = false;
                 setTimeout(() => showProgress(false), 2000);
+
+                // إنهاء العمل في الخلفية
+                await finishSyncBackgroundTask();
             }
         }
 
@@ -617,6 +623,9 @@
 
             showProgress(true);
             addLog('بدء رفع التحديثات المعلقة');
+
+            // بدء العمل في الخلفية
+            await startSyncBackgroundTask();
 
             try {
                 updateProgress(50, 'جاري رفع التحديثات...');
@@ -641,6 +650,9 @@
             } finally {
                 btn.disabled = false;
                 setTimeout(() => showProgress(false), 2000);
+
+                // إنهاء العمل في الخلفية
+                await finishSyncBackgroundTask();
             }
         }
 
@@ -828,6 +840,35 @@
         if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
             window.Capacitor.Plugins.App.addListener('backButton', goBack);
         }
-    </script>
-</body>
-</html>
+
+        // ========================================
+        // دعم العمل في الخلفية
+        // ========================================
+        let syncBackgroundTaskId = null;
+
+        async function startSyncBackgroundTask() {
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.BackgroundTask) {
+                try {
+                    const BackgroundTask = window.Capacitor.Plugins.BackgroundTask;
+                    syncBackgroundTaskId = await BackgroundTask.beforeExit(async () => {
+                        console.log('Sync background task started');
+                    });
+                    console.log('Sync background task ID:', syncBackgroundTaskId);
+                } catch (error) {
+                    console.log('Failed to start sync background task:', error);
+                }
+            }
+        }
+
+        async function finishSyncBackgroundTask() {
+            if (syncBackgroundTaskId && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.BackgroundTask) {
+                try {
+                    const BackgroundTask = window.Capacitor.Plugins.BackgroundTask;
+                    await BackgroundTask.finish({ taskId: syncBackgroundTaskId });
+                    syncBackgroundTaskId = null;
+                    console.log('Sync background task finished');
+                } catch (error) {
+                    console.log('Failed to finish sync background task:', error);
+                }
+            }
+        }
