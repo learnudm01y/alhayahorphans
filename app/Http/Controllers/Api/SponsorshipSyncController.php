@@ -681,15 +681,20 @@ class SponsorshipSyncController extends Controller
                 // بيانات المكفول
                 'orphan_name', 'orphan_first_name', 'orphan_father_name',
                 'orphan_grandfather_name', 'orphan_family_name',
-                'identity_number', 'sponsored_birth_date', 'orphan_gender', 'health_status_id',
-                // بيانات المعيل
-                'guardian_name', 'guardian_first_name', 'guardian_father_name',
-                'guardian_grandfather_name', 'guardian_family_name',
-                'guardian_identity_number', 'guardian_phone', 'guardian_phone2',
-                'guardian_city_id', 'guardian_detailed_address',
-                'guardian_person_type', // نوع الشخص: breadwinner, family_member, deceased_father, deceased_mother
+                'identity_number', 'sponsored_birth_date', 'orphan_gender',
+                // بيانات المعيل (فقط الحقول الموجودة في جدول sponsorships)
+                'guardian_name', 'guardian_identity_number',
                 // بيانات أخرى
                 'notes', 'sponsorship_status_id', 'person_type'
+            ];
+
+            // الحقول التي تذهب إلى جدول data وليس sponsorships
+            $dataOnlyFields = [
+                'health_status_id', 'guardian_phone', 'guardian_phone2',
+                'guardian_city_id', 'guardian_detailed_address',
+                'guardian_first_name', 'guardian_father_name',
+                'guardian_grandfather_name', 'guardian_family_name',
+                'guardian_person_type'
             ];
 
             $filteredUpdates = array_intersect_key($updates, array_flip($allowedFields));
@@ -732,29 +737,32 @@ class SponsorshipSyncController extends Controller
             if ($sponsorship->relation_id_number) {
                 $dataUpdates = [];
 
-                if (isset($filteredUpdates['guardian_first_name'])) {
-                    $dataUpdates['data_first_name'] = $filteredUpdates['guardian_first_name'];
+                if (isset($updates['guardian_first_name'])) {
+                    $dataUpdates['data_first_name'] = $updates['guardian_first_name'];
                 }
-                if (isset($filteredUpdates['guardian_father_name'])) {
-                    $dataUpdates['data_father_name'] = $filteredUpdates['guardian_father_name'];
+                if (isset($updates['guardian_father_name'])) {
+                    $dataUpdates['data_father_name'] = $updates['guardian_father_name'];
                 }
-                if (isset($filteredUpdates['guardian_grandfather_name'])) {
-                    $dataUpdates['data_grand_father_name'] = $filteredUpdates['guardian_grandfather_name'];
+                if (isset($updates['guardian_grandfather_name'])) {
+                    $dataUpdates['data_grand_father_name'] = $updates['guardian_grandfather_name'];
                 }
-                if (isset($filteredUpdates['guardian_family_name'])) {
-                    $dataUpdates['data_family_name'] = $filteredUpdates['guardian_family_name'];
+                if (isset($updates['guardian_family_name'])) {
+                    $dataUpdates['data_family_name'] = $updates['guardian_family_name'];
                 }
-                if (isset($filteredUpdates['guardian_phone'])) {
-                    $dataUpdates['data_phone_number'] = $filteredUpdates['guardian_phone'];
+                if (isset($updates['guardian_phone'])) {
+                    $dataUpdates['data_phone_number'] = $updates['guardian_phone'];
                 }
-                if (isset($filteredUpdates['guardian_phone2'])) {
-                    $dataUpdates['data_alt_phone_number'] = $filteredUpdates['guardian_phone2'];
+                if (isset($updates['guardian_phone2'])) {
+                    $dataUpdates['data_alt_phone_number'] = $updates['guardian_phone2'];
                 }
-                if (isset($filteredUpdates['guardian_detailed_address'])) {
-                    $dataUpdates['data_current_address'] = $filteredUpdates['guardian_detailed_address'];
+                if (isset($updates['guardian_detailed_address'])) {
+                    $dataUpdates['data_current_address'] = $updates['guardian_detailed_address'];
                 }
-                if (isset($filteredUpdates['guardian_city_id'])) {
-                    $dataUpdates['data_city'] = $filteredUpdates['guardian_city_id'];
+                if (isset($updates['guardian_city_id'])) {
+                    $dataUpdates['data_city'] = $updates['guardian_city_id'];
+                }
+                if (isset($updates['health_status_id'])) {
+                    $dataUpdates['data_health_status'] = $updates['health_status_id'];
                 }
 
                 if (!empty($dataUpdates)) {
@@ -762,6 +770,11 @@ class SponsorshipSyncController extends Controller
                     DB::table('data')
                         ->where('file_id_number', $sponsorship->relation_id_number)
                         ->update($dataUpdates);
+
+                    Log::info('تم تحديث بيانات المعيل في جدول data', [
+                        'relation_id_number' => $sponsorship->relation_id_number,
+                        'updates' => array_keys($dataUpdates)
+                    ]);
                 }
             }
 
@@ -1507,6 +1520,12 @@ class SponsorshipSyncController extends Controller
                 ->orderBy('city')
                 ->get();
 
+            // أنواع الكفالة
+            $sponsorshipTypes = DB::table('type_of_guarantee')
+                ->select('id', 'description')
+                ->orderBy('id')
+                ->get();
+
             // إحصائيات الكفالات لكل جمعية وحالة
             $stats = DB::table('sponsorships')
                 ->select(
@@ -1528,6 +1547,7 @@ class SponsorshipSyncController extends Controller
                     'bank_names' => $bankNames,
                     'health_statuses' => $healthStatuses,
                     'cities' => $cities,
+                    'sponsorship_types' => $sponsorshipTypes,
                     'statistics' => [
                         'total_sponsorships' => $totalSponsorships,
                         'by_sponsor_status' => $stats

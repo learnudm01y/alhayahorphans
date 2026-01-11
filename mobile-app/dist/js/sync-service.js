@@ -1,12 +1,10 @@
 /**
- * Sponsorship Sync Service v2.0
+ * Sponsorship Sync Service v3.0
  *
- * خدمة المزامنة الصحيحة - تعتمد على جدول sponsorships فقط
- *
- * المنطق:
- * 1. البيانات تأتي من جدول sponsorships فقط
- * 2. التخزين الدائم على الجهاز باستخدام IndexedDB
- * 3. لا يتم تنزيل data, re_people, dead_people مباشرة
+ * خدمة المزامنة مع دعم:
+ * 1. العمل في الخلفية
+ * 2. الإشعارات المحلية
+ * 3. التخزين الدائم على الجهاز باستخدام IndexedDB
  */
 
 const SyncService = {
@@ -15,8 +13,13 @@ const SyncService = {
     token: null,
     user: null,
     dbName: 'AlhayahSponsorshipsDB',
-    dbVersion: 2, // ترقية الإصدار لإضافة الجداول الجديدة
+    dbVersion: 3, // ترقية الإصدار لإضافة جدول أنواع الكفالة
     db: null,
+
+    // حالة المزامنة (للعمل في الخلفية)
+    syncInProgress: false,
+    uploadInProgress: false,
+    LocalNotifications: null,
 
     // ========================================
     // التهيئة
@@ -42,6 +45,60 @@ const SyncService = {
 
         // فتح قاعدة البيانات المحلية
         await this.openDatabase();
+
+        // تهيئة الإشعارات المحلية
+        await this.initNotifications();
+
+        // تهيئة العمل في الخلفية
+        await this.initBackgroundTask();
+    },
+
+    // تهيئة الإشعارات المحلية
+    async initNotifications() {
+        try {
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) {
+                this.LocalNotifications = window.Capacitor.Plugins.LocalNotifications;
+
+                // طلب الإذن
+                const permission = await this.LocalNotifications.requestPermissions();
+                console.log('Notification permission:', permission);
+
+                // إنشاء قناة للإشعارات (Android)
+                await this.LocalNotifications.createChannel({
+                    id: 'sync_channel',
+                    name: 'المزامنة',
+                    description: 'إشعارات المزامنة',
+                    importance: 4,
+                    visibility: 1,
+                    sound: 'default',
+                    vibration: true
+                });
+            }
+        } catch (error) {
+            console.log('Local notifications not available:', error.message);
+        }
+    },
+
+    // إرسال إشعار محلي
+    async sendNotification(title, body, progress = null) {
+        try {
+            if (!this.LocalNotifications) return;
+
+            const notificationOptions = {
+                notifications: [{
+                    id: progress !== null ? 1 : Math.floor(Math.random() * 100000),
+                    title: title,
+                    body: body,
+                    channelId: 'sync_channel',
+                    ongoing: progress !== null && progress < 100,
+                    autoCancel: progress === null || progress >= 100
+                }]
+            };
+
+            await this.LocalNotifications.schedule(notificationOptions);
+        } catch (error) {
+            console.log('Failed to send notification:', error.message);
+        }
     },
 
     setBaseUrl(url) {
@@ -127,6 +184,11 @@ const SyncService = {
                 // جدول المدن
                 if (!db.objectStoreNames.contains('cities')) {
                     db.createObjectStore('cities', { keyPath: 'id' });
+                }
+
+                // جدول أنواع الكفالة
+                if (!db.objectStoreNames.contains('sponsorship_types')) {
+                    db.createObjectStore('sponsorship_types', { keyPath: 'id' });
                 }
 
                 console.log('Database schema created');
@@ -370,6 +432,42 @@ const SyncService = {
         }
     },
 
+    /**
+     * التحقق من كلمة المرور محلياً (للعمليات الحساسة مثل الحذف)
+     */
+    async verifyPassword(password) {
+        try {
+            const savedCredentials = await this.dbGet('sync_meta', 'user_credentials');
+
+            if (!savedCredentials) {
+                return {
+                    valid: false,
+                    message: 'لا توجد بيانات محفوظة'
+                };
+            }
+
+            // التحقق من كلمة المرور
+            const hashedPassword = await this.hashPassword(password);
+            if (savedCredentials.password_hash === hashedPassword) {
+                return {
+                    valid: true,
+                    message: 'كلمة المرور صحيحة'
+                };
+            } else {
+                return {
+                    valid: false,
+                    message: 'كلمة المرور غير صحيحة'
+                };
+            }
+        } catch (error) {
+            console.error('Password verify error:', error);
+            return {
+                valid: false,
+                message: 'خطأ في التحقق من كلمة المرور'
+            };
+        }
+    },
+
     async logout() {
         try {
             if (this.token && navigator.onLine) {
@@ -428,37 +526,71 @@ const SyncService = {
 
     async performInitialSync() {
         try {
+            this.syncInProgress = true;
+
+            // إرسال إشعار بدء المزامنة
+            await this.sendNotification('جاري المزامنة...', 'يتم تحميل البيانات الأساسية', 0);
+
             const result = await this.request('/mobile/sync/initial');
 
             if (result.success) {
+                let totalItems = 0;
+                let processedItems = 0;
+
+                // حساب إجمالي العناصر
+                totalItems = result.data.sponsors.length +
+                            result.data.sponsorship_statuses.length +
+                            (result.data.bank_names?.length || 0) +
+                            (result.data.health_statuses?.length || 0) +
+                            (result.data.cities?.length || 0) +
+                            (result.data.sponsorship_types?.length || 0);
+
                 // حفظ الجمعيات
                 for (const sponsor of result.data.sponsors) {
                     await this.dbPut('sponsors', sponsor);
+                    processedItems++;
                 }
+                await this.sendNotification('جاري المزامنة...', `تم حفظ ${result.data.sponsors.length} جمعية`, Math.round((processedItems/totalItems)*100));
 
                 // حفظ حالات الكفالة
                 for (const status of result.data.sponsorship_statuses) {
                     await this.dbPut('sponsorship_statuses', status);
+                    processedItems++;
                 }
+                await this.sendNotification('جاري المزامنة...', `تم حفظ ${result.data.sponsorship_statuses.length} حالة كفالة`, Math.round((processedItems/totalItems)*100));
 
                 // حفظ أسماء البنوك
                 if (result.data.bank_names) {
                     for (const bank of result.data.bank_names) {
                         await this.dbPut('bank_names', bank);
+                        processedItems++;
                     }
+                    await this.sendNotification('جاري المزامنة...', `تم حفظ ${result.data.bank_names.length} بنك`, Math.round((processedItems/totalItems)*100));
                 }
 
                 // حفظ الحالات الصحية
                 if (result.data.health_statuses) {
                     for (const status of result.data.health_statuses) {
                         await this.dbPut('health_statuses', status);
+                        processedItems++;
                     }
+                    await this.sendNotification('جاري المزامنة...', `تم حفظ ${result.data.health_statuses.length} حالة صحية`, Math.round((processedItems/totalItems)*100));
                 }
 
                 // حفظ المدن
                 if (result.data.cities) {
                     for (const city of result.data.cities) {
                         await this.dbPut('cities', city);
+                        processedItems++;
+                    }
+                    await this.sendNotification('جاري المزامنة...', `تم حفظ ${result.data.cities.length} مدينة`, Math.round((processedItems/totalItems)*100));
+                }
+
+                // حفظ أنواع الكفالة
+                if (result.data.sponsorship_types) {
+                    for (const type of result.data.sponsorship_types) {
+                        await this.dbPut('sponsorship_types', type);
+                        processedItems++;
                     }
                 }
 
@@ -469,21 +601,31 @@ const SyncService = {
                     statistics: result.data.statistics
                 });
 
+                this.syncInProgress = false;
+
+                // إشعار اكتمال المزامنة
+                await this.sendNotification('✅ اكتملت المزامنة', `تم تحميل ${totalItems} عنصر بنجاح`);
+
                 return {
                     success: true,
                     sponsors_count: result.data.sponsors.length,
                     statuses_count: result.data.sponsorship_statuses.length,
-                    bank_names_count: result.data.bank_names?.length || 0,
+                    banks_count: result.data.bank_names?.length || 0,
                     health_statuses_count: result.data.health_statuses?.length || 0,
                     cities_count: result.data.cities?.length || 0,
+                    sponsorship_types_count: result.data.sponsorship_types?.length || 0,
                     statistics: result.data.statistics
                 };
             }
 
+            this.syncInProgress = false;
+            await this.sendNotification('❌ فشلت المزامنة', result.message);
             return { success: false, message: result.message };
 
         } catch (error) {
             console.error('Initial sync failed:', error);
+            this.syncInProgress = false;
+            await this.sendNotification('❌ فشلت المزامنة', error.message);
             throw error;
         }
     },
@@ -556,10 +698,14 @@ const SyncService = {
 
     async performFullSync(onProgress = null) {
         try {
+            this.syncInProgress = true;
             let page = 1;
             let hasMore = true;
             let totalDownloaded = 0;
             let totalRecords = 0;
+
+            // إرسال إشعار بدء المزامنة
+            await this.sendNotification('جاري مزامنة الكفالات...', 'يتم جلب البيانات من الخادم', 0);
 
             // جلب آخر وقت مزامنة
             const lastSyncMeta = await this.dbGet('sync_meta', 'last_full_sync');
@@ -594,8 +740,12 @@ const SyncService = {
                     page++;
 
                     // تحديث التقدم
+                    const progress = totalRecords > 0 ? Math.round((totalDownloaded / totalRecords) * 100) : 0;
+
+                    // إرسال إشعار التقدم
+                    await this.sendNotification('جاري مزامنة الكفالات...', `تم تنزيل ${totalDownloaded} من ${totalRecords}`, progress);
+
                     if (onProgress) {
-                        const progress = Math.round((totalDownloaded / totalRecords) * 100);
                         onProgress({
                             downloaded: totalDownloaded,
                             total: totalRecords,
@@ -616,6 +766,11 @@ const SyncService = {
                 total_records: totalDownloaded
             });
 
+            this.syncInProgress = false;
+
+            // إشعار اكتمال المزامنة
+            await this.sendNotification('✅ اكتملت المزامنة', `تم تنزيل ${totalDownloaded} كفالة بنجاح`);
+
             return {
                 success: true,
                 downloaded: totalDownloaded,
@@ -625,6 +780,8 @@ const SyncService = {
 
         } catch (error) {
             console.error('Full sync failed:', error);
+            this.syncInProgress = false;
+            await this.sendNotification('❌ فشلت المزامنة', error.message);
             throw error;
         }
     },
@@ -639,6 +796,38 @@ const SyncService = {
 
     async getLocalStatuses() {
         return await this.dbGetAll('sponsorship_statuses');
+    },
+
+    async getLocalCities() {
+        try {
+            return await this.dbGetAll('cities');
+        } catch (error) {
+            return [];
+        }
+    },
+
+    async getLocalBankNames() {
+        try {
+            return await this.dbGetAll('bank_names');
+        } catch (error) {
+            return [];
+        }
+    },
+
+    async getLocalHealthStatuses() {
+        try {
+            return await this.dbGetAll('health_statuses');
+        } catch (error) {
+            return [];
+        }
+    },
+
+    async getLocalSponsorshipTypes() {
+        try {
+            return await this.dbGetAll('sponsorship_types');
+        } catch (error) {
+            return [];
+        }
     },
 
     async getLocalSponsorships(filters = {}) {
@@ -709,6 +898,17 @@ const SyncService = {
         const pending = await this.dbGetAll('pending_uploads');
         const results = { success: 0, failed: 0, errors: [] };
 
+        if (pending.length === 0) {
+            return results;
+        }
+
+        this.uploadInProgress = true;
+        const totalItems = pending.length;
+        let processedItems = 0;
+
+        // إرسال إشعار بدء الرفع
+        await this.sendNotification('جاري رفع التعديلات...', `${totalItems} تعديل معلق`, 0);
+
         for (const change of pending) {
             try {
                 await this.request('/mobile/sync/upload', {
@@ -730,13 +930,29 @@ const SyncService = {
                 }
 
                 results.success++;
+                processedItems++;
+
+                // تحديث الإشعار بالتقدم
+                const progress = Math.round((processedItems / totalItems) * 100);
+                await this.sendNotification('جاري رفع التعديلات...', `تم رفع ${processedItems} من ${totalItems}`, progress);
+
             } catch (error) {
                 results.failed++;
                 results.errors.push({
                     sponsorship_id: change.sponsorship_id,
                     error: error.message
                 });
+                processedItems++;
             }
+        }
+
+        this.uploadInProgress = false;
+
+        // إشعار اكتمال الرفع
+        if (results.failed === 0) {
+            await this.sendNotification('✅ اكتمل الرفع', `تم رفع ${results.success} تعديل بنجاح`);
+        } else {
+            await this.sendNotification('⚠️ اكتمل الرفع مع أخطاء', `نجح: ${results.success} | فشل: ${results.failed}`);
         }
 
         return results;
@@ -744,6 +960,27 @@ const SyncService = {
 
     async getPendingUploadsCount() {
         return await this.dbCount('pending_uploads');
+    },
+
+    // الحصول على قائمة التعديلات المعلقة مع التفاصيل
+    async getPendingUploadsList() {
+        const pending = await this.dbGetAll('pending_uploads');
+        const detailedList = [];
+
+        for (const item of pending) {
+            // محاولة جلب معلومات الكفالة
+            const sponsorship = await this.dbGet('sponsorships', item.sponsorship_id);
+            detailedList.push({
+                id: item.id,
+                sponsorship_id: item.sponsorship_id,
+                orphan_name: sponsorship?.orphan_full_name || sponsorship?.name || 'غير معروف',
+                updates: item.updates,
+                created_at: item.created_at || 'غير محدد',
+                field_count: Object.keys(item.updates || {}).length
+            });
+        }
+
+        return detailedList;
     },
 
     // ========================================
@@ -798,12 +1035,94 @@ const SyncService = {
     async getPendingFiles() {
         const all = await this.dbGetAll('files');
         return all.filter(f => !f.uploaded);
+    },
+
+    // ========================================
+    // العمل في الخلفية (Background Tasks)
+    // ========================================
+
+    BackgroundTask: null,
+
+    async initBackgroundTask() {
+        try {
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.BackgroundTask) {
+                this.BackgroundTask = window.Capacitor.Plugins.BackgroundTask;
+                console.log('BackgroundTask plugin initialized');
+            }
+        } catch (error) {
+            console.log('BackgroundTask not available:', error.message);
+        }
+    },
+
+    // بدء المزامنة في الخلفية
+    async startBackgroundSync() {
+        if (!this.BackgroundTask) {
+            await this.initBackgroundTask();
+        }
+
+        if (this.BackgroundTask) {
+            const taskId = await this.BackgroundTask.beforeExit(async () => {
+                console.log('App going to background - continuing sync...');
+
+                // إذا كان هناك رفع معلق، استمر
+                if (this.uploadInProgress || this.syncInProgress) {
+                    await this.sendNotification('المزامنة تعمل في الخلفية', 'سيتم إشعارك عند الانتهاء');
+                }
+
+                // إنهاء المهمة الخلفية
+                await this.BackgroundTask.finish({ taskId });
+            });
+        }
+    },
+
+    // تشغيل المزامنة الكاملة في الخلفية
+    async runBackgroundFullSync() {
+        try {
+            // بدء المهمة الخلفية
+            await this.startBackgroundSync();
+
+            // تنفيذ المزامنة
+            const result = await this.performFullSync();
+
+            return result;
+        } catch (error) {
+            console.error('Background sync failed:', error);
+            throw error;
+        }
+    },
+
+    // تشغيل رفع التعديلات في الخلفية
+    async runBackgroundUpload() {
+        try {
+            // بدء المهمة الخلفية
+            await this.startBackgroundSync();
+
+            // تنفيذ الرفع
+            const result = await this.uploadPendingChanges();
+
+            return result;
+        } catch (error) {
+            console.error('Background upload failed:', error);
+            throw error;
+        }
     }
 };
 
 // تهيئة عند التحميل
 if (typeof window !== 'undefined') {
     window.SyncService = SyncService;
+
+    // تسجيل مستمع للخروج من التطبيق
+    document.addEventListener('pause', async () => {
+        console.log('App paused - background mode activated');
+        if (SyncService.syncInProgress || SyncService.uploadInProgress) {
+            await SyncService.startBackgroundSync();
+        }
+    });
+
+    document.addEventListener('resume', () => {
+        console.log('App resumed');
+    });
 }
 
 // Export for modules
