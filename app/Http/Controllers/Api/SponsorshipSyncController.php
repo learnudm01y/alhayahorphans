@@ -107,6 +107,51 @@ class SponsorshipSyncController extends Controller
         }
     }
 
+    /**
+     * POST /api/verify-password
+     * التحقق من كلمة مرور المستخدم للعمليات الحساسة (مثل الحذف)
+     */
+    public function verifyPassword(Request $request): JsonResponse
+    {
+        try {
+            $request->validate([
+                'password' => 'required|string'
+            ]);
+
+            $user = $request->user();
+
+            if (!$user) {
+                return response()->json([
+                    'valid' => false,
+                    'message' => 'يرجى تسجيل الدخول أولاً'
+                ], 401);
+            }
+
+            $isValid = Hash::check($request->password, $user->password);
+
+            if ($isValid) {
+                Log::info('Password verified successfully', ['user_id' => $user->id]);
+                return response()->json([
+                    'valid' => true,
+                    'message' => 'كلمة المرور صحيحة'
+                ]);
+            } else {
+                Log::warning('Password verification failed', ['user_id' => $user->id]);
+                return response()->json([
+                    'valid' => false,
+                    'message' => 'كلمة المرور غير صحيحة'
+                ], 200); // نرجع 200 لكن valid = false
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Password verification error', ['error' => $e->getMessage()]);
+            return response()->json([
+                'valid' => false,
+                'message' => 'حدث خطأ في التحقق من كلمة المرور'
+            ], 500);
+        }
+    }
+
     // ========================================
     // Lookup Tables (للفلترة)
     // ========================================

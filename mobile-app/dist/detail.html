@@ -98,16 +98,8 @@
         <div class="detail-section" id="guardianSection" style="display: none;">
             <h3 class="section-title"><span class="material-icons">supervisor_account</span> بيانات المعيل / الولي</h3>
             <div class="section-content">
-                <div class="form-field">
-                    <label class="form-label">نوع الشخص (المعيل/الولي)</label>
-                    <select class="form-select" id="guardian_person_type" data-field="guardian_person_type">
-                        <option value="breadwinner">معيل (جدول data)</option>
-                        <option value="family_member">فرد عائلة (جدول re_people)</option>
-                        <option value="deceased_father">أب متوفي (جدول dead_people)</option>
-                        <option value="deceased_mother">أم متوفية (جدول dead_people)</option>
-                    </select>
-                    <small style="color: #666; font-size: 0.75rem; margin-top: 4px; display: block;">هام: اختر النوع الصحيح لضمان حفظ البيانات في الجدول المناسب</small>
-                </div>
+                <!-- نوع الشخص مخفي - يتم تحديده من قاعدة البيانات -->
+                <input type="hidden" id="guardian_person_type" data-field="guardian_person_type" value="breadwinner">
                 <div class="form-row">
                     <div class="form-field"><label class="form-label">الاسم الأول</label><input type="text" class="form-input" id="guardian_first_name" data-field="guardian_first_name"></div>
                     <div class="form-field"><label class="form-label">اسم الأب</label><input type="text" class="form-input" id="guardian_father_name" data-field="guardian_father_name"></div>
@@ -194,8 +186,16 @@
                 originalData = JSON.parse(JSON.stringify(currentSponsorship));
                 populateForm(currentSponsorship);
                 document.getElementById('orphanSection').style.display = 'block';
-                document.getElementById('guardianSection').style.display = 'block';
-                document.getElementById('bankSection').style.display = 'block';
+
+                // إخفاء قسم المعيل إذا كان المكفول هو المعيل نفسه (person_type = breadwinner)
+                const personType = currentSponsorship.person_type || currentSponsorship.guardian_person_type || '';
+                if (personType === 'breadwinner') {
+                    document.getElementById('guardianSection').style.display = 'none';
+                    document.getElementById('bankSection').style.display = 'none';
+                } else {
+                    document.getElementById('guardianSection').style.display = 'block';
+                    document.getElementById('bankSection').style.display = 'block';
+                }
                 document.getElementById('noDataMessage').style.display = 'none';
                 document.getElementById('pageTitle').textContent = currentSponsorship.orphan_first_name || currentSponsorship.orphan_name || 'تفاصيل الكفالة';
                 bindChangeEvents();
@@ -239,32 +239,26 @@
                         <span class="bank-account-title"><span class="material-icons">account_balance</span> حساب بنكي رقم ${index + 1}</span>
                         <span class="bank-account-status ${statusClass}">${statusText}</span>
                     </div>
-                    <div class="form-row">
-                        <div class="form-field"><label class="form-label">اسم البنك</label>
-                            <select class="form-select" data-bank-field="bank_name_id" data-account-index="${index}">
-                                <option value="">-- اختر البنك --</option>
-                                ${bankNames.map(b => `<option value="${b.id}" ${(account.bank_name_id == b.id) ? 'selected' : ''}>${b.description}</option>`).join('')}
-                            </select>
-                        </div>
-                        <div class="form-field"><label class="form-label">اسم صاحب الحساب</label>
-                            <input type="text" class="form-input" value="${account.account_holder_name || account.re_guardian_name || ''}" data-bank-field="account_holder_name" data-account-index="${index}">
-                        </div>
+                    <div class="form-field"><label class="form-label">اسم البنك</label>
+                        <select class="form-select" data-bank-field="bank_name_id" data-account-index="${index}">
+                            <option value="">-- اختر البنك --</option>
+                            ${bankNames.map(b => `<option value="${b.id}" ${(account.bank_name_id == b.id) ? 'selected' : ''}>${b.description}</option>`).join('')}
+                        </select>
                     </div>
-                    <div class="form-row">
-                        <div class="form-field"><label class="form-label">رقم هوية صاحب الحساب</label>
-                            <input type="text" class="form-input" value="${account.account_holder_identity || account.person_owner_identity_number || ''}" data-bank-field="account_holder_identity" data-account-index="${index}">
-                        </div>
-                        <div class="form-field"><label class="form-label">رقم هاتف صاحب الحساب</label>
-                            <input type="tel" class="form-input" value="${account.account_holder_phone || ''}" data-bank-field="account_holder_phone" data-account-index="${index}">
-                        </div>
+                    <div class="form-field"><label class="form-label">اسم صاحب الحساب</label>
+                        <input type="text" class="form-input" value="${account.account_holder_name || account.re_guardian_name || ''}" data-bank-field="account_holder_name" data-account-index="${index}">
                     </div>
-                    <div class="form-row">
-                        <div class="form-field"><label class="form-label">رقم IBAN بالدولار</label>
-                            <input type="text" class="form-input" value="${account.iban_usd || account.iban || ''}" data-bank-field="iban_usd" data-account-index="${index}" dir="ltr" style="text-align: left; font-family: monospace;">
-                        </div>
-                        <div class="form-field"><label class="form-label">رقم IBAN بالشيكل</label>
-                            <input type="text" class="form-input" value="${account.iban_shekel || ''}" data-bank-field="iban_shekel" data-account-index="${index}" dir="ltr" style="text-align: left; font-family: monospace;">
-                        </div>
+                    <div class="form-field"><label class="form-label">رقم هوية صاحب الحساب</label>
+                        <input type="text" class="form-input" value="${account.account_holder_identity || account.person_owner_identity_number || ''}" data-bank-field="account_holder_identity" data-account-index="${index}">
+                    </div>
+                    <div class="form-field"><label class="form-label">رقم هاتف صاحب الحساب</label>
+                        <input type="tel" class="form-input" value="${account.account_holder_phone || ''}" data-bank-field="account_holder_phone" data-account-index="${index}">
+                    </div>
+                    <div class="form-field"><label class="form-label">رقم IBAN بالدولار</label>
+                        <input type="text" class="form-input" value="${account.iban_usd || account.iban || ''}" data-bank-field="iban_usd" data-account-index="${index}" dir="ltr" style="text-align: left; font-family: monospace;">
+                    </div>
+                    <div class="form-field"><label class="form-label">رقم IBAN بالشيكل</label>
+                        <input type="text" class="form-input" value="${account.iban_shekel || ''}" data-bank-field="iban_shekel" data-account-index="${index}" dir="ltr" style="text-align: left; font-family: monospace;">
                     </div>
                 </div>`;
             });

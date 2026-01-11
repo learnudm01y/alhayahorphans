@@ -946,6 +946,14 @@ class SponsorshipController extends Controller
                 $validatedData['guardian_name'] = implode(' ', $guardianNameParts);
             }
 
+            // حفظ بيانات المعيل للاستخدام لاحقاً (لإنشائه في جدول data إذا لزم)
+            $guardianFirstName = $validatedData['guardian_first_name'] ?? '';
+            $guardianFatherName = $validatedData['guardian_father_name'] ?? '';
+            $guardianGrandFatherName = $validatedData['guardian_grandfather_name'] ?? '';
+            $guardianFamilyName = $validatedData['guardian_family_name'] ?? '';
+            $guardianBirthDate = $validatedData['guardian_birth_date'] ?? null;
+            $guardianIdentityNumber = $validatedData['guardian_identity_number'] ?? null;
+
             // إزالة الحقول الفردية لأنها غير موجودة في جدول sponsorships
             unset($validatedData['orphan_first_name']);
             unset($validatedData['orphan_father_name']);
@@ -982,6 +990,67 @@ class SponsorshipController extends Controller
                 $sponsorship->sponsors()->sync($sponsorIds);
             } else {
                 $sponsorship->sponsors()->detach();
+            }
+
+            // ============================================
+            // 🆕 إنشاء/تحديث سجل المعيل في جدول data إذا لم يكن موجوداً
+            // ============================================
+            $guardianCreatedOrUpdated = false;
+            if (!empty($guardianIdentityNumber) && !empty($validatedData['guardian_name'])) {
+                $existingGuardian = Data::where('data_id_number', $guardianIdentityNumber)->first();
+
+                if (!$existingGuardian) {
+                    // إنشاء المعيل في جدول data
+                    $uniqueFileId = generateUniqueReservedCode('data', 'file_id_number');
+
+                    if ($uniqueFileId) {
+                        Data::create([
+                            'file_id_number' => $uniqueFileId,
+                            'data_id_number' => $guardianIdentityNumber,
+                            'data_first_name' => $guardianFirstName ?: null,
+                            'data_father_name' => $guardianFatherName ?: null,
+                            'data_grand_father_name' => $guardianGrandFatherName ?: null,
+                            'data_family_name' => $guardianFamilyName ?: null,
+                            'data_birth_date' => $guardianBirthDate ?? null,
+                            'data_section_id' => 1,
+                            'data_request_status' => 4,
+                            'data_user_insert_data' => auth()->user()->name ?? 'System',
+                        ]);
+
+                        markCodeAsUsed($uniqueFileId);
+
+                        // تحديث relation_id_number في الكفالة
+                        $sponsorship->update(['relation_id_number' => $uniqueFileId]);
+
+                        $guardianCreatedOrUpdated = true;
+
+                        Log::info('✅ تم إنشاء المعيل في جدول data أثناء التحديث', [
+                            'sponsorship_id' => $sponsorship->id,
+                            'guardian_identity' => $guardianIdentityNumber,
+                            'file_id_number' => $uniqueFileId
+                        ]);
+                    }
+                } else {
+                    // تحديث بيانات المعيل الموجود
+                    $existingGuardian->update([
+                        'data_first_name' => $guardianFirstName ?: $existingGuardian->data_first_name,
+                        'data_father_name' => $guardianFatherName ?: $existingGuardian->data_father_name,
+                        'data_grand_father_name' => $guardianGrandFatherName ?: $existingGuardian->data_grand_father_name,
+                        'data_family_name' => $guardianFamilyName ?: $existingGuardian->data_family_name,
+                        'data_birth_date' => $guardianBirthDate ?? $existingGuardian->data_birth_date,
+                    ]);
+
+                    // تحديث relation_id_number في الكفالة
+                    if (empty($sponsorship->relation_id_number)) {
+                        $sponsorship->update(['relation_id_number' => $existingGuardian->file_id_number]);
+                    }
+
+                    Log::info('✅ تم تحديث بيانات المعيل في جدول data', [
+                        'sponsorship_id' => $sponsorship->id,
+                        'guardian_identity' => $guardianIdentityNumber,
+                        'file_id_number' => $existingGuardian->file_id_number
+                    ]);
+                }
             }
 
             // 🏦 تحديث الحسابات البنكية مع التحقق من التكرار

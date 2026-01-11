@@ -387,6 +387,37 @@ const SyncService = {
         // لا نحذف credentials حتى يمكن الدخول مرة أخرى offline
     },
 
+    /**
+     * الحصول على بيانات المستخدم الحالي
+     */
+    async getUser() {
+        if (this.user && this.token) {
+            return {
+                ...this.user,
+                token: this.token
+            };
+        }
+
+        // محاولة تحميل من localStorage
+        const savedToken = localStorage.getItem('auth_token');
+        const userData = localStorage.getItem('user_data');
+
+        if (savedToken && userData) {
+            try {
+                this.token = savedToken;
+                this.user = JSON.parse(userData);
+                return {
+                    ...this.user,
+                    token: this.token
+                };
+            } catch (e) {
+                console.error('Failed to parse user data');
+            }
+        }
+
+        return null;
+    },
+
     async checkHealth() {
         return await this.request('/mobile/health', { method: 'GET' });
     },

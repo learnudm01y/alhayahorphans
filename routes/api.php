@@ -854,9 +854,15 @@ Route::prefix('mobile')->group(function () {
 });
 
 // Protected routes (requires auth:sanctum)
+// Global verify-password route (works with both /api/verify-password and /api/mobile/verify-password)
+Route::post('/verify-password', [SponsorshipSyncController::class, 'verifyPassword'])->middleware(['auth:sanctum']);
+
 Route::prefix('mobile')->middleware(['auth:sanctum'])->group(function () {
     // Logout
     Route::post('/logout', [SponsorshipSyncController::class, 'logout']);
+
+    // Verify user password for sensitive operations
+    Route::post('/verify-password', [SponsorshipSyncController::class, 'verifyPassword']);
 
     // Lookup tables (الجمعيات وحالات الكفالة)
     Route::get('/sponsors', [SponsorshipSyncController::class, 'getSponsors']);

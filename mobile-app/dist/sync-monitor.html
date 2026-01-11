@@ -387,7 +387,7 @@
             </h3>
         </div>
         <div class="section-content" id="sponsorsList">
-            <p style="color: #888; text-align: center;">لا توجد جمعيات محفوظة</p>
+            <p style="color: #4CAF50; text-align: center; font-size: 18px; font-weight: bold;"><span id="sponsorsCount">0</span> جمعية</p>
         </div>
     </div>
 
@@ -400,7 +400,7 @@
             </h3>
         </div>
         <div class="section-content" id="statusesList">
-            <p style="color: #888; text-align: center;">لا توجد حالات محفوظة</p>
+            <p style="color: #2196F3; text-align: center; font-size: 18px; font-weight: bold;"><span id="statusesCount">0</span> حالة</p>
         </div>
     </div>
 
@@ -506,20 +506,7 @@
         async function loadSponsors() {
             try {
                 const sponsors = await SyncService.getLocalSponsors();
-                const container = document.getElementById('sponsorsList');
-
-                if (sponsors.length === 0) {
-                    container.innerHTML = '<p style="color: #888; text-align: center;">لا توجد جمعيات محفوظة</p>';
-                    return;
-                }
-
-                container.innerHTML = sponsors.map(s => `
-                    <div class="list-item">
-                        <span class="name">${s.name}</span>
-                        <span class="count">ID: ${s.id}</span>
-                    </div>
-                `).join('');
-
+                document.getElementById('sponsorsCount').textContent = sponsors.length;
             } catch (error) {
                 console.error('Load sponsors error:', error);
             }
@@ -531,20 +518,7 @@
         async function loadStatuses() {
             try {
                 const statuses = await SyncService.getLocalStatuses();
-                const container = document.getElementById('statusesList');
-
-                if (statuses.length === 0) {
-                    container.innerHTML = '<p style="color: #888; text-align: center;">لا توجد حالات محفوظة</p>';
-                    return;
-                }
-
-                container.innerHTML = statuses.map(s => `
-                    <div class="list-item">
-                        <span class="name">${s.name}</span>
-                        <span class="count">ID: ${s.id}</span>
-                    </div>
-                `).join('');
-
+                document.getElementById('statusesCount').textContent = statuses.length;
             } catch (error) {
                 console.error('Load statuses error:', error);
             }
@@ -656,17 +630,40 @@
         async function confirmClearLocalData() {
             const password = document.getElementById('deletePassword').value;
 
-            // كلمة المرور الافتراضية للحذف
-            const correctPassword = 'alhayah2026';
+            // التحقق من كلمة مرور المستخدم عبر السيرفر
+            try {
+                const user = await SyncService.getUser();
+                if (!user || !user.token) {
+                    showStatus('error', 'يرجى تسجيل الدخول أولاً');
+                    return;
+                }
 
-            if (password !== correctPassword) {
-                showStatus('error', 'كلمة المرور غير صحيحة');
-                addLog('محاولة حذف فاشلة - كلمة مرور خاطئة', 'error');
-                return;
+                const response = await fetch('https://alhayahorphans.org/api/verify-password', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + user.token,
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ password: password })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || !result.valid) {
+                    showStatus('error', 'كلمة المرور غير صحيحة');
+                    addLog('محاولة حذف فاشلة - كلمة مرور خاطئة', 'error');
+                    return;
+                }
+
+                document.getElementById('passwordModal').style.display = 'none';
+                await clearLocalData();
+
+            } catch (error) {
+                console.error('Password verify error:', error);
+                showStatus('error', 'خطأ في التحقق من كلمة المرور');
+                addLog('خطأ في التحقق من كلمة المرور: ' + error.message, 'error');
             }
-
-            document.getElementById('passwordModal').style.display = 'none';
-            await clearLocalData();
         }
 
         async function clearLocalData() {
