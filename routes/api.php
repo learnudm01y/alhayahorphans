@@ -864,6 +864,7 @@ Route::prefix('mobile')->middleware(['auth:sanctum'])->group(function () {
 
     // Sync endpoints
     Route::get('/sync/initial', [SponsorshipSyncController::class, 'getInitialSync']);
+    Route::get('/sync/full', [SponsorshipSyncController::class, 'getFullSync']); // المزامنة الكاملة
     Route::get('/sync/sponsorships', [SponsorshipSyncController::class, 'getSponsorships']);
     Route::get('/sync/sponsorship/{id}', [SponsorshipSyncController::class, 'getSponsorshipDetails']);
     Route::post('/sync/upload', [SponsorshipSyncController::class, 'uploadSyncData']);

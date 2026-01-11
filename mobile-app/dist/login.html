@@ -263,6 +263,12 @@
             if (SyncService.isAuthenticated()) {
                 window.location.href = 'index.html';
             }
+
+            // تحميل اسم المستخدم المحفوظ إن وجد
+            const savedCredentials = await SyncService.dbGet('sync_meta', 'user_credentials');
+            if (savedCredentials && savedCredentials.username) {
+                document.getElementById('username').value = savedCredentials.username;
+            }
         })();
 
         // Load saved server URL
@@ -276,6 +282,19 @@
             const statusDot = document.getElementById('statusDot');
             const statusText = document.getElementById('statusText');
             const serverUrl = document.getElementById('serverUrl').value;
+
+            // Check if has offline credentials
+            const hasOffline = await SyncService.hasOfflineCredentials();
+
+            if (!navigator.onLine) {
+                statusDot.classList.remove('online');
+                if (hasOffline) {
+                    statusText.textContent = 'غير متصل - يمكنك الدخول بالبيانات المحفوظة';
+                } else {
+                    statusText.textContent = 'غير متصل - يجب الاتصال للدخول أول مرة';
+                }
+                return false;
+            }
 
             try {
                 SyncService.setBaseUrl(serverUrl);
@@ -291,7 +310,11 @@
             }
 
             statusDot.classList.remove('online');
-            statusText.textContent = 'غير متصل بالخادم';
+            if (hasOffline) {
+                statusText.textContent = 'الخادم غير متاح - يمكنك الدخول Offline';
+            } else {
+                statusText.textContent = 'غير متصل بالخادم';
+            }
             return false;
         }
 
@@ -326,10 +349,14 @@
             loginBtn.disabled = true;
 
             try {
-                // Attempt login
+                // Attempt login (will handle online/offline automatically)
                 const result = await SyncService.login(username, password);
 
                 if (result.success) {
+                    // Show offline indicator if needed
+                    if (result.offline) {
+                        console.log('Logged in offline mode');
+                    }
                     // Login successful - redirect to main page
                     window.location.href = 'index.html';
                 } else {
@@ -354,6 +381,7 @@
         // Handle offline mode
         window.addEventListener('offline', function() {
             document.getElementById('offlineNotice').classList.add('show');
+            checkConnection();
         });
 
         window.addEventListener('online', function() {

@@ -167,6 +167,7 @@ class SponsorshipSyncController extends Controller
      *
      * جلب الكفالات من جدول sponsorships فقط
      * مع إثراء البيانات من السجل المدني إذا لزم
+     * استبعاد الحالات: "تم الصرف" و "أرسل للصرف"
      */
     public function getSponsorships(Request $request): JsonResponse
     {
@@ -177,6 +178,7 @@ class SponsorshipSyncController extends Controller
             $page = $request->get('page', 1);
             $perPage = $request->get('per_page', 50);
             $lastSync = $request->get('last_sync'); // للمزامنة التزايدية
+            $excludeStatuses = $request->get('exclude_statuses', true); // استبعاد الحالات المكتملة
 
             // بناء الاستعلام
             $query = DB::table('sponsorships')
@@ -205,12 +207,24 @@ class SponsorshipSyncController extends Controller
                     'sponsorships.updated_at'
                 ]);
 
-            // فلترة بالجمعية (إجبارية)
+            // استبعاد الحالات "تم الصرف" و "أرسل للصرف"
+            if ($excludeStatuses) {
+                $excludedStatusIds = DB::table('sponsorship_statuses')
+                    ->whereIn('description', ['تم الصرف', 'أرسل للصرف'])
+                    ->pluck('id')
+                    ->toArray();
+
+                if (!empty($excludedStatusIds)) {
+                    $query->whereNotIn('sponsorships.sponsorship_status_id', $excludedStatusIds);
+                }
+            }
+
+            // فلترة بالجمعية (اختيارية للمزامنة الكاملة)
             if ($sponsorId) {
                 $query->where('sponsorships.sponsor_id', $sponsorId);
             }
 
-            // فلترة بالحالة (إجبارية)
+            // فلترة بالحالة (اختيارية)
             if ($statusId !== null && $statusId !== '') {
                 $query->where('sponsorships.sponsorship_status_id', $statusId);
             }
@@ -240,7 +254,7 @@ class SponsorshipSyncController extends Controller
                 ->limit($perPage)
                 ->get();
 
-            // إثراء البيانات من السجل المدني إذا لزم
+            // إثراء البيانات من السجل المدني والحسابات البنكية
             $enrichedData = $sponsorships->map(function ($item) {
                 return $this->enrichSponsorshipData($item);
             });
@@ -267,39 +281,133 @@ class SponsorshipSyncController extends Controller
     }
 
     /**
-     * إثراء بيانات الكفالة من السجل المدني
+     * إثراء بيانات الكفالة من السجل المدني والبيانات البنكية
      */
     private function enrichSponsorshipData($sponsorship)
     {
         $result = (array) $sponsorship;
         $result['orphan_data_source'] = 'sponsorships';
         $result['guardian_data_source'] = 'sponsorships';
-        $result['needs_name_input'] = false;
+        $result['needs_orphan_name_input'] = false;
+        $result['needs_guardian_name_input'] = false;
 
-        // إذا كان الاسم فارغاً أو غير مكتمل، نبحث في السجل المدني
-        if (empty($sponsorship->orphan_name) && !empty($sponsorship->identity_number)) {
+        // تقسيم اسم المكفول إلى أربعة حقول
+        $result['orphan_first_name'] = '';
+        $result['orphan_father_name'] = '';
+        $result['orphan_grandfather_name'] = '';
+        $result['orphan_family_name'] = '';
+
+        // تقسيم اسم المعيل إلى أربعة حقول
+        $result['guardian_first_name'] = '';
+        $result['guardian_father_name'] = '';
+        $result['guardian_grandfather_name'] = '';
+        $result['guardian_family_name'] = '';
+
+        // جلب بيانات المكفول من السجل المدني
+        if (!empty($sponsorship->identity_number)) {
             $civilData = $this->getPersonFromCivilRegistry($sponsorship->identity_number);
             if ($civilData) {
+                // الاسم موجود في السجل المدني - مقسم
+                $result['orphan_first_name'] = $civilData['first_name'];
+                $result['orphan_father_name'] = $civilData['father_name'];
+                $result['orphan_grandfather_name'] = $civilData['grand_father_name'];
+                $result['orphan_family_name'] = $civilData['family_name'];
                 $result['orphan_name'] = $civilData['full_name'];
                 $result['sponsored_birth_date'] = $civilData['birth_date'] ?? $sponsorship->sponsored_birth_date;
                 $result['orphan_gender'] = $civilData['gender'];
                 $result['orphan_data_source'] = 'civil_registry';
+            } elseif (!empty($sponsorship->orphan_name)) {
+                // الاسم موجود في sponsorships - نحاول تقسيمه
+                $nameParts = $this->splitArabicName($sponsorship->orphan_name);
+                $result['orphan_first_name'] = $nameParts['first_name'];
+                $result['orphan_father_name'] = $nameParts['father_name'];
+                $result['orphan_grandfather_name'] = $nameParts['grand_father_name'];
+                $result['orphan_family_name'] = $nameParts['family_name'];
+                $result['orphan_name_combined'] = $sponsorship->orphan_name; // الاسم المدمج الأصلي
+                $result['needs_orphan_name_input'] = true; // يحتاج تأكيد/تعديل
             } else {
-                $result['needs_name_input'] = true;
-                $result['name_input_message'] = 'لم يتم العثور على بيانات في السجل المدني. يرجى إدخال الاسم الرباعي كاملاً.';
+                $result['needs_orphan_name_input'] = true;
+                $result['orphan_name_message'] = 'لم يتم العثور على بيانات. يرجى إدخال الاسم الرباعي.';
             }
         }
 
-        // بيانات المعيل من السجل المدني إذا لزم
-        if (empty($sponsorship->guardian_name) && !empty($sponsorship->guardian_identity_number)) {
+        // جلب بيانات المعيل من السجل المدني
+        if (!empty($sponsorship->guardian_identity_number)) {
             $guardianData = $this->getPersonFromCivilRegistry($sponsorship->guardian_identity_number);
             if ($guardianData) {
+                $result['guardian_first_name'] = $guardianData['first_name'];
+                $result['guardian_father_name'] = $guardianData['father_name'];
+                $result['guardian_grandfather_name'] = $guardianData['grand_father_name'];
+                $result['guardian_family_name'] = $guardianData['family_name'];
                 $result['guardian_name'] = $guardianData['full_name'];
                 $result['guardian_data_source'] = 'civil_registry';
+            } elseif (!empty($sponsorship->guardian_name)) {
+                $nameParts = $this->splitArabicName($sponsorship->guardian_name);
+                $result['guardian_first_name'] = $nameParts['first_name'];
+                $result['guardian_father_name'] = $nameParts['father_name'];
+                $result['guardian_grandfather_name'] = $nameParts['grand_father_name'];
+                $result['guardian_family_name'] = $nameParts['family_name'];
+                $result['guardian_name_combined'] = $sponsorship->guardian_name;
+                $result['needs_guardian_name_input'] = true;
+            }
+        }
+
+        // جلب البيانات البنكية للمعيل
+        $result['bank_accounts'] = [];
+        if (!empty($sponsorship->relation_id_number)) {
+            try {
+                $bankAccounts = DB::table('guardian_bank_accounts')
+                    ->leftJoin('bank_names', 'guardian_bank_accounts.bank_name', '=', 'bank_names.id')
+                    ->where('guardian_bank_accounts.guardian_registration', $sponsorship->relation_id_number)
+                    ->select([
+                        'guardian_bank_accounts.id',
+                        'guardian_bank_accounts.account_number',
+                        'guardian_bank_accounts.iban',
+                        'guardian_bank_accounts.account_holder_name',
+                        'guardian_bank_accounts.bank_name as bank_id',
+                        'bank_names.description as bank_name_text'
+                    ])
+                    ->get();
+
+                $result['bank_accounts'] = $bankAccounts->toArray();
+            } catch (\Exception $e) {
+                Log::warning('Failed to get bank accounts', ['error' => $e->getMessage()]);
+            }
+        }
+
+        // جلب بيانات الاتصال للمعيل (العنوان والهاتف) من جدول data
+        if (!empty($sponsorship->relation_id_number)) {
+            try {
+                $guardianInfo = DB::table('data')
+                    ->where('registration_id', $sponsorship->relation_id_number)
+                    ->select(['detailed_address', 'phone', 'phone2'])
+                    ->first();
+
+                if ($guardianInfo) {
+                    $result['guardian_detailed_address'] = $guardianInfo->detailed_address ?? '';
+                    $result['guardian_phone'] = $guardianInfo->phone ?? '';
+                    $result['guardian_phone2'] = $guardianInfo->phone2 ?? '';
+                }
+            } catch (\Exception $e) {
+                Log::warning('Failed to get guardian contact info', ['error' => $e->getMessage()]);
             }
         }
 
         return $result;
+    }
+
+    /**
+     * تقسيم الاسم العربي إلى أربعة أجزاء
+     */
+    private function splitArabicName(string $name): array
+    {
+        $parts = preg_split('/\s+/', trim($name));
+        return [
+            'first_name' => $parts[0] ?? '',
+            'father_name' => $parts[1] ?? '',
+            'grand_father_name' => $parts[2] ?? '',
+            'family_name' => $parts[3] ?? (count($parts) > 3 ? implode(' ', array_slice($parts, 3)) : '')
+        ];
     }
 
     /**
@@ -514,6 +622,116 @@ class SponsorshipSyncController extends Controller
     }
 
     /**
+     * GET /api/mobile/sync/full
+     * المزامنة الكاملة - جلب جميع الكفالات مع استبعاد (تم الصرف، أرسل للصرف)
+     * يتم استدعاؤها عند الضغط على زر "مزامنة الآن"
+     */
+    public function getFullSync(Request $request): JsonResponse
+    {
+        try {
+            $page = $request->get('page', 1);
+            $perPage = $request->get('per_page', 100); // عدد أكبر للمزامنة الكاملة
+            $lastSync = $request->get('last_sync');
+
+            // الحصول على IDs الحالات المستبعدة
+            $excludedStatusIds = DB::table('sponsorship_statuses')
+                ->whereIn('description', ['تم الصرف', 'أرسل للصرف'])
+                ->pluck('id')
+                ->toArray();
+
+            // بناء الاستعلام
+            $query = DB::table('sponsorships')
+                ->leftJoin('sponsors', 'sponsorships.sponsor_id', '=', 'sponsors.id')
+                ->leftJoin('sponsorship_statuses', 'sponsorships.sponsorship_status_id', '=', 'sponsorship_statuses.id')
+                ->select([
+                    'sponsorships.id',
+                    'sponsorships.sponsor_id',
+                    'sponsors.sponsor_name',
+                    'sponsors.sponsor_short_name',
+                    'sponsorships.internal_file_number',
+                    'sponsorships.external_file_number',
+                    'sponsorships.relation_id_number',
+                    'sponsorships.identity_number',
+                    'sponsorships.orphan_name',
+                    'sponsorships.sponsored_birth_date',
+                    'sponsorships.guardian_name',
+                    'sponsorships.guardian_identity_number',
+                    'sponsorships.sponsorship_status_id',
+                    'sponsorship_statuses.description as status_name',
+                    'sponsorships.sponsorship_start_date',
+                    'sponsorships.sponsorship_end_date',
+                    'sponsorships.person_type',
+                    'sponsorships.notes',
+                    'sponsorships.created_at',
+                    'sponsorships.updated_at'
+                ]);
+
+            // استبعاد الحالات المكتملة
+            if (!empty($excludedStatusIds)) {
+                $query->whereNotIn('sponsorships.sponsorship_status_id', $excludedStatusIds);
+            }
+
+            // مزامنة تزايدية إذا تم توفير last_sync
+            if ($lastSync) {
+                $query->where('sponsorships.updated_at', '>', $lastSync);
+            }
+
+            // إجمالي السجلات
+            $total = $query->count();
+
+            // جلب البيانات
+            $sponsorships = $query
+                ->orderBy('sponsorships.updated_at', 'desc')
+                ->offset(($page - 1) * $perPage)
+                ->limit($perPage)
+                ->get();
+
+            // إثراء البيانات
+            $enrichedData = $sponsorships->map(function ($item) {
+                return $this->enrichSponsorshipData($item);
+            });
+
+            // جلب IDs الكفالات التي يجب حذفها من الجهاز (تم الصرف أو أرسل للصرف)
+            $deletedIds = [];
+            if ($lastSync) {
+                $deletedIds = DB::table('sponsorships')
+                    ->whereIn('sponsorship_status_id', $excludedStatusIds)
+                    ->where('updated_at', '>', $lastSync)
+                    ->pluck('id')
+                    ->toArray();
+            }
+
+            Log::info('Full sync request', [
+                'page' => $page,
+                'total' => $total,
+                'downloaded' => $sponsorships->count(),
+                'deleted_ids' => count($deletedIds)
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'sync_timestamp' => now()->toISOString(),
+                'data' => $enrichedData,
+                'deleted_ids' => $deletedIds, // الكفالات التي يجب حذفها من الجهاز
+                'pagination' => [
+                    'current_page' => (int)$page,
+                    'per_page' => (int)$perPage,
+                    'total' => $total,
+                    'last_page' => ceil($total / $perPage),
+                    'has_more' => $page * $perPage < $total
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Full sync failed', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'فشل المزامنة الكاملة: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * GET /api/mobile/sync/stats
      * إحصائيات المزامنة
      */
@@ -586,9 +804,14 @@ class SponsorshipSyncController extends Controller
             // فك تشفير البيانات
             $fileData = base64_decode($request->file_data);
 
+            // تغيير المسار من alhayah إلى temp
+            $folderPath = str_replace('alhayah/', 'temp/', $request->folder_path);
+            if (!str_starts_with($folderPath, 'temp/')) {
+                $folderPath = 'temp/' . ltrim($folderPath, '/');
+            }
+
             // إنشاء اسم الملف
             $fileName = $request->file_name;
-            $folderPath = $request->folder_path;
 
             // حفظ الملف محلياً أولاً
             $localPath = storage_path('app/mobile_uploads/' . $folderPath);
@@ -599,15 +822,27 @@ class SponsorshipSyncController extends Controller
             $fullPath = $localPath . '/' . $fileName;
             file_put_contents($fullPath, $fileData);
 
-            // تسجيل في قاعدة البيانات
+            // حساب hash للملف
+            $fileHash = hash_file('sha256', $fullPath);
+            $fileSize = strlen($fileData);
+
+            // تسجيل في قاعدة البيانات بالأعمدة الصحيحة
             $uploadId = DB::table('google_drive_uploads')->insertGetId([
-                'sponsorship_id' => $request->sponsorship_id,
+                'local_file_path' => $fullPath,
+                'local_file_hash' => $fileHash,
                 'file_name' => $fileName,
-                'file_path' => $folderPath . '/' . $fileName,
-                'file_type' => $request->file_type,
-                'local_path' => $fullPath,
-                'status' => 'pending_upload',
-                'folder_path' => $folderPath,
+                'file_size_bytes' => $fileSize,
+                'mime_type' => $request->file_type,
+                'google_drive_path' => $folderPath . '/' . $fileName,
+                'upload_status' => 'pending',
+                'upload_progress' => 0,
+                'entity_type' => 'sponsorship',
+                'entity_id' => (string)$request->sponsorship_id,
+                'attachment_type' => str_contains($request->file_type, 'video') ? 'video' : 'photo',
+                'device_id' => $request->header('X-Device-ID', 'unknown'),
+                'uploaded_by' => $request->user()->id ?? 0,
+                'retry_count' => 0,
+                'synced_to_server' => false,
                 'created_at' => now(),
                 'updated_at' => now()
             ]);
@@ -623,9 +858,10 @@ class SponsorshipSyncController extends Controller
                         DB::table('google_drive_uploads')
                             ->where('id', $uploadId)
                             ->update([
-                                'google_drive_id' => $result['id'] ?? null,
-                                'status' => 'uploaded',
-                                'uploaded_at' => now(),
+                                'google_drive_file_id' => $result['id'] ?? null,
+                                'upload_status' => 'completed',
+                                'upload_progress' => 100,
+                                'synced_to_server' => true,
                                 'updated_at' => now()
                             ]);
 
@@ -649,7 +885,7 @@ class SponsorshipSyncController extends Controller
                 'success' => true,
                 'message' => 'تم حفظ الملف محلياً وفي انتظار الرفع إلى Google Drive',
                 'upload_id' => $uploadId,
-                'status' => 'pending_upload'
+                'status' => 'pending'
             ]);
 
         } catch (\Exception $e) {

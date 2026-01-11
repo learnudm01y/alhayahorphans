@@ -221,29 +221,143 @@ const SyncService = {
     },
 
     // ========================================
-    // المصادقة
+    // المصادقة (مع دعم Offline)
     // ========================================
 
     async login(username, password, deviceId = null) {
-        const data = await this.request('/mobile/login', {
-            method: 'POST',
-            body: JSON.stringify({ username, password, device_id: deviceId })
-        });
-
-        if (data.success) {
-            this.token = data.token;
-            this.user = data.user;
-            localStorage.setItem('auth_token', data.token);
-            localStorage.setItem('user_data', JSON.stringify(data.user));
-            localStorage.setItem('token_expires', data.expires_at);
+        // التحقق من الاتصال بالإنترنت
+        if (!navigator.onLine) {
+            // محاولة تسجيل الدخول من البيانات المحفوظة
+            return await this.offlineLogin(username, password);
         }
 
-        return data;
+        try {
+            const data = await this.request('/mobile/login', {
+                method: 'POST',
+                body: JSON.stringify({ username, password, device_id: deviceId })
+            });
+
+            if (data.success) {
+                this.token = data.token;
+                this.user = data.user;
+                localStorage.setItem('auth_token', data.token);
+                localStorage.setItem('user_data', JSON.stringify(data.user));
+                localStorage.setItem('token_expires', data.expires_at);
+
+                // حفظ بيانات الاعتماد للدخول Offline (مشفرة)
+                await this.saveCredentials(username, password, data.user);
+            }
+
+            return data;
+
+        } catch (error) {
+            // إذا فشل الاتصال، حاول الدخول Offline
+            console.log('Online login failed, trying offline:', error.message);
+            return await this.offlineLogin(username, password);
+        }
+    },
+
+    // حفظ بيانات الاعتماد للاستخدام Offline
+    async saveCredentials(username, password, user) {
+        try {
+            // تشفير بسيط لكلمة المرور (في الإنتاج استخدم تشفير أقوى)
+            const hashedPassword = await this.hashPassword(password);
+
+            const credentials = {
+                key: 'user_credentials',
+                username: username,
+                password_hash: hashedPassword,
+                user: user,
+                saved_at: new Date().toISOString()
+            };
+
+            await this.dbPut('sync_meta', credentials);
+            console.log('Credentials saved for offline login');
+        } catch (error) {
+            console.error('Failed to save credentials:', error);
+        }
+    },
+
+    // تجزئة كلمة المرور (hash بسيط)
+    async hashPassword(password) {
+        // استخدام Web Crypto API للتجزئة
+        if (window.crypto && window.crypto.subtle) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(password + 'alhayah_salt_2024');
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+        // Fallback بسيط
+        return btoa(password);
+    },
+
+    // تسجيل الدخول Offline
+    async offlineLogin(username, password) {
+        try {
+            const savedCredentials = await this.dbGet('sync_meta', 'user_credentials');
+
+            if (!savedCredentials) {
+                return {
+                    success: false,
+                    message: 'لا توجد بيانات محفوظة. يجب تسجيل الدخول عبر الإنترنت أولاً'
+                };
+            }
+
+            // التحقق من اسم المستخدم
+            if (savedCredentials.username !== username) {
+                return {
+                    success: false,
+                    message: 'اسم المستخدم غير صحيح'
+                };
+            }
+
+            // التحقق من كلمة المرور
+            const hashedPassword = await this.hashPassword(password);
+            if (savedCredentials.password_hash !== hashedPassword) {
+                return {
+                    success: false,
+                    message: 'كلمة المرور غير صحيحة'
+                };
+            }
+
+            // تسجيل الدخول بنجاح Offline
+            this.user = savedCredentials.user;
+            this.token = localStorage.getItem('auth_token') || 'offline_session';
+            localStorage.setItem('auth_token', this.token);
+            localStorage.setItem('user_data', JSON.stringify(savedCredentials.user));
+
+            console.log('Offline login successful');
+
+            return {
+                success: true,
+                message: 'تم تسجيل الدخول (وضع عدم الاتصال)',
+                user: savedCredentials.user,
+                offline: true
+            };
+
+        } catch (error) {
+            console.error('Offline login error:', error);
+            return {
+                success: false,
+                message: 'فشل تسجيل الدخول: ' + error.message
+            };
+        }
+    },
+
+    // التحقق من وجود بيانات اعتماد محفوظة
+    async hasOfflineCredentials() {
+        try {
+            const credentials = await this.dbGet('sync_meta', 'user_credentials');
+            return !!credentials;
+        } catch (error) {
+            return false;
+        }
     },
 
     async logout() {
         try {
-            if (this.token) {
+            if (this.token && navigator.onLine) {
                 await this.request('/mobile/logout', { method: 'POST' });
             }
         } catch (e) {
@@ -255,6 +369,7 @@ const SyncService = {
         localStorage.removeItem('auth_token');
         localStorage.removeItem('user_data');
         localStorage.removeItem('token_expires');
+        // لا نحذف credentials حتى يمكن الدخول مرة أخرى offline
     },
 
     async checkHealth() {
@@ -361,6 +476,85 @@ const SyncService = {
 
         } catch (error) {
             console.error('Sponsorships sync failed:', error);
+            throw error;
+        }
+    },
+
+    // ========================================
+    // المزامنة الكاملة - لزر "مزامنة الآن"
+    // ========================================
+
+    async performFullSync(onProgress = null) {
+        try {
+            let page = 1;
+            let hasMore = true;
+            let totalDownloaded = 0;
+            let totalRecords = 0;
+
+            // جلب آخر وقت مزامنة
+            const lastSyncMeta = await this.dbGet('sync_meta', 'last_full_sync');
+            const lastSync = lastSyncMeta ? lastSyncMeta.value : null;
+
+            while (hasMore) {
+                const params = new URLSearchParams();
+                params.append('page', page);
+                params.append('per_page', 100);
+                if (lastSync) {
+                    params.append('last_sync', lastSync);
+                }
+
+                const result = await this.request(`/mobile/sync/full?${params.toString()}`);
+
+                if (result.success) {
+                    // حفظ الكفالات
+                    for (const sponsorship of result.data) {
+                        await this.dbPut('sponsorships', sponsorship);
+                    }
+
+                    // حذف الكفالات المستبعدة (تم الصرف / أرسل للصرف)
+                    if (result.deleted_ids && result.deleted_ids.length > 0) {
+                        for (const id of result.deleted_ids) {
+                            await this.dbDelete('sponsorships', id);
+                        }
+                    }
+
+                    totalDownloaded += result.data.length;
+                    totalRecords = result.pagination.total;
+                    hasMore = result.pagination.has_more;
+                    page++;
+
+                    // تحديث التقدم
+                    if (onProgress) {
+                        const progress = Math.round((totalDownloaded / totalRecords) * 100);
+                        onProgress({
+                            downloaded: totalDownloaded,
+                            total: totalRecords,
+                            progress: progress,
+                            page: page - 1,
+                            lastPage: result.pagination.last_page
+                        });
+                    }
+                } else {
+                    throw new Error(result.message || 'فشل المزامنة');
+                }
+            }
+
+            // تحديث وقت المزامنة
+            await this.dbPut('sync_meta', {
+                key: 'last_full_sync',
+                value: new Date().toISOString(),
+                total_records: totalDownloaded
+            });
+
+            return {
+                success: true,
+                downloaded: totalDownloaded,
+                total: totalRecords,
+                message: `تم تنزيل ${totalDownloaded} كفالة بنجاح`
+            };
+
+        } catch (error) {
+            console.error('Full sync failed:', error);
             throw error;
         }
     },

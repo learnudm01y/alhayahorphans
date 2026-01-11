@@ -2,8 +2,24 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>مراقبة المزامنة - الحياة</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#2a8b8b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="الحياة">
+    <meta name="description" content="تطبيق الحياة لتنمية الأسرة - متابعة المزامنة">
+
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="logo01.png">
+    <link rel="apple-touch-icon" href="logo01.png">
+
+    <title>الحياة - متابعة المزامنة</title>
 
     <style>
         :root {
@@ -23,6 +39,14 @@
             padding: 0;
         }
 
+        /* منع التأثير المطاطي */
+        html, body {
+            overscroll-behavior: none;
+            overscroll-behavior-y: none;
+            -webkit-overflow-scrolling: auto;
+            overflow-x: hidden;
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: var(--light-bg);
@@ -32,7 +56,7 @@
         }
 
         /* Header */
-        .page-header {
+        .header {
             background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
             color: white;
             padding: 15px 20px;
@@ -41,239 +65,173 @@
             gap: 15px;
         }
 
-        .back-btn {
+        .header .back-btn {
+            background: none;
+            border: none;
             color: white;
-            text-decoration: none;
-            font-size: 1.5rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
         }
 
-        .page-header h1 {
+        .header .back-btn .material-icons {
+            font-size: 28px;
+        }
+
+        .header h1 {
             font-size: 1.2rem;
-            flex: 1;
-        }
-
-        /* Status Overview */
-        .status-overview {
-            background: white;
-            padding: 20px;
-            margin: 15px;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        }
-
-        .status-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 1.1rem;
-        }
-
-        .status-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            animation: pulse 2s infinite;
-        }
-
-        .status-dot.online { background: var(--success-color); }
-        .status-dot.offline { background: var(--danger-color); animation: none; }
-        .status-dot.syncing { background: var(--info-color); }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        /* Progress Bar */
-        .progress-container {
-            margin: 20px 0;
-        }
-
-        .progress-label {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-            font-size: 0.9rem;
-        }
-
-        .progress-bar {
-            height: 24px;
-            background: #e0e0e0;
-            border-radius: 12px;
-            overflow: hidden;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--primary-color), var(--success-color));
-            transition: width 0.5s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 0.8rem;
             font-weight: 600;
         }
 
-        /* Stats Grid */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
+        /* رسائل الحالة */
+        .status-message {
+            padding: 12px 15px;
             margin: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 14px;
+            display: none;
+        }
+        .status-message.info { background: #e3f2fd; color: #1565c0; display: block; }
+        .status-message.warning { background: #fff3e0; color: #e65100; display: block; }
+        .status-message.error { background: #ffebee; color: #c62828; display: block; }
+        .status-message.success { background: #e8f5e9; color: #2e7d32; display: block; }
+
+        /* إحصائيات المزامنة */
+        .sync-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            padding: 15px;
         }
 
         .stat-card {
             background: white;
-            padding: 15px;
-            border-radius: 10px;
-            text-align: center;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-        }
-
-        .stat-icon {
-            font-size: 1.5rem;
-            margin-bottom: 5px;
-        }
-
-        .stat-value {
-            font-size: 1.8rem;
-            font-weight: 700;
-        }
-
-        .stat-label {
-            font-size: 0.7rem;
-            color: #888;
-            margin-top: 2px;
-        }
-
-        .stat-card.pending .stat-value { color: var(--warning-color); }
-        .stat-card.completed .stat-value { color: var(--success-color); }
-        .stat-card.failed .stat-value { color: var(--danger-color); }
-        .stat-card.syncing .stat-value { color: var(--info-color); }
-
-        /* Task List */
-        .task-section {
-            margin: 15px;
-        }
-
-        .section-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-        }
-
-        .section-header h2 {
-            font-size: 1rem;
-            color: #555;
-        }
-
-        .refresh-btn {
-            background: none;
-            border: none;
-            font-size: 1.2rem;
-            cursor: pointer;
-            padding: 5px;
-        }
-
-        .task-list {
-            background: white;
             border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
         }
 
-        .task-item {
-            padding: 15px;
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .task-item:last-child {
-            border-bottom: none;
-        }
-
-        .task-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
+        .stat-card .icon {
+            width: 50px;
+            height: 50px;
+            margin: 0 auto 10px;
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.2rem;
         }
 
-        .task-icon.upload { background: #e3f2fd; }
-        .task-icon.sync { background: #f3e5f5; }
-        .task-icon.person { background: #e8f5e9; }
-
-        .task-info {
-            flex: 1;
+        .stat-card .icon .material-icons {
+            font-size: 28px;
+            color: white;
         }
 
-        .task-name {
-            font-weight: 500;
-            margin-bottom: 3px;
+        .stat-card.local .icon { background: var(--primary-color); }
+        .stat-card.pending .icon { background: var(--warning-color); }
+        .stat-card.synced .icon { background: var(--success-color); }
+        .stat-card.files .icon { background: var(--info-color); }
+
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #333;
         }
 
-        .task-details {
-            font-size: 0.8rem;
-            color: #888;
+        .stat-card .label {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 5px;
         }
 
-        .task-status {
-            font-size: 0.75rem;
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-weight: 500;
-        }
-
-        .task-status.pending { background: #fff3cd; color: #856404; }
-        .task-status.in-progress { background: #cce5ff; color: #004085; }
-        .task-status.completed { background: #d4edda; color: #155724; }
-        .task-status.failed { background: #f8d7da; color: #721c24; }
-
-        /* Action Buttons */
-        .action-buttons {
-            display: flex;
-            gap: 10px;
-            padding: 15px;
-            margin: 15px;
+        /* قسم الجمعيات والحالات */
+        .section {
             background: white;
+            margin: 15px;
             border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .section-header {
+            background: var(--light-bg);
+            padding: 15px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .section-header h3 {
+            font-size: 1rem;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-header .material-icons {
+            color: var(--primary-color);
+        }
+
+        .section-content {
+            padding: 15px;
+        }
+
+        .list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .list-item:last-child {
+            border-bottom: none;
+        }
+
+        .list-item .name {
+            font-weight: 500;
+        }
+
+        .list-item .count {
+            background: var(--primary-color);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+        }
+
+        /* أزرار الإجراءات */
+        .actions {
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
 
         .action-btn {
-            flex: 1;
+            width: 100%;
             padding: 15px;
             border: none;
             border-radius: 10px;
             font-size: 1rem;
-            font-weight: 500;
+            font-weight: 600;
             cursor: pointer;
             display: flex;
-            flex-direction: column;
             align-items: center;
-            gap: 5px;
+            justify-content: center;
+            gap: 10px;
         }
 
         .action-btn.primary {
-            background: var(--primary-color);
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
             color: white;
         }
 
         .action-btn.secondary {
-            background: #e9ecef;
+            background: #e0e0e0;
             color: #333;
         }
 
@@ -282,277 +240,468 @@
             color: white;
         }
 
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: #888;
+        .action-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
         }
 
-        .empty-state .icon {
-            font-size: 3rem;
+        .action-btn .material-icons {
+            font-size: 22px;
+        }
+
+        /* شريط التقدم */
+        .progress-section {
+            padding: 15px;
+            display: none;
+        }
+
+        .progress-section.active {
+            display: block;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
             margin-bottom: 10px;
         }
 
-        /* Last Sync */
-        .last-sync {
+        .progress-fill {
+            height: 100%;
+            background: var(--primary-color);
+            transition: width 0.3s;
+        }
+
+        .progress-text {
+            text-align: center;
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        /* سجل المزامنة */
+        .sync-log {
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .sync-log .log-entry {
+            padding: 3px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .sync-log .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .sync-log .log-time {
+            color: #888;
+        }
+
+        .sync-log .log-success {
+            color: var(--success-color);
+        }
+
+        .sync-log .log-error {
+            color: var(--danger-color);
+        }
+
+        /* آخر مزامنة */
+        .last-sync-info {
             text-align: center;
             padding: 15px;
+            color: #666;
             font-size: 0.85rem;
-            color: #888;
         }
     </style>
 </head>
 <body>
-    <header class="page-header">
-        <a href="index.html" class="back-btn">→</a>
-        <h1>🔄 مراقبة المزامنة</h1>
+    <!-- Header -->
+    <header class="header">
+        <button class="back-btn" onclick="goBack()">
+            <span class="material-icons">arrow_forward</span>
+        </button>
+        <h1>متابعة المزامنة</h1>
     </header>
 
-    <!-- Status Overview -->
-    <div class="status-overview">
-        <div class="status-header">
-            <div class="status-indicator" id="status-indicator">
-                <span class="status-dot online"></span>
-                <span>متصل</span>
-            </div>
-            <span id="sync-state">جاهز للمزامنة</span>
-        </div>
+    <!-- رسالة الحالة -->
+    <div id="statusMessage" class="status-message"></div>
 
-        <div class="progress-container">
-            <div class="progress-label">
-                <span>تقدم المزامنة</span>
-                <span id="progress-percent">0%</span>
+    <!-- إحصائيات المزامنة -->
+    <div class="sync-stats">
+        <div class="stat-card local">
+            <div class="icon">
+                <span class="material-icons">storage</span>
             </div>
-            <div class="progress-bar">
-                <div class="progress-fill" id="progress-fill" style="width: 0%">
-                    <span id="progress-text"></span>
-                </div>
-            </div>
+            <div class="value" id="statLocal">0</div>
+            <div class="label">كفالات محلية</div>
         </div>
-    </div>
-
-    <!-- Stats Grid -->
-    <div class="stats-grid">
         <div class="stat-card pending">
-            <div class="stat-icon">⏳</div>
-            <div class="stat-value" id="stat-pending">0</div>
-            <div class="stat-label">معلق</div>
+            <div class="icon">
+                <span class="material-icons">pending</span>
+            </div>
+            <div class="value" id="statPending">0</div>
+            <div class="label">تحديثات معلقة</div>
         </div>
-        <div class="stat-card syncing">
-            <div class="stat-icon">🔄</div>
-            <div class="stat-value" id="stat-syncing">0</div>
-            <div class="stat-label">جاري</div>
+        <div class="stat-card synced">
+            <div class="icon">
+                <span class="material-icons">cloud_done</span>
+            </div>
+            <div class="value" id="statSponsors">0</div>
+            <div class="label">جمعيات</div>
         </div>
-        <div class="stat-card completed">
-            <div class="stat-icon">✅</div>
-            <div class="stat-value" id="stat-completed">0</div>
-            <div class="stat-label">مكتمل</div>
-        </div>
-        <div class="stat-card failed">
-            <div class="stat-icon">❌</div>
-            <div class="stat-value" id="stat-failed">0</div>
-            <div class="stat-label">فاشل</div>
+        <div class="stat-card files">
+            <div class="icon">
+                <span class="material-icons">photo_library</span>
+            </div>
+            <div class="value" id="statFiles">0</div>
+            <div class="label">ملفات</div>
         </div>
     </div>
 
-    <!-- Action Buttons -->
-    <div class="action-buttons">
-        <button class="action-btn primary" id="btn-sync-now">
-            <span>🚀</span>
-            <span>مزامنة الآن</span>
-        </button>
-        <button class="action-btn secondary" id="btn-retry-failed">
-            <span>🔁</span>
-            <span>إعادة الفاشلة</span>
-        </button>
+    <!-- آخر مزامنة -->
+    <div class="last-sync-info" id="lastSyncInfo">
+        آخر مزامنة: غير متوفر
     </div>
 
-    <!-- Recent Tasks -->
-    <div class="task-section">
+    <!-- شريط التقدم -->
+    <div class="progress-section" id="progressSection">
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+        </div>
+        <div class="progress-text" id="progressText">جاري المزامنة...</div>
+    </div>
+
+    <!-- قسم الجمعيات -->
+    <div class="section">
         <div class="section-header">
-            <h2>📋 المهام الأخيرة</h2>
-            <button class="refresh-btn" id="btn-refresh">🔄</button>
+            <h3>
+                <span class="material-icons">business</span>
+                الجمعيات المحفوظة
+            </h3>
         </div>
+        <div class="section-content" id="sponsorsList">
+            <p style="color: #888; text-align: center;">لا توجد جمعيات محفوظة</p>
+        </div>
+    </div>
 
-        <div class="task-list" id="task-list">
-            <div class="empty-state">
-                <div class="icon">📭</div>
-                <p>لا توجد مهام حالياً</p>
+    <!-- قسم الحالات -->
+    <div class="section">
+        <div class="section-header">
+            <h3>
+                <span class="material-icons">label</span>
+                حالات الكفالة
+            </h3>
+        </div>
+        <div class="section-content" id="statusesList">
+            <p style="color: #888; text-align: center;">لا توجد حالات محفوظة</p>
+        </div>
+    </div>
+
+    <!-- أزرار الإجراءات -->
+    <div class="actions">
+        <button class="action-btn primary" id="syncBtn" onclick="performSync()">
+            <span class="material-icons">sync</span>
+            مزامنة الآن
+        </button>
+        <button class="action-btn secondary" id="uploadBtn" onclick="uploadPending()">
+            <span class="material-icons">cloud_upload</span>
+            رفع التحديثات المعلقة
+        </button>
+        <button class="action-btn danger" id="clearBtn" onclick="clearLocalData()">
+            <span class="material-icons">delete_sweep</span>
+            مسح البيانات المحلية
+        </button>
+    </div>
+
+    <!-- سجل المزامنة -->
+    <div class="section">
+        <div class="section-header">
+            <h3>
+                <span class="material-icons">history</span>
+                سجل المزامنة
+            </h3>
+        </div>
+        <div class="sync-log" id="syncLog">
+            <div class="log-entry">
+                <span class="log-time">[--:--:--]</span>
+                لم تتم أي عمليات مزامنة بعد
             </div>
         </div>
     </div>
 
-    <!-- Upload Tasks -->
-    <div class="task-section">
-        <div class="section-header">
-            <h2>☁️ عمليات الرفع</h2>
-        </div>
+    <!-- خدمة المزامنة -->
+    <script src="js/sync-service.js"></script>
 
-        <div class="task-list" id="upload-list">
-            <div class="empty-state">
-                <div class="icon">📤</div>
-                <p>لا توجد ملفات للرفع</p>
-            </div>
-        </div>
-    </div>
+    <script>
+        // ========================================
+        // تهيئة الصفحة
+        // ========================================
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                await SyncService.init();
 
-    <!-- Last Sync -->
-    <div class="last-sync" id="last-sync">
-        آخر مزامنة: لم تتم بعد
-    </div>
+                if (!SyncService.isAuthenticated()) {
+                    window.location.href = 'login.html';
+                    return;
+                }
 
-    <script type="module">
-        import { syncProgress, uploadsTracker, rclone } from '/src/services/index.ts';
+                await loadStats();
+                await loadSponsors();
+                await loadStatuses();
 
-        // Elements
-        const statusIndicator = document.getElementById('status-indicator');
-        const syncState = document.getElementById('sync-state');
-        const progressFill = document.getElementById('progress-fill');
-        const progressPercent = document.getElementById('progress-percent');
-        const taskList = document.getElementById('task-list');
-        const uploadList = document.getElementById('upload-list');
-        const lastSyncEl = document.getElementById('last-sync');
-
-        // Stats elements
-        const statPending = document.getElementById('stat-pending');
-        const statSyncing = document.getElementById('stat-syncing');
-        const statCompleted = document.getElementById('stat-completed');
-        const statFailed = document.getElementById('stat-failed');
-
-        // Subscribe to sync progress
-        syncProgress.onProgress(updateUI);
-
-        function updateUI(status) {
-            // Update connection status
-            const dot = statusIndicator.querySelector('.status-dot');
-            const text = statusIndicator.querySelector('span:last-child');
-
-            if (status.isOnline) {
-                dot.className = 'status-dot ' + (status.isSyncing ? 'syncing' : 'online');
-                text.textContent = status.isSyncing ? 'جاري المزامنة' : 'متصل';
-            } else {
-                dot.className = 'status-dot offline';
-                text.textContent = 'غير متصل';
+            } catch (error) {
+                console.error('Init error:', error);
+                showStatus('error', 'حدث خطأ في تهيئة الصفحة');
             }
+        });
 
-            syncState.textContent = status.isSyncing ? 'جاري المزامنة...' : 'جاهز للمزامنة';
+        // ========================================
+        // تحميل الإحصائيات
+        // ========================================
+        async function loadStats() {
+            try {
+                const stats = await SyncService.getLocalStats();
 
-            // Update progress
-            progressFill.style.width = status.overallProgress + '%';
-            progressPercent.textContent = Math.round(status.overallProgress) + '%';
+                document.getElementById('statLocal').textContent = stats.sponsorships_count || 0;
+                document.getElementById('statPending').textContent = stats.pending_uploads || 0;
+                document.getElementById('statFiles').textContent = stats.files_count || 0;
 
-            // Update stats
-            statPending.textContent = status.pendingTasks;
-            statSyncing.textContent = status.isSyncing ? 1 : 0;
-            statCompleted.textContent = status.completedTasks;
-            statFailed.textContent = status.failedTasks;
+                const sponsors = await SyncService.getLocalSponsors();
+                document.getElementById('statSponsors').textContent = sponsors.length;
 
-            // Update current task
-            if (status.currentTask) {
-                updateTaskList([status.currentTask]);
-            }
+                if (stats.last_sync) {
+                    const date = new Date(stats.last_sync);
+                    document.getElementById('lastSyncInfo').textContent =
+                        `آخر مزامنة: ${date.toLocaleDateString('ar-EG')} ${date.toLocaleTimeString('ar-EG')}`;
+                }
 
-            // Update last sync
-            if (status.lastSyncAt) {
-                lastSyncEl.textContent = 'آخر مزامنة: ' + formatDate(status.lastSyncAt);
+            } catch (error) {
+                console.error('Load stats error:', error);
             }
         }
 
-        function updateTaskList(tasks) {
-            if (!tasks || tasks.length === 0) {
-                taskList.innerHTML = `
-                    <div class="empty-state">
-                        <div class="icon">📭</div>
-                        <p>لا توجد مهام حالياً</p>
+        // ========================================
+        // تحميل الجمعيات
+        // ========================================
+        async function loadSponsors() {
+            try {
+                const sponsors = await SyncService.getLocalSponsors();
+                const container = document.getElementById('sponsorsList');
+
+                if (sponsors.length === 0) {
+                    container.innerHTML = '<p style="color: #888; text-align: center;">لا توجد جمعيات محفوظة</p>';
+                    return;
+                }
+
+                container.innerHTML = sponsors.map(s => `
+                    <div class="list-item">
+                        <span class="name">${s.name}</span>
+                        <span class="count">ID: ${s.id}</span>
                     </div>
-                `;
+                `).join('');
+
+            } catch (error) {
+                console.error('Load sponsors error:', error);
+            }
+        }
+
+        // ========================================
+        // تحميل الحالات
+        // ========================================
+        async function loadStatuses() {
+            try {
+                const statuses = await SyncService.getLocalStatuses();
+                const container = document.getElementById('statusesList');
+
+                if (statuses.length === 0) {
+                    container.innerHTML = '<p style="color: #888; text-align: center;">لا توجد حالات محفوظة</p>';
+                    return;
+                }
+
+                container.innerHTML = statuses.map(s => `
+                    <div class="list-item">
+                        <span class="name">${s.name}</span>
+                        <span class="count">ID: ${s.id}</span>
+                    </div>
+                `).join('');
+
+            } catch (error) {
+                console.error('Load statuses error:', error);
+            }
+        }
+
+        // ========================================
+        // المزامنة الكاملة
+        // ========================================
+        async function performSync() {
+            const btn = document.getElementById('syncBtn');
+            btn.disabled = true;
+
+            showProgress(true);
+            updateProgress(5, 'جاري الاتصال بالخادم...');
+            addLog('بدء عملية المزامنة الكاملة');
+
+            try {
+                // أولاً: مزامنة الجمعيات والحالات
+                updateProgress(10, 'جاري تحميل الجمعيات والحالات...');
+                const initialResult = await SyncService.performInitialSync();
+                
+                if (initialResult.success) {
+                    addLog(`تم تحميل ${initialResult.sponsors_count} جمعية و ${initialResult.statuses_count} حالة`, 'success');
+                }
+
+                // ثانياً: المزامنة الكاملة للكفالات
+                updateProgress(20, 'جاري تحميل جميع الكفالات...');
+                addLog('بدء تحميل الكفالات...');
+
+                const fullSyncResult = await SyncService.performFullSync((progress) => {
+                    const percent = 20 + Math.round(progress.progress * 0.75); // من 20% إلى 95%
+                    updateProgress(percent, `تحميل الكفالات... (${progress.downloaded}/${progress.total})`);
+                    addLog(`صفحة ${progress.page} من ${progress.lastPage} - تم تحميل ${progress.downloaded} كفالة`);
+                });
+
+                if (fullSyncResult.success) {
+                    updateProgress(100, 'تمت المزامنة بنجاح!');
+                    addLog(`تم تحميل ${fullSyncResult.downloaded} كفالة بنجاح`, 'success');
+                    showStatus('success', `تمت المزامنة بنجاح - ${fullSyncResult.downloaded} كفالة`);
+
+                    // إعادة تحميل البيانات
+                    await loadStats();
+                    await loadSponsors();
+                    await loadStatuses();
+
+                } else {
+                    throw new Error(fullSyncResult.message || 'فشلت مزامنة الكفالات');
+                }
+
+            } catch (error) {
+                console.error('Sync error:', error);
+                addLog('خطأ: ' + error.message, 'error');
+                showStatus('error', 'فشلت المزامنة: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                setTimeout(() => showProgress(false), 2000);
+            }
+        }
+
+        // ========================================
+        // رفع التحديثات المعلقة
+        // ========================================
+        async function uploadPending() {
+            const btn = document.getElementById('uploadBtn');
+            btn.disabled = true;
+
+            showProgress(true);
+            addLog('بدء رفع التحديثات المعلقة');
+
+            try {
+                updateProgress(50, 'جاري رفع التحديثات...');
+
+                const result = await SyncService.uploadPendingChanges();
+
+                updateProgress(100, 'تم الرفع!');
+                addLog(`نجح: ${result.success}, فشل: ${result.failed}`, result.failed > 0 ? 'error' : 'success');
+
+                if (result.failed > 0) {
+                    showStatus('warning', `تم رفع ${result.success} وفشل ${result.failed}`);
+                } else {
+                    showStatus('success', `تم رفع ${result.success} تحديث بنجاح`);
+                }
+
+                await loadStats();
+
+            } catch (error) {
+                console.error('Upload error:', error);
+                addLog('خطأ في الرفع: ' + error.message, 'error');
+                showStatus('error', 'فشل الرفع: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                setTimeout(() => showProgress(false), 2000);
+            }
+        }
+
+        // ========================================
+        // مسح البيانات المحلية
+        // ========================================
+        async function clearLocalData() {
+            if (!confirm('هل أنت متأكد من مسح جميع البيانات المحلية؟\nسيتم حذف جميع الكفالات والملفات المخزنة.')) {
                 return;
             }
 
-            taskList.innerHTML = tasks.map(task => `
-                <div class="task-item">
-                    <div class="task-icon ${getTaskIconClass(task.operationType)}">
-                        ${getTaskIcon(task.operationType)}
-                    </div>
-                    <div class="task-info">
-                        <div class="task-name">${getTaskName(task.operationType)}</div>
-                        <div class="task-details">${task.entityType}: ${task.entityId}</div>
-                    </div>
-                    <span class="task-status ${task.status}">${getStatusText(task.status)}</span>
-                </div>
-            `).join('');
+            try {
+                await SyncService.dbClear('sponsorships');
+                await SyncService.dbClear('pending_uploads');
+                await SyncService.dbClear('files');
+
+                addLog('تم مسح البيانات المحلية', 'success');
+                showStatus('success', 'تم مسح البيانات المحلية');
+
+                await loadStats();
+
+            } catch (error) {
+                console.error('Clear error:', error);
+                addLog('خطأ في المسح: ' + error.message, 'error');
+                showStatus('error', 'فشل المسح: ' + error.message);
+            }
         }
 
-        function getTaskIcon(type) {
-            const icons = {
-                'file_upload': '☁️',
-                'person_creation': '👤',
-                'file_id_generation': '🔢',
-                'server_notification': '📡',
-                'batch_sync': '🔄'
-            };
-            return icons[type] || '📋';
+        // ========================================
+        // دوال مساعدة
+        // ========================================
+        function showStatus(type, message) {
+            const el = document.getElementById('statusMessage');
+            el.className = 'status-message ' + type;
+            el.textContent = message;
         }
 
-        function getTaskIconClass(type) {
-            if (type.includes('upload')) return 'upload';
-            if (type.includes('person')) return 'person';
-            return 'sync';
+        function showProgress(show) {
+            document.getElementById('progressSection').classList.toggle('active', show);
         }
 
-        function getTaskName(type) {
-            const names = {
-                'file_upload': 'رفع ملف',
-                'person_creation': 'إنشاء شخص',
-                'file_id_generation': 'توليد رقم ملف',
-                'server_notification': 'إشعار الخادم',
-                'batch_sync': 'مزامنة مجمعة'
-            };
-            return names[type] || type;
+        function updateProgress(percent, text) {
+            document.getElementById('progressFill').style.width = percent + '%';
+            document.getElementById('progressText').textContent = text;
         }
 
-        function getStatusText(status) {
-            const texts = {
-                'pending': 'معلق',
-                'in_progress': 'جاري',
-                'in-progress': 'جاري',
-                'completed': 'مكتمل',
-                'failed': 'فاشل'
-            };
-            return texts[status] || status;
+        function addLog(message, type = '') {
+            const log = document.getElementById('syncLog');
+            const time = new Date().toLocaleTimeString('ar-EG');
+            const typeClass = type ? `log-${type}` : '';
+
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<span class="log-time">[${time}]</span> <span class="${typeClass}">${message}</span>`;
+
+            log.insertBefore(entry, log.firstChild);
+
+            // الحفاظ على آخر 50 سجل فقط
+            while (log.children.length > 50) {
+                log.removeChild(log.lastChild);
+            }
         }
 
-        function formatDate(date) {
-            if (!date) return 'غير معروف';
-            const d = new Date(date);
-            return d.toLocaleDateString('ar') + ' ' + d.toLocaleTimeString('ar');
+        function goBack() {
+            window.location.href = 'index.html';
         }
 
-        // Button handlers
-        document.getElementById('btn-sync-now').addEventListener('click', async () => {
-            await syncProgress.forceSyncNow();
-        });
+        // ========================================
+        // معالجة زر الرجوع
+        // ========================================
+        document.addEventListener('backbutton', function(e) {
+            e.preventDefault();
+            goBack();
+        }, false);
 
-        document.getElementById('btn-retry-failed').addEventListener('click', async () => {
-            const retried = await syncProgress.retryFailedTasks();
-            alert(`تم إعادة ${retried} مهمة`);
-        });
-
-        document.getElementById('btn-refresh').addEventListener('click', async () => {
-            const status = await syncProgress.getOverallStatus();
-            updateUI(status);
-        });
-
-        // Initial load
-        (async () => {
-            const status = await syncProgress.getOverallStatus();
-            updateUI(status);
-
-            // Load upload stats
-            const uploadStats = await uploadsTracker.getStats();
-            // Update upload list...
-        })();
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+            window.Capacitor.Plugins.App.addListener('backButton', goBack);
+        }
     </script>
 </body>
 </html>

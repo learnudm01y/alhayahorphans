@@ -538,25 +538,39 @@
         }
 
         // ========================================
-        // المزامنة
+        // المزامنة الكاملة
         // ========================================
         async function performSync() {
             const btn = document.getElementById('syncBtn');
             btn.disabled = true;
 
             showProgress(true);
-            updateProgress(10, 'جاري الاتصال بالخادم...');
-            addLog('بدء عملية المزامنة');
+            updateProgress(5, 'جاري الاتصال بالخادم...');
+            addLog('بدء عملية المزامنة الكاملة');
 
             try {
-                updateProgress(30, 'جاري تحميل الجمعيات والحالات...');
+                // أولاً: مزامنة الجمعيات والحالات
+                updateProgress(10, 'جاري تحميل الجمعيات والحالات...');
+                const initialResult = await SyncService.performInitialSync();
 
-                const result = await SyncService.performInitialSync();
+                if (initialResult.success) {
+                    addLog(`تم تحميل ${initialResult.sponsors_count} جمعية و ${initialResult.statuses_count} حالة`, 'success');
+                }
 
-                if (result.success) {
+                // ثانياً: المزامنة الكاملة للكفالات
+                updateProgress(20, 'جاري تحميل جميع الكفالات...');
+                addLog('بدء تحميل الكفالات...');
+
+                const fullSyncResult = await SyncService.performFullSync((progress) => {
+                    const percent = 20 + Math.round(progress.progress * 0.75); // من 20% إلى 95%
+                    updateProgress(percent, `تحميل الكفالات... (${progress.downloaded}/${progress.total})`);
+                    addLog(`صفحة ${progress.page} من ${progress.lastPage} - تم تحميل ${progress.downloaded} كفالة`);
+                });
+
+                if (fullSyncResult.success) {
                     updateProgress(100, 'تمت المزامنة بنجاح!');
-                    addLog(`تم تحميل ${result.sponsors_count} جمعية و ${result.statuses_count} حالة`, 'success');
-                    showStatus('success', 'تمت المزامنة بنجاح');
+                    addLog(`تم تحميل ${fullSyncResult.downloaded} كفالة بنجاح`, 'success');
+                    showStatus('success', `تمت المزامنة بنجاح - ${fullSyncResult.downloaded} كفالة`);
 
                     // إعادة تحميل البيانات
                     await loadStats();
@@ -564,7 +578,7 @@
                     await loadStatuses();
 
                 } else {
-                    throw new Error(result.message || 'فشلت المزامنة');
+                    throw new Error(fullSyncResult.message || 'فشلت مزامنة الكفالات');
                 }
 
             } catch (error) {

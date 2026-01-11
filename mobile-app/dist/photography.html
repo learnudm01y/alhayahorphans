@@ -586,21 +586,79 @@
             }
 
             try {
-                // استخدام Capacitor Camera للفيديو
-                if (window.Capacitor && Capacitor.Plugins.Camera) {
-                    const Camera = Capacitor.Plugins.Camera;
+                // استخدام الكاميرا الأصلية لتسجيل الفيديو
+                if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
+                    // استخدام Intent لفتح كاميرا الفيديو على Android
+                    const videoInput = document.createElement('input');
+                    videoInput.type = 'file';
+                    videoInput.accept = 'video/*';
+                    videoInput.capture = 'environment';
 
-                    // ملاحظة: Capacitor لا يدعم تسجيل الفيديو مباشرة
-                    // يمكن استخدام plugin إضافي
-                    showStatus('info', 'تسجيل الفيديو قيد التطوير');
+                    videoInput.onchange = async (e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                            showStatus('info', 'جاري حفظ الفيديو...');
+
+                            // قراءة الملف كـ base64
+                            const reader = new FileReader();
+                            reader.onload = async (event) => {
+                                const base64Data = event.target.result.split(',')[1];
+                                const fileName = `video_${selectedSponsorship.id}_${Date.now()}.mp4`;
+
+                                // حفظ الفيديو محلياً
+                                await SyncService.saveFile(
+                                    selectedSponsorship.id,
+                                    base64Data,
+                                    fileName,
+                                    'video/mp4'
+                                );
+
+                                showStatus('success', 'تم حفظ الفيديو بنجاح');
+                            };
+                            reader.readAsDataURL(file);
+                        }
+                    };
+
+                    videoInput.click();
 
                 } else {
-                    alert('التصوير متاح فقط في تطبيق الهاتف');
+                    // Fallback للمتصفح - استخدام input file
+                    const videoInput = document.createElement('input');
+                    videoInput.type = 'file';
+                    videoInput.accept = 'video/*';
+                    videoInput.capture = 'environment';
+
+                    videoInput.onchange = async (e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                            showStatus('info', 'جاري حفظ الفيديو...');
+
+                            const reader = new FileReader();
+                            reader.onload = async (event) => {
+                                const base64Data = event.target.result.split(',')[1];
+                                const fileName = `video_${selectedSponsorship.id}_${Date.now()}.mp4`;
+
+                                await SyncService.saveFile(
+                                    selectedSponsorship.id,
+                                    base64Data,
+                                    fileName,
+                                    'video/mp4'
+                                );
+
+                                showStatus('success', 'تم حفظ الفيديو بنجاح');
+                            };
+                            reader.readAsDataURL(file);
+                        }
+                    };
+
+                    videoInput.click();
                 }
 
             } catch (error) {
                 console.error('Video error:', error);
-                showStatus('error', 'خطأ في التسجيل: ' + error.message);
+                if (error.message !== 'User cancelled') {
+                    showStatus('error', 'خطأ في التسجيل: ' + error.message);
+                }
             }
         }
 

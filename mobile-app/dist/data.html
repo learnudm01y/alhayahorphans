@@ -330,30 +330,6 @@
                 <p>اختر الجمعية والحالة ثم اضغط على زر البحث</p>
             </div>
         </div>
-
-        <!-- Data Sections (shown when orphan selected) -->
-        <div class="data-sections" id="dataSections" style="display: none;">
-            <!-- Orphan Data Section -->
-            <div class="data-section" id="orphanSection">
-                <h3 class="data-section-title">بيانات المكفول</h3>
-                <div class="data-section-content" id="orphanData">
-                </div>
-            </div>
-
-            <!-- Guardian Data Section -->
-            <div class="data-section" id="guardianSection">
-                <h3 class="data-section-title">بيانات الولي</h3>
-                <div class="data-section-content" id="guardianData">
-                </div>
-            </div>
-
-            <!-- Sponsorship Data Section -->
-            <div class="data-section" id="sponsorshipSection">
-                <h3 class="data-section-title">بيانات الكفالة</h3>
-                <div class="data-section-content" id="sponsorshipData">
-                </div>
-            </div>
-        </div>
     </div>
 
     <!-- خدمة المزامنة -->
@@ -461,7 +437,6 @@
 
             showLoading(true);
             showStatus('info', 'جاري البحث...');
-            hideDataSections();
 
             try {
                 // أولاً: جلب من التخزين المحلي
@@ -563,75 +538,12 @@
                 `;
             }).join('');
 
-            // ربط أحداث النقر
+            // ربط أحداث النقر - الانتقال لصفحة التفاصيل
             orphanList.querySelectorAll('.orphan-card').forEach(card => {
-                card.addEventListener('click', () => selectSponsorship(card.dataset.id, card));
+                card.addEventListener('click', () => {
+                    window.location.href = `detail.html?id=${card.dataset.id}`;
+                });
             });
-        }
-
-        // ========================================
-        // اختيار كفالة
-        // ========================================
-        function selectSponsorship(id, element) {
-            // إزالة الاختيار السابق
-            document.querySelectorAll('.orphan-card').forEach(card => {
-                card.classList.remove('selected');
-            });
-
-            // تحديد العنصر الجديد
-            if (element) {
-                element.classList.add('selected');
-            }
-
-            // البحث عن الكفالة
-            selectedSponsorship = currentSponsorships.find(s => s.id == id);
-
-            if (selectedSponsorship) {
-                renderDetails(selectedSponsorship);
-            }
-        }
-
-        // ========================================
-        // عرض التفاصيل
-        // ========================================
-        function renderDetails(s) {
-            const dataSections = document.getElementById('dataSections');
-            dataSections.style.display = 'block';
-
-            // بيانات المكفول
-            const statusObj = statuses.find(st => st.id == s.sponsorship_status_id);
-            const statusName = statusObj ? statusObj.name : 'غير محدد';
-
-            document.getElementById('orphanData').innerHTML = `
-                <div class="data-field"><span class="data-label">الاسم</span><span class="data-value">${s.orphan_name || '-'}</span></div>
-                <div class="data-field"><span class="data-label">رقم الهوية</span><span class="data-value">${s.identity_number || '-'}</span></div>
-                <div class="data-field"><span class="data-label">تاريخ الميلاد</span><span class="data-value">${s.birth_date || s.sponsored_birth_date || '-'}</span></div>
-                <div class="data-field"><span class="data-label">الجنس</span><span class="data-value">${s.gender == 1 ? 'ذكر' : (s.gender == 2 ? 'أنثى' : '-')}</span></div>
-                ${s.civil_registry_full_name ? `<div class="data-field"><span class="data-label">الاسم (السجل المدني)</span><span class="data-value">${s.civil_registry_full_name}</span></div>` : ''}
-            `;
-
-            // بيانات الولي
-            document.getElementById('guardianData').innerHTML = `
-                <div class="data-field"><span class="data-label">اسم الولي</span><span class="data-value">${s.guardian_name || '-'}</span></div>
-                <div class="data-field"><span class="data-label">رقم هوية الولي</span><span class="data-value">${s.guardian_identity_number || '-'}</span></div>
-                ${s.guardian_full_name ? `<div class="data-field"><span class="data-label">الاسم الكامل (السجل المدني)</span><span class="data-value">${s.guardian_full_name}</span></div>` : ''}
-            `;
-
-            // بيانات الكفالة
-            const sponsor = sponsors.find(sp => sp.id == s.sponsor_id);
-            document.getElementById('sponsorshipData').innerHTML = `
-                <div class="data-field"><span class="data-label">الجمعية</span><span class="data-value">${sponsor ? sponsor.name : '-'}</span></div>
-                <div class="data-field"><span class="data-label">حالة الكفالة</span><span class="data-value">${statusName}</span></div>
-                <div class="data-field"><span class="data-label">رقم الملف الداخلي</span><span class="data-value">${s.internal_file_number || '-'}</span></div>
-                <div class="data-field"><span class="data-label">رقم الملف الخارجي</span><span class="data-value">${s.external_file_number || '-'}</span></div>
-                <div class="data-field"><span class="data-label">مدة الكفالة</span><span class="data-value">${s.sponsorship_duration_months ? s.sponsorship_duration_months + ' شهر' : '-'}</span></div>
-                <div class="data-field"><span class="data-label">تاريخ بدء الكفالة</span><span class="data-value">${s.sponsorship_start_date || '-'}</span></div>
-                <div class="data-field"><span class="data-label">تاريخ انتهاء الكفالة</span><span class="data-value">${s.sponsorship_end_date || '-'}</span></div>
-                ${s.notes ? `<div class="data-field"><span class="data-label">ملاحظات</span><span class="data-value">${s.notes}</span></div>` : ''}
-            `;
-
-            // التمرير للتفاصيل
-            dataSections.scrollIntoView({ behavior: 'smooth' });
         }
 
         // ========================================
@@ -645,10 +557,6 @@
 
         function showLoading(show) {
             document.getElementById('loadingSpinner').classList.toggle('active', show);
-        }
-
-        function hideDataSections() {
-            document.getElementById('dataSections').style.display = 'none';
         }
 
         function debounce(func, wait) {

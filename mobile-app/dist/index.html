@@ -510,8 +510,8 @@
                     </span>
                 </div>
                 <div class="sync-details">
-                    <span>المكتملة: <span id="syncCompleted">0</span></span>
-                    <span>المعلقة: <span id="syncPending">0</span></span>
+                    <span>الكفالات: <span id="syncCompleted">0</span></span>
+                    <span>المعلقة للرفع: <span id="syncPending">0</span></span>
                 </div>
             </div>
             <div class="sync-progress-bar">
@@ -527,16 +527,16 @@
             </div>
             <div class="stats-grid">
                 <div class="stat-item">
+                    <div class="stat-value" id="stat-sponsors">0</div>
+                    <div class="stat-label">جمعيات</div>
+                </div>
+                <div class="stat-item">
                     <div class="stat-value" id="stat-local">0</div>
-                    <div class="stat-label">محلي</div>
+                    <div class="stat-label">كفالات</div>
                 </div>
                 <div class="stat-item">
                     <div class="stat-value" id="stat-pending">0</div>
                     <div class="stat-label">معلق</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-value" id="stat-synced">0</div>
-                    <div class="stat-label">مزامن</div>
                 </div>
             </div>
         </div>
@@ -697,15 +697,18 @@
         async function updateStatsFromLocal() {
             try {
                 const stats = await SyncService.getLocalStats();
+                const sponsors = await SyncService.getLocalSponsors();
+
+                const statSponsors = document.getElementById('stat-sponsors');
                 const statLocal = document.getElementById('stat-local');
                 const statPending = document.getElementById('stat-pending');
-                const statSynced = document.getElementById('stat-synced');
 
+                statSponsors.textContent = sponsors.length || 0;
                 statLocal.textContent = stats.sponsorships_count || 0;
                 statPending.textContent = stats.pending_uploads || 0;
-                statSynced.textContent = stats.files_count || 0;
 
-                // Update sync pending count
+                // Update sync counts
+                document.getElementById('syncCompleted').textContent = stats.sponsorships_count || 0;
                 document.getElementById('syncPending').textContent = stats.pending_uploads || 0;
             } catch (error) {
                 console.error('Failed to update stats:', error);

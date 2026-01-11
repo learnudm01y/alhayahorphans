@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#2a8b8b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>الحياة - تفاصيل الكفالة</title>
+
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="logo01.png">
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            overscroll-behavior: none;
+            -webkit-overflow-scrolling: auto;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+            background: #f5f5f5;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .detail-header {
+            background: linear-gradient(135deg, #2a8b8b, #1e6b6b);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .back-btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .detail-header h1 {
+            font-size: 1.1rem;
+            flex: 1;
+            margin: 0;
+        }
+
+        .save-btn {
+            background: #28a745;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .save-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        /* Content */
+        .detail-content {
+            padding: 15px;
+            padding-bottom: 100px;
+        }
+
+        /* Section */
+        .detail-section {
+            background: white;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .section-title {
+            background: linear-gradient(135deg, #2a8b8b, #1e6b6b);
+            color: white;
+            padding: 12px 15px;
+            font-size: 1rem;
+            font-weight: 600;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title .material-icons {
+            font-size: 20px;
+        }
+
+        .section-content {
+            padding: 15px;
+        }
+
+        /* Form Field */
+        .form-field {
+            margin-bottom: 15px;
+        }
+
+        .form-field:last-child {
+            margin-bottom: 0;
+        }
+
+        .form-label {
+            display: block;
+            color: #666;
+            font-size: 0.85rem;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            color: #333;
+            background: #fff;
+            transition: border-color 0.3s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #2a8b8b;
+        }
+
+        .form-input:disabled {
+            background: #f8f9fa;
+            color: #666;
+        }
+
+        .form-input.readonly {
+            background: #f0f0f0;
+            cursor: not-allowed;
+        }
+
+        .form-select {
+            width: 100%;
+            padding: 12px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            background: white;
+            cursor: pointer;
+        }
+
+        /* Two columns */
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        /* Status indicator */
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .status-indicator.active {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-indicator.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-indicator.modified {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            z-index: 1000;
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .toast.show {
+            display: block;
+        }
+
+        .toast.success {
+            background: #28a745;
+        }
+
+        .toast.error {
+            background: #dc3545;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+
+        /* Loading overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #fff;
+            border-top-color: #2a8b8b;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* No data message */
+        .no-data {
+            text-align: center;
+            padding: 40px 20px;
+            color: #888;
+        }
+
+        .no-data .material-icons {
+            font-size: 60px;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="detail-header">
+        <button class="back-btn" onclick="goBack()">
+            <span class="material-icons">arrow_forward</span>
+        </button>
+        <h1 id="pageTitle">تفاصيل الكفالة</h1>
+        <button class="save-btn" id="saveBtn" onclick="saveChanges()" disabled>
+            <span class="material-icons">save</span>
+            حفظ
+        </button>
+    </header>
+
+    <!-- Content -->
+    <div class="detail-content" id="detailContent">
+        <div class="no-data" id="noDataMessage">
+            <span class="material-icons">error_outline</span>
+            <p>لم يتم العثور على البيانات</p>
+            <button onclick="goBack()" style="padding: 10px 20px; background: #2a8b8b; color: white; border: none; border-radius: 8px; margin-top: 10px;">
+                العودة
+            </button>
+        </div>
+
+        <!-- Orphan Section -->
+        <div class="detail-section" id="orphanSection" style="display: none;">
+            <h3 class="section-title">
+                <span class="material-icons">child_care</span>
+                بيانات المكفول
+            </h3>
+            <div class="section-content">
+                <div class="form-field">
+                    <label class="form-label">الاسم الكامل</label>
+                    <input type="text" class="form-input readonly" id="orphan_name" readonly>
+                </div>
+                <div class="form-row">
+                    <div class="form-field">
+                        <label class="form-label">الاسم الأول</label>
+                        <input type="text" class="form-input readonly" id="orphan_first_name" readonly>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">اسم الأب</label>
+                        <input type="text" class="form-input readonly" id="orphan_father_name" readonly>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-field">
+                        <label class="form-label">اسم الجد</label>
+                        <input type="text" class="form-input readonly" id="orphan_grandfather_name" readonly>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">اسم العائلة</label>
+                        <input type="text" class="form-input readonly" id="orphan_family_name" readonly>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-field">
+                        <label class="form-label">رقم الهوية</label>
+                        <input type="text" class="form-input" id="identity_number" data-field="identity_number">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">تاريخ الميلاد</label>
+                        <input type="date" class="form-input" id="birth_date" data-field="birth_date">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-field">
+                        <label class="form-label">الجنس</label>
+                        <select class="form-select" id="gender" data-field="gender">
+                            <option value="">غير محدد</option>
+                            <option value="1">ذكر</option>
+                            <option value="2">أنثى</option>
+                        </select>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">الحالة الصحية</label>
+                        <input type="text" class="form-input" id="health_status" data-field="health_status">
+                    </div>
+                </div>
+                <div class="form-field">
+                    <label class="form-label">المستوى التعليمي</label>
+                    <input type="text" class="form-input" id="education_level" data-field="education_level">
+                </div>
+            </div>
+        </div>
+
+        <!-- Guardian Section -->
+        <div class="detail-section" id="guardianSection" style="display: none;">
+            <h3 class="section-title">
+                <span class="material-icons">person</span>
+                بيانات الولي
+            </h3>
+            <div class="section-content">
+                <div class="form-field">
+                    <label class="form-label">الاسم الكامل</label>
+                    <input type="text" class="form-input readonly" id="guardian_name" readonly>
+                </div>
+                <div class="form-row">
+                    <div class="form-field">
+                        <label class="form-label">الاسم الأول</label>
+                        <input type="text" class="form-input readonly" id="guardian_first_name" readonly>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">اسم الأب</label>
+                        <input type="text" class="form-input readonly" id="guardian_father_name" readonly>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-field">
+                        <label class="form-label">اسم الجد</label>
+                        <input type="text" class="form-input readonly" id="guardian_grandfather_name" readonly>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">اسم العائلة</label>
+                        <input type="text" class="form-input readonly" id="guardian_family_name" readonly>
+                    </div>
+                </div>
+                <div class="form-field">
+                    <label class="form-label">رقم هوية الولي</label>
+                    <input type="text" class="form-input" id="guardian_identity_number" data-field="guardian_identity_number">
+                </div>
+                <div class="form-row">
+                    <div class="form-field">
+                        <label class="form-label">رقم الهاتف الأول</label>
+                        <input type="tel" class="form-input" id="guardian_phone" data-field="guardian_phone">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">رقم الهاتف الثاني</label>
+                        <input type="tel" class="form-input" id="guardian_phone2" data-field="guardian_phone2">
+                    </div>
+                </div>
+                <div class="form-field">
+                    <label class="form-label">العنوان التفصيلي</label>
+                    <textarea class="form-input" id="guardian_detailed_address" data-field="guardian_detailed_address" rows="2" style="resize: vertical;"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sponsorship Section -->
+        <div class="detail-section" id="sponsorshipSection" style="display: none;">
+            <h3 class="section-title">
+                <span class="material-icons">handshake</span>
+                بيانات الكفالة
+            </h3>
+            <div class="section-content">
+                <div class="form-field">
+                    <label class="form-label">الجمعية الكافلة</label>
+                    <input type="text" class="form-input readonly" id="sponsor_name" readonly>
+                </div>
+                <div class="form-field">
+                    <label class="form-label">حالة الكفالة</label>
+                    <select class="form-select" id="sponsorship_status_id" data-field="sponsorship_status_id">
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-field">
+                        <label class="form-label">رقم الملف الداخلي</label>
+                        <input type="text" class="form-input" id="internal_file_number" data-field="internal_file_number">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">رقم الملف الخارجي</label>
+                        <input type="text" class="form-input" id="external_file_number" data-field="external_file_number">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-field">
+                        <label class="form-label">تاريخ بدء الكفالة</label>
+                        <input type="date" class="form-input" id="sponsorship_start_date" data-field="sponsorship_start_date">
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">تاريخ انتهاء الكفالة</label>
+                        <input type="date" class="form-input" id="sponsorship_end_date" data-field="sponsorship_end_date">
+                    </div>
+                </div>
+                <div class="form-field">
+                    <label class="form-label">مدة الكفالة (بالأشهر)</label>
+                    <input type="number" class="form-input" id="sponsorship_duration_months" data-field="sponsorship_duration_months">
+                </div>
+                <div class="form-field">
+                    <label class="form-label">ملاحظات</label>
+                    <textarea class="form-input" id="notes" data-field="notes" rows="3" style="resize: vertical;"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bank Account Section -->
+        <div class="detail-section" id="bankSection" style="display: none;">
+            <h3 class="section-title">
+                <span class="material-icons">account_balance</span>
+                الحسابات البنكية للمعيل
+            </h3>
+            <div class="section-content" id="bankAccountsContainer">
+                <!-- سيتم ملؤها ديناميكياً -->
+                <p style="color: #888; text-align: center;">لا توجد حسابات بنكية</p>
+            </div>
+        </div>
+
+        <!-- Civil Registry Section -->
+        <div class="detail-section" id="civilRegistrySection" style="display: none;">
+            <h3 class="section-title">
+                <span class="material-icons">assignment_ind</span>
+                بيانات السجل المدني
+            </h3>
+            <div class="section-content" id="civilRegistryContent">
+                <!-- سيتم ملؤها ديناميكياً -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <script src="js/sync-service.js"></script>
+    <script>
+        // ========================================
+        // المتغيرات
+        // ========================================
+        let currentSponsorship = null;
+        let originalData = {};
+        let modifiedFields = {};
+        let sponsors = [];
+        let statuses = [];
+
+        // ========================================
+        // التهيئة
+        // ========================================
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                await SyncService.init();
+
+                if (!SyncService.isAuthenticated()) {
+                    window.location.href = 'login.html';
+                    return;
+                }
+
+                // الحصول على ID من URL
+                const urlParams = new URLSearchParams(window.location.search);
+                const sponsorshipId = urlParams.get('id');
+
+                if (!sponsorshipId) {
+                    showNoData();
+                    return;
+                }
+
+                // تحميل البيانات
+                await loadData(parseInt(sponsorshipId));
+
+            } catch (error) {
+                console.error('Init error:', error);
+                showToast('حدث خطأ في تحميل البيانات', 'error');
+            }
+        });
+
+        // ========================================
+        // تحميل البيانات
+        // ========================================
+        async function loadData(sponsorshipId) {
+            showLoading(true);
+
+            try {
+                // تحميل الجمعيات والحالات
+                sponsors = await SyncService.getLocalSponsors();
+                statuses = await SyncService.getLocalStatuses();
+
+                // تحميل بيانات الكفالة
+                currentSponsorship = await SyncService.getLocalSponsorship(sponsorshipId);
+
+                if (!currentSponsorship) {
+                    showNoData();
+                    return;
+                }
+
+                // حفظ البيانات الأصلية للمقارنة
+                originalData = JSON.parse(JSON.stringify(currentSponsorship));
+
+                // عرض البيانات
+                populateForm(currentSponsorship);
+
+                // إظهار الأقسام
+                document.getElementById('orphanSection').style.display = 'block';
+                document.getElementById('guardianSection').style.display = 'block';
+                document.getElementById('sponsorshipSection').style.display = 'block';
+                document.getElementById('bankSection').style.display = 'block';
+                document.getElementById('noDataMessage').style.display = 'none';
+
+                // إظهار بيانات السجل المدني إن وجدت
+                if (currentSponsorship.civil_registry_full_name || currentSponsorship.guardian_full_name) {
+                    document.getElementById('civilRegistrySection').style.display = 'block';
+                    populateCivilRegistry(currentSponsorship);
+                }
+
+                // تحديث عنوان الصفحة
+                document.getElementById('pageTitle').textContent = currentSponsorship.orphan_name || 'تفاصيل الكفالة';
+
+                // ربط أحداث التغيير
+                bindChangeEvents();
+
+            } catch (error) {
+                console.error('Load error:', error);
+                showToast('فشل في تحميل البيانات', 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // ========================================
+        // ملء النموذج
+        // ========================================
+        function populateForm(data) {
+            // بيانات المكفول - الاسم الكامل والمقسم
+            setValue('orphan_name', data.orphan_name);
+            setValue('orphan_first_name', data.orphan_first_name || '');
+            setValue('orphan_father_name', data.orphan_father_name || '');
+            setValue('orphan_grandfather_name', data.orphan_grandfather_name || '');
+            setValue('orphan_family_name', data.orphan_family_name || '');
+            setValue('identity_number', data.identity_number);
+            setValue('birth_date', formatDate(data.birth_date || data.sponsored_birth_date));
+            setValue('gender', data.gender);
+            setValue('health_status', data.health_status);
+            setValue('education_level', data.education_level);
+
+            // بيانات الولي - الاسم الكامل والمقسم
+            setValue('guardian_name', data.guardian_name);
+            setValue('guardian_first_name', data.guardian_first_name || '');
+            setValue('guardian_father_name', data.guardian_father_name || '');
+            setValue('guardian_grandfather_name', data.guardian_grandfather_name || '');
+            setValue('guardian_family_name', data.guardian_family_name || '');
+            setValue('guardian_identity_number', data.guardian_identity_number);
+            setValue('guardian_phone', data.guardian_phone || '');
+            setValue('guardian_phone2', data.guardian_phone2 || '');
+            setValue('guardian_detailed_address', data.guardian_detailed_address || '');
+
+            // عرض الحسابات البنكية
+            populateBankAccounts(data.bank_accounts || []);
+
+            // بيانات الكفالة
+            const sponsor = sponsors.find(s => s.id == data.sponsor_id);
+            setValue('sponsor_name', sponsor ? sponsor.name : '-');
+
+            // ملء قائمة الحالات
+            const statusSelect = document.getElementById('sponsorship_status_id');
+            statusSelect.innerHTML = '<option value="">اختر الحالة</option>';
+            statuses.forEach(status => {
+                const selected = status.id == data.sponsorship_status_id ? 'selected' : '';
+                statusSelect.innerHTML += `<option value="${status.id}" ${selected}>${status.name}</option>`;
+            });
+
+            setValue('internal_file_number', data.internal_file_number);
+            setValue('external_file_number', data.external_file_number);
+            setValue('sponsorship_start_date', formatDate(data.sponsorship_start_date));
+            setValue('sponsorship_end_date', formatDate(data.sponsorship_end_date));
+            setValue('sponsorship_duration_months', data.sponsorship_duration_months);
+            setValue('notes', data.notes);
+        }
+
+        // ========================================
+        // عرض الحسابات البنكية
+        // ========================================
+        function populateBankAccounts(accounts) {
+            const container = document.getElementById('bankAccountsContainer');
+
+            if (!accounts || accounts.length === 0) {
+                container.innerHTML = '<p style="color: #888; text-align: center;">لا توجد حسابات بنكية</p>';
+                return;
+            }
+
+            let html = '';
+            accounts.forEach((account, index) => {
+                html += `
+                <div class="bank-account-card" style="background: #f8f9fa; border-radius: 10px; padding: 15px; margin-bottom: 15px; border-right: 4px solid #2a8b8b;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <span style="font-weight: bold; color: #2a8b8b;">حساب ${index + 1}</span>
+                        <span style="font-size: 12px; color: #666;">${account.bank_name || 'غير محدد'}</span>
+                    </div>
+                    <div class="form-field" style="margin-bottom: 10px;">
+                        <label class="form-label">رقم الآيبان (IBAN)</label>
+                        <input type="text" class="form-input readonly" value="${account.iban || ''}" readonly dir="ltr" style="text-align: left; font-family: monospace;">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div class="form-field">
+                            <label class="form-label">اسم صاحب الحساب</label>
+                            <input type="text" class="form-input readonly" value="${account.account_holder_name || ''}" readonly>
+                        </div>
+                        <div class="form-field">
+                            <label class="form-label">رقم هوية صاحب الحساب</label>
+                            <input type="text" class="form-input readonly" value="${account.account_holder_identity || ''}" readonly>
+                        </div>
+                    </div>
+                </div>`;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function populateCivilRegistry(data) {
+            let html = '';
+
+            if (data.civil_registry_full_name) {
+                html += `<div class="form-field">
+                    <label class="form-label">الاسم الكامل (المكفول)</label>
+                    <input type="text" class="form-input readonly" value="${data.civil_registry_full_name}" readonly>
+                </div>`;
+            }
+
+            if (data.guardian_full_name) {
+                html += `<div class="form-field">
+                    <label class="form-label">الاسم الكامل (الولي)</label>
+                    <input type="text" class="form-input readonly" value="${data.guardian_full_name}" readonly>
+                </div>`;
+            }
+
+            document.getElementById('civilRegistryContent').innerHTML = html || '<p style="color: #888;">لا توجد بيانات سجل مدني</p>';
+        }
+
+        // ========================================
+        // ربط أحداث التغيير
+        // ========================================
+        function bindChangeEvents() {
+            const inputs = document.querySelectorAll('[data-field]');
+            inputs.forEach(input => {
+                input.addEventListener('input', handleFieldChange);
+                input.addEventListener('change', handleFieldChange);
+            });
+        }
+
+        function handleFieldChange(e) {
+            const field = e.target.dataset.field;
+            const newValue = e.target.value;
+            const originalValue = originalData[field] || '';
+
+            if (newValue !== String(originalValue || '')) {
+                modifiedFields[field] = newValue;
+                e.target.style.borderColor = '#007bff';
+            } else {
+                delete modifiedFields[field];
+                e.target.style.borderColor = '#e0e0e0';
+            }
+
+            // تفعيل/تعطيل زر الحفظ
+            const saveBtn = document.getElementById('saveBtn');
+            saveBtn.disabled = Object.keys(modifiedFields).length === 0;
+        }
+
+        // ========================================
+        // حفظ التغييرات
+        // ========================================
+        async function saveChanges() {
+            if (Object.keys(modifiedFields).length === 0) {
+                showToast('لا توجد تغييرات للحفظ', 'error');
+                return;
+            }
+
+            showLoading(true);
+
+            try {
+                // حفظ التغييرات محلياً
+                await SyncService.saveLocalChange(currentSponsorship.id, modifiedFields);
+
+                // تحديث البيانات الأصلية
+                Object.assign(originalData, modifiedFields);
+                Object.assign(currentSponsorship, modifiedFields);
+
+                // إعادة تعيين حقول التغيير
+                modifiedFields = {};
+                document.querySelectorAll('[data-field]').forEach(input => {
+                    input.style.borderColor = '#e0e0e0';
+                });
+                document.getElementById('saveBtn').disabled = true;
+
+                showToast('تم حفظ التغييرات بنجاح', 'success');
+
+                // محاولة الرفع للخادم إذا كان متصلاً
+                if (navigator.onLine) {
+                    try {
+                        await SyncService.uploadPendingChanges();
+                        showToast('تم مزامنة التغييرات مع الخادم', 'success');
+                    } catch (e) {
+                        console.log('Will sync later:', e);
+                    }
+                }
+
+            } catch (error) {
+                console.error('Save error:', error);
+                showToast('فشل في حفظ التغييرات: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // ========================================
+        // دوال مساعدة
+        // ========================================
+        function setValue(id, value) {
+            const element = document.getElementById(id);
+            if (element) {
+                element.value = value || '';
+            }
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            if (isNaN(date.getTime())) return dateStr;
+            return date.toISOString().split('T')[0];
+        }
+
+        function showNoData() {
+            document.getElementById('noDataMessage').style.display = 'block';
+            document.getElementById('orphanSection').style.display = 'none';
+            document.getElementById('guardianSection').style.display = 'none';
+            document.getElementById('sponsorshipSection').style.display = 'none';
+            document.getElementById('bankSection').style.display = 'none';
+            document.getElementById('civilRegistrySection').style.display = 'none';
+        }
+
+        function showLoading(show) {
+            document.getElementById('loadingOverlay').classList.toggle('active', show);
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast show ' + type;
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        function goBack() {
+            // التحقق من وجود تغييرات غير محفوظة
+            if (Object.keys(modifiedFields).length > 0) {
+                if (!confirm('توجد تغييرات غير محفوظة. هل تريد المتابعة؟')) {
+                    return;
+                }
+            }
+            window.location.href = 'data.html';
+        }
+
+        // ========================================
+        // زر الرجوع
+        // ========================================
+        document.addEventListener('backbutton', function(e) {
+            e.preventDefault();
+            goBack();
+        }, false);
+
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+            window.Capacitor.Plugins.App.addListener('backButton', goBack);
+        }
+    </script>
+</body>
+</html>
