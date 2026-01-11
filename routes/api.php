@@ -716,14 +716,25 @@ Route::post('/civil-registry/save-bank-account', function (Request $request) {
 });
 
 // جلب الحسابات البنكية بناءً على file_id_number أو guardian_identity
-Route::get('/sponsorships/get-bank-accounts', function (Request $request) {
+// يجب أن يكون المستخدم مسجلاً دخوله وبرتبة admin
+Route::middleware(['auth:sanctum'])->get('/sponsorships/get-bank-accounts', function (Request $request) {
     try {
+        // التحقق من صلاحيات المستخدم
+        $user = $request->user();
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'يجب تسجيل الدخول أولاً'
+            ], 401);
+        }
+
         $fileId = $request->query('file_id');
         $guardianIdentity = $request->query('guardian_identity');
 
         Log::info('🔍 API: طلب جلب الحسابات البنكية', [
             'file_id' => $fileId,
-            'guardian_identity' => $guardianIdentity
+            'guardian_identity' => $guardianIdentity,
+            'user_id' => $user->id
         ]);
 
         if (!$fileId && !$guardianIdentity) {

@@ -419,13 +419,13 @@
 
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 10px;
         }
 
         .stat-item {
             background: white;
-            padding: 15px;
+            padding: 15px 10px;
             border-radius: 12px;
             text-align: center;
             box-shadow: 0 2px 8px rgba(0,0,0,0.05);
@@ -433,13 +433,13 @@
         }
 
         .stat-value {
-            font-size: 1.5rem;
+            font-size: 1.3rem;
             font-weight: 700;
             color: var(--primary-color);
         }
 
         .stat-label {
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             color: #888;
             margin-top: 3px;
         }
@@ -536,7 +536,11 @@
                 </div>
                 <div class="stat-item">
                     <div class="stat-value" id="stat-pending">0</div>
-                    <div class="stat-label">معلق</div>
+                    <div class="stat-label">تعديلات معلقة</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="stat-files">0</div>
+                    <div class="stat-label">ملفات معلقة</div>
                 </div>
             </div>
         </div>
@@ -664,7 +668,7 @@
             showLogin();
         }
 
-        // Perform initial sync after login
+        // Perform initial sync after login - includes full sponsorship sync
         async function performInitialSync() {
             try {
                 const syncProgress = document.getElementById('sync-progress');
@@ -673,22 +677,33 @@
 
                 syncProgress.style.width = '10%';
 
-                // Get initial sync data
+                // 1. Get initial sync data (reference tables)
                 const result = await SyncService.performInitialSync();
 
                 if (result.success) {
-                    syncProgress.style.width = '100%';
-                    syncCompleted.textContent = result.sponsors_count + result.statuses_count;
-                    syncPending.textContent = '0';
+                    syncProgress.style.width = '30%';
+                    console.log('Initial sync completed:', result);
+
+                    // 2. Perform full sync to download all sponsorships
+                    const fullSyncResult = await SyncService.performFullSync((progress) => {
+                        // Update progress bar (30% to 100%)
+                        const percent = 30 + (progress.progress * 0.7);
+                        syncProgress.style.width = percent + '%';
+                        syncCompleted.textContent = progress.downloaded || 0;
+                    });
+
+                    if (fullSyncResult.success) {
+                        syncProgress.style.width = '100%';
+                        syncCompleted.textContent = fullSyncResult.downloaded;
+                        console.log('Full sync completed:', fullSyncResult);
+                    }
 
                     // Update stats
                     updateStatsFromLocal();
-
-                    console.log('Initial sync completed:', result);
                 }
 
             } catch (error) {
-                console.error('Initial sync failed:', error);
+                console.error('Sync failed:', error);
                 // Use cached data if available
                 updateStatsFromLocal();
             }
@@ -698,18 +713,21 @@
             try {
                 const stats = await SyncService.getLocalStats();
                 const sponsors = await SyncService.getLocalSponsors();
+                const pendingFiles = await SyncService.getPendingFiles();
 
                 const statSponsors = document.getElementById('stat-sponsors');
                 const statLocal = document.getElementById('stat-local');
                 const statPending = document.getElementById('stat-pending');
+                const statFiles = document.getElementById('stat-files');
 
                 statSponsors.textContent = sponsors.length || 0;
                 statLocal.textContent = stats.sponsorships_count || 0;
                 statPending.textContent = stats.pending_uploads || 0;
+                statFiles.textContent = pendingFiles.length || 0;
 
                 // Update sync counts
                 document.getElementById('syncCompleted').textContent = stats.sponsorships_count || 0;
-                document.getElementById('syncPending').textContent = stats.pending_uploads || 0;
+                document.getElementById('syncPending').textContent = (stats.pending_uploads || 0) + ' | ' + (pendingFiles.length || 0) + ' ملف';
             } catch (error) {
                 console.error('Failed to update stats:', error);
             }

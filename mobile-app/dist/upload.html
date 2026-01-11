@@ -558,6 +558,17 @@
             showProgress(true);
             updateProgress(0, `جاري الرفع... 0/${pending.length}`);
 
+            // بدء العمل في الخلفية
+            await startUploadBackgroundTask();
+
+            // إرسال إشعار ببدء الرفع
+            const notificationId = await SyncService.sendNotification(
+                'رفع الملفات',
+                'جاري رفع الملفات إلى Google Drive...',
+                0,
+                true // force notification
+            );
+
             try {
                 const sponsorships = await SyncService.dbGetAll('sponsorships');
                 let uploaded = 0;
@@ -567,6 +578,16 @@
                     const file = pending[i];
                     const progress = Math.round(((i + 1) / pending.length) * 100);
                     updateProgress(progress, `جاري الرفع... ${i + 1}/${pending.length}`);
+
+                    // تحديث الإشعار بالتقدم
+                    if (notificationId) {
+                        await SyncService.sendNotification(
+                            'رفع الملفات',
+                            `جاري رفع ${i + 1} من ${pending.length}`,
+                            progress,
+                            true
+                        );
+                    }
 
                     try {
                         // البحث عن الكفالة المرتبطة
@@ -614,6 +635,17 @@
 
                 updateProgress(100, 'تم الرفع!');
 
+                // إرسال إشعار بالإنتهاء
+                if (notificationId) {
+                    await SyncService.cancelNotification(notificationId);
+                    await SyncService.sendNotification(
+                        'اكتملت عملية الرفع',
+                        failed > 0 ? `تم رفع ${uploaded} ملف، فشل ${failed}` : `تم رفع ${uploaded} ملف بنجاح`,
+                        100,
+                        true
+                    );
+                }
+
                 if (failed > 0) {
                     showStatus('warning', `تم رفع ${uploaded} ملف، فشل ${failed}`);
                 } else {
@@ -626,9 +658,55 @@
             } catch (error) {
                 console.error('Upload error:', error);
                 showStatus('error', 'فشل الرفع: ' + error.message);
+
+                // إرسال إشعار بالفشل
+                if (notificationId) {
+                    await SyncService.cancelNotification(notificationId);
+                    await SyncService.sendNotification(
+                        'فشل الرفع',
+                        'حدث خطأ أثناء رفع الملفات: ' + error.message,
+                        null,
+                        true
+                    );
+                }
             } finally {
                 btn.disabled = false;
                 setTimeout(() => showProgress(false), 2000);
+
+                // إنهاء العمل في الخلفية
+                await finishUploadBackgroundTask();
+            }
+        }
+
+        // ========================================
+        // دعم العمل في الخلفية
+        // ========================================
+        let uploadBackgroundTaskId = null;
+
+        async function startUploadBackgroundTask() {
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.BackgroundTask) {
+                try {
+                    const BackgroundTask = window.Capacitor.Plugins.BackgroundTask;
+                    uploadBackgroundTaskId = await BackgroundTask.beforeExit(async () => {
+                        console.log('Upload background task started');
+                    });
+                    console.log('Upload background task ID:', uploadBackgroundTaskId);
+                } catch (error) {
+                    console.log('Failed to start upload background task:', error);
+                }
+            }
+        }
+
+        async function finishUploadBackgroundTask() {
+            if (uploadBackgroundTaskId && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.BackgroundTask) {
+                try {
+                    const BackgroundTask = window.Capacitor.Plugins.BackgroundTask;
+                    await BackgroundTask.finish({ taskId: uploadBackgroundTaskId });
+                    uploadBackgroundTaskId = null;
+                    console.log('Upload background task finished');
+                } catch (error) {
+                    console.log('Failed to finish upload background task:', error);
+                }
             }
         }
 

@@ -240,19 +240,19 @@
                         <span class="bank-account-status ${statusClass}">${statusText}</span>
                     </div>
                     <div class="form-field"><label class="form-label">اسم البنك</label>
-                        <select class="form-select" data-bank-field="bank_name_id" data-account-index="${index}">
+                        <select class="form-select" data-bank-field="bank_name" data-account-index="${index}">
                             <option value="">-- اختر البنك --</option>
-                            ${bankNames.map(b => `<option value="${b.id}" ${(account.bank_name_id == b.id) ? 'selected' : ''}>${b.description}</option>`).join('')}
+                            ${bankNames.map(b => `<option value="${b.id}" ${(account.bank_name == b.id) ? 'selected' : ''}>${b.description}</option>`).join('')}
                         </select>
                     </div>
                     <div class="form-field"><label class="form-label">اسم صاحب الحساب</label>
-                        <input type="text" class="form-input" value="${account.account_holder_name || account.re_guardian_name || ''}" data-bank-field="account_holder_name" data-account-index="${index}">
+                        <input type="text" class="form-input" value="${account.re_guardian_name || ''}" data-bank-field="re_guardian_name" data-account-index="${index}">
                     </div>
                     <div class="form-field"><label class="form-label">رقم هوية صاحب الحساب</label>
-                        <input type="text" class="form-input" value="${account.account_holder_identity || account.person_owner_identity_number || ''}" data-bank-field="account_holder_identity" data-account-index="${index}">
+                        <input type="text" class="form-input" value="${account.person_owner_identity_number || ''}" data-bank-field="person_owner_identity_number" data-account-index="${index}">
                     </div>
                     <div class="form-field"><label class="form-label">رقم هاتف صاحب الحساب</label>
-                        <input type="tel" class="form-input" value="${account.account_holder_phone || ''}" data-bank-field="account_holder_phone" data-account-index="${index}">
+                        <input type="tel" class="form-input" value="${account.re_phone_number || ''}" data-bank-field="re_phone_number" data-account-index="${index}">
                     </div>
                     <div class="form-field"><label class="form-label">رقم IBAN بالدولار</label>
                         <input type="text" class="form-input" value="${account.iban_usd || account.iban || ''}" data-bank-field="iban_usd" data-account-index="${index}" dir="ltr" style="text-align: left; font-family: monospace;">

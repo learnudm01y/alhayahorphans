@@ -860,8 +860,9 @@ class SponsorshipSyncController extends Controller
     {
         try {
             // جلب الحسابات البنكية الحالية
+            // جدول guardian_bank_accounts يخزن مرجع الملف في عمود guardian_registration
             $accounts = DB::table('guardian_bank_accounts')
-                ->where('file_id', $sponsorship->relation_id_number)
+                ->where('guardian_registration', $sponsorship->relation_id_number)
                 ->orderBy('id')
                 ->get()
                 ->values();

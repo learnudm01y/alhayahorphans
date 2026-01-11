@@ -20,6 +20,7 @@ const SyncService = {
     syncInProgress: false,
     uploadInProgress: false,
     LocalNotifications: null,
+    isAppInBackground: false,
 
     // ========================================
     // التهيئة
@@ -79,25 +80,51 @@ const SyncService = {
         }
     },
 
-    // إرسال إشعار محلي
-    async sendNotification(title, body, progress = null) {
+    // إرسال إشعار محلي (فقط في الخلفية أو للعمليات الهامة)
+    async sendNotification(title, body, progress = null, force = false) {
         try {
             if (!this.LocalNotifications) return;
 
+            // لا ترسل إشعارات إذا كان التطبيق في المقدمة (إلا إذا كانت للملفات أو رفع Google Drive)
+            if (!force && !this.isAppInBackground) {
+                console.log('App in foreground - skipping notification');
+                return null;
+            }
+
+            const id = progress !== null ? 1000 : Math.floor(Math.random() * 100000);
             const notificationOptions = {
                 notifications: [{
-                    id: progress !== null ? 1 : Math.floor(Math.random() * 100000),
+                    id: id,
                     title: title,
                     body: body,
                     channelId: 'sync_channel',
                     ongoing: progress !== null && progress < 100,
-                    autoCancel: progress === null || progress >= 100
+                    autoCancel: progress === null || progress >= 100,
+                    smallIcon: 'ic_stat_notification',
+                    largeIcon: 'ic_launcher',
+                    // إضافة شريط التقدم
+                    extra: progress !== null ? {
+                        progress: Math.round(progress),
+                        progressMax: 100,
+                        progressIndeterminate: false
+                    } : {}
                 }]
             };
 
             await this.LocalNotifications.schedule(notificationOptions);
+            return id;
         } catch (error) {
             console.log('Failed to send notification:', error.message);
+        }
+    },
+
+    // إخفاء إشعار محدد
+    async cancelNotification(id) {
+        try {
+            if (!this.LocalNotifications) return;
+            await this.LocalNotifications.cancel({ notifications: [{ id }] });
+        } catch (error) {
+            console.log('Failed to cancel notification:', error.message);
         }
     },
 
@@ -528,8 +555,8 @@ const SyncService = {
         try {
             this.syncInProgress = true;
 
-            // إرسال إشعار بدء المزامنة
-            await this.sendNotification('جاري المزامنة...', 'يتم تحميل البيانات الأساسية', 0);
+            // إرسال إشعار بدء المزامنة (نحتفظ بالمعرف ليتم إخفاؤه عند الانتهاء)
+            const initialNotifId = await this.sendNotification('جاري المزامنة...', 'يتم تحميل البيانات الأساسية', 0);
 
             const result = await this.request('/mobile/sync/initial');
 
@@ -605,6 +632,8 @@ const SyncService = {
 
                 // إشعار اكتمال المزامنة
                 await this.sendNotification('✅ اكتملت المزامنة', `تم تحميل ${totalItems} عنصر بنجاح`);
+                // إخفاء إشعار التقدم السابق
+                if (initialNotifId) await this.cancelNotification(initialNotifId);
 
                 return {
                     success: true,
@@ -620,12 +649,14 @@ const SyncService = {
 
             this.syncInProgress = false;
             await this.sendNotification('❌ فشلت المزامنة', result.message);
+            if (initialNotifId) await this.cancelNotification(initialNotifId);
             return { success: false, message: result.message };
 
         } catch (error) {
             console.error('Initial sync failed:', error);
             this.syncInProgress = false;
             await this.sendNotification('❌ فشلت المزامنة', error.message);
+            if (initialNotifId) await this.cancelNotification(initialNotifId);
             throw error;
         }
     },
@@ -704,8 +735,8 @@ const SyncService = {
             let totalDownloaded = 0;
             let totalRecords = 0;
 
-            // إرسال إشعار بدء المزامنة
-            await this.sendNotification('جاري مزامنة الكفالات...', 'يتم جلب البيانات من الخادم', 0);
+            // إرسال إشعار بدء المزامنة (نحتفظ بالمعرف ليتم إخفاؤه عند الانتهاء)
+            const fullNotifId = await this.sendNotification('جاري مزامنة الكفالات...', 'يتم جلب البيانات من الخادم', 0);
 
             // جلب آخر وقت مزامنة
             const lastSyncMeta = await this.dbGet('sync_meta', 'last_full_sync');
@@ -770,6 +801,7 @@ const SyncService = {
 
             // إشعار اكتمال المزامنة
             await this.sendNotification('✅ اكتملت المزامنة', `تم تنزيل ${totalDownloaded} كفالة بنجاح`);
+            if (fullNotifId) await this.cancelNotification(fullNotifId);
 
             return {
                 success: true,
@@ -782,6 +814,7 @@ const SyncService = {
             console.error('Full sync failed:', error);
             this.syncInProgress = false;
             await this.sendNotification('❌ فشلت المزامنة', error.message);
+            if (fullNotifId) await this.cancelNotification(fullNotifId);
             throw error;
         }
     },
@@ -906,8 +939,8 @@ const SyncService = {
         const totalItems = pending.length;
         let processedItems = 0;
 
-        // إرسال إشعار بدء الرفع
-        await this.sendNotification('جاري رفع التعديلات...', `${totalItems} تعديل معلق`, 0);
+        // إرسال إشعار بدء الرفع (نحتفظ بالمعرف ليتم إخفاؤه عند الانتهاء)
+        const uploadNotifId = await this.sendNotification('جاري رفع التعديلات...', `${totalItems} تعديل معلق`, 0);
 
         for (const change of pending) {
             try {
@@ -954,6 +987,7 @@ const SyncService = {
         } else {
             await this.sendNotification('⚠️ اكتمل الرفع مع أخطاء', `نجح: ${results.success} | فشل: ${results.failed}`);
         }
+        if (uploadNotifId) await this.cancelNotification(uploadNotifId);
 
         return results;
     },
@@ -1115,6 +1149,7 @@ if (typeof window !== 'undefined') {
     // تسجيل مستمع للخروج من التطبيق
     document.addEventListener('pause', async () => {
         console.log('App paused - background mode activated');
+        SyncService.isAppInBackground = true;
         if (SyncService.syncInProgress || SyncService.uploadInProgress) {
             await SyncService.startBackgroundSync();
         }
@@ -1122,6 +1157,7 @@ if (typeof window !== 'undefined') {
 
     document.addEventListener('resume', () => {
         console.log('App resumed');
+        SyncService.isAppInBackground = false;
     });
 }
 
