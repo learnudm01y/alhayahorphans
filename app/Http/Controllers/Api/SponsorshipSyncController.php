@@ -316,19 +316,26 @@ class SponsorshipSyncController extends Controller
                 $result['sponsored_birth_date'] = $civilData['birth_date'] ?? $sponsorship->sponsored_birth_date;
                 $result['orphan_gender'] = $civilData['gender'];
                 $result['orphan_data_source'] = 'civil_registry';
-            } elseif (!empty($sponsorship->orphan_name)) {
-                // الاسم موجود في sponsorships - نحاول تقسيمه
-                $nameParts = $this->splitArabicName($sponsorship->orphan_name);
-                $result['orphan_first_name'] = $nameParts['first_name'];
-                $result['orphan_father_name'] = $nameParts['father_name'];
-                $result['orphan_grandfather_name'] = $nameParts['grand_father_name'];
-                $result['orphan_family_name'] = $nameParts['family_name'];
-                $result['orphan_name_combined'] = $sponsorship->orphan_name; // الاسم المدمج الأصلي
-                $result['needs_orphan_name_input'] = true; // يحتاج تأكيد/تعديل
             } else {
-                $result['needs_orphan_name_input'] = true;
-                $result['orphan_name_message'] = 'لم يتم العثور على بيانات. يرجى إدخال الاسم الرباعي.';
+                // الاسم غير موجود في السجل المدني - نبحث في جداول أخرى
+                if (!empty($sponsorship->orphan_name)) {
+                    $nameParts = $this->splitArabicName($sponsorship->orphan_name);
+                    $result['orphan_first_name'] = $nameParts['first_name'];
+                    $result['orphan_father_name'] = $nameParts['father_name'];
+                    $result['orphan_grandfather_name'] = $nameParts['grand_father_name'];
+                    $result['orphan_family_name'] = $nameParts['family_name'];
+                    $result['orphan_name_combined'] = $sponsorship->orphan_name;
+                    $result['needs_orphan_name_input'] = true;
+                }
+
+                // جلب الجنس من جداول بديلة
+                $result['orphan_gender'] = $this->getGenderFromAlternativeSources($sponsorship->identity_number);
             }
+        }
+
+        // إذا لم يتم جلب الجنس بعد، نحاول من جداول أخرى
+        if (empty($result['orphan_gender']) && !empty($sponsorship->identity_number)) {
+            $result['orphan_gender'] = $this->getGenderFromAlternativeSources($sponsorship->identity_number);
         }
 
         // جلب بيانات المعيل من السجل المدني
@@ -361,15 +368,28 @@ class SponsorshipSyncController extends Controller
                     ->where('guardian_bank_accounts.guardian_registration', $sponsorship->relation_id_number)
                     ->select([
                         'guardian_bank_accounts.id',
-                        'guardian_bank_accounts.account_number',
-                        'guardian_bank_accounts.iban',
-                        'guardian_bank_accounts.account_holder_name',
+                        'guardian_bank_accounts.iban_usd',
+                        'guardian_bank_accounts.iban_shekel',
+                        'guardian_bank_accounts.re_guardian_name as account_holder_name',
+                        'guardian_bank_accounts.person_owner_identity_number as account_holder_identity',
                         'guardian_bank_accounts.bank_name as bank_id',
                         'bank_names.description as bank_name_text'
                     ])
                     ->get();
 
-                $result['bank_accounts'] = $bankAccounts->toArray();
+                // تحويل البيانات للشكل المطلوب
+                $result['bank_accounts'] = $bankAccounts->map(function($account) {
+                    return [
+                        'id' => $account->id,
+                        'iban' => $account->iban_shekel ?: $account->iban_usd, // الشيكل أولاً ثم الدولار
+                        'iban_usd' => $account->iban_usd,
+                        'iban_shekel' => $account->iban_shekel,
+                        'account_holder_name' => $account->account_holder_name,
+                        'account_holder_identity' => $account->account_holder_identity,
+                        'bank_name' => $account->bank_name_text,
+                        'bank_id' => $account->bank_id
+                    ];
+                })->toArray();
             } catch (\Exception $e) {
                 Log::warning('Failed to get bank accounts', ['error' => $e->getMessage()]);
             }
@@ -379,14 +399,14 @@ class SponsorshipSyncController extends Controller
         if (!empty($sponsorship->relation_id_number)) {
             try {
                 $guardianInfo = DB::table('data')
-                    ->where('registration_id', $sponsorship->relation_id_number)
-                    ->select(['detailed_address', 'phone', 'phone2'])
+                    ->where('file_id_number', $sponsorship->relation_id_number)
+                    ->select(['data_current_address', 'data_phone_number', 'data_alt_phone_number'])
                     ->first();
 
                 if ($guardianInfo) {
-                    $result['guardian_detailed_address'] = $guardianInfo->detailed_address ?? '';
-                    $result['guardian_phone'] = $guardianInfo->phone ?? '';
-                    $result['guardian_phone2'] = $guardianInfo->phone2 ?? '';
+                    $result['guardian_detailed_address'] = $guardianInfo->data_current_address ?? '';
+                    $result['guardian_phone'] = $guardianInfo->data_phone_number ?? '';
+                    $result['guardian_phone2'] = $guardianInfo->data_alt_phone_number ?? '';
                 }
             } catch (\Exception $e) {
                 Log::warning('Failed to get guardian contact info', ['error' => $e->getMessage()]);
@@ -449,6 +469,77 @@ class SponsorshipSyncController extends Controller
             ]);
             return null;
         }
+    }
+
+    /**
+     * جلب الجنس من مصادر بديلة (data, re_people)
+     */
+    private function getGenderFromAlternativeSources(string $identityNumber): ?string
+    {
+        // 1. البحث في جدول data
+        try {
+            $data = DB::table('data')
+                ->where('data_id_number', $identityNumber)
+                ->first();
+
+            if ($data && !empty($data->data_gender)) {
+                return $data->data_gender == 1 ? 'ذكر' : ($data->data_gender == 2 ? 'أنثى' : null);
+            }
+        } catch (\Exception $e) {
+            Log::debug('Gender lookup in data failed', ['error' => $e->getMessage()]);
+        }
+
+        // 2. البحث في جدول re_people
+        try {
+            $rePerson = DB::table('re_people')
+                ->where('person_id', $identityNumber)
+                ->first();
+
+            if ($rePerson && !empty($rePerson->person_gender)) {
+                return $rePerson->person_gender == 1 ? 'ذكر' : ($rePerson->person_gender == 2 ? 'أنثى' : null);
+            }
+        } catch (\Exception $e) {
+            Log::debug('Gender lookup in re_people failed', ['error' => $e->getMessage()]);
+        }
+
+        // 3. البحث في جدول dead_people (أب متوفي = ذكر، أم متوفية = أنثى)
+        try {
+            // البحث إذا كان الشخص أب متوفي
+            $deadFather = DB::table('dead_people')
+                ->where('father_id', $identityNumber)
+                ->first();
+
+            if ($deadFather) {
+                return 'ذكر'; // أب متوفي = ذكر
+            }
+
+            // البحث إذا كان الشخص أم متوفية
+            $deadMother = DB::table('dead_people')
+                ->where('mother_id', $identityNumber)
+                ->first();
+
+            if ($deadMother) {
+                return 'أنثى'; // أم متوفية = أنثى
+            }
+        } catch (\Exception $e) {
+            Log::debug('Gender lookup in dead_people failed', ['error' => $e->getMessage()]);
+        }
+
+        // 4. البحث في السجل المدني مباشرة
+        try {
+            $person = DB::connection('civilregistry')
+                ->table('persons')
+                ->where('CI_ID_NUM', $identityNumber)
+                ->first();
+
+            if ($person && !empty($person->CI_SEX_CD)) {
+                return $person->CI_SEX_CD == 1 ? 'ذكر' : ($person->CI_SEX_CD == 2 ? 'أنثى' : null);
+            }
+        } catch (\Exception $e) {
+            Log::debug('Gender lookup in civil registry failed', ['error' => $e->getMessage()]);
+        }
+
+        return null;
     }
 
     /**
@@ -796,25 +887,41 @@ class SponsorshipSyncController extends Controller
             'file_name' => 'required|string',
             'file_type' => 'required|string',
             'file_data' => 'required|string',
-            'folder_path' => 'required|string',
+            'folder_path' => 'nullable|string',
             'sponsorship_id' => 'required|integer'
         ]);
 
         try {
+            // جلب بيانات الكفالة للحصول على اسم الجمعية واسم المكفول
+            $sponsorship = DB::table('sponsorships')
+                ->leftJoin('sponsors', 'sponsorships.sponsor_id', '=', 'sponsors.id')
+                ->where('sponsorships.id', $request->sponsorship_id)
+                ->select([
+                    'sponsorships.identity_number',
+                    'sponsorships.orphan_name',
+                    'sponsors.sponsor_name'
+                ])
+                ->first();
+
+            if (!$sponsorship) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'الكفالة غير موجودة'
+                ], 404);
+            }
+
+            // بناء هيكل المجلدات الصحيح: temp/[اسم الجمعية]/[اسم المكفول أو رقم هويته]
+            $organizationName = $sponsorship->sponsor_name ?: 'غير محدد';
+            $orphanName = $sponsorship->orphan_name ?: $sponsorship->identity_number ?: 'غير محدد';
+
             // فك تشفير البيانات
             $fileData = base64_decode($request->file_data);
-
-            // تغيير المسار من alhayah إلى temp
-            $folderPath = str_replace('alhayah/', 'temp/', $request->folder_path);
-            if (!str_starts_with($folderPath, 'temp/')) {
-                $folderPath = 'temp/' . ltrim($folderPath, '/');
-            }
 
             // إنشاء اسم الملف
             $fileName = $request->file_name;
 
             // حفظ الملف محلياً أولاً
-            $localPath = storage_path('app/mobile_uploads/' . $folderPath);
+            $localPath = storage_path('app/mobile_uploads/' . $this->sanitizeFolderName($organizationName) . '/' . $this->sanitizeFolderName($orphanName));
             if (!file_exists($localPath)) {
                 mkdir($localPath, 0755, true);
             }
@@ -826,14 +933,17 @@ class SponsorshipSyncController extends Controller
             $fileHash = hash_file('sha256', $fullPath);
             $fileSize = strlen($fileData);
 
-            // تسجيل في قاعدة البيانات بالأعمدة الصحيحة
+            // المسار في Google Drive
+            $googleDrivePath = "temp/{$this->sanitizeFolderName($organizationName)}/{$this->sanitizeFolderName($orphanName)}/{$fileName}";
+
+            // تسجيل في قاعدة البيانات
             $uploadId = DB::table('google_drive_uploads')->insertGetId([
                 'local_file_path' => $fullPath,
                 'local_file_hash' => $fileHash,
                 'file_name' => $fileName,
                 'file_size_bytes' => $fileSize,
                 'mime_type' => $request->file_type,
-                'google_drive_path' => $folderPath . '/' . $fileName,
+                'google_drive_path' => $googleDrivePath,
                 'upload_status' => 'pending',
                 'upload_progress' => 0,
                 'entity_type' => 'sponsorship',
@@ -847,12 +957,62 @@ class SponsorshipSyncController extends Controller
                 'updated_at' => now()
             ]);
 
-            // محاولة الرفع إلى Google Drive
+            // محاولة الرفع باستخدام Rclone (الطريقة الرئيسية على الخادم)
+            $useRclone = env('USE_RCLONE_FOR_UPLOADS', false);
+
+            if ($useRclone) {
+                try {
+                    $rcloneService = new \App\Services\RcloneGoogleDriveService();
+
+                    // التحقق من اتصال Rclone
+                    if ($rcloneService->testConnection()) {
+                        // رفع الملف عبر Rclone
+                        $result = $rcloneService->uploadFile(
+                            $fullPath,
+                            $organizationName,
+                            $orphanName,
+                            pathinfo($fileName, PATHINFO_FILENAME), // اسم الملف بدون الامتداد
+                            pathinfo($fileName, PATHINFO_EXTENSION) // الامتداد
+                        );
+
+                        if ($result['success']) {
+                            DB::table('google_drive_uploads')
+                                ->where('id', $uploadId)
+                                ->update([
+                                    'google_drive_file_id' => $result['remote_path'] ?? null,
+                                    'upload_status' => 'completed',
+                                    'upload_progress' => 100,
+                                    'synced_to_server' => true,
+                                    'updated_at' => now()
+                                ]);
+
+                            Log::info('File uploaded via Rclone', [
+                                'file' => $fileName,
+                                'path' => $result['remote_path']
+                            ]);
+
+                            return response()->json([
+                                'success' => true,
+                                'message' => 'تم رفع الملف بنجاح',
+                                'remote_path' => $result['remote_path'] ?? null,
+                                'upload_id' => $uploadId
+                            ]);
+                        }
+                    }
+                } catch (\Exception $rcloneError) {
+                    Log::warning('Rclone upload failed', [
+                        'error' => $rcloneError->getMessage(),
+                        'file' => $fileName
+                    ]);
+                }
+            }
+
+            // محاولة الرفع باستخدام Google Drive API (البيئة المحلية)
             try {
                 if (class_exists(\App\Services\GoogleDriveService::class)) {
                     $driveService = app(\App\Services\GoogleDriveService::class);
 
-                    $result = $driveService->uploadToPath($fullPath, $folderPath, $fileName);
+                    $result = $driveService->uploadToPath($fullPath, "temp/{$organizationName}/{$orphanName}", $fileName);
 
                     if ($result) {
                         DB::table('google_drive_uploads')
@@ -874,7 +1034,7 @@ class SponsorshipSyncController extends Controller
                     }
                 }
             } catch (\Exception $driveError) {
-                Log::warning('Google Drive upload failed, file saved locally', [
+                Log::warning('Google Drive API upload failed, file saved locally', [
                     'error' => $driveError->getMessage(),
                     'file' => $fileName
                 ]);
@@ -895,6 +1055,21 @@ class SponsorshipSyncController extends Controller
                 'message' => 'فشل رفع الملف: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * تنظيف اسم المجلد من الأحرف غير المسموحة
+     */
+    private function sanitizeFolderName(string $name): string
+    {
+        // إزالة الأحرف غير المسموحة في أسماء المجلدات
+        $name = preg_replace('/[<>:"\/\\|?*]/', '_', $name);
+        // إزالة المسافات الزائدة
+        $name = preg_replace('/\s+/', ' ', $name);
+        // إزالة النقاط في البداية والنهاية
+        $name = trim($name, '. ');
+
+        return $name ?: 'unnamed';
     }
 
     // ========================================

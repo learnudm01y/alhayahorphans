@@ -179,6 +179,89 @@ class GoogleDriveService
     }
 
     /**
+     * رفع ملف إلى مسار محدد (مع إنشاء المجلدات المتداخلة)
+     * مثال: uploadToPath('/path/to/file.jpg', 'temp/sponsorships/123', 'photo.jpg')
+     */
+    public function uploadToPath($localFilePath, $folderPath, $fileName)
+    {
+        try {
+            // البحث عن المجلد الجذر "temp" أو إنشائه
+            $rootFolderId = $this->getOrCreateFolder('temp', null);
+
+            // تقسيم المسار إلى أجزاء
+            $pathParts = explode('/', trim($folderPath, '/'));
+
+            // إزالة "temp" من البداية إذا كان موجوداً
+            if (!empty($pathParts) && $pathParts[0] === 'temp') {
+                array_shift($pathParts);
+            }
+
+            // إنشاء المجلدات المتداخلة
+            $currentFolderId = $rootFolderId;
+            foreach ($pathParts as $folderName) {
+                if (!empty($folderName)) {
+                    $currentFolderId = $this->getOrCreateFolder($folderName, $currentFolderId);
+                }
+            }
+
+            // رفع الملف إلى المجلد النهائي
+            $result = $this->uploadFile($localFilePath, $fileName, $currentFolderId);
+
+            Log::info('تم رفع الملف إلى المسار: ' . $folderPath . '/' . $fileName, [
+                'file_id' => $result['id'] ?? null,
+                'folder_id' => $currentFolderId
+            ]);
+
+            return $result;
+
+        } catch (Exception $e) {
+            Log::error('خطأ في رفع الملف إلى المسار: ' . $e->getMessage(), [
+                'path' => $folderPath,
+                'file' => $fileName
+            ]);
+            throw $e;
+        }
+    }
+
+    /**
+     * الحصول على مجلد أو إنشائه إذا لم يكن موجوداً
+     */
+    private function getOrCreateFolder($folderName, $parentFolderId = null)
+    {
+        try {
+            // البحث عن المجلد
+            $query = "name='{$folderName}' and mimeType='" . self::FOLDER_MIME_TYPE . "' and trashed=false";
+            if ($parentFolderId) {
+                $query .= " and '{$parentFolderId}' in parents";
+            }
+
+            $response = Http::withOptions(['verify' => false])
+                ->withToken($this->accessToken)
+                ->get($this->baseUrl . '/files', [
+                    'q' => $query,
+                    'fields' => 'files(id, name)',
+                    'supportsAllDrives' => 'true',
+                    'includeItemsFromAllDrives' => 'true'
+                ]);
+
+            if ($response->successful()) {
+                $files = $response->json()['files'] ?? [];
+                if (!empty($files)) {
+                    return $files[0]['id'];
+                }
+            }
+
+            // إنشاء المجلد إذا لم يكن موجوداً
+            $result = $this->createFolder($folderName, $parentFolderId);
+            return $result['id'];
+
+        } catch (Exception $e) {
+            Log::error('خطأ في الحصول على/إنشاء المجلد: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
      * حذف ملف من Google Drive
      */
     public function deleteFile($fileId)

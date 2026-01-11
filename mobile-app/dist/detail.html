@@ -346,20 +346,12 @@
                 <div class="form-row">
                     <div class="form-field">
                         <label class="form-label">الجنس</label>
-                        <select class="form-select" id="gender" data-field="gender">
-                            <option value="">غير محدد</option>
-                            <option value="1">ذكر</option>
-                            <option value="2">أنثى</option>
-                        </select>
+                        <input type="text" class="form-input readonly" id="gender" readonly>
                     </div>
                     <div class="form-field">
                         <label class="form-label">الحالة الصحية</label>
                         <input type="text" class="form-input" id="health_status" data-field="health_status">
                     </div>
-                </div>
-                <div class="form-field">
-                    <label class="form-label">المستوى التعليمي</label>
-                    <input type="text" class="form-input" id="education_level" data-field="education_level">
                 </div>
             </div>
         </div>
@@ -412,53 +404,6 @@
                 <div class="form-field">
                     <label class="form-label">العنوان التفصيلي</label>
                     <textarea class="form-input" id="guardian_detailed_address" data-field="guardian_detailed_address" rows="2" style="resize: vertical;"></textarea>
-                </div>
-            </div>
-        </div>
-
-        <!-- Sponsorship Section -->
-        <div class="detail-section" id="sponsorshipSection" style="display: none;">
-            <h3 class="section-title">
-                <span class="material-icons">handshake</span>
-                بيانات الكفالة
-            </h3>
-            <div class="section-content">
-                <div class="form-field">
-                    <label class="form-label">الجمعية الكافلة</label>
-                    <input type="text" class="form-input readonly" id="sponsor_name" readonly>
-                </div>
-                <div class="form-field">
-                    <label class="form-label">حالة الكفالة</label>
-                    <select class="form-select" id="sponsorship_status_id" data-field="sponsorship_status_id">
-                    </select>
-                </div>
-                <div class="form-row">
-                    <div class="form-field">
-                        <label class="form-label">رقم الملف الداخلي</label>
-                        <input type="text" class="form-input" id="internal_file_number" data-field="internal_file_number">
-                    </div>
-                    <div class="form-field">
-                        <label class="form-label">رقم الملف الخارجي</label>
-                        <input type="text" class="form-input" id="external_file_number" data-field="external_file_number">
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-field">
-                        <label class="form-label">تاريخ بدء الكفالة</label>
-                        <input type="date" class="form-input" id="sponsorship_start_date" data-field="sponsorship_start_date">
-                    </div>
-                    <div class="form-field">
-                        <label class="form-label">تاريخ انتهاء الكفالة</label>
-                        <input type="date" class="form-input" id="sponsorship_end_date" data-field="sponsorship_end_date">
-                    </div>
-                </div>
-                <div class="form-field">
-                    <label class="form-label">مدة الكفالة (بالأشهر)</label>
-                    <input type="number" class="form-input" id="sponsorship_duration_months" data-field="sponsorship_duration_months">
-                </div>
-                <div class="form-field">
-                    <label class="form-label">ملاحظات</label>
-                    <textarea class="form-input" id="notes" data-field="notes" rows="3" style="resize: vertical;"></textarea>
                 </div>
             </div>
         </div>
@@ -564,7 +509,6 @@
                 // إظهار الأقسام
                 document.getElementById('orphanSection').style.display = 'block';
                 document.getElementById('guardianSection').style.display = 'block';
-                document.getElementById('sponsorshipSection').style.display = 'block';
                 document.getElementById('bankSection').style.display = 'block';
                 document.getElementById('noDataMessage').style.display = 'none';
 
@@ -600,9 +544,18 @@
             setValue('orphan_family_name', data.orphan_family_name || '');
             setValue('identity_number', data.identity_number);
             setValue('birth_date', formatDate(data.birth_date || data.sponsored_birth_date));
-            setValue('gender', data.gender);
+
+            // عرض الجنس كنص
+            let genderText = 'غير محدد';
+            if (data.orphan_gender) {
+                genderText = data.orphan_gender; // الجنس كنص من الخادم
+            } else if (data.gender == 1 || data.gender === 'ذكر') {
+                genderText = 'ذكر';
+            } else if (data.gender == 2 || data.gender === 'أنثى') {
+                genderText = 'أنثى';
+            }
+            setValue('gender', genderText);
             setValue('health_status', data.health_status);
-            setValue('education_level', data.education_level);
 
             // بيانات الولي - الاسم الكامل والمقسم
             setValue('guardian_name', data.guardian_name);
@@ -617,25 +570,6 @@
 
             // عرض الحسابات البنكية
             populateBankAccounts(data.bank_accounts || []);
-
-            // بيانات الكفالة
-            const sponsor = sponsors.find(s => s.id == data.sponsor_id);
-            setValue('sponsor_name', sponsor ? sponsor.name : '-');
-
-            // ملء قائمة الحالات
-            const statusSelect = document.getElementById('sponsorship_status_id');
-            statusSelect.innerHTML = '<option value="">اختر الحالة</option>';
-            statuses.forEach(status => {
-                const selected = status.id == data.sponsorship_status_id ? 'selected' : '';
-                statusSelect.innerHTML += `<option value="${status.id}" ${selected}>${status.name}</option>`;
-            });
-
-            setValue('internal_file_number', data.internal_file_number);
-            setValue('external_file_number', data.external_file_number);
-            setValue('sponsorship_start_date', formatDate(data.sponsorship_start_date));
-            setValue('sponsorship_end_date', formatDate(data.sponsorship_end_date));
-            setValue('sponsorship_duration_months', data.sponsorship_duration_months);
-            setValue('notes', data.notes);
         }
 
         // ========================================
@@ -793,7 +727,6 @@
             document.getElementById('noDataMessage').style.display = 'block';
             document.getElementById('orphanSection').style.display = 'none';
             document.getElementById('guardianSection').style.display = 'none';
-            document.getElementById('sponsorshipSection').style.display = 'none';
             document.getElementById('bankSection').style.display = 'none';
             document.getElementById('civilRegistrySection').style.display = 'none';
         }
