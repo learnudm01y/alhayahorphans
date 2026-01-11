@@ -132,6 +132,9 @@ const SyncService = {
         } catch (error) {
             console.log('Failed to send notification:', error.message);
             return null;
+        }
+    },
+
     // إخفاء إشعار محدد
     async cancelNotification(id) {
         try {

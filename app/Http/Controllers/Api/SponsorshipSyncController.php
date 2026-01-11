@@ -2130,9 +2130,6 @@ class SponsorshipSyncController extends Controller
         }
     }
 
-        }
-    }
-
     /**
      * تنظيف اسم المجلد من الأحرف غير المسموحة
      */
