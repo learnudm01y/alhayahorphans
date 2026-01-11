@@ -207,10 +207,11 @@
         }
 
         function populateForm(data) {
-            setValue('first_name', data.first_name || '');
-            setValue('second_name', data.second_name || '');
-            setValue('third_name', data.third_name || '');
-            setValue('last_name', data.last_name || '');
+            // بيانات المكفول - دعم الأسماء القديمة والجديدة
+            setValue('first_name', data.first_name || data.orphan_first_name || '');
+            setValue('second_name', data.second_name || data.orphan_father_name || '');
+            setValue('third_name', data.third_name || data.orphan_grandfather_name || '');
+            setValue('last_name', data.last_name || data.orphan_family_name || '');
             setValue('identity_number', data.identity_number);
             setValue('birth_date', formatDate(data.sponsored_birth_date));
             setValue('orphan_gender', data.orphan_gender || '');

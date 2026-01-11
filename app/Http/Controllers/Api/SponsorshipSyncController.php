@@ -345,6 +345,12 @@ class SponsorshipSyncController extends Controller
         $result['orphan_grandfather_name'] = '';
         $result['orphan_family_name'] = '';
 
+        // إضافة حقول موحدة للتطبيق (first_name, second_name, third_name, last_name)
+        $result['first_name'] = '';
+        $result['second_name'] = '';
+        $result['third_name'] = '';
+        $result['last_name'] = '';
+
         // تقسيم اسم المعيل إلى أربعة حقول
         $result['guardian_first_name'] = '';
         $result['guardian_father_name'] = '';
@@ -360,6 +366,13 @@ class SponsorshipSyncController extends Controller
                 $result['orphan_father_name'] = $civilData['father_name'];
                 $result['orphan_grandfather_name'] = $civilData['grand_father_name'];
                 $result['orphan_family_name'] = $civilData['family_name'];
+
+                // نسخة موحدة للتطبيق
+                $result['first_name'] = $civilData['first_name'];
+                $result['second_name'] = $civilData['father_name'];
+                $result['third_name'] = $civilData['grand_father_name'];
+                $result['last_name'] = $civilData['family_name'];
+
                 $result['orphan_name'] = $civilData['full_name'];
                 $result['sponsored_birth_date'] = $civilData['birth_date'] ?? $sponsorship->sponsored_birth_date;
                 $result['orphan_gender'] = $civilData['gender'];
@@ -372,6 +385,13 @@ class SponsorshipSyncController extends Controller
                     $result['orphan_father_name'] = $nameParts['father_name'];
                     $result['orphan_grandfather_name'] = $nameParts['grand_father_name'];
                     $result['orphan_family_name'] = $nameParts['family_name'];
+
+                    // نسخة موحدة للتطبيق
+                    $result['first_name'] = $nameParts['first_name'];
+                    $result['second_name'] = $nameParts['father_name'];
+                    $result['third_name'] = $nameParts['grand_father_name'];
+                    $result['last_name'] = $nameParts['family_name'];
+
                     $result['orphan_name_combined'] = $sponsorship->orphan_name;
                     $result['needs_orphan_name_input'] = true;
                 }
