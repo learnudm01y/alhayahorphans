@@ -275,6 +275,10 @@ const SyncService = {
     },
 
     async dbCount(storeName) {
+        if (!this.db) {
+            console.warn('Database not ready, initializing...');
+            await this.openDatabase();
+        }
         return new Promise((resolve, reject) => {
             const transaction = this.db.transaction([storeName], 'readonly');
             const store = transaction.objectStore(storeName);

@@ -666,16 +666,18 @@ class SponsorshipSyncController extends Controller
                 ], 404);
             }
 
-            // تحديد الحقول المسموح بتحديثها
+            // تحديد الحقول المسموح بتحديثها في جدول sponsorships فقط
             $allowedFields = [
-                // بيانات المكفول
-                'orphan_name', 'orphan_first_name', 'orphan_father_name',
-                'orphan_grandfather_name', 'orphan_family_name',
-                'identity_number', 'sponsored_birth_date', 'orphan_gender',
-                // بيانات المعيل (فقط الحقول الموجودة في جدول sponsorships)
-                'guardian_name', 'guardian_identity_number',
-                // بيانات أخرى
-                'notes', 'sponsorship_status_id', 'person_type'
+                // بيانات أساسية موجودة في sponsorships
+                'orphan_name',
+                'identity_number',
+                'sponsored_birth_date',
+                'orphan_gender',
+                'guardian_name',
+                'guardian_identity_number',
+                'notes',
+                'sponsorship_status_id',
+                'person_type'
             ];
 
             // الحقول التي تذهب إلى جدول data وليس sponsorships
@@ -684,12 +686,39 @@ class SponsorshipSyncController extends Controller
                 'guardian_city_id', 'guardian_detailed_address',
                 'guardian_first_name', 'guardian_father_name',
                 'guardian_grandfather_name', 'guardian_family_name',
-                'guardian_person_type'
+                'guardian_person_type',
+                // حقول اسم المكفول الأربعة - تذهب للجدول المناسب حسب person_type
+                'orphan_first_name', 'orphan_father_name',
+                'orphan_grandfather_name', 'orphan_family_name'
             ];
 
             $filteredUpdates = array_intersect_key($updates, array_flip($allowedFields));
             $filteredUpdates['updated_at'] = now();
             $filteredUpdates['updated_by'] = $request->user()->id;
+
+            // تحديث اسم المكفول الكامل إذا تم تعديل الأجزاء
+            if (isset($updates['orphan_first_name']) || isset($updates['orphan_father_name']) ||
+                isset($updates['orphan_grandfather_name']) || isset($updates['orphan_family_name'])) {
+
+                $firstName = $updates['orphan_first_name'] ?? '';
+                $fatherName = $updates['orphan_father_name'] ?? '';
+                $grandfatherName = $updates['orphan_grandfather_name'] ?? '';
+                $familyName = $updates['orphan_family_name'] ?? '';
+
+                $filteredUpdates['orphan_name'] = trim("$firstName $fatherName $grandfatherName $familyName");
+            }
+
+            // تحديث اسم المعيل الكامل إذا تم تعديل الأجزاء
+            if (isset($updates['guardian_first_name']) || isset($updates['guardian_father_name']) ||
+                isset($updates['guardian_grandfather_name']) || isset($updates['guardian_family_name'])) {
+
+                $firstName = $updates['guardian_first_name'] ?? '';
+                $fatherName = $updates['guardian_father_name'] ?? '';
+                $grandfatherName = $updates['guardian_grandfather_name'] ?? '';
+                $familyName = $updates['guardian_family_name'] ?? '';
+
+                $filteredUpdates['guardian_name'] = trim("$firstName $fatherName $grandfatherName $familyName");
+            }
 
             // التحقق من تغيير اسم المكفول لتحديث مجلد Google Drive
             $oldOrphanName = $updates['old_orphan_name'] ?? null;
@@ -766,6 +795,15 @@ class SponsorshipSyncController extends Controller
                         'updates' => array_keys($dataUpdates)
                     ]);
                 }
+            }
+
+            // معالجة بيانات المكفول حسب person_type
+            if (isset($updates['orphan_first_name']) || isset($updates['orphan_father_name']) ||
+                isset($updates['orphan_grandfather_name']) || isset($updates['orphan_family_name']) ||
+                isset($updates['identity_number']) || isset($updates['orphan_gender']) ||
+                isset($updates['sponsored_birth_date'])) {
+
+                $this->updateOrphanDataByPersonType($sponsorship, $updates, $request->user()->id);
             }
 
             // معالجة نوع الشخص (المعيل) وإنشاء/تحديث السجل المناسب
@@ -1897,6 +1935,85 @@ class SponsorshipSyncController extends Controller
                 'success' => false,
                 'message' => 'فشل رفع الملف: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * تحديث بيانات المكفول في الجدول المناسب حسب person_type
+     */
+    private function updateOrphanDataByPersonType($sponsorship, array $updates, int $userId): void
+    {
+        try {
+            // تحديد نوع الشخص
+            $personType = $updates['person_type'] ?? $sponsorship->person_type ?? 'orphan';
+            $identityNumber = $updates['identity_number'] ?? $sponsorship->identity_number;
+
+            if (!$identityNumber) {
+                Log::warning('لا يوجد رقم هوية للمكفول', ['sponsorship_id' => $sponsorship->id]);
+                return;
+            }
+
+            // تجهيز البيانات للتحديث
+            $personData = [];
+
+            // الاسم الرباعي
+            if (isset($updates['orphan_first_name'])) $personData['person_first_name'] = $updates['orphan_first_name'];
+            if (isset($updates['orphan_father_name'])) $personData['person_father_name'] = $updates['orphan_father_name'];
+            if (isset($updates['orphan_grandfather_name'])) $personData['person_grandfather_name'] = $updates['orphan_grandfather_name'];
+            if (isset($updates['orphan_family_name'])) $personData['person_family_name'] = $updates['orphan_family_name'];
+
+            // بيانات أخرى
+            if (isset($updates['orphan_gender'])) $personData['person_gender'] = $updates['orphan_gender'];
+            if (isset($updates['sponsored_birth_date'])) $personData['person_birth_date'] = $updates['sponsored_birth_date'];
+
+            if (empty($personData)) {
+                return; // لا توجد بيانات للتحديث
+            }
+
+            $personData['updated_at'] = now();
+
+            // تحديد الجدول المناسب حسب person_type
+            $tableName = match($personType) {
+                'breadwinner' => 'data',
+                'repeople' => 're_people',
+                'dead' => 'dead_people',
+                default => 'data' // افتراضي
+            };
+
+            // التحقق من وجود السجل
+            $exists = DB::table($tableName)
+                ->where('person_identity_number', $identityNumber)
+                ->exists();
+
+            if ($exists) {
+                // تحديث السجل الموجود
+                DB::table($tableName)
+                    ->where('person_identity_number', $identityNumber)
+                    ->update($personData);
+
+                Log::info("تم تحديث بيانات المكفول في جدول $tableName", [
+                    'identity_number' => $identityNumber,
+                    'person_type' => $personType,
+                    'fields' => array_keys($personData)
+                ]);
+            } else {
+                // إنشاء سجل جديد
+                $personData['person_identity_number'] = $identityNumber;
+                $personData['created_at'] = now();
+
+                DB::table($tableName)->insert($personData);
+
+                Log::info("تم إنشاء سجل جديد للمكفول في جدول $tableName", [
+                    'identity_number' => $identityNumber,
+                    'person_type' => $personType
+                ]);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('فشل تحديث بيانات المكفول', [
+                'error' => $e->getMessage(),
+                'sponsorship_id' => $sponsorship->id
+            ]);
         }
     }
 

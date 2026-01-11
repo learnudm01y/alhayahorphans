@@ -182,6 +182,7 @@
             showLoading(true);
             try {
                 currentSponsorship = await SyncService.getLocalSponsorship(sponsorshipId);
+                console.log('📥 Loaded sponsorship data:', currentSponsorship);
                 if (!currentSponsorship) { showNoData(); return; }
                 originalData = JSON.parse(JSON.stringify(currentSponsorship));
                 populateForm(currentSponsorship);
@@ -228,12 +229,14 @@
         }
 
         function populateBankAccounts(accounts) {
+            console.log('📊 Bank accounts data:', accounts); // للتأكد من البيانات
             const container = document.getElementById('bankAccountsContainer');
             if (!accounts || accounts.length === 0) { container.innerHTML = '<p style="color: #888; text-align: center;">لا توجد حسابات بنكية</p>'; return; }
             let html = '';
             accounts.forEach((account, index) => {
-                const statusClass = account.is_approved ? 'approved' : 'pending';
-                const statusText = account.is_approved ? 'حساب معتمد' : 'قيد المراجعة';
+                console.log(`🏦 Account ${index + 1}:`, account); // طباعة كل حساب
+                const statusClass = account.check_account === 1 ? 'approved' : 'pending';
+                const statusText = account.check_account === 1 ? 'حساب معتمد' : 'قيد المراجعة';
                 html += `<div class="bank-account-card" data-account-index="${index}">
                     <div class="bank-account-header">
                         <span class="bank-account-title"><span class="material-icons">account_balance</span> حساب بنكي رقم ${index + 1}</span>
@@ -297,10 +300,13 @@
         function handleBankFieldChange(e) {
             const field = e.target.dataset.bankField;
             const accountIndex = e.target.dataset.accountIndex;
+            const value = e.target.value;
+            console.log(`✏️ Bank field changed: Account ${accountIndex}, Field ${field} = ${value}`);
             if (!modifiedFields.bank_accounts_updates) modifiedFields.bank_accounts_updates = {};
             if (!modifiedFields.bank_accounts_updates[accountIndex]) modifiedFields.bank_accounts_updates[accountIndex] = {};
-            modifiedFields.bank_accounts_updates[accountIndex][field] = e.target.value;
+            modifiedFields.bank_accounts_updates[accountIndex][field] = value;
             e.target.classList.add('modified');
+            console.log('💾 Modified fields:', modifiedFields);
             updateSaveButton();
         }
 
