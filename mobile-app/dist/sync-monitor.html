@@ -407,17 +407,30 @@
     <!-- أزرار الإجراءات -->
     <div class="actions">
         <button class="action-btn primary" id="syncBtn" onclick="performSync()">
-            <span class="material-icons">sync</span>
-            مزامنة الآن
+            <span class="material-icons">cloud_download</span>
+            مزامنة من السحابة
         </button>
         <button class="action-btn secondary" id="uploadBtn" onclick="uploadPending()">
             <span class="material-icons">cloud_upload</span>
-            رفع التحديثات المعلقة
+            رفع التحديثات للسحابة
         </button>
-        <button class="action-btn danger" id="clearBtn" onclick="clearLocalData()">
+        <button class="action-btn danger" id="clearBtn" onclick="requestClearLocalData()">
             <span class="material-icons">delete_sweep</span>
             مسح البيانات المحلية
         </button>
+    </div>
+
+    <!-- نافذة كلمة المرور -->
+    <div id="passwordModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 25px; border-radius: 12px; width: 90%; max-width: 350px; text-align: center;">
+            <h3 style="margin: 0 0 15px; color: #dc3545;">⚠️ تأكيد الحذف</h3>
+            <p style="color: #666; margin-bottom: 20px;">هذا الإجراء سيحذف جميع البيانات المحلية. أدخل كلمة المرور للمتابعة:</p>
+            <input type="password" id="deletePassword" placeholder="كلمة المرور" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 16px; margin-bottom: 15px;">
+            <div style="display: flex; gap: 10px;">
+                <button onclick="cancelClearLocalData()" style="flex: 1; padding: 12px; background: #6c757d; color: white; border: none; border-radius: 8px; font-size: 14px;">إلغاء</button>
+                <button onclick="confirmClearLocalData()" style="flex: 1; padding: 12px; background: #dc3545; color: white; border: none; border-radius: 8px; font-size: 14px;">تأكيد الحذف</button>
+            </div>
+        </div>
     </div>
 
     <!-- سجل المزامنة -->
@@ -630,11 +643,33 @@
         // ========================================
         // مسح البيانات المحلية
         // ========================================
-        async function clearLocalData() {
-            if (!confirm('هل أنت متأكد من مسح جميع البيانات المحلية؟\nسيتم حذف جميع الكفالات والملفات المخزنة.')) {
+        function requestClearLocalData() {
+            document.getElementById('passwordModal').style.display = 'flex';
+            document.getElementById('deletePassword').value = '';
+            document.getElementById('deletePassword').focus();
+        }
+
+        function cancelClearLocalData() {
+            document.getElementById('passwordModal').style.display = 'none';
+        }
+
+        async function confirmClearLocalData() {
+            const password = document.getElementById('deletePassword').value;
+
+            // كلمة المرور الافتراضية للحذف
+            const correctPassword = 'alhayah2026';
+
+            if (password !== correctPassword) {
+                showStatus('error', 'كلمة المرور غير صحيحة');
+                addLog('محاولة حذف فاشلة - كلمة مرور خاطئة', 'error');
                 return;
             }
 
+            document.getElementById('passwordModal').style.display = 'none';
+            await clearLocalData();
+        }
+
+        async function clearLocalData() {
             try {
                 await SyncService.dbClear('sponsorships');
                 await SyncService.dbClear('pending_uploads');

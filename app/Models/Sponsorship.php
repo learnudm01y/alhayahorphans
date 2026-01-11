@@ -89,9 +89,46 @@ class Sponsorship extends Model
      */
     public function addUpdater($userId)
     {
-        $updatedBy = $this->updated_by ?? [];
+        // التعامل مع الحالات المختلفة للقيمة الحالية
+        $currentValue = $this->attributes['updated_by'] ?? null;
 
-        // إضافة المستخدم مع التاريخ والوقت
+        // إذا كانت القيمة null أو فارغة
+        if (empty($currentValue)) {
+            $updatedBy = [];
+        }
+        // إذا كانت القيمة نصية (JSON)
+        elseif (is_string($currentValue)) {
+            $decoded = json_decode($currentValue, true);
+            // إذا كان JSON صالح وكانت مصفوفة
+            if (is_array($decoded)) {
+                $updatedBy = $decoded;
+            }
+            // إذا لم يكن JSON صالح، نبدأ من جديد
+            else {
+                $updatedBy = [];
+            }
+        }
+        // إذا كانت مصفوفة بالفعل (من الـ cast)
+        elseif (is_array($currentValue)) {
+            $updatedBy = $currentValue;
+        }
+        // إذا كانت قيمة عددية (scalar) - مثل رقم مستخدم قديم
+        elseif (is_numeric($currentValue)) {
+            // تحويل القيمة العددية القديمة إلى مصفوفة
+            $updatedBy = [
+                [
+                    'user_id' => (int) $currentValue,
+                    'updated_at' => null, // غير معروف
+                    'name' => optional(User::find($currentValue))->name
+                ]
+            ];
+        }
+        // أي حالة أخرى
+        else {
+            $updatedBy = [];
+        }
+
+        // إضافة المستخدم الجديد مع التاريخ والوقت
         $updatedBy[] = [
             'user_id' => $userId,
             'updated_at' => now()->toDateTimeString(),
@@ -107,11 +144,33 @@ class Sponsorship extends Model
      */
     public function getUpdaterNamesAttribute()
     {
-        if (empty($this->updated_by)) {
+        $currentValue = $this->attributes['updated_by'] ?? null;
+
+        if (empty($currentValue)) {
             return [];
         }
 
-        return collect($this->updated_by)->pluck('name')->unique()->toArray();
+        // إذا كانت القيمة عددية (scalar)
+        if (is_numeric($currentValue)) {
+            $user = User::find($currentValue);
+            return $user ? [$user->name] : [];
+        }
+
+        // إذا كانت نصية، نحاول تحويلها من JSON
+        if (is_string($currentValue)) {
+            $decoded = json_decode($currentValue, true);
+            if (!is_array($decoded)) {
+                return [];
+            }
+            $currentValue = $decoded;
+        }
+
+        // إذا كانت مصفوفة
+        if (is_array($currentValue)) {
+            return collect($currentValue)->pluck('name')->filter()->unique()->toArray();
+        }
+
+        return [];
     }
 
     /**

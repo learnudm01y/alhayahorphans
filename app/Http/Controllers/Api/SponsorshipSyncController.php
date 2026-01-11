@@ -291,6 +291,9 @@ class SponsorshipSyncController extends Controller
         $result['needs_orphan_name_input'] = false;
         $result['needs_guardian_name_input'] = false;
 
+        // إضافة نوع الشخص (المعيل) - للتمييز في التطبيق
+        $result['guardian_person_type'] = $sponsorship->person_type ?? 'breadwinner';
+
         // تقسيم اسم المكفول إلى أربعة حقول
         $result['orphan_first_name'] = '';
         $result['orphan_father_name'] = '';
@@ -619,29 +622,131 @@ class SponsorshipSyncController extends Controller
             $sponsorshipId = $data['sponsorship_id'];
             $updates = $data['updates'];
 
+            // جلب بيانات الكفالة الحالية
+            $sponsorship = DB::table('sponsorships')->where('id', $sponsorshipId)->first();
+            if (!$sponsorship) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'الكفالة غير موجودة'
+                ], 404);
+            }
+
             // تحديد الحقول المسموح بتحديثها
             $allowedFields = [
-                'orphan_name', 'sponsored_birth_date', 'guardian_name',
-                'notes', 'sponsorship_status_id'
+                // بيانات المكفول
+                'orphan_name', 'orphan_first_name', 'orphan_father_name',
+                'orphan_grandfather_name', 'orphan_family_name',
+                'identity_number', 'sponsored_birth_date', 'orphan_gender', 'health_status_id',
+                // بيانات المعيل
+                'guardian_name', 'guardian_first_name', 'guardian_father_name',
+                'guardian_grandfather_name', 'guardian_family_name',
+                'guardian_identity_number', 'guardian_phone', 'guardian_phone2',
+                'guardian_city_id', 'guardian_detailed_address',
+                'guardian_person_type', // نوع الشخص: breadwinner, family_member, deceased_father, deceased_mother
+                // بيانات أخرى
+                'notes', 'sponsorship_status_id', 'person_type'
             ];
 
             $filteredUpdates = array_intersect_key($updates, array_flip($allowedFields));
             $filteredUpdates['updated_at'] = now();
             $filteredUpdates['updated_by'] = $request->user()->id;
 
+            // التحقق من تغيير اسم المكفول لتحديث مجلد Google Drive
+            $oldOrphanName = $updates['old_orphan_name'] ?? null;
+            $newOrphanName = $filteredUpdates['orphan_name'] ?? null;
+            $folderRenamed = false;
+
+            if ($oldOrphanName && $newOrphanName && $oldOrphanName !== $newOrphanName) {
+                try {
+                    // الحصول على اسم الجمعية
+                    $sponsor = DB::table('sponsors')->where('id', $sponsorship->sponsor_id)->first();
+                    $sponsorName = $sponsor ? $sponsor->sponsor_name : 'غير محدد';
+
+                    // إعادة تسمية المجلد على Google Drive
+                    $folderRenamed = $this->renameDriveFolder($sponsorName, $oldOrphanName, $newOrphanName);
+
+                    Log::info('تم إعادة تسمية مجلد المكفول على Google Drive', [
+                        'sponsorship_id' => $sponsorshipId,
+                        'old_name' => $oldOrphanName,
+                        'new_name' => $newOrphanName,
+                        'success' => $folderRenamed
+                    ]);
+                } catch (\Exception $e) {
+                    Log::warning('فشل إعادة تسمية مجلد Google Drive', [
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+
+            // تحديث جدول sponsorships
             DB::table('sponsorships')
                 ->where('id', $sponsorshipId)
                 ->update($filteredUpdates);
 
+            // تحديث جدول data إذا كان هناك relation_id_number
+            if ($sponsorship->relation_id_number) {
+                $dataUpdates = [];
+
+                if (isset($filteredUpdates['guardian_first_name'])) {
+                    $dataUpdates['data_first_name'] = $filteredUpdates['guardian_first_name'];
+                }
+                if (isset($filteredUpdates['guardian_father_name'])) {
+                    $dataUpdates['data_father_name'] = $filteredUpdates['guardian_father_name'];
+                }
+                if (isset($filteredUpdates['guardian_grandfather_name'])) {
+                    $dataUpdates['data_grand_father_name'] = $filteredUpdates['guardian_grandfather_name'];
+                }
+                if (isset($filteredUpdates['guardian_family_name'])) {
+                    $dataUpdates['data_family_name'] = $filteredUpdates['guardian_family_name'];
+                }
+                if (isset($filteredUpdates['guardian_phone'])) {
+                    $dataUpdates['data_phone_number'] = $filteredUpdates['guardian_phone'];
+                }
+                if (isset($filteredUpdates['guardian_phone2'])) {
+                    $dataUpdates['data_alt_phone_number'] = $filteredUpdates['guardian_phone2'];
+                }
+                if (isset($filteredUpdates['guardian_detailed_address'])) {
+                    $dataUpdates['data_current_address'] = $filteredUpdates['guardian_detailed_address'];
+                }
+                if (isset($filteredUpdates['guardian_city_id'])) {
+                    $dataUpdates['data_city'] = $filteredUpdates['guardian_city_id'];
+                }
+
+                if (!empty($dataUpdates)) {
+                    $dataUpdates['updated_at'] = now();
+                    DB::table('data')
+                        ->where('file_id_number', $sponsorship->relation_id_number)
+                        ->update($dataUpdates);
+                }
+            }
+
+            // معالجة نوع الشخص (المعيل) وإنشاء/تحديث السجل المناسب
+            if (isset($updates['guardian_person_type']) && isset($updates['guardian_identity_number'])) {
+                $this->handleGuardianPersonType(
+                    $sponsorship,
+                    $updates['guardian_person_type'],
+                    $updates['guardian_identity_number'],
+                    $updates,
+                    $request->user()->id
+                );
+            }
+
+            // تحديث الحسابات البنكية إذا وجدت
+            if (isset($updates['bank_accounts_updates']) && is_array($updates['bank_accounts_updates'])) {
+                $this->updateBankAccounts($sponsorship, $updates['bank_accounts_updates']);
+            }
+
             Log::info('Sponsorship updated from mobile', [
                 'sponsorship_id' => $sponsorshipId,
                 'user_id' => $request->user()->id,
-                'updates' => array_keys($filteredUpdates)
+                'updates' => array_keys($filteredUpdates),
+                'folder_renamed' => $folderRenamed
             ]);
 
             return response()->json([
                 'success' => true,
                 'message' => 'تم تحديث البيانات بنجاح',
+                'folder_renamed' => $folderRenamed,
                 'sync_timestamp' => now()->toISOString()
             ]);
 
@@ -652,6 +757,667 @@ class SponsorshipSyncController extends Controller
                 'message' => 'فشل رفع البيانات: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * إعادة تسمية مجلد على Google Drive
+     */
+    private function renameDriveFolder(string $sponsorName, string $oldName, string $newName): bool
+    {
+        try {
+            $useRclone = config('services.google.use_rclone', false);
+
+            if ($useRclone) {
+                // استخدام Rclone لإعادة التسمية
+                $remoteName = config('services.google.rclone_remote_name', 'alhayahorphans');
+                $rootFolder = config('services.google.rclone_root_folder', 'temp');
+
+                $oldPath = "{$remoteName}:{$rootFolder}/{$sponsorName}/{$oldName}";
+                $newPath = "{$remoteName}:{$rootFolder}/{$sponsorName}/{$newName}";
+
+                $command = "rclone moveto \"{$oldPath}\" \"{$newPath}\" 2>&1";
+                $output = shell_exec($command);
+
+                Log::info('Rclone rename folder', [
+                    'command' => $command,
+                    'output' => $output
+                ]);
+
+                return true;
+            } else {
+                // استخدام Google Drive API
+                $googleDriveService = app(\App\Services\GoogleDriveService::class);
+                return $googleDriveService->renameFolder($sponsorName, $oldName, $newName);
+            }
+        } catch (\Exception $e) {
+            Log::error('Rename folder failed', ['error' => $e->getMessage()]);
+            return false;
+        }
+    }
+
+    /**
+     * تحديث الحسابات البنكية
+     */
+    private function updateBankAccounts($sponsorship, array $bankUpdates): void
+    {
+        try {
+            // جلب الحسابات البنكية الحالية
+            $accounts = DB::table('guardian_bank_accounts')
+                ->where('file_id', $sponsorship->relation_id_number)
+                ->orderBy('id')
+                ->get()
+                ->values();
+
+            foreach ($bankUpdates as $index => $updates) {
+                if (!isset($accounts[$index])) continue;
+
+                $account = $accounts[$index];
+                $updateData = [];
+
+                if (isset($updates['bank_name_id'])) {
+                    $updateData['bank_name'] = $updates['bank_name_id'];
+                }
+                if (isset($updates['account_holder_name'])) {
+                    $updateData['re_guardian_name'] = $updates['account_holder_name'];
+                }
+                if (isset($updates['account_holder_identity'])) {
+                    $updateData['person_owner_identity_number'] = $updates['account_holder_identity'];
+                }
+                if (isset($updates['account_holder_phone'])) {
+                    $updateData['account_holder_phone'] = $updates['account_holder_phone'];
+                }
+                if (isset($updates['iban_usd'])) {
+                    $updateData['iban_usd'] = $updates['iban_usd'];
+                }
+                if (isset($updates['iban_shekel'])) {
+                    $updateData['iban_shekel'] = $updates['iban_shekel'];
+                }
+
+                if (!empty($updateData)) {
+                    $updateData['updated_at'] = now();
+                    DB::table('guardian_bank_accounts')
+                        ->where('id', $account->id)
+                        ->update($updateData);
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error('Failed to update bank accounts', ['error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * معالجة نوع الشخص (المعيل) - إنشاء أو تحديث السجل في الجدول المناسب
+     *
+     * الأنواع المدعومة:
+     * - breadwinner: معيل → جدول data
+     * - family_member: فرد عائلة → جدول re_people
+     * - deceased_father: أب متوفي → جدول dead_people
+     * - deceased_mother: أم متوفية → جدول dead_people
+     */
+    private function handleGuardianPersonType($sponsorship, string $personType, string $identityNumber, array $updates, int $userId): array
+    {
+        $result = [
+            'action' => 'none',
+            'table' => null,
+            'record_id' => null,
+            'created' => false,
+            'duplicate_check' => null
+        ];
+
+        if (empty($identityNumber)) {
+            Log::warning('Guardian identity number is empty, skipping person type handling');
+            return $result;
+        }
+
+        try {
+            // ⚠️ التحقق الشامل من تكرار رقم الهوية في جميع الجداول
+            $duplicateCheck = $this->checkIdentityDuplication($identityNumber);
+            $result['duplicate_check'] = $duplicateCheck;
+
+            if ($duplicateCheck['exists']) {
+                // الشخص موجود - نقوم بتحديث السجل الموجود فقط
+                Log::info('Guardian already exists, updating existing record', [
+                    'identity_number' => $identityNumber,
+                    'found_in' => $duplicateCheck['found_in'],
+                    'file_id' => $duplicateCheck['file_id']
+                ]);
+
+                // تحديث السجل الموجود حسب الجدول الذي وجد فيه
+                $result = $this->updateExistingGuardianRecord(
+                    $sponsorship,
+                    $duplicateCheck,
+                    $updates,
+                    $userId
+                );
+            } else {
+                // الشخص غير موجود - إنشاء سجل جديد حسب النوع المحدد
+                switch ($personType) {
+                    case 'breadwinner':
+                        $result = $this->handleBreadwinnerRecord($sponsorship, $identityNumber, $updates, $userId);
+                        break;
+
+                    case 'family_member':
+                        $result = $this->handleFamilyMemberRecord($sponsorship, $identityNumber, $updates, $userId);
+                        break;
+
+                    case 'deceased_father':
+                        $result = $this->handleDeceasedRecord($sponsorship, $identityNumber, $updates, $userId, 'father');
+                        break;
+
+                    case 'deceased_mother':
+                        $result = $this->handleDeceasedRecord($sponsorship, $identityNumber, $updates, $userId, 'mother');
+                        break;
+
+                    default:
+                        Log::warning('Unknown guardian person type', ['type' => $personType]);
+                }
+            }
+
+            // تحديث نوع الشخص في جدول sponsorships
+            DB::table('sponsorships')
+                ->where('id', $sponsorship->id)
+                ->update([
+                    'person_type' => $personType,
+                    'updated_at' => now()
+                ]);
+
+            Log::info('Guardian person type handled', [
+                'sponsorship_id' => $sponsorship->id,
+                'person_type' => $personType,
+                'result' => $result
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to handle guardian person type', [
+                'error' => $e->getMessage(),
+                'person_type' => $personType,
+                'identity_number' => $identityNumber
+            ]);
+        }
+
+        return $result;
+    }
+
+    /**
+     * التحقق الشامل من تكرار رقم الهوية في جميع الجداول
+     * يبحث في: data, dead_people, re_people
+     */
+    private function checkIdentityDuplication(string $identityNumber): array
+    {
+        $result = [
+            'exists' => false,
+            'found_in' => null,
+            'file_id' => null,
+            'record_id' => null,
+            'person_data' => null
+        ];
+
+        // 1. البحث في جدول data (المعيلين)
+        $dataRecord = DB::table('data')
+            ->where('data_id_number', $identityNumber)
+            ->first();
+
+        if ($dataRecord) {
+            return [
+                'exists' => true,
+                'found_in' => 'data',
+                'file_id' => $dataRecord->file_id_number,
+                'record_id' => $dataRecord->id,
+                'person_data' => $dataRecord
+            ];
+        }
+
+        // 2. البحث في جدول dead_people (المتوفين)
+        // البحث كأب متوفي
+        $deadFather = DB::table('dead_people')
+            ->where('father_id', $identityNumber)
+            ->first();
+
+        if ($deadFather) {
+            return [
+                'exists' => true,
+                'found_in' => 'dead_people',
+                'found_as' => 'father',
+                'file_id' => $deadFather->re_file_id,
+                'record_id' => $deadFather->id,
+                'person_data' => $deadFather
+            ];
+        }
+
+        // البحث كأم متوفية
+        $deadMother = DB::table('dead_people')
+            ->where('mother_id', $identityNumber)
+            ->first();
+
+        if ($deadMother) {
+            return [
+                'exists' => true,
+                'found_in' => 'dead_people',
+                'found_as' => 'mother',
+                'file_id' => $deadMother->re_file_id,
+                'record_id' => $deadMother->id,
+                'person_data' => $deadMother
+            ];
+        }
+
+        // 3. البحث في جدول re_people (أفراد العائلة)
+        $rePeopleRecord = DB::table('re_people')
+            ->where('person_id', $identityNumber)
+            ->first();
+
+        if ($rePeopleRecord) {
+            return [
+                'exists' => true,
+                'found_in' => 're_people',
+                'file_id' => $rePeopleRecord->registration_id,
+                'record_id' => $rePeopleRecord->id,
+                'person_data' => $rePeopleRecord
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * تحديث سجل المعيل الموجود (منع التكرار)
+     */
+    private function updateExistingGuardianRecord($sponsorship, array $duplicateCheck, array $updates, int $userId): array
+    {
+        $result = [
+            'action' => 'updated_existing',
+            'table' => $duplicateCheck['found_in'],
+            'record_id' => $duplicateCheck['record_id'],
+            'created' => false,
+            'duplicate_prevented' => true
+        ];
+
+        try {
+            switch ($duplicateCheck['found_in']) {
+                case 'data':
+                    // تحديث سجل في جدول data
+                    $updateData = $this->buildDataUpdateArray($updates);
+                    if (!empty($updateData)) {
+                        $updateData['updated_at'] = now();
+                        DB::table('data')
+                            ->where('id', $duplicateCheck['record_id'])
+                            ->update($updateData);
+                    }
+
+                    // تحديث relation_id_number في sponsorships
+                    if (!empty($duplicateCheck['file_id'])) {
+                        DB::table('sponsorships')
+                            ->where('id', $sponsorship->id)
+                            ->update([
+                                'relation_id_number' => $duplicateCheck['file_id'],
+                                'updated_at' => now()
+                            ]);
+                    }
+                    break;
+
+                case 'dead_people':
+                    // تحديث سجل في جدول dead_people
+                    $fullName = trim(implode(' ', array_filter([
+                        $updates['guardian_first_name'] ?? '',
+                        $updates['guardian_father_name'] ?? '',
+                        $updates['guardian_grandfather_name'] ?? '',
+                        $updates['guardian_family_name'] ?? ''
+                    ])));
+
+                    $nameColumn = ($duplicateCheck['found_as'] ?? 'father') === 'father' ? 'father_name' : 'mother_name';
+
+                    DB::table('dead_people')
+                        ->where('id', $duplicateCheck['record_id'])
+                        ->update([
+                            $nameColumn => $fullName,
+                            'updated_at' => now()
+                        ]);
+
+                    // تحديث relation_id_number في sponsorships
+                    if (!empty($duplicateCheck['file_id'])) {
+                        DB::table('sponsorships')
+                            ->where('id', $sponsorship->id)
+                            ->update([
+                                'relation_id_number' => $duplicateCheck['file_id'],
+                                'updated_at' => now()
+                            ]);
+                    }
+                    break;
+
+                case 're_people':
+                    // تحديث سجل في جدول re_people
+                    $updateData = [];
+                    if (isset($updates['guardian_first_name'])) $updateData['first_name'] = $updates['guardian_first_name'];
+                    if (isset($updates['guardian_father_name'])) $updateData['second_name'] = $updates['guardian_father_name'];
+                    if (isset($updates['guardian_grandfather_name'])) $updateData['third_name'] = $updates['guardian_grandfather_name'];
+                    if (isset($updates['guardian_family_name'])) $updateData['last_name'] = $updates['guardian_family_name'];
+
+                    if (!empty($updateData)) {
+                        $updateData['updated_at'] = now();
+                        DB::table('re_people')
+                            ->where('id', $duplicateCheck['record_id'])
+                            ->update($updateData);
+                    }
+
+                    // تحديث relation_id_number في sponsorships
+                    if (!empty($duplicateCheck['file_id'])) {
+                        DB::table('sponsorships')
+                            ->where('id', $sponsorship->id)
+                            ->update([
+                                'relation_id_number' => $duplicateCheck['file_id'],
+                                'updated_at' => now()
+                            ]);
+                    }
+                    break;
+            }
+
+            Log::info('Updated existing guardian record (duplicate prevented)', [
+                'sponsorship_id' => $sponsorship->id,
+                'found_in' => $duplicateCheck['found_in'],
+                'record_id' => $duplicateCheck['record_id'],
+                'file_id' => $duplicateCheck['file_id']
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to update existing guardian record', [
+                'error' => $e->getMessage(),
+                'duplicate_check' => $duplicateCheck
+            ]);
+        }
+
+        return $result;
+    }
+
+    /**
+     * معالجة سجل المعيل (جدول data)
+     */
+    private function handleBreadwinnerRecord($sponsorship, string $identityNumber, array $updates, int $userId): array
+    {
+        $result = ['action' => 'none', 'table' => 'data', 'record_id' => null, 'created' => false];
+
+        // ⚠️ التحقق المزدوج من عدم التكرار قبل الإنشاء
+        $duplicateCheck = $this->checkIdentityDuplication($identityNumber);
+        if ($duplicateCheck['exists']) {
+            Log::warning('Duplicate prevention: Identity already exists', [
+                'identity_number' => $identityNumber,
+                'found_in' => $duplicateCheck['found_in']
+            ]);
+            return $this->updateExistingGuardianRecord($sponsorship, $duplicateCheck, $updates, $userId);
+        }
+
+        // البحث عن السجل الموجود بواسطة رقم الهوية
+        $existing = DB::table('data')
+            ->where('data_id_number', $identityNumber)
+            ->first();
+
+        if ($existing) {
+            // تحديث السجل الموجود
+            $updateData = $this->buildDataUpdateArray($updates);
+            if (!empty($updateData)) {
+                $updateData['updated_at'] = now();
+                DB::table('data')
+                    ->where('id', $existing->id)
+                    ->update($updateData);
+            }
+
+            $result['action'] = 'updated';
+            $result['record_id'] = $existing->id;
+
+            // تحديث relation_id_number في sponsorships إذا لم يكن موجوداً
+            if (empty($sponsorship->relation_id_number) && !empty($existing->file_id_number)) {
+                DB::table('sponsorships')
+                    ->where('id', $sponsorship->id)
+                    ->update(['relation_id_number' => $existing->file_id_number, 'updated_at' => now()]);
+            }
+        } else {
+            // إنشاء سجل جديد
+            $newFileId = $this->generateNewFileId('data');
+
+            $insertData = [
+                'file_id_number' => $newFileId,
+                'data_id_number' => $identityNumber,
+                'data_first_name' => $updates['guardian_first_name'] ?? '',
+                'data_father_name' => $updates['guardian_father_name'] ?? '',
+                'data_grand_father_name' => $updates['guardian_grandfather_name'] ?? '',
+                'data_family_name' => $updates['guardian_family_name'] ?? '',
+                'data_phone_number' => $updates['guardian_phone'] ?? null,
+                'data_alt_phone_number' => $updates['guardian_phone2'] ?? null,
+                'data_current_address' => $updates['guardian_detailed_address'] ?? null,
+                'data_city' => $updates['guardian_city_id'] ?? null,
+                'created_at' => now(),
+                'updated_at' => now()
+            ];
+
+            $newId = DB::table('data')->insertGetId($insertData);
+
+            // تحديث relation_id_number في sponsorships
+            DB::table('sponsorships')
+                ->where('id', $sponsorship->id)
+                ->update(['relation_id_number' => $newFileId, 'updated_at' => now()]);
+
+            $result['action'] = 'created';
+            $result['record_id'] = $newId;
+            $result['created'] = true;
+            $result['file_id'] = $newFileId;
+
+            Log::info('New breadwinner record created', [
+                'file_id' => $newFileId,
+                'identity_number' => $identityNumber,
+                'sponsorship_id' => $sponsorship->id
+            ]);
+        }
+
+        return $result;
+    }
+
+    /**
+     * معالجة سجل فرد العائلة (جدول re_people)
+     */
+    private function handleFamilyMemberRecord($sponsorship, string $identityNumber, array $updates, int $userId): array
+    {
+        $result = ['action' => 'none', 'table' => 're_people', 'record_id' => null, 'created' => false];
+
+        // ⚠️ التحقق المزدوج من عدم التكرار قبل الإنشاء
+        $duplicateCheck = $this->checkIdentityDuplication($identityNumber);
+        if ($duplicateCheck['exists']) {
+            Log::warning('Duplicate prevention (family_member): Identity already exists', [
+                'identity_number' => $identityNumber,
+                'found_in' => $duplicateCheck['found_in']
+            ]);
+            return $this->updateExistingGuardianRecord($sponsorship, $duplicateCheck, $updates, $userId);
+        }
+
+        // البحث عن السجل الموجود بواسطة رقم الهوية
+        $existing = DB::table('re_people')
+            ->where('person_id', $identityNumber)
+            ->first();
+
+        if ($existing) {
+            // تحديث السجل الموجود
+            $updateData = [];
+            if (isset($updates['guardian_first_name'])) $updateData['first_name'] = $updates['guardian_first_name'];
+            if (isset($updates['guardian_father_name'])) $updateData['second_name'] = $updates['guardian_father_name'];
+            if (isset($updates['guardian_grandfather_name'])) $updateData['third_name'] = $updates['guardian_grandfather_name'];
+            if (isset($updates['guardian_family_name'])) $updateData['last_name'] = $updates['guardian_family_name'];
+
+            if (!empty($updateData)) {
+                $updateData['updated_at'] = now();
+                DB::table('re_people')
+                    ->where('id', $existing->id)
+                    ->update($updateData);
+            }
+
+            $result['action'] = 'updated';
+            $result['record_id'] = $existing->id;
+
+            // تحديث relation_id_number في sponsorships إذا لم يكن موجوداً
+            if (empty($sponsorship->relation_id_number) && !empty($existing->registration_id)) {
+                DB::table('sponsorships')
+                    ->where('id', $sponsorship->id)
+                    ->update(['relation_id_number' => $existing->registration_id, 'updated_at' => now()]);
+            }
+        } else {
+            // إنشاء سجل جديد
+            $newRegistrationId = $this->generateNewFileId('re_people');
+
+            // نحتاج إلى file_id للربط، نستخدم relation_id_number من الكفالة أو ننشئ سجل data أولاً
+            $fileId = $sponsorship->relation_id_number;
+            if (empty($fileId)) {
+                // إنشاء سجل data أولاً إذا لم يكن موجوداً
+                $dataResult = $this->handleBreadwinnerRecord($sponsorship, $identityNumber, $updates, $userId);
+                $fileId = $dataResult['file_id'] ?? null;
+            }
+
+            $insertData = [
+                'registration_id' => $newRegistrationId,
+                'person_id' => $identityNumber,
+                'file_id' => $fileId,
+                'first_name' => $updates['guardian_first_name'] ?? '',
+                'second_name' => $updates['guardian_father_name'] ?? '',
+                'third_name' => $updates['guardian_grandfather_name'] ?? '',
+                'last_name' => $updates['guardian_family_name'] ?? '',
+                'created_at' => now(),
+                'updated_at' => now()
+            ];
+
+            $newId = DB::table('re_people')->insertGetId($insertData);
+
+            $result['action'] = 'created';
+            $result['record_id'] = $newId;
+            $result['created'] = true;
+            $result['registration_id'] = $newRegistrationId;
+
+            Log::info('New family member record created', [
+                'registration_id' => $newRegistrationId,
+                'identity_number' => $identityNumber,
+                'sponsorship_id' => $sponsorship->id
+            ]);
+        }
+
+        return $result;
+    }
+
+    /**
+     * معالجة سجل المتوفي (جدول dead_people)
+     */
+    private function handleDeceasedRecord($sponsorship, string $identityNumber, array $updates, int $userId, string $type): array
+    {
+        $result = ['action' => 'none', 'table' => 'dead_people', 'record_id' => null, 'created' => false];
+
+        // ⚠️ التحقق المزدوج من عدم التكرار قبل الإنشاء
+        $duplicateCheck = $this->checkIdentityDuplication($identityNumber);
+        if ($duplicateCheck['exists']) {
+            Log::warning('Duplicate prevention (deceased): Identity already exists', [
+                'identity_number' => $identityNumber,
+                'found_in' => $duplicateCheck['found_in']
+            ]);
+            return $this->updateExistingGuardianRecord($sponsorship, $duplicateCheck, $updates, $userId);
+        }
+
+        // تحديد العمود حسب النوع (أب أو أم)
+        $identityColumn = $type === 'father' ? 'father_id' : 'mother_id';
+        $nameColumn = $type === 'father' ? 'father_name' : 'mother_name';
+
+        // البحث عن السجل الموجود
+        $existing = DB::table('dead_people')
+            ->where($identityColumn, $identityNumber)
+            ->first();
+
+        // بناء الاسم الكامل
+        $fullName = trim(implode(' ', array_filter([
+            $updates['guardian_first_name'] ?? '',
+            $updates['guardian_father_name'] ?? '',
+            $updates['guardian_grandfather_name'] ?? '',
+            $updates['guardian_family_name'] ?? ''
+        ])));
+
+        if ($existing) {
+            // تحديث السجل الموجود
+            $updateData = [$nameColumn => $fullName, 'updated_at' => now()];
+
+            DB::table('dead_people')
+                ->where('id', $existing->id)
+                ->update($updateData);
+
+            $result['action'] = 'updated';
+            $result['record_id'] = $existing->id;
+
+            // تحديث relation_id_number في sponsorships إذا لم يكن موجوداً
+            if (empty($sponsorship->relation_id_number) && !empty($existing->re_file_id)) {
+                DB::table('sponsorships')
+                    ->where('id', $sponsorship->id)
+                    ->update(['relation_id_number' => $existing->re_file_id, 'updated_at' => now()]);
+            }
+        } else {
+            // إنشاء سجل جديد
+            $newFileId = $this->generateNewFileId('dead_people');
+
+            // نحتاج إلى ربط بسجل data موجود أو إنشائه
+            $reFileId = $sponsorship->relation_id_number;
+            if (empty($reFileId)) {
+                // إنشاء سجل data أولاً
+                $dataResult = $this->handleBreadwinnerRecord($sponsorship, $identityNumber, $updates, $userId);
+                $reFileId = $dataResult['file_id'] ?? $newFileId;
+            }
+
+            $insertData = [
+                're_file_id' => $reFileId,
+                $identityColumn => $identityNumber,
+                $nameColumn => $fullName,
+                'created_at' => now(),
+                'updated_at' => now()
+            ];
+
+            $newId = DB::table('dead_people')->insertGetId($insertData);
+
+            $result['action'] = 'created';
+            $result['record_id'] = $newId;
+            $result['created'] = true;
+
+            Log::info('New deceased record created', [
+                'type' => $type,
+                'identity_number' => $identityNumber,
+                'sponsorship_id' => $sponsorship->id
+            ]);
+        }
+
+        return $result;
+    }
+
+    /**
+     * بناء مصفوفة التحديث لجدول data
+     */
+    private function buildDataUpdateArray(array $updates): array
+    {
+        $updateData = [];
+
+        if (isset($updates['guardian_first_name'])) $updateData['data_first_name'] = $updates['guardian_first_name'];
+        if (isset($updates['guardian_father_name'])) $updateData['data_father_name'] = $updates['guardian_father_name'];
+        if (isset($updates['guardian_grandfather_name'])) $updateData['data_grand_father_name'] = $updates['guardian_grandfather_name'];
+        if (isset($updates['guardian_family_name'])) $updateData['data_family_name'] = $updates['guardian_family_name'];
+        if (isset($updates['guardian_phone'])) $updateData['data_phone_number'] = $updates['guardian_phone'];
+        if (isset($updates['guardian_phone2'])) $updateData['data_alt_phone_number'] = $updates['guardian_phone2'];
+        if (isset($updates['guardian_detailed_address'])) $updateData['data_current_address'] = $updates['guardian_detailed_address'];
+        if (isset($updates['guardian_city_id'])) $updateData['data_city'] = $updates['guardian_city_id'];
+
+        return $updateData;
+    }
+
+    /**
+     * توليد رقم ملف جديد فريد
+     */
+    private function generateNewFileId(string $tableType): string
+    {
+        $prefix = match($tableType) {
+            'data' => 'D',
+            're_people' => 'R',
+            'dead_people' => 'DP',
+            default => 'X'
+        };
+
+        $timestamp = now()->format('ymdHis');
+        $random = str_pad(random_int(0, 999), 3, '0', STR_PAD_LEFT);
+
+        return "{$prefix}{$timestamp}{$random}";
     }
 
     // ========================================
@@ -678,6 +1444,24 @@ class SponsorshipSyncController extends Controller
                 ->orderBy('id')
                 ->get();
 
+            // أسماء البنوك
+            $bankNames = DB::table('bank_names')
+                ->select('id', 'description')
+                ->orderBy('description')
+                ->get();
+
+            // الحالات الصحية
+            $healthStatuses = DB::table('health_statuses')
+                ->select('id', 'description')
+                ->orderBy('id')
+                ->get();
+
+            // المدن
+            $cities = DB::table('city')
+                ->select('id', 'city')
+                ->orderBy('city')
+                ->get();
+
             // إحصائيات الكفالات لكل جمعية وحالة
             $stats = DB::table('sponsorships')
                 ->select(
@@ -696,6 +1480,9 @@ class SponsorshipSyncController extends Controller
                 'data' => [
                     'sponsors' => $sponsors,
                     'sponsorship_statuses' => $statuses,
+                    'bank_names' => $bankNames,
+                    'health_statuses' => $healthStatuses,
+                    'cities' => $cities,
                     'statistics' => [
                         'total_sponsorships' => $totalSponsorships,
                         'by_sponsor_status' => $stats

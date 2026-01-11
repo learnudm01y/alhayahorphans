@@ -15,7 +15,7 @@ const SyncService = {
     token: null,
     user: null,
     dbName: 'AlhayahSponsorshipsDB',
-    dbVersion: 1,
+    dbVersion: 2, // ترقية الإصدار لإضافة الجداول الجديدة
     db: null,
 
     // ========================================
@@ -112,6 +112,21 @@ const SyncService = {
                 // جدول إعدادات المزامنة
                 if (!db.objectStoreNames.contains('sync_meta')) {
                     db.createObjectStore('sync_meta', { keyPath: 'key' });
+                }
+
+                // جدول أسماء البنوك
+                if (!db.objectStoreNames.contains('bank_names')) {
+                    db.createObjectStore('bank_names', { keyPath: 'id' });
+                }
+
+                // جدول الحالات الصحية
+                if (!db.objectStoreNames.contains('health_statuses')) {
+                    db.createObjectStore('health_statuses', { keyPath: 'id' });
+                }
+
+                // جدول المدن
+                if (!db.objectStoreNames.contains('cities')) {
+                    db.createObjectStore('cities', { keyPath: 'id' });
                 }
 
                 console.log('Database schema created');
@@ -395,6 +410,27 @@ const SyncService = {
                     await this.dbPut('sponsorship_statuses', status);
                 }
 
+                // حفظ أسماء البنوك
+                if (result.data.bank_names) {
+                    for (const bank of result.data.bank_names) {
+                        await this.dbPut('bank_names', bank);
+                    }
+                }
+
+                // حفظ الحالات الصحية
+                if (result.data.health_statuses) {
+                    for (const status of result.data.health_statuses) {
+                        await this.dbPut('health_statuses', status);
+                    }
+                }
+
+                // حفظ المدن
+                if (result.data.cities) {
+                    for (const city of result.data.cities) {
+                        await this.dbPut('cities', city);
+                    }
+                }
+
                 // حفظ وقت المزامنة
                 await this.dbPut('sync_meta', {
                     key: 'last_initial_sync',
@@ -406,6 +442,9 @@ const SyncService = {
                     success: true,
                     sponsors_count: result.data.sponsors.length,
                     statuses_count: result.data.sponsorship_statuses.length,
+                    bank_names_count: result.data.bank_names?.length || 0,
+                    health_statuses_count: result.data.health_statuses?.length || 0,
+                    cities_count: result.data.cities?.length || 0,
                     statistics: result.data.statistics
                 };
             }
@@ -603,6 +642,16 @@ const SyncService = {
 
     async getLocalSponsorship(id) {
         return await this.dbGet('sponsorships', id);
+    },
+
+    // دالة للوصول للجداول المساعدة
+    async getLocalData(tableName) {
+        try {
+            return await this.dbGetAll(tableName);
+        } catch (error) {
+            console.error(`Failed to get ${tableName}:`, error);
+            return [];
+        }
     },
 
     // ========================================

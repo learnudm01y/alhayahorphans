@@ -417,32 +417,6 @@ class GoogleDriveService
     }
 
     /**
-     * جلب أو إنشاء مجلد باسم محدد داخل Parent (اختياري)
-     */
-    public function getOrCreateFolder(string $folderName, ?string $parentFolderId = null): array
-    {
-        $cacheKey = 'gdrive.folder.' . sha1(($parentFolderId ?: 'NO_PARENT') . '|' . $folderName);
-
-        $cached = Cache::get($cacheKey);
-        if (is_string($cached) && $cached !== '') {
-            return ['id' => $cached, 'name' => $folderName];
-        }
-
-        $existingId = $this->findFolderIdByName($folderName, $parentFolderId);
-        if ($existingId) {
-            Cache::put($cacheKey, $existingId, now()->addDays(7));
-            return ['id' => $existingId, 'name' => $folderName];
-        }
-
-        $created = $this->createFolder($folderName, $parentFolderId);
-        if (!empty($created['id'])) {
-            Cache::put($cacheKey, $created['id'], now()->addDays(7));
-        }
-
-        return $created;
-    }
-
-    /**
      * جلب معلومات ملف مع تحديد fields لتقليل حجم الاستجابة
      */
     public function getFileWithFields(string $fileId, string $fields = 'id,name,webViewLink,webContentLink,mimeType'): array
@@ -685,6 +659,83 @@ class GoogleDriveService
         } catch (Exception $e) {
             Log::error('خطأ في الحصول على معلومات Shared Drive: ' . $e->getMessage());
             throw $e;
+        }
+    }
+
+    /**
+     * إعادة تسمية مجلد على Google Drive
+     */
+    public function renameFolder(string $sponsorName, string $oldName, string $newName): bool
+    {
+        try {
+            // البحث عن المجلد القديم
+            $rootFolder = config('services.google.drive_folder_id');
+
+            // البحث عن مجلد الجمعية
+            $sponsorFolderId = $this->findFolder($sponsorName, $rootFolder);
+            if (!$sponsorFolderId) {
+                Log::warning('مجلد الجمعية غير موجود', ['sponsor' => $sponsorName]);
+                return false;
+            }
+
+            // البحث عن مجلد المكفول القديم
+            $oldFolderId = $this->findFolder($oldName, $sponsorFolderId);
+            if (!$oldFolderId) {
+                Log::warning('مجلد المكفول القديم غير موجود', ['old_name' => $oldName]);
+                return false;
+            }
+
+            // إعادة تسمية المجلد
+            $response = Http::withOptions(['verify' => false])
+                ->withToken($this->accessToken)
+                ->patch("{$this->baseUrl}/files/{$oldFolderId}", [
+                    'name' => $newName
+                ]);
+
+            if ($response->successful()) {
+                Log::info('تم إعادة تسمية المجلد بنجاح', [
+                    'old_name' => $oldName,
+                    'new_name' => $newName
+                ]);
+                return true;
+            } else {
+                throw new Exception('فشل إعادة تسمية المجلد: ' . $response->body());
+            }
+        } catch (Exception $e) {
+            Log::error('خطأ في إعادة تسمية المجلد: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * البحث عن مجلد بالاسم داخل مجلد أب
+     */
+    private function findFolder(string $name, ?string $parentId = null): ?string
+    {
+        try {
+            $query = "name = '{$name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false";
+            if ($parentId) {
+                $query .= " and '{$parentId}' in parents";
+            }
+
+            $response = Http::withOptions(['verify' => false])
+                ->withToken($this->accessToken)
+                ->get("{$this->baseUrl}/files", [
+                    'q' => $query,
+                    'fields' => 'files(id, name)',
+                    'supportsAllDrives' => true,
+                    'includeItemsFromAllDrives' => true
+                ]);
+
+            if ($response->successful()) {
+                $files = $response->json()['files'] ?? [];
+                return !empty($files) ? $files[0]['id'] : null;
+            }
+
+            return null;
+        } catch (Exception $e) {
+            Log::error('خطأ في البحث عن المجلد: ' . $e->getMessage());
+            return null;
         }
     }
 }
