@@ -418,26 +418,16 @@ class SponsorshipSyncController extends Controller
                         'guardian_bank_accounts.id',
                         'guardian_bank_accounts.iban_usd',
                         'guardian_bank_accounts.iban_shekel',
-                        'guardian_bank_accounts.re_guardian_name as account_holder_name',
-                        'guardian_bank_accounts.person_owner_identity_number as account_holder_identity',
-                        'guardian_bank_accounts.bank_name as bank_id',
+                        'guardian_bank_accounts.re_guardian_name',
+                        'guardian_bank_accounts.re_phone_number',
+                        'guardian_bank_accounts.person_owner_identity_number',
+                        'guardian_bank_accounts.bank_name',
                         'bank_names.description as bank_name_text'
                     ])
                     ->get();
 
-                // تحويل البيانات للشكل المطلوب
-                $result['bank_accounts'] = $bankAccounts->map(function($account) {
-                    return [
-                        'id' => $account->id,
-                        'iban' => $account->iban_shekel ?: $account->iban_usd, // الشيكل أولاً ثم الدولار
-                        'iban_usd' => $account->iban_usd,
-                        'iban_shekel' => $account->iban_shekel,
-                        'account_holder_name' => $account->account_holder_name,
-                        'account_holder_identity' => $account->account_holder_identity,
-                        'bank_name' => $account->bank_name_text,
-                        'bank_id' => $account->bank_id
-                    ];
-                })->toArray();
+                // إرسال البيانات كما هي في قاعدة البيانات
+                $result['bank_accounts'] = $bankAccounts->toArray();
             } catch (\Exception $e) {
                 Log::warning('Failed to get bank accounts', ['error' => $e->getMessage()]);
             }
