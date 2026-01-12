@@ -937,6 +937,23 @@ const SyncService = {
         const sponsorship = await this.dbGet('sponsorships', sponsorshipId);
         if (sponsorship) {
             const updated = { ...sponsorship, ...updates, _locallyModified: true };
+
+            // تطبيق تحديثات الحسابات البنكية على bank_accounts المحلية
+            if (updates.bank_accounts_updates && sponsorship.bank_accounts) {
+                const bankUpdates = updates.bank_accounts_updates;
+                updated.bank_accounts = [...sponsorship.bank_accounts]; // نسخة جديدة
+
+                Object.keys(bankUpdates).forEach(accountIndex => {
+                    const index = parseInt(accountIndex);
+                    if (updated.bank_accounts[index]) {
+                        Object.keys(bankUpdates[accountIndex]).forEach(field => {
+                            updated.bank_accounts[index][field] = bankUpdates[accountIndex][field];
+                        });
+                    }
+                });
+                console.log('💳 تم تحديث bank_accounts محلياً في IndexedDB:', updated.bank_accounts);
+            }
+
             await this.dbPut('sponsorships', updated);
 
             // التأكد من إضافة person_type للتغييرات إذا كانت موجودة في الكفالة

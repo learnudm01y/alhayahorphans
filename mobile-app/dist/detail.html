@@ -474,6 +474,24 @@
 
                 await SyncService.saveLocalChange(currentSponsorship.id, dataToSave);
 
+                // تحديث البيانات البنكية محلياً
+                if (dataToSave.bank_accounts_updates && currentSponsorship.bank_accounts) {
+                    const bankUpdates = dataToSave.bank_accounts_updates;
+                    Object.keys(bankUpdates).forEach(accountIndex => {
+                        const index = parseInt(accountIndex);
+                        if (currentSponsorship.bank_accounts[index]) {
+                            Object.keys(bankUpdates[accountIndex]).forEach(field => {
+                                currentSponsorship.bank_accounts[index][field] = bankUpdates[accountIndex][field];
+                                // تحديث originalData.bank_accounts أيضاً
+                                if (originalData.bank_accounts && originalData.bank_accounts[index]) {
+                                    originalData.bank_accounts[index][field] = bankUpdates[accountIndex][field];
+                                }
+                            });
+                        }
+                    });
+                    console.log('💳 تم تحديث البيانات البنكية محلياً:', currentSponsorship.bank_accounts);
+                }
+
                 Object.keys(dataToSave).forEach(key => {
                     if (key !== 'bank_accounts_updates' && key !== 'old_orphan_name') {
                         originalData[key] = dataToSave[key];

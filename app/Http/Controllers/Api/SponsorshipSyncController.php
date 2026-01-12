@@ -889,7 +889,8 @@ class SponsorshipSyncController extends Controller
 
             // التحقق من تغيير اسم المكفول لتحديث مجلد Google Drive
             $oldOrphanName = $updates['old_orphan_name'] ?? null;
-            $newOrphanName = $filteredUpdates['orphan_name'] ?? null;
+            // التحقق من orphan_name في filteredUpdates أو updates مباشرة
+            $newOrphanName = $filteredUpdates['orphan_name'] ?? $updates['orphan_name'] ?? null;
             $folderRenamed = false;
 
             if ($oldOrphanName && $newOrphanName && $oldOrphanName !== $newOrphanName) {
@@ -1225,6 +1226,7 @@ class SponsorshipSyncController extends Controller
                     }
                     if (isset($updates['birth_date'])) $updateData['data_birth_date'] = $updates['birth_date'];
                     if (isset($updates['identity_number'])) $updateData['data_id_number'] = $updates['identity_number'];
+                    if (isset($updates['health_status_id'])) $updateData['data_health_status'] = $updates['health_status_id'];
 
                     if (!empty($updateData)) {
                         $updateData['updated_at'] = now();
@@ -1290,7 +1292,8 @@ class SponsorshipSyncController extends Controller
                         $updateData['person_gender'] = $this->convertGenderToInt($updates['orphan_gender']);
                     }
                     if (isset($updates['birth_date'])) $updateData['person_birth_date'] = $updates['birth_date'];
-                    if (isset($updates['identity_number'])) $updateData['person_id'] = $updates['identity_number'];
+                    if (isset($updates['identity_number'])) $updateData['person_identity_number'] = $updates['identity_number'];
+                    if (isset($updates['health_status_id'])) $updateData['person_health_status'] = $updates['health_status_id'];
 
                     if (!empty($updateData)) {
                         $updateData['updated_at'] = now();
@@ -1346,6 +1349,9 @@ class SponsorshipSyncController extends Controller
                         $result['success'] = true;
                         $result['message'] = 'تم تحديث بيانات الأب المتوفي';
                         $result['updated_fields'] = array_keys($updateData);
+
+                        // حفظ البيانات الإضافية للمتوفين (العنوان، الهاتف، إلخ)
+                        $this->saveDeceasedExtraData($sponsorship, $updates, 'deceased_father');
                     }
                 } else {
                     $result['message'] = 'لم يتم العثور على سجل الأب المتوفي';
@@ -1394,6 +1400,9 @@ class SponsorshipSyncController extends Controller
                         $result['success'] = true;
                         $result['message'] = 'تم تحديث بيانات الأم المتوفية';
                         $result['updated_fields'] = array_keys($updateData);
+
+                        // حفظ البيانات الإضافية للمتوفين (العنوان، الهاتف، إلخ)
+                        $this->saveDeceasedExtraData($sponsorship, $updates, 'deceased_mother');
                     }
                 } else {
                     $result['message'] = 'لم يتم العثور على سجل الأم المتوفية';
@@ -1509,6 +1518,7 @@ class SponsorshipSyncController extends Controller
         }
         if (isset($updates['birth_date'])) $updateData['data_birth_date'] = $updates['birth_date'];
         if (isset($updates['identity_number'])) $updateData['data_id_number'] = $updates['identity_number'];
+        if (isset($updates['health_status_id'])) $updateData['data_health_status'] = $updates['health_status_id'];
         if (!empty($updateData)) $updateData['updated_at'] = now();
         return $updateData;
     }
@@ -1527,7 +1537,8 @@ class SponsorshipSyncController extends Controller
             $updateData['person_gender'] = $this->convertGenderToInt($updates['orphan_gender']);
         }
         if (isset($updates['birth_date'])) $updateData['person_birth_date'] = $updates['birth_date'];
-        if (isset($updates['identity_number'])) $updateData['person_id'] = $updates['identity_number'];
+        if (isset($updates['identity_number'])) $updateData['person_identity_number'] = $updates['identity_number'];
+        if (isset($updates['health_status_id'])) $updateData['person_health_status'] = $updates['health_status_id'];
         if (!empty($updateData)) $updateData['updated_at'] = now();
         return $updateData;
     }
@@ -2577,5 +2588,152 @@ class SponsorshipSyncController extends Controller
         $text = str_replace('ة', 'ه', $text);
         $text = str_replace('ؤ', 'و', $text);
         return trim($text);
+    }
+
+    /**
+     * حفظ أو تحديث قيم الحقول المخصصة في جدول portal_general_registration_field_values
+     * يستخدم لحفظ بيانات المتوفين كالعنوان والهاتف وغيرها
+     *
+     * @param int $sponsorshipId معرف الكفالة
+     * @param string $fileIdNumber رقم الملف
+     * @param string|null $identityNumber رقم الهوية
+     * @param string $fieldKey مفتاح الحقل (مثل: deceased_address, deceased_phone)
+     * @param mixed $fieldValue قيمة الحقل
+     * @param int|null $userId معرف المستخدم الذي يقوم بالتحديث
+     * @return bool نجاح العملية
+     */
+    private function savePortalFieldValue(
+        int $sponsorshipId,
+        string $fileIdNumber,
+        ?string $identityNumber,
+        string $fieldKey,
+        $fieldValue,
+        ?int $userId = null
+    ): bool {
+        try {
+            // التحقق من وجود السجل
+            $existing = DB::table('portal_general_registration_field_values')
+                ->where('sponsorship_id', $sponsorshipId)
+                ->where('field_key', $fieldKey)
+                ->first();
+
+            if ($existing) {
+                // تحديث السجل الموجود
+                DB::table('portal_general_registration_field_values')
+                    ->where('id', $existing->id)
+                    ->update([
+                        'field_value' => $fieldValue,
+                        'updated_by_user_id' => $userId,
+                        'updated_at' => now()
+                    ]);
+
+                Log::info('✅ تم تحديث قيمة الحقل في portal_general_registration_field_values', [
+                    'sponsorship_id' => $sponsorshipId,
+                    'field_key' => $fieldKey,
+                    'old_value' => $existing->field_value,
+                    'new_value' => $fieldValue
+                ]);
+            } else {
+                // إنشاء سجل جديد
+                DB::table('portal_general_registration_field_values')->insert([
+                    'sponsorship_id' => $sponsorshipId,
+                    'file_id_number' => $fileIdNumber,
+                    'identity_number' => $identityNumber,
+                    'field_key' => $fieldKey,
+                    'field_value' => $fieldValue,
+                    'updated_by_user_id' => $userId,
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]);
+
+                Log::info('✅ تم إنشاء قيمة حقل جديدة في portal_general_registration_field_values', [
+                    'sponsorship_id' => $sponsorshipId,
+                    'field_key' => $fieldKey,
+                    'field_value' => $fieldValue
+                ]);
+            }
+
+            return true;
+        } catch (\Exception $e) {
+            Log::error('❌ فشل حفظ قيمة الحقل في portal_general_registration_field_values', [
+                'error' => $e->getMessage(),
+                'sponsorship_id' => $sponsorshipId,
+                'field_key' => $fieldKey
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * حفظ بيانات المتوفين الإضافية (العنوان، الهاتف، إلخ) في portal_general_registration_field_values
+     *
+     * @param object $sponsorship كائن الكفالة
+     * @param array $updates التحديثات
+     * @param string $personType نوع الشخص (deceased_father أو deceased_mother)
+     * @param int|null $userId معرف المستخدم
+     */
+    private function saveDeceasedExtraData($sponsorship, array $updates, string $personType, ?int $userId = null): void
+    {
+        $prefix = ($personType === 'deceased_father') ? 'deceased_father_' : 'deceased_mother_';
+
+        // حفظ العنوان
+        if (isset($updates['guardian_detailed_address'])) {
+            $this->savePortalFieldValue(
+                $sponsorship->id,
+                $sponsorship->relation_id_number ?? '',
+                $updates['identity_number'] ?? null,
+                $prefix . 'address',
+                $updates['guardian_detailed_address'],
+                $userId
+            );
+        }
+
+        // حفظ رقم الهاتف
+        if (isset($updates['guardian_phone'])) {
+            $this->savePortalFieldValue(
+                $sponsorship->id,
+                $sponsorship->relation_id_number ?? '',
+                $updates['identity_number'] ?? null,
+                $prefix . 'phone',
+                $updates['guardian_phone'],
+                $userId
+            );
+        }
+
+        // حفظ رقم الهاتف البديل
+        if (isset($updates['guardian_phone2'])) {
+            $this->savePortalFieldValue(
+                $sponsorship->id,
+                $sponsorship->relation_id_number ?? '',
+                $updates['identity_number'] ?? null,
+                $prefix . 'phone2',
+                $updates['guardian_phone2'],
+                $userId
+            );
+        }
+
+        // حفظ المدينة
+        if (isset($updates['guardian_city_id'])) {
+            $this->savePortalFieldValue(
+                $sponsorship->id,
+                $sponsorship->relation_id_number ?? '',
+                $updates['identity_number'] ?? null,
+                $prefix . 'city_id',
+                $updates['guardian_city_id'],
+                $userId
+            );
+        }
+
+        // حفظ الحالة الصحية
+        if (isset($updates['health_status_id'])) {
+            $this->savePortalFieldValue(
+                $sponsorship->id,
+                $sponsorship->relation_id_number ?? '',
+                $updates['identity_number'] ?? null,
+                $prefix . 'health_status',
+                $updates['health_status_id'],
+                $userId
+            );
+        }
     }
 }
