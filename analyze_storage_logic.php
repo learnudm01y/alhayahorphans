@@ -218,7 +218,7 @@ $controllerContent = file_get_contents($controllerPath);
 // البحث عن دالة updateBankAccounts
 if (preg_match('/private function updateBankAccounts\([^)]*\)[^{]*\{([\s\S]*?)^\s{4}\}/m', $controllerContent, $match)) {
     echo "\n✅ تم العثور على دالة updateBankAccounts\n";
-    
+
     // فحص الحقول المدعومة
     $supportedFields = [];
     if (strpos($match[1], 'bank_name') !== false) $supportedFields[] = 'bank_name';
@@ -228,7 +228,7 @@ if (preg_match('/private function updateBankAccounts\([^)]*\)[^{]*\{([\s\S]*?)^\
     if (strpos($match[1], 'iban_usd') !== false) $supportedFields[] = 'iban_usd';
     if (strpos($match[1], 'iban_shekel') !== false) $supportedFields[] = 'iban_shekel';
     if (strpos($match[1], 'iban') !== false && !in_array('iban', $supportedFields)) $supportedFields[] = 'iban';
-    
+
     echo "\n📋 الحقول المدعومة للتحديث:\n";
     foreach ($supportedFields as $field) {
         echo "   ✓ {$field}\n";

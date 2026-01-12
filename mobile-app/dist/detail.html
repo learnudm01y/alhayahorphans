@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="css/style.css">
     <!-- Material Icons & Fonts - Offline Version -->
     <link rel="stylesheet" href="css/material-icons.css">
+    <link rel="stylesheet" href="css/icons-fallback.css">
     <link rel="stylesheet" href="css/tajawal-fonts.css">
 
     <style>
@@ -501,5 +502,6 @@
         document.addEventListener('backbutton', e => { e.preventDefault(); goBack(); }, false);
         if (window.Capacitor?.Plugins?.App) window.Capacitor.Plugins.App.addListener('backButton', goBack);
     </script>
+    <script src="js/icons-fallback.js"></script>
 </body>
 </html>

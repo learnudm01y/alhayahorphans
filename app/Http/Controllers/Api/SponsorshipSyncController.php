@@ -357,51 +357,108 @@ class SponsorshipSyncController extends Controller
         $result['guardian_grandfather_name'] = '';
         $result['guardian_family_name'] = '';
 
-        // جلب بيانات المكفول من السجل المدني
+        // جلب بيانات المكفول - الأولوية: 1) جداول محلية (re_people, dead_people)، 2) السجل المدني، 3) تقسيم الاسم
+        $personType = $sponsorship->person_type ?? 'orphan';
+        $orphanDataFound = false;
+
+        // أولاً: البحث في الجداول المحلية حسب نوع الشخص
         if (!empty($sponsorship->identity_number)) {
+            // البحث في re_people (للأيتام وأفراد الأسرة)
+            if (in_array($personType, ['orphan', 'family_member'])) {
+                $localPerson = DB::table('re_people')
+                    ->where('person_identity_number', $sponsorship->identity_number)
+                    ->select(['person_first_name', 'person_father_name', 'person_grand_father_name', 'person_family_name', 'person_birth_date', 'person_gender'])
+                    ->first();
+
+                if ($localPerson && !empty($localPerson->person_first_name)) {
+                    $result['orphan_first_name'] = $localPerson->person_first_name;
+                    $result['orphan_father_name'] = $localPerson->person_father_name ?? '';
+                    $result['orphan_grandfather_name'] = $localPerson->person_grand_father_name ?? '';
+                    $result['orphan_family_name'] = $localPerson->person_family_name ?? '';
+                    $result['first_name'] = $localPerson->person_first_name;
+                    $result['second_name'] = $localPerson->person_father_name ?? '';
+                    $result['third_name'] = $localPerson->person_grand_father_name ?? '';
+                    $result['last_name'] = $localPerson->person_family_name ?? '';
+                    $result['sponsored_birth_date'] = $localPerson->person_birth_date ?? $sponsorship->sponsored_birth_date;
+                    $result['orphan_gender'] = $localPerson->person_gender ?? '';
+                    $result['orphan_data_source'] = 're_people';
+                    $orphanDataFound = true;
+                }
+            }
+
+            // البحث في dead_people (للمتوفين)
+            if (!$orphanDataFound && in_array($personType, ['deceased_father', 'deceased_mother'])) {
+                $deadPerson = DB::table('dead_people')
+                    ->where(function($q) use ($sponsorship) {
+                        $q->where('father_id', $sponsorship->identity_number)
+                          ->orWhere('mother_id', $sponsorship->identity_number);
+                    })
+                    ->first();
+
+                if ($deadPerson) {
+                    if ($personType === 'deceased_father' && !empty($deadPerson->father_first_name)) {
+                        $result['orphan_first_name'] = $deadPerson->father_first_name;
+                        $result['orphan_father_name'] = $deadPerson->father_father_name ?? '';
+                        $result['orphan_grandfather_name'] = $deadPerson->father_grand_father_name ?? '';
+                        $result['orphan_family_name'] = $deadPerson->father_family_name ?? '';
+                        $result['first_name'] = $deadPerson->father_first_name;
+                        $result['second_name'] = $deadPerson->father_father_name ?? '';
+                        $result['third_name'] = $deadPerson->father_grand_father_name ?? '';
+                        $result['last_name'] = $deadPerson->father_family_name ?? '';
+                        $result['orphan_data_source'] = 'dead_people';
+                        $orphanDataFound = true;
+                    } elseif ($personType === 'deceased_mother' && !empty($deadPerson->mother_first_name)) {
+                        $result['orphan_first_name'] = $deadPerson->mother_first_name;
+                        $result['orphan_father_name'] = $deadPerson->mother_father_name ?? '';
+                        $result['orphan_grandfather_name'] = $deadPerson->mother_grand_father_name ?? '';
+                        $result['orphan_family_name'] = $deadPerson->mother_family_name ?? '';
+                        $result['first_name'] = $deadPerson->mother_first_name;
+                        $result['second_name'] = $deadPerson->mother_father_name ?? '';
+                        $result['third_name'] = $deadPerson->mother_grand_father_name ?? '';
+                        $result['last_name'] = $deadPerson->mother_family_name ?? '';
+                        $result['orphan_data_source'] = 'dead_people';
+                        $orphanDataFound = true;
+                    }
+                }
+            }
+        }
+
+        // ثانياً: إذا لم يوجد في الجداول المحلية، نبحث في السجل المدني
+        if (!$orphanDataFound && !empty($sponsorship->identity_number)) {
             $civilData = $this->getPersonFromCivilRegistry($sponsorship->identity_number);
             if ($civilData) {
-                // الاسم موجود في السجل المدني - مقسم
                 $result['orphan_first_name'] = $civilData['first_name'];
                 $result['orphan_father_name'] = $civilData['father_name'];
                 $result['orphan_grandfather_name'] = $civilData['grand_father_name'];
                 $result['orphan_family_name'] = $civilData['family_name'];
-
-                // نسخة موحدة للتطبيق
                 $result['first_name'] = $civilData['first_name'];
                 $result['second_name'] = $civilData['father_name'];
                 $result['third_name'] = $civilData['grand_father_name'];
                 $result['last_name'] = $civilData['family_name'];
-
                 $result['orphan_name'] = $civilData['full_name'];
                 $result['sponsored_birth_date'] = $civilData['birth_date'] ?? $sponsorship->sponsored_birth_date;
                 $result['orphan_gender'] = $civilData['gender'];
                 $result['orphan_data_source'] = 'civil_registry';
-            } else {
-                // الاسم غير موجود في السجل المدني - نبحث في جداول أخرى
-                if (!empty($sponsorship->orphan_name)) {
-                    $nameParts = $this->splitArabicName($sponsorship->orphan_name);
-                    $result['orphan_first_name'] = $nameParts['first_name'];
-                    $result['orphan_father_name'] = $nameParts['father_name'];
-                    $result['orphan_grandfather_name'] = $nameParts['grand_father_name'];
-                    $result['orphan_family_name'] = $nameParts['family_name'];
-
-                    // نسخة موحدة للتطبيق
-                    $result['first_name'] = $nameParts['first_name'];
-                    $result['second_name'] = $nameParts['father_name'];
-                    $result['third_name'] = $nameParts['grand_father_name'];
-                    $result['last_name'] = $nameParts['family_name'];
-
-                    $result['orphan_name_combined'] = $sponsorship->orphan_name;
-                    $result['needs_orphan_name_input'] = true;
-                }
-
-                // جلب الجنس من جداول بديلة
-                $result['orphan_gender'] = $this->getGenderFromAlternativeSources($sponsorship->identity_number);
+                $orphanDataFound = true;
             }
         }
 
-        // إذا لم يتم جلب الجنس بعد، نحاول من جداول أخرى
+        // ثالثاً: إذا لم يوجد في أي مكان، نقسم الاسم
+        if (!$orphanDataFound && !empty($sponsorship->orphan_name)) {
+            $nameParts = $this->splitArabicName($sponsorship->orphan_name);
+            $result['orphan_first_name'] = $nameParts['first_name'];
+            $result['orphan_father_name'] = $nameParts['father_name'];
+            $result['orphan_grandfather_name'] = $nameParts['grand_father_name'];
+            $result['orphan_family_name'] = $nameParts['family_name'];
+            $result['first_name'] = $nameParts['first_name'];
+            $result['second_name'] = $nameParts['father_name'];
+            $result['third_name'] = $nameParts['grand_father_name'];
+            $result['last_name'] = $nameParts['family_name'];
+            $result['orphan_name_combined'] = $sponsorship->orphan_name;
+            $result['needs_orphan_name_input'] = true;
+        }
+
+        // جلب الجنس من جداول بديلة إذا غير موجود
         if (empty($result['orphan_gender']) && !empty($sponsorship->identity_number)) {
             $result['orphan_gender'] = $this->getGenderFromAlternativeSources($sponsorship->identity_number);
         }

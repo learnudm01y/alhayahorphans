@@ -25,10 +25,10 @@ if ($d) {
     echo "  data_family_name: " . ($d->data_family_name ?? 'NULL') . PHP_EOL;
 } else {
     echo "❌ لم يُوجد في data عبر relation_id_number" . PHP_EOL;
-    
+
     // لنبحث بطريقة أخرى
     echo PHP_EOL . "محاولة البحث بطريقة أخرى..." . PHP_EOL;
-    
+
     // هل الـ relation_id_number هو رقم هوية؟
     $d2 = DB::table('data')->where('data_id_number', $s->relation_id_number)->first();
     if ($d2) {
@@ -37,7 +37,7 @@ if ($d) {
     } else {
         echo "❌ لم يُوجد عبر data_id_number أيضاً" . PHP_EOL;
     }
-    
+
     // نبحث بـ guardian_identity_number
     $d3 = DB::table('data')->where('data_id_number', $s->guardian_identity_number)->first();
     if ($d3) {
@@ -45,7 +45,7 @@ if ($d) {
         echo "  data_first_name: " . ($d3->data_first_name ?? 'NULL') . PHP_EOL;
         echo "  data_father_name: " . ($d3->data_father_name ?? 'NULL') . PHP_EOL;
     }
-    
+
     $d4 = DB::table('data')->where('file_id_number', $s->guardian_identity_number)->first();
     if ($d4) {
         echo PHP_EOL . "✅ وُجد في data عبر guardian_identity_number -> file_id_number:" . PHP_EOL;
@@ -81,7 +81,7 @@ $byName = DB::table('data')
     ->where('data_first_name', $nameParts[0] ?? '')
     ->where('data_family_name', 'like', '%' . ($nameParts[count($nameParts)-1] ?? '') . '%')
     ->first();
-    
+
 if ($byName) {
     echo "✅ وُجد بالبحث بالاسم:" . PHP_EOL;
     echo "  file_id_number: " . ($byName->file_id_number ?? 'NULL') . PHP_EOL;

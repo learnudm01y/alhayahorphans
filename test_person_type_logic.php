@@ -48,7 +48,7 @@ try {
         ->select('person_type', DB::raw('COUNT(*) as count'))
         ->groupBy('person_type')
         ->get();
-    
+
     echo "║    القيم الموجودة:                                          ║\n";
     foreach ($types as $type) {
         $typeName = $type->person_type ?: 'NULL';
@@ -249,7 +249,7 @@ echo "║ 10. فحص وجود الدوال المساعدة في Controller...  
 try {
     $controllerPath = __DIR__ . '/app/Http/Controllers/Api/SponsorshipSyncController.php';
     $content = file_get_contents($controllerPath);
-    
+
     $requiredFunctions = [
         'updatePersonByType',
         'convertGenderToInt',
@@ -257,7 +257,7 @@ try {
         'prepareRePeopleUpdate',
         'prepareDeadPeopleUpdate'
     ];
-    
+
     $allExist = true;
     foreach ($requiredFunctions as $func) {
         if (strpos($content, "function {$func}") === false) {
@@ -265,7 +265,7 @@ try {
             $allExist = false;
         }
     }
-    
+
     if ($allExist) {
         echo "║    ✅ جميع الدوال المساعدة موجودة (5 دوال)                  ║\n";
         $passed++;

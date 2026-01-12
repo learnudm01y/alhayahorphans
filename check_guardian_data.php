@@ -54,12 +54,12 @@ if (!empty($sample->guardian_name)) {
     // تقسيم الاسم
     $parts = preg_split('/\s+/', trim($sample->guardian_name), -1, PREG_SPLIT_NO_EMPTY);
     $count = count($parts);
-    
+
     $result['guardian_first_name'] = $parts[0] ?? '';
     $result['guardian_father_name'] = $parts[1] ?? '';
     $result['guardian_grandfather_name'] = $parts[2] ?? '';
     $result['guardian_family_name'] = $count > 3 ? implode(' ', array_slice($parts, 3)) : ($parts[3] ?? '');
-    
+
     echo "\nتقسيم اسم المعيل:\n";
     echo "- guardian_first_name: {$result['guardian_first_name']}\n";
     echo "- guardian_father_name: {$result['guardian_father_name']}\n";
@@ -72,7 +72,7 @@ if (!empty($sample->relation_id_number)) {
     $guardianInfo = DB::table('data')
         ->where('file_id_number', $sample->relation_id_number)
         ->first();
-    
+
     if ($guardianInfo) {
         echo "\n✅ سيتم جلب بيانات الاتصال من جدول data:\n";
         echo "- guardian_phone: " . ($guardianInfo->data_phone_number ?? 'NULL') . "\n";
