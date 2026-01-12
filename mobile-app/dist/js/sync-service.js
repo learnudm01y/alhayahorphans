@@ -938,7 +938,21 @@ const SyncService = {
         if (sponsorship) {
             const updated = { ...sponsorship, ...updates, _locallyModified: true };
             await this.dbPut('sponsorships', updated);
+
+            // التأكد من إضافة person_type للتغييرات إذا كانت موجودة في الكفالة
+            if (!updates.person_type && sponsorship.person_type) {
+                // فحص إذا كانت التغييرات تتضمن بيانات المكفول
+                if (updates.first_name || updates.second_name || updates.third_name ||
+                    updates.last_name || updates.identity_number || updates.orphan_gender || updates.birth_date) {
+                    updates.person_type = sponsorship.person_type;
+                    console.log('📌 تمت إضافة person_type للتغييرات:', sponsorship.person_type);
+                }
+            }
         }
+
+        // طباعة التغييرات للتأكد
+        console.log('💾 saveLocalChange - sponsorshipId:', sponsorshipId);
+        console.log('💾 saveLocalChange - updates:', updates);
 
         // إضافة للتغييرات المعلقة
         await this.dbPut('pending_uploads', {
@@ -965,6 +979,13 @@ const SyncService = {
 
         for (const change of pending) {
             try {
+                // سجل تفصيلي للتغييرات المرسلة
+                console.log('📤 Uploading change:', {
+                    sponsorship_id: change.sponsorship_id,
+                    person_type: change.updates?.person_type || 'غير محدد',
+                    updates_keys: Object.keys(change.updates || {})
+                });
+
                 await this.request('/mobile/sync/upload', {
                     method: 'POST',
                     body: JSON.stringify({

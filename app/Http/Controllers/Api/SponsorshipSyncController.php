@@ -882,6 +882,7 @@ class SponsorshipSyncController extends Controller
 
             // ===================================================
             // خوارزمية ذكية لحفظ بيانات المكفول في الجدول الصحيح
+            // باستخدام person_type لتحديد الجدول المستهدف
             // ===================================================
 
             $hasOrphanDataUpdate = isset($updates['first_name']) || isset($updates['second_name']) ||
@@ -890,131 +891,30 @@ class SponsorshipSyncController extends Controller
                                    isset($updates['identity_number']);
 
             if ($hasOrphanDataUpdate) {
-                // تحديد الجدول الصحيح باستخدام relation_id_number
-                $targetTable = null;
-                $targetKeyField = null;
-                $targetKeyValue = $sponsorship->relation_id_number;
+                // الحصول على person_type من التحديثات أو من الكفالة
+                $personType = $updates['person_type'] ?? $sponsorship->person_type ?? null;
+                $relationIdNumber = $sponsorship->relation_id_number;
+                $identityNumber = $updates['identity_number'] ?? $sponsorship->identity_number ?? null;
 
-                // الخطوة 1: إذا كان relation_id_number موجود، نبحث في الجداول
-                if ($targetKeyValue) {
-                    // البحث في data.file_id_number
-                    $dataRecord = DB::table('data')->where('file_id_number', $targetKeyValue)->first();
-                    if ($dataRecord) {
-                        $targetTable = 'data';
-                        $targetKeyField = 'file_id_number';
-                        Log::info('✅ تم العثور على المكفول في جدول data', ['file_id_number' => $targetKeyValue]);
-                    } else {
-                        // البحث في dead_people.re_file_id
-                        $deadRecord = DB::table('dead_people')->where('re_file_id', $targetKeyValue)->first();
-                        if ($deadRecord) {
-                            $targetTable = 'dead_people';
-                            $targetKeyField = 're_file_id';
-                            Log::info('✅ تم العثور على المكفول في جدول dead_people', ['re_file_id' => $targetKeyValue]);
-                        } else {
-                            // البحث في re_people.registration_id
-                            $repeopleRecord = DB::table('re_people')->where('registration_id', $targetKeyValue)->first();
-                            if ($repeopleRecord) {
-                                $targetTable = 're_people';
-                                $targetKeyField = 'registration_id';
-                                Log::info('✅ تم العثور على المكفول في جدول re_people', ['registration_id' => $targetKeyValue]);
-                            }
-                        }
-                    }
-                }
+                Log::info('🔍 بدء تحديث بيانات المكفول', [
+                    'person_type' => $personType,
+                    'relation_id_number' => $relationIdNumber,
+                    'identity_number' => $identityNumber
+                ]);
 
-                // الخطوة 2: إذا لم نجد الجدول، نُنشئ سجل جديد في جدول data
-                if (!$targetTable) {
-                    Log::warning('⚠️ لم يتم العثور على المكفول - سيتم إنشاء سجل جديد في جدول data');
+                // تحديد الجدول والحقول المستهدفة بناءً على person_type
+                $updateResult = $this->updatePersonByType(
+                    $personType,
+                    $relationIdNumber,
+                    $identityNumber,
+                    $updates,
+                    $sponsorship
+                );
 
-                    // توليد رقم ملف جديد باستخدام الخوارزمية الحقيقية
-                    $newFileId = generateFileIdFromDataTable();
-
-                    // إنشاء سجل جديد في data
-                    DB::table('data')->insert([
-                        'file_id_number' => $newFileId,
-                        'data_first_name' => $updates['first_name'] ?? null,
-                        'data_father_name' => $updates['second_name'] ?? null,
-                        'data_grand_father_name' => $updates['third_name'] ?? null,
-                        'data_family_name' => $updates['last_name'] ?? null,
-                        'data_gender' => isset($updates['orphan_gender'])
-                            ? (($updates['orphan_gender'] === 'ذكر' || $updates['orphan_gender'] === 1) ? 1 : 2)
-                            : null,
-                        'data_birth_date' => $updates['birth_date'] ?? null,
-                        'data_id_number' => $updates['identity_number'] ?? null,
-                        'created_at' => now(),
-                        'updated_at' => now()
-                    ]);
-
-                    // تحديث relation_id_number في sponsorships
-                    DB::table('sponsorships')
-                        ->where('id', $sponsorship->id)
-                        ->update(['relation_id_number' => $newFileId]);
-
-                    Log::info('✅ تم إنشاء سجل جديد باستخدام الخوارزمية الحقيقية', [
-                        'table' => 'data',
-                        'file_id_number' => $newFileId,
-                        'sponsorship_id' => $sponsorship->id,
-                        'algorithm' => 'generateFileIdFromDataTable()'
-                    ]);
-
-                    $targetTable = 'data';
-                    $targetKeyField = 'file_id_number';
-                    $targetKeyValue = $newFileId;
-                }
-
-                // الخطوة 3: تحديث البيانات في الجدول الصحيح
-                $updateData = [];
-
-                if ($targetTable === 'data') {
-                    // تحويل الحقول لجدول data
-                    if (isset($updates['first_name'])) $updateData['data_first_name'] = $updates['first_name'];
-                    if (isset($updates['second_name'])) $updateData['data_father_name'] = $updates['second_name'];
-                    if (isset($updates['third_name'])) $updateData['data_grand_father_name'] = $updates['third_name'];
-                    if (isset($updates['last_name'])) $updateData['data_family_name'] = $updates['last_name'];
-                    if (isset($updates['orphan_gender'])) {
-                        // تحويل الجنس من نص إلى رقم: 1 = ذكر، 2 = أنثى
-                        $updateData['data_gender'] = ($updates['orphan_gender'] === 'ذكر' || $updates['orphan_gender'] === 1) ? 1 : 2;
-                    }
-                    if (isset($updates['birth_date'])) $updateData['data_birth_date'] = $updates['birth_date'];
-                    if (isset($updates['identity_number'])) $updateData['data_id_number'] = $updates['identity_number'];
-                } elseif ($targetTable === 'dead_people') {
-                    // تحويل الحقول لجدول dead_people
-                    if (isset($updates['first_name'])) $updateData['first_name'] = $updates['first_name'];
-                    if (isset($updates['second_name'])) $updateData['second_name'] = $updates['second_name'];
-                    if (isset($updates['third_name'])) $updateData['third_name'] = $updates['third_name'];
-                    if (isset($updates['last_name'])) $updateData['last_name'] = $updates['last_name'];
-                    if (isset($updates['orphan_gender'])) {
-                        // تحويل الجنس من نص إلى رقم: 1 = ذكر، 2 = أنثى
-                        $updateData['person_gender'] = ($updates['orphan_gender'] === 'ذكر' || $updates['orphan_gender'] === 1) ? 1 : 2;
-                    }
-                    if (isset($updates['birth_date'])) $updateData['person_birth_date'] = $updates['birth_date'];
-                    if (isset($updates['identity_number'])) $updateData['person_id'] = $updates['identity_number'];
-                } elseif ($targetTable === 're_people') {
-                    // تحويل الحقول لجدول re_people
-                    if (isset($updates['first_name'])) $updateData['first_name'] = $updates['first_name'];
-                    if (isset($updates['second_name'])) $updateData['second_name'] = $updates['second_name'];
-                    if (isset($updates['third_name'])) $updateData['third_name'] = $updates['third_name'];
-                    if (isset($updates['last_name'])) $updateData['last_name'] = $updates['last_name'];
-                    if (isset($updates['orphan_gender'])) {
-                        // تحويل الجنس من نص إلى رقم: 1 = ذكر، 2 = أنثى
-                        $updateData['person_gender'] = ($updates['orphan_gender'] === 'ذكر' || $updates['orphan_gender'] === 1) ? 1 : 2;
-                    }
-                    if (isset($updates['birth_date'])) $updateData['person_birth_date'] = $updates['birth_date'];
-                    if (isset($updates['identity_number'])) $updateData['person_id'] = $updates['identity_number'];
-                }
-
-                if (!empty($updateData)) {
-                    $updateData['updated_at'] = now();
-                    DB::table($targetTable)
-                        ->where($targetKeyField, $targetKeyValue)
-                        ->update($updateData);
-
-                    Log::info('✅ تم تحديث بيانات المكفول', [
-                        'table' => $targetTable,
-                        'key_field' => $targetKeyField,
-                        'key_value' => $targetKeyValue,
-                        'updates' => array_keys($updateData)
-                    ]);
+                if ($updateResult['success']) {
+                    Log::info('✅ تم تحديث بيانات المكفول بنجاح', $updateResult);
+                } else {
+                    Log::warning('⚠️ فشل تحديث بيانات المكفول', $updateResult);
                 }
             }
 
@@ -1107,27 +1007,59 @@ class SponsorshipSyncController extends Controller
                 ->get()
                 ->values();
 
+            Log::info('🏦 تحديث الحسابات البنكية', [
+                'sponsorship_id' => $sponsorship->id,
+                'relation_id_number' => $sponsorship->relation_id_number,
+                'accounts_count' => $accounts->count(),
+                'updates_count' => count($bankUpdates)
+            ]);
+
             foreach ($bankUpdates as $index => $updates) {
-                if (!isset($accounts[$index])) continue;
+                if (!isset($accounts[$index])) {
+                    Log::warning('⚠️ لا يوجد حساب بنكي للفهرس', ['index' => $index]);
+                    continue;
+                }
 
                 $account = $accounts[$index];
                 $updateData = [];
 
-                if (isset($updates['bank_name_id'])) {
+                // دعم أسماء الحقول من التطبيق (data-bank-field) وأسماء بديلة
+                // bank_name - اسم/رقم البنك
+                if (isset($updates['bank_name'])) {
+                    $updateData['bank_name'] = $updates['bank_name'];
+                } elseif (isset($updates['bank_name_id'])) {
                     $updateData['bank_name'] = $updates['bank_name_id'];
                 }
-                if (isset($updates['account_holder_name'])) {
+
+                // re_guardian_name - اسم صاحب الحساب
+                if (isset($updates['re_guardian_name'])) {
+                    $updateData['re_guardian_name'] = $updates['re_guardian_name'];
+                } elseif (isset($updates['account_holder_name'])) {
                     $updateData['re_guardian_name'] = $updates['account_holder_name'];
                 }
-                if (isset($updates['account_holder_identity'])) {
+
+                // person_owner_identity_number - رقم هوية صاحب الحساب
+                if (isset($updates['person_owner_identity_number'])) {
+                    $updateData['person_owner_identity_number'] = $updates['person_owner_identity_number'];
+                } elseif (isset($updates['account_holder_identity'])) {
                     $updateData['person_owner_identity_number'] = $updates['account_holder_identity'];
                 }
-                if (isset($updates['account_holder_phone'])) {
-                    $updateData['account_holder_phone'] = $updates['account_holder_phone'];
+
+                // re_phone_number - رقم هاتف صاحب الحساب
+                if (isset($updates['re_phone_number'])) {
+                    $updateData['re_phone_number'] = $updates['re_phone_number'];
+                } elseif (isset($updates['account_holder_phone'])) {
+                    $updateData['re_phone_number'] = $updates['account_holder_phone'];
                 }
+
+                // iban_usd - رقم IBAN بالدولار
                 if (isset($updates['iban_usd'])) {
                     $updateData['iban_usd'] = $updates['iban_usd'];
+                } elseif (isset($updates['iban'])) {
+                    $updateData['iban_usd'] = $updates['iban'];
                 }
+
+                // iban_shekel - رقم IBAN بالشيكل
                 if (isset($updates['iban_shekel'])) {
                     $updateData['iban_shekel'] = $updates['iban_shekel'];
                 }
@@ -1137,11 +1069,401 @@ class SponsorshipSyncController extends Controller
                     DB::table('guardian_bank_accounts')
                         ->where('id', $account->id)
                         ->update($updateData);
+
+                    Log::info('✅ تم تحديث الحساب البنكي', [
+                        'account_id' => $account->id,
+                        'index' => $index,
+                        'updated_fields' => array_keys($updateData)
+                    ]);
                 }
             }
         } catch (\Exception $e) {
-            Log::error('Failed to update bank accounts', ['error' => $e->getMessage()]);
+            Log::error('❌ فشل تحديث الحسابات البنكية', ['error' => $e->getMessage()]);
         }
+    }
+
+    /**
+     * تحديث بيانات الشخص المكفول بناءً على نوعه (person_type)
+     *
+     * خوارزمية المطابقة:
+     * - breadwinner (معيل): data.file_id_number = relation_id_number AND data.data_id_number = identity_number
+     * - family_member (فرد عائلة): re_people.registration_id = relation_id_number AND re_people.person_id = identity_number
+     * - orphan (يتيم): نفس منطق family_member
+     * - deceased_father (أب متوفي): dead_people.re_file_id = relation_id_number AND dead_people.father_id = identity_number
+     * - deceased_mother (أم متوفية): dead_people.re_file_id = relation_id_number AND dead_people.mother_id = identity_number
+     */
+    private function updatePersonByType($personType, $relationIdNumber, $identityNumber, array $updates, $sponsorship): array
+    {
+        $result = [
+            'success' => false,
+            'person_type' => $personType,
+            'table' => null,
+            'message' => ''
+        ];
+
+        // إذا لم يكن هناك relation_id_number، لا يمكن التحديث
+        if (empty($relationIdNumber)) {
+            $result['message'] = 'relation_id_number فارغ - لا يمكن تحديد السجل';
+            Log::warning('⚠️ updatePersonByType: relation_id_number فارغ');
+            return $result;
+        }
+
+        switch ($personType) {
+            // ============================================
+            // حالة المعيل (breadwinner) - جدول data
+            // ============================================
+            case 'breadwinner':
+                $result['table'] = 'data';
+
+                // البحث عن السجل باستخدام المطابقة المزدوجة
+                $query = DB::table('data')->where('file_id_number', $relationIdNumber);
+                if (!empty($identityNumber)) {
+                    $query->where('data_id_number', $identityNumber);
+                }
+                $record = $query->first();
+
+                if (!$record) {
+                    // محاولة البحث فقط باستخدام file_id_number
+                    $record = DB::table('data')->where('file_id_number', $relationIdNumber)->first();
+                    if ($record) {
+                        Log::info('🔍 العثور على السجل بـ file_id_number فقط', ['file_id_number' => $relationIdNumber]);
+                    }
+                }
+
+                if ($record) {
+                    $updateData = [];
+                    if (isset($updates['first_name'])) $updateData['data_first_name'] = $updates['first_name'];
+                    if (isset($updates['second_name'])) $updateData['data_father_name'] = $updates['second_name'];
+                    if (isset($updates['third_name'])) $updateData['data_grand_father_name'] = $updates['third_name'];
+                    if (isset($updates['last_name'])) $updateData['data_family_name'] = $updates['last_name'];
+                    if (isset($updates['orphan_gender'])) {
+                        $updateData['data_gender'] = $this->convertGenderToInt($updates['orphan_gender']);
+                    }
+                    if (isset($updates['birth_date'])) $updateData['data_birth_date'] = $updates['birth_date'];
+                    if (isset($updates['identity_number'])) $updateData['data_id_number'] = $updates['identity_number'];
+
+                    if (!empty($updateData)) {
+                        $updateData['updated_at'] = now();
+                        DB::table('data')->where('file_id_number', $relationIdNumber)->update($updateData);
+                        $result['success'] = true;
+                        $result['message'] = 'تم تحديث المعيل في جدول data';
+                        $result['updated_fields'] = array_keys($updateData);
+                    }
+                } else {
+                    // إنشاء سجل جديد للمعيل
+                    $newFileId = generateFileIdFromDataTable();
+                    DB::table('data')->insert([
+                        'file_id_number' => $newFileId,
+                        'data_first_name' => $updates['first_name'] ?? null,
+                        'data_father_name' => $updates['second_name'] ?? null,
+                        'data_grand_father_name' => $updates['third_name'] ?? null,
+                        'data_family_name' => $updates['last_name'] ?? null,
+                        'data_gender' => isset($updates['orphan_gender']) ? $this->convertGenderToInt($updates['orphan_gender']) : null,
+                        'data_birth_date' => $updates['birth_date'] ?? null,
+                        'data_id_number' => $updates['identity_number'] ?? null,
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ]);
+
+                    // تحديث relation_id_number في sponsorships
+                    DB::table('sponsorships')->where('id', $sponsorship->id)->update(['relation_id_number' => $newFileId]);
+
+                    $result['success'] = true;
+                    $result['message'] = 'تم إنشاء سجل جديد للمعيل في جدول data';
+                    $result['new_file_id'] = $newFileId;
+                }
+                break;
+
+            // ============================================
+            // حالة فرد العائلة أو اليتيم - جدول re_people
+            // ============================================
+            case 'family_member':
+            case 'orphan':
+                $result['table'] = 're_people';
+
+                // البحث عن السجل باستخدام المطابقة المزدوجة
+                $query = DB::table('re_people')->where('registration_id', $relationIdNumber);
+                if (!empty($identityNumber)) {
+                    $query->where('person_id', $identityNumber);
+                }
+                $record = $query->first();
+
+                if (!$record) {
+                    // محاولة البحث فقط باستخدام registration_id
+                    $record = DB::table('re_people')->where('registration_id', $relationIdNumber)->first();
+                    if ($record) {
+                        Log::info('🔍 العثور على السجل بـ registration_id فقط', ['registration_id' => $relationIdNumber]);
+                    }
+                }
+
+                if ($record) {
+                    $updateData = [];
+                    if (isset($updates['first_name'])) $updateData['first_name'] = $updates['first_name'];
+                    if (isset($updates['second_name'])) $updateData['second_name'] = $updates['second_name'];
+                    if (isset($updates['third_name'])) $updateData['third_name'] = $updates['third_name'];
+                    if (isset($updates['last_name'])) $updateData['last_name'] = $updates['last_name'];
+                    if (isset($updates['orphan_gender'])) {
+                        $updateData['person_gender'] = $this->convertGenderToInt($updates['orphan_gender']);
+                    }
+                    if (isset($updates['birth_date'])) $updateData['person_birth_date'] = $updates['birth_date'];
+                    if (isset($updates['identity_number'])) $updateData['person_id'] = $updates['identity_number'];
+
+                    if (!empty($updateData)) {
+                        $updateData['updated_at'] = now();
+                        DB::table('re_people')->where('id', $record->id)->update($updateData);
+                        $result['success'] = true;
+                        $result['message'] = 'تم تحديث فرد العائلة في جدول re_people';
+                        $result['updated_fields'] = array_keys($updateData);
+                    }
+                } else {
+                    $result['message'] = 'لم يتم العثور على سجل فرد العائلة';
+                    Log::warning('⚠️ لم يتم العثور على سجل في re_people', [
+                        'registration_id' => $relationIdNumber,
+                        'person_id' => $identityNumber
+                    ]);
+                }
+                break;
+
+            // ============================================
+            // حالة الأب المتوفي - جدول dead_people (حقول father_*)
+            // ============================================
+            case 'deceased_father':
+                $result['table'] = 'dead_people';
+
+                // البحث عن السجل باستخدام re_file_id و father_id
+                $query = DB::table('dead_people')->where('re_file_id', $relationIdNumber);
+                if (!empty($identityNumber)) {
+                    $query->where('father_id', $identityNumber);
+                }
+                $record = $query->first();
+
+                if (!$record) {
+                    // محاولة البحث فقط باستخدام re_file_id
+                    $record = DB::table('dead_people')->where('re_file_id', $relationIdNumber)->first();
+                    if ($record) {
+                        Log::info('🔍 العثور على السجل بـ re_file_id فقط', ['re_file_id' => $relationIdNumber]);
+                    }
+                }
+
+                if ($record) {
+                    $updateData = [];
+                    // تحديث حقول الأب فقط (father_*)
+                    if (isset($updates['first_name'])) $updateData['father_first_name'] = $updates['first_name'];
+                    if (isset($updates['second_name'])) $updateData['father_second_name'] = $updates['second_name'];
+                    if (isset($updates['third_name'])) $updateData['father_third_name'] = $updates['third_name'];
+                    if (isset($updates['last_name'])) $updateData['father_last_name'] = $updates['last_name'];
+                    if (isset($updates['identity_number'])) $updateData['father_id'] = $updates['identity_number'];
+                    if (isset($updates['birth_date'])) $updateData['father_death_date'] = $updates['birth_date']; // ملاحظة: للمتوفي هو تاريخ الوفاة
+                    // الجنس للأب دائماً ذكر - لا حاجة لتحديثه
+
+                    if (!empty($updateData)) {
+                        $updateData['updated_at'] = now();
+                        DB::table('dead_people')->where('id', $record->id)->update($updateData);
+                        $result['success'] = true;
+                        $result['message'] = 'تم تحديث بيانات الأب المتوفي';
+                        $result['updated_fields'] = array_keys($updateData);
+                    }
+                } else {
+                    $result['message'] = 'لم يتم العثور على سجل الأب المتوفي';
+                    Log::warning('⚠️ لم يتم العثور على سجل في dead_people للأب', [
+                        're_file_id' => $relationIdNumber,
+                        'father_id' => $identityNumber
+                    ]);
+                }
+                break;
+
+            // ============================================
+            // حالة الأم المتوفية - جدول dead_people (حقول mother_*)
+            // ============================================
+            case 'deceased_mother':
+                $result['table'] = 'dead_people';
+
+                // البحث عن السجل باستخدام re_file_id و mother_id
+                $query = DB::table('dead_people')->where('re_file_id', $relationIdNumber);
+                if (!empty($identityNumber)) {
+                    $query->where('mother_id', $identityNumber);
+                }
+                $record = $query->first();
+
+                if (!$record) {
+                    // محاولة البحث فقط باستخدام re_file_id
+                    $record = DB::table('dead_people')->where('re_file_id', $relationIdNumber)->first();
+                    if ($record) {
+                        Log::info('🔍 العثور على السجل بـ re_file_id فقط', ['re_file_id' => $relationIdNumber]);
+                    }
+                }
+
+                if ($record) {
+                    $updateData = [];
+                    // تحديث حقول الأم فقط (mother_*)
+                    if (isset($updates['first_name'])) $updateData['mother_first_name'] = $updates['first_name'];
+                    if (isset($updates['second_name'])) $updateData['mother_second_name'] = $updates['second_name'];
+                    if (isset($updates['third_name'])) $updateData['mother_third_name'] = $updates['third_name'];
+                    if (isset($updates['last_name'])) $updateData['mother_last_name'] = $updates['last_name'];
+                    if (isset($updates['identity_number'])) $updateData['mother_id'] = $updates['identity_number'];
+                    if (isset($updates['birth_date'])) $updateData['mother_death_date'] = $updates['birth_date']; // للمتوفية هو تاريخ الوفاة
+                    // الجنس للأم دائماً أنثى - لا حاجة لتحديثه
+
+                    if (!empty($updateData)) {
+                        $updateData['updated_at'] = now();
+                        DB::table('dead_people')->where('id', $record->id)->update($updateData);
+                        $result['success'] = true;
+                        $result['message'] = 'تم تحديث بيانات الأم المتوفية';
+                        $result['updated_fields'] = array_keys($updateData);
+                    }
+                } else {
+                    $result['message'] = 'لم يتم العثور على سجل الأم المتوفية';
+                    Log::warning('⚠️ لم يتم العثور على سجل في dead_people للأم', [
+                        're_file_id' => $relationIdNumber,
+                        'mother_id' => $identityNumber
+                    ]);
+                }
+                break;
+
+            // ============================================
+            // حالة غير معروفة - بحث تلقائي في الجداول
+            // ============================================
+            default:
+                $result['message'] = 'نوع الشخص غير محدد - سيتم البحث تلقائياً';
+                Log::info('🔍 person_type غير محدد، البحث في الجداول تلقائياً', ['person_type' => $personType]);
+
+                // البحث بالترتيب: data → re_people → dead_people
+                $dataRecord = DB::table('data')->where('file_id_number', $relationIdNumber)->first();
+                if ($dataRecord) {
+                    $result['table'] = 'data';
+                    $updateData = $this->prepareDataTableUpdate($updates);
+                    if (!empty($updateData)) {
+                        DB::table('data')->where('file_id_number', $relationIdNumber)->update($updateData);
+                        $result['success'] = true;
+                        $result['message'] = 'تم تحديث السجل في جدول data (بحث تلقائي)';
+                    }
+                } else {
+                    $repeopleRecord = DB::table('re_people')->where('registration_id', $relationIdNumber)->first();
+                    if ($repeopleRecord) {
+                        $result['table'] = 're_people';
+                        $updateData = $this->prepareRePeopleUpdate($updates);
+                        if (!empty($updateData)) {
+                            DB::table('re_people')->where('id', $repeopleRecord->id)->update($updateData);
+                            $result['success'] = true;
+                            $result['message'] = 'تم تحديث السجل في جدول re_people (بحث تلقائي)';
+                        }
+                    } else {
+                        $deadRecord = DB::table('dead_people')->where('re_file_id', $relationIdNumber)->first();
+                        if ($deadRecord) {
+                            $result['table'] = 'dead_people';
+                            // للبحث التلقائي في dead_people، نحاول تحديد إذا كان أب أو أم
+                            if (!empty($identityNumber)) {
+                                if ($deadRecord->father_id == $identityNumber) {
+                                    $updateData = $this->prepareDeadPeopleUpdate($updates, 'father');
+                                } elseif ($deadRecord->mother_id == $identityNumber) {
+                                    $updateData = $this->prepareDeadPeopleUpdate($updates, 'mother');
+                                } else {
+                                    $updateData = $this->prepareDeadPeopleUpdate($updates, 'father'); // افتراضي
+                                }
+                            } else {
+                                $updateData = $this->prepareDeadPeopleUpdate($updates, 'father'); // افتراضي
+                            }
+                            if (!empty($updateData)) {
+                                DB::table('dead_people')->where('id', $deadRecord->id)->update($updateData);
+                                $result['success'] = true;
+                                $result['message'] = 'تم تحديث السجل في جدول dead_people (بحث تلقائي)';
+                            }
+                        } else {
+                            // لم يتم العثور على أي سجل - إنشاء جديد في data
+                            $newFileId = generateFileIdFromDataTable();
+                            DB::table('data')->insert([
+                                'file_id_number' => $newFileId,
+                                'data_first_name' => $updates['first_name'] ?? null,
+                                'data_father_name' => $updates['second_name'] ?? null,
+                                'data_grand_father_name' => $updates['third_name'] ?? null,
+                                'data_family_name' => $updates['last_name'] ?? null,
+                                'data_gender' => isset($updates['orphan_gender']) ? $this->convertGenderToInt($updates['orphan_gender']) : null,
+                                'data_birth_date' => $updates['birth_date'] ?? null,
+                                'data_id_number' => $updates['identity_number'] ?? null,
+                                'created_at' => now(),
+                                'updated_at' => now()
+                            ]);
+                            DB::table('sponsorships')->where('id', $sponsorship->id)->update(['relation_id_number' => $newFileId]);
+                            $result['success'] = true;
+                            $result['table'] = 'data';
+                            $result['message'] = 'تم إنشاء سجل جديد في data (بحث تلقائي)';
+                            $result['new_file_id'] = $newFileId;
+                        }
+                    }
+                }
+                break;
+        }
+
+        return $result;
+    }
+
+    /**
+     * تحويل قيمة الجنس إلى رقم صحيح
+     * @param mixed $gender - يمكن أن يكون نص أو رقم
+     * @return int - 1 = ذكر، 2 = أنثى
+     */
+    private function convertGenderToInt($gender): int
+    {
+        if (is_int($gender)) {
+            return $gender;
+        }
+        return ($gender === 'ذكر' || $gender === 'male' || $gender === '1' || $gender === 1) ? 1 : 2;
+    }
+
+    /**
+     * تحضير بيانات التحديث لجدول data
+     */
+    private function prepareDataTableUpdate(array $updates): array
+    {
+        $updateData = [];
+        if (isset($updates['first_name'])) $updateData['data_first_name'] = $updates['first_name'];
+        if (isset($updates['second_name'])) $updateData['data_father_name'] = $updates['second_name'];
+        if (isset($updates['third_name'])) $updateData['data_grand_father_name'] = $updates['third_name'];
+        if (isset($updates['last_name'])) $updateData['data_family_name'] = $updates['last_name'];
+        if (isset($updates['orphan_gender'])) {
+            $updateData['data_gender'] = $this->convertGenderToInt($updates['orphan_gender']);
+        }
+        if (isset($updates['birth_date'])) $updateData['data_birth_date'] = $updates['birth_date'];
+        if (isset($updates['identity_number'])) $updateData['data_id_number'] = $updates['identity_number'];
+        if (!empty($updateData)) $updateData['updated_at'] = now();
+        return $updateData;
+    }
+
+    /**
+     * تحضير بيانات التحديث لجدول re_people
+     */
+    private function prepareRePeopleUpdate(array $updates): array
+    {
+        $updateData = [];
+        if (isset($updates['first_name'])) $updateData['first_name'] = $updates['first_name'];
+        if (isset($updates['second_name'])) $updateData['second_name'] = $updates['second_name'];
+        if (isset($updates['third_name'])) $updateData['third_name'] = $updates['third_name'];
+        if (isset($updates['last_name'])) $updateData['last_name'] = $updates['last_name'];
+        if (isset($updates['orphan_gender'])) {
+            $updateData['person_gender'] = $this->convertGenderToInt($updates['orphan_gender']);
+        }
+        if (isset($updates['birth_date'])) $updateData['person_birth_date'] = $updates['birth_date'];
+        if (isset($updates['identity_number'])) $updateData['person_id'] = $updates['identity_number'];
+        if (!empty($updateData)) $updateData['updated_at'] = now();
+        return $updateData;
+    }
+
+    /**
+     * تحضير بيانات التحديث لجدول dead_people
+     * @param string $type - 'father' أو 'mother'
+     */
+    private function prepareDeadPeopleUpdate(array $updates, string $type = 'father'): array
+    {
+        $prefix = $type === 'mother' ? 'mother_' : 'father_';
+        $updateData = [];
+        if (isset($updates['first_name'])) $updateData[$prefix . 'first_name'] = $updates['first_name'];
+        if (isset($updates['second_name'])) $updateData[$prefix . 'second_name'] = $updates['second_name'];
+        if (isset($updates['third_name'])) $updateData[$prefix . 'third_name'] = $updates['third_name'];
+        if (isset($updates['last_name'])) $updateData[$prefix . 'last_name'] = $updates['last_name'];
+        if (isset($updates['identity_number'])) $updateData[$prefix . 'id'] = $updates['identity_number'];
+        if (isset($updates['birth_date'])) $updateData[$prefix . 'death_date'] = $updates['birth_date'];
+        if (!empty($updateData)) $updateData['updated_at'] = now();
+        return $updateData;
     }
 
     /**
@@ -1558,18 +1880,9 @@ class SponsorshipSyncController extends Controller
             // إنشاء سجل جديد
             $newRegistrationId = $this->generateNewFileId('re_people');
 
-            // نحتاج إلى file_id للربط، نستخدم relation_id_number من الكفالة أو ننشئ سجل data أولاً
-            $fileId = $sponsorship->relation_id_number;
-            if (empty($fileId)) {
-                // إنشاء سجل data أولاً إذا لم يكن موجوداً
-                $dataResult = $this->handleBreadwinnerRecord($sponsorship, $identityNumber, $updates, $userId);
-                $fileId = $dataResult['file_id'] ?? null;
-            }
-
             $insertData = [
                 'registration_id' => $newRegistrationId,
                 'person_id' => $identityNumber,
-                'file_id' => $fileId,
                 'first_name' => $updates['guardian_first_name'] ?? '',
                 'second_name' => $updates['guardian_father_name'] ?? '',
                 'third_name' => $updates['guardian_grandfather_name'] ?? '',

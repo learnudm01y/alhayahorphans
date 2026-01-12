@@ -10,7 +10,9 @@
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="logo01.png">
     <link rel="stylesheet" href="css/style.css">
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <!-- Material Icons & Fonts - Offline Version -->
+    <link rel="stylesheet" href="css/material-icons.css">
+    <link rel="stylesheet" href="css/tajawal-fonts.css">
 
     <style>
         * { box-sizing: border-box; }
@@ -67,8 +69,19 @@
 
         <!-- بيانات المكفول -->
         <div class="detail-section" id="orphanSection" style="display: none;">
-            <h3 class="section-title"><span class="material-icons">person</span> بيانات المكفول</h3>
+            <h3 class="section-title"><span class="material-icons">person</span> <span id="orphanSectionTitle">بيانات المكفول</span></h3>
+            <!-- نوع الشخص المكفول (مهم للتوجيه للجدول الصحيح) -->
+            <input type="hidden" id="person_type" data-field="person_type" value="">
             <div class="section-content">
+                <!-- عرض نوع الشخص إذا كان متوفي -->
+                <div class="form-row" id="personTypeDisplay" style="display: none;">
+                    <div class="form-field" style="width: 100%;">
+                        <div id="personTypeLabel" style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 8px; text-align: center; font-weight: bold;">
+                            <span class="material-icons" style="vertical-align: middle;">info</span>
+                            <span id="personTypeName"></span>
+                        </div>
+                    </div>
+                </div>
                 <div class="form-row">
                     <div class="form-field"><label class="form-label">الاسم الأول</label><input type="text" class="form-input" id="first_name" data-field="first_name"></div>
                     <div class="form-field"><label class="form-label">اسم الأب</label><input type="text" class="form-input" id="second_name" data-field="second_name"></div>
@@ -79,13 +92,19 @@
                 </div>
                 <div class="form-row">
                     <div class="form-field"><label class="form-label">رقم الهوية</label><input type="text" class="form-input" id="identity_number" data-field="identity_number"></div>
-                    <div class="form-field"><label class="form-label">تاريخ الميلاد</label><input type="date" class="form-input" id="birth_date" data-field="sponsored_birth_date"></div>
+                    <div class="form-field" id="birthDateContainer">
+                        <label class="form-label" id="birthDateLabel">تاريخ الميلاد</label>
+                        <input type="date" class="form-input" id="birth_date" data-field="sponsored_birth_date">
+                    </div>
                 </div>
-                <div class="form-row">
-                    <div class="form-field"><label class="form-label">الجنس</label>
+                <div class="form-row" id="genderRow">
+                    <div class="form-field" id="genderContainer">
+                        <label class="form-label">الجنس</label>
                         <select class="form-select" id="orphan_gender" data-field="orphan_gender">
                             <option value="">-- اختر --</option><option value="ذكر">ذكر</option><option value="أنثى">أنثى</option>
                         </select>
+                        <!-- حقل قراءة فقط للمتوفين (الجنس محدد تلقائياً) -->
+                        <input type="text" class="form-input" id="orphan_gender_readonly" readonly style="display: none; background: #e9ecef;">
                     </div>
                     <div class="form-field"><label class="form-label">الحالة الصحية</label>
                         <select class="form-select" id="health_status_id" data-field="health_status_id"><option value="">-- اختر --</option></select>
@@ -188,8 +207,11 @@
                 populateForm(currentSponsorship);
                 document.getElementById('orphanSection').style.display = 'block';
 
+                // التعامل مع أنواع الأشخاص المختلفة
+                const personType = currentSponsorship.person_type || '';
+                handlePersonTypeDisplay(personType);
+
                 // إخفاء قسم المعيل إذا كان المكفول هو المعيل نفسه (person_type = breadwinner)
-                const personType = currentSponsorship.person_type || currentSponsorship.guardian_person_type || '';
                 if (personType === 'breadwinner') {
                     document.getElementById('guardianSection').style.display = 'none';
                     document.getElementById('bankSection').style.display = 'none';
@@ -206,6 +228,90 @@
             } finally { showLoading(false); }
         }
 
+        /**
+         * التعامل مع عرض نوع الشخص - تخصيص الواجهة بناءً على النوع
+         * @param {string} personType - نوع الشخص (breadwinner, family_member, orphan, deceased_father, deceased_mother)
+         */
+        function handlePersonTypeDisplay(personType) {
+            const personTypeDisplay = document.getElementById('personTypeDisplay');
+            const personTypeName = document.getElementById('personTypeName');
+            const orphanSectionTitle = document.getElementById('orphanSectionTitle');
+            const genderSelect = document.getElementById('orphan_gender');
+            const genderReadonly = document.getElementById('orphan_gender_readonly');
+            const birthDateLabel = document.getElementById('birthDateLabel');
+
+            // تعيين قيمة person_type في الحقل المخفي
+            document.getElementById('person_type').value = personType;
+
+            // إخفاء عرض نوع الشخص افتراضياً
+            personTypeDisplay.style.display = 'none';
+            genderSelect.style.display = 'block';
+            genderReadonly.style.display = 'none';
+            birthDateLabel.textContent = 'تاريخ الميلاد';
+
+            switch (personType) {
+                case 'deceased_father':
+                    // أب متوفي
+                    orphanSectionTitle.textContent = 'بيانات الأب المتوفي';
+                    personTypeName.textContent = '👨 أب متوفي - الجنس: ذكر (تلقائي)';
+                    personTypeDisplay.style.display = 'block';
+                    personTypeDisplay.querySelector('.form-field > div').style.background = '#f8d7da';
+                    // الجنس محدد تلقائياً للأب = ذكر
+                    genderSelect.style.display = 'none';
+                    genderReadonly.style.display = 'block';
+                    genderReadonly.value = 'ذكر';
+                    // تغيير تسمية تاريخ الميلاد لتاريخ الوفاة
+                    birthDateLabel.textContent = 'تاريخ الوفاة';
+                    break;
+
+                case 'deceased_mother':
+                    // أم متوفية
+                    orphanSectionTitle.textContent = 'بيانات الأم المتوفية';
+                    personTypeName.textContent = '👩 أم متوفية - الجنس: أنثى (تلقائي)';
+                    personTypeDisplay.style.display = 'block';
+                    personTypeDisplay.querySelector('.form-field > div').style.background = '#f8d7da';
+                    // الجنس محدد تلقائياً للأم = أنثى
+                    genderSelect.style.display = 'none';
+                    genderReadonly.style.display = 'block';
+                    genderReadonly.value = 'أنثى';
+                    // تغيير تسمية تاريخ الميلاد لتاريخ الوفاة
+                    birthDateLabel.textContent = 'تاريخ الوفاة';
+                    break;
+
+                case 'breadwinner':
+                    // معيل (المكفول هو المعيل نفسه)
+                    orphanSectionTitle.textContent = 'بيانات المعيل المكفول';
+                    personTypeName.textContent = '👤 معيل';
+                    personTypeDisplay.style.display = 'block';
+                    personTypeDisplay.querySelector('.form-field > div').style.background = '#d4edda';
+                    personTypeDisplay.querySelector('.form-field > div').style.color = '#155724';
+                    break;
+
+                case 'family_member':
+                    // فرد عائلة
+                    orphanSectionTitle.textContent = 'بيانات فرد العائلة';
+                    personTypeName.textContent = '👨‍👩‍👧 فرد عائلة';
+                    personTypeDisplay.style.display = 'block';
+                    personTypeDisplay.querySelector('.form-field > div').style.background = '#cce5ff';
+                    personTypeDisplay.querySelector('.form-field > div').style.color = '#004085';
+                    break;
+
+                case 'orphan':
+                    // يتيم
+                    orphanSectionTitle.textContent = 'بيانات اليتيم';
+                    personTypeName.textContent = '👶 يتيم';
+                    personTypeDisplay.style.display = 'block';
+                    personTypeDisplay.querySelector('.form-field > div').style.background = '#fff3cd';
+                    personTypeDisplay.querySelector('.form-field > div').style.color = '#856404';
+                    break;
+
+                default:
+                    // نوع غير محدد - عرض افتراضي
+                    orphanSectionTitle.textContent = 'بيانات المكفول';
+                    break;
+            }
+        }
+
         function populateForm(data) {
             // بيانات المكفول - دعم الأسماء القديمة والجديدة
             setValue('first_name', data.first_name || data.orphan_first_name || '');
@@ -216,6 +322,8 @@
             setValue('birth_date', formatDate(data.sponsored_birth_date));
             setValue('orphan_gender', data.orphan_gender || '');
             setValue('health_status_id', data.health_status_id || '');
+            // تعيين person_type للمكفول
+            setValue('person_type', data.person_type || '');
             setValue('guardian_person_type', data.guardian_person_type || data.person_type || 'breadwinner');
             setValue('guardian_first_name', data.guardian_first_name || '');
             setValue('guardian_father_name', data.guardian_father_name || '');
@@ -336,7 +444,21 @@
                     modifiedFields.last_name || modifiedFields.identity_number || modifiedFields.orphan_gender ||
                     modifiedFields.birth_date) {
                     // إضافة person_type من الكفالة الحالية
-                    dataToSave.person_type = currentSponsorship.person_type || 'orphan';
+                    const personType = currentSponsorship.person_type || document.getElementById('person_type').value || 'orphan';
+                    dataToSave.person_type = personType;
+
+                    // للمتوفين: تحديد الجنس تلقائياً (لا يحتاج إرسال من المستخدم)
+                    if (personType === 'deceased_father') {
+                        // الأب المتوفي = ذكر دائماً
+                        dataToSave.orphan_gender = 'ذكر';
+                        console.log('👨 أب متوفي - تم تحديد الجنس: ذكر');
+                    } else if (personType === 'deceased_mother') {
+                        // الأم المتوفية = أنثى دائماً
+                        dataToSave.orphan_gender = 'أنثى';
+                        console.log('👩 أم متوفية - تم تحديد الجنس: أنثى');
+                    }
+
+                    console.log('📤 Sending person_type:', dataToSave.person_type);
                 }
 
                 // إرسال نوع الشخص (المعيل) دائماً مع أي تعديل على بيانات المعيل
