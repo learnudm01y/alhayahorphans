@@ -386,7 +386,7 @@ class SponsorshipSyncController extends Controller
                     $result['third_name'] = $localPerson->third_name ?? '';
                     $result['last_name'] = $localPerson->last_name ?? '';
                     $result['sponsored_birth_date'] = $localPerson->person_birth_date ?? $sponsorship->sponsored_birth_date;
-                    $result['orphan_gender'] = $localPerson->person_gender ?? '';
+                    $result['orphan_gender'] = $this->convertGenderToString($localPerson->person_gender ?? '');
                     $result['orphan_data_source'] = 're_people';
                     $orphanDataFound = true;
                 }
@@ -568,7 +568,7 @@ class SponsorshipSyncController extends Controller
                         $result['second_name'] = $guardianInfo->data_father_name ?? '';
                         $result['third_name'] = $guardianInfo->data_grand_father_name ?? '';
                         $result['last_name'] = $guardianInfo->data_family_name ?? '';
-                        $result['orphan_gender'] = $guardianInfo->data_gender ?? '';
+                        $result['orphan_gender'] = $this->convertGenderToString($guardianInfo->data_gender ?? '');
                         $result['sponsored_birth_date'] = $guardianInfo->data_birth_date ?? '';
                         $result['health_status_id'] = $guardianInfo->data_health_status ?? '';
                     }
@@ -590,7 +590,7 @@ class SponsorshipSyncController extends Controller
                     $result['second_name'] = $repeopleInfo->second_name ?? '';
                     $result['third_name'] = $repeopleInfo->third_name ?? '';
                     $result['last_name'] = $repeopleInfo->last_name ?? '';
-                    $result['orphan_gender'] = $repeopleInfo->person_gender ?? '';
+                    $result['orphan_gender'] = $this->convertGenderToString($repeopleInfo->person_gender ?? '');
                     $result['sponsored_birth_date'] = $repeopleInfo->person_birth_date ?? '';
                     $result['health_status_id'] = $repeopleInfo->person_health_status ?? '';
                 }
@@ -1543,6 +1543,28 @@ class SponsorshipSyncController extends Controller
             return $gender;
         }
         return ($gender === 'ذكر' || $gender === 'male' || $gender === '1' || $gender === 1) ? 1 : 2;
+    }
+
+    /**
+     * تحويل قيمة الجنس من رقم إلى نص
+     * @param mixed $gender - يمكن أن يكون نص أو رقم
+     * @return string - "ذكر" أو "أنثى" أو فارغ
+     */
+    private function convertGenderToString($gender): string
+    {
+        if (empty($gender)) {
+            return '';
+        }
+        if ($gender === 'ذكر' || $gender === 'أنثى') {
+            return $gender; // إذا كان نصاً بالفعل
+        }
+        if ($gender == 1 || $gender === '1') {
+            return 'ذكر';
+        }
+        if ($gender == 2 || $gender === '2') {
+            return 'أنثى';
+        }
+        return '';
     }
 
     /**

@@ -314,6 +314,9 @@
         }
 
         function populateForm(data) {
+            console.log('📋 populateForm - orphan_gender:', data.orphan_gender, 'type:', typeof data.orphan_gender);
+            console.log('📋 populateForm - health_status_id:', data.health_status_id, 'type:', typeof data.health_status_id);
+            console.log('📋 populateForm - guardian_city_id:', data.guardian_city_id, 'type:', typeof data.guardian_city_id);
             // بيانات المكفول - دعم الأسماء القديمة والجديدة
             setValue('first_name', data.first_name || data.orphan_first_name || '');
             setValue('second_name', data.second_name || data.orphan_father_name || '');
@@ -510,7 +513,13 @@
             } finally { showLoading(false); }
         }
 
-        function setValue(id, value) { const el = document.getElementById(id); if (el) el.value = value || ''; }
+        function setValue(id, value) {
+            const el = document.getElementById(id);
+            if (el) {
+                // تحويل القيمة إلى string للمقارنة الصحيحة في select elements
+                el.value = value !== null && value !== undefined ? String(value) : '';
+            }
+        }
         function formatDate(dateStr) { if (!dateStr) return ''; const d = new Date(dateStr); return isNaN(d.getTime()) ? dateStr : d.toISOString().split('T')[0]; }
         function showNoData() { document.getElementById('noDataMessage').style.display = 'block'; ['orphanSection','guardianSection','bankSection'].forEach(id => document.getElementById(id).style.display = 'none'); }
         function showLoading(show) { document.getElementById('loadingOverlay').classList.toggle('active', show); }
