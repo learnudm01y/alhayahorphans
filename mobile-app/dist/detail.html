@@ -177,8 +177,10 @@
         async function loadLookupData() {
             try {
                 healthStatuses = await SyncService.getLocalData('health_statuses') || [];
+                console.log('🏥 healthStatuses loaded:', healthStatuses.length, 'items:', healthStatuses);
                 populateSelect('health_status_id', healthStatuses, 'id', 'description');
                 cities = await SyncService.getLocalData('cities') || [];
+                console.log('🏙️ cities loaded:', cities.length, 'items');
                 populateSelect('guardian_city_id', cities, 'id', 'city');
                 bankNames = await SyncService.getLocalData('bank_names') || [];
             } catch (error) { console.error('Load lookup data error:', error); }

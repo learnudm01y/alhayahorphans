@@ -369,11 +369,11 @@ class SponsorshipSyncController extends Controller
         // أولاً: البحث في الجداول المحلية حسب نوع الشخص
         if (!empty($sponsorship->identity_number)) {
             // البحث في re_people (للأيتام وأفراد الأسرة)
-            // الأعمدة الصحيحة: first_name, second_name, third_name, last_name, person_id, person_birth_date, person_gender
+            // الأعمدة الصحيحة: first_name, second_name, third_name, last_name, person_id, person_birth_date, person_gender, person_health_status
             if (in_array($personType, ['orphan', 'family_member'])) {
                 $localPerson = DB::table('re_people')
                     ->where('person_id', $sponsorship->identity_number)
-                    ->select(['first_name', 'second_name', 'third_name', 'last_name', 'person_birth_date', 'person_gender'])
+                    ->select(['first_name', 'second_name', 'third_name', 'last_name', 'person_birth_date', 'person_gender', 'person_health_status'])
                     ->first();
 
                 if ($localPerson && !empty($localPerson->first_name)) {
@@ -387,6 +387,7 @@ class SponsorshipSyncController extends Controller
                     $result['last_name'] = $localPerson->last_name ?? '';
                     $result['sponsored_birth_date'] = $localPerson->person_birth_date ?? $sponsorship->sponsored_birth_date;
                     $result['orphan_gender'] = $this->convertGenderToString($localPerson->person_gender ?? '');
+                    $result['health_status_id'] = $localPerson->person_health_status ?? '';
                     $result['orphan_data_source'] = 're_people';
                     $orphanDataFound = true;
                 }
@@ -561,6 +562,11 @@ class SponsorshipSyncController extends Controller
                     $result['guardian_phone2'] = $guardianInfo->data_alt_phone_number ?? '';
                     // إضافة المدينة للنتيجة
                     $result['guardian_city_id'] = $guardianInfo->data_city ?? '';
+
+                    // جلب الحالة الصحية للمعيل (إذا لم تكن موجودة بالفعل)
+                    if (empty($result['health_status_id'])) {
+                        $result['health_status_id'] = $guardianInfo->data_health_status ?? '';
+                    }
 
                     // إذا كان المكفول من نوع breadwinner، فهو نفسه المعيل
                     if ($sponsorship->person_type === 'breadwinner') {
