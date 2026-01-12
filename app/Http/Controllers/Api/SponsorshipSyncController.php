@@ -406,8 +406,25 @@ class SponsorshipSyncController extends Controller
             $result['orphan_gender'] = $this->getGenderFromAlternativeSources($sponsorship->identity_number);
         }
 
-        // جلب بيانات المعيل من السجل المدني
-        if (!empty($sponsorship->guardian_identity_number)) {
+        // جلب بيانات المعيل - الأولوية: 1) جدول data، 2) السجل المدني، 3) تقسيم الاسم
+        $guardianDataFromTable = null;
+        if (!empty($sponsorship->relation_id_number)) {
+            $guardianDataFromTable = DB::table('data')
+                ->where('file_id_number', $sponsorship->relation_id_number)
+                ->select(['data_first_name', 'data_father_name', 'data_grand_father_name', 'data_family_name'])
+                ->first();
+        }
+
+        // إذا وجدنا بيانات في جدول data، نستخدمها
+        if ($guardianDataFromTable && !empty($guardianDataFromTable->data_first_name)) {
+            $result['guardian_first_name'] = $guardianDataFromTable->data_first_name ?? '';
+            $result['guardian_father_name'] = $guardianDataFromTable->data_father_name ?? '';
+            $result['guardian_grandfather_name'] = $guardianDataFromTable->data_grand_father_name ?? '';
+            $result['guardian_family_name'] = $guardianDataFromTable->data_family_name ?? '';
+            $result['guardian_data_source'] = 'data_table';
+        }
+        // وإلا نحاول من السجل المدني
+        elseif (!empty($sponsorship->guardian_identity_number)) {
             $guardianData = $this->getPersonFromCivilRegistry($sponsorship->guardian_identity_number);
             if ($guardianData) {
                 $result['guardian_first_name'] = $guardianData['first_name'];
@@ -425,6 +442,16 @@ class SponsorshipSyncController extends Controller
                 $result['guardian_name_combined'] = $sponsorship->guardian_name;
                 $result['needs_guardian_name_input'] = true;
             }
+        }
+        // وإلا نقسم الاسم من guardian_name
+        elseif (!empty($sponsorship->guardian_name)) {
+            $nameParts = $this->splitArabicName($sponsorship->guardian_name);
+            $result['guardian_first_name'] = $nameParts['first_name'];
+            $result['guardian_father_name'] = $nameParts['father_name'];
+            $result['guardian_grandfather_name'] = $nameParts['grand_father_name'];
+            $result['guardian_family_name'] = $nameParts['family_name'];
+            $result['guardian_name_combined'] = $sponsorship->guardian_name;
+            $result['needs_guardian_name_input'] = true;
         }
 
         // جلب البيانات البنكية للمعيل
