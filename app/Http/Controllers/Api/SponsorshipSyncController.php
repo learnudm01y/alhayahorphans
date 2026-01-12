@@ -339,6 +339,11 @@ class SponsorshipSyncController extends Controller
         // إضافة نوع الشخص (المعيل) - للتمييز في التطبيق
         $result['guardian_person_type'] = $sponsorship->person_type ?? 'breadwinner';
 
+        // تهيئة القيم الافتراضية للحقول المهمة (الجنس، تاريخ الميلاد، الحالة الصحية، المدينة)
+        $result['orphan_gender'] = '';
+        $result['health_status_id'] = '';
+        $result['guardian_city_id'] = '';
+
         // تقسيم اسم المكفول إلى أربعة حقول
         $result['orphan_first_name'] = '';
         $result['orphan_father_name'] = '';
@@ -547,13 +552,15 @@ class SponsorshipSyncController extends Controller
                     ->where('file_id_number', $sponsorship->relation_id_number)
                     ->select(['data_current_address', 'data_phone_number', 'data_alt_phone_number',
                              'data_first_name', 'data_father_name', 'data_grand_father_name', 'data_family_name',
-                             'data_gender', 'data_birth_date', 'data_id_number', 'data_health_status'])
+                             'data_gender', 'data_birth_date', 'data_id_number', 'data_health_status', 'data_city'])
                     ->first();
 
                 if ($guardianInfo) {
                     $result['guardian_detailed_address'] = $guardianInfo->data_current_address ?? '';
                     $result['guardian_phone'] = $guardianInfo->data_phone_number ?? '';
                     $result['guardian_phone2'] = $guardianInfo->data_alt_phone_number ?? '';
+                    // إضافة المدينة للنتيجة
+                    $result['guardian_city_id'] = $guardianInfo->data_city ?? '';
 
                     // إذا كان المكفول من نوع breadwinner، فهو نفسه المعيل
                     if ($sponsorship->person_type === 'breadwinner') {
@@ -593,19 +600,51 @@ class SponsorshipSyncController extends Controller
         }
 
         // جلب بيانات المكفول من dead_people إذا كان في هذا الجدول
-        if (!isset($result['first_name']) && !empty($sponsorship->relation_id_number)) {
+        if (!empty($sponsorship->relation_id_number)) {
             try {
                 $deadPeopleInfo = DB::table('dead_people')
                     ->where('re_file_id', $sponsorship->relation_id_number)
                     ->first();
 
                 if ($deadPeopleInfo) {
-                    $result['first_name'] = $deadPeopleInfo->first_name ?? '';
-                    $result['second_name'] = $deadPeopleInfo->second_name ?? '';
-                    $result['third_name'] = $deadPeopleInfo->third_name ?? '';
-                    $result['last_name'] = $deadPeopleInfo->last_name ?? '';
-                    $result['orphan_gender'] = $deadPeopleInfo->person_gender ?? '';
-                    $result['sponsored_birth_date'] = $deadPeopleInfo->person_birth_date ?? '';
+                    $personType = $sponsorship->person_type ?? '';
+
+                    // للأب المتوفي - استخدام حقول father_*
+                    if ($personType === 'deceased_father') {
+                        $result['first_name'] = $deadPeopleInfo->father_first_name ?? '';
+                        $result['second_name'] = $deadPeopleInfo->father_second_name ?? '';
+                        $result['third_name'] = $deadPeopleInfo->father_third_name ?? '';
+                        $result['last_name'] = $deadPeopleInfo->father_last_name ?? '';
+                        $result['orphan_gender'] = 'ذكر'; // الأب دائماً ذكر
+                        $result['sponsored_birth_date'] = $deadPeopleInfo->father_death_date ?? '';
+                    }
+                    // للأم المتوفية - استخدام حقول mother_*
+                    elseif ($personType === 'deceased_mother') {
+                        $result['first_name'] = $deadPeopleInfo->mother_first_name ?? '';
+                        $result['second_name'] = $deadPeopleInfo->mother_second_name ?? '';
+                        $result['third_name'] = $deadPeopleInfo->mother_third_name ?? '';
+                        $result['last_name'] = $deadPeopleInfo->mother_last_name ?? '';
+                        $result['orphan_gender'] = 'أنثى'; // الأم دائماً أنثى
+                        $result['sponsored_birth_date'] = $deadPeopleInfo->mother_death_date ?? '';
+                    }
+                    // افتراضياً - محاولة الأب أولاً
+                    elseif (empty($result['first_name'])) {
+                        if (!empty($deadPeopleInfo->father_first_name)) {
+                            $result['first_name'] = $deadPeopleInfo->father_first_name;
+                            $result['second_name'] = $deadPeopleInfo->father_second_name ?? '';
+                            $result['third_name'] = $deadPeopleInfo->father_third_name ?? '';
+                            $result['last_name'] = $deadPeopleInfo->father_last_name ?? '';
+                            $result['orphan_gender'] = 'ذكر';
+                            $result['sponsored_birth_date'] = $deadPeopleInfo->father_death_date ?? '';
+                        } elseif (!empty($deadPeopleInfo->mother_first_name)) {
+                            $result['first_name'] = $deadPeopleInfo->mother_first_name;
+                            $result['second_name'] = $deadPeopleInfo->mother_second_name ?? '';
+                            $result['third_name'] = $deadPeopleInfo->mother_third_name ?? '';
+                            $result['last_name'] = $deadPeopleInfo->mother_last_name ?? '';
+                            $result['orphan_gender'] = 'أنثى';
+                            $result['sponsored_birth_date'] = $deadPeopleInfo->mother_death_date ?? '';
+                        }
+                    }
                 }
             } catch (\Exception $e) {
                 Log::warning('Failed to get dead_people info', ['error' => $e->getMessage()]);
