@@ -364,21 +364,22 @@ class SponsorshipSyncController extends Controller
         // أولاً: البحث في الجداول المحلية حسب نوع الشخص
         if (!empty($sponsorship->identity_number)) {
             // البحث في re_people (للأيتام وأفراد الأسرة)
+            // الأعمدة الصحيحة: first_name, second_name, third_name, last_name, person_id, person_birth_date, person_gender
             if (in_array($personType, ['orphan', 'family_member'])) {
                 $localPerson = DB::table('re_people')
-                    ->where('person_identity_number', $sponsorship->identity_number)
-                    ->select(['person_first_name', 'person_father_name', 'person_grand_father_name', 'person_family_name', 'person_birth_date', 'person_gender'])
+                    ->where('person_id', $sponsorship->identity_number)
+                    ->select(['first_name', 'second_name', 'third_name', 'last_name', 'person_birth_date', 'person_gender'])
                     ->first();
 
-                if ($localPerson && !empty($localPerson->person_first_name)) {
-                    $result['orphan_first_name'] = $localPerson->person_first_name;
-                    $result['orphan_father_name'] = $localPerson->person_father_name ?? '';
-                    $result['orphan_grandfather_name'] = $localPerson->person_grand_father_name ?? '';
-                    $result['orphan_family_name'] = $localPerson->person_family_name ?? '';
-                    $result['first_name'] = $localPerson->person_first_name;
-                    $result['second_name'] = $localPerson->person_father_name ?? '';
-                    $result['third_name'] = $localPerson->person_grand_father_name ?? '';
-                    $result['last_name'] = $localPerson->person_family_name ?? '';
+                if ($localPerson && !empty($localPerson->first_name)) {
+                    $result['orphan_first_name'] = $localPerson->first_name;
+                    $result['orphan_father_name'] = $localPerson->second_name ?? '';
+                    $result['orphan_grandfather_name'] = $localPerson->third_name ?? '';
+                    $result['orphan_family_name'] = $localPerson->last_name ?? '';
+                    $result['first_name'] = $localPerson->first_name;
+                    $result['second_name'] = $localPerson->second_name ?? '';
+                    $result['third_name'] = $localPerson->third_name ?? '';
+                    $result['last_name'] = $localPerson->last_name ?? '';
                     $result['sponsored_birth_date'] = $localPerson->person_birth_date ?? $sponsorship->sponsored_birth_date;
                     $result['orphan_gender'] = $localPerson->person_gender ?? '';
                     $result['orphan_data_source'] = 're_people';
@@ -387,6 +388,8 @@ class SponsorshipSyncController extends Controller
             }
 
             // البحث في dead_people (للمتوفين)
+            // الأعمدة الصحيحة: father_first_name, father_second_name, father_third_name, father_last_name
+            // و mother_first_name, mother_second_name, mother_third_name, mother_last_name
             if (!$orphanDataFound && in_array($personType, ['deceased_father', 'deceased_mother'])) {
                 $deadPerson = DB::table('dead_people')
                     ->where(function($q) use ($sponsorship) {
@@ -398,24 +401,24 @@ class SponsorshipSyncController extends Controller
                 if ($deadPerson) {
                     if ($personType === 'deceased_father' && !empty($deadPerson->father_first_name)) {
                         $result['orphan_first_name'] = $deadPerson->father_first_name;
-                        $result['orphan_father_name'] = $deadPerson->father_father_name ?? '';
-                        $result['orphan_grandfather_name'] = $deadPerson->father_grand_father_name ?? '';
-                        $result['orphan_family_name'] = $deadPerson->father_family_name ?? '';
+                        $result['orphan_father_name'] = $deadPerson->father_second_name ?? '';
+                        $result['orphan_grandfather_name'] = $deadPerson->father_third_name ?? '';
+                        $result['orphan_family_name'] = $deadPerson->father_last_name ?? '';
                         $result['first_name'] = $deadPerson->father_first_name;
-                        $result['second_name'] = $deadPerson->father_father_name ?? '';
-                        $result['third_name'] = $deadPerson->father_grand_father_name ?? '';
-                        $result['last_name'] = $deadPerson->father_family_name ?? '';
+                        $result['second_name'] = $deadPerson->father_second_name ?? '';
+                        $result['third_name'] = $deadPerson->father_third_name ?? '';
+                        $result['last_name'] = $deadPerson->father_last_name ?? '';
                         $result['orphan_data_source'] = 'dead_people';
                         $orphanDataFound = true;
                     } elseif ($personType === 'deceased_mother' && !empty($deadPerson->mother_first_name)) {
                         $result['orphan_first_name'] = $deadPerson->mother_first_name;
-                        $result['orphan_father_name'] = $deadPerson->mother_father_name ?? '';
-                        $result['orphan_grandfather_name'] = $deadPerson->mother_grand_father_name ?? '';
-                        $result['orphan_family_name'] = $deadPerson->mother_family_name ?? '';
+                        $result['orphan_father_name'] = $deadPerson->mother_second_name ?? '';
+                        $result['orphan_grandfather_name'] = $deadPerson->mother_third_name ?? '';
+                        $result['orphan_family_name'] = $deadPerson->mother_last_name ?? '';
                         $result['first_name'] = $deadPerson->mother_first_name;
-                        $result['second_name'] = $deadPerson->mother_father_name ?? '';
-                        $result['third_name'] = $deadPerson->mother_grand_father_name ?? '';
-                        $result['last_name'] = $deadPerson->mother_family_name ?? '';
+                        $result['second_name'] = $deadPerson->mother_second_name ?? '';
+                        $result['third_name'] = $deadPerson->mother_third_name ?? '';
+                        $result['last_name'] = $deadPerson->mother_last_name ?? '';
                         $result['orphan_data_source'] = 'dead_people';
                         $orphanDataFound = true;
                     }
@@ -1292,7 +1295,7 @@ class SponsorshipSyncController extends Controller
                         $updateData['person_gender'] = $this->convertGenderToInt($updates['orphan_gender']);
                     }
                     if (isset($updates['birth_date'])) $updateData['person_birth_date'] = $updates['birth_date'];
-                    if (isset($updates['identity_number'])) $updateData['person_identity_number'] = $updates['identity_number'];
+                    if (isset($updates['identity_number'])) $updateData['person_id'] = $updates['identity_number'];
                     if (isset($updates['health_status_id'])) $updateData['person_health_status'] = $updates['health_status_id'];
 
                     if (!empty($updateData)) {
@@ -1537,7 +1540,7 @@ class SponsorshipSyncController extends Controller
             $updateData['person_gender'] = $this->convertGenderToInt($updates['orphan_gender']);
         }
         if (isset($updates['birth_date'])) $updateData['person_birth_date'] = $updates['birth_date'];
-        if (isset($updates['identity_number'])) $updateData['person_identity_number'] = $updates['identity_number'];
+        if (isset($updates['identity_number'])) $updateData['person_id'] = $updates['identity_number'];
         if (isset($updates['health_status_id'])) $updateData['person_health_status'] = $updates['health_status_id'];
         if (!empty($updateData)) $updateData['updated_at'] = now();
         return $updateData;
