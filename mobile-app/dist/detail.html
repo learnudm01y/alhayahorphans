@@ -142,7 +142,12 @@
 
         <!-- الحسابات البنكية -->
         <div class="detail-section" id="bankSection" style="display: none;">
-            <h3 class="section-title"><span class="material-icons">account_balance</span> الحسابات البنكية للمعيل</h3>
+            <h3 class="section-title">
+                <span class="material-icons">account_balance</span> الحسابات البنكية للمعيل
+                <button class="add-bank-btn" onclick="addNewBankAccount()" style="margin-right: auto; background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 5px;">
+                    <span class="material-icons" style="font-size: 18px;">add</span> إضافة حساب
+                </button>
+            </h3>
             <div class="section-content" id="bankAccountsContainer"><p style="color: #888; text-align: center;">لا توجد حسابات بنكية</p></div>
         </div>
     </div>
@@ -319,6 +324,14 @@
             console.log('📋 populateForm - orphan_gender:', data.orphan_gender, 'type:', typeof data.orphan_gender);
             console.log('📋 populateForm - health_status_id:', data.health_status_id, 'type:', typeof data.health_status_id);
             console.log('📋 populateForm - guardian_city_id:', data.guardian_city_id, 'type:', typeof data.guardian_city_id);
+            console.log('👤 Guardian data:', {
+                first_name: data.guardian_first_name,
+                father_name: data.guardian_father_name,
+                grandfather_name: data.guardian_grandfather_name,
+                family_name: data.guardian_family_name,
+                identity: data.guardian_identity_number,
+                data_source: data.guardian_data_source
+            });
             // بيانات المكفول - دعم الأسماء القديمة والجديدة
             setValue('first_name', data.first_name || data.orphan_first_name || '');
             setValue('second_name', data.second_name || data.orphan_father_name || '');
@@ -522,6 +535,37 @@
                 el.value = value !== null && value !== undefined ? String(value) : '';
             }
         }
+
+        function addNewBankAccount() {
+            if (!currentSponsorship) {
+                showToast('لا توجد بيانات كفالة', 'error');
+                return;
+            }
+
+            // إنشاء حساب جديد فارغ
+            const newAccount = {
+                bank_name: '',
+                re_guardian_name: currentSponsorship.guardian_name || '',
+                person_owner_identity_number: currentSponsorship.guardian_identity_number || '',
+                re_phone_number: currentSponsorship.guardian_phone || '',
+                iban_usd: '',
+                iban_shekel: '',
+                check_account: 0,
+                _isNew: true
+            };
+
+            // إضافة الحساب للقائمة
+            if (!currentSponsorship.bank_accounts) {
+                currentSponsorship.bank_accounts = [];
+            }
+            currentSponsorship.bank_accounts.push(newAccount);
+
+            // إعادة عرض القائمة
+            populateBankAccounts(currentSponsorship.bank_accounts);
+
+            showToast('تم إضافة حساب بنكي جديد. قم بملء البيانات وحفظها.', 'success');
+        }
+
         function formatDate(dateStr) { if (!dateStr) return ''; const d = new Date(dateStr); return isNaN(d.getTime()) ? dateStr : d.toISOString().split('T')[0]; }
         function showNoData() { document.getElementById('noDataMessage').style.display = 'block'; ['orphanSection','guardianSection','bankSection'].forEach(id => document.getElementById(id).style.display = 'none'); }
         function showLoading(show) { document.getElementById('loadingOverlay').classList.toggle('active', show); }

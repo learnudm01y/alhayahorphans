@@ -491,22 +491,38 @@ class SponsorshipSyncController extends Controller
         }
         // وإلا نحاول من السجل المدني
         elseif (!empty($sponsorship->guardian_identity_number)) {
+            Log::info('🔍 محاولة جلب بيانات المعيل من السجل المدني', [
+                'sponsorship_id' => $sponsorship->id,
+                'guardian_identity_number' => $sponsorship->guardian_identity_number
+            ]);
+
             $guardianData = $this->getPersonFromCivilRegistry($sponsorship->guardian_identity_number);
             if ($guardianData) {
+                Log::info('✅ تم جلب بيانات المعيل من السجل المدني', [
+                    'name' => $guardianData['full_name'],
+                    'guardian_identity_number' => $sponsorship->guardian_identity_number
+                ]);
+
                 $result['guardian_first_name'] = $guardianData['first_name'];
                 $result['guardian_father_name'] = $guardianData['father_name'];
                 $result['guardian_grandfather_name'] = $guardianData['grand_father_name'];
                 $result['guardian_family_name'] = $guardianData['family_name'];
                 $result['guardian_name'] = $guardianData['full_name'];
                 $result['guardian_data_source'] = 'civil_registry';
-            } elseif (!empty($sponsorship->guardian_name)) {
-                $nameParts = $this->splitArabicName($sponsorship->guardian_name);
-                $result['guardian_first_name'] = $nameParts['first_name'];
-                $result['guardian_father_name'] = $nameParts['father_name'];
-                $result['guardian_grandfather_name'] = $nameParts['grand_father_name'];
-                $result['guardian_family_name'] = $nameParts['family_name'];
-                $result['guardian_name_combined'] = $sponsorship->guardian_name;
-                $result['needs_guardian_name_input'] = true;
+            } else {
+                Log::warning('❌ لم يتم العثور على بيانات المعيل في السجل المدني', [
+                    'guardian_identity_number' => $sponsorship->guardian_identity_number
+                ]);
+
+                if (!empty($sponsorship->guardian_name)) {
+                    $nameParts = $this->splitArabicName($sponsorship->guardian_name);
+                    $result['guardian_first_name'] = $nameParts['first_name'];
+                    $result['guardian_father_name'] = $nameParts['father_name'];
+                    $result['guardian_grandfather_name'] = $nameParts['grand_father_name'];
+                    $result['guardian_family_name'] = $nameParts['family_name'];
+                    $result['guardian_name_combined'] = $sponsorship->guardian_name;
+                    $result['needs_guardian_name_input'] = true;
+                }
             }
         }
         // وإلا نقسم الاسم من guardian_name
