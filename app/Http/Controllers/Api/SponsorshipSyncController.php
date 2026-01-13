@@ -660,9 +660,14 @@ class SponsorshipSyncController extends Controller
             $result['needs_guardian_name_input'] = true;
         }
 
-        // جلب البيانات البنكية للمعيل
+        // ===================================================================
+        // جلب البيانات البنكية للمعيل - البحث الشامل
+        // ===================================================================
         $result['bank_accounts'] = [];
-        if (!empty($sponsorship->relation_id_number)) {
+        $bankAccountsFound = false;
+
+        // 1) البحث باستخدام relation_id_number
+        if (!$bankAccountsFound && !empty($sponsorship->relation_id_number)) {
             try {
                 $bankAccounts = DB::table('guardian_bank_accounts')
                     ->leftJoin('bank_names', 'guardian_bank_accounts.bank_name', '=', 'bank_names.id')
@@ -675,19 +680,62 @@ class SponsorshipSyncController extends Controller
                         'guardian_bank_accounts.re_phone_number',
                         'guardian_bank_accounts.person_owner_identity_number',
                         'guardian_bank_accounts.bank_name',
+                        'guardian_bank_accounts.check_account',
                         'bank_names.description as bank_name_text'
                     ])
                     ->get();
 
-                // إرسال البيانات كما هي في قاعدة البيانات
-                $result['bank_accounts'] = $bankAccounts->toArray();
+                if ($bankAccounts->isNotEmpty()) {
+                    $result['bank_accounts'] = $bankAccounts->toArray();
+                    $bankAccountsFound = true;
+                }
             } catch (\Exception $e) {
-                Log::warning('Failed to get bank accounts', ['error' => $e->getMessage()]);
+                Log::warning('Failed to get bank accounts by relation_id', ['error' => $e->getMessage()]);
             }
         }
 
-        // جلب بيانات الاتصال للمعيل (العنوان والهاتف) من جدول data
-        if (!empty($sponsorship->relation_id_number)) {
+        // 2) البحث باستخدام guardian_identity_number (re_id_number في guardian_bank_accounts)
+        if (!$bankAccountsFound && !empty($sponsorship->guardian_identity_number)) {
+            try {
+                $bankAccounts = DB::table('guardian_bank_accounts')
+                    ->leftJoin('bank_names', 'guardian_bank_accounts.bank_name', '=', 'bank_names.id')
+                    ->where('guardian_bank_accounts.re_id_number', $sponsorship->guardian_identity_number)
+                    ->select([
+                        'guardian_bank_accounts.id',
+                        'guardian_bank_accounts.iban_usd',
+                        'guardian_bank_accounts.iban_shekel',
+                        'guardian_bank_accounts.re_guardian_name',
+                        'guardian_bank_accounts.re_phone_number',
+                        'guardian_bank_accounts.person_owner_identity_number',
+                        'guardian_bank_accounts.bank_name',
+                        'guardian_bank_accounts.check_account',
+                        'guardian_bank_accounts.guardian_registration',
+                        'bank_names.description as bank_name_text'
+                    ])
+                    ->get();
+
+                if ($bankAccounts->isNotEmpty()) {
+                    $result['bank_accounts'] = $bankAccounts->toArray();
+                    $bankAccountsFound = true;
+
+                    Log::info('✅ تم جلب الحسابات البنكية برقم هوية المعيل', [
+                        'sponsorship_id' => $sponsorship->id,
+                        'guardian_identity_number' => $sponsorship->guardian_identity_number,
+                        'accounts_count' => $bankAccounts->count()
+                    ]);
+                }
+            } catch (\Exception $e) {
+                Log::warning('Failed to get bank accounts by guardian_identity', ['error' => $e->getMessage()]);
+            }
+        }
+
+        // ===================================================================
+        // جلب بيانات الاتصال للمعيل (العنوان والهاتف) - البحث الشامل
+        // ===================================================================
+        $contactInfoFound = false;
+
+        // 1) البحث في جدول data باستخدام relation_id_number
+        if (!$contactInfoFound && !empty($sponsorship->relation_id_number)) {
             try {
                 $guardianInfo = DB::table('data')
                     ->where('file_id_number', $sponsorship->relation_id_number)
@@ -697,11 +745,13 @@ class SponsorshipSyncController extends Controller
                     ->first();
 
                 if ($guardianInfo) {
-                    $result['guardian_detailed_address'] = $guardianInfo->data_current_address ?? '';
-                    $result['guardian_phone'] = $guardianInfo->data_phone_number ?? '';
-                    $result['guardian_phone2'] = $guardianInfo->data_alt_phone_number ?? '';
-                    // إضافة المدينة للنتيجة
-                    $result['guardian_city_id'] = $guardianInfo->data_city ?? '';
+                    if (!empty($guardianInfo->data_phone_number) || !empty($guardianInfo->data_current_address)) {
+                        $result['guardian_detailed_address'] = $guardianInfo->data_current_address ?? '';
+                        $result['guardian_phone'] = $guardianInfo->data_phone_number ?? '';
+                        $result['guardian_phone2'] = $guardianInfo->data_alt_phone_number ?? '';
+                        $result['guardian_city_id'] = $guardianInfo->data_city ?? '';
+                        $contactInfoFound = true;
+                    }
 
                     // جلب الحالة الصحية للمعيل (إذا لم تكن موجودة بالفعل)
                     if (empty($result['health_status_id'])) {
@@ -720,9 +770,62 @@ class SponsorshipSyncController extends Controller
                     }
                 }
             } catch (\Exception $e) {
-                Log::warning('Failed to get guardian contact info', ['error' => $e->getMessage()]);
+                Log::warning('Failed to get guardian contact info from data', ['error' => $e->getMessage()]);
             }
         }
+
+        // 2) البحث في جدول data باستخدام guardian_identity_number
+        if (!$contactInfoFound && !empty($sponsorship->guardian_identity_number)) {
+            try {
+                $guardianInfo = DB::table('data')
+                    ->where('data_id_number', $sponsorship->guardian_identity_number)
+                    ->select(['data_current_address', 'data_phone_number', 'data_alt_phone_number',
+                             'data_city', 'data_health_status', 'file_id_number'])
+                    ->first();
+
+                if ($guardianInfo && (!empty($guardianInfo->data_phone_number) || !empty($guardianInfo->data_current_address))) {
+                    $result['guardian_detailed_address'] = $guardianInfo->data_current_address ?? '';
+                    $result['guardian_phone'] = $guardianInfo->data_phone_number ?? '';
+                    $result['guardian_phone2'] = $guardianInfo->data_alt_phone_number ?? '';
+                    $result['guardian_city_id'] = $guardianInfo->data_city ?? '';
+                    $contactInfoFound = true;
+
+                    Log::info('✅ تم جلب بيانات الاتصال برقم هوية المعيل', [
+                        'sponsorship_id' => $sponsorship->id,
+                        'guardian_identity_number' => $sponsorship->guardian_identity_number
+                    ]);
+
+                    // جلب الحالة الصحية للمعيل (إذا لم تكن موجودة بالفعل)
+                    if (empty($result['health_status_id'])) {
+                        $result['health_status_id'] = $guardianInfo->data_health_status ?? '';
+                    }
+                }
+            } catch (\Exception $e) {
+                Log::warning('Failed to get guardian contact info by identity', ['error' => $e->getMessage()]);
+            }
+        }
+
+        // 3) البحث في الحسابات البنكية للحصول على رقم الهاتف إذا لم نجده
+        if (!$contactInfoFound && !empty($result['bank_accounts'])) {
+            foreach ($result['bank_accounts'] as $account) {
+                $accountData = (array) $account;
+                if (!empty($accountData['re_phone_number'])) {
+                    $result['guardian_phone'] = $accountData['re_phone_number'];
+                    $contactInfoFound = true;
+
+                    Log::info('✅ تم جلب رقم الهاتف من الحساب البنكي', [
+                        'sponsorship_id' => $sponsorship->id
+                    ]);
+                    break;
+                }
+            }
+        }
+
+        // تأكد من وجود قيم افتراضية لبيانات الاتصال
+        if (!isset($result['guardian_phone'])) $result['guardian_phone'] = '';
+        if (!isset($result['guardian_phone2'])) $result['guardian_phone2'] = '';
+        if (!isset($result['guardian_detailed_address'])) $result['guardian_detailed_address'] = '';
+        if (!isset($result['guardian_city_id'])) $result['guardian_city_id'] = '';
 
         // جلب بيانات المكفول من re_people إذا كان من نوع repeople
         if ($sponsorship->person_type === 'repeople' && !empty($sponsorship->identity_number)) {
