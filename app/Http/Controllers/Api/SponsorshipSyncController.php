@@ -1324,13 +1324,18 @@ class SponsorshipSyncController extends Controller
             $hasOrphanDataUpdate = isset($updates['first_name']) || isset($updates['second_name']) ||
                                    isset($updates['third_name']) || isset($updates['last_name']) ||
                                    isset($updates['orphan_gender']) || isset($updates['birth_date']) ||
-                                   isset($updates['identity_number']);
+                                   isset($updates['sponsored_birth_date']) || isset($updates['identity_number']);
 
             if ($hasOrphanDataUpdate) {
                 // الحصول على person_type من التحديثات أو من الكفالة
                 $personType = $updates['person_type'] ?? $sponsorship->person_type ?? null;
                 $relationIdNumber = $sponsorship->relation_id_number;
                 $identityNumber = $updates['identity_number'] ?? $sponsorship->identity_number ?? null;
+
+                // دعم sponsored_birth_date
+                if (isset($updates['sponsored_birth_date']) && !isset($updates['birth_date'])) {
+                    $updates['birth_date'] = $updates['sponsored_birth_date'];
+                }
 
                 Log::info('🔍 بدء تحديث بيانات المكفول', [
                     'person_type' => $personType,
@@ -1481,20 +1486,54 @@ class SponsorshipSyncController extends Controller
 
             foreach ($bankUpdates as $index => $updates) {
                 $updateData = [];
+                $existingAccount = $accounts[$index] ?? null;
 
                 // دعم أسماء الحقول من التطبيق (data-bank-field) وأسماء بديلة
-                if (isset($updates['bank_name'])) $updateData['bank_name'] = $updates['bank_name'];
-                elseif (isset($updates['bank_name_id'])) $updateData['bank_name'] = $updates['bank_name_id'];
+                // عدم استبدال القيم الموجودة مسبقاً إلا إذا كانت فارغة
+                if (isset($updates['bank_name'])) {
+                    if (!$existingAccount || empty($existingAccount->bank_name)) {
+                        $updateData['bank_name'] = $updates['bank_name'];
+                    }
+                } elseif (isset($updates['bank_name_id'])) {
+                    if (!$existingAccount || empty($existingAccount->bank_name)) {
+                        $updateData['bank_name'] = $updates['bank_name_id'];
+                    }
+                }
 
-                if (isset($updates['re_guardian_name'])) $updateData['re_guardian_name'] = $updates['re_guardian_name'];
-                elseif (isset($updates['account_holder_name'])) $updateData['re_guardian_name'] = $updates['account_holder_name'];
+                // اسم صاحب الحساب - عدم استبداله إذا كان موجوداً
+                if (isset($updates['re_guardian_name'])) {
+                    if (!$existingAccount || empty($existingAccount->re_guardian_name)) {
+                        $updateData['re_guardian_name'] = $updates['re_guardian_name'];
+                    }
+                } elseif (isset($updates['account_holder_name'])) {
+                    if (!$existingAccount || empty($existingAccount->re_guardian_name)) {
+                        $updateData['re_guardian_name'] = $updates['account_holder_name'];
+                    }
+                }
 
-                if (isset($updates['person_owner_identity_number'])) $updateData['person_owner_identity_number'] = $updates['person_owner_identity_number'];
-                elseif (isset($updates['account_holder_identity'])) $updateData['person_owner_identity_number'] = $updates['account_holder_identity'];
+                // رقم هوية صاحب الحساب - عدم استبداله إذا كان موجوداً
+                if (isset($updates['person_owner_identity_number'])) {
+                    if (!$existingAccount || empty($existingAccount->person_owner_identity_number)) {
+                        $updateData['person_owner_identity_number'] = $updates['person_owner_identity_number'];
+                    }
+                } elseif (isset($updates['account_holder_identity'])) {
+                    if (!$existingAccount || empty($existingAccount->person_owner_identity_number)) {
+                        $updateData['person_owner_identity_number'] = $updates['account_holder_identity'];
+                    }
+                }
 
-                if (isset($updates['re_phone_number'])) $updateData['re_phone_number'] = $updates['re_phone_number'];
-                elseif (isset($updates['account_holder_phone'])) $updateData['re_phone_number'] = $updates['account_holder_phone'];
+                // رقم هاتف صاحب الحساب - عدم استبداله إذا كان موجوداً
+                if (isset($updates['re_phone_number'])) {
+                    if (!$existingAccount || empty($existingAccount->re_phone_number)) {
+                        $updateData['re_phone_number'] = $updates['re_phone_number'];
+                    }
+                } elseif (isset($updates['account_holder_phone'])) {
+                    if (!$existingAccount || empty($existingAccount->re_phone_number)) {
+                        $updateData['re_phone_number'] = $updates['account_holder_phone'];
+                    }
+                }
 
+                // IBAN - يتم تحديثه دائماً لأنه معلومات حساسة قد تتغير
                 if (isset($updates['iban_usd'])) $updateData['iban_usd'] = $updates['iban_usd'];
                 elseif (isset($updates['iban'])) $updateData['iban_usd'] = $updates['iban'];
 
@@ -1606,7 +1645,9 @@ class SponsorshipSyncController extends Controller
                     if (isset($updates['orphan_gender'])) {
                         $updateData['data_gender'] = $this->convertGenderToInt($updates['orphan_gender']);
                     }
+                    // دعم sponsored_birth_date أيضاً
                     if (isset($updates['birth_date'])) $updateData['data_birth_date'] = $updates['birth_date'];
+                    elseif (isset($updates['sponsored_birth_date'])) $updateData['data_birth_date'] = $updates['sponsored_birth_date'];
                     if (isset($updates['identity_number'])) $updateData['data_id_number'] = $updates['identity_number'];
                     if (isset($updates['health_status_id'])) $updateData['data_health_status'] = $updates['health_status_id'];
 
@@ -1627,7 +1668,7 @@ class SponsorshipSyncController extends Controller
                         'data_grand_father_name' => $updates['third_name'] ?? null,
                         'data_family_name' => $updates['last_name'] ?? null,
                         'data_gender' => isset($updates['orphan_gender']) ? $this->convertGenderToInt($updates['orphan_gender']) : null,
-                        'data_birth_date' => $updates['birth_date'] ?? null,
+                        'data_birth_date' => $updates['birth_date'] ?? $updates['sponsored_birth_date'] ?? null,
                         'data_id_number' => $updates['identity_number'] ?? null,
                         'created_at' => now(),
                         'updated_at' => now()
@@ -1664,6 +1705,18 @@ class SponsorshipSyncController extends Controller
                     }
                 }
 
+                // محاولة البحث برقم الهوية فقط إذا لم نجد
+                if (!$record && !empty($identityNumber)) {
+                    $record = DB::table('re_people')->where('person_id', $identityNumber)->first();
+                    if ($record) {
+                        Log::info('🔍 العثور على السجل بـ person_id فقط', ['person_id' => $identityNumber]);
+                        // تحديث registration_id للربط الصحيح
+                        if (!empty($relationIdNumber) && empty($record->registration_id)) {
+                            DB::table('re_people')->where('id', $record->id)->update(['registration_id' => $relationIdNumber]);
+                        }
+                    }
+                }
+
                 if ($record) {
                     $updateData = [];
                     if (isset($updates['first_name'])) $updateData['first_name'] = $updates['first_name'];
@@ -1673,7 +1726,9 @@ class SponsorshipSyncController extends Controller
                     if (isset($updates['orphan_gender'])) {
                         $updateData['person_gender'] = $this->convertGenderToInt($updates['orphan_gender']);
                     }
+                    // دعم sponsored_birth_date أيضاً
                     if (isset($updates['birth_date'])) $updateData['person_birth_date'] = $updates['birth_date'];
+                    elseif (isset($updates['sponsored_birth_date'])) $updateData['person_birth_date'] = $updates['sponsored_birth_date'];
                     if (isset($updates['identity_number'])) $updateData['person_id'] = $updates['identity_number'];
                     if (isset($updates['health_status_id'])) $updateData['person_health_status'] = $updates['health_status_id'];
 
@@ -1685,10 +1740,31 @@ class SponsorshipSyncController extends Controller
                         $result['updated_fields'] = array_keys($updateData);
                     }
                 } else {
-                    $result['message'] = 'لم يتم العثور على سجل فرد العائلة';
-                    Log::warning('⚠️ لم يتم العثور على سجل في re_people', [
+                    // إنشاء سجل جديد في re_people
+                    $insertData = [
                         'registration_id' => $relationIdNumber,
-                        'person_id' => $identityNumber
+                        'first_name' => $updates['first_name'] ?? null,
+                        'second_name' => $updates['second_name'] ?? null,
+                        'third_name' => $updates['third_name'] ?? null,
+                        'last_name' => $updates['last_name'] ?? null,
+                        'person_id' => $updates['identity_number'] ?? $identityNumber,
+                        'person_gender' => isset($updates['orphan_gender']) ? $this->convertGenderToInt($updates['orphan_gender']) : null,
+                        'person_birth_date' => $updates['birth_date'] ?? $updates['sponsored_birth_date'] ?? null,
+                        'person_health_status' => $updates['health_status_id'] ?? null,
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ];
+
+                    $newId = DB::table('re_people')->insertGetId($insertData);
+                    $result['success'] = true;
+                    $result['message'] = 'تم إنشاء سجل جديد في re_people';
+                    $result['new_record_id'] = $newId;
+
+                    Log::info('✅ تم إنشاء سجل جديد في re_people', [
+                        'new_id' => $newId,
+                        'registration_id' => $relationIdNumber,
+                        'person_id' => $identityNumber,
+                        'fields' => array_keys(array_filter($insertData))
                     ]);
                 }
                 break;
