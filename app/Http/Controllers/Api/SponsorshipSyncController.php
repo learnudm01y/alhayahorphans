@@ -472,25 +472,157 @@ class SponsorshipSyncController extends Controller
             $result['orphan_gender'] = $this->getGenderFromAlternativeSources($sponsorship->identity_number);
         }
 
-        // جلب بيانات المعيل - الأولوية: 1) جدول data، 2) السجل المدني، 3) تقسيم الاسم
-        $guardianDataFromTable = null;
-        if (!empty($sponsorship->relation_id_number)) {
-            $guardianDataFromTable = DB::table('data')
+        // ===================================================================
+        // جلب بيانات المعيل - البحث الشامل في جميع الجداول
+        // الأولوية: 1) جدول data، 2) جدول re_people، 3) جدول dead_people
+        //           4) السجل المدني، 5) تقسيم الاسم
+        // ===================================================================
+        $guardianDataFound = false;
+        $guardianPersonType = $sponsorship->person_type ?? 'breadwinner';
+
+        // 1) البحث في جدول data (المعيلين/أرباب الأسر)
+        if (!$guardianDataFound && !empty($sponsorship->relation_id_number)) {
+            $guardianFromData = DB::table('data')
                 ->where('file_id_number', $sponsorship->relation_id_number)
-                ->select(['data_first_name', 'data_father_name', 'data_grand_father_name', 'data_family_name'])
+                ->select(['data_first_name', 'data_father_name', 'data_grand_father_name', 'data_family_name',
+                         'data_phone_number', 'data_alt_phone_number', 'data_current_address', 'data_city',
+                         'data_health_status', 'data_id_number'])
                 ->first();
+
+            if ($guardianFromData && !empty($guardianFromData->data_first_name)) {
+                $result['guardian_first_name'] = $guardianFromData->data_first_name ?? '';
+                $result['guardian_father_name'] = $guardianFromData->data_father_name ?? '';
+                $result['guardian_grandfather_name'] = $guardianFromData->data_grand_father_name ?? '';
+                $result['guardian_family_name'] = $guardianFromData->data_family_name ?? '';
+                $result['guardian_data_source'] = 'data_table';
+                $guardianDataFound = true;
+
+                // تحديث بيانات الاتصال من data أيضاً
+                if (!isset($result['guardian_phone']) || empty($result['guardian_phone'])) {
+                    $result['guardian_phone'] = $guardianFromData->data_phone_number ?? '';
+                }
+                if (!isset($result['guardian_phone2']) || empty($result['guardian_phone2'])) {
+                    $result['guardian_phone2'] = $guardianFromData->data_alt_phone_number ?? '';
+                }
+                if (!isset($result['guardian_detailed_address']) || empty($result['guardian_detailed_address'])) {
+                    $result['guardian_detailed_address'] = $guardianFromData->data_current_address ?? '';
+                }
+            }
         }
 
-        // إذا وجدنا بيانات في جدول data، نستخدمها
-        if ($guardianDataFromTable && !empty($guardianDataFromTable->data_first_name)) {
-            $result['guardian_first_name'] = $guardianDataFromTable->data_first_name ?? '';
-            $result['guardian_father_name'] = $guardianDataFromTable->data_father_name ?? '';
-            $result['guardian_grandfather_name'] = $guardianDataFromTable->data_grand_father_name ?? '';
-            $result['guardian_family_name'] = $guardianDataFromTable->data_family_name ?? '';
-            $result['guardian_data_source'] = 'data_table';
+        // 2) البحث في جدول re_people (أفراد العائلة) - مهم لـ family_member
+        if (!$guardianDataFound && !empty($sponsorship->relation_id_number)) {
+            $guardianFromRePeople = DB::table('re_people')
+                ->where('registration_id', $sponsorship->relation_id_number)
+                ->select(['first_name', 'second_name', 'third_name', 'last_name', 'person_id',
+                         'person_birth_date', 'person_gender', 'person_health_status'])
+                ->first();
+
+            if ($guardianFromRePeople && !empty($guardianFromRePeople->first_name)) {
+                $result['guardian_first_name'] = $guardianFromRePeople->first_name ?? '';
+                $result['guardian_father_name'] = $guardianFromRePeople->second_name ?? '';
+                $result['guardian_grandfather_name'] = $guardianFromRePeople->third_name ?? '';
+                $result['guardian_family_name'] = $guardianFromRePeople->last_name ?? '';
+                $result['guardian_data_source'] = 're_people';
+                $guardianDataFound = true;
+
+                Log::info('✅ تم جلب بيانات المعيل من جدول re_people', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'relation_id_number' => $sponsorship->relation_id_number,
+                    'name' => trim(implode(' ', array_filter([
+                        $guardianFromRePeople->first_name,
+                        $guardianFromRePeople->second_name,
+                        $guardianFromRePeople->third_name,
+                        $guardianFromRePeople->last_name
+                    ])))
+                ]);
+            }
         }
-        // وإلا نحاول من السجل المدني
-        elseif (!empty($sponsorship->guardian_identity_number)) {
+
+        // 2.1) البحث في جدول re_people برقم هوية المعيل إذا لم نجده بـ relation_id
+        if (!$guardianDataFound && !empty($sponsorship->guardian_identity_number)) {
+            $guardianFromRePeopleById = DB::table('re_people')
+                ->where('person_id', $sponsorship->guardian_identity_number)
+                ->select(['first_name', 'second_name', 'third_name', 'last_name', 'registration_id',
+                         'person_birth_date', 'person_gender', 'person_health_status'])
+                ->first();
+
+            if ($guardianFromRePeopleById && !empty($guardianFromRePeopleById->first_name)) {
+                $result['guardian_first_name'] = $guardianFromRePeopleById->first_name ?? '';
+                $result['guardian_father_name'] = $guardianFromRePeopleById->second_name ?? '';
+                $result['guardian_grandfather_name'] = $guardianFromRePeopleById->third_name ?? '';
+                $result['guardian_family_name'] = $guardianFromRePeopleById->last_name ?? '';
+                $result['guardian_data_source'] = 're_people';
+                $guardianDataFound = true;
+
+                Log::info('✅ تم جلب بيانات المعيل من جدول re_people (برقم الهوية)', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'guardian_identity_number' => $sponsorship->guardian_identity_number
+                ]);
+            }
+        }
+
+        // 3) البحث في جدول dead_people (المتوفين)
+        if (!$guardianDataFound && !empty($sponsorship->relation_id_number)) {
+            $guardianFromDeadPeople = DB::table('dead_people')
+                ->where('re_file_id', $sponsorship->relation_id_number)
+                ->first();
+
+            if ($guardianFromDeadPeople) {
+                // تحديد إذا كان الأب أو الأم المتوفي
+                if (!empty($guardianFromDeadPeople->father_first_name)) {
+                    $result['guardian_first_name'] = $guardianFromDeadPeople->father_first_name ?? '';
+                    $result['guardian_father_name'] = $guardianFromDeadPeople->father_second_name ?? '';
+                    $result['guardian_grandfather_name'] = $guardianFromDeadPeople->father_third_name ?? '';
+                    $result['guardian_family_name'] = $guardianFromDeadPeople->father_last_name ?? '';
+                    $result['guardian_data_source'] = 'dead_people';
+                    $guardianDataFound = true;
+                } elseif (!empty($guardianFromDeadPeople->mother_first_name)) {
+                    $result['guardian_first_name'] = $guardianFromDeadPeople->mother_first_name ?? '';
+                    $result['guardian_father_name'] = $guardianFromDeadPeople->mother_second_name ?? '';
+                    $result['guardian_grandfather_name'] = $guardianFromDeadPeople->mother_third_name ?? '';
+                    $result['guardian_family_name'] = $guardianFromDeadPeople->mother_last_name ?? '';
+                    $result['guardian_data_source'] = 'dead_people';
+                    $guardianDataFound = true;
+                }
+            }
+        }
+
+        // 3.1) البحث في dead_people برقم هوية المعيل
+        if (!$guardianDataFound && !empty($sponsorship->guardian_identity_number)) {
+            // البحث كأب متوفي
+            $deadFather = DB::table('dead_people')
+                ->where('father_id', $sponsorship->guardian_identity_number)
+                ->first();
+
+            if ($deadFather && !empty($deadFather->father_first_name)) {
+                $result['guardian_first_name'] = $deadFather->father_first_name ?? '';
+                $result['guardian_father_name'] = $deadFather->father_second_name ?? '';
+                $result['guardian_grandfather_name'] = $deadFather->father_third_name ?? '';
+                $result['guardian_family_name'] = $deadFather->father_last_name ?? '';
+                $result['guardian_data_source'] = 'dead_people';
+                $guardianDataFound = true;
+            }
+
+            // البحث كأم متوفية إذا لم نجد الأب
+            if (!$guardianDataFound) {
+                $deadMother = DB::table('dead_people')
+                    ->where('mother_id', $sponsorship->guardian_identity_number)
+                    ->first();
+
+                if ($deadMother && !empty($deadMother->mother_first_name)) {
+                    $result['guardian_first_name'] = $deadMother->mother_first_name ?? '';
+                    $result['guardian_father_name'] = $deadMother->mother_second_name ?? '';
+                    $result['guardian_grandfather_name'] = $deadMother->mother_third_name ?? '';
+                    $result['guardian_family_name'] = $deadMother->mother_last_name ?? '';
+                    $result['guardian_data_source'] = 'dead_people';
+                    $guardianDataFound = true;
+                }
+            }
+        }
+
+        // 4) نحاول من السجل المدني
+        if (!$guardianDataFound && !empty($sponsorship->guardian_identity_number)) {
             Log::info('🔍 محاولة جلب بيانات المعيل من السجل المدني', [
                 'sponsorship_id' => $sponsorship->id,
                 'guardian_identity_number' => $sponsorship->guardian_identity_number
@@ -509,24 +641,16 @@ class SponsorshipSyncController extends Controller
                 $result['guardian_family_name'] = $guardianData['family_name'];
                 $result['guardian_name'] = $guardianData['full_name'];
                 $result['guardian_data_source'] = 'civil_registry';
+                $guardianDataFound = true;
             } else {
                 Log::warning('❌ لم يتم العثور على بيانات المعيل في السجل المدني', [
                     'guardian_identity_number' => $sponsorship->guardian_identity_number
                 ]);
-
-                if (!empty($sponsorship->guardian_name)) {
-                    $nameParts = $this->splitArabicName($sponsorship->guardian_name);
-                    $result['guardian_first_name'] = $nameParts['first_name'];
-                    $result['guardian_father_name'] = $nameParts['father_name'];
-                    $result['guardian_grandfather_name'] = $nameParts['grand_father_name'];
-                    $result['guardian_family_name'] = $nameParts['family_name'];
-                    $result['guardian_name_combined'] = $sponsorship->guardian_name;
-                    $result['needs_guardian_name_input'] = true;
-                }
             }
         }
-        // وإلا نقسم الاسم من guardian_name
-        elseif (!empty($sponsorship->guardian_name)) {
+
+        // 5) وإلا نقسم الاسم من guardian_name
+        if (!$guardianDataFound && !empty($sponsorship->guardian_name)) {
             $nameParts = $this->splitArabicName($sponsorship->guardian_name);
             $result['guardian_first_name'] = $nameParts['first_name'];
             $result['guardian_father_name'] = $nameParts['father_name'];

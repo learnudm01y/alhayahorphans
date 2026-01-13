@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="css/material-icons.css">
     <link rel="stylesheet" href="css/icons-fallback.css">
     <link rel="stylesheet" href="css/tajawal-fonts.css">
+    <link rel="stylesheet" href="css/pagination.css">
 
     <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
@@ -115,14 +116,42 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
         }
 
+        .stat-card.total {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+        }
+
+        .stat-card.pending {
+            background: linear-gradient(135deg, #FF9800, #e68900);
+        }
+
+        .stat-card.uploaded {
+            background: linear-gradient(135deg, #2196F3, #0b7dda);
+        }
+
+        .stat-card.total,
+        .stat-card.pending,
+        .stat-card.uploaded {
+            color: white;
+        }
+
+        .stat-card.total .label,
+        .stat-card.pending .label,
+        .stat-card.uploaded .label {
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .stat-card.total .value,
+        .stat-card.pending .value,
+        .stat-card.uploaded .value {
+            color: white;
+        }
+
         .stat-card .icon {
             font-size: 28px;
             margin-bottom: 8px;
         }
 
-        .stat-card.total .icon { color: var(--primary-color); }
-        .stat-card.pending .icon { color: var(--warning-color); }
-        .stat-card.uploaded .icon { color: var(--success-color); }
+        .stat-card .icon .material-icons { color: #333; }
 
         .stat-card .value {
             font-size: 1.5rem;
@@ -342,6 +371,10 @@
             gap: 8px;
         }
 
+        .folder-info h4 .material-icons {
+            color: #333;
+        }
+
         .folder-structure {
             font-family: monospace;
             font-size: 12px;
@@ -369,48 +402,28 @@
         <h1>رفع الملفات إلى Google Drive</h1>
     </header>
 
-    <!-- رسالة الحالة -->
-    <div id="statusMessage" class="status-message info">
-        سيتم رفع الملفات إلى مجلد alhayah في Google Drive
-    </div>
-
     <!-- إحصائيات الملفات -->
     <div class="upload-stats">
         <div class="stat-card total">
             <div class="icon">
-                <span class="material-icons">folder</span>
+                <span class="material-icons" style="color: #ffffff; font-weight: 900;">folder</span>
             </div>
             <div class="value" id="statTotal">0</div>
             <div class="label">إجمالي الملفات</div>
         </div>
         <div class="stat-card pending">
             <div class="icon">
-                <span class="material-icons">schedule</span>
+                <span class="material-icons" style="color: #FFFFFF; font-weight: 900;">schedule</span>
             </div>
             <div class="value" id="statPending">0</div>
             <div class="label">معلق للرفع</div>
         </div>
         <div class="stat-card uploaded">
             <div class="icon">
-                <span class="material-icons">cloud_done</span>
+                <span class="material-icons" style="color: #FFFFFF; font-weight: 900;">cloud_done</span>
             </div>
             <div class="value" id="statUploaded">0</div>
             <div class="label">تم الرفع</div>
-        </div>
-    </div>
-
-    <!-- معلومات هيكل المجلدات -->
-    <div class="folder-info">
-        <h4>
-            <span class="material-icons">info</span>
-            هيكل المجلدات
-        </h4>
-        <div class="folder-structure">
-            <span class="folder">📁 alhayah/</span><br>
-            &nbsp;&nbsp;&nbsp;&nbsp;<span class="folder">📁 [اسم الجمعية]/</span><br>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="folder">📁 [اسم المكفول]/</span><br>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">📄 photo_001.jpg</span><br>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="file">📄 document.pdf</span>
         </div>
     </div>
 
@@ -437,6 +450,8 @@
                 <p style="font-size: 12px; margin-top: 5px;">استخدم صفحة التصوير لإلتقاط صور جديدة</p>
             </div>
         </div>
+        <!-- Pagination Controls -->
+        <div id="filesPaginationContainer"></div>
     </div>
 
     <!-- أزرار الإجراءات -->
@@ -453,6 +468,7 @@
 
     <!-- خدمة المزامنة -->
     <script src="js/sync-service.js"></script>
+    <script src="js/pagination.js"></script>
 
     <script>
         // ========================================
@@ -460,6 +476,8 @@
         // ========================================
         let allFiles = [];
         let sponsors = [];
+        let currentPageNum = 1;
+        const FILES_PAGE_SIZE = 10; // 10 ملفات لكل صفحة
 
         // ========================================
         // تهيئة الصفحة
@@ -483,14 +501,12 @@
         });
 
         // ========================================
-        // تحميل الملفات
+        // تحميل الملفات مع pagination بسيط
         // ========================================
         async function loadFiles() {
             try {
+                // جلب كل الملفات
                 allFiles = await SyncService.dbGetAll('files');
-                const sponsorships = await SyncService.dbGetAll('sponsorships');
-
-                // تحديث الإحصائيات
                 const pending = allFiles.filter(f => !f.uploaded);
                 const uploaded = allFiles.filter(f => f.uploaded);
 
@@ -498,7 +514,7 @@
                 document.getElementById('statPending').textContent = pending.length;
                 document.getElementById('statUploaded').textContent = uploaded.length;
 
-                // عرض الملفات
+                // عرض الملفات مع pagination
                 const container = document.getElementById('filesList');
 
                 if (allFiles.length === 0) {
@@ -509,33 +525,13 @@
                             <p style="font-size: 12px; margin-top: 5px;">استخدم صفحة التصوير لإلتقاط صور جديدة</p>
                         </div>
                     `;
+                    document.getElementById('filesPaginationContainer').innerHTML = '';
                     return;
                 }
 
-                container.innerHTML = allFiles.map(file => {
-                    // البحث عن الكفالة المرتبطة
-                    const sponsorship = sponsorships.find(s => s.id === file.sponsorship_id);
-                    const sponsorName = sponsorship ?
-                        (sponsors.find(sp => sp.id === sponsorship.sponsor_id)?.name || 'غير معروف') : 'غير معروف';
-                    const orphanName = sponsorship?.orphan_name || 'غير معروف';
-
-                    const statusClass = file.uploaded ? 'uploaded' : 'pending';
-                    const statusText = file.uploaded ? 'تم الرفع' : 'معلق';
-                    const icon = file.file_type?.includes('image') ? 'image' : 'description';
-
-                    return `
-                        <div class="file-item">
-                            <div class="file-icon">
-                                <span class="material-icons">${icon}</span>
-                            </div>
-                            <div class="file-info">
-                                <div class="file-name">${file.file_name || 'ملف'}</div>
-                                <div class="file-meta">${sponsorName} / ${orphanName}</div>
-                            </div>
-                            <span class="file-status ${statusClass}">${statusText}</span>
-                        </div>
-                    `;
-                }).join('');
+                // عرض الصفحة الأولى
+                currentPageNum = 1;
+                showFilesPage(1);
 
             } catch (error) {
                 console.error('Load files error:', error);
@@ -544,9 +540,101 @@
         }
 
         // ========================================
+        // عرض صفحة محددة من الملفات
+        // ========================================
+        async function showFilesPage(pageNumber) {
+            currentPageNum = pageNumber;
+            const start = (pageNumber - 1) * FILES_PAGE_SIZE;
+            const end = start + FILES_PAGE_SIZE;
+            const pageFiles = allFiles.slice(start, end);
+
+            const sponsorships = await SyncService.dbGetAll('sponsorships');
+
+            // عرض الملفات
+            renderFilesPage(pageFiles, sponsorships);
+
+            // عرض pagination
+            renderFilesPagination();
+        }
+
+        // ========================================
+        // عرض أزرار pagination
+        // ========================================
+        function renderFilesPagination() {
+            const container = document.getElementById('filesPaginationContainer');
+            const totalPages = Math.ceil(allFiles.length / FILES_PAGE_SIZE);
+
+            if (totalPages <= 1) {
+                container.innerHTML = '';
+                return;
+            }
+
+            const start = (currentPageNum - 1) * FILES_PAGE_SIZE + 1;
+            const end = Math.min(currentPageNum * FILES_PAGE_SIZE, allFiles.length);
+
+            let html = '<div class="pagination-container">';
+            html += `<div class="pagination-info">عرض ${start} - ${end} من أصل ${allFiles.length} ملف</div>`;
+            html += '<div class="pagination-controls">';
+
+            // زر السابق
+            html += `<button class="pagination-btn prev" onclick="showFilesPage(${currentPageNum - 1})" ${currentPageNum === 1 ? 'disabled' : ''}>السابق</button>`;
+
+            // أرقام الصفحات
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= currentPageNum - 1 && i <= currentPageNum + 1)) {
+                    html += `<button class="pagination-btn ${i === currentPageNum ? 'active' : ''}" onclick="showFilesPage(${i})" ${i === currentPageNum ? 'disabled' : ''}>${i}</button>`;
+                } else if (i === currentPageNum - 2 || i === currentPageNum + 2) {
+                    html += '<span class="pagination-separator">...</span>';
+                }
+            }
+
+            // زر التالي
+            html += `<button class="pagination-btn next" onclick="showFilesPage(${currentPageNum + 1})" ${currentPageNum === totalPages ? 'disabled' : ''}>التالي</button>`;
+
+            html += '</div></div>';
+            container.innerHTML = html;
+        }
+
+        // ========================================
+        // عرض صفحة الملفات
+        // ========================================
+        function renderFilesPage(files, sponsorships) {
+            const container = document.getElementById('filesList');
+
+            container.innerHTML = files.map(file => {
+                // البحث عن الكفالة المرتبطة
+                const sponsorship = sponsorships.find(s => s.id === file.sponsorship_id);
+                const sponsorName = sponsorship ?
+                    (sponsors.find(sp => sp.id === sponsorship.sponsor_id)?.name || 'غير معروف') : 'غير معروف';
+                const orphanName = sponsorship?.orphan_name || 'غير معروف';
+
+                const statusClass = file.uploaded ? 'uploaded' : 'pending';
+                const statusText = file.uploaded ? 'تم الرفع' : 'معلق';
+                const icon = file.file_type?.includes('image') ? 'image' : 'description';
+
+                return `
+                    <div class="file-item">
+                        <div class="file-icon">
+                            <span class="material-icons">${icon}</span>
+                        </div>
+                        <div class="file-info">
+                            <div class="file-name">${file.file_name || 'ملف'}</div>
+                            <div class="file-meta">${sponsorName} / ${orphanName}</div>
+                        </div>
+                        <span class="file-status ${statusClass}">${statusText}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ========================================
         // رفع إلى Google Drive
+        // ملاحظة هامة: هذه الدالة تعمل على allFiles الكامل
+        // وليس على البيانات المعروضة في الصفحة فقط
+        // لذا لن تتأثر بـ pagination
         // ========================================
         async function uploadToGoogleDrive() {
+            // جلب جميع الملفات المعلقة من allFiles (وليس من الصفحة الحالية)
             const pending = allFiles.filter(f => !f.uploaded);
 
             if (pending.length === 0) {

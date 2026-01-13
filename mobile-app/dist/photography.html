@@ -19,6 +19,7 @@
     <!-- Stylesheet -->
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/custom-select.css">
+    <link rel="stylesheet" href="css/pagination.css">
     <!-- Material Icons & Fonts - Offline Version -->
     <link rel="stylesheet" href="css/material-icons.css">
     <link rel="stylesheet" href="css/icons-fallback.css">
@@ -251,6 +252,8 @@
                     اختر الجمعية والحالة ثم اضغط على زر البحث
                 </div>
             </div>
+            <!-- Pagination Controls -->
+            <div id="paginationContainer"></div>
         </div>
 
         <!-- Selected Name Info -->
@@ -293,6 +296,7 @@
 
     <!-- خدمة المزامنة -->
     <script src="js/sync-service.js"></script>
+    <script src="js/pagination.js"></script>
 
     <script>
         // ========================================
@@ -302,6 +306,9 @@
         let selectedSponsorship = null;
         let sponsors = [];
         let statuses = [];
+        let paginationInstance = null; // كائن Pagination
+        let currentFilters = {}; // الفلاتر الحالية
+        let totalCount = 0; // إجمالي عدد النتائج
 
         // ========================================
         // تهيئة الصفحة
@@ -361,6 +368,26 @@
                     statusSelect.innerHTML += `<option value="${status.id}">${status.name}</option>`;
                 });
 
+                // استعادة الفلاتر المحفوظة
+                const savedFilters = localStorage.getItem('photography_filters');
+                if (savedFilters) {
+                    try {
+                        const filters = JSON.parse(savedFilters);
+                        if (filters.sponsor_id) {
+                            sponsorSelect.value = filters.sponsor_id;
+                        }
+                        if (filters.status_id) {
+                            statusSelect.value = filters.status_id;
+                        }
+                        // تشغيل البحث تلقائياً
+                        if (filters.sponsor_id) {
+                            setTimeout(() => performSearch(), 300);
+                        }
+                    } catch (e) {
+                        console.error('Error loading saved filters:', e);
+                    }
+                }
+
                 if (sponsors.length > 0) {
                     showStatus('info', `تم تحميل ${sponsors.length} جمعية و ${statuses.length} حالة`);
                 }
@@ -378,8 +405,14 @@
             // زر البحث
             document.getElementById('filterBtn').addEventListener('click', performSearch);
 
-            // البحث النصي
-            document.getElementById('searchInput').addEventListener('input', debounce(filterLocalResults, 300));
+            // البحث النصي مع debouncing (تأخير 500ms)
+            let searchTimeout;
+            document.getElementById('searchInput').addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    filterLocalResults();
+                }, 500); // انتظار 500ms بعد آخر حرف قبل البحث
+            });
 
             // زر الصورة
             document.getElementById('photoBtn').addEventListener('click', capturePhoto);
@@ -389,7 +422,7 @@
         }
 
         // ========================================
-        // البحث
+        // البحث - جلب كل البيانات ثم pagination
         // ========================================
         async function performSearch() {
             const sponsorId = document.getElementById('filterSponsor').value;
@@ -404,7 +437,7 @@
             showStatus('info', 'جاري البحث...');
 
             try {
-                // أولاً: جلب من التخزين المحلي
+                // جلب من التخزين المحلي
                 currentSponsorships = await SyncService.getLocalSponsorships({
                     sponsor_id: sponsorId,
                     status_id: statusId
@@ -424,11 +457,18 @@
                     }
                 }
 
-                displayResults(currentSponsorships);
+                // حفظ الفلاتر في localStorage
+                currentFilters = {
+                    sponsor_id: sponsorId,
+                    status_id: statusId
+                };
+                localStorage.setItem('photography_filters', JSON.stringify(currentFilters));
 
                 if (currentSponsorships.length > 0) {
+                    displayResults(currentSponsorships);
                     showStatus('success', `تم العثور على ${currentSponsorships.length} كفالة`);
                 } else {
+                    displayResults([]);
                     showStatus('warning', 'لا توجد كفالات لهذه الجمعية/الحالة');
                 }
 
@@ -440,17 +480,21 @@
             }
         }
 
+
+
         // ========================================
-        // فلترة النتائج المحلية
+        // فلترة النتائج المحلية (البحث على كل البيانات)
         // ========================================
         function filterLocalResults() {
             const searchText = document.getElementById('searchInput').value.trim().toLowerCase();
 
             if (!searchText) {
+                // عرض كل النتائج
                 displayResults(currentSponsorships);
                 return;
             }
 
+            // البحث في كل البيانات المحملة
             const filtered = currentSponsorships.filter(s =>
                 (s.orphan_name && s.orphan_name.toLowerCase().includes(searchText)) ||
                 (s.identity_number && s.identity_number.includes(searchText)) ||
@@ -462,8 +506,12 @@
         }
 
         // ========================================
-        // عرض النتائج
+        // عرض النتائج مع pagination بسيط وفعال
         // ========================================
+        let allResults = []; // كل النتائج
+        let currentPageNum = 1;
+        const PAGE_SIZE = 10; // 10 عناصر لكل صفحة
+
         function displayResults(results) {
             const namesList = document.getElementById('namesList');
             const resultsCount = document.getElementById('resultsCount');
@@ -472,13 +520,84 @@
                 namesList.innerHTML = '<div class="names-list-placeholder">لا توجد نتائج</div>';
                 resultsCount.textContent = '';
                 resultsCount.classList.remove('visible');
+                document.getElementById('paginationContainer').innerHTML = '';
                 return;
             }
+
+            // حفظ كل النتائج
+            allResults = results;
+            currentPageNum = 1;
 
             resultsCount.textContent = `عدد النتائج: ${results.length}`;
             resultsCount.classList.add('visible');
 
-            namesList.innerHTML = results.map(s => {
+            // عرض الصفحة الأولى
+            showPage(1);
+        }
+
+        function showPage(pageNumber) {
+            currentPageNum = pageNumber;
+            const start = (pageNumber - 1) * PAGE_SIZE;
+            const end = start + PAGE_SIZE;
+            const pageData = allResults.slice(start, end);
+
+            // عرض البيانات
+            renderPageData(pageData);
+
+            // عرض أزرار pagination
+            renderPagination();
+        }
+
+        function renderPagination() {
+            const container = document.getElementById('paginationContainer');
+            const totalPages = Math.ceil(allResults.length / PAGE_SIZE);
+
+            if (totalPages <= 1) {
+                container.innerHTML = '';
+                return;
+            }
+
+            const start = (currentPageNum - 1) * PAGE_SIZE + 1;
+            const end = Math.min(currentPageNum * PAGE_SIZE, allResults.length);
+
+            let html = '<div class="pagination-container">';
+            html += `<div class="pagination-info">عرض ${start} - ${end} من أصل ${allResults.length}</div>`;
+            html += '<div class="pagination-controls">';
+
+            // زر السابق
+            html += `<button class="pagination-btn prev" onclick="showPage(${currentPageNum - 1})" ${currentPageNum === 1 ? 'disabled' : ''}>السابق</button>`;
+
+            // أرقام الصفحات
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= currentPageNum - 1 && i <= currentPageNum + 1)) {
+                    html += `<button class="pagination-btn ${i === currentPageNum ? 'active' : ''}" onclick="showPage(${i})" ${i === currentPageNum ? 'disabled' : ''}>${i}</button>`;
+                } else if (i === currentPageNum - 2 || i === currentPageNum + 2) {
+                    html += '<span class="pagination-separator">...</span>';
+                }
+            }
+
+            // زر التالي
+            html += `<button class="pagination-btn next" onclick="showPage(${currentPageNum + 1})" ${currentPageNum === totalPages ? 'disabled' : ''}>التالي</button>`;
+
+            html += '</div></div>';
+            container.innerHTML = html;
+        }
+
+
+
+        // ========================================
+        // عرض بيانات الصفحة الحالية
+        // ========================================
+        function renderPageData(pageData) {
+            const namesList = document.getElementById('namesList');
+
+            // تنظيف event listeners القديمة لمنع تسرب الذاكرة
+            const oldItems = namesList.querySelectorAll('.name-item');
+            oldItems.forEach(item => {
+                item.replaceWith(item.cloneNode(true));
+            });
+
+            namesList.innerHTML = pageData.map(s => {
                 const statusObj = statuses.find(st => st.id == s.sponsorship_status_id);
                 const statusName = statusObj ? statusObj.name : 'غير محدد';
 
@@ -493,7 +612,7 @@
                 `;
             }).join('');
 
-            // ربط أحداث النقر
+            // ربط أحداث النقر للعناصر الجديدة فقط
             namesList.querySelectorAll('.name-item').forEach(item => {
                 item.addEventListener('click', () => selectSponsorship(item.dataset.id));
             });

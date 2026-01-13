@@ -321,6 +321,9 @@
         <!-- Results Count -->
         <div class="results-count" id="resultsCount"></div>
 
+        <!-- Pagination Controls -->
+        <div id="paginationTop" style="padding: 0 15px;"></div>
+
         <!-- Loading -->
         <div class="loading-spinner" id="loadingSpinner">
             <div class="spinner"></div>
@@ -405,6 +408,26 @@
                     statusSelect.innerHTML += `<option value="${status.id}">${status.name}</option>`;
                 });
 
+                // استعادة الفلاتر المحفوظة
+                const savedFilters = localStorage.getItem('data_filters');
+                if (savedFilters) {
+                    try {
+                        const filters = JSON.parse(savedFilters);
+                        if (filters.sponsor_id) {
+                            sponsorSelect.value = filters.sponsor_id;
+                        }
+                        if (filters.status_id) {
+                            statusSelect.value = filters.status_id;
+                        }
+                        // تشغيل البحث تلقائياً
+                        if (filters.sponsor_id) {
+                            setTimeout(() => performSearch(), 300);
+                        }
+                    } catch (e) {
+                        console.error('Error loading saved filters:', e);
+                    }
+                }
+
                 if (sponsors.length > 0) {
                     showStatus('info', `تم تحميل ${sponsors.length} جمعية و ${statuses.length} حالة`);
                 }
@@ -442,6 +465,12 @@
             showStatus('info', 'جاري البحث...');
 
             try {
+                // حفظ الفلاتر في localStorage
+                localStorage.setItem('data_filters', JSON.stringify({
+                    sponsor_id: sponsorId,
+                    status_id: statusId
+                }));
+
                 // أولاً: جلب من التخزين المحلي
                 currentSponsorships = await SyncService.getLocalSponsorships({
                     sponsor_id: sponsorId,
@@ -502,8 +531,12 @@
         }
 
         // ========================================
-        // عرض النتائج
+        // عرض النتائج مع Pagination
         // ========================================
+        let allResults = [];
+        let currentPage = 1;
+        const PAGE_SIZE = 10;
+
         function displayResults(results) {
             const orphanList = document.getElementById('orphanList');
             const resultsCount = document.getElementById('resultsCount');
@@ -512,13 +545,27 @@
                 orphanList.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📋</div><p>لا توجد نتائج</p></div>';
                 resultsCount.textContent = '';
                 resultsCount.classList.remove('visible');
+                document.getElementById('paginationTop').innerHTML = '';
                 return;
             }
+
+            allResults = results;
+            currentPage = 1;
 
             resultsCount.textContent = `عدد النتائج: ${results.length}`;
             resultsCount.classList.add('visible');
 
-            orphanList.innerHTML = results.map(s => {
+            showPage(1);
+        }
+
+        function showPage(page) {
+            currentPage = page;
+            const start = (page - 1) * PAGE_SIZE;
+            const end = start + PAGE_SIZE;
+            const pageData = allResults.slice(start, end);
+
+            const orphanList = document.getElementById('orphanList');
+            orphanList.innerHTML = pageData.map(s => {
                 const statusObj = statuses.find(st => st.id == s.sponsorship_status_id);
                 const statusName = statusObj ? statusObj.name : 'غير محدد';
                 const sponsor = sponsors.find(sp => sp.id == s.sponsor_id);
@@ -547,6 +594,47 @@
                     window.location.href = `detail.html?id=${card.dataset.id}`;
                 });
             });
+
+            renderPagination();
+        }
+
+        function renderPagination() {
+            const container = document.getElementById('paginationTop');
+            const totalPages = Math.ceil(allResults.length / PAGE_SIZE);
+
+            if (totalPages <= 1) {
+                container.innerHTML = '';
+                return;
+            }
+
+            let html = '<div style="display: flex; justify-content: center; gap: 5px; padding: 10px 0; flex-wrap: wrap;">';
+
+            // زر السابق
+            html += `<button onclick="showPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''} style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">السابق</button>`;
+
+            // أرقام الصفحات
+            const startPage = Math.max(1, currentPage - 2);
+            const endPage = Math.min(totalPages, currentPage + 2);
+
+            if (startPage > 1) {
+                html += `<button onclick="showPage(1)" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">1</button>`;
+                if (startPage > 2) html += '<span style="padding: 8px;">...</span>';
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                html += `<button onclick="showPage(${i})" ${i === currentPage ? 'disabled' : ''} style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; background: ${i === currentPage ? '#2a8b8b' : 'white'}; color: ${i === currentPage ? 'white' : '#333'}; cursor: pointer;">${i}</button>`;
+            }
+
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) html += '<span style="padding: 8px;">...</span>';
+                html += `<button onclick="showPage(${totalPages})" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">${totalPages}</button>`;
+            }
+
+            // زر التالي
+            html += `<button onclick="showPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''} style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">التالي</button>`;
+
+            html += '</div>';
+            container.innerHTML = html;
         }
 
         // ========================================

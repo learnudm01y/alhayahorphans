@@ -914,6 +914,176 @@ const SyncService = {
         return filtered;
     },
 
+    // ========================================
+    // جلب البيانات بشكل تدريجي (Pagination من IndexedDB)
+    // ========================================
+    async getLocalSponsorshipsPaginated(filters = {}, page = 1, pageSize = 20) {
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction(['sponsorships'], 'readonly');
+            const store = transaction.objectStore('sponsorships');
+            const request = store.openCursor();
+
+            let results = [];
+            let count = 0;
+            let skipCount = (page - 1) * pageSize;
+            let addedCount = 0;
+
+            request.onsuccess = (event) => {
+                const cursor = event.target.result;
+
+                if (cursor) {
+                    const item = cursor.value;
+                    let matches = true;
+
+                    // تطبيق الفلاتر
+                    if (filters.sponsor_id && item.sponsor_id != filters.sponsor_id) {
+                        matches = false;
+                    }
+
+                    if (matches && filters.status_id !== undefined && filters.status_id !== '' &&
+                        item.sponsorship_status_id != filters.status_id) {
+                        matches = false;
+                    }
+
+                    if (matches && filters.search) {
+                        const search = filters.search.toLowerCase();
+                        matches = (
+                            (item.orphan_name && item.orphan_name.toLowerCase().includes(search)) ||
+                            (item.identity_number && item.identity_number.includes(search)) ||
+                            (item.internal_file_number && item.internal_file_number.includes(search)) ||
+                            (item.external_file_number && item.external_file_number.includes(search)) ||
+                            (item.guardian_name && item.guardian_name.toLowerCase().includes(search))
+                        );
+                    }
+
+                    if (matches) {
+                        if (count >= skipCount && addedCount < pageSize) {
+                            results.push(item);
+                            addedCount++;
+                        }
+                        count++;
+                    }
+
+                    // إذا جمعنا العدد المطلوب، توقف
+                    if (addedCount >= pageSize) {
+                        resolve({
+                            data: results,
+                            total: count,
+                            page: page,
+                            pageSize: pageSize,
+                            hasMore: true // سنحتاج cursor للتحقق
+                        });
+                    } else {
+                        cursor.continue();
+                    }
+                } else {
+                    // انتهت البيانات
+                    resolve({
+                        data: results,
+                        total: count,
+                        page: page,
+                        pageSize: pageSize,
+                        hasMore: false
+                    });
+                }
+            };
+
+            request.onerror = () => reject(request.error);
+        });
+    },
+
+    // عد النتائج فقط بدون جلب البيانات (للأداء)
+    async countLocalSponsorships(filters = {}) {
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction(['sponsorships'], 'readonly');
+            const store = transaction.objectStore('sponsorships');
+            const request = store.openCursor();
+
+            let count = 0;
+
+            request.onsuccess = (event) => {
+                const cursor = event.target.result;
+
+                if (cursor) {
+                    const item = cursor.value;
+                    let matches = true;
+
+                    // تطبيق الفلاتر
+                    if (filters.sponsor_id && item.sponsor_id != filters.sponsor_id) {
+                        matches = false;
+                    }
+
+                    if (matches && filters.status_id !== undefined && filters.status_id !== '' &&
+                        item.sponsorship_status_id != filters.status_id) {
+                        matches = false;
+                    }
+
+                    if (matches && filters.search) {
+                        const search = filters.search.toLowerCase();
+                        matches = (
+                            (item.orphan_name && item.orphan_name.toLowerCase().includes(search)) ||
+                            (item.identity_number && item.identity_number.includes(search)) ||
+                            (item.internal_file_number && item.internal_file_number.includes(search)) ||
+                            (item.external_file_number && item.external_file_number.includes(search)) ||
+                            (item.guardian_name && item.guardian_name.toLowerCase().includes(search))
+                        );
+                    }
+
+                    if (matches) count++;
+                    cursor.continue();
+                } else {
+                    resolve(count);
+                }
+            };
+
+            request.onerror = () => reject(request.error);
+        });
+    },
+
+    // جلب الملفات بشكل تدريجي
+    async getLocalFilesPaginated(page = 1, pageSize = 30) {
+        return new Promise((resolve, reject) => {
+            const transaction = this.db.transaction(['files'], 'readonly');
+            const store = transaction.objectStore('files');
+            const request = store.openCursor();
+
+            let results = [];
+            let count = 0;
+            let skipCount = (page - 1) * pageSize;
+
+            request.onsuccess = (event) => {
+                const cursor = event.target.result;
+
+                if (cursor) {
+                    if (count >= skipCount && results.length < pageSize) {
+                        results.push(cursor.value);
+                    }
+                    count++;
+
+                    if (results.length >= pageSize) {
+                        resolve({
+                            data: results,
+                            total: count,
+                            page: page,
+                            pageSize: pageSize
+                        });
+                    } else {
+                        cursor.continue();
+                    }
+                } else {
+                    resolve({
+                        data: results,
+                        total: count,
+                        page: page,
+                        pageSize: pageSize
+                    });
+                }
+            };
+
+            request.onerror = () => reject(request.error);
+        });
+    },
+
     async getLocalSponsorship(id) {
         return await this.dbGet('sponsorships', id);
     },

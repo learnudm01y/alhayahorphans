@@ -1886,8 +1886,8 @@ class ShowGeneralRegisrationController extends Controller
                         );
                     }
 
-                    $temproryFolder = $driveService->getOrCreateFolder($this->sanitizeDriveName('temprory'), $driveParentId);
-                    $orgFolder = $driveService->getOrCreateFolder($this->sanitizeDriveName($organizationName), $temproryFolder['id']);
+                    $temporaryFolder = $driveService->getOrCreateFolder($this->sanitizeDriveName('temporary'), $driveParentId);
+                    $orgFolder = $driveService->getOrCreateFolder($this->sanitizeDriveName($organizationName), $temporaryFolder['id']);
                     $personFolder = $driveService->getOrCreateFolder($this->sanitizeDriveName($orphanName), $orgFolder['id']);
 
                     foreach ($validAttachments as $docTypeId => $files) {

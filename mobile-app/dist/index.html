@@ -381,8 +381,15 @@
 
         .nav-card .icon-wrapper .material-icons-round {
             font-size: 32px;
-            color: white;
+            color: white !important;
         }
+
+        /* Ensure fallback edit icon stays white inside nav cards */
+        .nav-card .icon-wrapper [data-icon="edit_note"]::before {
+            filter: brightness(0) invert(1) !important;
+        }
+
+
 
         .nav-card .label {
             font-size: 1rem;
@@ -559,7 +566,7 @@
 
             <a href="data.html" class="nav-card">
                 <div class="icon-wrapper">
-                    <span class="material-icons-round">edit_note</span>
+                    <span class="material-icons-round" data-icon="edit_note">edit_note</span>
                 </div>
                 <div class="label">البيانات</div>
                 <div class="count">إدخال بيانات الأشخاص</div>

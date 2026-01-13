@@ -804,12 +804,25 @@ class SponsorshipController extends Controller
             // 🏦 جلب الحسابات البنكية - البحث باستخدام file_id_number من data أو relation_id_number
             $guardianFileId = null;
             $guardianData = null;
+            $guardianFromRePeople = null;
 
             // 1. محاولة البحث باستخدام guardian_identity_number
             if (!empty($sponsorship->guardian_identity_number)) {
+                // البحث في جدول data أولاً
                 $guardianData = Data::where('data_id_number', $sponsorship->guardian_identity_number)->first();
+
+                // إذا لم نجد، نبحث في جدول re_people
+                if (!$guardianData) {
+                    $guardianFromRePeople = DB::table('re_people')
+                        ->where('person_id', $sponsorship->guardian_identity_number)
+                        ->first();
+                }
                 if ($guardianData) {
                     $guardianFileId = $guardianData->file_id_number;
+                }
+                // استخدام registration_id من re_people كـ guardianFileId
+                elseif ($guardianFromRePeople && !empty($guardianFromRePeople->registration_id)) {
+                    $guardianFileId = $guardianFromRePeople->registration_id;
                 }
             }
 
@@ -819,6 +832,12 @@ class SponsorshipController extends Controller
                 // جلب بيانات المعيل من data باستخدام file_id_number
                 if (!$guardianData) {
                     $guardianData = Data::where('file_id_number', $guardianFileId)->first();
+                }
+                // أو من re_people
+                if (!$guardianData && !$guardianFromRePeople) {
+                    $guardianFromRePeople = DB::table('re_people')
+                        ->where('registration_id', $guardianFileId)
+                        ->first();
                 }
             }
 
@@ -841,6 +860,30 @@ class SponsorshipController extends Controller
                 if ($guardianData) {
                     $sponsorship->guardian_phone = $guardianData->data_phone_number;
                     $sponsorship->guardian_alt_phone = $guardianData->data_alt_phone_number;
+                    $sponsorship->guardian_first_name = $guardianData->data_first_name;
+                    $sponsorship->guardian_father_name = $guardianData->data_father_name;
+                    $sponsorship->guardian_grandfather_name = $guardianData->data_grand_father_name;
+                    $sponsorship->guardian_family_name = $guardianData->data_family_name;
+                    $sponsorship->guardian_data_source = 'data_table';
+                }
+                // أو من re_people إذا لم نجد في data
+                elseif ($guardianFromRePeople) {
+                    $sponsorship->guardian_first_name = $guardianFromRePeople->first_name;
+                    $sponsorship->guardian_father_name = $guardianFromRePeople->second_name;
+                    $sponsorship->guardian_grandfather_name = $guardianFromRePeople->third_name;
+                    $sponsorship->guardian_family_name = $guardianFromRePeople->last_name;
+                    $sponsorship->guardian_data_source = 're_people';
+
+                    Log::info('✅ تم جلب بيانات المعيل من re_people', [
+                        'sponsorship_id' => $id,
+                        'guardian_identity' => $sponsorship->guardian_identity_number,
+                        'name' => trim(implode(' ', array_filter([
+                            $guardianFromRePeople->first_name,
+                            $guardianFromRePeople->second_name,
+                            $guardianFromRePeople->third_name,
+                            $guardianFromRePeople->last_name
+                        ])))
+                    ]);
                 }
 
                 // إضافة guardian_file_id للاستجابة

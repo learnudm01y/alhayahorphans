@@ -542,6 +542,13 @@
                 return;
             }
 
+            // التحقق من عدم وجود أكثر من حساب واحد
+            const existingAccountsCount = currentSponsorship.bank_accounts?.length || 0;
+            if (existingAccountsCount >= 1) {
+                showToast('يُسمح بإضافة حساب بنكي واحد فقط', 'error');
+                return;
+            }
+
             // إنشاء حساب جديد فارغ
             const newAccount = {
                 bank_name: '',
