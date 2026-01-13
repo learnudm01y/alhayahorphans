@@ -1211,47 +1211,107 @@ class SponsorshipSyncController extends Controller
                 ->where('id', $sponsorshipId)
                 ->update($filteredUpdates);
 
-            // تحديث جدول data إذا كان هناك relation_id_number
-            if ($sponsorship->relation_id_number) {
+            // ===================================================================
+            // تحديث بيانات المعيل (الهاتف، العنوان، المدينة) - بحث شامل
+            // ===================================================================
+            $hasGuardianContactUpdate = isset($updates['guardian_phone']) || isset($updates['guardian_phone2']) ||
+                                        isset($updates['guardian_detailed_address']) || isset($updates['guardian_city_id']) ||
+                                        isset($updates['guardian_first_name']) || isset($updates['guardian_father_name']) ||
+                                        isset($updates['guardian_grandfather_name']) || isset($updates['guardian_family_name']);
+
+            if ($hasGuardianContactUpdate) {
+                $guardianUpdated = false;
+                $guardianIdentity = $updates['guardian_identity_number'] ?? $sponsorship->guardian_identity_number ?? null;
+
+                // بناء بيانات التحديث لجدول data
                 $dataUpdates = [];
+                if (isset($updates['guardian_first_name'])) $dataUpdates['data_first_name'] = $updates['guardian_first_name'];
+                if (isset($updates['guardian_father_name'])) $dataUpdates['data_father_name'] = $updates['guardian_father_name'];
+                if (isset($updates['guardian_grandfather_name'])) $dataUpdates['data_grand_father_name'] = $updates['guardian_grandfather_name'];
+                if (isset($updates['guardian_family_name'])) $dataUpdates['data_family_name'] = $updates['guardian_family_name'];
+                if (isset($updates['guardian_phone'])) $dataUpdates['data_phone_number'] = $updates['guardian_phone'];
+                if (isset($updates['guardian_phone2'])) $dataUpdates['data_alt_phone_number'] = $updates['guardian_phone2'];
+                if (isset($updates['guardian_detailed_address'])) $dataUpdates['data_current_address'] = $updates['guardian_detailed_address'];
+                if (isset($updates['guardian_city_id'])) $dataUpdates['data_city'] = $updates['guardian_city_id'];
+                if (isset($updates['health_status_id'])) $dataUpdates['data_health_status'] = $updates['health_status_id'];
 
-                if (isset($updates['guardian_first_name'])) {
-                    $dataUpdates['data_first_name'] = $updates['guardian_first_name'];
-                }
-                if (isset($updates['guardian_father_name'])) {
-                    $dataUpdates['data_father_name'] = $updates['guardian_father_name'];
-                }
-                if (isset($updates['guardian_grandfather_name'])) {
-                    $dataUpdates['data_grand_father_name'] = $updates['guardian_grandfather_name'];
-                }
-                if (isset($updates['guardian_family_name'])) {
-                    $dataUpdates['data_family_name'] = $updates['guardian_family_name'];
-                }
-                if (isset($updates['guardian_phone'])) {
-                    $dataUpdates['data_phone_number'] = $updates['guardian_phone'];
-                }
-                if (isset($updates['guardian_phone2'])) {
-                    $dataUpdates['data_alt_phone_number'] = $updates['guardian_phone2'];
-                }
-                if (isset($updates['guardian_detailed_address'])) {
-                    $dataUpdates['data_current_address'] = $updates['guardian_detailed_address'];
-                }
-                if (isset($updates['guardian_city_id'])) {
-                    $dataUpdates['data_city'] = $updates['guardian_city_id'];
-                }
-                if (isset($updates['health_status_id'])) {
-                    $dataUpdates['data_health_status'] = $updates['health_status_id'];
-                }
-
-                if (!empty($dataUpdates)) {
-                    $dataUpdates['updated_at'] = now();
-                    DB::table('data')
+                // 1) محاولة التحديث باستخدام relation_id_number
+                if (!$guardianUpdated && !empty($sponsorship->relation_id_number) && !empty($dataUpdates)) {
+                    $existingData = DB::table('data')
                         ->where('file_id_number', $sponsorship->relation_id_number)
-                        ->update($dataUpdates);
+                        ->first();
 
-                    Log::info('تم تحديث بيانات المعيل في جدول data', [
-                        'relation_id_number' => $sponsorship->relation_id_number,
-                        'updates' => array_keys($dataUpdates)
+                    if ($existingData) {
+                        $dataUpdates['updated_at'] = now();
+                        DB::table('data')
+                            ->where('file_id_number', $sponsorship->relation_id_number)
+                            ->update($dataUpdates);
+
+                        Log::info('✅ تم تحديث بيانات المعيل في جدول data (بـ relation_id)', [
+                            'relation_id_number' => $sponsorship->relation_id_number,
+                            'updates' => array_keys($dataUpdates)
+                        ]);
+                        $guardianUpdated = true;
+                    }
+                }
+
+                // 2) محاولة التحديث/الإنشاء باستخدام guardian_identity_number
+                if (!$guardianUpdated && !empty($guardianIdentity) && !empty($dataUpdates)) {
+                    $existingData = DB::table('data')
+                        ->where('data_id_number', $guardianIdentity)
+                        ->first();
+
+                    if ($existingData) {
+                        $dataUpdates['updated_at'] = now();
+                        DB::table('data')
+                            ->where('data_id_number', $guardianIdentity)
+                            ->update($dataUpdates);
+
+                        // تحديث relation_id_number في sponsorships إذا كان فارغاً
+                        if (empty($sponsorship->relation_id_number) && !empty($existingData->file_id_number)) {
+                            DB::table('sponsorships')
+                                ->where('id', $sponsorshipId)
+                                ->update(['relation_id_number' => $existingData->file_id_number, 'updated_at' => now()]);
+                        }
+
+                        Log::info('✅ تم تحديث بيانات المعيل في جدول data (بـ guardian_identity)', [
+                            'guardian_identity_number' => $guardianIdentity,
+                            'file_id_number' => $existingData->file_id_number,
+                            'updates' => array_keys($dataUpdates)
+                        ]);
+                        $guardianUpdated = true;
+                    } else {
+                        // إنشاء سجل جديد في data
+                        $newFileId = generateFileIdFromDataTable();
+                        $insertData = array_merge($dataUpdates, [
+                            'file_id_number' => $newFileId,
+                            'data_id_number' => $guardianIdentity,
+                            'created_at' => now(),
+                            'updated_at' => now()
+                        ]);
+
+                        DB::table('data')->insert($insertData);
+
+                        // تحديث relation_id_number في sponsorships
+                        DB::table('sponsorships')
+                            ->where('id', $sponsorshipId)
+                            ->update(['relation_id_number' => $newFileId, 'updated_at' => now()]);
+
+                        Log::info('✅ تم إنشاء سجل جديد للمعيل في جدول data', [
+                            'file_id_number' => $newFileId,
+                            'guardian_identity_number' => $guardianIdentity,
+                            'updates' => array_keys($insertData)
+                        ]);
+                        $guardianUpdated = true;
+
+                        // تحديث الـ sponsorship object للاستخدام اللاحق
+                        $sponsorship->relation_id_number = $newFileId;
+                    }
+                }
+
+                if (!$guardianUpdated && !empty($dataUpdates)) {
+                    Log::warning('⚠️ لم يتم تحديث بيانات المعيل - لا يوجد relation_id أو guardian_identity', [
+                        'sponsorship_id' => $sponsorshipId
                     ]);
                 }
             }
@@ -1370,77 +1430,82 @@ class SponsorshipSyncController extends Controller
     }
 
     /**
-     * تحديث الحسابات البنكية
+     * تحديث الحسابات البنكية - بحث شامل وإنشاء إذا لم تكن موجودة
      */
     private function updateBankAccounts($sponsorship, array $bankUpdates): void
     {
         try {
-            // جلب الحسابات البنكية الحالية
-            // جدول guardian_bank_accounts يخزن مرجع الملف في عمود guardian_registration
-            $accounts = DB::table('guardian_bank_accounts')
-                ->where('guardian_registration', $sponsorship->relation_id_number)
-                ->orderBy('id')
-                ->get()
-                ->values();
+            // تحديد guardian_registration للبحث
+            $guardianRegistration = $sponsorship->relation_id_number;
+            $guardianIdentity = $sponsorship->guardian_identity_number ?? null;
+
+            // محاولة جلب الحسابات البنكية بطرق متعددة
+            $accounts = collect();
+
+            // 1) البحث باستخدام relation_id_number
+            if (!empty($guardianRegistration)) {
+                $accounts = DB::table('guardian_bank_accounts')
+                    ->where('guardian_registration', $guardianRegistration)
+                    ->orderBy('id')
+                    ->get()
+                    ->values();
+            }
+
+            // 2) البحث باستخدام guardian_identity_number إذا لم نجد
+            if ($accounts->isEmpty() && !empty($guardianIdentity)) {
+                $accounts = DB::table('guardian_bank_accounts')
+                    ->where('re_id_number', $guardianIdentity)
+                    ->orderBy('id')
+                    ->get()
+                    ->values();
+
+                // إذا وجدنا حسابات، نحدث guardian_registration
+                if ($accounts->isNotEmpty() && !empty($guardianRegistration)) {
+                    foreach ($accounts as $acc) {
+                        if (empty($acc->guardian_registration)) {
+                            DB::table('guardian_bank_accounts')
+                                ->where('id', $acc->id)
+                                ->update(['guardian_registration' => $guardianRegistration, 'updated_at' => now()]);
+                        }
+                    }
+                }
+            }
 
             Log::info('🏦 تحديث الحسابات البنكية', [
                 'sponsorship_id' => $sponsorship->id,
-                'relation_id_number' => $sponsorship->relation_id_number,
+                'relation_id_number' => $guardianRegistration,
+                'guardian_identity_number' => $guardianIdentity,
                 'accounts_count' => $accounts->count(),
                 'updates_count' => count($bankUpdates)
             ]);
 
             foreach ($bankUpdates as $index => $updates) {
-                if (!isset($accounts[$index])) {
-                    Log::warning('⚠️ لا يوجد حساب بنكي للفهرس', ['index' => $index]);
-                    continue;
-                }
-
-                $account = $accounts[$index];
                 $updateData = [];
 
                 // دعم أسماء الحقول من التطبيق (data-bank-field) وأسماء بديلة
-                // bank_name - اسم/رقم البنك
-                if (isset($updates['bank_name'])) {
-                    $updateData['bank_name'] = $updates['bank_name'];
-                } elseif (isset($updates['bank_name_id'])) {
-                    $updateData['bank_name'] = $updates['bank_name_id'];
-                }
+                if (isset($updates['bank_name'])) $updateData['bank_name'] = $updates['bank_name'];
+                elseif (isset($updates['bank_name_id'])) $updateData['bank_name'] = $updates['bank_name_id'];
 
-                // re_guardian_name - اسم صاحب الحساب
-                if (isset($updates['re_guardian_name'])) {
-                    $updateData['re_guardian_name'] = $updates['re_guardian_name'];
-                } elseif (isset($updates['account_holder_name'])) {
-                    $updateData['re_guardian_name'] = $updates['account_holder_name'];
-                }
+                if (isset($updates['re_guardian_name'])) $updateData['re_guardian_name'] = $updates['re_guardian_name'];
+                elseif (isset($updates['account_holder_name'])) $updateData['re_guardian_name'] = $updates['account_holder_name'];
 
-                // person_owner_identity_number - رقم هوية صاحب الحساب
-                if (isset($updates['person_owner_identity_number'])) {
-                    $updateData['person_owner_identity_number'] = $updates['person_owner_identity_number'];
-                } elseif (isset($updates['account_holder_identity'])) {
-                    $updateData['person_owner_identity_number'] = $updates['account_holder_identity'];
-                }
+                if (isset($updates['person_owner_identity_number'])) $updateData['person_owner_identity_number'] = $updates['person_owner_identity_number'];
+                elseif (isset($updates['account_holder_identity'])) $updateData['person_owner_identity_number'] = $updates['account_holder_identity'];
 
-                // re_phone_number - رقم هاتف صاحب الحساب
-                if (isset($updates['re_phone_number'])) {
-                    $updateData['re_phone_number'] = $updates['re_phone_number'];
-                } elseif (isset($updates['account_holder_phone'])) {
-                    $updateData['re_phone_number'] = $updates['account_holder_phone'];
-                }
+                if (isset($updates['re_phone_number'])) $updateData['re_phone_number'] = $updates['re_phone_number'];
+                elseif (isset($updates['account_holder_phone'])) $updateData['re_phone_number'] = $updates['account_holder_phone'];
 
-                // iban_usd - رقم IBAN بالدولار
-                if (isset($updates['iban_usd'])) {
-                    $updateData['iban_usd'] = $updates['iban_usd'];
-                } elseif (isset($updates['iban'])) {
-                    $updateData['iban_usd'] = $updates['iban'];
-                }
+                if (isset($updates['iban_usd'])) $updateData['iban_usd'] = $updates['iban_usd'];
+                elseif (isset($updates['iban'])) $updateData['iban_usd'] = $updates['iban'];
 
-                // iban_shekel - رقم IBAN بالشيكل
-                if (isset($updates['iban_shekel'])) {
-                    $updateData['iban_shekel'] = $updates['iban_shekel'];
-                }
+                if (isset($updates['iban_shekel'])) $updateData['iban_shekel'] = $updates['iban_shekel'];
 
-                if (!empty($updateData)) {
+                if (empty($updateData)) continue;
+
+                // التحقق من وجود حساب للفهرس
+                if (isset($accounts[$index])) {
+                    // تحديث الحساب الموجود
+                    $account = $accounts[$index];
                     $updateData['updated_at'] = now();
                     DB::table('guardian_bank_accounts')
                         ->where('id', $account->id)
@@ -1450,6 +1515,32 @@ class SponsorshipSyncController extends Controller
                         'account_id' => $account->id,
                         'index' => $index,
                         'updated_fields' => array_keys($updateData)
+                    ]);
+                } else {
+                    // إنشاء حساب جديد
+                    if (empty($guardianRegistration)) {
+                        // إنشاء relation_id_number جديد إذا لم يكن موجوداً
+                        $guardianRegistration = generateFileIdFromDataTable();
+                        DB::table('sponsorships')
+                            ->where('id', $sponsorship->id)
+                            ->update(['relation_id_number' => $guardianRegistration, 'updated_at' => now()]);
+                    }
+
+                    $insertData = array_merge($updateData, [
+                        'guardian_registration' => $guardianRegistration,
+                        're_id_number' => $guardianIdentity ?? $sponsorship->identity_number,
+                        'check_account' => $index === 0 ? 1 : 0, // الحساب الأول يكون المعتمد
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ]);
+
+                    $newAccountId = DB::table('guardian_bank_accounts')->insertGetId($insertData);
+
+                    Log::info('✅ تم إنشاء حساب بنكي جديد', [
+                        'new_account_id' => $newAccountId,
+                        'sponsorship_id' => $sponsorship->id,
+                        'guardian_registration' => $guardianRegistration,
+                        'index' => $index
                     ]);
                 }
             }
@@ -2423,21 +2514,14 @@ class SponsorshipSyncController extends Controller
     }
 
     /**
-     * توليد رقم ملف جديد فريد
+     * توليد رقم ملف جديد فريد - يستخدم الخوارزمية الرسمية للموقع
+     * يجب أن يكون الرقم متسلسل ومتوافق مع النظام الحالي
      */
     private function generateNewFileId(string $tableType): string
     {
-        $prefix = match($tableType) {
-            'data' => 'D',
-            're_people' => 'R',
-            'dead_people' => 'DP',
-            default => 'X'
-        };
-
-        $timestamp = now()->format('ymdHis');
-        $random = str_pad(random_int(0, 999), 3, '0', STR_PAD_LEFT);
-
-        return "{$prefix}{$timestamp}{$random}";
+        // استخدام الدالة الرسمية لتوليد رقم الملف من جدول data
+        // هذا يضمن أن الرقم متسلسل ومتوافق مع بقية النظام
+        return generateFileIdFromDataTable();
     }
 
     // ========================================
