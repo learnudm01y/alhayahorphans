@@ -1366,7 +1366,8 @@ class SponsorshipSyncController extends Controller
                     }
 
                     Log::info('✅ تم حفظ بيانات المعيل المتوفي في portal_general_registration_field_values');
-                } else {
+
+                } elseif (in_array($personType, ['breadwinner', 'family_member', 'orphan'])) {
                     // ================================================================
                     // للمعيلين (breadwinner/family_member/orphan): حفظ في جدول data
                     // ================================================================
@@ -1671,6 +1672,14 @@ class SponsorshipSyncController extends Controller
                     ]);
                 } else {
                     // إنشاء حساب جديد
+                    Log::info('🆕 إنشاء حساب بنكي جديد', [
+                        'index' => $index,
+                        'sponsorship_id' => $sponsorship->id,
+                        'guardian_registration' => $guardianRegistration,
+                        'guardian_identity' => $guardianIdentity,
+                        'update_data' => $updateData
+                    ]);
+
                     // التحقق من أن guardian_registration موجود في جدول data (بسبب قيد الـ foreign key)
                     $validGuardianRegistration = null;
 
@@ -1712,6 +1721,12 @@ class SponsorshipSyncController extends Controller
 
                     // إذا لم نجد سجلاً صالحاً، ننشئ سجلاً جديداً في data
                     if (empty($validGuardianRegistration)) {
+                        Log::info('🔨 إنشاء سجل جديد في data للولي', [
+                            'guardian_identity' => $guardianIdentity,
+                            'sponsorship_identity' => $sponsorship->identity_number,
+                            'reason' => 'لم يتم العثور على سجل موجود'
+                        ]);
+
                         $newFileIdNumber = generateFileIdFromDataTable();
 
                         // إنشاء سجل جديد في جدول data للولي
@@ -1730,9 +1745,10 @@ class SponsorshipSyncController extends Controller
                             ->where('id', $sponsorship->id)
                             ->update(['relation_id_number' => $validGuardianRegistration, 'updated_at' => now()]);
 
-                        Log::info('✅ تم إنشاء سجل جديد في data للولي', [
+                        Log::info('✅ تم إنشاء سجل جديد في data للولي بنجاح', [
                             'file_id_number' => $newFileIdNumber,
-                            'identity' => $guardianIdentity ?? $sponsorship->identity_number
+                            'identity' => $guardianIdentity ?? $sponsorship->identity_number,
+                            'sponsorship_id' => $sponsorship->id
                         ]);
                     }
 
@@ -1744,18 +1760,37 @@ class SponsorshipSyncController extends Controller
                         'updated_at' => now()
                     ]);
 
-                    $newAccountId = DB::table('guardian_bank_accounts')->insertGetId($insertData);
-
-                    Log::info('✅ تم إنشاء حساب بنكي جديد', [
-                        'new_account_id' => $newAccountId,
-                        'sponsorship_id' => $sponsorship->id,
-                        'guardian_registration' => $guardianRegistration,
-                        'index' => $index
+                    Log::info('📝 بيانات الحساب البنكي الجديد قبل الإدراج', [
+                        'insert_data' => $insertData,
+                        'valid_guardian_registration' => $validGuardianRegistration
                     ]);
+
+                    try {
+                        $newAccountId = DB::table('guardian_bank_accounts')->insertGetId($insertData);
+
+                        Log::info('✅ تم إنشاء حساب بنكي جديد بنجاح', [
+                            'new_account_id' => $newAccountId,
+                            'sponsorship_id' => $sponsorship->id,
+                            'guardian_registration' => $validGuardianRegistration,
+                            'index' => $index,
+                            'inserted_fields' => array_keys($insertData)
+                        ]);
+                    } catch (\Exception $insertError) {
+                        Log::error('❌ فشل إدراج الحساب البنكي', [
+                            'error' => $insertError->getMessage(),
+                            'insert_data' => $insertData,
+                            'sponsorship_id' => $sponsorship->id
+                        ]);
+                        throw $insertError;
+                    }
                 }
             }
         } catch (\Exception $e) {
-            Log::error('❌ فشل تحديث الحسابات البنكية', ['error' => $e->getMessage()]);
+            Log::error('❌ فشل تحديث الحسابات البنكية', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'sponsorship_id' => $sponsorship->id ?? null
+            ]);
         }
     }
 
