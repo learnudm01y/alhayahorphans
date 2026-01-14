@@ -1383,6 +1383,16 @@ class SponsorshipSyncController extends Controller
                     if (isset($updates['guardian_city_id'])) $dataUpdates['data_city'] = $updates['guardian_city_id'];
                     if (isset($updates['health_status_id'])) $dataUpdates['data_health_status'] = $updates['health_status_id'];
 
+                    // بناء الاسم الكامل للمعيل
+                    if (isset($updates['guardian_first_name']) || isset($updates['guardian_father_name']) ||
+                        isset($updates['guardian_grandfather_name']) || isset($updates['guardian_family_name'])) {
+                        $firstName = $updates['guardian_first_name'] ?? '';
+                        $fatherName = $updates['guardian_father_name'] ?? '';
+                        $grandfatherName = $updates['guardian_grandfather_name'] ?? '';
+                        $familyName = $updates['guardian_family_name'] ?? '';
+                        $dataUpdates['data_personal_name'] = trim("$firstName $fatherName $grandfatherName $familyName");
+                    }
+
                     // 1) محاولة التحديث باستخدام relation_id_number
                     if (!$guardianUpdated && !empty($sponsorship->relation_id_number) && !empty($dataUpdates)) {
                         $existingData = DB::table('data')
@@ -1420,6 +1430,9 @@ class SponsorshipSyncController extends Controller
                                 DB::table('sponsorships')
                                     ->where('id', $sponsorshipId)
                                     ->update(['relation_id_number' => $existingData->file_id_number, 'updated_at' => now()]);
+
+                                // تحديث الـ sponsorship object للاستخدام اللاحق
+                                $sponsorship->relation_id_number = $existingData->file_id_number;
                             }
 
                             Log::info('✅ تم تحديث بيانات المعيل في جدول data (بـ guardian_identity)', [
@@ -1521,6 +1534,9 @@ class SponsorshipSyncController extends Controller
 
             // تحديث الحسابات البنكية إذا وجدت
             if (isset($updates['bank_accounts_updates']) && is_array($updates['bank_accounts_updates'])) {
+                // إعادة قراءة الكفالة للحصول على relation_id_number المحدث
+                $sponsorship = DB::table('sponsorships')->where('id', $sponsorshipId)->first();
+
                 $this->updateBankAccounts($sponsorship, $updates['bank_accounts_updates']);
             }
 
@@ -1704,16 +1720,73 @@ class SponsorshipSyncController extends Controller
                     ]);
                 } else {
                     // إنشاء حساب جديد
-                    if (empty($guardianRegistration)) {
-                        // إنشاء relation_id_number جديد إذا لم يكن موجوداً
-                        $guardianRegistration = generateFileIdFromDataTable();
+                    // التحقق من أن guardian_registration موجود في جدول data (بسبب قيد الـ foreign key)
+                    $validGuardianRegistration = null;
+
+                    if (!empty($guardianRegistration)) {
+                        // التحقق من وجود السجل في جدول data
+                        $dataRecord = DB::table('data')
+                            ->where('file_id_number', $guardianRegistration)
+                            ->first();
+
+                        if ($dataRecord) {
+                            $validGuardianRegistration = $guardianRegistration;
+                        }
+                    }
+
+                    // إذا لم يكن guardian_registration صالحاً، نبحث عن سجل مناسب في data
+                    if (empty($validGuardianRegistration)) {
+                        // محاولة إيجاد سجل في data بناءً على هوية الولي
+                        if (!empty($guardianIdentity)) {
+                            $dataByIdentity = DB::table('data')
+                                ->where('data_id_number', $guardianIdentity)
+                                ->first();
+
+                            if ($dataByIdentity) {
+                                $validGuardianRegistration = $dataByIdentity->file_id_number;
+
+                                // تحديث الكفالة بالقيمة الصحيحة
+                                DB::table('sponsorships')
+                                    ->where('id', $sponsorship->id)
+                                    ->update(['relation_id_number' => $validGuardianRegistration, 'updated_at' => now()]);
+
+                                Log::info('🔄 تم تصحيح relation_id_number من جدول data', [
+                                    'old_value' => $guardianRegistration,
+                                    'new_value' => $validGuardianRegistration,
+                                    'guardian_identity' => $guardianIdentity
+                                ]);
+                            }
+                        }
+                    }
+
+                    // إذا لم نجد سجلاً صالحاً، ننشئ سجلاً جديداً في data
+                    if (empty($validGuardianRegistration)) {
+                        $newFileIdNumber = generateFileIdFromDataTable();
+
+                        // إنشاء سجل جديد في جدول data للولي
+                        DB::table('data')->insert([
+                            'file_id_number' => $newFileIdNumber,
+                            'data_id_number' => $guardianIdentity ?? $sponsorship->identity_number,
+                            'data_id_type' => 1, // هوية وطنية
+                            'created_at' => now(),
+                            'updated_at' => now()
+                        ]);
+
+                        $validGuardianRegistration = $newFileIdNumber;
+
+                        // تحديث الكفالة بالرقم الجديد
                         DB::table('sponsorships')
                             ->where('id', $sponsorship->id)
-                            ->update(['relation_id_number' => $guardianRegistration, 'updated_at' => now()]);
+                            ->update(['relation_id_number' => $validGuardianRegistration, 'updated_at' => now()]);
+
+                        Log::info('✅ تم إنشاء سجل جديد في data للولي', [
+                            'file_id_number' => $newFileIdNumber,
+                            'identity' => $guardianIdentity ?? $sponsorship->identity_number
+                        ]);
                     }
 
                     $insertData = array_merge($updateData, [
-                        'guardian_registration' => $guardianRegistration,
+                        'guardian_registration' => $validGuardianRegistration,
                         're_id_number' => $guardianIdentity ?? $sponsorship->identity_number,
                         'check_account' => $index === 0 ? 1 : 0, // الحساب الأول يكون المعتمد
                         'created_at' => now(),
@@ -1948,6 +2021,16 @@ class SponsorshipSyncController extends Controller
                     if (isset($updates['birth_date'])) $updateData['father_death_date'] = $updates['birth_date']; // ملاحظة: للمتوفي هو تاريخ الوفاة
                     // الجنس للأب دائماً ذكر - لا حاجة لتحديثه
 
+                    // بناء الاسم الكامل للأب المتوفي
+                    if (isset($updates['first_name']) || isset($updates['second_name']) ||
+                        isset($updates['third_name']) || isset($updates['last_name'])) {
+                        $firstName = $updates['first_name'] ?? '';
+                        $secondName = $updates['second_name'] ?? '';
+                        $thirdName = $updates['third_name'] ?? '';
+                        $lastName = $updates['last_name'] ?? '';
+                        $updateData['father_full_name'] = trim("$firstName $secondName $thirdName $lastName");
+                    }
+
                     if (!empty($updateData)) {
                         $updateData['updated_at'] = now();
                         DB::table('dead_people')->where('id', $record->id)->update($updateData);
@@ -1998,6 +2081,16 @@ class SponsorshipSyncController extends Controller
                     if (isset($updates['identity_number'])) $updateData['mother_id'] = $updates['identity_number'];
                     if (isset($updates['birth_date'])) $updateData['mother_death_date'] = $updates['birth_date']; // للمتوفية هو تاريخ الوفاة
                     // الجنس للأم دائماً أنثى - لا حاجة لتحديثه
+
+                    // بناء الاسم الكامل للأم المتوفية
+                    if (isset($updates['first_name']) || isset($updates['second_name']) ||
+                        isset($updates['third_name']) || isset($updates['last_name'])) {
+                        $firstName = $updates['first_name'] ?? '';
+                        $secondName = $updates['second_name'] ?? '';
+                        $thirdName = $updates['third_name'] ?? '';
+                        $lastName = $updates['last_name'] ?? '';
+                        $updateData['mother_full_name'] = trim("$firstName $secondName $thirdName $lastName");
+                    }
 
                     if (!empty($updateData)) {
                         $updateData['updated_at'] = now();
@@ -3388,30 +3481,7 @@ class SponsorshipSyncController extends Controller
                 return false;
             }
 
-            // جلب الكفالة الحالية للتحقق من الحالة
-            $currentSponsorship = DB::table('sponsorships')
-                ->where('id', $sponsorshipId)
-                ->first();
-
-            if (!$currentSponsorship) {
-                return false;
-            }
-
-            // استبعاد تغيير الحالة إذا كانت الحالة الحالية "تم الصرف" أو "أرسل للصرف"
-            $excludedStatuses = DB::table('sponsorship_statuses')
-                ->whereIn('description', ['تم الصرف', 'أرسل للصرف', 'ارسل للصرف'])
-                ->pluck('id')
-                ->toArray();
-
-            if (in_array($currentSponsorship->sponsorship_status_id, $excludedStatuses)) {
-                Log::info('ℹ️ الكفالة في حالة لا يمكن تغييرها من الهاتف', [
-                    'sponsorship_id' => $sponsorshipId,
-                    'current_status_id' => $currentSponsorship->sponsorship_status_id
-                ]);
-                return false;
-            }
-
-            // تحديث حالة الكفالة
+            // تحديث حالة الكفالة مهما كانت الحالة الحالية
             DB::table('sponsorships')
                 ->where('id', $sponsorshipId)
                 ->update([
