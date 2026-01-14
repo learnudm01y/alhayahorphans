@@ -1437,12 +1437,35 @@ class SponsorshipSyncController extends Controller
                 }
             }
 
-            // معالجة نوع الشخص (المعيل) وإنشاء/تحديث السجل المناسب
-            if (isset($updates['guardian_person_type']) && isset($updates['guardian_identity_number'])) {
-                $this->handleGuardianPersonType(
+            // معالجة بيانات المعيل (الولي/الكفيل)
+            // معالجة بيانات المعيل (الولي/الكفيل)
+            // المعيل يُحفظ حسب نوعه (guardian_person_type):
+            // - breadwinner: جدول data
+            // - family_member: جدول re_people
+            // - deceased_father/deceased_mother: جدول dead_people
+            $guardianIdentity = $updates['guardian_identity_number'] ?? '';
+            $guardianPersonType = $updates['guardian_person_type'] ?? 'breadwinner';
+            $guardianNames = [
+                'first_name' => $updates['guardian_first_name'] ?? null,
+                'father_name' => $updates['guardian_father_name'] ?? null,
+                'grandfather_name' => $updates['guardian_grandfather_name'] ?? null,
+                'family_name' => $updates['guardian_family_name'] ?? null,
+            ];
+
+            // محاولة العثور على سجل المعيل أو إنشاءه في الجدول المناسب
+            if (!empty($guardianIdentity) || !empty(array_filter($guardianNames))) {
+                Log::info('🔍 معالجة بيانات المعيل', [
+                    'sponsorship_id' => $sponsorshipId,
+                    'guardian_identity' => $guardianIdentity,
+                    'guardian_names' => $guardianNames,
+                    'guardian_person_type' => $guardianPersonType
+                ]);
+
+                $this->saveGuardianToAppropriateTable(
                     $sponsorship,
-                    $updates['guardian_person_type'],
-                    $updates['guardian_identity_number'],
+                    $guardianIdentity,
+                    $guardianNames,
+                    $guardianPersonType,
                     $updates,
                     $request->user()->id
                 );
@@ -2311,6 +2334,616 @@ class SponsorshipSyncController extends Controller
         if (isset($updates['birth_date'])) $updateData[$prefix . 'death_date'] = $updates['birth_date'];
         if (!empty($updateData)) $updateData['updated_at'] = now();
         return $updateData;
+    }
+
+    /**
+     * حفظ بيانات المعيل (الولي/الكفيل) في الجدول المناسب حسب نوعه
+     *
+     * guardian_person_type يحدد الجدول المستهدف:
+     * - breadwinner: جدول data
+     * - family_member: جدول re_people
+     * - deceased_father: جدول dead_people (كأب متوفي)
+     * - deceased_mother: جدول dead_people (كأم متوفية)
+     *
+     * نبحث أولاً في جميع الجداول، وإذا لم نجد ننشئ في الجدول المناسب
+     */
+    private function saveGuardianToAppropriateTable($sponsorship, string $identityNumber, array $names, string $guardianPersonType, array $updates, int $userId): array
+    {
+        $result = [
+            'action' => 'none',
+            'table' => null,
+            'record_id' => null,
+            'created' => false,
+            'file_id_number' => null
+        ];
+
+        try {
+            // البحث عن سجل موجود للمعيل في جميع الجداول
+            $existingRecord = null;
+            $foundInTable = null;
+            $searchedBy = null;
+
+            // 1. البحث بـ relation_id_number من الكفالة (في جدول data فقط)
+            if (!empty($sponsorship->relation_id_number)) {
+                $existingRecord = DB::table('data')
+                    ->where('file_id_number', $sponsorship->relation_id_number)
+                    ->first();
+                if ($existingRecord) {
+                    $foundInTable = 'data';
+                    $searchedBy = 'relation_id_number';
+                    Log::info('✅ تم إيجاد المعيل في جدول data بواسطة relation_id_number', [
+                        'relation_id_number' => $sponsorship->relation_id_number,
+                        'data_id' => $existingRecord->id
+                    ]);
+                }
+            }
+
+            // 2. البحث برقم الهوية في جميع الجداول إذا لم نجد
+            if (!$existingRecord && !empty($identityNumber)) {
+                // البحث في جدول data
+                $existingRecord = DB::table('data')
+                    ->where('data_id', $identityNumber)
+                    ->first();
+                if ($existingRecord) {
+                    $foundInTable = 'data';
+                    $searchedBy = 'identity_number';
+                    Log::info('✅ تم إيجاد المعيل في جدول data برقم الهوية', [
+                        'identity_number' => $identityNumber
+                    ]);
+                }
+
+                // البحث في جدول dead_people (أب متوفي)
+                if (!$existingRecord) {
+                    $existingRecord = DB::table('dead_people')
+                        ->where('father_id', $identityNumber)
+                        ->first();
+                    if ($existingRecord) {
+                        $foundInTable = 'dead_people_father';
+                        $searchedBy = 'father_id';
+                        Log::info('✅ تم إيجاد المعيل في جدول dead_people (أب متوفي)', [
+                            'identity_number' => $identityNumber,
+                            'dead_people_id' => $existingRecord->id
+                        ]);
+                    }
+                }
+
+                // البحث في جدول dead_people (أم متوفية)
+                if (!$existingRecord) {
+                    $existingRecord = DB::table('dead_people')
+                        ->where('mother_id', $identityNumber)
+                        ->first();
+                    if ($existingRecord) {
+                        $foundInTable = 'dead_people_mother';
+                        $searchedBy = 'mother_id';
+                        Log::info('✅ تم إيجاد المعيل في جدول dead_people (أم متوفية)', [
+                            'identity_number' => $identityNumber,
+                            'dead_people_id' => $existingRecord->id
+                        ]);
+                    }
+                }
+
+                // البحث في جدول re_people
+                if (!$existingRecord) {
+                    $existingRecord = DB::table('re_people')
+                        ->where('id_number', $identityNumber)
+                        ->first();
+                    if ($existingRecord) {
+                        $foundInTable = 're_people';
+                        $searchedBy = 'id_number';
+                        Log::info('✅ تم إيجاد المعيل في جدول re_people', [
+                            'identity_number' => $identityNumber,
+                            're_people_id' => $existingRecord->id
+                        ]);
+                    }
+                }
+            }
+
+            if ($existingRecord) {
+                // تحديث السجل الموجود حسب الجدول
+                $result = $this->updateExistingGuardianInTable(
+                    $sponsorship,
+                    $existingRecord,
+                    $foundInTable,
+                    $names,
+                    $updates,
+                    $userId,
+                    $searchedBy
+                );
+
+            } else {
+                // إنشاء سجل جديد للمعيل في الجدول المناسب حسب guardian_person_type
+                $result = $this->createNewGuardianRecord(
+                    $sponsorship,
+                    $identityNumber,
+                    $names,
+                    $guardianPersonType,
+                    $updates,
+                    $userId
+                );
+            }
+
+        } catch (\Exception $e) {
+            Log::error('❌ خطأ في حفظ بيانات المعيل', [
+                'sponsorship_id' => $sponsorship->id,
+                'guardian_person_type' => $guardianPersonType,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            $result['error'] = $e->getMessage();
+        }
+
+        return $result;
+    }
+
+    /**
+     * إنشاء سجل جديد للمعيل في الجدول المناسب حسب نوعه
+     */
+    private function createNewGuardianRecord($sponsorship, string $identityNumber, array $names, string $guardianPersonType, array $updates, int $userId): array
+    {
+        $result = [
+            'action' => 'created',
+            'table' => null,
+            'record_id' => null,
+            'created' => true,
+            'file_id_number' => null
+        ];
+
+        switch ($guardianPersonType) {
+            case 'breadwinner':
+            default:
+                // إنشاء في جدول data
+                $fileIdNumber = $this->generateNewGuardianFileId();
+
+                $insertData = [
+                    'file_id_number' => $fileIdNumber,
+                    'data_id' => $identityNumber ?: null,
+                    'data_first_name' => $names['first_name'] ?? '',
+                    'data_father_name' => $names['father_name'] ?? '',
+                    'data_grand_father_name' => $names['grandfather_name'] ?? '',
+                    'data_family_name' => $names['family_name'] ?? '',
+                    'data_phone_number' => $updates['guardian_phone'] ?? null,
+                    'data_alt_phone_number' => $updates['guardian_phone2'] ?? null,
+                    'data_current_address' => $updates['guardian_detailed_address'] ?? null,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                    'last_modified_by' => $userId
+                ];
+
+                $newId = DB::table('data')->insertGetId($insertData);
+
+                // تحديث relation_id_number في الكفالة
+                DB::table('sponsorships')
+                    ->where('id', $sponsorship->id)
+                    ->update([
+                        'relation_id_number' => $fileIdNumber,
+                        'guardian_person_type' => 'breadwinner',
+                        'updated_at' => now()
+                    ]);
+
+                $result['table'] = 'data';
+                $result['record_id'] = $newId;
+                $result['file_id_number'] = $fileIdNumber;
+
+                Log::info('🆕 تم إنشاء سجل جديد للمعيل في جدول data', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'new_data_id' => $newId,
+                    'file_id_number' => $fileIdNumber,
+                    'identity_number' => $identityNumber,
+                    'phone' => $updates['guardian_phone'] ?? null,
+                    'alt_phone' => $updates['guardian_phone2'] ?? null,
+                    'address' => $updates['guardian_detailed_address'] ?? null
+                ]);
+                break;
+
+            case 'family_member':
+                // إنشاء في جدول re_people
+                $fileId = $this->generateNewRePeopleFileId();
+
+                $insertData = [
+                    'file_id' => $fileId,
+                    'id_number' => $identityNumber ?: null,
+                    'first_name' => $names['first_name'] ?? '',
+                    'second_name' => $names['father_name'] ?? '',
+                    'third_name' => $names['grandfather_name'] ?? '',
+                    'last_name' => $names['family_name'] ?? '',
+                    'phone' => $updates['guardian_phone'] ?? null,
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ];
+
+                $newId = DB::table('re_people')->insertGetId($insertData);
+
+                // حفظ البيانات الإضافية في portal_general_registration_field_values
+                $this->saveGuardianExtraFieldValues(
+                    $sponsorship->id,
+                    $fileId,
+                    $identityNumber,
+                    $updates,
+                    $userId
+                );
+
+                // تحديث guardian_person_type في الكفالة
+                DB::table('sponsorships')
+                    ->where('id', $sponsorship->id)
+                    ->update([
+                        'guardian_person_type' => 'family_member',
+                        'updated_at' => now()
+                    ]);
+
+                $result['table'] = 're_people';
+                $result['record_id'] = $newId;
+                $result['file_id_number'] = $fileId;
+
+                Log::info('🆕 تم إنشاء سجل جديد للمعيل في جدول re_people', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'new_re_people_id' => $newId,
+                    'file_id' => $fileId,
+                    'identity_number' => $identityNumber
+                ]);
+                break;
+
+            case 'deceased_father':
+                // إنشاء أو تحديث في جدول dead_people كأب متوفي
+                // نحتاج البحث عن سجل dead_people مرتبط بالكفالة
+                $deadPeopleRecord = DB::table('dead_people')
+                    ->where('sponsorship_id', $sponsorship->id)
+                    ->first();
+
+                if ($deadPeopleRecord) {
+                    // تحديث سجل موجود
+                    $updateData = [
+                        'father_id' => $identityNumber ?: null,
+                        'father_first_name' => $names['first_name'] ?? '',
+                        'father_second_name' => $names['father_name'] ?? '',
+                        'father_third_name' => $names['grandfather_name'] ?? '',
+                        'father_last_name' => $names['family_name'] ?? '',
+                        'updated_at' => now()
+                    ];
+
+                    DB::table('dead_people')
+                        ->where('id', $deadPeopleRecord->id)
+                        ->update($updateData);
+
+                    $result['action'] = 'updated';
+                    $result['created'] = false;
+                    $result['record_id'] = $deadPeopleRecord->id;
+
+                    Log::info('✅ تم تحديث بيانات الأب المتوفي في جدول dead_people', [
+                        'sponsorship_id' => $sponsorship->id,
+                        'dead_people_id' => $deadPeopleRecord->id
+                    ]);
+                } else {
+                    // إنشاء سجل جديد
+                    $insertData = [
+                        'sponsorship_id' => $sponsorship->id,
+                        'father_id' => $identityNumber ?: null,
+                        'father_first_name' => $names['first_name'] ?? '',
+                        'father_second_name' => $names['father_name'] ?? '',
+                        'father_third_name' => $names['grandfather_name'] ?? '',
+                        'father_last_name' => $names['family_name'] ?? '',
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ];
+
+                    $newId = DB::table('dead_people')->insertGetId($insertData);
+                    $result['record_id'] = $newId;
+
+                    Log::info('🆕 تم إنشاء سجل جديد للأب المتوفي في جدول dead_people', [
+                        'sponsorship_id' => $sponsorship->id,
+                        'new_dead_people_id' => $newId
+                    ]);
+                }
+
+                // حفظ البيانات الإضافية (الهاتف، العنوان) في portal_general_registration_field_values
+                // لأن جدول dead_people لا يحتوي على هذه الأعمدة
+                $this->saveGuardianExtraFieldValues(
+                    $sponsorship->id,
+                    null, // لا يوجد file_id_number للمتوفين
+                    $identityNumber,
+                    $updates,
+                    $userId
+                );
+
+                // تحديث guardian_person_type في الكفالة
+                DB::table('sponsorships')
+                    ->where('id', $sponsorship->id)
+                    ->update([
+                        'guardian_person_type' => 'deceased_father',
+                        'updated_at' => now()
+                    ]);
+
+                $result['table'] = 'dead_people';
+                break;
+
+            case 'deceased_mother':
+                // إنشاء أو تحديث في جدول dead_people كأم متوفية
+                $deadPeopleRecord = DB::table('dead_people')
+                    ->where('sponsorship_id', $sponsorship->id)
+                    ->first();
+
+                if ($deadPeopleRecord) {
+                    // تحديث سجل موجود
+                    $updateData = [
+                        'mother_id' => $identityNumber ?: null,
+                        'mother_first_name' => $names['first_name'] ?? '',
+                        'mother_second_name' => $names['father_name'] ?? '',
+                        'mother_third_name' => $names['grandfather_name'] ?? '',
+                        'mother_last_name' => $names['family_name'] ?? '',
+                        'updated_at' => now()
+                    ];
+
+                    DB::table('dead_people')
+                        ->where('id', $deadPeopleRecord->id)
+                        ->update($updateData);
+
+                    $result['action'] = 'updated';
+                    $result['created'] = false;
+                    $result['record_id'] = $deadPeopleRecord->id;
+
+                    Log::info('✅ تم تحديث بيانات الأم المتوفية في جدول dead_people', [
+                        'sponsorship_id' => $sponsorship->id,
+                        'dead_people_id' => $deadPeopleRecord->id
+                    ]);
+                } else {
+                    // إنشاء سجل جديد
+                    $insertData = [
+                        'sponsorship_id' => $sponsorship->id,
+                        'mother_id' => $identityNumber ?: null,
+                        'mother_first_name' => $names['first_name'] ?? '',
+                        'mother_second_name' => $names['father_name'] ?? '',
+                        'mother_third_name' => $names['grandfather_name'] ?? '',
+                        'mother_last_name' => $names['family_name'] ?? '',
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ];
+
+                    $newId = DB::table('dead_people')->insertGetId($insertData);
+                    $result['record_id'] = $newId;
+
+                    Log::info('🆕 تم إنشاء سجل جديد للأم المتوفية في جدول dead_people', [
+                        'sponsorship_id' => $sponsorship->id,
+                        'new_dead_people_id' => $newId
+                    ]);
+                }
+
+                // حفظ البيانات الإضافية (الهاتف، العنوان) في portal_general_registration_field_values
+                // لأن جدول dead_people لا يحتوي على هذه الأعمدة
+                $this->saveGuardianExtraFieldValues(
+                    $sponsorship->id,
+                    null, // لا يوجد file_id_number للمتوفين
+                    $identityNumber,
+                    $updates,
+                    $userId
+                );
+
+                // تحديث guardian_person_type في الكفالة
+                DB::table('sponsorships')
+                    ->where('id', $sponsorship->id)
+                    ->update([
+                        'guardian_person_type' => 'deceased_mother',
+                        'updated_at' => now()
+                    ]);
+
+                $result['table'] = 'dead_people';
+                break;
+        }
+
+        return $result;
+    }
+
+    /**
+     * توليد رقم ملف جديد لـ re_people
+     */
+    private function generateNewRePeopleFileId(): string
+    {
+        $maxFileId = DB::table('re_people')
+            ->selectRaw("CAST(SUBSTRING(file_id, 2) AS UNSIGNED) as num")
+            ->whereRaw("file_id LIKE 'R%' AND file_id REGEXP '^R[0-9]+$'")
+            ->orderByDesc('num')
+            ->value('num');
+
+        $nextNumber = ($maxFileId ?? 0) + 1;
+        return 'R' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * حفظ البيانات الإضافية للمعيل (الهاتف، الهاتف البديل، العنوان) في جدول portal_general_registration_field_values
+     *
+     * يستخدم هذا عندما يكون المعيل في جدول لا يحتوي على هذه الأعمدة (مثل dead_people أو re_people)
+     */
+    private function saveGuardianExtraFieldValues(int $sponsorshipId, ?string $fileIdNumber, ?string $identityNumber, array $updates, int $userId): void
+    {
+        $fieldsToSave = [
+            'guardian_phone' => $updates['guardian_phone'] ?? null,
+            'guardian_phone2' => $updates['guardian_phone2'] ?? null,
+            'guardian_detailed_address' => $updates['guardian_detailed_address'] ?? null,
+        ];
+
+        foreach ($fieldsToSave as $fieldKey => $fieldValue) {
+            if ($fieldValue === null || $fieldValue === '') {
+                continue;
+            }
+
+            try {
+                // استخدام updateOrInsert لتجنب التكرار
+                DB::table('portal_general_registration_field_values')
+                    ->updateOrInsert(
+                        [
+                            'sponsorship_id' => $sponsorshipId,
+                            'field_key' => $fieldKey,
+                        ],
+                        [
+                            'file_id_number' => $fileIdNumber,
+                            'identity_number' => $identityNumber,
+                            'field_value' => $fieldValue,
+                            'updated_by_user_id' => $userId,
+                            'updated_at' => now(),
+                        ]
+                    );
+
+                Log::info('✅ تم حفظ حقل إضافي للمعيل', [
+                    'sponsorship_id' => $sponsorshipId,
+                    'field_key' => $fieldKey,
+                    'field_value' => $fieldValue
+                ]);
+            } catch (\Exception $e) {
+                Log::error('❌ خطأ في حفظ حقل إضافي للمعيل', [
+                    'sponsorship_id' => $sponsorshipId,
+                    'field_key' => $fieldKey,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+    }
+
+    /**
+     * تحديث سجل المعيل الموجود في الجدول المناسب
+     */
+    private function updateExistingGuardianInTable($sponsorship, $existingRecord, string $table, array $names, array $updates, int $userId, string $searchedBy): array
+    {
+        $result = [
+            'action' => 'updated',
+            'table' => $table,
+            'record_id' => $existingRecord->id,
+            'created' => false,
+            'file_id_number' => null
+        ];
+
+        switch ($table) {
+            case 'data':
+                $updateData = [
+                    'updated_at' => now(),
+                    'last_modified_by' => $userId
+                ];
+
+                if (!empty($names['first_name'])) $updateData['data_first_name'] = $names['first_name'];
+                if (!empty($names['father_name'])) $updateData['data_father_name'] = $names['father_name'];
+                if (!empty($names['grandfather_name'])) $updateData['data_grand_father_name'] = $names['grandfather_name'];
+                if (!empty($names['family_name'])) $updateData['data_family_name'] = $names['family_name'];
+
+                // الهاتف والعنوان
+                if (!empty($updates['guardian_phone'])) {
+                    $updateData['data_phone_number'] = $updates['guardian_phone'];
+                }
+                if (!empty($updates['guardian_phone2'])) {
+                    $updateData['data_alt_phone_number'] = $updates['guardian_phone2'];
+                }
+                if (!empty($updates['guardian_detailed_address'])) {
+                    $updateData['data_current_address'] = $updates['guardian_detailed_address'];
+                }
+
+                DB::table('data')->where('id', $existingRecord->id)->update($updateData);
+                $result['file_id_number'] = $existingRecord->file_id_number;
+
+                Log::info('✅ تم تحديث بيانات المعيل في جدول data', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'data_id' => $existingRecord->id,
+                    'file_id_number' => $existingRecord->file_id_number,
+                    'searched_by' => $searchedBy,
+                    'updated_fields' => array_keys($updateData)
+                ]);
+                break;
+
+            case 'dead_people_father':
+                $updateData = ['updated_at' => now()];
+
+                if (!empty($names['first_name'])) $updateData['father_first_name'] = $names['first_name'];
+                if (!empty($names['father_name'])) $updateData['father_second_name'] = $names['father_name'];
+                if (!empty($names['grandfather_name'])) $updateData['father_third_name'] = $names['grandfather_name'];
+                if (!empty($names['family_name'])) $updateData['father_last_name'] = $names['family_name'];
+
+                DB::table('dead_people')->where('id', $existingRecord->id)->update($updateData);
+
+                // حفظ البيانات الإضافية في portal_general_registration_field_values
+                $this->saveGuardianExtraFieldValues(
+                    $sponsorship->id,
+                    null,
+                    $existingRecord->father_id ?? null,
+                    $updates,
+                    $userId
+                );
+
+                Log::info('✅ تم تحديث بيانات المعيل (أب متوفي) في جدول dead_people', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'dead_people_id' => $existingRecord->id,
+                    'updated_fields' => array_keys($updateData)
+                ]);
+                break;
+
+            case 'dead_people_mother':
+                $updateData = ['updated_at' => now()];
+
+                if (!empty($names['first_name'])) $updateData['mother_first_name'] = $names['first_name'];
+                if (!empty($names['father_name'])) $updateData['mother_second_name'] = $names['father_name'];
+                if (!empty($names['grandfather_name'])) $updateData['mother_third_name'] = $names['grandfather_name'];
+                if (!empty($names['family_name'])) $updateData['mother_last_name'] = $names['family_name'];
+
+                DB::table('dead_people')->where('id', $existingRecord->id)->update($updateData);
+
+                // حفظ البيانات الإضافية في portal_general_registration_field_values
+                $this->saveGuardianExtraFieldValues(
+                    $sponsorship->id,
+                    null,
+                    $existingRecord->mother_id ?? null,
+                    $updates,
+                    $userId
+                );
+
+                Log::info('✅ تم تحديث بيانات المعيل (أم متوفية) في جدول dead_people', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'dead_people_id' => $existingRecord->id,
+                    'updated_fields' => array_keys($updateData)
+                ]);
+                break;
+
+            case 're_people':
+                $updateData = ['updated_at' => now()];
+
+                if (!empty($names['first_name'])) $updateData['first_name'] = $names['first_name'];
+                if (!empty($names['father_name'])) $updateData['second_name'] = $names['father_name'];
+                if (!empty($names['grandfather_name'])) $updateData['third_name'] = $names['grandfather_name'];
+                if (!empty($names['family_name'])) $updateData['last_name'] = $names['family_name'];
+
+                if (!empty($updates['guardian_phone'])) {
+                    $updateData['phone'] = $updates['guardian_phone'];
+                }
+
+                DB::table('re_people')->where('id', $existingRecord->id)->update($updateData);
+                $result['file_id_number'] = $existingRecord->file_id ?? null;
+
+                // حفظ البيانات الإضافية في portal_general_registration_field_values
+                $this->saveGuardianExtraFieldValues(
+                    $sponsorship->id,
+                    $existingRecord->file_id ?? null,
+                    $existingRecord->id_number ?? null,
+                    $updates,
+                    $userId
+                );
+
+                Log::info('✅ تم تحديث بيانات المعيل في جدول re_people', [
+                    'sponsorship_id' => $sponsorship->id,
+                    're_people_id' => $existingRecord->id,
+                    'updated_fields' => array_keys($updateData)
+                ]);
+                break;
+        }
+
+        return $result;
+    }
+
+    /**
+     * توليد رقم ملف جديد للمعيل
+     */
+    private function generateNewGuardianFileId(): string
+    {
+        $maxFileId = DB::table('data')
+            ->selectRaw("CAST(SUBSTRING(file_id_number, 2) AS UNSIGNED) as num")
+            ->whereRaw("file_id_number LIKE 'M%' AND file_id_number REGEXP '^M[0-9]+$'")
+            ->orderByDesc('num')
+            ->value('num');
+
+        $nextNumber = ($maxFileId ?? 0) + 1;
+        return 'M' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
     }
 
     /**
