@@ -1371,12 +1371,39 @@ class SponsorshipSyncController extends Controller
                     $guardianUpdated = false;
                     $guardianIdentity = $updates['guardian_identity_number'] ?? $sponsorship->guardian_identity_number ?? null;
 
-                    // بناء بيانات التحديث لجدول data
+                    // بناء بيانات التحديث لجدول data مع تحسين أسماء المعيلين
                     $dataUpdates = [];
+
+                    // إذا كانت الأسماء المنفصلة موجودة، استخدمها
                     if (isset($updates['guardian_first_name'])) $dataUpdates['data_first_name'] = $updates['guardian_first_name'];
                     if (isset($updates['guardian_father_name'])) $dataUpdates['data_father_name'] = $updates['guardian_father_name'];
                     if (isset($updates['guardian_grandfather_name'])) $dataUpdates['data_grand_father_name'] = $updates['guardian_grandfather_name'];
                     if (isset($updates['guardian_family_name'])) $dataUpdates['data_family_name'] = $updates['guardian_family_name'];
+
+                    // إذا كان الاسم الكامل موجود ولكن الأجزاء المنفصلة غير موجودة، قم بتقسيمه
+                    if (isset($updates['guardian_name']) && !empty($updates['guardian_name']) &&
+                        (!isset($updates['guardian_first_name']) || !isset($updates['guardian_father_name']) ||
+                         !isset($updates['guardian_grandfather_name']) || !isset($updates['guardian_family_name']))) {
+
+                        $nameParts = explode(' ', trim($updates['guardian_name']));
+                        $nameParts = array_filter($nameParts); // إزالة العناصر الفارغة
+                        $nameParts = array_values($nameParts); // إعادة ترقيم المؤشرات
+
+                        if (!isset($updates['guardian_first_name']) && isset($nameParts[0])) {
+                            $dataUpdates['data_first_name'] = $nameParts[0];
+                        }
+                        if (!isset($updates['guardian_father_name']) && isset($nameParts[1])) {
+                            $dataUpdates['data_father_name'] = $nameParts[1];
+                        }
+                        if (!isset($updates['guardian_grandfather_name']) && isset($nameParts[2])) {
+                            $dataUpdates['data_grand_father_name'] = $nameParts[2];
+                        }
+                        if (!isset($updates['guardian_family_name']) && isset($nameParts[3])) {
+                            $dataUpdates['data_family_name'] = $nameParts[3];
+                        }
+                    }
+
+                    // باقي الحقول
                     if (isset($updates['guardian_phone'])) $dataUpdates['data_phone_number'] = $updates['guardian_phone'];
                     if (isset($updates['guardian_phone2'])) $dataUpdates['data_alt_phone_number'] = $updates['guardian_phone2'];
                     if (isset($updates['guardian_detailed_address'])) $dataUpdates['data_current_address'] = $updates['guardian_detailed_address'];
@@ -2029,11 +2056,36 @@ class SponsorshipSyncController extends Controller
 
                 if ($record) {
                     $updateData = [];
-                    // تحديث حقول الأب فقط (father_*)
+
+                    // تحديث حقول الأب فقط (father_*) مع تحسين معالجة الأسماء
                     if (isset($updates['first_name'])) $updateData['father_first_name'] = $updates['first_name'];
                     if (isset($updates['second_name'])) $updateData['father_second_name'] = $updates['second_name'];
                     if (isset($updates['third_name'])) $updateData['father_third_name'] = $updates['third_name'];
                     if (isset($updates['last_name'])) $updateData['father_last_name'] = $updates['last_name'];
+
+                    // إذا كان الاسم الكامل موجود ولكن الأجزاء المنفصلة غير موجودة، قم بتقسيمه
+                    if (isset($updates['full_name']) && !empty($updates['full_name']) &&
+                        (!isset($updates['first_name']) || !isset($updates['second_name']) ||
+                         !isset($updates['third_name']) || !isset($updates['last_name']))) {
+
+                        $nameParts = explode(' ', trim($updates['full_name']));
+                        $nameParts = array_filter($nameParts);
+                        $nameParts = array_values($nameParts);
+
+                        if (!isset($updates['first_name']) && isset($nameParts[0])) {
+                            $updateData['father_first_name'] = $nameParts[0];
+                        }
+                        if (!isset($updates['second_name']) && isset($nameParts[1])) {
+                            $updateData['father_second_name'] = $nameParts[1];
+                        }
+                        if (!isset($updates['third_name']) && isset($nameParts[2])) {
+                            $updateData['father_third_name'] = $nameParts[2];
+                        }
+                        if (!isset($updates['last_name']) && isset($nameParts[3])) {
+                            $updateData['father_last_name'] = $nameParts[3];
+                        }
+                    }
+
                     if (isset($updates['identity_number'])) $updateData['father_id'] = $updates['identity_number'];
                     if (isset($updates['birth_date'])) $updateData['father_death_date'] = $updates['birth_date']; // ملاحظة: للمتوفي هو تاريخ الوفاة
                     // الجنس للأب دائماً ذكر - لا حاجة لتحديثه
@@ -2080,11 +2132,36 @@ class SponsorshipSyncController extends Controller
 
                 if ($record) {
                     $updateData = [];
-                    // تحديث حقول الأم فقط (mother_*)
+
+                    // تحديث حقول الأم فقط (mother_*) مع تحسين معالجة الأسماء
                     if (isset($updates['first_name'])) $updateData['mother_first_name'] = $updates['first_name'];
                     if (isset($updates['second_name'])) $updateData['mother_second_name'] = $updates['second_name'];
                     if (isset($updates['third_name'])) $updateData['mother_third_name'] = $updates['third_name'];
                     if (isset($updates['last_name'])) $updateData['mother_last_name'] = $updates['last_name'];
+
+                    // إذا كان الاسم الكامل موجود ولكن الأجزاء المنفصلة غير موجودة، قم بتقسيمه
+                    if (isset($updates['full_name']) && !empty($updates['full_name']) &&
+                        (!isset($updates['first_name']) || !isset($updates['second_name']) ||
+                         !isset($updates['third_name']) || !isset($updates['last_name']))) {
+
+                        $nameParts = explode(' ', trim($updates['full_name']));
+                        $nameParts = array_filter($nameParts);
+                        $nameParts = array_values($nameParts);
+
+                        if (!isset($updates['first_name']) && isset($nameParts[0])) {
+                            $updateData['mother_first_name'] = $nameParts[0];
+                        }
+                        if (!isset($updates['second_name']) && isset($nameParts[1])) {
+                            $updateData['mother_second_name'] = $nameParts[1];
+                        }
+                        if (!isset($updates['third_name']) && isset($nameParts[2])) {
+                            $updateData['mother_third_name'] = $nameParts[2];
+                        }
+                        if (!isset($updates['last_name']) && isset($nameParts[3])) {
+                            $updateData['mother_last_name'] = $nameParts[3];
+                        }
+                    }
+
                     if (isset($updates['identity_number'])) $updateData['mother_id'] = $updates['identity_number'];
                     if (isset($updates['birth_date'])) $updateData['mother_death_date'] = $updates['birth_date']; // للمتوفية هو تاريخ الوفاة
                     // الجنس للأم دائماً أنثى - لا حاجة لتحديثه
