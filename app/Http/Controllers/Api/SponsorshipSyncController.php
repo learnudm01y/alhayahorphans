@@ -1524,11 +1524,17 @@ class SponsorshipSyncController extends Controller
                 $this->updateBankAccounts($sponsorship, $updates['bank_accounts_updates']);
             }
 
+            // ===================================================================
+            // 🔄 تغيير حالة الكفالة إلى "انتظار الصرف" عند أي تعديل من الهاتف
+            // ===================================================================
+            $this->updateSponsorshipStatusToWaitingPayment($sponsorshipId, $request->user()->id);
+
             Log::info('Sponsorship updated from mobile', [
                 'sponsorship_id' => $sponsorshipId,
                 'user_id' => $request->user()->id,
                 'updates' => array_keys($filteredUpdates),
-                'folder_renamed' => $folderRenamed
+                'folder_renamed' => $folderRenamed,
+                'status_changed_to' => 'انتظار الصرف'
             ]);
 
             return response()->json([
@@ -3348,6 +3354,86 @@ class SponsorshipSyncController extends Controller
                 $updates['health_status_id'],
                 $userId
             );
+        }
+    }
+
+    /**
+     * تغيير حالة الكفالة إلى "انتظار الصرف" عند أي تعديل من التطبيق المحمول
+     *
+     * @param int $sponsorshipId معرف الكفالة
+     * @param int|null $userId معرف المستخدم الذي قام بالتعديل
+     * @return bool نجاح العملية
+     */
+    private function updateSponsorshipStatusToWaitingPayment(int $sponsorshipId, ?int $userId = null): bool
+    {
+        try {
+            // البحث عن حالة "انتظار الصرف" في قاعدة البيانات
+            $waitingPaymentStatus = DB::table('sponsorship_statuses')
+                ->where('description', 'LIKE', '%انتظار الصرف%')
+                ->orWhere('description', 'LIKE', '%انتظار%الصرف%')
+                ->first();
+
+            // إذا لم نجد حالة "انتظار الصرف"، نبحث عن حالة "محدث"
+            if (!$waitingPaymentStatus) {
+                $waitingPaymentStatus = DB::table('sponsorship_statuses')
+                    ->where('description', 'LIKE', '%محدث%')
+                    ->orWhere('id', 3) // ID = 3 للحالة "محدث" كافتراضي
+                    ->first();
+            }
+
+            if (!$waitingPaymentStatus) {
+                Log::warning('⚠️ لم يتم العثور على حالة "انتظار الصرف" أو "محدث"', [
+                    'sponsorship_id' => $sponsorshipId
+                ]);
+                return false;
+            }
+
+            // جلب الكفالة الحالية للتحقق من الحالة
+            $currentSponsorship = DB::table('sponsorships')
+                ->where('id', $sponsorshipId)
+                ->first();
+
+            if (!$currentSponsorship) {
+                return false;
+            }
+
+            // استبعاد تغيير الحالة إذا كانت الحالة الحالية "تم الصرف" أو "أرسل للصرف"
+            $excludedStatuses = DB::table('sponsorship_statuses')
+                ->whereIn('description', ['تم الصرف', 'أرسل للصرف', 'ارسل للصرف'])
+                ->pluck('id')
+                ->toArray();
+
+            if (in_array($currentSponsorship->sponsorship_status_id, $excludedStatuses)) {
+                Log::info('ℹ️ الكفالة في حالة لا يمكن تغييرها من الهاتف', [
+                    'sponsorship_id' => $sponsorshipId,
+                    'current_status_id' => $currentSponsorship->sponsorship_status_id
+                ]);
+                return false;
+            }
+
+            // تحديث حالة الكفالة
+            DB::table('sponsorships')
+                ->where('id', $sponsorshipId)
+                ->update([
+                    'sponsorship_status_id' => $waitingPaymentStatus->id,
+                    'updated_at' => now(),
+                    'updated_by' => $userId
+                ]);
+
+            Log::info('✅ تم تغيير حالة الكفالة إلى "انتظار الصرف"', [
+                'sponsorship_id' => $sponsorshipId,
+                'new_status_id' => $waitingPaymentStatus->id,
+                'new_status_name' => $waitingPaymentStatus->description,
+                'user_id' => $userId
+            ]);
+
+            return true;
+        } catch (\Exception $e) {
+            Log::error('❌ فشل تغيير حالة الكفالة', [
+                'sponsorship_id' => $sponsorshipId,
+                'error' => $e->getMessage()
+            ]);
+            return false;
         }
     }
 }
