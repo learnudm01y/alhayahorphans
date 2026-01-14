@@ -649,15 +649,17 @@ class SponsorshipSyncController extends Controller
             }
         }
 
-        // 5) وإلا نقسم الاسم من guardian_name
+        // 5) عند عدم وجود بيانات في الجداول، استخدام guardian_name كما هو بدون تقسيم
         if (!$guardianDataFound && !empty($sponsorship->guardian_name)) {
-            $nameParts = $this->splitArabicName($sponsorship->guardian_name);
-            $result['guardian_first_name'] = $nameParts['first_name'];
-            $result['guardian_father_name'] = $nameParts['father_name'];
-            $result['guardian_grandfather_name'] = $nameParts['grand_father_name'];
-            $result['guardian_family_name'] = $nameParts['family_name'];
             $result['guardian_name_combined'] = $sponsorship->guardian_name;
             $result['needs_guardian_name_input'] = true;
+            $result['guardian_data_source'] = 'guardian_name_only';
+            $guardianDataFound = true;
+
+            Log::info('⚠️ لم يتم العثور على بيانات المعيل في الجداول، استخدام guardian_name', [
+                'guardian_name' => $sponsorship->guardian_name,
+                'sponsorship_id' => $sponsorship->id
+            ]);
         }
 
         // ===================================================================
@@ -1371,37 +1373,14 @@ class SponsorshipSyncController extends Controller
                     $guardianUpdated = false;
                     $guardianIdentity = $updates['guardian_identity_number'] ?? $sponsorship->guardian_identity_number ?? null;
 
-                    // بناء بيانات التحديث لجدول data مع تحسين أسماء المعيلين
+                    // بناء بيانات التحديث لجدول data مع ضمان حفظ الأسماء في 4 حقول
                     $dataUpdates = [];
 
-                    // إذا كانت الأسماء المنفصلة موجودة، استخدمها
+                    // حفظ الأسماء كما هي من الحقول الأربعة المنفصلة (بدون تقسيم غبي)
                     if (isset($updates['guardian_first_name'])) $dataUpdates['data_first_name'] = $updates['guardian_first_name'];
                     if (isset($updates['guardian_father_name'])) $dataUpdates['data_father_name'] = $updates['guardian_father_name'];
                     if (isset($updates['guardian_grandfather_name'])) $dataUpdates['data_grand_father_name'] = $updates['guardian_grandfather_name'];
                     if (isset($updates['guardian_family_name'])) $dataUpdates['data_family_name'] = $updates['guardian_family_name'];
-
-                    // إذا كان الاسم الكامل موجود ولكن الأجزاء المنفصلة غير موجودة، قم بتقسيمه
-                    if (isset($updates['guardian_name']) && !empty($updates['guardian_name']) &&
-                        (!isset($updates['guardian_first_name']) || !isset($updates['guardian_father_name']) ||
-                         !isset($updates['guardian_grandfather_name']) || !isset($updates['guardian_family_name']))) {
-
-                        $nameParts = explode(' ', trim($updates['guardian_name']));
-                        $nameParts = array_filter($nameParts); // إزالة العناصر الفارغة
-                        $nameParts = array_values($nameParts); // إعادة ترقيم المؤشرات
-
-                        if (!isset($updates['guardian_first_name']) && isset($nameParts[0])) {
-                            $dataUpdates['data_first_name'] = $nameParts[0];
-                        }
-                        if (!isset($updates['guardian_father_name']) && isset($nameParts[1])) {
-                            $dataUpdates['data_father_name'] = $nameParts[1];
-                        }
-                        if (!isset($updates['guardian_grandfather_name']) && isset($nameParts[2])) {
-                            $dataUpdates['data_grand_father_name'] = $nameParts[2];
-                        }
-                        if (!isset($updates['guardian_family_name']) && isset($nameParts[3])) {
-                            $dataUpdates['data_family_name'] = $nameParts[3];
-                        }
-                    }
 
                     // باقي الحقول
                     if (isset($updates['guardian_phone'])) $dataUpdates['data_phone_number'] = $updates['guardian_phone'];
@@ -1410,116 +1389,44 @@ class SponsorshipSyncController extends Controller
                     if (isset($updates['guardian_city_id'])) $dataUpdates['data_city'] = $updates['guardian_city_id'];
                     if (isset($updates['health_status_id'])) $dataUpdates['data_health_status'] = $updates['health_status_id'];
 
-                    // 1) محاولة التحديث باستخدام relation_id_number
-                    if (!$guardianUpdated && !empty($sponsorship->relation_id_number) && !empty($dataUpdates)) {
-                        $existingData = DB::table('data')
-                            ->where('file_id_number', $sponsorship->relation_id_number)
-                            ->first();
+                    // حفظ البيانات في جدول data باستخدام الدالة الجديدة
+                    $this->saveOrUpdateInDataTable($sponsorship, $dataUpdates, $sponsorshipId);
 
-                        if ($existingData) {
-                            $dataUpdates['updated_at'] = now();
-                            DB::table('data')
-                                ->where('file_id_number', $sponsorship->relation_id_number)
-                                ->update($dataUpdates);
+                } elseif (in_array($personType, ['deceased_father', 'deceased_mother'])) {
+                    // حفظ في جدول dead_people للمعيلين المتوفين
+                    $deadUpdates = [];
+                    $guardianIdentity = $sponsorship->guardian_identity_number;
 
-                            Log::info('✅ تم تحديث بيانات المعيل في جدول data (بـ relation_id)', [
-                                'relation_id_number' => $sponsorship->relation_id_number,
-                                'updates' => array_keys($dataUpdates)
-                            ]);
-                            $guardianUpdated = true;
-                        }
+                    if ($personType === 'deceased_father') {
+                        if (isset($updates['guardian_first_name'])) $deadUpdates['father_first_name'] = $updates['guardian_first_name'];
+                        if (isset($updates['guardian_father_name'])) $deadUpdates['father_second_name'] = $updates['guardian_father_name'];
+                        if (isset($updates['guardian_grandfather_name'])) $deadUpdates['father_third_name'] = $updates['guardian_grandfather_name'];
+                        if (isset($updates['guardian_family_name'])) $deadUpdates['father_last_name'] = $updates['guardian_family_name'];
+                        if (!empty($guardianIdentity)) $deadUpdates['father_id'] = $guardianIdentity;
+                    } else { // deceased_mother
+                        if (isset($updates['guardian_first_name'])) $deadUpdates['mother_first_name'] = $updates['guardian_first_name'];
+                        if (isset($updates['guardian_father_name'])) $deadUpdates['mother_second_name'] = $updates['guardian_father_name'];
+                        if (isset($updates['guardian_grandfather_name'])) $deadUpdates['mother_third_name'] = $updates['guardian_grandfather_name'];
+                        if (isset($updates['guardian_family_name'])) $deadUpdates['mother_last_name'] = $updates['guardian_family_name'];
+                        if (!empty($guardianIdentity)) $deadUpdates['mother_id'] = $guardianIdentity;
                     }
 
-                    // 2) محاولة التحديث/الإنشاء باستخدام guardian_identity_number
-                    if (!$guardianUpdated && !empty($guardianIdentity) && !empty($dataUpdates)) {
-                        $existingData = DB::table('data')
-                            ->where('data_id_number', $guardianIdentity)
-                            ->first();
+                    // حفظ البيانات في جدول dead_people باستخدام الدالة الجديدة
+                    $this->saveOrUpdateInDeadPeopleTable($sponsorship, $deadUpdates, $personType);
 
-                        if ($existingData) {
-                            $dataUpdates['updated_at'] = now();
-                            DB::table('data')
-                                ->where('data_id_number', $guardianIdentity)
-                                ->update($dataUpdates);
+                } else {
+                    // للأنواع الأخرى، حفظ في جدول re_people
+                    $reUpdates = [];
+                    if (isset($updates['guardian_first_name'])) $reUpdates['first_name'] = $updates['guardian_first_name'];
+                    if (isset($updates['guardian_father_name'])) $reUpdates['second_name'] = $updates['guardian_father_name'];
+                    if (isset($updates['guardian_grandfather_name'])) $reUpdates['third_name'] = $updates['guardian_grandfather_name'];
+                    if (isset($updates['guardian_family_name'])) $reUpdates['last_name'] = $updates['guardian_family_name'];
+                    if (!empty($sponsorship->guardian_identity_number)) $reUpdates['person_id'] = $sponsorship->guardian_identity_number;
+                    if (isset($updates['sponsored_birth_date'])) $reUpdates['person_birth_date'] = $updates['sponsored_birth_date'];
 
-                            // تحديث relation_id_number في sponsorships إذا كان فارغاً
-                            if (empty($sponsorship->relation_id_number) && !empty($existingData->file_id_number)) {
-                                DB::table('sponsorships')
-                                    ->where('id', $sponsorshipId)
-                                    ->update(['relation_id_number' => $existingData->file_id_number, 'updated_at' => now()]);
-
-                                // تحديث الـ sponsorship object للاستخدام اللاحق
-                                $sponsorship->relation_id_number = $existingData->file_id_number;
-                            }
-
-                            Log::info('✅ تم تحديث بيانات المعيل في جدول data (بـ guardian_identity)', [
-                                'guardian_identity_number' => $guardianIdentity,
-                                'file_id_number' => $existingData->file_id_number,
-                                'updates' => array_keys($dataUpdates)
-                            ]);
-                            $guardianUpdated = true;
-                        } else {
-                            // التحقق من عدم وجود سجل مكرر في data بنفس رقم الهوية
-                            $duplicateCheck = DB::table('data')
-                                ->where('data_id_number', $guardianIdentity)
-                                ->first();
-
-                            if ($duplicateCheck) {
-                                // استخدام السجل الموجود بدلاً من إنشاء سجل جديد
-                                $dataUpdates['updated_at'] = now();
-                                DB::table('data')
-                                    ->where('id', $duplicateCheck->id)
-                                    ->update($dataUpdates);
-
-                                // تحديث relation_id_number في sponsorships
-                                DB::table('sponsorships')
-                                    ->where('id', $sponsorshipId)
-                                    ->update(['relation_id_number' => $duplicateCheck->file_id_number, 'updated_at' => now()]);
-
-                                Log::info('✅ تم استخدام سجل معيل موجود بدلاً من التكرار', [
-                                    'file_id_number' => $duplicateCheck->file_id_number,
-                                    'guardian_identity_number' => $guardianIdentity,
-                                    'sponsorship_id' => $sponsorshipId
-                                ]);
-
-                                $guardianUpdated = true;
-                                $sponsorship->relation_id_number = $duplicateCheck->file_id_number;
-                            } else {
-                                // إنشاء سجل جديد في data
-                                $newFileId = generateFileIdFromDataTable();
-                                $insertData = array_merge($dataUpdates, [
-                                    'file_id_number' => $newFileId,
-                                    'data_id_number' => $guardianIdentity,
-                                    'created_at' => now(),
-                                    'updated_at' => now()
-                                ]);
-
-                                DB::table('data')->insert($insertData);
-
-                                // تحديث relation_id_number في sponsorships
-                                DB::table('sponsorships')
-                                    ->where('id', $sponsorshipId)
-                                    ->update(['relation_id_number' => $newFileId, 'updated_at' => now()]);
-
-                                Log::info('✅ تم إنشاء سجل جديد للمعيل في جدول data', [
-                                    'file_id_number' => $newFileId,
-                                    'guardian_identity_number' => $guardianIdentity,
-                                    'updates' => array_keys($insertData)
-                                ]);
-                                $guardianUpdated = true;
-
-                                // تحديث الـ sponsorship object للاستخدام اللاحق
-                                $sponsorship->relation_id_number = $newFileId;
-                            }
-                        }
-                    }
-
-                    if (!$guardianUpdated && !empty($dataUpdates)) {
-                        Log::warning('⚠️ لم يتم تحديث بيانات المعيل - لا يوجد relation_id أو guardian_identity', [
-                            'sponsorship_id' => $sponsorshipId
-                        ]);
-                    }
-                } // end of else (non-deceased types)
+                    // حفظ البيانات في جدول re_people باستخدام الدالة الجديدة
+                    $this->saveOrUpdateInRePeopleTable($sponsorship, $reUpdates);
+                }
             }
 
             // ===================================================
@@ -2057,33 +1964,41 @@ class SponsorshipSyncController extends Controller
                 if ($record) {
                     $updateData = [];
 
-                    // تحديث حقول الأب فقط (father_*) مع تحسين معالجة الأسماء
+                    // تحديث حقول الأب (father_*) مع ضمان حفظ الاسم في 4 حقول
+
+                    // أولاً: الأسماء المنفصلة
                     if (isset($updates['first_name'])) $updateData['father_first_name'] = $updates['first_name'];
                     if (isset($updates['second_name'])) $updateData['father_second_name'] = $updates['second_name'];
                     if (isset($updates['third_name'])) $updateData['father_third_name'] = $updates['third_name'];
                     if (isset($updates['last_name'])) $updateData['father_last_name'] = $updates['last_name'];
 
-                    // إذا كان الاسم الكامل موجود ولكن الأجزاء المنفصلة غير موجودة، قم بتقسيمه
-                    if (isset($updates['full_name']) && !empty($updates['full_name']) &&
-                        (!isset($updates['first_name']) || !isset($updates['second_name']) ||
-                         !isset($updates['third_name']) || !isset($updates['last_name']))) {
+                    // ثانياً: إذا وجد guardian_name أو full_name، تقسيمه دائماً
+                    $fullName = null;
+                    if (isset($updates['guardian_name']) && !empty(trim($updates['guardian_name']))) {
+                        $fullName = trim($updates['guardian_name']);
+                    } elseif (isset($updates['full_name']) && !empty(trim($updates['full_name']))) {
+                        $fullName = trim($updates['full_name']);
+                    }
 
-                        $nameParts = explode(' ', trim($updates['full_name']));
+                    if ($fullName) {
+                        $nameParts = explode(' ', $fullName);
                         $nameParts = array_filter($nameParts);
                         $nameParts = array_values($nameParts);
 
-                        if (!isset($updates['first_name']) && isset($nameParts[0])) {
-                            $updateData['father_first_name'] = $nameParts[0];
-                        }
-                        if (!isset($updates['second_name']) && isset($nameParts[1])) {
-                            $updateData['father_second_name'] = $nameParts[1];
-                        }
-                        if (!isset($updates['third_name']) && isset($nameParts[2])) {
-                            $updateData['father_third_name'] = $nameParts[2];
-                        }
-                        if (!isset($updates['last_name']) && isset($nameParts[3])) {
-                            $updateData['father_last_name'] = $nameParts[3];
-                        }
+                        // حفظ الأجزاء الأربعة دائماً
+                        $updateData['father_first_name'] = $nameParts[0] ?? '';
+                        $updateData['father_second_name'] = $nameParts[1] ?? '';
+                        $updateData['father_third_name'] = $nameParts[2] ?? '';
+                        $updateData['father_last_name'] = $nameParts[3] ?? '';
+
+                        Log::info('✅ تم تقسيم اسم الأب المتوفي إلى 4 حقول', [
+                            'full_name' => $fullName,
+                            'parts' => $nameParts,
+                            'father_first_name' => $updateData['father_first_name'],
+                            'father_second_name' => $updateData['father_second_name'],
+                            'father_third_name' => $updateData['father_third_name'],
+                            'father_last_name' => $updateData['father_last_name']
+                        ]);
                     }
 
                     if (isset($updates['identity_number'])) $updateData['father_id'] = $updates['identity_number'];
@@ -2133,33 +2048,41 @@ class SponsorshipSyncController extends Controller
                 if ($record) {
                     $updateData = [];
 
-                    // تحديث حقول الأم فقط (mother_*) مع تحسين معالجة الأسماء
+                    // تحديث حقول الأم (mother_*) مع ضمان حفظ الاسم في 4 حقول
+
+                    // أولاً: الأسماء المنفصلة
                     if (isset($updates['first_name'])) $updateData['mother_first_name'] = $updates['first_name'];
                     if (isset($updates['second_name'])) $updateData['mother_second_name'] = $updates['second_name'];
                     if (isset($updates['third_name'])) $updateData['mother_third_name'] = $updates['third_name'];
                     if (isset($updates['last_name'])) $updateData['mother_last_name'] = $updates['last_name'];
 
-                    // إذا كان الاسم الكامل موجود ولكن الأجزاء المنفصلة غير موجودة، قم بتقسيمه
-                    if (isset($updates['full_name']) && !empty($updates['full_name']) &&
-                        (!isset($updates['first_name']) || !isset($updates['second_name']) ||
-                         !isset($updates['third_name']) || !isset($updates['last_name']))) {
+                    // ثانياً: إذا وجد guardian_name أو full_name، تقسيمه دائماً
+                    $fullName = null;
+                    if (isset($updates['guardian_name']) && !empty(trim($updates['guardian_name']))) {
+                        $fullName = trim($updates['guardian_name']);
+                    } elseif (isset($updates['full_name']) && !empty(trim($updates['full_name']))) {
+                        $fullName = trim($updates['full_name']);
+                    }
 
-                        $nameParts = explode(' ', trim($updates['full_name']));
+                    if ($fullName) {
+                        $nameParts = explode(' ', $fullName);
                         $nameParts = array_filter($nameParts);
                         $nameParts = array_values($nameParts);
 
-                        if (!isset($updates['first_name']) && isset($nameParts[0])) {
-                            $updateData['mother_first_name'] = $nameParts[0];
-                        }
-                        if (!isset($updates['second_name']) && isset($nameParts[1])) {
-                            $updateData['mother_second_name'] = $nameParts[1];
-                        }
-                        if (!isset($updates['third_name']) && isset($nameParts[2])) {
-                            $updateData['mother_third_name'] = $nameParts[2];
-                        }
-                        if (!isset($updates['last_name']) && isset($nameParts[3])) {
-                            $updateData['mother_last_name'] = $nameParts[3];
-                        }
+                        // حفظ الأجزاء الأربعة دائماً
+                        $updateData['mother_first_name'] = $nameParts[0] ?? '';
+                        $updateData['mother_second_name'] = $nameParts[1] ?? '';
+                        $updateData['mother_third_name'] = $nameParts[2] ?? '';
+                        $updateData['mother_last_name'] = $nameParts[3] ?? '';
+
+                        Log::info('✅ تم تقسيم اسم الأم المتوفية إلى 4 حقول', [
+                            'full_name' => $fullName,
+                            'parts' => $nameParts,
+                            'mother_first_name' => $updateData['mother_first_name'],
+                            'mother_second_name' => $updateData['mother_second_name'],
+                            'mother_third_name' => $updateData['mother_third_name'],
+                            'mother_last_name' => $updateData['mother_last_name']
+                        ]);
                     }
 
                     if (isset($updates['identity_number'])) $updateData['mother_id'] = $updates['identity_number'];
@@ -3579,5 +3502,193 @@ class SponsorshipSyncController extends Controller
             ]);
             return false;
         }
+    }
+
+    /**
+     * حفظ أو تحديث بيانات المعيل في جدول data
+     */
+    private function saveOrUpdateInDataTable($sponsorship, $dataUpdates, $sponsorshipId)
+    {
+        if (empty($dataUpdates)) {
+            return false;
+        }
+
+        Log::info('🔄 بدء حفظ/تحديث بيانات المعيل في جدول data', [
+            'relation_id_number' => $sponsorship->relation_id_number ?? null,
+            'guardian_identity_number' => $sponsorship->guardian_identity_number ?? null,
+            'updates' => array_keys($dataUpdates)
+        ]);
+
+        $guardianUpdated = false;
+        $guardianIdentity = $sponsorship->guardian_identity_number;
+
+        // 1) محاولة التحديث باستخدام relation_id_number
+        if (!$guardianUpdated && !empty($sponsorship->relation_id_number) && !empty($dataUpdates)) {
+            $existingData = DB::table('data')
+                ->where('file_id_number', $sponsorship->relation_id_number)
+                ->first();
+
+            if ($existingData) {
+                $dataUpdates['updated_at'] = now();
+                DB::table('data')
+                    ->where('file_id_number', $sponsorship->relation_id_number)
+                    ->update($dataUpdates);
+
+                Log::info('✅ تم تحديث بيانات المعيل في جدول data (بـ relation_id)', [
+                    'relation_id_number' => $sponsorship->relation_id_number,
+                    'updates' => array_keys($dataUpdates)
+                ]);
+                $guardianUpdated = true;
+            }
+        }
+
+        // 2) محاولة التحديث/الإنشاء باستخدام guardian_identity_number
+        if (!$guardianUpdated && !empty($guardianIdentity) && !empty($dataUpdates)) {
+            $existingData = DB::table('data')
+                ->where('data_id_number', $guardianIdentity)
+                ->first();
+
+            if ($existingData) {
+                $dataUpdates['updated_at'] = now();
+                DB::table('data')
+                    ->where('data_id_number', $guardianIdentity)
+                    ->update($dataUpdates);
+
+                // تحديث relation_id_number في sponsorships إذا كان فارغاً
+                if (empty($sponsorship->relation_id_number) && !empty($existingData->file_id_number)) {
+                    DB::table('sponsorships')
+                        ->where('id', $sponsorshipId)
+                        ->update(['relation_id_number' => $existingData->file_id_number, 'updated_at' => now()]);
+                }
+
+                $guardianUpdated = true;
+            } else {
+                // إنشاء سجل جديد في data
+                $newFileId = generateFileIdFromDataTable();
+                $insertData = array_merge($dataUpdates, [
+                    'file_id_number' => $newFileId,
+                    'data_id_number' => $guardianIdentity,
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]);
+
+                DB::table('data')->insert($insertData);
+
+                // تحديث relation_id_number في sponsorships
+                DB::table('sponsorships')
+                    ->where('id', $sponsorshipId)
+                    ->update(['relation_id_number' => $newFileId, 'updated_at' => now()]);
+
+                Log::info('✅ تم إنشاء سجل جديد في جدول data', [
+                    'file_id_number' => $newFileId,
+                    'guardian_identity_number' => $guardianIdentity
+                ]);
+                $guardianUpdated = true;
+            }
+        }
+
+        return $guardianUpdated;
+    }
+
+    /**
+     * حفظ أو تحديث بيانات المعيل المتوفي في جدول dead_people
+     */
+    private function saveOrUpdateInDeadPeopleTable($sponsorship, $deadUpdates, $guardianPersonType)
+    {
+        if (empty($deadUpdates)) {
+            return false;
+        }
+
+        Log::info('🔄 بدء حفظ/تحديث بيانات المعيل المتوفي في جدول dead_people', [
+            'guardian_person_type' => $guardianPersonType,
+            'updates' => array_keys($deadUpdates)
+        ]);
+
+        $guardianIdentity = $sponsorship->guardian_identity_number;
+        $updated = false;
+
+        if (!empty($guardianIdentity)) {
+            // محاولة العثور على السجل الموجود
+            $existingRecord = DB::table('dead_people')
+                ->where(function($q) use ($guardianIdentity, $guardianPersonType) {
+                    if ($guardianPersonType === 'deceased_father') {
+                        $q->where('father_id', $guardianIdentity);
+                    } else {
+                        $q->where('mother_id', $guardianIdentity);
+                    }
+                })
+                ->first();
+
+            if ($existingRecord) {
+                $deadUpdates['updated_at'] = now();
+                DB::table('dead_people')
+                    ->where('id', $existingRecord->id)
+                    ->update($deadUpdates);
+                $updated = true;
+            } else {
+                // إنشاء سجل جديد
+                $deadUpdates['created_at'] = now();
+                $deadUpdates['updated_at'] = now();
+
+                DB::table('dead_people')->insert($deadUpdates);
+                $updated = true;
+            }
+
+            if ($updated) {
+                Log::info('✅ تم حفظ/تحديث بيانات المعيل المتوفي', [
+                    'guardian_person_type' => $guardianPersonType,
+                    'guardian_identity' => $guardianIdentity
+                ]);
+            }
+        }
+
+        return $updated;
+    }
+
+    /**
+     * حفظ أو تحديث بيانات المعيل في جدول re_people
+     */
+    private function saveOrUpdateInRePeopleTable($sponsorship, $reUpdates)
+    {
+        if (empty($reUpdates)) {
+            return false;
+        }
+
+        Log::info('🔄 بدء حفظ/تحديث بيانات المعيل في جدول re_people', [
+            'updates' => array_keys($reUpdates)
+        ]);
+
+        $guardianIdentity = $sponsorship->guardian_identity_number;
+        $updated = false;
+
+        if (!empty($guardianIdentity)) {
+            // محاولة العثور على السجل الموجود
+            $existingRecord = DB::table('re_people')
+                ->where('person_id', $guardianIdentity)
+                ->first();
+
+            if ($existingRecord) {
+                $reUpdates['updated_at'] = now();
+                DB::table('re_people')
+                    ->where('person_id', $guardianIdentity)
+                    ->update($reUpdates);
+                $updated = true;
+            } else {
+                // إنشاء سجل جديد
+                $reUpdates['created_at'] = now();
+                $reUpdates['updated_at'] = now();
+
+                DB::table('re_people')->insert($reUpdates);
+                $updated = true;
+            }
+
+            if ($updated) {
+                Log::info('✅ تم حفظ/تحديث بيانات المعيل في re_people', [
+                    'guardian_identity' => $guardianIdentity
+                ]);
+            }
+        }
+
+        return $updated;
     }
 }

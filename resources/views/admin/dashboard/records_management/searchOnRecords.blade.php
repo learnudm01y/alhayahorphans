@@ -750,8 +750,8 @@ console.log('Fallback functions loaded successfully');
                                     <th style="width: 10%;" class="text-center" title="المدينة التي يقيم فيها المستفيد" data-bs-toggle="tooltip">
                                         <i class="fas fa-map-marker-alt"></i> المدينة
                                     </th>
-                                    <th style="width: 10%;" class="text-center" title="المحافظة أو المنطقة الإدارية" data-bs-toggle="tooltip">
-                                        <i class="fas fa-map"></i> المحافظة/المنطقة
+                                    <th style="width: 15%;" class="text-center" title="العنوان التفصيلي الكامل" data-bs-toggle="tooltip">
+                                        <i class="fas fa-home"></i> العنوان التفصيلي
                                     </th>
                                     <th style="width: 10%;" class="text-center" title="حالة طلب المساعدة: مقبول، مرفوض، قيد المراجعة" data-bs-toggle="tooltip">
                                         <i class="fas fa-check-circle"></i> حالة الطلب
@@ -868,7 +868,8 @@ $(document).ready(function() {
             const gender = record.gender || record.data_gender || record.dead_people_gender || '-';
             // تحسين عرض المدينة مع دعم مصادر متعددة
             const city = record.city_name || record.city || record.data_city || record.city_ar || record.city_en || '-';
-            const province = record.province_name || record.province || record.data_province || record.province_ar || record.province_en || '-';
+            // تحسين عرض العنوان التفصيلي مع دعم مصادر متعددة
+            const detailedAddress = record.detailed_address || record.data_current_address || record.address || record.current_address || '-';
             const requestStatus = record.request_status_name || record.request_status || record.data_request_status || '-';
 
             tableBodyHtml +=
@@ -882,7 +883,7 @@ $(document).ready(function() {
                     '<td class="text-center">' + (gender !== '-' ? '<span class="badge bg-primary">' + gender + '</span>' : '-') + '</td>' +
                     // تحسين عرض المدينة مع إبراز بصري أفضل
                     '<td><span class="badge bg-secondary" style="font-size: 0.9em;"><i class="fas fa-map-marker-alt me-1"></i>' + city + '</span></td>' +
-                    '<td><span class="badge bg-info" style="font-size: 0.9em;"><i class="fas fa-map me-1"></i>' + province + '</span></td>' +
+                    '<td><span class="badge bg-warning text-dark" style="font-size: 0.8em; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="' + detailedAddress + '"><i class="fas fa-home me-1"></i>' + detailedAddress + '</span></td>' +
                     '<td><span class="badge ' + getStatusBadgeClass(requestStatus) + '">' + requestStatus + '</span></td>' +
                     '<td class="text-center"><span class="badge ' + record.record_type_class + ' text-white">' + record.record_type + '</span></td>' +
                     '<td class="text-center">' +
