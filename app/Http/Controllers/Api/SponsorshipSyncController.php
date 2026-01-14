@@ -1383,16 +1383,6 @@ class SponsorshipSyncController extends Controller
                     if (isset($updates['guardian_city_id'])) $dataUpdates['data_city'] = $updates['guardian_city_id'];
                     if (isset($updates['health_status_id'])) $dataUpdates['data_health_status'] = $updates['health_status_id'];
 
-                    // بناء الاسم الكامل للمعيل
-                    if (isset($updates['guardian_first_name']) || isset($updates['guardian_father_name']) ||
-                        isset($updates['guardian_grandfather_name']) || isset($updates['guardian_family_name'])) {
-                        $firstName = $updates['guardian_first_name'] ?? '';
-                        $fatherName = $updates['guardian_father_name'] ?? '';
-                        $grandfatherName = $updates['guardian_grandfather_name'] ?? '';
-                        $familyName = $updates['guardian_family_name'] ?? '';
-                        $dataUpdates['data_personal_name'] = trim("$firstName $fatherName $grandfatherName $familyName");
-                    }
-
                     // 1) محاولة التحديث باستخدام relation_id_number
                     if (!$guardianUpdated && !empty($sponsorship->relation_id_number) && !empty($dataUpdates)) {
                         $existingData = DB::table('data')
@@ -1442,31 +1432,58 @@ class SponsorshipSyncController extends Controller
                             ]);
                             $guardianUpdated = true;
                         } else {
-                            // إنشاء سجل جديد في data
-                            $newFileId = generateFileIdFromDataTable();
-                            $insertData = array_merge($dataUpdates, [
-                                'file_id_number' => $newFileId,
-                                'data_id_number' => $guardianIdentity,
-                                'created_at' => now(),
-                                'updated_at' => now()
-                            ]);
+                            // التحقق من عدم وجود سجل مكرر في data بنفس رقم الهوية
+                            $duplicateCheck = DB::table('data')
+                                ->where('data_id_number', $guardianIdentity)
+                                ->first();
 
-                            DB::table('data')->insert($insertData);
+                            if ($duplicateCheck) {
+                                // استخدام السجل الموجود بدلاً من إنشاء سجل جديد
+                                $dataUpdates['updated_at'] = now();
+                                DB::table('data')
+                                    ->where('id', $duplicateCheck->id)
+                                    ->update($dataUpdates);
 
-                            // تحديث relation_id_number في sponsorships
-                            DB::table('sponsorships')
-                                ->where('id', $sponsorshipId)
-                                ->update(['relation_id_number' => $newFileId, 'updated_at' => now()]);
+                                // تحديث relation_id_number في sponsorships
+                                DB::table('sponsorships')
+                                    ->where('id', $sponsorshipId)
+                                    ->update(['relation_id_number' => $duplicateCheck->file_id_number, 'updated_at' => now()]);
 
-                            Log::info('✅ تم إنشاء سجل جديد للمعيل في جدول data', [
-                                'file_id_number' => $newFileId,
-                                'guardian_identity_number' => $guardianIdentity,
-                                'updates' => array_keys($insertData)
-                            ]);
-                            $guardianUpdated = true;
+                                Log::info('✅ تم استخدام سجل معيل موجود بدلاً من التكرار', [
+                                    'file_id_number' => $duplicateCheck->file_id_number,
+                                    'guardian_identity_number' => $guardianIdentity,
+                                    'sponsorship_id' => $sponsorshipId
+                                ]);
 
-                            // تحديث الـ sponsorship object للاستخدام اللاحق
-                            $sponsorship->relation_id_number = $newFileId;
+                                $guardianUpdated = true;
+                                $sponsorship->relation_id_number = $duplicateCheck->file_id_number;
+                            } else {
+                                // إنشاء سجل جديد في data
+                                $newFileId = generateFileIdFromDataTable();
+                                $insertData = array_merge($dataUpdates, [
+                                    'file_id_number' => $newFileId,
+                                    'data_id_number' => $guardianIdentity,
+                                    'created_at' => now(),
+                                    'updated_at' => now()
+                                ]);
+
+                                DB::table('data')->insert($insertData);
+
+                                // تحديث relation_id_number في sponsorships
+                                DB::table('sponsorships')
+                                    ->where('id', $sponsorshipId)
+                                    ->update(['relation_id_number' => $newFileId, 'updated_at' => now()]);
+
+                                Log::info('✅ تم إنشاء سجل جديد للمعيل في جدول data', [
+                                    'file_id_number' => $newFileId,
+                                    'guardian_identity_number' => $guardianIdentity,
+                                    'updates' => array_keys($insertData)
+                                ]);
+                                $guardianUpdated = true;
+
+                                // تحديث الـ sponsorship object للاستخدام اللاحق
+                                $sponsorship->relation_id_number = $newFileId;
+                            }
                         }
                     }
 
@@ -2021,16 +2038,6 @@ class SponsorshipSyncController extends Controller
                     if (isset($updates['birth_date'])) $updateData['father_death_date'] = $updates['birth_date']; // ملاحظة: للمتوفي هو تاريخ الوفاة
                     // الجنس للأب دائماً ذكر - لا حاجة لتحديثه
 
-                    // بناء الاسم الكامل للأب المتوفي
-                    if (isset($updates['first_name']) || isset($updates['second_name']) ||
-                        isset($updates['third_name']) || isset($updates['last_name'])) {
-                        $firstName = $updates['first_name'] ?? '';
-                        $secondName = $updates['second_name'] ?? '';
-                        $thirdName = $updates['third_name'] ?? '';
-                        $lastName = $updates['last_name'] ?? '';
-                        $updateData['father_full_name'] = trim("$firstName $secondName $thirdName $lastName");
-                    }
-
                     if (!empty($updateData)) {
                         $updateData['updated_at'] = now();
                         DB::table('dead_people')->where('id', $record->id)->update($updateData);
@@ -2081,16 +2088,6 @@ class SponsorshipSyncController extends Controller
                     if (isset($updates['identity_number'])) $updateData['mother_id'] = $updates['identity_number'];
                     if (isset($updates['birth_date'])) $updateData['mother_death_date'] = $updates['birth_date']; // للمتوفية هو تاريخ الوفاة
                     // الجنس للأم دائماً أنثى - لا حاجة لتحديثه
-
-                    // بناء الاسم الكامل للأم المتوفية
-                    if (isset($updates['first_name']) || isset($updates['second_name']) ||
-                        isset($updates['third_name']) || isset($updates['last_name'])) {
-                        $firstName = $updates['first_name'] ?? '';
-                        $secondName = $updates['second_name'] ?? '';
-                        $thirdName = $updates['third_name'] ?? '';
-                        $lastName = $updates['last_name'] ?? '';
-                        $updateData['mother_full_name'] = trim("$firstName $secondName $thirdName $lastName");
-                    }
 
                     if (!empty($updateData)) {
                         $updateData['updated_at'] = now();
