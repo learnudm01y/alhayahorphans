@@ -1270,14 +1270,21 @@ class SponsorshipSyncController extends Controller
                                         isset($updates['guardian_first_name']) || isset($updates['guardian_father_name']) ||
                                         isset($updates['guardian_grandfather_name']) || isset($updates['guardian_family_name']);
 
-            // تحديد نوع المكفول/المعيل
+            // ⚠️ مهم جداً: نوع المكفول (person_type) ≠ نوع المعيل (guardian_person_type)
+            // - person_type = نوع المكفول (orphan, family_member, deceased_father, deceased_mother)
+            // - guardian_person_type = نوع المعيل (breadwinner هو الافتراضي دائماً للمعيل)
             $personType = $updates['person_type'] ?? $sponsorship->person_type ?? null;
+
+            // نوع المعيل - الافتراضي هو breadwinner لأن المعيل عادةً هو رب الأسرة
+            $guardianPersonType = $updates['guardian_person_type'] ?? 'breadwinner';
+
             $isDeceasedType = in_array($personType, ['deceased_father', 'deceased_mother']);
 
             Log::info('🔍 فحص تحديث بيانات المعيل', [
                 'sponsorship_id' => $sponsorshipId,
                 'hasGuardianContactUpdate' => $hasGuardianContactUpdate,
                 'person_type' => $personType,
+                'guardian_person_type' => $guardianPersonType,
                 'is_deceased_type' => $isDeceasedType,
                 'guardian_phone' => $updates['guardian_phone'] ?? 'not_set',
                 'guardian_phone2' => $updates['guardian_phone2'] ?? 'not_set',
@@ -1286,9 +1293,12 @@ class SponsorshipSyncController extends Controller
 
             if ($hasGuardianContactUpdate) {
                 // ================================================================
-                // للمتوفين (deceased_father/deceased_mother): حفظ في portal_general_registration_field_values
+                // بيانات المعيل تُحفظ دائماً في جدول data (لأنه رب الأسرة)
+                // إلا إذا كان guardian_person_type هو deceased_father أو deceased_mother
                 // ================================================================
-                if ($isDeceasedType) {
+                $isGuardianDeceased = in_array($guardianPersonType, ['deceased_father', 'deceased_mother']);
+
+                if ($isGuardianDeceased) {
                     $userId = $request->user()->id ?? null;
                     $fileIdNumber = $sponsorship->relation_id_number ?? '';
                     $identityNumber = $sponsorship->identity_number ?? null;
@@ -1350,9 +1360,10 @@ class SponsorshipSyncController extends Controller
 
                     Log::info('✅ تم حفظ بيانات المعيل المتوفي في portal_general_registration_field_values');
 
-                } elseif (in_array($personType, ['breadwinner', 'family_member', 'orphan'])) {
+                } else {
                     // ================================================================
-                    // للمعيلين (breadwinner/family_member/orphan): حفظ في جدول data
+                    // للمعيلين العاديين: حفظ دائماً في جدول data
+                    // لأن المعيل هو رب الأسرة ويُحفظ في جدول data
                     // ================================================================
                     $guardianUpdated = false;
                     $guardianIdentity = $updates['guardian_identity_number'] ?? $sponsorship->guardian_identity_number ?? null;
@@ -1375,40 +1386,11 @@ class SponsorshipSyncController extends Controller
                     // حفظ البيانات في جدول data باستخدام الدالة الجديدة
                     $this->saveOrUpdateInDataTable($sponsorship, $dataUpdates, $sponsorshipId);
 
-                } elseif (in_array($personType, ['deceased_father', 'deceased_mother'])) {
-                    // حفظ في جدول dead_people للمعيلين المتوفين
-                    $deadUpdates = [];
-                    $guardianIdentity = $sponsorship->guardian_identity_number;
-
-                    if ($personType === 'deceased_father') {
-                        if (isset($updates['guardian_first_name'])) $deadUpdates['father_first_name'] = $updates['guardian_first_name'];
-                        if (isset($updates['guardian_father_name'])) $deadUpdates['father_second_name'] = $updates['guardian_father_name'];
-                        if (isset($updates['guardian_grandfather_name'])) $deadUpdates['father_third_name'] = $updates['guardian_grandfather_name'];
-                        if (isset($updates['guardian_family_name'])) $deadUpdates['father_last_name'] = $updates['guardian_family_name'];
-                        if (!empty($guardianIdentity)) $deadUpdates['father_id'] = $guardianIdentity;
-                    } else { // deceased_mother
-                        if (isset($updates['guardian_first_name'])) $deadUpdates['mother_first_name'] = $updates['guardian_first_name'];
-                        if (isset($updates['guardian_father_name'])) $deadUpdates['mother_second_name'] = $updates['guardian_father_name'];
-                        if (isset($updates['guardian_grandfather_name'])) $deadUpdates['mother_third_name'] = $updates['guardian_grandfather_name'];
-                        if (isset($updates['guardian_family_name'])) $deadUpdates['mother_last_name'] = $updates['guardian_family_name'];
-                        if (!empty($guardianIdentity)) $deadUpdates['mother_id'] = $guardianIdentity;
-                    }
-
-                    // حفظ البيانات في جدول dead_people باستخدام الدالة الجديدة
-                    $this->saveOrUpdateInDeadPeopleTable($sponsorship, $deadUpdates, $personType);
-
-                } else {
-                    // للأنواع الأخرى، حفظ في جدول re_people
-                    $reUpdates = [];
-                    if (isset($updates['guardian_first_name'])) $reUpdates['first_name'] = $updates['guardian_first_name'];
-                    if (isset($updates['guardian_father_name'])) $reUpdates['second_name'] = $updates['guardian_father_name'];
-                    if (isset($updates['guardian_grandfather_name'])) $reUpdates['third_name'] = $updates['guardian_grandfather_name'];
-                    if (isset($updates['guardian_family_name'])) $reUpdates['last_name'] = $updates['guardian_family_name'];
-                    if (!empty($sponsorship->guardian_identity_number)) $reUpdates['person_id'] = $sponsorship->guardian_identity_number;
-                    if (isset($updates['sponsored_birth_date'])) $reUpdates['person_birth_date'] = $updates['sponsored_birth_date'];
-
-                    // حفظ البيانات في جدول re_people باستخدام الدالة الجديدة
-                    $this->saveOrUpdateInRePeopleTable($sponsorship, $reUpdates);
+                    Log::info('✅ تم حفظ بيانات المعيل في جدول data', [
+                        'sponsorship_id' => $sponsorshipId,
+                        'guardian_person_type' => $guardianPersonType,
+                        'updates' => array_keys($dataUpdates)
+                    ]);
                 }
             }
 
