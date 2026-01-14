@@ -13,6 +13,12 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Status Bar Color -->
+        <item name="android:statusBarColor">@color/colorPrimary</item>
+        <!-- Navigation Bar Color -->
+        <item name="android:navigationBarColor">@color/colorPrimary</item>
+        <!-- لا نستخدم edge-to-edge لتجنب التداخل -->
+        <item name="android:fitsSystemWindows">true</item>
     </style>
 
 

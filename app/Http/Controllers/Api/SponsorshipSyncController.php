@@ -920,10 +920,6 @@ class SponsorshipSyncController extends Controller
                                 if (isset($portalFields['guardian_phone2'])) {
                                     $result['guardian_phone2'] = $portalFields['guardian_phone2']->field_value ?? '';
                                 }
-                                // جلب المدينة
-                                if (isset($portalFields['guardian_city_id'])) {
-                                    $result['guardian_city_id'] = $portalFields['guardian_city_id']->field_value ?? '';
-                                }
                                 // جلب اسم المعيل (إذا كان مخزناً)
                                 if (isset($portalFields['guardian_first_name'])) {
                                     $result['guardian_first_name'] = $portalFields['guardian_first_name']->field_value ?? '';
@@ -1187,7 +1183,7 @@ class SponsorshipSyncController extends Controller
             // الحقول التي تذهب إلى جدول data وليس sponsorships
             $dataOnlyFields = [
                 'health_status_id', 'guardian_phone', 'guardian_phone2',
-                'guardian_city_id', 'guardian_detailed_address',
+                'guardian_detailed_address',
                 'guardian_first_name', 'guardian_father_name',
                 'guardian_grandfather_name', 'guardian_family_name',
                 'guardian_person_type',
@@ -1270,7 +1266,7 @@ class SponsorshipSyncController extends Controller
             // تحديث بيانات المعيل (الهاتف، العنوان، المدينة) - بحث شامل
             // ===================================================================
             $hasGuardianContactUpdate = isset($updates['guardian_phone']) || isset($updates['guardian_phone2']) ||
-                                        isset($updates['guardian_detailed_address']) || isset($updates['guardian_city_id']) ||
+                                        isset($updates['guardian_detailed_address']) ||
                                         isset($updates['guardian_first_name']) || isset($updates['guardian_father_name']) ||
                                         isset($updates['guardian_grandfather_name']) || isset($updates['guardian_family_name']);
 
@@ -1285,8 +1281,7 @@ class SponsorshipSyncController extends Controller
                 'is_deceased_type' => $isDeceasedType,
                 'guardian_phone' => $updates['guardian_phone'] ?? 'not_set',
                 'guardian_phone2' => $updates['guardian_phone2'] ?? 'not_set',
-                'guardian_detailed_address' => $updates['guardian_detailed_address'] ?? 'not_set',
-                'guardian_city_id' => $updates['guardian_city_id'] ?? 'not_set'
+                'guardian_detailed_address' => $updates['guardian_detailed_address'] ?? 'not_set'
             ]);
 
             if ($hasGuardianContactUpdate) {
@@ -1339,18 +1334,6 @@ class SponsorshipSyncController extends Controller
                         );
                     }
 
-                    // حفظ المدينة
-                    if (isset($updates['guardian_city_id'])) {
-                        $this->savePortalFieldValue(
-                            $sponsorshipId,
-                            $fileIdNumber,
-                            $identityNumber,
-                            'guardian_city_id',
-                            $updates['guardian_city_id'],
-                            $userId
-                        );
-                    }
-
                     // حفظ اسم المعيل (للمتوفين)
                     if (isset($updates['guardian_first_name'])) {
                         $this->savePortalFieldValue($sponsorshipId, $fileIdNumber, $identityNumber, 'guardian_first_name', $updates['guardian_first_name'], $userId);
@@ -1387,7 +1370,6 @@ class SponsorshipSyncController extends Controller
                     if (isset($updates['guardian_phone'])) $dataUpdates['data_phone_number'] = $updates['guardian_phone'];
                     if (isset($updates['guardian_phone2'])) $dataUpdates['data_alt_phone_number'] = $updates['guardian_phone2'];
                     if (isset($updates['guardian_detailed_address'])) $dataUpdates['data_current_address'] = $updates['guardian_detailed_address'];
-                    if (isset($updates['guardian_city_id'])) $dataUpdates['data_city'] = $updates['guardian_city_id'];
                     if (isset($updates['health_status_id'])) $dataUpdates['data_health_status'] = $updates['health_status_id'];
 
                     // حفظ البيانات في جدول data باستخدام الدالة الجديدة
@@ -1620,41 +1602,67 @@ class SponsorshipSyncController extends Controller
                 ]);
 
                 // دعم أسماء الحقول من التطبيق (data-bank-field) وأسماء بديلة
-                // السماح بالتحديث دائماً إذا كانت القيمة الجديدة غير فارغة
-                if (isset($updates['bank_name']) && !empty($updates['bank_name'])) {
+                // السماح بالتحديث حتى لو كانت القيمة فارغة (للحسابات الجديدة)
+                if (isset($updates['bank_name'])) {
                     $updateData['bank_name'] = $updates['bank_name'];
-                } elseif (isset($updates['bank_name_id']) && !empty($updates['bank_name_id'])) {
+                } elseif (isset($updates['bank_name_id'])) {
                     $updateData['bank_name'] = $updates['bank_name_id'];
                 }
 
-                // اسم صاحب الحساب - السماح بالتحديث دائماً
-                if (isset($updates['re_guardian_name']) && !empty($updates['re_guardian_name'])) {
+                // اسم صاحب الحساب - السماح بالقيم الفارغة
+                if (isset($updates['re_guardian_name'])) {
                     $updateData['re_guardian_name'] = $updates['re_guardian_name'];
-                } elseif (isset($updates['account_holder_name']) && !empty($updates['account_holder_name'])) {
+                } elseif (isset($updates['account_holder_name'])) {
                     $updateData['re_guardian_name'] = $updates['account_holder_name'];
                 }
 
-                // رقم هوية صاحب الحساب - السماح بالتحديث دائماً
-                if (isset($updates['person_owner_identity_number']) && !empty($updates['person_owner_identity_number'])) {
+                // رقم هوية صاحب الحساب - السماح بالقيم الفارغة
+                if (isset($updates['person_owner_identity_number'])) {
                     $updateData['person_owner_identity_number'] = $updates['person_owner_identity_number'];
-                } elseif (isset($updates['account_holder_identity']) && !empty($updates['account_holder_identity'])) {
+                } elseif (isset($updates['account_holder_identity'])) {
                     $updateData['person_owner_identity_number'] = $updates['account_holder_identity'];
                 }
 
-                // رقم هاتف صاحب الحساب - السماح بالتحديث دائماً
-                if (isset($updates['re_phone_number']) && !empty($updates['re_phone_number'])) {
+                // رقم هاتف صاحب الحساب - السماح بالقيم الفارغة
+                if (isset($updates['re_phone_number'])) {
                     $updateData['re_phone_number'] = $updates['re_phone_number'];
-                } elseif (isset($updates['account_holder_phone']) && !empty($updates['account_holder_phone'])) {
+                } elseif (isset($updates['account_holder_phone'])) {
                     $updateData['re_phone_number'] = $updates['account_holder_phone'];
                 }
 
-                // IBAN - يتم تحديثه دائماً
-                if (isset($updates['iban_usd']) && !empty($updates['iban_usd'])) $updateData['iban_usd'] = $updates['iban_usd'];
-                elseif (isset($updates['iban']) && !empty($updates['iban'])) $updateData['iban_usd'] = $updates['iban'];
+                // IBAN - السماح بالقيم الفارغة
+                if (isset($updates['iban_usd'])) $updateData['iban_usd'] = $updates['iban_usd'];
+                elseif (isset($updates['iban'])) $updateData['iban_usd'] = $updates['iban'];
 
-                if (isset($updates['iban_shekel']) && !empty($updates['iban_shekel'])) $updateData['iban_shekel'] = $updates['iban_shekel'];
+                if (isset($updates['iban_shekel'])) $updateData['iban_shekel'] = $updates['iban_shekel'];
 
-                if (empty($updateData)) continue;
+                // السماح بإنشاء حساب جديد حتى لو كانت بعض الحقول فارغة
+                // الهدف: إنشاء سجل placeholder يُكمله المستخدم لاحقاً
+                $isNewAccount = !isset($accounts[$index]);
+
+                // للحسابات الجديدة: حتى لو كانت كل الحقول فارغة، نسمح بالإنشاء
+                // للحسابات الموجودة: فقط إذا كان هناك تحديث فعلي
+                if (empty($updateData) && !$isNewAccount) {
+                    Log::info('⏭️ تخطي التحديث - لا يوجد بيانات جديدة', [
+                        'index' => $index,
+                        'is_new_account' => false
+                    ]);
+                    continue;
+                }
+
+                // للحسابات الجديدة: إذا لم يتم إرسال أي بيانات، نضع قيم افتراضية
+                if ($isNewAccount && empty($updateData)) {
+                    Log::info('🔧 حساب جديد بدون بيانات - إنشاء placeholder', [
+                        'index' => $index,
+                        'guardian_name' => $sponsorship->guardian_name ?? '',
+                        'guardian_identity' => $guardianIdentity ?? ''
+                    ]);
+
+                    // قيم افتراضية من بيانات الكفالة
+                    $updateData['re_guardian_name'] = $sponsorship->guardian_name ?? '';
+                    $updateData['person_owner_identity_number'] = $guardianIdentity ?? $sponsorship->identity_number ?? '';
+                    $updateData['re_phone_number'] = $sponsorship->guardian_phone ?? '';
+                }
 
                 // التحقق من وجود حساب للفهرس
                 if (isset($accounts[$index])) {
@@ -1729,14 +1737,24 @@ class SponsorshipSyncController extends Controller
 
                         $newFileIdNumber = generateFileIdFromDataTable();
 
-                        // إنشاء سجل جديد في جدول data للولي
-                        DB::table('data')->insert([
+                        // إنشاء سجل جديد في جدول data للولي مع الاسم الكامل
+                        $guardianInsertData = [
                             'file_id_number' => $newFileIdNumber,
                             'data_id_number' => $guardianIdentity ?? $sponsorship->identity_number,
-                            'data_id_type' => 1, // هوية وطنية
                             'created_at' => now(),
                             'updated_at' => now()
-                        ]);
+                        ];
+
+                        // إضافة الاسم الكامل إذا كان متاحاً
+                        if (isset($updates['guardian_first_name'])) $guardianInsertData['data_first_name'] = $updates['guardian_first_name'];
+                        if (isset($updates['guardian_father_name'])) $guardianInsertData['data_father_name'] = $updates['guardian_father_name'];
+                        if (isset($updates['guardian_grandfather_name'])) $guardianInsertData['data_grand_father_name'] = $updates['guardian_grandfather_name'];
+                        if (isset($updates['guardian_family_name'])) $guardianInsertData['data_family_name'] = $updates['guardian_family_name'];
+                        if (isset($updates['guardian_phone'])) $guardianInsertData['data_phone_number'] = $updates['guardian_phone'];
+                        if (isset($updates['guardian_phone2'])) $guardianInsertData['data_alt_phone_number'] = $updates['guardian_phone2'];
+                        if (isset($updates['guardian_detailed_address'])) $guardianInsertData['data_current_address'] = $updates['guardian_detailed_address'];
+
+                        DB::table('data')->insert($guardianInsertData);
 
                         $validGuardianRegistration = $newFileIdNumber;
 

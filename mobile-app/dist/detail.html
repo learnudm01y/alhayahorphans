@@ -9,6 +9,8 @@
 
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="logo01.png">
+    <!-- Safe Area يجب أن يكون قبل style.css -->
+    <link rel="stylesheet" href="css/safe-area.css">
     <link rel="stylesheet" href="css/style.css">
     <!-- Material Icons & Fonts - Offline Version -->
     <link rel="stylesheet" href="css/material-icons.css">
@@ -18,13 +20,13 @@
     <style>
         * { box-sizing: border-box; }
         html, body { overscroll-behavior: none; -webkit-overflow-scrolling: auto; }
-        body { font-family: 'Segoe UI', Tahoma, Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 0; min-height: 100vh; }
-        .detail-header { background: linear-gradient(135deg, #2a8b8b, #1e6b6b); color: white; padding: 15px 20px; display: flex; align-items: center; gap: 15px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+        /* body styles are in safe-area.css and style.css */
+        .detail-header { background: linear-gradient(135deg, #2a8b8b, #1e6b6b); color: white; padding: 15px 20px; display: flex; align-items: center; gap: 15px; position: fixed; top: 30px; left: 0; right: 0; z-index: 9999; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
         .back-btn { background: rgba(255,255,255,0.2); border: none; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         .detail-header h1 { font-size: 1.1rem; flex: 1; margin: 0; }
         .save-btn { background: #28a745; border: none; color: white; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 5px; }
         .save-btn:disabled { background: #ccc; cursor: not-allowed; }
-        .detail-content { padding: 15px; padding-bottom: 100px; }
+        .detail-content { padding: 15px; padding-bottom: 100px; margin-top: 100px; }
         .detail-section { background: white; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden; }
         .section-title { background: linear-gradient(135deg, #2a8b8b, #1e6b6b); color: white; padding: 12px 15px; font-size: 1rem; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 10px; }
         .section-title .material-icons { font-size: 20px; }
@@ -55,6 +57,10 @@
     </style>
 </head>
 <body>
+    <!-- Safe Area Bars -->
+    <div class="safe-area-top"></div>
+    <div class="safe-area-bottom"></div>
+
     <header class="detail-header">
         <button class="back-btn" onclick="goBack()"><span class="material-icons">arrow_forward</span></button>
         <h1 id="pageTitle">تفاصيل الكفالة</h1>
@@ -133,10 +139,7 @@
                     <div class="form-field"><label class="form-label">رقم الهاتف الأول</label><input type="tel" class="form-input" id="guardian_phone" data-field="guardian_phone"></div>
                     <div class="form-field"><label class="form-label">رقم الهاتف الثاني</label><input type="tel" class="form-input" id="guardian_phone2" data-field="guardian_phone2"></div>
                 </div>
-                <div class="form-field"><label class="form-label">المدينة</label>
-                    <select class="form-select" id="guardian_city_id" data-field="guardian_city_id"><option value="">-- اختر المدينة --</option></select>
-                </div>
-                <div class="form-field"><label class="form-label">العنوان التفصيلي</label><textarea class="form-input" id="guardian_detailed_address" data-field="guardian_detailed_address" rows="2" style="resize: vertical;"></textarea></div>
+                <div class="form-field"><label class="form-label">العنوان التفصيلي</label><textarea class="form-input" id="guardian_detailed_address" data-field="guardian_detailed_address" rows="3" style="resize: vertical;"></textarea></div>
             </div>
         </div>
 
@@ -217,15 +220,19 @@
 
                 // التعامل مع أنواع الأشخاص المختلفة
                 const personType = currentSponsorship.person_type || '';
+                console.log('🔍 Person Type:', personType);
+                console.log('🏦 Bank Accounts:', currentSponsorship.bank_accounts);
                 handlePersonTypeDisplay(personType);
 
-                // إخفاء قسم المعيل إذا كان المكفول هو المعيل نفسه (person_type = breadwinner)
+                // عرض قسم البيانات البنكية دائماً - للجميع
+                document.getElementById('bankSection').style.display = 'block';
+
+                // إخفاء قسم المعيل فقط إذا كان المكفول هو المعيل نفسه
                 if (personType === 'breadwinner') {
                     document.getElementById('guardianSection').style.display = 'none';
-                    document.getElementById('bankSection').style.display = 'none';
+                    console.log('👤 Breadwinner - hiding guardian section, showing bank section');
                 } else {
                     document.getElementById('guardianSection').style.display = 'block';
-                    document.getElementById('bankSection').style.display = 'block';
                 }
                 document.getElementById('noDataMessage').style.display = 'none';
                 document.getElementById('pageTitle').textContent = currentSponsorship.first_name || currentSponsorship.orphan_name || 'تفاصيل الكفالة';
@@ -323,7 +330,7 @@
         function populateForm(data) {
             console.log('📋 populateForm - orphan_gender:', data.orphan_gender, 'type:', typeof data.orphan_gender);
             console.log('📋 populateForm - health_status_id:', data.health_status_id, 'type:', typeof data.health_status_id);
-            console.log('📋 populateForm - guardian_city_id:', data.guardian_city_id, 'type:', typeof data.guardian_city_id);
+            // تم إزالة عمود المدينة
             console.log('👤 Guardian data:', {
                 first_name: data.guardian_first_name,
                 father_name: data.guardian_father_name,
@@ -351,47 +358,63 @@
             setValue('guardian_identity_number', data.guardian_identity_number || '');
             setValue('guardian_phone', data.guardian_phone || '');
             setValue('guardian_phone2', data.guardian_phone2 || '');
-            setValue('guardian_city_id', data.guardian_city_id || '');
             setValue('guardian_detailed_address', data.guardian_detailed_address || '');
             populateBankAccounts(data.bank_accounts || []);
         }
 
         function populateBankAccounts(accounts) {
-            console.log('📊 Bank accounts data:', accounts); // للتأكد من البيانات
+            console.log('📊 Bank accounts data:', accounts);
             const container = document.getElementById('bankAccountsContainer');
-            if (!accounts || accounts.length === 0) { container.innerHTML = '<p style="color: #888; text-align: center;">لا توجد حسابات بنكية</p>'; return; }
+
+            // إذا لم تكن هناك حسابات، نعرض نموذج إضافة حساب جديد فارغ
+            if (!accounts || accounts.length === 0) {
+                container.innerHTML = `
+                    <div class="no-bank-message" style="text-align: center; padding: 20px; color: #666;">
+                        <span class="material-icons" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 10px;">account_balance</span>
+                        <p style="margin-bottom: 15px;">لا توجد حسابات بنكية لهذا الشخص</p>
+                        <p style="font-size: 12px; color: #999;">اضغط على زر "إضافة حساب" أعلاه لإضافة حساب بنكي جديد</p>
+                    </div>
+                `;
+                return;
+            }
+
             let html = '';
             accounts.forEach((account, index) => {
-                console.log(`🏦 Account ${index + 1}:`, account); // طباعة كل حساب
+                console.log('🏦 Account ' + (index + 1) + ':', account);
                 const statusClass = account.check_account === 1 ? 'approved' : 'pending';
                 const statusText = account.check_account === 1 ? 'حساب معتمد' : 'قيد المراجعة';
-                html += `<div class="bank-account-card" data-account-index="${index}">
-                    <div class="bank-account-header">
-                        <span class="bank-account-title"><span class="material-icons">account_balance</span> حساب بنكي رقم ${index + 1}</span>
-                        <span class="bank-account-status ${statusClass}">${statusText}</span>
-                    </div>
-                    <div class="form-field"><label class="form-label">اسم البنك</label>
-                        <select class="form-select" data-bank-field="bank_name" data-account-index="${index}">
-                            <option value="">-- اختر البنك --</option>
-                            ${bankNames.map(b => `<option value="${b.id}" ${(account.bank_name == b.id) ? 'selected' : ''}>${b.description}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div class="form-field"><label class="form-label">اسم صاحب الحساب</label>
-                        <input type="text" class="form-input" value="${account.re_guardian_name || ''}" data-bank-field="re_guardian_name" data-account-index="${index}">
-                    </div>
-                    <div class="form-field"><label class="form-label">رقم هوية صاحب الحساب</label>
-                        <input type="text" class="form-input" value="${account.person_owner_identity_number || ''}" data-bank-field="person_owner_identity_number" data-account-index="${index}">
-                    </div>
-                    <div class="form-field"><label class="form-label">رقم هاتف صاحب الحساب</label>
-                        <input type="tel" class="form-input" value="${account.re_phone_number || ''}" data-bank-field="re_phone_number" data-account-index="${index}">
-                    </div>
-                    <div class="form-field"><label class="form-label">رقم IBAN بالدولار</label>
-                        <input type="text" class="form-input" value="${account.iban_usd || account.iban || ''}" data-bank-field="iban_usd" data-account-index="${index}" dir="ltr" style="text-align: left; font-family: monospace;">
-                    </div>
-                    <div class="form-field"><label class="form-label">رقم IBAN بالشيكل</label>
-                        <input type="text" class="form-input" value="${account.iban_shekel || ''}" data-bank-field="iban_shekel" data-account-index="${index}" dir="ltr" style="text-align: left; font-family: monospace;">
-                    </div>
-                </div>`;
+
+                const bankOptions = bankNames.map(b =>
+                    '<option value="' + b.id + '" ' + ((account.bank_name == b.id) ? 'selected' : '') + '>' + b.description + '</option>'
+                ).join('');
+
+                html += '<div class="bank-account-card" data-account-index="' + index + '">' +
+                    '<div class="bank-account-header">' +
+                        '<span class="bank-account-title"><span class="material-icons">account_balance</span> حساب بنكي رقم ' + (index + 1) + '</span>' +
+                        '<span class="bank-account-status ' + statusClass + '">' + statusText + '</span>' +
+                    '</div>' +
+                    '<div class="form-field"><label class="form-label">اسم البنك</label>' +
+                        '<select class="form-select" data-bank-field="bank_name" data-account-index="' + index + '">' +
+                            '<option value="">-- اختر البنك --</option>' +
+                            bankOptions +
+                        '</select>' +
+                    '</div>' +
+                    '<div class="form-field"><label class="form-label">اسم صاحب الحساب</label>' +
+                        '<input type="text" class="form-input" value="' + (account.re_guardian_name || '') + '" data-bank-field="re_guardian_name" data-account-index="' + index + '">' +
+                    '</div>' +
+                    '<div class="form-field"><label class="form-label">رقم هوية صاحب الحساب</label>' +
+                        '<input type="text" class="form-input" value="' + (account.person_owner_identity_number || '') + '" data-bank-field="person_owner_identity_number" data-account-index="' + index + '">' +
+                    '</div>' +
+                    '<div class="form-field"><label class="form-label">رقم هاتف صاحب الحساب</label>' +
+                        '<input type="tel" class="form-input" value="' + (account.re_phone_number || '') + '" data-bank-field="re_phone_number" data-account-index="' + index + '">' +
+                    '</div>' +
+                    '<div class="form-field"><label class="form-label">رقم IBAN بالدولار</label>' +
+                        '<input type="text" class="form-input" value="' + (account.iban_usd || account.iban || '') + '" data-bank-field="iban_usd" data-account-index="' + index + '" dir="ltr" style="text-align: left; font-family: monospace;">' +
+                    '</div>' +
+                    '<div class="form-field"><label class="form-label">رقم IBAN بالشيكل</label>' +
+                        '<input type="text" class="form-input" value="' + (account.iban_shekel || '') + '" data-bank-field="iban_shekel" data-account-index="' + index + '" dir="ltr" style="text-align: left; font-family: monospace;">' +
+                    '</div>' +
+                '</div>';
             });
             container.innerHTML = html;
             bindBankAccountEvents();
@@ -483,7 +506,7 @@
                 // إرسال نوع الشخص (المعيل) دائماً مع أي تعديل على بيانات المعيل
                 if (modifiedFields.guardian_first_name || modifiedFields.guardian_father_name || modifiedFields.guardian_grandfather_name ||
                     modifiedFields.guardian_family_name || modifiedFields.guardian_identity_number || modifiedFields.guardian_phone ||
-                    modifiedFields.guardian_phone2 || modifiedFields.guardian_city_id || modifiedFields.guardian_detailed_address ||
+                    modifiedFields.guardian_phone2 || modifiedFields.guardian_detailed_address ||
                     modifiedFields.guardian_person_type) {
                     // إضافة نوع الشخص الحالي (سواء تم تغييره أو لا)
                     dataToSave.guardian_person_type = modifiedFields.guardian_person_type || document.getElementById('guardian_person_type').value || 'breadwinner';
@@ -492,20 +515,34 @@
 
                 await SyncService.saveLocalChange(currentSponsorship.id, dataToSave);
 
-                // تحديث البيانات البنكية محلياً
-                if (dataToSave.bank_accounts_updates && currentSponsorship.bank_accounts) {
+                // تحديث البيانات البنكية محلياً (تحديث وإضافة حسابات جديدة)
+                if (dataToSave.bank_accounts_updates) {
+                    // التأكد من وجود مصفوفة bank_accounts
+                    if (!currentSponsorship.bank_accounts) {
+                        currentSponsorship.bank_accounts = [];
+                    }
+                    if (!originalData.bank_accounts) {
+                        originalData.bank_accounts = [];
+                    }
+
                     const bankUpdates = dataToSave.bank_accounts_updates;
                     Object.keys(bankUpdates).forEach(accountIndex => {
                         const index = parseInt(accountIndex);
                         if (currentSponsorship.bank_accounts[index]) {
+                            // تحديث حساب موجود
                             Object.keys(bankUpdates[accountIndex]).forEach(field => {
                                 currentSponsorship.bank_accounts[index][field] = bankUpdates[accountIndex][field];
-                                // تحديث originalData.bank_accounts أيضاً
-                                if (originalData.bank_accounts && originalData.bank_accounts[index]) {
-                                    originalData.bank_accounts[index][field] = bankUpdates[accountIndex][field];
-                                }
                             });
+                        } else {
+                            // إضافة حساب جديد
+                            currentSponsorship.bank_accounts[index] = {
+                                ...bankUpdates[accountIndex],
+                                _isNew: true,
+                                check_account: 0
+                            };
                         }
+                        // تحديث originalData أيضاً
+                        originalData.bank_accounts[index] = { ...currentSponsorship.bank_accounts[index] };
                     });
                     console.log('💳 تم تحديث البيانات البنكية محلياً:', currentSponsorship.bank_accounts);
                 }
@@ -567,8 +604,32 @@
             }
             currentSponsorship.bank_accounts.push(newAccount);
 
+            // ✅ إضافة الحساب الجديد إلى modifiedFields فوراً
+            // حتى لو لم يكتب المستخدم أي شيء، سيتم إرسال بيانات افتراضية
+            const newIndex = currentSponsorship.bank_accounts.length - 1;
+            if (!modifiedFields.bank_accounts_updates) {
+                modifiedFields.bank_accounts_updates = {};
+            }
+            modifiedFields.bank_accounts_updates[newIndex] = {
+                re_guardian_name: newAccount.re_guardian_name,
+                person_owner_identity_number: newAccount.person_owner_identity_number,
+                re_phone_number: newAccount.re_phone_number,
+                bank_name: '',
+                iban_usd: '',
+                iban_shekel: ''
+            };
+
+            console.log('🆕 حساب جديد تمت إضافته:', {
+                index: newIndex,
+                account: newAccount,
+                modifiedFields: modifiedFields.bank_accounts_updates
+            });
+
             // إعادة عرض القائمة
             populateBankAccounts(currentSponsorship.bank_accounts);
+
+            // تفعيل زر الحفظ فوراً
+            updateSaveButton();
 
             showToast('تم إضافة حساب بنكي جديد. قم بملء البيانات وحفظها.', 'success');
         }
@@ -583,5 +644,6 @@
         if (window.Capacitor?.Plugins?.App) window.Capacitor.Plugins.App.addListener('backButton', goBack);
     </script>
     <script src="js/icons-fallback.js"></script>
+    <script src="js/safe-area-keyboard.js"></script>
 </body>
 </html>

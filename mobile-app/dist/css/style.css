@@ -36,6 +36,9 @@ body {
     direction: rtl;
     min-height: 100vh;
     overflow-x: hidden;
+    padding-top: var(--safe-area-top-height, 30px) !important;
+    padding-bottom: var(--safe-area-bottom-height, 45px) !important;
+    margin: 0 !important;
 }
 
 /* Container */
@@ -92,6 +95,7 @@ body {
     gap: 10px;
     padding: 10px 15px;
     justify-content: center;
+    margin-top: 16px;
 }
 
 .nav-tab {
@@ -457,12 +461,10 @@ body {
     }
 }
 
-/* PWA Specific */
+/* PWA Specific - ملاحظة: الـ padding يُطبق من safe-area.css */
 @media (display-mode: standalone) {
-    body {
-        padding-top: env(safe-area-inset-top);
-        padding-bottom: env(safe-area-inset-bottom);
-    }
+    /* Padding already applied from safe-area.css */
+    /* لا حاجة لإعادة التطبيق هنا لتجنب التعارض */
 }
 
 /* Loading State */

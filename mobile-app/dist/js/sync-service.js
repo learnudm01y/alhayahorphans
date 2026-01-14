@@ -1085,7 +1085,10 @@ const SyncService = {
     },
 
     async getLocalSponsorship(id) {
-        return await this.dbGet('sponsorships', id);
+        const result = await this.dbGet('sponsorships', id);
+        console.log('🟢 getLocalSponsorship - id:', id);
+        console.log('🟢 getLocalSponsorship - bank_accounts:', result?.bank_accounts);
+        return result;
     },
 
     // دالة للوصول للجداول المساعدة
@@ -1103,28 +1106,55 @@ const SyncService = {
     // ========================================
 
     async saveLocalChange(sponsorshipId, updates) {
+        console.log('🔵 saveLocalChange START - sponsorshipId:', sponsorshipId);
+        console.log('🔵 saveLocalChange - updates:', JSON.stringify(updates, null, 2));
+
         // حفظ التغيير محلياً
         const sponsorship = await this.dbGet('sponsorships', sponsorshipId);
+        console.log('🔵 Current sponsorship from DB:', sponsorship ? 'found' : 'NOT FOUND');
+        console.log('🔵 Current bank_accounts:', sponsorship?.bank_accounts);
+
         if (sponsorship) {
             const updated = { ...sponsorship, ...updates, _locallyModified: true };
 
             // تطبيق تحديثات الحسابات البنكية على bank_accounts المحلية
-            if (updates.bank_accounts_updates && sponsorship.bank_accounts) {
+            if (updates.bank_accounts_updates) {
                 const bankUpdates = updates.bank_accounts_updates;
-                updated.bank_accounts = [...sponsorship.bank_accounts]; // نسخة جديدة
+                // إنشاء نسخة من bank_accounts أو مصفوفة جديدة إذا لم تكن موجودة
+                updated.bank_accounts = sponsorship.bank_accounts ? JSON.parse(JSON.stringify(sponsorship.bank_accounts)) : [];
+                console.log('🔵 Before update - bank_accounts length:', updated.bank_accounts.length);
 
                 Object.keys(bankUpdates).forEach(accountIndex => {
                     const index = parseInt(accountIndex);
+                    console.log('🔵 Processing account index:', index);
+
                     if (updated.bank_accounts[index]) {
+                        // تحديث حساب موجود
+                        console.log('🔵 Updating existing account at index:', index);
                         Object.keys(bankUpdates[accountIndex]).forEach(field => {
                             updated.bank_accounts[index][field] = bankUpdates[accountIndex][field];
                         });
+                    } else {
+                        // إضافة حساب جديد
+                        console.log('🔵 Adding NEW account at index:', index);
+                        const newAccount = {
+                            ...bankUpdates[accountIndex],
+                            _isNew: true,
+                            check_account: 0
+                        };
+                        // التأكد من أن المصفوفة بالطول الصحيح
+                        while (updated.bank_accounts.length <= index) {
+                            updated.bank_accounts.push(null);
+                        }
+                        updated.bank_accounts[index] = newAccount;
+                        console.log('🆕 تم إضافة حساب بنكي جديد في IndexedDB:', newAccount);
                     }
                 });
-                console.log('💳 تم تحديث bank_accounts محلياً في IndexedDB:', updated.bank_accounts);
+                console.log('💳 After update - bank_accounts:', JSON.stringify(updated.bank_accounts));
             }
 
             await this.dbPut('sponsorships', updated);
+            console.log('✅ Sponsorship saved to IndexedDB with bank_accounts:', updated.bank_accounts?.length || 0);
 
             // التأكد من إضافة person_type للتغييرات إذا كانت موجودة في الكفالة
             if (!updates.person_type && sponsorship.person_type) {

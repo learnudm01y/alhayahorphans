@@ -1,5 +1,44 @@
 {
-  "appId": "com.unnamed",
-  "appName": "unnamed",
-  "webDir": "dist"
+  "appId": "org.alhayah.sponsorships",
+  "appName": "Sponsorships",
+  "webDir": "mobile-app/dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 0,
+      "launchAutoHide": true,
+      "backgroundColor": "#2a8b8b",
+      "showSpinner": false
+    },
+    "Camera": {
+      "presentationStyle": "fullscreen",
+      "saveToGallery": true
+    },
+    "Filesystem": {
+      "writeOptions": {
+        "encoding": "utf8"
+      }
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_icon_config_sample",
+      "iconColor": "#2a8b8b",
+      "sound": "beep.wav"
+    },
+    "BackgroundTask": {
+      "foregroundNotification": {
+        "title": "جاري المزامنة",
+        "body": "يتم مزامنة البيانات في الخلفية...",
+        "icon": "ic_stat_icon_config_sample"
+      }
+    }
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true,
+    "minWebViewVersion": 60
+  }
 }
