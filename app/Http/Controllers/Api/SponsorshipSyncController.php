@@ -2810,14 +2810,15 @@ class SponsorshipSyncController extends Controller
 
             try {
                 // استخدام updateOrInsert لتجنب التكرار
+                // الـ unique key هو على (file_id_number, field_key) وليس (sponsorship_id, field_key)
                 DB::table('portal_general_registration_field_values')
                     ->updateOrInsert(
                         [
-                            'sponsorship_id' => $sponsorshipId,
+                            'file_id_number' => $fileIdNumber,
                             'field_key' => $fieldKey,
                         ],
                         [
-                            'file_id_number' => $fileIdNumber,
+                            'sponsorship_id' => $sponsorshipId,
                             'identity_number' => $identityNumber,
                             'field_value' => $fieldValue,
                             'updated_by_user_id' => $userId,
@@ -4030,47 +4031,29 @@ class SponsorshipSyncController extends Controller
         ?int $userId = null
     ): bool {
         try {
-            // التحقق من وجود السجل
-            $existing = DB::table('portal_general_registration_field_values')
-                ->where('sponsorship_id', $sponsorshipId)
-                ->where('field_key', $fieldKey)
-                ->first();
-
-            if ($existing) {
-                // تحديث السجل الموجود
-                DB::table('portal_general_registration_field_values')
-                    ->where('id', $existing->id)
-                    ->update([
+            // استخدام updateOrInsert لتجنب التكرار
+            // الـ unique key هو على (file_id_number, field_key)
+            DB::table('portal_general_registration_field_values')
+                ->updateOrInsert(
+                    [
+                        'file_id_number' => $fileIdNumber,
+                        'field_key' => $fieldKey,
+                    ],
+                    [
+                        'sponsorship_id' => $sponsorshipId,
+                        'identity_number' => $identityNumber,
                         'field_value' => $fieldValue,
                         'updated_by_user_id' => $userId,
                         'updated_at' => now()
-                    ]);
+                    ]
+                );
 
-                Log::info('✅ تم تحديث قيمة الحقل في portal_general_registration_field_values', [
-                    'sponsorship_id' => $sponsorshipId,
-                    'field_key' => $fieldKey,
-                    'old_value' => $existing->field_value,
-                    'new_value' => $fieldValue
-                ]);
-            } else {
-                // إنشاء سجل جديد
-                DB::table('portal_general_registration_field_values')->insert([
-                    'sponsorship_id' => $sponsorshipId,
-                    'file_id_number' => $fileIdNumber,
-                    'identity_number' => $identityNumber,
-                    'field_key' => $fieldKey,
-                    'field_value' => $fieldValue,
-                    'updated_by_user_id' => $userId,
-                    'created_at' => now(),
-                    'updated_at' => now()
-                ]);
-
-                Log::info('✅ تم إنشاء قيمة حقل جديدة في portal_general_registration_field_values', [
-                    'sponsorship_id' => $sponsorshipId,
-                    'field_key' => $fieldKey,
-                    'field_value' => $fieldValue
-                ]);
-            }
+            Log::info('✅ تم حفظ/تحديث قيمة الحقل في portal_general_registration_field_values', [
+                'sponsorship_id' => $sponsorshipId,
+                'file_id_number' => $fileIdNumber,
+                'field_key' => $fieldKey,
+                'field_value' => $fieldValue
+            ]);
 
             return true;
         } catch (\Exception $e) {
