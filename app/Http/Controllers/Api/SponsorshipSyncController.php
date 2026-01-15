@@ -1296,6 +1296,23 @@ class SponsorshipSyncController extends Controller
                                'guardian_family_name', 'guardian_phone', 'guardian_phone2',
                                'guardian_detailed_address', 'guardian_identity_number'];
 
+            // ✅ التحقق من أرقام الهاتف قبل الحفظ (الحد الأقصى 15 رقم لتجنب تجاوز BIGINT)
+            $maxPhoneLength = 15;
+            if (isset($updates['guardian_phone']) && strlen(preg_replace('/[^0-9]/', '', $updates['guardian_phone'])) > $maxPhoneLength) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'رقم الهاتف الأول طويل جداً (الحد الأقصى ' . $maxPhoneLength . ' رقم)',
+                    'field' => 'guardian_phone'
+                ], 400);
+            }
+            if (isset($updates['guardian_phone2']) && strlen(preg_replace('/[^0-9]/', '', $updates['guardian_phone2'])) > $maxPhoneLength) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'رقم الهاتف الثاني طويل جداً (الحد الأقصى ' . $maxPhoneLength . ' رقم)',
+                    'field' => 'guardian_phone2'
+                ], 400);
+            }
+
             $guardianDataToUpdate = [];
             foreach ($guardianFields as $field) {
                 if (isset($updates[$field])) {
@@ -1308,8 +1325,14 @@ class SponsorshipSyncController extends Controller
                         $dataField = 'data_id_number';
                     } elseif ($field === 'guardian_phone') {
                         $dataField = 'data_phone_number';
+                        // تحويل لرقم وإزالة الأحرف غير الرقمية
+                        $guardianDataToUpdate[$dataField] = (int)preg_replace('/[^0-9]/', '', $updates[$field]);
+                        continue;
                     } elseif ($field === 'guardian_phone2') {
                         $dataField = 'data_alt_phone_number';
+                        // تحويل لرقم وإزالة الأحرف غير الرقمية
+                        $guardianDataToUpdate[$dataField] = (int)preg_replace('/[^0-9]/', '', $updates[$field]);
+                        continue;
                     }
                     $guardianDataToUpdate[$dataField] = $updates[$field];
                 }

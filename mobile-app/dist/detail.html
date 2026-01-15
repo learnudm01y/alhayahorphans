@@ -144,8 +144,8 @@
                 </div>
                 <div class="form-field"><label class="form-label">رقم هوية المعيل</label><input type="text" class="form-input" id="guardian_identity_number" data-field="guardian_identity_number"></div>
                 <div class="form-row">
-                    <div class="form-field"><label class="form-label">رقم الهاتف الأول</label><input type="tel" class="form-input" id="guardian_phone" data-field="guardian_phone"></div>
-                    <div class="form-field"><label class="form-label">رقم الهاتف الثاني</label><input type="tel" class="form-input" id="guardian_phone2" data-field="guardian_phone2"></div>
+                    <div class="form-field"><label class="form-label">رقم الهاتف الأول</label><input type="tel" class="form-input" id="guardian_phone" data-field="guardian_phone" maxlength="15" pattern="[0-9]*" title="يجب أن يكون رقم الهاتف أرقام فقط (15 رقم كحد أقصى)"></div>
+                    <div class="form-field"><label class="form-label">رقم الهاتف الثاني</label><input type="tel" class="form-input" id="guardian_phone2" data-field="guardian_phone2" maxlength="15" pattern="[0-9]*" title="يجب أن يكون رقم الهاتف أرقام فقط (15 رقم كحد أقصى)"></div>
                 </div>
                 <div class="form-field"><label class="form-label">العنوان التفصيلي</label><textarea class="form-input" id="guardian_detailed_address" data-field="guardian_detailed_address" rows="3" style="resize: vertical;"></textarea></div>
             </div>
@@ -543,6 +543,22 @@
                         dataToSave.last_name = modifiedFields.last_name || originalData.last_name || '';
                         dataToSave.identity_number = modifiedFields.identity_number || originalData.identity_number || '';
                         dataToSave.person_type = 'family_member'; // المكفول هو فرد أسرة
+
+                        // ✅ قراءة الجنس من الحقل المحدد أو من البيانات الأصلية
+                        const genderSelect = document.getElementById('orphan_gender');
+                        const genderValue = genderSelect ? genderSelect.value : '';
+                        dataToSave.orphan_gender = modifiedFields.orphan_gender || genderValue || originalData.orphan_gender || '';
+                        console.log('📊 orphan_gender للمكفول:', dataToSave.orphan_gender);
+
+                        // ✅ قراءة الحالة الصحية من الحقل المحدد أو من البيانات الأصلية
+                        const healthSelect = document.getElementById('health_status_id');
+                        const healthValue = healthSelect ? healthSelect.value : '';
+                        dataToSave.health_status_id = modifiedFields.health_status_id || healthValue || originalData.health_status_id || '';
+
+                        // ✅ قراءة تاريخ الميلاد من الحقل أو من البيانات الأصلية
+                        const birthDateInput = document.getElementById('birth_date');
+                        const birthDateValue = birthDateInput ? birthDateInput.value : '';
+                        dataToSave.birth_date = modifiedFields.birth_date || birthDateValue || originalData.sponsored_birth_date || '';
                     }
                 }
 
