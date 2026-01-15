@@ -2197,8 +2197,13 @@ class SponsorshipSyncController extends Controller
                     // ===== السيناريو 4ب: إنشاء سجل جديد للأب المتوفي =====
                     Log::info('🆕 لا يوجد سجل للأب المتوفي - سيتم إنشاء سجل جديد');
 
-                    // توليد رقم ملف جديد إذا لم يكن موجوداً
-                    $newFileId = !empty($relationIdNumber) ? $relationIdNumber : ('DF' . date('Ymd') . rand(1000, 9999));
+                    // ✅ توليد رقم ملف جديد باستخدام الخوارزمية الصحيحة (نفس OfflineTestController)
+                    $newFileId = !empty($relationIdNumber) ? $relationIdNumber : generateFileIdFromDataTable();
+
+                    // ✅ تعليم الكود كمستخدم في reserved_codes لمنع التضارب
+                    if (empty($relationIdNumber)) {
+                        markCodeAsUsed($newFileId, null, 'deceased_father في dead_people - sponsorship_id: ' . $sponsorship->id);
+                    }
 
                     $insertData = [
                         're_file_id' => $newFileId,
@@ -2315,8 +2320,13 @@ class SponsorshipSyncController extends Controller
                     // ===== السيناريو 4ب: إنشاء سجل جديد للأم المتوفية =====
                     Log::info('🆕 لا يوجد سجل للأم المتوفية - سيتم إنشاء سجل جديد');
 
-                    // توليد رقم ملف جديد إذا لم يكن موجوداً
-                    $newFileId = !empty($relationIdNumber) ? $relationIdNumber : ('DM' . date('Ymd') . rand(1000, 9999));
+                    // ✅ توليد رقم ملف جديد باستخدام الخوارزمية الصحيحة (نفس OfflineTestController)
+                    $newFileId = !empty($relationIdNumber) ? $relationIdNumber : generateFileIdFromDataTable();
+
+                    // ✅ تعليم الكود كمستخدم في reserved_codes لمنع التضارب
+                    if (empty($relationIdNumber)) {
+                        markCodeAsUsed($newFileId, null, 'deceased_mother في dead_people - sponsorship_id: ' . $sponsorship->id);
+                    }
 
                     $insertData = [
                         're_file_id' => $newFileId,
