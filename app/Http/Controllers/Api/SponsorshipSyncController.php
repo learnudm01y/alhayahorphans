@@ -2024,8 +2024,17 @@ class SponsorshipSyncController extends Controller
                     }
                 } else {
                     // إنشاء سجل جديد في re_people
-                    // ✅ توليد registration_id جديد لأن relation_id_number قد يشير للمعيل في data
-                    $newRegistrationId = $this->generateNewRePeopleFileId();
+                    // ✅ استخدام نفس relation_id_number كـ registration_id (هذا هو التصميم الصحيح)
+                    // relation_id_number يُنشأ عند إنشاء سجل المعيل في data
+                    $newRegistrationId = $relationIdNumber;
+
+                    // إذا كان relation_id_number فارغاً، نُنشئ رقم جديد
+                    if (empty($newRegistrationId)) {
+                        $newRegistrationId = generateFileIdFromDataTable();
+                        Log::info('🆕 تم توليد رقم جديد للمكفول (لم يوجد relation_id_number)', [
+                            'new_registration_id' => $newRegistrationId
+                        ]);
+                    }
 
                     $insertData = [
                         'registration_id' => $newRegistrationId,
