@@ -2382,11 +2382,11 @@ class SponsorshipSyncController extends Controller
             if (!$existingRecord && !empty($identityNumber)) {
                 // البحث في جدول data
                 $existingRecord = DB::table('data')
-                    ->where('data_id', $identityNumber)
+                    ->where('data_id_number', $identityNumber)
                     ->first();
                 if ($existingRecord) {
                     $foundInTable = 'data';
-                    $searchedBy = 'identity_number';
+                    $searchedBy = 'data_id_number';
                     Log::info('✅ تم إيجاد المعيل في جدول data برقم الهوية', [
                         'identity_number' => $identityNumber
                     ]);
@@ -2425,11 +2425,11 @@ class SponsorshipSyncController extends Controller
                 // البحث في جدول re_people
                 if (!$existingRecord) {
                     $existingRecord = DB::table('re_people')
-                        ->where('id_number', $identityNumber)
+                        ->where('person_id', $identityNumber)
                         ->first();
                     if ($existingRecord) {
                         $foundInTable = 're_people';
-                        $searchedBy = 'id_number';
+                        $searchedBy = 'person_id';
                         Log::info('✅ تم إيجاد المعيل في جدول re_people', [
                             'identity_number' => $identityNumber,
                             're_people_id' => $existingRecord->id
@@ -2496,7 +2496,7 @@ class SponsorshipSyncController extends Controller
 
                 $insertData = [
                     'file_id_number' => $fileIdNumber,
-                    'data_id' => $identityNumber ?: null,
+                    'data_id_number' => $identityNumber ?: null,
                     'data_first_name' => $names['first_name'] ?? '',
                     'data_father_name' => $names['father_name'] ?? '',
                     'data_grand_father_name' => $names['grandfather_name'] ?? '',
@@ -2537,16 +2537,16 @@ class SponsorshipSyncController extends Controller
 
             case 'family_member':
                 // إنشاء في جدول re_people
-                $fileId = $this->generateNewRePeopleFileId();
+                $registrationId = $this->generateNewRePeopleFileId();
 
                 $insertData = [
-                    'file_id' => $fileId,
-                    'id_number' => $identityNumber ?: null,
+                    'registration_id' => $registrationId,
+                    'person_id' => $identityNumber ?: null,
                     'first_name' => $names['first_name'] ?? '',
                     'second_name' => $names['father_name'] ?? '',
                     'third_name' => $names['grandfather_name'] ?? '',
                     'last_name' => $names['family_name'] ?? '',
-                    'phone' => $updates['guardian_phone'] ?? null,
+                    // phone غير موجود في re_people - سيُحفظ في EAV
                     'created_at' => now(),
                     'updated_at' => now()
                 ];
@@ -2556,7 +2556,7 @@ class SponsorshipSyncController extends Controller
                 // حفظ البيانات الإضافية في portal_general_registration_field_values
                 $this->saveGuardianExtraFieldValues(
                     $sponsorship->id,
-                    $fileId,
+                    $registrationId,
                     $identityNumber,
                     $updates,
                     $userId
@@ -2572,22 +2572,33 @@ class SponsorshipSyncController extends Controller
 
                 $result['table'] = 're_people';
                 $result['record_id'] = $newId;
-                $result['file_id_number'] = $fileId;
+                $result['file_id_number'] = $registrationId;
 
                 Log::info('🆕 تم إنشاء سجل جديد للمعيل في جدول re_people', [
                     'sponsorship_id' => $sponsorship->id,
                     'new_re_people_id' => $newId,
-                    'file_id' => $fileId,
+                    'registration_id' => $registrationId,
                     'identity_number' => $identityNumber
                 ]);
                 break;
 
             case 'deceased_father':
                 // إنشاء أو تحديث في جدول dead_people كأب متوفي
-                // نحتاج البحث عن سجل dead_people مرتبط بالكفالة
-                $deadPeopleRecord = DB::table('dead_people')
-                    ->where('sponsorship_id', $sponsorship->id)
-                    ->first();
+                // البحث باستخدام re_file_id (relation_id_number من الكفالة) أو father_id
+                $deadPeopleRecord = null;
+
+                if (!empty($sponsorship->relation_id_number)) {
+                    $deadPeopleRecord = DB::table('dead_people')
+                        ->where('re_file_id', $sponsorship->relation_id_number)
+                        ->first();
+                }
+
+                // إذا لم نجد بـ re_file_id، نبحث بـ father_id
+                if (!$deadPeopleRecord && !empty($identityNumber)) {
+                    $deadPeopleRecord = DB::table('dead_people')
+                        ->where('father_id', $identityNumber)
+                        ->first();
+                }
 
                 if ($deadPeopleRecord) {
                     // تحديث سجل موجود
@@ -2613,9 +2624,28 @@ class SponsorshipSyncController extends Controller
                         'dead_people_id' => $deadPeopleRecord->id
                     ]);
                 } else {
-                    // إنشاء سجل جديد
+                    // إنشاء سجل جديد - نحتاج re_file_id صالح
+                    // إذا لم يوجد relation_id_number، نحتاج إنشاء سجل في data أولاً
+                    $reFileId = $sponsorship->relation_id_number;
+                    if (empty($reFileId)) {
+                        // إنشاء سجل data أولاً
+                        $newDataFileId = $this->generateNewGuardianFileId();
+                        DB::table('data')->insert([
+                            'file_id_number' => $newDataFileId,
+                            'data_id_number' => $identityNumber,
+                            'created_at' => now(),
+                            'updated_at' => now()
+                        ]);
+                        $reFileId = $newDataFileId;
+
+                        // تحديث relation_id_number في الكفالة
+                        DB::table('sponsorships')
+                            ->where('id', $sponsorship->id)
+                            ->update(['relation_id_number' => $reFileId]);
+                    }
+
                     $insertData = [
-                        'sponsorship_id' => $sponsorship->id,
+                        're_file_id' => $reFileId,
                         'father_id' => $identityNumber ?: null,
                         'father_first_name' => $names['first_name'] ?? '',
                         'father_second_name' => $names['father_name'] ?? '',
@@ -2630,7 +2660,8 @@ class SponsorshipSyncController extends Controller
 
                     Log::info('🆕 تم إنشاء سجل جديد للأب المتوفي في جدول dead_people', [
                         'sponsorship_id' => $sponsorship->id,
-                        'new_dead_people_id' => $newId
+                        'new_dead_people_id' => $newId,
+                        're_file_id' => $reFileId
                     ]);
                 }
 
@@ -2657,9 +2688,21 @@ class SponsorshipSyncController extends Controller
 
             case 'deceased_mother':
                 // إنشاء أو تحديث في جدول dead_people كأم متوفية
-                $deadPeopleRecord = DB::table('dead_people')
-                    ->where('sponsorship_id', $sponsorship->id)
-                    ->first();
+                // البحث باستخدام re_file_id (relation_id_number من الكفالة) أو mother_id
+                $deadPeopleRecord = null;
+
+                if (!empty($sponsorship->relation_id_number)) {
+                    $deadPeopleRecord = DB::table('dead_people')
+                        ->where('re_file_id', $sponsorship->relation_id_number)
+                        ->first();
+                }
+
+                // إذا لم نجد بـ re_file_id، نبحث بـ mother_id
+                if (!$deadPeopleRecord && !empty($identityNumber)) {
+                    $deadPeopleRecord = DB::table('dead_people')
+                        ->where('mother_id', $identityNumber)
+                        ->first();
+                }
 
                 if ($deadPeopleRecord) {
                     // تحديث سجل موجود
@@ -2685,9 +2728,27 @@ class SponsorshipSyncController extends Controller
                         'dead_people_id' => $deadPeopleRecord->id
                     ]);
                 } else {
-                    // إنشاء سجل جديد
+                    // إنشاء سجل جديد - نحتاج re_file_id صالح
+                    $reFileId = $sponsorship->relation_id_number;
+                    if (empty($reFileId)) {
+                        // إنشاء سجل data أولاً
+                        $newDataFileId = $this->generateNewGuardianFileId();
+                        DB::table('data')->insert([
+                            'file_id_number' => $newDataFileId,
+                            'data_id_number' => $identityNumber,
+                            'created_at' => now(),
+                            'updated_at' => now()
+                        ]);
+                        $reFileId = $newDataFileId;
+
+                        // تحديث relation_id_number في الكفالة
+                        DB::table('sponsorships')
+                            ->where('id', $sponsorship->id)
+                            ->update(['relation_id_number' => $reFileId]);
+                    }
+
                     $insertData = [
-                        'sponsorship_id' => $sponsorship->id,
+                        're_file_id' => $reFileId,
                         'mother_id' => $identityNumber ?: null,
                         'mother_first_name' => $names['first_name'] ?? '',
                         'mother_second_name' => $names['father_name'] ?? '',
@@ -2702,7 +2763,8 @@ class SponsorshipSyncController extends Controller
 
                     Log::info('🆕 تم إنشاء سجل جديد للأم المتوفية في جدول dead_people', [
                         'sponsorship_id' => $sponsorship->id,
-                        'new_dead_people_id' => $newId
+                        'new_dead_people_id' => $newId,
+                        're_file_id' => $reFileId
                     ]);
                 }
 
@@ -2732,18 +2794,16 @@ class SponsorshipSyncController extends Controller
     }
 
     /**
-     * توليد رقم ملف جديد لـ re_people
+     * توليد رقم ملف جديد لـ re_people (registration_id)
      */
     private function generateNewRePeopleFileId(): string
     {
-        $maxFileId = DB::table('re_people')
-            ->selectRaw("CAST(SUBSTRING(file_id, 2) AS UNSIGNED) as num")
-            ->whereRaw("file_id LIKE 'R%' AND file_id REGEXP '^R[0-9]+$'")
-            ->orderByDesc('num')
-            ->value('num');
+        // registration_id هو رقم فقط وليس له بادئة
+        $maxRegistrationId = DB::table('re_people')
+            ->max('registration_id');
 
-        $nextNumber = ($maxFileId ?? 0) + 1;
-        return 'R' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+        $nextNumber = ($maxRegistrationId ?? 0) + 1;
+        return (string) $nextNumber;
     }
 
     /**
@@ -2904,18 +2964,16 @@ class SponsorshipSyncController extends Controller
                 if (!empty($names['grandfather_name'])) $updateData['third_name'] = $names['grandfather_name'];
                 if (!empty($names['family_name'])) $updateData['last_name'] = $names['family_name'];
 
-                if (!empty($updates['guardian_phone'])) {
-                    $updateData['phone'] = $updates['guardian_phone'];
-                }
+                // جدول re_people لا يحتوي على عمود phone - سيُحفظ في EAV
 
                 DB::table('re_people')->where('id', $existingRecord->id)->update($updateData);
-                $result['file_id_number'] = $existingRecord->file_id ?? null;
+                $result['file_id_number'] = $existingRecord->registration_id ?? null;
 
                 // حفظ البيانات الإضافية في portal_general_registration_field_values
                 $this->saveGuardianExtraFieldValues(
                     $sponsorship->id,
-                    $existingRecord->file_id ?? null,
-                    $existingRecord->id_number ?? null,
+                    $existingRecord->registration_id ?? null,
+                    $existingRecord->person_id ?? null,
                     $updates,
                     $userId
                 );
