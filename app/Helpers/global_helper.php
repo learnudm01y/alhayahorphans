@@ -247,26 +247,7 @@ if (!function_exists('generateUniqueReservedCode')) {
 }
 
 if (!function_exists('markCodeAsUsed')) {
-    /**
-     * Mark code as used - simplified for shared hosting
-     * وضع علامة على الرقم كمستخدم - مبسط للاستضافة المشتركة
-     */
-    function markCodeAsUsed($code)
-    {
-        // وضع علامة على الكود كمستخدم في جدول reserved_codes
-        try {
-            DB::table('reserved_codes')
-                ->where('code', $code)
-                ->update([
-                    'used' => true,
-                    'updated_at' => now()
-                ]);
-            Log::info("✅ تم وضع علامة على الرقم {$code} كمستخدم");
-        } catch (\Exception $e) {
-            Log::warning("⚠️ خطأ في تحديث الكود: " . $e->getMessage());
-        }
-        return true;
-    }
+    // تم نقل دالة markCodeAsUsed إلى الأسفل مع إضافة المزيد من المعلومات
 }
 
 if (!function_exists('cleanupOldReservedCodes')) {
@@ -549,12 +530,28 @@ if (!function_exists('syncReservedCodesWithData')) {
 
 if (!function_exists('generateFileIdFromDataTable')) {
     /**
-     * Generate file_id_number using the data table sequence (same algorithm as existing system)
+     * Generate file_id_number using the unified reserved_codes system
+     * ✅ يستخدم الآن generateUniqueReservedCode لضمان حجز الرقم في reserved_codes
      *
+     * @param string|null $sessionId معرف الجلسة للحجز
      * @return string
      */
-    function generateFileIdFromDataTable(): string
+    function generateFileIdFromDataTable(?string $sessionId = null): string
     {
+        // استخدام الخوارزمية الموحدة التي تحجز الرقم في reserved_codes
+        $code = generateUniqueReservedCode('data', 'file_id_number', $sessionId);
+
+        if ($code) {
+            Log::info("✅ [generateFileIdFromDataTable] تم توليد وحجز رقم ملف جديد", [
+                'code' => $code,
+                'session_id' => $sessionId
+            ]);
+            return $code;
+        }
+
+        // في حالة فشل التوليد (نادر جداً)، استخدم الطريقة القديمة كـ fallback
+        Log::warning("⚠️ [generateFileIdFromDataTable] فشل generateUniqueReservedCode، استخدام fallback");
+
         return DB::transaction(function () {
             // جلب آخر file_id_number من جدول data
             $lastFileId = DB::table('data')
@@ -566,9 +563,28 @@ if (!function_exists('generateFileIdFromDataTable')) {
 
             // حساب الرقم التالي
             $nextNumber = $lastFileId ? ((int)$lastFileId + 1) : 1;
+            $code = str_pad($nextNumber, 6, '0', STR_PAD_LEFT);
 
-            // إرجاع الرقم مع 6 خانات
-            return str_pad($nextNumber, 6, '0', STR_PAD_LEFT);
+            // ⚠️ محاولة حجز الرقم في reserved_codes (fallback)
+            try {
+                $exists = DB::table('reserved_codes')->where('code', $code)->exists();
+                if (!$exists) {
+                    DB::table('reserved_codes')->insert([
+                        'code' => $code,
+                        'session_id' => Str::uuid(),
+                        'reserved_at' => now(),
+                        'used' => false,
+                        'notes' => 'fallback from generateFileIdFromDataTable',
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    Log::info("✅ [generateFileIdFromDataTable] تم حجز الرقم في fallback: {$code}");
+                }
+            } catch (\Exception $e) {
+                Log::error("❌ [generateFileIdFromDataTable] فشل حجز الرقم: " . $e->getMessage());
+            }
+
+            return $code;
         });
     }
 }
@@ -596,6 +612,51 @@ if (!function_exists('getFileIdByIdentityNumber')) {
 
         // إذا لم يوجد، إنشاء رقم جديد باستخدام الخوارزمية المعتمدة
         return generateFileIdFromDataTable();
+    }
+}
+
+if (!function_exists('markCodeAsUsed')) {
+    /**
+     * تحديث حالة الكود إلى "مستخدم" في جدول reserved_codes
+     * يجب استدعاء هذه الدالة بعد إدراج السجل بنجاح في الجدول المستهدف
+     *
+     * @param string $code الكود المراد تحديثه
+     * @param int|null $userId معرف المستخدم الذي استخدم الكود
+     * @param string|null $notes ملاحظات إضافية
+     * @return bool
+     */
+    function markCodeAsUsed(string $code, ?int $userId = null, ?string $notes = null): bool
+    {
+        try {
+            $updated = DB::table('reserved_codes')
+                ->where('code', $code)
+                ->update([
+                    'used' => true,
+                    'used_at' => now(),
+                    'used_by_user_id' => $userId,
+                    'notes' => $notes ?? 'تم استخدام الكود',
+                    'updated_at' => now()
+                ]);
+
+            if ($updated) {
+                Log::info("✅ [markCodeAsUsed] تم تحديث الكود كمستخدم", [
+                    'code' => $code,
+                    'user_id' => $userId
+                ]);
+                return true;
+            } else {
+                Log::warning("⚠️ [markCodeAsUsed] الكود غير موجود في reserved_codes", [
+                    'code' => $code
+                ]);
+                return false;
+            }
+        } catch (\Exception $e) {
+            Log::error("❌ [markCodeAsUsed] فشل تحديث الكود", [
+                'code' => $code,
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
     }
 }
 

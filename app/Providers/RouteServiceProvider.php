@@ -34,6 +34,12 @@ class RouteServiceProvider extends ServiceProvider
                 ->prefix('api')
                 ->group(base_path('routes/api.php'));
 
+            // Offline Test Development Routes - للاختبار المحلي فقط
+            // بدون middleware لتسهيل الاختبار
+            Route::middleware('api')
+                ->prefix('api')
+                ->group(base_path('routes/offline-test-development.php'));
+
             Route::middleware('web')
                 ->group(base_path('routes/web.php'));
             Route::middleware(['web','auth','rolebreeze:admin'])
