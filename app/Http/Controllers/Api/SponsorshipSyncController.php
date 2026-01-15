@@ -1289,64 +1289,84 @@ class SponsorshipSyncController extends Controller
                 ->update($filteredUpdates);
 
             // ===================================================================
-            // تحديث بيانات المعيل (الولي) - حفظ في الجدول المناسب حسب guardian_person_type
-            // - breadwinner: جدول data
-            // - family_member: جدول re_people
-            // - deceased_father: جدول dead_people
-            // - deceased_mother: جدول dead_people
+            // تحديث بيانات المعيل (الولي) - دائماً في جدول data
+            // (نفس منطق OfflineTestController)
             // ===================================================================
-            $hasGuardianUpdate = isset($updates['guardian_identity_number']) ||
-                                 isset($updates['guardian_phone']) || isset($updates['guardian_phone2']) ||
-                                 isset($updates['guardian_detailed_address']) ||
-                                 isset($updates['guardian_first_name']) || isset($updates['guardian_father_name']) ||
-                                 isset($updates['guardian_grandfather_name']) || isset($updates['guardian_family_name']);
+            $guardianFields = ['guardian_first_name', 'guardian_father_name', 'guardian_grandfather_name',
+                               'guardian_family_name', 'guardian_phone', 'guardian_phone2',
+                               'guardian_detailed_address', 'guardian_identity_number'];
 
-            if ($hasGuardianUpdate) {
-                $guardianIdentity = $updates['guardian_identity_number'] ?? $sponsorship->guardian_identity_number ?? null;
-                $guardianPersonType = $updates['guardian_person_type'] ?? 'breadwinner'; // الافتراضي = معيل
+            $guardianDataToUpdate = [];
+            foreach ($guardianFields as $field) {
+                if (isset($updates[$field])) {
+                    $dataField = str_replace('guardian_', 'data_', $field);
+                    if ($field === 'guardian_detailed_address') {
+                        $dataField = 'data_current_address';
+                    } elseif ($field === 'guardian_grandfather_name') {
+                        $dataField = 'data_grand_father_name';
+                    } elseif ($field === 'guardian_identity_number') {
+                        $dataField = 'data_id_number';
+                    } elseif ($field === 'guardian_phone') {
+                        $dataField = 'data_phone_number';
+                    } elseif ($field === 'guardian_phone2') {
+                        $dataField = 'data_alt_phone_number';
+                    }
+                    $guardianDataToUpdate[$dataField] = $updates[$field];
+                }
+            }
 
-                Log::info('🔍 بدء معالجة بيانات المعيل', [
-                    'sponsorship_id' => $sponsorshipId,
-                    'guardian_identity' => $guardianIdentity,
-                    'guardian_person_type' => $guardianPersonType
-                ]);
+            // متغير لتخزين رقم الملف الموحد
+            $unifiedFileIdNumber = null;
 
-                // تحضير أسماء المعيل
-                $guardianNames = [
-                    'first_name' => $updates['guardian_first_name'] ?? '',
-                    'father_name' => $updates['guardian_father_name'] ?? '',
-                    'grandfather_name' => $updates['guardian_grandfather_name'] ?? '',
-                    'family_name' => $updates['guardian_family_name'] ?? ''
-                ];
+            if (!empty($guardianDataToUpdate)) {
+                $relationIdNumber = $sponsorship->relation_id_number;
 
-                // استدعاء الدالة الذكية التي تحفظ في الجدول المناسب
-                $guardianResult = $this->saveGuardianToAppropriateTable(
-                    $sponsorship,
-                    $guardianIdentity ?? '',
-                    $guardianNames,
-                    $guardianPersonType,
-                    $updates,
-                    $request->user()->id ?? 0
-                );
+                $dataRecord = null;
+                if ($relationIdNumber) {
+                    $dataRecord = DB::table('data')
+                        ->where('file_id_number', $relationIdNumber)
+                        ->first();
+                }
+                if (!$dataRecord && $sponsorship->internal_file_number) {
+                    $dataRecord = DB::table('data')
+                        ->where('file_id_number', $sponsorship->internal_file_number)
+                        ->first();
+                }
 
-                Log::info('✅ نتيجة حفظ المعيل', [
-                    'sponsorship_id' => $sponsorshipId,
-                    'result' => $guardianResult
-                ]);
+                if ($dataRecord) {
+                    // تحديث سجل موجود
+                    $guardianDataToUpdate['updated_at'] = now();
+                    DB::table('data')->where('id', $dataRecord->id)->update($guardianDataToUpdate);
+                    Log::info('✅ تم تحديث بيانات المعيل في جدول data', [
+                        'sponsorship_id' => $sponsorshipId,
+                        'data_record_id' => $dataRecord->id
+                    ]);
+                } else {
+                    // إنشاء سجل جديد للمعيل
+                    $unifiedFileIdNumber = generateFileIdFromDataTable();
+                    $newDataRecord = array_merge($guardianDataToUpdate, [
+                        'file_id_number' => $unifiedFileIdNumber,
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ]);
+                    $newDataId = DB::table('data')->insertGetId($newDataRecord);
 
-                // تحديث relation_id_number إذا تم إنشاء سجل جديد
-                if (!empty($guardianResult['file_id_number'])) {
+                    // ✅ تعليم الكود كمستخدم
+                    markCodeAsUsed($unifiedFileIdNumber, $request->user()->id ?? null, 'معيل/ولي في data');
+
+                    Log::info('✅ تم إنشاء سجل جديد للمعيل في جدول data', [
+                        'sponsorship_id' => $sponsorshipId,
+                        'new_data_id' => $newDataId,
+                        'file_id_number' => $unifiedFileIdNumber
+                    ]);
+
+                    // تحديث relation_id_number في الكفالة
                     DB::table('sponsorships')
                         ->where('id', $sponsorshipId)
                         ->update([
-                            'relation_id_number' => $guardianResult['file_id_number'],
+                            'relation_id_number' => $unifiedFileIdNumber,
                             'updated_at' => now()
                         ]);
-
-                    Log::info('✅ تم تحديث relation_id_number', [
-                        'sponsorship_id' => $sponsorshipId,
-                        'relation_id_number' => $guardianResult['file_id_number']
-                    ]);
                 }
 
                 // إعادة قراءة الكفالة للحصول على relation_id_number المحدث
