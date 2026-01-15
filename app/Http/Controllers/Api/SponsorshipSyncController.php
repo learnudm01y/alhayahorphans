@@ -2802,7 +2802,8 @@ class SponsorshipSyncController extends Controller
         $maxRegistrationId = DB::table('re_people')
             ->max('registration_id');
 
-        $nextNumber = ($maxRegistrationId ?? 0) + 1;
+        // تحويل إلى int للتأكد من إمكانية الجمع
+        $nextNumber = (int)($maxRegistrationId ?? 0) + 1;
         return (string) $nextNumber;
     }
 
