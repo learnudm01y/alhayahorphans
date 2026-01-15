@@ -532,6 +532,18 @@
                     // إضافة نوع الشخص الحالي (سواء تم تغييره أو لا)
                     dataToSave.guardian_person_type = modifiedFields.guardian_person_type || document.getElementById('guardian_person_type').value || 'breadwinner';
                     dataToSave.guardian_identity_number = modifiedFields.guardian_identity_number || originalData.guardian_identity_number || '';
+
+                    // ✅ إذا كان guardian_person_type = family_member، أرسل بيانات المكفول لإنشاء سجل في re_people
+                    if (dataToSave.guardian_person_type === 'family_member') {
+                        console.log('👨‍👩‍👧 guardian_person_type = family_member - إرسال بيانات المكفول');
+                        // إضافة بيانات المكفول من البيانات الأصلية إذا لم تكن معدلة
+                        dataToSave.first_name = modifiedFields.first_name || originalData.first_name || '';
+                        dataToSave.second_name = modifiedFields.second_name || originalData.second_name || '';
+                        dataToSave.third_name = modifiedFields.third_name || originalData.third_name || '';
+                        dataToSave.last_name = modifiedFields.last_name || originalData.last_name || '';
+                        dataToSave.identity_number = modifiedFields.identity_number || originalData.identity_number || '';
+                        dataToSave.person_type = 'family_member'; // المكفول هو فرد أسرة
+                    }
                 }
 
                 await SyncService.saveLocalChange(currentSponsorship.id, dataToSave);

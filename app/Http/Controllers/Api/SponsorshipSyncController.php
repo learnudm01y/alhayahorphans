@@ -1386,9 +1386,29 @@ class SponsorshipSyncController extends Controller
                                    isset($updates['orphan_phone']) || isset($updates['orphan_phone2']) ||
                                    isset($updates['orphan_detailed_address']);
 
+            // ✅ إذا كان guardian_person_type = family_member، يجب إنشاء سجل للمكفول في re_people
+            // حتى لو لم تُرسل حقول المكفول (لأنها موجودة في الكفالة)
+            $guardianPersonType = $updates['guardian_person_type'] ?? null;
+            if ($guardianPersonType === 'family_member' && !$hasOrphanDataUpdate) {
+                Log::info('🔍 guardian_person_type = family_member، سيتم إنشاء سجل المكفول من بيانات الكفالة', [
+                    'sponsorship_id' => $sponsorshipId
+                ]);
+
+                // جلب أسماء المكفول من الكفالة (orphan_name مُركب)
+                $orphanNameParts = explode(' ', $sponsorship->orphan_name ?? '');
+                $updates['first_name'] = $orphanNameParts[0] ?? '';
+                $updates['second_name'] = $orphanNameParts[1] ?? '';
+                $updates['third_name'] = $orphanNameParts[2] ?? '';
+                $updates['last_name'] = $orphanNameParts[3] ?? '';
+                $updates['identity_number'] = $sponsorship->identity_number ?? null;
+
+                $hasOrphanDataUpdate = true; // الآن يوجد بيانات للمكفول
+            }
+
             if ($hasOrphanDataUpdate) {
                 // الحصول على person_type من التحديثات أو من الكفالة
-                $personType = $updates['person_type'] ?? $sponsorship->person_type ?? null;
+                // ✅ إذا كان guardian_person_type موجود، نستخدمه لتحديد نوع المكفول
+                $personType = $updates['person_type'] ?? $guardianPersonType ?? $sponsorship->person_type ?? null;
                 $relationIdNumber = $sponsorship->relation_id_number;
                 $identityNumber = $updates['identity_number'] ?? $sponsorship->identity_number ?? null;
 
@@ -1816,10 +1836,13 @@ class SponsorshipSyncController extends Controller
             'message' => ''
         ];
 
-        // إذا لم يكن هناك relation_id_number، لا يمكن التحديث
-        if (empty($relationIdNumber)) {
+        // ✅ للأنواع التي تنشئ سجلات جديدة (family_member, orphan)، لا نحتاج relation_id_number
+        // لأننا سننشئ registration_id جديد
+        $typesAllowedWithoutRelation = ['family_member', 'orphan'];
+
+        if (empty($relationIdNumber) && !in_array($personType, $typesAllowedWithoutRelation)) {
             $result['message'] = 'relation_id_number فارغ - لا يمكن تحديد السجل';
-            Log::warning('⚠️ updatePersonByType: relation_id_number فارغ');
+            Log::warning('⚠️ updatePersonByType: relation_id_number فارغ', ['person_type' => $personType]);
             return $result;
         }
 
@@ -1925,30 +1948,24 @@ class SponsorshipSyncController extends Controller
             case 'orphan':
                 $result['table'] = 're_people';
 
-                // البحث عن السجل باستخدام المطابقة المزدوجة
-                $query = DB::table('re_people')->where('registration_id', $relationIdNumber);
-                if (!empty($identityNumber)) {
-                    $query->where('person_id', $identityNumber);
-                }
-                $record = $query->first();
+                // ✅ البحث أولاً برقم الهوية (person_id) لأنه المعرف الفريد
+                $record = null;
 
-                if (!$record) {
-                    // محاولة البحث فقط باستخدام registration_id
-                    $record = DB::table('re_people')->where('registration_id', $relationIdNumber)->first();
+                // 1. البحث برقم الهوية أولاً
+                if (!empty($identityNumber)) {
+                    $record = DB::table('re_people')->where('person_id', $identityNumber)->first();
                     if ($record) {
-                        Log::info('🔍 العثور على السجل بـ registration_id فقط', ['registration_id' => $relationIdNumber]);
+                        Log::info('🔍 العثور على المكفول بـ person_id', ['person_id' => $identityNumber]);
                     }
                 }
 
-                // محاولة البحث برقم الهوية فقط إذا لم نجد
-                if (!$record && !empty($identityNumber)) {
-                    $record = DB::table('re_people')->where('person_id', $identityNumber)->first();
-                    if ($record) {
-                        Log::info('🔍 العثور على السجل بـ person_id فقط', ['person_id' => $identityNumber]);
-                        // تحديث registration_id للربط الصحيح
-                        if (!empty($relationIdNumber) && empty($record->registration_id)) {
-                            DB::table('re_people')->where('id', $record->id)->update(['registration_id' => $relationIdNumber]);
-                        }
+                // 2. إذا لم نجد برقم الهوية، نبحث بـ registration_id (إذا كان موجوداً ومختلفاً عن رقم المعيل)
+                if (!$record && !empty($relationIdNumber)) {
+                    // تحقق أن هذا الـ registration_id موجود في re_people وليس في data
+                    $checkInRePeople = DB::table('re_people')->where('registration_id', $relationIdNumber)->exists();
+                    if ($checkInRePeople) {
+                        $record = DB::table('re_people')->where('registration_id', $relationIdNumber)->first();
+                        Log::info('🔍 العثور على المكفول بـ registration_id', ['registration_id' => $relationIdNumber]);
                     }
                 }
 
@@ -2007,8 +2024,11 @@ class SponsorshipSyncController extends Controller
                     }
                 } else {
                     // إنشاء سجل جديد في re_people
+                    // ✅ توليد registration_id جديد لأن relation_id_number قد يشير للمعيل في data
+                    $newRegistrationId = $this->generateNewRePeopleFileId();
+
                     $insertData = [
-                        'registration_id' => $relationIdNumber,
+                        'registration_id' => $newRegistrationId,
                         'first_name' => $updates['first_name'] ?? null,
                         'second_name' => $updates['second_name'] ?? null,
                         'third_name' => $updates['third_name'] ?? null,
@@ -2025,6 +2045,10 @@ class SponsorshipSyncController extends Controller
                     $result['success'] = true;
                     $result['message'] = 'تم إنشاء سجل جديد في re_people';
                     $result['new_record_id'] = $newId;
+                    $result['new_registration_id'] = $newRegistrationId;
+
+                    // ✅ ربط الكفالة بالمكفول الجديد (لا نُغير relation_id_number لأنه للمعيل)
+                    // بل نحفظ registration_id في حقل منفصل أو نتركه للمعيل
 
                     // تحديث sponsorships بالاسم الكامل وهوية المكفول
                     $fullName = trim(
@@ -2050,7 +2074,7 @@ class SponsorshipSyncController extends Controller
 
                     Log::info('✅ تم إنشاء سجل جديد في re_people', [
                         'new_id' => $newId,
-                        'registration_id' => $relationIdNumber,
+                        'registration_id' => $newRegistrationId,
                         'person_id' => $identityNumber,
                         'fields' => array_keys(array_filter($insertData))
                     ]);
