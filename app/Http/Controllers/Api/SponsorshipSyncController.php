@@ -1825,9 +1825,15 @@ class SponsorshipSyncController extends Controller
                         ]);
                     }
 
-                    // ✅ التأكد من وجود bank_name (مطلوب في قاعدة البيانات)
+                    // ✅ التحقق من وجود bank_name (مطلوب في قاعدة البيانات - NOT NULL)
+                    // إذا لم يتم إرسال bank_name، لا يمكن إنشاء الحساب
                     if (!isset($updateData['bank_name']) || empty($updateData['bank_name'])) {
-                        $updateData['bank_name'] = 0; // قيمة افتراضية = غير محدد
+                        Log::warning('⚠️ لا يمكن إنشاء حساب بنكي جديد بدون تحديد اسم البنك', [
+                            'sponsorship_id' => $sponsorship->id,
+                            'index' => $index,
+                            'received_data' => $updates
+                        ]);
+                        continue; // تخطي هذا الحساب والمتابعة للحساب التالي
                     }
 
                     $insertData = array_merge($updateData, [

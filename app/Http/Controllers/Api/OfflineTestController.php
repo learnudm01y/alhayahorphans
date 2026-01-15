@@ -1205,13 +1205,24 @@ class OfflineTestController extends Controller
             // re_id_number يجب أن يكون رقم الهوية الذي يدخله المستخدم وليس رقم الملف
             $personOwnerIdentity = $bankData['person_owner_identity_number'] ?? $sponsorship->guardian_identity_number;
 
+            // ✅ التحقق من وجود bank_name للحسابات الجديدة (مطلوب في قاعدة البيانات - NOT NULL)
+            $isNewAccount = !isset($existingAccounts[$accountIndex]);
+            if ($isNewAccount && (!isset($bankData['bank_name']) || empty($bankData['bank_name']))) {
+                Log::warning('[OfflineTest] ⚠️ لا يمكن إنشاء حساب بنكي جديد بدون تحديد اسم البنك', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'account_index' => $accountIndex,
+                    'received_data' => $bankData
+                ]);
+                return; // لا يمكن إنشاء حساب جديد بدون bank_name
+            }
+
             $bankRecord = [
                 'guardian_registration' => $guardianRegistration,
                 're_id_number' => $personOwnerIdentity, // رقم هوية صاحب الحساب
                 're_guardian_name' => $bankData['re_guardian_name'] ?? $sponsorship->guardian_name,
                 'person_owner_identity_number' => $personOwnerIdentity,
                 're_phone_number' => $bankData['re_phone_number'] ?? null,
-                'bank_name' => $bankData['bank_name'] ?? null,
+                'bank_name' => $bankData['bank_name'] ?? null, // للتحديث فقط - الإنشاء يتطلب قيمة
                 'iban_usd' => $bankData['iban_usd'] ?? null,
                 'iban_shekel' => $bankData['iban_shekel'] ?? null,
                 'check_account' => 1, // ✅ دائماً 1 عند إدخال حساب بنكي

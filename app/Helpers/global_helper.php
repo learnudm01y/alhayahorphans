@@ -628,11 +628,11 @@ if (!function_exists('markCodeAsUsed')) {
     function markCodeAsUsed(string $code, ?int $userId = null, ?string $notes = null): bool
     {
         try {
+            // ✅ فقط الأعمدة الموجودة في جدول reserved_codes: code, session_id, reserved_at, used, timestamps
             $updated = DB::table('reserved_codes')
                 ->where('code', $code)
                 ->update([
                     'used' => true,
-                    'notes' => $notes ?? 'تم استخدام الكود',
                     'updated_at' => now()
                 ]);
 
