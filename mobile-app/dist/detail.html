@@ -117,6 +117,14 @@
                         <select class="form-select" id="health_status_id" data-field="health_status_id"><option value="">-- اختر --</option></select>
                     </div>
                 </div>
+                <!-- حقول إضافية للمعيل والمتوفين - تظهر فقط في حالة breadwinner, deceased_father, deceased_mother -->
+                <div id="extraFieldsContainer" style="display: none;">
+                    <div class="form-row">
+                        <div class="form-field"><label class="form-label">رقم الهاتف</label><input type="tel" class="form-input" id="orphan_phone" data-field="orphan_phone"></div>
+                        <div class="form-field"><label class="form-label">رقم الهاتف البديل</label><input type="tel" class="form-input" id="orphan_phone2" data-field="orphan_phone2"></div>
+                    </div>
+                    <div class="form-field"><label class="form-label">العنوان التفصيلي</label><textarea class="form-input" id="orphan_detailed_address" data-field="orphan_detailed_address" rows="3" style="resize: vertical;"></textarea></div>
+                </div>
             </div>
         </div>
 
@@ -227,10 +235,10 @@
                 // عرض قسم البيانات البنكية دائماً - للجميع
                 document.getElementById('bankSection').style.display = 'block';
 
-                // إخفاء قسم المعيل فقط إذا كان المكفول هو المعيل نفسه
-                if (personType === 'breadwinner') {
+                // إخفاء قسم المعيل إذا كان المكفول هو المعيل نفسه أو متوفي
+                if (personType === 'breadwinner' || personType === 'deceased_father' || personType === 'deceased_mother') {
                     document.getElementById('guardianSection').style.display = 'none';
-                    console.log('👤 Breadwinner - hiding guardian section, showing bank section');
+                    console.log('👤 ' + personType + ' - hiding guardian section, showing bank section');
                 } else {
                     document.getElementById('guardianSection').style.display = 'block';
                 }
@@ -254,6 +262,7 @@
             const genderSelect = document.getElementById('orphan_gender');
             const genderReadonly = document.getElementById('orphan_gender_readonly');
             const birthDateLabel = document.getElementById('birthDateLabel');
+            const extraFieldsContainer = document.getElementById('extraFieldsContainer');
 
             // تعيين قيمة person_type في الحقل المخفي
             document.getElementById('person_type').value = personType;
@@ -263,6 +272,8 @@
             genderSelect.style.display = 'block';
             genderReadonly.style.display = 'none';
             birthDateLabel.textContent = 'تاريخ الميلاد';
+            // إخفاء الحقول الإضافية افتراضياً
+            extraFieldsContainer.style.display = 'none';
 
             switch (personType) {
                 case 'deceased_father':
@@ -277,6 +288,8 @@
                     genderReadonly.value = 'ذكر';
                     // تغيير تسمية تاريخ الميلاد لتاريخ الوفاة
                     birthDateLabel.textContent = 'تاريخ الوفاة';
+                    // إظهار الحقول الإضافية (هاتف، هاتف بديل، عنوان)
+                    extraFieldsContainer.style.display = 'block';
                     break;
 
                 case 'deceased_mother':
@@ -291,6 +304,8 @@
                     genderReadonly.value = 'أنثى';
                     // تغيير تسمية تاريخ الميلاد لتاريخ الوفاة
                     birthDateLabel.textContent = 'تاريخ الوفاة';
+                    // إظهار الحقول الإضافية (هاتف، هاتف بديل، عنوان)
+                    extraFieldsContainer.style.display = 'block';
                     break;
 
                 case 'breadwinner':
@@ -300,6 +315,8 @@
                     personTypeDisplay.style.display = 'block';
                     personTypeDisplay.querySelector('.form-field > div').style.background = '#d4edda';
                     personTypeDisplay.querySelector('.form-field > div').style.color = '#155724';
+                    // إظهار الحقول الإضافية (هاتف، هاتف بديل، عنوان)
+                    extraFieldsContainer.style.display = 'block';
                     break;
 
                 case 'family_member':
@@ -350,6 +367,10 @@
             setValue('health_status_id', data.health_status_id || '');
             // تعيين person_type للمكفول
             setValue('person_type', data.person_type || '');
+            // تعبئة الحقول الإضافية للمعيل والمتوفين
+            setValue('orphan_phone', data.orphan_phone || data.sponsored_phone || '');
+            setValue('orphan_phone2', data.orphan_phone2 || data.sponsored_phone2 || '');
+            setValue('orphan_detailed_address', data.orphan_detailed_address || data.sponsored_address || '');
             setValue('guardian_person_type', data.guardian_person_type || data.person_type || 'breadwinner');
             setValue('guardian_first_name', data.guardian_first_name || '');
             setValue('guardian_father_name', data.guardian_father_name || '');
