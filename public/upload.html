@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#2a8b8b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="الحياة">
+    <meta name="description" content="تطبيق الحياة لتنمية الأسرة - رفع الملفات">
+
+    <!-- Material Icons & Fonts - Offline Version -->
+    <link rel="stylesheet" href="css/material-icons.css">
+    <link rel="stylesheet" href="css/icons-fallback.css">
+    <link rel="stylesheet" href="css/tajawal-fonts.css">
+    <link rel="stylesheet" href="css/pagination.css">
+    <link rel="stylesheet" href="css/safe-area.css">
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="logo01.png">
+    <link rel="apple-touch-icon" href="logo01.png">
+
+    <title>الحياة - رفع الملفات</title>
+
+    <style>
+        :root {
+            --primary-color: #2a8b8b;
+            --primary-dark: #1e6b6b;
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+            --info-color: #17a2b8;
+            --light-bg: #f8f9fa;
+            --border-color: #dee2e6;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* منع التأثير المطاطي */
+        html, body {
+            overscroll-behavior: none;
+            overscroll-behavior-y: none;
+            -webkit-overflow-scrolling: auto;
+            overflow-x: hidden;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--light-bg);
+            color: #333;
+            min-height: 100vh;
+            direction: rtl;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            color: white;
+            padding: 15px 20px;
+            padding-top: 45px; /* المسافة الآمنة + الـ padding العادي */
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .header .back-btn {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+
+        .header .back-btn .material-icons {
+            font-size: 28px;
+        }
+
+        .header h1 {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        /* رسائل الحالة */
+        .status-message {
+            padding: 12px 15px;
+            margin: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 14px;
+            display: none;
+        }
+        .status-message.info { background: #e3f2fd; color: #1565c0; display: block; }
+        .status-message.warning { background: #fff3e0; color: #e65100; display: block; }
+        .status-message.error { background: #ffebee; color: #c62828; display: block; }
+        .status-message.success { background: #e8f5e9; color: #2e7d32; display: block; }
+
+        /* إحصائيات الملفات */
+        .upload-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            padding: 15px;
+            margin-top: 51px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .stat-card.total {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+        }
+
+        .stat-card.pending {
+            background: linear-gradient(135deg, #FF9800, #e68900);
+        }
+
+        .stat-card.uploaded {
+            background: linear-gradient(135deg, #2196F3, #0b7dda);
+        }
+
+        .stat-card.total,
+        .stat-card.pending,
+        .stat-card.uploaded {
+            color: white;
+        }
+
+        .stat-card.total .label,
+        .stat-card.pending .label,
+        .stat-card.uploaded .label {
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .stat-card.total .value,
+        .stat-card.pending .value,
+        .stat-card.uploaded .value {
+            color: white;
+        }
+
+        .stat-card .icon {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+
+        .stat-card .icon .material-icons { color: #333; }
+
+        .stat-card .value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .stat-card .label {
+            font-size: 0.75rem;
+            color: #666;
+            margin-top: 3px;
+        }
+
+        /* قائمة الملفات */
+        .files-section {
+            background: white;
+            margin: 15px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .section-header {
+            background: var(--light-bg);
+            padding: 15px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .section-header h3 {
+            font-size: 1rem;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-header .material-icons {
+            color: var(--primary-color);
+        }
+
+        .files-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            border-bottom: 1px solid #f0f0f0;
+            gap: 12px;
+        }
+
+        .file-item:last-child {
+            border-bottom: none;
+        }
+
+        .file-item .file-icon {
+            width: 45px;
+            height: 45px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .file-item .file-icon .material-icons {
+            font-size: 24px;
+            color: var(--primary-color);
+        }
+
+        .file-item .file-info {
+            flex: 1;
+        }
+
+        .file-item .file-name {
+            font-weight: 500;
+            font-size: 0.9rem;
+            color: #333;
+        }
+
+        .file-item .file-meta {
+            font-size: 0.75rem;
+            color: #888;
+            margin-top: 3px;
+        }
+
+        .file-item .file-status {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+
+        .file-item .file-status.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .file-item .file-status.uploaded {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .file-item .file-status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        /* رسالة فارغة */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #888;
+        }
+
+        .empty-state .material-icons {
+            font-size: 60px;
+            color: #ddd;
+            margin-bottom: 15px;
+        }
+
+        /* أزرار الإجراءات */
+        .actions {
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .action-btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .action-btn.primary {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            color: white;
+        }
+
+        .action-btn.google {
+            background: #4285f4;
+            color: white;
+        }
+
+        .action-btn.secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .action-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .action-btn .material-icons {
+            font-size: 22px;
+        }
+
+        /* شريط التقدم */
+        .progress-section {
+            padding: 15px;
+            display: none;
+        }
+
+        .progress-section.active {
+            display: block;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary-color);
+            transition: width 0.3s;
+        }
+
+        .progress-text {
+            text-align: center;
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        /* معلومات هيكل المجلدات */
+        .folder-info {
+            background: #e8f5f5;
+            margin: 15px;
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid #b2dfdb;
+        }
+
+        .folder-info h4 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .folder-info h4 .material-icons {
+            color: #333;
+        }
+
+        .folder-structure {
+            font-family: monospace;
+            font-size: 12px;
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            line-height: 1.6;
+        }
+
+        .folder-structure .folder {
+            color: var(--primary-color);
+        }
+
+        .folder-structure .file {
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <!-- Safe Area Bars -->
+    <div class="safe-area-top"></div>
+    <div class="safe-area-bottom"></div>
+
+    <!-- Header -->
+    <header class="header">
+        <button class="back-btn" onclick="goBack()">
+            <span class="material-icons">arrow_forward</span>
+        </button>
+        <h1>رفع الملفات إلى Google Drive</h1>
+    </header>
+
+    <!-- إحصائيات الملفات -->
+    <div class="upload-stats">
+        <div class="stat-card total">
+            <div class="icon">
+                <span class="material-icons" style="color: #ffffff; font-weight: 900;">folder</span>
+            </div>
+            <div class="value" id="statTotal">0</div>
+            <div class="label">إجمالي الملفات</div>
+        </div>
+        <div class="stat-card pending">
+            <div class="icon">
+                <span class="material-icons" style="color: #FFFFFF; font-weight: 900;">schedule</span>
+            </div>
+            <div class="value" id="statPending">0</div>
+            <div class="label">معلق للرفع</div>
+        </div>
+        <div class="stat-card uploaded">
+            <div class="icon">
+                <span class="material-icons" style="color: #FFFFFF; font-weight: 900;">cloud_done</span>
+            </div>
+            <div class="value" id="statUploaded">0</div>
+            <div class="label">تم الرفع</div>
+        </div>
+    </div>
+
+    <!-- شريط التقدم -->
+    <div class="progress-section" id="progressSection">
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+        </div>
+        <div class="progress-text" id="progressText">جاري الرفع...</div>
+    </div>
+
+    <!-- قائمة الملفات -->
+    <div class="files-section">
+        <div class="section-header">
+            <h3>
+                <span class="material-icons">photo_library</span>
+                الملفات المحفوظة
+            </h3>
+        </div>
+        <div class="files-list" id="filesList">
+            <div class="empty-state">
+                <span class="material-icons">cloud_off</span>
+                <p>لا توجد ملفات محفوظة</p>
+                <p style="font-size: 12px; margin-top: 5px;">استخدم صفحة التصوير لإلتقاط صور جديدة</p>
+            </div>
+        </div>
+        <!-- Pagination Controls -->
+        <div id="filesPaginationContainer"></div>
+    </div>
+
+    <!-- أزرار الإجراءات -->
+    <div class="actions">
+        <button class="action-btn google" id="uploadBtn" onclick="uploadToGoogleDrive()">
+            <span class="material-icons">cloud_upload</span>
+            رفع الملفات إلى Google Drive
+        </button>
+        <button class="action-btn secondary" id="refreshBtn" onclick="loadFiles()">
+            <span class="material-icons">refresh</span>
+            تحديث القائمة
+        </button>
+    </div>
+
+    <!-- خدمة المزامنة -->
+    <script src="js/sync-service.js"></script>
+    <script src="js/pagination.js"></script>
+
+    <script>
+        // ========================================
+        // المتغيرات
+        // ========================================
+        let allFiles = [];
+        let sponsors = [];
+        let currentPageNum = 1;
+        const FILES_PAGE_SIZE = 10; // 10 ملفات لكل صفحة
+
+        // ========================================
+        // تهيئة الصفحة
+        // ========================================
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                await SyncService.init();
+
+                if (!SyncService.isAuthenticated()) {
+                    window.location.href = 'login.html';
+                    return;
+                }
+
+                sponsors = await SyncService.getLocalSponsors();
+                await loadFiles();
+
+            } catch (error) {
+                console.error('Init error:', error);
+                showStatus('error', 'حدث خطأ في تهيئة الصفحة');
+            }
+        });
+
+        // ========================================
+        // تحميل الملفات مع pagination بسيط
+        // ========================================
+        async function loadFiles() {
+            try {
+                // جلب كل الملفات
+                allFiles = await SyncService.dbGetAll('files');
+                const pending = allFiles.filter(f => !f.uploaded);
+                const uploaded = allFiles.filter(f => f.uploaded);
+
+                document.getElementById('statTotal').textContent = allFiles.length;
+                document.getElementById('statPending').textContent = pending.length;
+                document.getElementById('statUploaded').textContent = uploaded.length;
+
+                // عرض الملفات مع pagination
+                const container = document.getElementById('filesList');
+
+                if (allFiles.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <span class="material-icons">cloud_off</span>
+                            <p>لا توجد ملفات محفوظة</p>
+                            <p style="font-size: 12px; margin-top: 5px;">استخدم صفحة التصوير لإلتقاط صور جديدة</p>
+                        </div>
+                    `;
+                    document.getElementById('filesPaginationContainer').innerHTML = '';
+                    return;
+                }
+
+                // عرض الصفحة الأولى
+                currentPageNum = 1;
+                showFilesPage(1);
+
+            } catch (error) {
+                console.error('Load files error:', error);
+                showStatus('error', 'فشل في تحميل الملفات');
+            }
+        }
+
+        // ========================================
+        // عرض صفحة محددة من الملفات
+        // ========================================
+        async function showFilesPage(pageNumber) {
+            currentPageNum = pageNumber;
+            const start = (pageNumber - 1) * FILES_PAGE_SIZE;
+            const end = start + FILES_PAGE_SIZE;
+            const pageFiles = allFiles.slice(start, end);
+
+            const sponsorships = await SyncService.dbGetAll('sponsorships');
+
+            // عرض الملفات
+            renderFilesPage(pageFiles, sponsorships);
+
+            // عرض pagination
+            renderFilesPagination();
+        }
+
+        // ========================================
+        // عرض أزرار pagination
+        // ========================================
+        function renderFilesPagination() {
+            const container = document.getElementById('filesPaginationContainer');
+            const totalPages = Math.ceil(allFiles.length / FILES_PAGE_SIZE);
+
+            if (totalPages <= 1) {
+                container.innerHTML = '';
+                return;
+            }
+
+            const start = (currentPageNum - 1) * FILES_PAGE_SIZE + 1;
+            const end = Math.min(currentPageNum * FILES_PAGE_SIZE, allFiles.length);
+
+            let html = '<div class="pagination-container">';
+            html += `<div class="pagination-info">عرض ${start} - ${end} من أصل ${allFiles.length} ملف</div>`;
+            html += '<div class="pagination-controls">';
+
+            // زر السابق
+            html += `<button class="pagination-btn prev" onclick="showFilesPage(${currentPageNum - 1})" ${currentPageNum === 1 ? 'disabled' : ''}>السابق</button>`;
+
+            // أرقام الصفحات
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= currentPageNum - 1 && i <= currentPageNum + 1)) {
+                    html += `<button class="pagination-btn ${i === currentPageNum ? 'active' : ''}" onclick="showFilesPage(${i})" ${i === currentPageNum ? 'disabled' : ''}>${i}</button>`;
+                } else if (i === currentPageNum - 2 || i === currentPageNum + 2) {
+                    html += '<span class="pagination-separator">...</span>';
+                }
+            }
+
+            // زر التالي
+            html += `<button class="pagination-btn next" onclick="showFilesPage(${currentPageNum + 1})" ${currentPageNum === totalPages ? 'disabled' : ''}>التالي</button>`;
+
+            html += '</div></div>';
+            container.innerHTML = html;
+        }
+
+        // ========================================
+        // عرض صفحة الملفات
+        // ========================================
+        function renderFilesPage(files, sponsorships) {
+            const container = document.getElementById('filesList');
+
+            container.innerHTML = files.map(file => {
+                // البحث عن الكفالة المرتبطة
+                const sponsorship = sponsorships.find(s => s.id === file.sponsorship_id);
+                const sponsorName = sponsorship ?
+                    (sponsors.find(sp => sp.id === sponsorship.sponsor_id)?.name || 'غير معروف') : 'غير معروف';
+                const orphanName = sponsorship?.orphan_name || 'غير معروف';
+
+                const statusClass = file.uploaded ? 'uploaded' : 'pending';
+                const statusText = file.uploaded ? 'تم الرفع' : 'معلق';
+                const icon = file.file_type?.includes('image') ? 'image' : 'description';
+
+                return `
+                    <div class="file-item">
+                        <div class="file-icon">
+                            <span class="material-icons">${icon}</span>
+                        </div>
+                        <div class="file-info">
+                            <div class="file-name">${file.file_name || 'ملف'}</div>
+                            <div class="file-meta">${sponsorName} / ${orphanName}</div>
+                        </div>
+                        <span class="file-status ${statusClass}">${statusText}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ========================================
+        // رفع إلى Google Drive
+        // ملاحظة هامة: هذه الدالة تعمل على allFiles الكامل
+        // وليس على البيانات المعروضة في الصفحة فقط
+        // لذا لن تتأثر بـ pagination
+        // ========================================
+        async function uploadToGoogleDrive() {
+            // جلب جميع الملفات المعلقة من allFiles (وليس من الصفحة الحالية)
+            const pending = allFiles.filter(f => !f.uploaded);
+
+            if (pending.length === 0) {
+                showStatus('warning', 'لا توجد ملفات معلقة للرفع');
+                return;
+            }
+
+            const btn = document.getElementById('uploadBtn');
+            btn.disabled = true;
+
+            showProgress(true);
+            updateProgress(0, `جاري الرفع... 0/${pending.length}`);
+
+            // بدء العمل في الخلفية
+            await startUploadBackgroundTask();
+
+            // إرسال إشعار ببدء الرفع
+            const notificationId = await SyncService.sendNotification(
+                'رفع الملفات',
+                'جاري رفع الملفات إلى Google Drive...',
+                0,
+                true // force notification
+            );
+
+            try {
+                const sponsorships = await SyncService.dbGetAll('sponsorships');
+                let uploaded = 0;
+                let failed = 0;
+
+                for (let i = 0; i < pending.length; i++) {
+                    const file = pending[i];
+                    const progress = Math.round(((i + 1) / pending.length) * 100);
+                    updateProgress(progress, `جاري الرفع... ${i + 1}/${pending.length}`);
+
+                    // تحديث الإشعار بالتقدم
+                    if (notificationId) {
+                        await SyncService.sendNotification(
+                            'رفع الملفات',
+                            `جاري رفع ${i + 1} من ${pending.length}`,
+                            progress,
+                            true
+                        );
+                    }
+
+                    try {
+                        // البحث عن الكفالة المرتبطة
+                        const sponsorship = sponsorships.find(s => s.id === file.sponsorship_id);
+
+                        if (!sponsorship) {
+                            throw new Error('لم يتم العثور على الكفالة');
+                        }
+
+                        const sponsor = sponsors.find(sp => sp.id === sponsorship.sponsor_id);
+                        const sponsorName = sponsor?.name || 'غير معروف';
+                        const orphanName = sponsorship.orphan_name || 'غير معروف';
+
+                        // إنشاء مسار المجلد
+                        const folderPath = `alhayah/${sponsorName}/${orphanName}`;
+
+                        // رفع الملف (سيتم تنفيذه عبر الخادم)
+                        const result = await SyncService.request('/mobile/upload-file', {
+                            method: 'POST',
+                            body: JSON.stringify({
+                                file_name: file.file_name,
+                                file_type: file.file_type,
+                                file_data: file.file_data,
+                                folder_path: folderPath,
+                                sponsorship_id: file.sponsorship_id
+                            })
+                        });
+
+                        if (result.success) {
+                            // تحديث حالة الملف
+                            file.uploaded = true;
+                            file.google_drive_id = result.file_id;
+                            file.uploaded_at = new Date().toISOString();
+                            await SyncService.dbPut('files', file);
+                            uploaded++;
+                        } else {
+                            throw new Error(result.message);
+                        }
+
+                    } catch (error) {
+                        console.error('Upload file error:', error);
+                        failed++;
+                    }
+                }
+
+                updateProgress(100, 'تم الرفع!');
+
+                // إرسال إشعار بالإنتهاء
+                if (notificationId) {
+                    await SyncService.cancelNotification(notificationId);
+                    await SyncService.sendNotification(
+                        'اكتملت عملية الرفع',
+                        failed > 0 ? `تم رفع ${uploaded} ملف، فشل ${failed}` : `تم رفع ${uploaded} ملف بنجاح`,
+                        100,
+                        true
+                    );
+                }
+
+                if (failed > 0) {
+                    showStatus('warning', `تم رفع ${uploaded} ملف، فشل ${failed}`);
+                } else {
+                    showStatus('success', `تم رفع ${uploaded} ملف بنجاح`);
+                }
+
+                // إعادة تحميل القائمة
+                await loadFiles();
+
+            } catch (error) {
+                console.error('Upload error:', error);
+                showStatus('error', 'فشل الرفع: ' + error.message);
+
+                // إرسال إشعار بالفشل
+                if (notificationId) {
+                    await SyncService.cancelNotification(notificationId);
+                    await SyncService.sendNotification(
+                        'فشل الرفع',
+                        'حدث خطأ أثناء رفع الملفات: ' + error.message,
+                        null,
+                        true
+                    );
+                }
+            } finally {
+                btn.disabled = false;
+                setTimeout(() => showProgress(false), 2000);
+
+                // إنهاء العمل في الخلفية
+                await finishUploadBackgroundTask();
+            }
+        }
+
+        // ========================================
+        // دعم العمل في الخلفية
+        // ========================================
+        let uploadBackgroundTaskId = null;
+
+        async function startUploadBackgroundTask() {
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.BackgroundTask) {
+                try {
+                    const BackgroundTask = window.Capacitor.Plugins.BackgroundTask;
+                    uploadBackgroundTaskId = await BackgroundTask.beforeExit(async () => {
+                        console.log('Upload background task started');
+                    });
+                    console.log('Upload background task ID:', uploadBackgroundTaskId);
+                } catch (error) {
+                    console.log('Failed to start upload background task:', error);
+                }
+            }
+        }
+
+        async function finishUploadBackgroundTask() {
+            if (uploadBackgroundTaskId && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.BackgroundTask) {
+                try {
+                    const BackgroundTask = window.Capacitor.Plugins.BackgroundTask;
+                    await BackgroundTask.finish({ taskId: uploadBackgroundTaskId });
+                    uploadBackgroundTaskId = null;
+                    console.log('Upload background task finished');
+                } catch (error) {
+                    console.log('Failed to finish upload background task:', error);
+                }
+            }
+        }
+
+        // ========================================
+        // دوال مساعدة
+        // ========================================
+        function showStatus(type, message) {
+            const el = document.getElementById('statusMessage');
+            el.className = 'status-message ' + type;
+            el.textContent = message;
+        }
+
+        function showProgress(show) {
+            document.getElementById('progressSection').classList.toggle('active', show);
+        }
+
+        function updateProgress(percent, text) {
+            document.getElementById('progressFill').style.width = percent + '%';
+            document.getElementById('progressText').textContent = text;
+        }
+
+        function goBack() {
+            window.location.href = 'index.html';
+        }
+
+        // ========================================
+        // معالجة زر الرجوع
+        // ========================================
+        document.addEventListener('backbutton', function(e) {
+            e.preventDefault();
+            goBack();
+        }, false);
+
+        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+            window.Capacitor.Plugins.App.addListener('backButton', goBack);
+        }
+    </script>
+    <script src="js/icons-fallback.js"></script>
+    <script src="js/safe-area-keyboard.js"></script>
+</body>
+</html>

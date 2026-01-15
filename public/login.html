@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="color-scheme" content="light">
+    <title>تسجيل الدخول - نظام الكفالات</title>
+    <link href="css/styles.css" rel="stylesheet">
+    <!-- Material Icons & Fonts - Offline Version -->
+    <link rel="stylesheet" href="css/material-icons.css">
+    <link rel="stylesheet" href="css/icons-fallback.css">
+    <link rel="stylesheet" href="css/tajawal-fonts.css">
+    <link rel="stylesheet" href="css/safe-area.css">
+    <style>
+        * {
+            overscroll-behavior: none;
+            -webkit-overflow-scrolling: auto;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1a5276 0%, #2980b9 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+        }
+
+        .login-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 400px;
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .login-logo {
+            width: 100px;
+            height: 100px;
+            margin-bottom: 20px;
+        }
+
+        .login-title {
+            color: #1a5276;
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .login-subtitle {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+            text-align: right;
+        }
+
+        .form-label {
+            display: block;
+            color: #333;
+            font-size: 14px;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+            box-sizing: border-box;
+            direction: rtl;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #2980b9;
+        }
+
+        .form-input::placeholder {
+            color: #aaa;
+        }
+
+        .server-group {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .server-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .server-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 13px;
+            direction: ltr;
+            text-align: left;
+            box-sizing: border-box;
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #1a5276, #2980b9);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 10px;
+        }
+
+        .login-btn:active {
+            transform: scale(0.98);
+        }
+
+        .login-btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        .error-message {
+            background: #fee;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+            font-size: 14px;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .loading-spinner {
+            display: none;
+            width: 24px;
+            height: 24px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #1a5276;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .login-btn.loading .btn-text {
+            display: none;
+        }
+
+        .login-btn.loading .loading-spinner {
+            display: inline-block;
+        }
+
+        .offline-notice {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            display: none;
+        }
+
+        .offline-notice.show {
+            display: block;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #666;
+            margin-top: 20px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #e74c3c;
+        }
+
+        .status-dot.online {
+            background: #27ae60;
+        }
+    </style>
+</head>
+<body>
+    <!-- Safe Area Bars -->
+    <div class="safe-area-top"></div>
+    <div class="safe-area-bottom"></div>
+
+    <div class="login-container">
+        <img src="logo01.png" alt="شعار النظام" class="login-logo">
+        <h1 class="login-title">نظام إدارة الكفالات</h1>
+        <p class="login-subtitle">تسجيل الدخول للمتابعة</p>
+
+        <div class="offline-notice" id="offlineNotice">
+            <span class="material-icons" style="vertical-align: middle; font-size: 18px;">wifi_off</span>
+            لا يوجد اتصال بالإنترنت. يمكنك استخدام البيانات المحفوظة مسبقاً.
+        </div>
+
+        <div class="error-message" id="errorMessage"></div>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label class="form-label">اسم المستخدم</label>
+                <input type="text" class="form-input" id="username"
+                       placeholder="أدخل اسم المستخدم" required autocomplete="username">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">كلمة المرور</label>
+                <input type="password" class="form-input" id="password"
+                       placeholder="أدخل كلمة المرور" required autocomplete="current-password">
+            </div>
+
+            <div class="server-group">
+                <label class="server-label">عنوان الخادم (Server URL)</label>
+                <input type="url" class="server-input" id="serverUrl"
+                       value="https://alhayahorphans.org/api"
+                       placeholder="https://example.com/api">
+            </div>
+
+            <button type="submit" class="login-btn" id="loginBtn">
+                <span class="btn-text">تسجيل الدخول</span>
+                <div class="loading-spinner"></div>
+            </button>
+        </form>
+
+        <div class="connection-status">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">جاري فحص الاتصال...</span>
+        </div>
+    </div>
+
+    <script src="js/sync-service.js"></script>
+    <script>
+        // Initialize and check if already logged in
+        (async function() {
+            await SyncService.init();
+            if (SyncService.isAuthenticated()) {
+                window.location.href = 'index.html';
+            }
+
+            // تحميل اسم المستخدم المحفوظ إن وجد
+            const savedCredentials = await SyncService.dbGet('sync_meta', 'user_credentials');
+            if (savedCredentials && savedCredentials.username) {
+                document.getElementById('username').value = savedCredentials.username;
+            }
+        })();
+
+        // Load saved server URL
+        const savedUrl = localStorage.getItem('api_base_url');
+        if (savedUrl) {
+            document.getElementById('serverUrl').value = savedUrl;
+        }
+
+        // Check connection status
+        async function checkConnection() {
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            const serverUrl = document.getElementById('serverUrl').value;
+
+            // Check if has offline credentials
+            const hasOffline = await SyncService.hasOfflineCredentials();
+
+            if (!navigator.onLine) {
+                statusDot.classList.remove('online');
+                if (hasOffline) {
+                    statusText.textContent = 'غير متصل - يمكنك الدخول بالبيانات المحفوظة';
+                } else {
+                    statusText.textContent = 'غير متصل - يجب الاتصال للدخول أول مرة';
+                }
+                return false;
+            }
+
+            try {
+                SyncService.setBaseUrl(serverUrl);
+                const health = await SyncService.checkHealth();
+
+                if (health.status === 'healthy') {
+                    statusDot.classList.add('online');
+                    statusText.textContent = 'متصل بالخادم ✓';
+                    return true;
+                }
+            } catch (error) {
+                console.error('Connection check failed:', error);
+            }
+
+            statusDot.classList.remove('online');
+            if (hasOffline) {
+                statusText.textContent = 'الخادم غير متاح - يمكنك الدخول Offline';
+            } else {
+                statusText.textContent = 'غير متصل بالخادم';
+            }
+            return false;
+        }
+
+        // Check initial connection
+        checkConnection();
+
+        // Handle form submit
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const serverUrl = document.getElementById('serverUrl').value.trim();
+            const errorMessage = document.getElementById('errorMessage');
+            const loginBtn = document.getElementById('loginBtn');
+
+            // Hide previous error
+            errorMessage.classList.remove('show');
+
+            // Validate inputs
+            if (!username || !password) {
+                errorMessage.textContent = 'يرجى إدخال اسم المستخدم وكلمة المرور';
+                errorMessage.classList.add('show');
+                return;
+            }
+
+            // Set server URL
+            SyncService.setBaseUrl(serverUrl);
+
+            // Show loading
+            loginBtn.classList.add('loading');
+            loginBtn.disabled = true;
+
+            try {
+                // Attempt login (will handle online/offline automatically)
+                const result = await SyncService.login(username, password);
+
+                if (result.success) {
+                    // Show offline indicator if needed
+                    if (result.offline) {
+                        console.log('Logged in offline mode');
+                    }
+                    // Login successful - redirect to main page
+                    window.location.href = 'index.html';
+                } else {
+                    // Login failed
+                    errorMessage.textContent = result.message || 'فشل تسجيل الدخول';
+                    errorMessage.classList.add('show');
+                }
+
+            } catch (error) {
+                console.error('Login error:', error);
+                errorMessage.textContent = error.message || 'حدث خطأ أثناء تسجيل الدخول';
+                errorMessage.classList.add('show');
+            } finally {
+                loginBtn.classList.remove('loading');
+                loginBtn.disabled = false;
+            }
+        });
+
+        // Check server on URL change
+        document.getElementById('serverUrl').addEventListener('blur', checkConnection);
+
+        // Handle offline mode
+        window.addEventListener('offline', function() {
+            document.getElementById('offlineNotice').classList.add('show');
+            checkConnection();
+        });
+
+        window.addEventListener('online', function() {
+            document.getElementById('offlineNotice').classList.remove('show');
+            checkConnection();
+        });
+
+        if (!navigator.onLine) {
+            document.getElementById('offlineNotice').classList.add('show');
+        }
+    </script>
+    <script src="js/icons-fallback.js"></script>
+    <script src="js/safe-area-keyboard.js"></script>
+</body>
+</html>
