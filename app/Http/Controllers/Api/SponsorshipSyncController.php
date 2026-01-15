@@ -1825,6 +1825,11 @@ class SponsorshipSyncController extends Controller
                         ]);
                     }
 
+                    // ✅ التأكد من وجود bank_name (مطلوب في قاعدة البيانات)
+                    if (!isset($updateData['bank_name']) || empty($updateData['bank_name'])) {
+                        $updateData['bank_name'] = 0; // قيمة افتراضية = غير محدد
+                    }
+
                     $insertData = array_merge($updateData, [
                         'guardian_registration' => $validGuardianRegistration,
                         're_id_number' => $updates['person_owner_identity_number'] ?? $guardianIdentity ?? $sponsorship->identity_number, // رقم الهوية الذي يدخله المستخدم

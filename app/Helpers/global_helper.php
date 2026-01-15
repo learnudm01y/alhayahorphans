@@ -632,8 +632,6 @@ if (!function_exists('markCodeAsUsed')) {
                 ->where('code', $code)
                 ->update([
                     'used' => true,
-                    'used_at' => now(),
-                    'used_by_user_id' => $userId,
                     'notes' => $notes ?? 'تم استخدام الكود',
                     'updated_at' => now()
                 ]);
