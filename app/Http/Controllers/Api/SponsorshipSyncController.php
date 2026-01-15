@@ -2505,8 +2505,7 @@ class SponsorshipSyncController extends Controller
                     'data_alt_phone_number' => $updates['guardian_phone2'] ?? null,
                     'data_current_address' => $updates['guardian_detailed_address'] ?? null,
                     'created_at' => now(),
-                    'updated_at' => now(),
-                    'last_modified_by' => $userId
+                    'updated_at' => now()
                 ];
 
                 $newId = DB::table('data')->insertGetId($insertData);
@@ -2516,7 +2515,6 @@ class SponsorshipSyncController extends Controller
                     ->where('id', $sponsorship->id)
                     ->update([
                         'relation_id_number' => $fileIdNumber,
-                        'guardian_person_type' => 'breadwinner',
                         'updated_at' => now()
                     ]);
 
@@ -2562,13 +2560,8 @@ class SponsorshipSyncController extends Controller
                     $userId
                 );
 
-                // تحديث guardian_person_type في الكفالة
-                DB::table('sponsorships')
-                    ->where('id', $sponsorship->id)
-                    ->update([
-                        'guardian_person_type' => 'family_member',
-                        'updated_at' => now()
-                    ]);
+                // تحديث الكفالة (حفظ البيانات الإضافية في EAV بدلاً من الجدول)
+                // guardian_person_type غير موجود في جدول sponsorships
 
                 $result['table'] = 're_people';
                 $result['record_id'] = $newId;
@@ -2675,13 +2668,8 @@ class SponsorshipSyncController extends Controller
                     $userId
                 );
 
-                // تحديث guardian_person_type في الكفالة
-                DB::table('sponsorships')
-                    ->where('id', $sponsorship->id)
-                    ->update([
-                        'guardian_person_type' => 'deceased_father',
-                        'updated_at' => now()
-                    ]);
+                // تحديث الكفالة (حفظ البيانات الإضافية في EAV بدلاً من الجدول)
+                // guardian_person_type غير موجود في جدول sponsorships
 
                 $result['table'] = 'dead_people';
                 break;
@@ -2778,13 +2766,8 @@ class SponsorshipSyncController extends Controller
                     $userId
                 );
 
-                // تحديث guardian_person_type في الكفالة
-                DB::table('sponsorships')
-                    ->where('id', $sponsorship->id)
-                    ->update([
-                        'guardian_person_type' => 'deceased_mother',
-                        'updated_at' => now()
-                    ]);
+                // تحديث الكفالة (حفظ البيانات الإضافية في EAV بدلاً من الجدول)
+                // guardian_person_type غير موجود في جدول sponsorships
 
                 $result['table'] = 'dead_people';
                 break;
@@ -2873,8 +2856,7 @@ class SponsorshipSyncController extends Controller
         switch ($table) {
             case 'data':
                 $updateData = [
-                    'updated_at' => now(),
-                    'last_modified_by' => $userId
+                    'updated_at' => now()
                 ];
 
                 if (!empty($names['first_name'])) $updateData['data_first_name'] = $names['first_name'];
