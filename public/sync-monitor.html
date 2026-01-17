@@ -582,7 +582,7 @@
     </div>
 
     <!-- أزرار الإجراءات - في أكورديون -->
-    
+
     <!-- أكورديون تحميل البيانات -->
     <div class="action-accordion download">
         <div class="accordion-header" onclick="toggleAccordion(this)">
@@ -729,13 +729,13 @@
         function toggleAccordion(header) {
             const content = header.nextElementSibling;
             const isExpanded = content.classList.contains('expanded');
-            
+
             // إغلاق جميع الأكورديونات الأخرى
             document.querySelectorAll('.accordion-content.expanded').forEach(el => {
                 el.classList.remove('expanded');
                 el.previousElementSibling.classList.remove('expanded');
             });
-            
+
             // فتح/إغلاق الأكورديون المحدد
             if (!isExpanded) {
                 content.classList.add('expanded');

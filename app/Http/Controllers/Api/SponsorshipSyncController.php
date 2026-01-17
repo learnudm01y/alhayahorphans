@@ -2024,7 +2024,7 @@ class SponsorshipSyncController extends Controller
                         'relation_id_number' => $newFileId,
                         'updated_at' => now()
                     ]);
-                    
+
                     Log::info('✅ تم تحديث relation_id_number في sponsorships للمعيل', [
                         'sponsorship_id' => $sponsorship->id,
                         'new_relation_id_number' => $newFileId
@@ -2301,7 +2301,7 @@ class SponsorshipSyncController extends Controller
                         'relation_id_number' => $newFileId,
                         'updated_at' => now()
                     ]);
-                    
+
                     Log::info('✅ تم تحديث relation_id_number في sponsorships', [
                         'sponsorship_id' => $sponsorship->id,
                         'new_relation_id_number' => $newFileId
@@ -2436,7 +2436,7 @@ class SponsorshipSyncController extends Controller
                         'relation_id_number' => $newFileId,
                         'updated_at' => now()
                     ]);
-                    
+
                     Log::info('✅ تم تحديث relation_id_number في sponsorships', [
                         'sponsorship_id' => $sponsorship->id,
                         'new_relation_id_number' => $newFileId
