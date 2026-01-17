@@ -1150,7 +1150,7 @@ class SponsorshipSyncController extends Controller
     {
         try {
             // � تعريف إصدار الكود - للتأكد من أن الكود المُحدَّث يعمل
-            Log::info('🔖 uploadSyncData VERSION: 2026-01-17-v3 (with breadwinner & deceased city support)');
+            Log::info('🔖 uploadSyncData VERSION: 2026-01-17-v4 (fix deceased extra data file_id)');
 
             // �📋 Log كل البيانات القادمة للفحص
             Log::info('📥 uploadSyncData: البيانات القادمة من التطبيق', [
@@ -4334,15 +4334,24 @@ class SponsorshipSyncController extends Controller
      */
     private function saveDeceasedExtraData($sponsorship, array $updates, string $personType, ?int $userId = null): void
     {
-        // استخدام field_key موحدة للمتوفين
-        // field_data_phone_number, field_data_alt_phone_number, field_housing_address_detail
+        // ✅ للمتوفين: استخدام relation_id_number أولاً (لأنه يحتوي على re_file_id الجديد)
+        // لأن internal_file_number قد يكون قديماً أو فارغاً
+        $fileIdNumber = $sponsorship->relation_id_number ?? $sponsorship->internal_file_number ?? '';
+
+        Log::info('📝 saveDeceasedExtraData - بدء حفظ البيانات الإضافية للمتوفي', [
+            'person_type' => $personType,
+            'sponsorship_id' => $sponsorship->id,
+            'file_id_number_used' => $fileIdNumber,
+            'relation_id_number' => $sponsorship->relation_id_number,
+            'internal_file_number' => $sponsorship->internal_file_number ?? 'NOT SET'
+        ]);
 
         // حفظ العنوان التفصيلي - دعم أسماء حقول متعددة
         $address = $updates['orphan_detailed_address'] ?? $updates['guardian_detailed_address'] ?? null;
         if (!empty($address)) {
             $this->savePortalFieldValue(
                 $sponsorship->id,
-                $sponsorship->internal_file_number ?? $sponsorship->relation_id_number ?? '',
+                $fileIdNumber,
                 $updates['identity_number'] ?? $sponsorship->identity_number ?? null,
                 'field_housing_address_detail',
                 $address,
@@ -4355,7 +4364,7 @@ class SponsorshipSyncController extends Controller
         if (!empty($phone)) {
             $this->savePortalFieldValue(
                 $sponsorship->id,
-                $sponsorship->internal_file_number ?? $sponsorship->relation_id_number ?? '',
+                $fileIdNumber,
                 $updates['identity_number'] ?? $sponsorship->identity_number ?? null,
                 'field_data_phone_number',
                 $phone,
@@ -4368,7 +4377,7 @@ class SponsorshipSyncController extends Controller
         if (!empty($altPhone)) {
             $this->savePortalFieldValue(
                 $sponsorship->id,
-                $sponsorship->internal_file_number ?? $sponsorship->relation_id_number ?? '',
+                $fileIdNumber,
                 $updates['identity_number'] ?? $sponsorship->identity_number ?? null,
                 'field_data_alt_phone_number',
                 $altPhone,
@@ -4380,7 +4389,7 @@ class SponsorshipSyncController extends Controller
         if (isset($updates['health_status_id'])) {
             $this->savePortalFieldValue(
                 $sponsorship->id,
-                $sponsorship->internal_file_number ?? $sponsorship->relation_id_number ?? '',
+                $fileIdNumber,
                 $updates['identity_number'] ?? $sponsorship->identity_number ?? null,
                 'field_health_status',
                 $updates['health_status_id'],
@@ -4393,7 +4402,7 @@ class SponsorshipSyncController extends Controller
         if (!empty($cityId)) {
             $this->savePortalFieldValue(
                 $sponsorship->id,
-                $sponsorship->internal_file_number ?? $sponsorship->relation_id_number ?? '',
+                $fileIdNumber,
                 $updates['identity_number'] ?? $sponsorship->identity_number ?? null,
                 'field_data_city',
                 $cityId,
