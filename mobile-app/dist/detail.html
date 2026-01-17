@@ -123,6 +123,12 @@
                         <div class="form-field"><label class="form-label">رقم الهاتف</label><input type="tel" class="form-input" id="orphan_phone" data-field="orphan_phone"></div>
                         <div class="form-field"><label class="form-label">رقم الهاتف البديل</label><input type="tel" class="form-input" id="orphan_phone2" data-field="orphan_phone2"></div>
                     </div>
+                    <div class="form-field">
+                        <label class="form-label">المدينة</label>
+                        <select class="form-select" id="orphan_city_id" data-field="orphan_city_id">
+                            <option value="">-- اختر المدينة --</option>
+                        </select>
+                    </div>
                     <div class="form-field"><label class="form-label">العنوان التفصيلي</label><textarea class="form-input" id="orphan_detailed_address" data-field="orphan_detailed_address" rows="3" style="resize: vertical;"></textarea></div>
                 </div>
             </div>
@@ -146,6 +152,12 @@
                 <div class="form-row">
                     <div class="form-field"><label class="form-label">رقم الهاتف الأول</label><input type="tel" class="form-input" id="guardian_phone" data-field="guardian_phone" maxlength="15" pattern="[0-9]*" title="يجب أن يكون رقم الهاتف أرقام فقط (15 رقم كحد أقصى)"></div>
                     <div class="form-field"><label class="form-label">رقم الهاتف الثاني</label><input type="tel" class="form-input" id="guardian_phone2" data-field="guardian_phone2" maxlength="15" pattern="[0-9]*" title="يجب أن يكون رقم الهاتف أرقام فقط (15 رقم كحد أقصى)"></div>
+                </div>
+                <div class="form-field">
+                    <label class="form-label">المدينة</label>
+                    <select class="form-select" id="guardian_city_id" data-field="guardian_city_id">
+                        <option value="">-- اختر المدينة --</option>
+                    </select>
                 </div>
                 <div class="form-field"><label class="form-label">العنوان التفصيلي</label><textarea class="form-input" id="guardian_detailed_address" data-field="guardian_detailed_address" rows="3" style="resize: vertical;"></textarea></div>
             </div>
@@ -197,6 +209,9 @@
                 populateSelect('health_status_id', healthStatuses, 'id', 'description');
                 cities = await SyncService.getLocalData('cities') || [];
                 console.log('🏙️ cities loaded:', cities.length, 'items');
+                // تعبئة قائمة المدن للمكفول (breadwinner, deceased_father, deceased_mother)
+                populateSelect('orphan_city_id', cities, 'id', 'city');
+                // تعبئة قائمة المدن للمعيل/الولي (family_member)
                 populateSelect('guardian_city_id', cities, 'id', 'city');
                 bankNames = await SyncService.getLocalData('bank_names') || [];
             } catch (error) { console.error('Load lookup data error:', error); }
@@ -245,11 +260,77 @@
                 document.getElementById('noDataMessage').style.display = 'none';
                 document.getElementById('pageTitle').textContent = currentSponsorship.first_name || currentSponsorship.orphan_name || 'تفاصيل الكفالة';
                 bindChangeEvents();
+
+                // 🔥🔥🔥 تنفيذ الإظهار القوي بعد كل شيء 🔥🔥🔥
+                setTimeout(forceShowExtraFieldsForSpecialTypes, 200);
+                setTimeout(forceShowExtraFieldsForSpecialTypes, 500);
+                setTimeout(forceShowExtraFieldsForSpecialTypes, 1000);
             } catch (error) {
                 console.error('Load error:', error);
                 showToast('فشل في تحميل البيانات', 'error');
             } finally { showLoading(false); }
         }
+
+        /**
+         * 🔥🔥🔥 دالة قوية جداً لإظهار الحقول الإضافية بالقوة 🔥🔥🔥
+         * تُنفذ بعد كل عملية تحميل أو رجوع من صفحة أخرى
+         */
+        function forceShowExtraFieldsForSpecialTypes() {
+            const personType = document.getElementById('person_type')?.value || currentSponsorship?.person_type || '';
+            const extraFieldsContainer = document.getElementById('extraFieldsContainer');
+
+            console.log('🔥 forceShowExtraFieldsForSpecialTypes - personType:', personType);
+
+            // القوة القاسية: إظهار الحقول الإضافية لهذه الأنواع بأي ثمن
+            if (personType === 'breadwinner' || personType === 'deceased_father' || personType === 'deceased_mother') {
+                if (extraFieldsContainer) {
+                    // إزالة أي style مخفي
+                    extraFieldsContainer.removeAttribute('style');
+                    // إظهار بالقوة
+                    extraFieldsContainer.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important;';
+                    extraFieldsContainer.classList.remove('hidden');
+                    extraFieldsContainer.hidden = false;
+
+                    console.log('✅ تم إظهار الحقول الإضافية بالقوة لـ:', personType);
+
+                    // تعبئة البيانات من guardian_* إلى orphan_* بالقوة
+                    if (currentSponsorship) {
+                        const phone1 = currentSponsorship.guardian_phone || currentSponsorship.orphan_phone || '';
+                        const phone2 = currentSponsorship.guardian_phone2 || currentSponsorship.orphan_phone2 || '';
+                        const address = currentSponsorship.guardian_detailed_address || currentSponsorship.orphan_detailed_address || '';
+
+                        const phoneEl = document.getElementById('orphan_phone');
+                        const phone2El = document.getElementById('orphan_phone2');
+                        const addressEl = document.getElementById('orphan_detailed_address');
+
+                        if (phoneEl && !phoneEl.value && phone1) phoneEl.value = phone1;
+                        if (phone2El && !phone2El.value && phone2) phone2El.value = phone2;
+                        if (addressEl && !addressEl.value && address) addressEl.value = address;
+
+                        console.log('📞 تعبئة بيانات الاتصال:', { phone1, phone2, address });
+                    }
+                }
+            }
+        }
+
+        // تنفيذ الدالة عند كل تحميل للصفحة
+        window.addEventListener('load', forceShowExtraFieldsForSpecialTypes);
+        window.addEventListener('pageshow', forceShowExtraFieldsForSpecialTypes);
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) forceShowExtraFieldsForSpecialTypes();
+        });
+
+        // تنفيذ كل 500ms للتأكد من عدم الإخفاء
+        setInterval(function() {
+            const personType = document.getElementById('person_type')?.value || '';
+            if (personType === 'breadwinner' || personType === 'deceased_father' || personType === 'deceased_mother') {
+                const extraFieldsContainer = document.getElementById('extraFieldsContainer');
+                if (extraFieldsContainer && extraFieldsContainer.style.display === 'none') {
+                    extraFieldsContainer.style.cssText = 'display: block !important;';
+                    console.log('🔄 إعادة إظهار الحقول الإضافية (تم اكتشاف إخفاء)');
+                }
+            }
+        }, 500);
 
         /**
          * التعامل مع عرض نوع الشخص - تخصيص الواجهة بناءً على النوع
@@ -272,8 +353,13 @@
             genderSelect.style.display = 'block';
             genderReadonly.style.display = 'none';
             birthDateLabel.textContent = 'تاريخ الميلاد';
-            // إخفاء الحقول الإضافية افتراضياً
-            extraFieldsContainer.style.display = 'none';
+
+            // 🔥🔥🔥 إظهار الحقول الإضافية بالقوة القاسية 🔥🔥🔥
+            if (personType === 'breadwinner' || personType === 'deceased_father' || personType === 'deceased_mother') {
+                extraFieldsContainer.removeAttribute('style');
+                extraFieldsContainer.style.cssText = 'display: block !important; visibility: visible !important;';
+                console.log('🔥 handlePersonTypeDisplay - إظهار الحقول بالقوة لـ:', personType);
+            }
 
             switch (personType) {
                 case 'deceased_father':
@@ -288,8 +374,6 @@
                     genderReadonly.value = 'ذكر';
                     // تغيير تسمية تاريخ الميلاد لتاريخ الوفاة
                     birthDateLabel.textContent = 'تاريخ الوفاة';
-                    // إظهار الحقول الإضافية (هاتف، هاتف بديل، عنوان)
-                    extraFieldsContainer.style.display = 'block';
                     break;
 
                 case 'deceased_mother':
@@ -304,8 +388,6 @@
                     genderReadonly.value = 'أنثى';
                     // تغيير تسمية تاريخ الميلاد لتاريخ الوفاة
                     birthDateLabel.textContent = 'تاريخ الوفاة';
-                    // إظهار الحقول الإضافية (هاتف، هاتف بديل، عنوان)
-                    extraFieldsContainer.style.display = 'block';
                     break;
 
                 case 'breadwinner':
@@ -315,8 +397,6 @@
                     personTypeDisplay.style.display = 'block';
                     personTypeDisplay.querySelector('.form-field > div').style.background = '#d4edda';
                     personTypeDisplay.querySelector('.form-field > div').style.color = '#155724';
-                    // إظهار الحقول الإضافية (هاتف، هاتف بديل، عنوان)
-                    extraFieldsContainer.style.display = 'block';
                     break;
 
                 case 'family_member':
@@ -342,6 +422,9 @@
                     orphanSectionTitle.textContent = 'بيانات المكفول';
                     break;
             }
+
+            // 🔥 تنفيذ الدالة القوية بعد الانتهاء
+            setTimeout(forceShowExtraFieldsForSpecialTypes, 100);
         }
 
         function populateForm(data) {
@@ -367,10 +450,24 @@
             setValue('health_status_id', data.health_status_id || '');
             // تعيين person_type للمكفول
             setValue('person_type', data.person_type || '');
+
             // تعبئة الحقول الإضافية للمعيل والمتوفين
-            setValue('orphan_phone', data.orphan_phone || data.sponsored_phone || '');
-            setValue('orphan_phone2', data.orphan_phone2 || data.sponsored_phone2 || '');
-            setValue('orphan_detailed_address', data.orphan_detailed_address || data.sponsored_address || '');
+            // في حالة breadwinner, deceased_father, deceased_mother - بيانات الهاتف والعنوان تأتي من guardian_*
+            const pType = data.person_type || '';
+            if (pType === 'breadwinner' || pType === 'deceased_father' || pType === 'deceased_mother') {
+                // استخدام بيانات المعيل للحقول الإضافية (لأن المكفول هو المعيل/المتوفي نفسه)
+                setValue('orphan_phone', data.guardian_phone || data.orphan_phone || data.sponsored_phone || '');
+                setValue('orphan_phone2', data.guardian_phone2 || data.orphan_phone2 || data.sponsored_phone2 || '');
+                // تعيين المدينة للمكفول (breadwinner, deceased_father, deceased_mother)
+                setValue('orphan_city_id', data.orphan_city_id || '');
+                setValue('orphan_detailed_address', data.guardian_detailed_address || data.orphan_detailed_address || data.sponsored_address || '');
+            } else {
+                setValue('orphan_phone', data.orphan_phone || data.sponsored_phone || '');
+                setValue('orphan_phone2', data.orphan_phone2 || data.sponsored_phone2 || '');
+                setValue('orphan_city_id', data.orphan_city_id || '');
+                setValue('orphan_detailed_address', data.orphan_detailed_address || data.sponsored_address || '');
+            }
+
             setValue('guardian_person_type', data.guardian_person_type || data.person_type || 'breadwinner');
             setValue('guardian_first_name', data.guardian_first_name || '');
             setValue('guardian_father_name', data.guardian_father_name || '');
@@ -379,6 +476,8 @@
             setValue('guardian_identity_number', data.guardian_identity_number || '');
             setValue('guardian_phone', data.guardian_phone || '');
             setValue('guardian_phone2', data.guardian_phone2 || '');
+            // تعيين المدينة للمعيل/الولي (family_member)
+            setValue('guardian_city_id', data.guardian_city_id || '');
             setValue('guardian_detailed_address', data.guardian_detailed_address || '');
             populateBankAccounts(data.bank_accounts || []);
         }
@@ -524,14 +623,31 @@
                     console.log('📤 Sending person_type:', dataToSave.person_type);
                 }
 
+                // إرسال المدينة للمكفول (breadwinner, deceased_father, deceased_mother)
+                if (modifiedFields.orphan_city_id || modifiedFields.orphan_phone || modifiedFields.orphan_phone2 ||
+                    modifiedFields.orphan_detailed_address) {
+                    const personType = currentSponsorship.person_type || document.getElementById('person_type').value || 'orphan';
+                    dataToSave.person_type = personType;
+                    // تضمين المدينة إذا تم تعديلها
+                    if (modifiedFields.orphan_city_id) {
+                        dataToSave.orphan_city_id = modifiedFields.orphan_city_id;
+                        console.log('🏙️ إرسال المدينة للمكفول:', dataToSave.orphan_city_id);
+                    }
+                }
+
                 // إرسال نوع الشخص (المعيل) دائماً مع أي تعديل على بيانات المعيل
                 if (modifiedFields.guardian_first_name || modifiedFields.guardian_father_name || modifiedFields.guardian_grandfather_name ||
                     modifiedFields.guardian_family_name || modifiedFields.guardian_identity_number || modifiedFields.guardian_phone ||
-                    modifiedFields.guardian_phone2 || modifiedFields.guardian_detailed_address ||
+                    modifiedFields.guardian_phone2 || modifiedFields.guardian_detailed_address || modifiedFields.guardian_city_id ||
                     modifiedFields.guardian_person_type) {
                     // إضافة نوع الشخص الحالي (سواء تم تغييره أو لا)
                     dataToSave.guardian_person_type = modifiedFields.guardian_person_type || document.getElementById('guardian_person_type').value || 'breadwinner';
                     dataToSave.guardian_identity_number = modifiedFields.guardian_identity_number || originalData.guardian_identity_number || '';
+                    // تضمين المدينة للمعيل (family_member)
+                    if (modifiedFields.guardian_city_id) {
+                        dataToSave.guardian_city_id = modifiedFields.guardian_city_id;
+                        console.log('🏙️ إرسال المدينة للمعيل:', dataToSave.guardian_city_id);
+                    }
 
                     // ✅ إذا كان guardian_person_type = family_member، أرسل بيانات المكفول لإنشاء سجل في re_people
                     if (dataToSave.guardian_person_type === 'family_member') {

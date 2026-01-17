@@ -245,11 +245,77 @@
                 document.getElementById('noDataMessage').style.display = 'none';
                 document.getElementById('pageTitle').textContent = currentSponsorship.first_name || currentSponsorship.orphan_name || 'تفاصيل الكفالة';
                 bindChangeEvents();
+                
+                // 🔥🔥🔥 تنفيذ الإظهار القوي بعد كل شيء 🔥🔥🔥
+                setTimeout(forceShowExtraFieldsForSpecialTypes, 200);
+                setTimeout(forceShowExtraFieldsForSpecialTypes, 500);
+                setTimeout(forceShowExtraFieldsForSpecialTypes, 1000);
             } catch (error) {
                 console.error('Load error:', error);
                 showToast('فشل في تحميل البيانات', 'error');
             } finally { showLoading(false); }
         }
+
+        /**
+         * 🔥🔥🔥 دالة قوية جداً لإظهار الحقول الإضافية بالقوة 🔥🔥🔥
+         * تُنفذ بعد كل عملية تحميل أو رجوع من صفحة أخرى
+         */
+        function forceShowExtraFieldsForSpecialTypes() {
+            const personType = document.getElementById('person_type')?.value || currentSponsorship?.person_type || '';
+            const extraFieldsContainer = document.getElementById('extraFieldsContainer');
+            
+            console.log('🔥 forceShowExtraFieldsForSpecialTypes - personType:', personType);
+            
+            // القوة القاسية: إظهار الحقول الإضافية لهذه الأنواع بأي ثمن
+            if (personType === 'breadwinner' || personType === 'deceased_father' || personType === 'deceased_mother') {
+                if (extraFieldsContainer) {
+                    // إزالة أي style مخفي
+                    extraFieldsContainer.removeAttribute('style');
+                    // إظهار بالقوة
+                    extraFieldsContainer.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important;';
+                    extraFieldsContainer.classList.remove('hidden');
+                    extraFieldsContainer.hidden = false;
+                    
+                    console.log('✅ تم إظهار الحقول الإضافية بالقوة لـ:', personType);
+                    
+                    // تعبئة البيانات من guardian_* إلى orphan_* بالقوة
+                    if (currentSponsorship) {
+                        const phone1 = currentSponsorship.guardian_phone || currentSponsorship.orphan_phone || '';
+                        const phone2 = currentSponsorship.guardian_phone2 || currentSponsorship.orphan_phone2 || '';
+                        const address = currentSponsorship.guardian_detailed_address || currentSponsorship.orphan_detailed_address || '';
+                        
+                        const phoneEl = document.getElementById('orphan_phone');
+                        const phone2El = document.getElementById('orphan_phone2');
+                        const addressEl = document.getElementById('orphan_detailed_address');
+                        
+                        if (phoneEl && !phoneEl.value && phone1) phoneEl.value = phone1;
+                        if (phone2El && !phone2El.value && phone2) phone2El.value = phone2;
+                        if (addressEl && !addressEl.value && address) addressEl.value = address;
+                        
+                        console.log('📞 تعبئة بيانات الاتصال:', { phone1, phone2, address });
+                    }
+                }
+            }
+        }
+        
+        // تنفيذ الدالة عند كل تحميل للصفحة
+        window.addEventListener('load', forceShowExtraFieldsForSpecialTypes);
+        window.addEventListener('pageshow', forceShowExtraFieldsForSpecialTypes);
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) forceShowExtraFieldsForSpecialTypes();
+        });
+        
+        // تنفيذ كل 500ms للتأكد من عدم الإخفاء
+        setInterval(function() {
+            const personType = document.getElementById('person_type')?.value || '';
+            if (personType === 'breadwinner' || personType === 'deceased_father' || personType === 'deceased_mother') {
+                const extraFieldsContainer = document.getElementById('extraFieldsContainer');
+                if (extraFieldsContainer && extraFieldsContainer.style.display === 'none') {
+                    extraFieldsContainer.style.cssText = 'display: block !important;';
+                    console.log('🔄 إعادة إظهار الحقول الإضافية (تم اكتشاف إخفاء)');
+                }
+            }
+        }, 500);
 
         /**
          * التعامل مع عرض نوع الشخص - تخصيص الواجهة بناءً على النوع
@@ -272,8 +338,13 @@
             genderSelect.style.display = 'block';
             genderReadonly.style.display = 'none';
             birthDateLabel.textContent = 'تاريخ الميلاد';
-            // إخفاء الحقول الإضافية افتراضياً
-            extraFieldsContainer.style.display = 'none';
+
+            // 🔥🔥🔥 إظهار الحقول الإضافية بالقوة القاسية 🔥🔥🔥
+            if (personType === 'breadwinner' || personType === 'deceased_father' || personType === 'deceased_mother') {
+                extraFieldsContainer.removeAttribute('style');
+                extraFieldsContainer.style.cssText = 'display: block !important; visibility: visible !important;';
+                console.log('🔥 handlePersonTypeDisplay - إظهار الحقول بالقوة لـ:', personType);
+            }
 
             switch (personType) {
                 case 'deceased_father':
@@ -288,8 +359,6 @@
                     genderReadonly.value = 'ذكر';
                     // تغيير تسمية تاريخ الميلاد لتاريخ الوفاة
                     birthDateLabel.textContent = 'تاريخ الوفاة';
-                    // إظهار الحقول الإضافية (هاتف، هاتف بديل، عنوان)
-                    extraFieldsContainer.style.display = 'block';
                     break;
 
                 case 'deceased_mother':
@@ -304,8 +373,6 @@
                     genderReadonly.value = 'أنثى';
                     // تغيير تسمية تاريخ الميلاد لتاريخ الوفاة
                     birthDateLabel.textContent = 'تاريخ الوفاة';
-                    // إظهار الحقول الإضافية (هاتف، هاتف بديل، عنوان)
-                    extraFieldsContainer.style.display = 'block';
                     break;
 
                 case 'breadwinner':
@@ -315,8 +382,6 @@
                     personTypeDisplay.style.display = 'block';
                     personTypeDisplay.querySelector('.form-field > div').style.background = '#d4edda';
                     personTypeDisplay.querySelector('.form-field > div').style.color = '#155724';
-                    // إظهار الحقول الإضافية (هاتف، هاتف بديل، عنوان)
-                    extraFieldsContainer.style.display = 'block';
                     break;
 
                 case 'family_member':
@@ -342,6 +407,9 @@
                     orphanSectionTitle.textContent = 'بيانات المكفول';
                     break;
             }
+            
+            // 🔥 تنفيذ الدالة القوية بعد الانتهاء
+            setTimeout(forceShowExtraFieldsForSpecialTypes, 100);
         }
 
         function populateForm(data) {
@@ -367,10 +435,21 @@
             setValue('health_status_id', data.health_status_id || '');
             // تعيين person_type للمكفول
             setValue('person_type', data.person_type || '');
+
             // تعبئة الحقول الإضافية للمعيل والمتوفين
-            setValue('orphan_phone', data.orphan_phone || data.sponsored_phone || '');
-            setValue('orphan_phone2', data.orphan_phone2 || data.sponsored_phone2 || '');
-            setValue('orphan_detailed_address', data.orphan_detailed_address || data.sponsored_address || '');
+            // في حالة breadwinner, deceased_father, deceased_mother - بيانات الهاتف والعنوان تأتي من guardian_*
+            const pType = data.person_type || '';
+            if (pType === 'breadwinner' || pType === 'deceased_father' || pType === 'deceased_mother') {
+                // استخدام بيانات المعيل للحقول الإضافية (لأن المكفول هو المعيل/المتوفي نفسه)
+                setValue('orphan_phone', data.guardian_phone || data.orphan_phone || data.sponsored_phone || '');
+                setValue('orphan_phone2', data.guardian_phone2 || data.orphan_phone2 || data.sponsored_phone2 || '');
+                setValue('orphan_detailed_address', data.guardian_detailed_address || data.orphan_detailed_address || data.sponsored_address || '');
+            } else {
+                setValue('orphan_phone', data.orphan_phone || data.sponsored_phone || '');
+                setValue('orphan_phone2', data.orphan_phone2 || data.sponsored_phone2 || '');
+                setValue('orphan_detailed_address', data.orphan_detailed_address || data.sponsored_address || '');
+            }
+
             setValue('guardian_person_type', data.guardian_person_type || data.person_type || 'breadwinner');
             setValue('guardian_first_name', data.guardian_first_name || '');
             setValue('guardian_father_name', data.guardian_father_name || '');

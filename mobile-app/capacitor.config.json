@@ -8,10 +8,22 @@
   },
   "plugins": {
     "SplashScreen": {
-      "launchShowDuration": 0,
+      "launchShowDuration": 2000,
       "launchAutoHide": true,
       "backgroundColor": "#2a8b8b",
-      "showSpinner": false
+      "showSpinner": false,
+      "androidScaleType": "CENTER_CROP",
+      "splashFullScreen": true,
+      "splashImmersive": true
+    },
+    "StatusBar": {
+      "style": "LIGHT",
+      "backgroundColor": "#2a8b8b",
+      "overlaysWebView": false
+    },
+    "Keyboard": {
+      "resize": "body",
+      "resizeOnFullScreen": true
     },
     "Camera": {
       "presentationStyle": "fullscreen",

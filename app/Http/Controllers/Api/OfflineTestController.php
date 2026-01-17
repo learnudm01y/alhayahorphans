@@ -443,7 +443,13 @@ class OfflineTestController extends Controller
                     'guardian_family_name' => $guardianData['guardian_family_name'] ?? null,
                     'guardian_phone' => $guardianData['guardian_phone'] ?? null,
                     'guardian_phone2' => $guardianData['guardian_phone2'] ?? null,
+                    'guardian_city_id' => $guardianData['guardian_city_id'] ?? null,
                     'guardian_detailed_address' => $guardianData['guardian_address'] ?? null,
+                    // ✅ حقول المكفول الإضافية (المدينة والعنوان للـ breadwinner و deceased)
+                    'orphan_city_id' => $guardianData['orphan_city_id'] ?? null,
+                    'orphan_phone' => $guardianData['orphan_phone'] ?? null,
+                    'orphan_phone2' => $guardianData['orphan_phone2'] ?? null,
+                    'orphan_detailed_address' => $guardianData['orphan_detailed_address'] ?? null,
                     'identity_number' => $s->identity_number,
                     'guardian_identity_number' => $s->guardian_identity_number,
                     'internal_file_number' => $s->internal_file_number,
@@ -544,13 +550,16 @@ class OfflineTestController extends Controller
                     'guardian_phone' => $dataRecord->data_phone_number ?? null,
                     'guardian_phone2' => $dataRecord->data_alt_phone_number ?? null,
                     'guardian_address' => $dataRecord->data_current_address ?? null,
+                    // ✅ إضافة المدينة للمعيل/الولي (family_member) من جدول data
+                    'guardian_city_id' => $dataRecord->data_city ?? null,
                 ];
 
                 Log::info('✅ [OfflineTest] بيانات المعيل من جدول data', [
                     'sponsorship_id' => $sponsorship->id,
                     'guardian_first_name' => $guardianData['guardian_first_name'],
                     'guardian_family_name' => $guardianData['guardian_family_name'],
-                    'guardian_phone' => $guardianData['guardian_phone']
+                    'guardian_phone' => $guardianData['guardian_phone'],
+                    'guardian_city_id' => $guardianData['guardian_city_id']
                 ]);
             } else {
                 Log::debug('⚠️ [OfflineTest] لا يوجد سجل في data', [
@@ -610,6 +619,44 @@ class OfflineTestController extends Controller
                     'sponsorship_id' => $sponsorship->id,
                     'identity_number' => $sponsorship->identity_number,
                     'relation_id_number' => $sponsorship->relation_id_number
+                ]);
+            }
+
+            // ========================================
+            // 3. جلب المدينة والعنوان حسب person_type
+            // ========================================
+            $personType = $sponsorship->person_type;
+            $fileIdNumber = $sponsorship->relation_id_number ?: $sponsorship->internal_file_number;
+
+            // للمعيل (breadwinner): المدينة من جدول data
+            if ($personType === 'breadwinner' && $dataRecord) {
+                $guardianData['orphan_city_id'] = $dataRecord->data_city ?? null;
+                $guardianData['orphan_detailed_address'] = $dataRecord->data_current_address ?? null;
+                $guardianData['orphan_phone'] = $dataRecord->data_phone_number ?? null;
+                $guardianData['orphan_phone2'] = $dataRecord->data_alt_phone_number ?? null;
+
+                Log::info('🏙️ [OfflineTest] المدينة للمعيل (breadwinner) من data', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'orphan_city_id' => $guardianData['orphan_city_id']
+                ]);
+            }
+            // للمتوفين (deceased_father, deceased_mother): المدينة والعنوان من portal_general_registration_field_values
+            elseif (in_array($personType, ['deceased_father', 'deceased_mother']) && $fileIdNumber) {
+                $portalFields = DB::table('portal_general_registration_field_values')
+                    ->where('file_id_number', $fileIdNumber)
+                    ->whereIn('field_key', ['field_data_city', 'field_housing_address_detail', 'field_data_phone_number', 'field_data_alt_phone_number'])
+                    ->pluck('field_value', 'field_key');
+
+                $guardianData['orphan_city_id'] = $portalFields['field_data_city'] ?? null;
+                $guardianData['orphan_detailed_address'] = $portalFields['field_housing_address_detail'] ?? null;
+                $guardianData['orphan_phone'] = $portalFields['field_data_phone_number'] ?? null;
+                $guardianData['orphan_phone2'] = $portalFields['field_data_alt_phone_number'] ?? null;
+
+                Log::info('🏙️ [OfflineTest] المدينة للمتوفي من portal_general_registration_field_values', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'person_type' => $personType,
+                    'orphan_city_id' => $guardianData['orphan_city_id'],
+                    'fields_count' => count($portalFields)
                 ]);
             }
 
@@ -754,7 +801,13 @@ class OfflineTestController extends Controller
                     'guardian_family_name' => $guardianData['guardian_family_name'] ?? null,
                     'guardian_phone' => $guardianData['guardian_phone'] ?? null,
                     'guardian_phone2' => $guardianData['guardian_phone2'] ?? null,
+                    'guardian_city_id' => $guardianData['guardian_city_id'] ?? null,
                     'guardian_detailed_address' => $guardianData['guardian_address'] ?? null,
+                    // ✅ حقول المكفول الإضافية (المدينة والعنوان للـ breadwinner و deceased)
+                    'orphan_city_id' => $guardianData['orphan_city_id'] ?? null,
+                    'orphan_phone' => $guardianData['orphan_phone'] ?? null,
+                    'orphan_phone2' => $guardianData['orphan_phone2'] ?? null,
+                    'orphan_detailed_address' => $guardianData['orphan_detailed_address'] ?? null,
                     // بيانات الهوية
                     'identity_number' => $s->identity_number,
                     'guardian_identity_number' => $s->guardian_identity_number,
@@ -949,7 +1002,7 @@ class OfflineTestController extends Controller
                     // ========================================
                     $guardianFields = ['guardian_first_name', 'guardian_father_name', 'guardian_grandfather_name',
                                        'guardian_family_name', 'guardian_phone', 'guardian_phone2',
-                                       'guardian_detailed_address', 'guardian_identity_number'];
+                                       'guardian_detailed_address', 'guardian_identity_number', 'guardian_city_id'];
 
                     $guardianDataToUpdate = [];
                     foreach ($guardianFields as $field) {
@@ -965,6 +1018,8 @@ class OfflineTestController extends Controller
                                 $dataField = 'data_phone_number';
                             } elseif ($field === 'guardian_phone2') {
                                 $dataField = 'data_alt_phone_number';
+                            } elseif ($field === 'guardian_city_id') {
+                                $dataField = 'data_city';
                             }
                             $guardianDataToUpdate[$dataField] = $data[$field];
                         }
@@ -1018,7 +1073,7 @@ class OfflineTestController extends Controller
                     // ========================================
                     $sponsoredFields = ['first_name', 'second_name', 'third_name', 'last_name',
                                         'orphan_gender', 'birth_date', 'health_status_id',
-                                        'orphan_phone', 'orphan_phone2', 'orphan_detailed_address'];
+                                        'orphan_phone', 'orphan_phone2', 'orphan_detailed_address', 'orphan_city_id'];
 
                     $hasSponsoredUpdate = false;
                     foreach ($sponsoredFields as $field) {
@@ -1327,6 +1382,14 @@ class OfflineTestController extends Controller
                 if (isset($data['orphan_detailed_address'])) {
                     $updateData['data_current_address'] = $data['orphan_detailed_address'];
                 }
+                // ✅ إضافة المدينة للمعيل (breadwinner) في جدول data
+                if (isset($data['orphan_city_id'])) {
+                    $updateData['data_city'] = $data['orphan_city_id'];
+                    Log::info('[OfflineTest] 🏙️ تحديث المدينة للمعيل (breadwinner)', [
+                        'sponsorship_id' => $sponsorship->id,
+                        'city_id' => $data['orphan_city_id']
+                    ]);
+                }
 
                 if ($record) {
                     if (!empty($updateData)) {
@@ -1631,6 +1694,7 @@ class OfflineTestController extends Controller
      * هذه الحقول غير موجودة في جدول dead_people لذا تُحفظ هنا:
      * - field_data_phone_number: رقم الهاتف
      * - field_data_alt_phone_number: رقم الهاتف البديل
+     * - field_data_city: المدينة
      * - field_housing_address_detail: العنوان التفصيلي
      */
     private function saveDeceasedExtraFields(
@@ -1644,6 +1708,7 @@ class OfflineTestController extends Controller
         $fieldMappings = [
             'orphan_phone' => 'field_data_phone_number',
             'orphan_phone2' => 'field_data_alt_phone_number',
+            'orphan_city_id' => 'field_data_city',
             'orphan_detailed_address' => 'field_housing_address_detail'
         ];
 

@@ -106,15 +106,58 @@ class SponsorshipsDataTable extends DataTable
                 return $row->created_at->format('Y-m-d H:i:s');
             })
             ->addColumn('address', function ($row) {
-                // جلب العنوان من جدول data عبر relation_id_number
-                if ($row->relationData) {
-                    return $row->relationData->data_description_needs ?: '-';
+                // جلب العنوان حسب person_type
+                $personType = $row->person_type;
+
+                // للمتوفين: جلب من portal_general_registration_field_values
+                if (in_array($personType, ['deceased_father', 'deceased_mother'])) {
+                    $fileIdNumber = $row->relation_id_number ?: $row->internal_file_number;
+                    if ($fileIdNumber) {
+                        $portalValue = \App\Models\PortalGeneralRegistrationFieldValue::where('file_id_number', $fileIdNumber)
+                            ->where('field_key', 'field_housing_address_detail')
+                            ->first();
+                        if ($portalValue && $portalValue->field_value) {
+                            return $portalValue->field_value;
+                        }
+                    }
+                    return '-';
+                }
+
+                // للمعيل وفرد العائلة واليتيم: جلب من جدول data
+                if ($row->relationData && $row->relationData->data_current_address) {
+                    return $row->relationData->data_current_address;
                 }
                 // fallback: جلب من guardianData
-                return $row->guardianData ? ($row->guardianData->data_description_needs ?: '-') : '-';
+                if ($row->guardianData && $row->guardianData->data_current_address) {
+                    return $row->guardianData->data_current_address;
+                }
+                return '-';
             })
             ->addColumn('city', function ($row) {
-                // جلب المدينة من جدول data عبر relation_id_number
+                // جلب المدينة حسب person_type
+                $personType = $row->person_type;
+
+                // للمتوفين: جلب من portal_general_registration_field_values
+                if (in_array($personType, ['deceased_father', 'deceased_mother'])) {
+                    $fileIdNumber = $row->relation_id_number ?: $row->internal_file_number;
+                    if ($fileIdNumber) {
+                        $portalValue = \App\Models\PortalGeneralRegistrationFieldValue::where('file_id_number', $fileIdNumber)
+                            ->where('field_key', 'field_data_city')
+                            ->first();
+                        if ($portalValue && $portalValue->field_value) {
+                            // قد تكون القيمة هي ID المدينة، فنحتاج جلب الاسم
+                            $cityId = $portalValue->field_value;
+                            if (is_numeric($cityId)) {
+                                $city = \App\Models\City::find($cityId);
+                                return $city ? $city->city : $cityId;
+                            }
+                            return $portalValue->field_value;
+                        }
+                    }
+                    return '-';
+                }
+
+                // للمعيل وفرد العائلة واليتيم: جلب من جدول data
                 if ($row->relationData && $row->relationData->city) {
                     return $row->relationData->city->city;
                 }
@@ -510,7 +553,7 @@ class SponsorshipsDataTable extends DataTable
                 ->printable(false)
                 ->addClass('no-export')
                 ->width(120),
-            Column::computed('province')->title('المحافظة')->orderable(false)->searchable(false),
+            // ✅ تم حذف عمود المحافظة والحفاظ على عمودي المدينة والعنوان
             Column::computed('city')->title('المدينة')->orderable(false)->searchable(false),
             Column::computed('address')->title('العنوان')->orderable(false)->searchable(false),
             Column::computed('bank_name')->title('إسم البنك')->orderable(false)->searchable(false),
