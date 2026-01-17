@@ -1150,7 +1150,7 @@ class SponsorshipSyncController extends Controller
     {
         try {
             // � تعريف إصدار الكود - للتأكد من أن الكود المُحدَّث يعمل
-            Log::info('🔖 uploadSyncData VERSION: 2026-01-17-v5 (always update relation_id_number for deceased/breadwinner)');
+            Log::info('🔖 uploadSyncData VERSION: 2026-01-17-v6 (unified file_id across all tables)');
 
             // �📋 Log كل البيانات القادمة للفحص
             Log::info('📥 uploadSyncData: البيانات القادمة من التطبيق', [
@@ -1753,11 +1753,56 @@ class SponsorshipSyncController extends Controller
                     }
 
                     // إذا لم نجد سجلاً صالحاً، ننشئ سجلاً جديداً في data
-                    if (empty($validGuardianRegistration)) {
-                        Log::info('🔨 إنشاء سجل جديد في data للولي', [
+                    // ✅ لكن أولاً: إذا كان relation_id_number موجود (تم إنشاؤه للمتوفي/المعيل)، نستخدمه
+                    if (empty($validGuardianRegistration) && !empty($guardianRegistration)) {
+                        // relation_id_number موجود لكن لا يوجد سجل في data
+                        // ننشئ سجل في data بنفس الرقم للحفاظ على التماثل
+                        Log::info('🔨 إنشاء سجل جديد في data للولي (بنفس relation_id_number)', [
                             'guardian_identity' => $guardianIdentity,
                             'sponsorship_identity' => $sponsorship->identity_number,
-                            'reason' => 'لم يتم العثور على سجل موجود'
+                            'existing_relation_id_number' => $guardianRegistration,
+                            'reason' => 'استخدام نفس رقم الملف للحفاظ على التماثل'
+                        ]);
+
+                        // استخدام نفس رقم الملف الموجود في relation_id_number
+                        $newFileIdNumber = $guardianRegistration;
+
+                        // إنشاء سجل جديد في جدول data للولي مع الاسم الكامل
+                        $guardianInsertData = [
+                            'file_id_number' => $newFileIdNumber,
+                            'data_id_number' => $guardianIdentity ?? $sponsorship->identity_number,
+                            'created_at' => now(),
+                            'updated_at' => now()
+                        ];
+
+                        // إضافة الاسم الكامل إذا كان متاحاً
+                        if (isset($updates['guardian_first_name'])) $guardianInsertData['data_first_name'] = $updates['guardian_first_name'];
+                        if (isset($updates['guardian_father_name'])) $guardianInsertData['data_father_name'] = $updates['guardian_father_name'];
+                        if (isset($updates['guardian_grandfather_name'])) $guardianInsertData['data_grand_father_name'] = $updates['guardian_grandfather_name'];
+                        if (isset($updates['guardian_family_name'])) $guardianInsertData['data_family_name'] = $updates['guardian_family_name'];
+                        if (isset($updates['guardian_phone'])) $guardianInsertData['data_phone_number'] = $updates['guardian_phone'];
+                        if (isset($updates['guardian_phone2'])) $guardianInsertData['data_alt_phone_number'] = $updates['guardian_phone2'];
+                        if (isset($updates['guardian_detailed_address'])) $guardianInsertData['data_current_address'] = $updates['guardian_detailed_address'];
+                        if (isset($updates['guardian_city_id'])) $guardianInsertData['data_city'] = $updates['guardian_city_id'];
+
+                        DB::table('data')->insert($guardianInsertData);
+
+                        // ✅ لا حاجة لتعليم الكود لأنه نفس الرقم المُستخدم مسبقاً
+
+                        $validGuardianRegistration = $newFileIdNumber;
+
+                        Log::info('✅ تم إنشاء سجل جديد في data للولي بنفس relation_id_number', [
+                            'file_id_number' => $newFileIdNumber,
+                            'identity' => $guardianIdentity ?? $sponsorship->identity_number,
+                            'sponsorship_id' => $sponsorship->id
+                        ]);
+                    }
+                    // إذا لم يكن هناك relation_id_number أصلاً، ننشئ رقم جديد
+                    else if (empty($validGuardianRegistration)) {
+                        Log::info('🔨 إنشاء سجل جديد في data للولي (رقم جديد)', [
+                            'guardian_identity' => $guardianIdentity,
+                            'sponsorship_identity' => $sponsorship->identity_number,
+                            'reason' => 'لم يتم العثور على سجل موجود ولا يوجد relation_id_number'
                         ]);
 
                         $newFileIdNumber = generateFileIdFromDataTable();
@@ -1792,7 +1837,7 @@ class SponsorshipSyncController extends Controller
                             ->where('id', $sponsorship->id)
                             ->update(['relation_id_number' => $validGuardianRegistration, 'updated_at' => now()]);
 
-                        Log::info('✅ تم إنشاء سجل جديد في data للولي بنجاح', [
+                        Log::info('✅ تم إنشاء سجل جديد في data للولي بنجاح (رقم جديد)', [
                             'file_id_number' => $newFileIdNumber,
                             'identity' => $guardianIdentity ?? $sponsorship->identity_number,
                             'sponsorship_id' => $sponsorship->id
