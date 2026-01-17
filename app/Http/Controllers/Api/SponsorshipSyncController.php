@@ -1294,7 +1294,7 @@ class SponsorshipSyncController extends Controller
             // ===================================================================
             $guardianFields = ['guardian_first_name', 'guardian_father_name', 'guardian_grandfather_name',
                                'guardian_family_name', 'guardian_phone', 'guardian_phone2',
-                               'guardian_detailed_address', 'guardian_identity_number'];
+                               'guardian_detailed_address', 'guardian_identity_number', 'guardian_city_id'];
 
             // ✅ التحقق من أرقام الهاتف قبل الحفظ (الحد الأقصى 15 رقم لتجنب تجاوز BIGINT)
             $maxPhoneLength = 15;
@@ -1333,6 +1333,8 @@ class SponsorshipSyncController extends Controller
                         // تحويل لرقم وإزالة الأحرف غير الرقمية
                         $guardianDataToUpdate[$dataField] = (int)preg_replace('/[^0-9]/', '', $updates[$field]);
                         continue;
+                    } elseif ($field === 'guardian_city_id') {
+                        $dataField = 'data_city';
                     }
                     $guardianDataToUpdate[$dataField] = $updates[$field];
                 }
@@ -1362,7 +1364,10 @@ class SponsorshipSyncController extends Controller
                     DB::table('data')->where('id', $dataRecord->id)->update($guardianDataToUpdate);
                     Log::info('✅ تم تحديث بيانات المعيل في جدول data', [
                         'sponsorship_id' => $sponsorshipId,
-                        'data_record_id' => $dataRecord->id
+                        'data_record_id' => $dataRecord->id,
+                        'updated_fields' => array_keys($guardianDataToUpdate),
+                        'guardian_city_id' => $updates['guardian_city_id'] ?? 'NOT SET',
+                        'data_city_value' => $guardianDataToUpdate['data_city'] ?? 'NOT SET'
                     ]);
                 } else {
                     // إنشاء سجل جديد للمعيل
@@ -1767,6 +1772,7 @@ class SponsorshipSyncController extends Controller
                         if (isset($updates['guardian_phone'])) $guardianInsertData['data_phone_number'] = $updates['guardian_phone'];
                         if (isset($updates['guardian_phone2'])) $guardianInsertData['data_alt_phone_number'] = $updates['guardian_phone2'];
                         if (isset($updates['guardian_detailed_address'])) $guardianInsertData['data_current_address'] = $updates['guardian_detailed_address'];
+                        if (isset($updates['guardian_city_id'])) $guardianInsertData['data_city'] = $updates['guardian_city_id'];
 
                         DB::table('data')->insert($guardianInsertData);
 
@@ -2709,6 +2715,7 @@ class SponsorshipSyncController extends Controller
                     'data_phone_number' => $updates['guardian_phone'] ?? null,
                     'data_alt_phone_number' => $updates['guardian_phone2'] ?? null,
                     'data_current_address' => $updates['guardian_detailed_address'] ?? null,
+                    'data_city' => $updates['guardian_city_id'] ?? null,
                     'created_at' => now(),
                     'updated_at' => now()
                 ];
@@ -3078,7 +3085,7 @@ class SponsorshipSyncController extends Controller
                 if (!empty($names['grandfather_name'])) $updateData['data_grand_father_name'] = $names['grandfather_name'];
                 if (!empty($names['family_name'])) $updateData['data_family_name'] = $names['family_name'];
 
-                // الهاتف والعنوان
+                // الهاتف والعنوان والمدينة
                 if (!empty($updates['guardian_phone'])) {
                     $updateData['data_phone_number'] = $updates['guardian_phone'];
                 }
@@ -3087,6 +3094,10 @@ class SponsorshipSyncController extends Controller
                 }
                 if (!empty($updates['guardian_detailed_address'])) {
                     $updateData['data_current_address'] = $updates['guardian_detailed_address'];
+                }
+                // ✅ إضافة المدينة للمعيل/الولي
+                if (isset($updates['guardian_city_id'])) {
+                    $updateData['data_city'] = $updates['guardian_city_id'];
                 }
 
                 DB::table('data')->where('id', $existingRecord->id)->update($updateData);
