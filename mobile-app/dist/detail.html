@@ -630,15 +630,38 @@
                     console.log('📤 Sending person_type:', dataToSave.person_type);
                 }
 
-                // إرسال المدينة للمكفول (breadwinner, deceased_father, deceased_mother)
+                // إرسال المدينة والبيانات الإضافية للمكفول (breadwinner, deceased_father, deceased_mother)
                 if (modifiedFields.orphan_city_id || modifiedFields.orphan_phone || modifiedFields.orphan_phone2 ||
-                    modifiedFields.orphan_detailed_address) {
+                    modifiedFields.orphan_detailed_address || modifiedFields.health_status_id) {
                     const personType = currentSponsorship.person_type || document.getElementById('person_type').value || 'orphan';
                     dataToSave.person_type = personType;
+                    
                     // تضمين المدينة إذا تم تعديلها
                     if (modifiedFields.orphan_city_id) {
                         dataToSave.orphan_city_id = modifiedFields.orphan_city_id;
                         console.log('🏙️ إرسال المدينة للمكفول:', dataToSave.orphan_city_id);
+                    }
+                    
+                    // ✅ للمتوفين (deceased_father, deceased_mother): إرسال بيانات الاسم دائماً
+                    // لأن السيرفر يحتاجها لإنشاء/تحديث سجل في dead_people
+                    if (personType === 'deceased_father' || personType === 'deceased_mother') {
+                        dataToSave.first_name = modifiedFields.first_name || originalData.first_name || '';
+                        dataToSave.second_name = modifiedFields.second_name || originalData.second_name || '';
+                        dataToSave.third_name = modifiedFields.third_name || originalData.third_name || '';
+                        dataToSave.last_name = modifiedFields.last_name || originalData.last_name || '';
+                        dataToSave.identity_number = modifiedFields.identity_number || originalData.identity_number || '';
+                        dataToSave.birth_date = modifiedFields.birth_date || originalData.birth_date || '';
+                        
+                        // الجنس للمتوفين محدد تلقائياً
+                        dataToSave.orphan_gender = personType === 'deceased_father' ? 'ذكر' : 'أنثى';
+                        
+                        console.log('⚰️ متوفي - إرسال بيانات الاسم:', {
+                            first_name: dataToSave.first_name,
+                            second_name: dataToSave.second_name,
+                            third_name: dataToSave.third_name,
+                            last_name: dataToSave.last_name,
+                            identity_number: dataToSave.identity_number
+                        });
                     }
                 }
 

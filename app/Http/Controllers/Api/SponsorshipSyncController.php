@@ -2142,6 +2142,17 @@ class SponsorshipSyncController extends Controller
             case 'deceased_father':
                 $result['table'] = 'dead_people';
                 $record = null;
+                
+                // ✅ تسجيل البيانات المُستلمة للمتوفي
+                Log::info('⚰️ بيانات الأب المتوفي المُستلمة', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'first_name' => $updates['first_name'] ?? 'NOT SET',
+                    'second_name' => $updates['second_name'] ?? 'NOT SET',
+                    'third_name' => $updates['third_name'] ?? 'NOT SET',
+                    'last_name' => $updates['last_name'] ?? 'NOT SET',
+                    'identity_number' => $updates['identity_number'] ?? 'NOT SET',
+                    'all_updates_keys' => array_keys($updates)
+                ]);
 
                 // البحث بـ re_file_id أولاً
                 if (!empty($relationIdNumber)) {
@@ -2263,6 +2274,17 @@ class SponsorshipSyncController extends Controller
             case 'deceased_mother':
                 $result['table'] = 'dead_people';
                 $record = null;
+                
+                // ✅ تسجيل البيانات المُستلمة للمتوفية
+                Log::info('⚰️ بيانات الأم المتوفية المُستلمة', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'first_name' => $updates['first_name'] ?? 'NOT SET',
+                    'second_name' => $updates['second_name'] ?? 'NOT SET',
+                    'third_name' => $updates['third_name'] ?? 'NOT SET',
+                    'last_name' => $updates['last_name'] ?? 'NOT SET',
+                    'identity_number' => $updates['identity_number'] ?? 'NOT SET',
+                    'all_updates_keys' => array_keys($updates)
+                ]);
 
                 // البحث بـ re_file_id أولاً
                 if (!empty($relationIdNumber)) {
