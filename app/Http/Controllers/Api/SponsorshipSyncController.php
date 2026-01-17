@@ -2142,7 +2142,7 @@ class SponsorshipSyncController extends Controller
             case 'deceased_father':
                 $result['table'] = 'dead_people';
                 $record = null;
-                
+
                 // ✅ تسجيل البيانات المُستلمة للمتوفي
                 Log::info('⚰️ بيانات الأب المتوفي المُستلمة', [
                     'sponsorship_id' => $sponsorship->id,
@@ -2274,7 +2274,7 @@ class SponsorshipSyncController extends Controller
             case 'deceased_mother':
                 $result['table'] = 'dead_people';
                 $record = null;
-                
+
                 // ✅ تسجيل البيانات المُستلمة للمتوفية
                 Log::info('⚰️ بيانات الأم المتوفية المُستلمة', [
                     'sponsorship_id' => $sponsorship->id,
