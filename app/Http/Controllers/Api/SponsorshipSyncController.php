@@ -1150,7 +1150,7 @@ class SponsorshipSyncController extends Controller
     {
         try {
             // � تعريف إصدار الكود - للتأكد من أن الكود المُحدَّث يعمل
-            Log::info('🔖 uploadSyncData VERSION: 2026-01-17-v4 (fix deceased extra data file_id)');
+            Log::info('🔖 uploadSyncData VERSION: 2026-01-17-v5 (always update relation_id_number for deceased/breadwinner)');
 
             // �📋 Log كل البيانات القادمة للفحص
             Log::info('📥 uploadSyncData: البيانات القادمة من التطبيق', [
@@ -1974,10 +1974,15 @@ class SponsorshipSyncController extends Controller
                     // ✅ تعليم الكود كمستخدم
                     markCodeAsUsed($newFileId, null, 'breadwinner جديد في data');
 
-                    // تحديث relation_id_number في sponsorships
+                    // ✅ تحديث relation_id_number في sponsorships دائماً بالرقم الجديد
                     DB::table('sponsorships')->where('id', $sponsorship->id)->update([
                         'relation_id_number' => $newFileId,
                         'updated_at' => now()
+                    ]);
+                    
+                    Log::info('✅ تم تحديث relation_id_number في sponsorships للمعيل', [
+                        'sponsorship_id' => $sponsorship->id,
+                        'new_relation_id_number' => $newFileId
                     ]);
 
                     Log::info('✅ تم إنشاء سجل جديد للمكفول (breadwinner) في data', [
@@ -2226,13 +2231,11 @@ class SponsorshipSyncController extends Controller
                     // ===== السيناريو 4ب: إنشاء سجل جديد للأب المتوفي =====
                     Log::info('🆕 لا يوجد سجل للأب المتوفي - سيتم إنشاء سجل جديد');
 
-                    // ✅ توليد رقم ملف جديد باستخدام الخوارزمية الصحيحة (نفس OfflineTestController)
-                    $newFileId = !empty($relationIdNumber) ? $relationIdNumber : generateFileIdFromDataTable();
+                    // ✅ توليد رقم ملف جديد دائماً للمتوفين (لأن dead_people يحتاج re_file_id فريد)
+                    $newFileId = generateFileIdFromDataTable();
 
                     // ✅ تعليم الكود كمستخدم في reserved_codes لمنع التضارب
-                    if (empty($relationIdNumber)) {
-                        markCodeAsUsed($newFileId, null, 'deceased_father في dead_people - sponsorship_id: ' . $sponsorship->id);
-                    }
+                    markCodeAsUsed($newFileId, null, 'deceased_father في dead_people - sponsorship_id: ' . $sponsorship->id);
 
                     $insertData = [
                         're_file_id' => $newFileId,
@@ -2248,13 +2251,16 @@ class SponsorshipSyncController extends Controller
 
                     $newDeadId = DB::table('dead_people')->insertGetId($insertData);
 
-                    // تحديث relation_id_number في sponsorships إذا كان فارغاً
-                    if (empty($relationIdNumber)) {
-                        DB::table('sponsorships')->where('id', $sponsorship->id)->update([
-                            'relation_id_number' => $newFileId,
-                            'updated_at' => now()
-                        ]);
-                    }
+                    // ✅ تحديث relation_id_number في sponsorships دائماً بالرقم الجديد
+                    DB::table('sponsorships')->where('id', $sponsorship->id)->update([
+                        'relation_id_number' => $newFileId,
+                        'updated_at' => now()
+                    ]);
+                    
+                    Log::info('✅ تم تحديث relation_id_number في sponsorships', [
+                        'sponsorship_id' => $sponsorship->id,
+                        'new_relation_id_number' => $newFileId
+                    ]);
 
                     $result['success'] = true;
                     $result['message'] = 'تم إنشاء سجل جديد للأب المتوفي';
@@ -2360,13 +2366,11 @@ class SponsorshipSyncController extends Controller
                     // ===== السيناريو 4ب: إنشاء سجل جديد للأم المتوفية =====
                     Log::info('🆕 لا يوجد سجل للأم المتوفية - سيتم إنشاء سجل جديد');
 
-                    // ✅ توليد رقم ملف جديد باستخدام الخوارزمية الصحيحة (نفس OfflineTestController)
-                    $newFileId = !empty($relationIdNumber) ? $relationIdNumber : generateFileIdFromDataTable();
+                    // ✅ توليد رقم ملف جديد دائماً للمتوفين (لأن dead_people يحتاج re_file_id فريد)
+                    $newFileId = generateFileIdFromDataTable();
 
                     // ✅ تعليم الكود كمستخدم في reserved_codes لمنع التضارب
-                    if (empty($relationIdNumber)) {
-                        markCodeAsUsed($newFileId, null, 'deceased_mother في dead_people - sponsorship_id: ' . $sponsorship->id);
-                    }
+                    markCodeAsUsed($newFileId, null, 'deceased_mother في dead_people - sponsorship_id: ' . $sponsorship->id);
 
                     $insertData = [
                         're_file_id' => $newFileId,
@@ -2382,13 +2386,16 @@ class SponsorshipSyncController extends Controller
 
                     $newDeadId = DB::table('dead_people')->insertGetId($insertData);
 
-                    // تحديث relation_id_number في sponsorships إذا كان فارغاً
-                    if (empty($relationIdNumber)) {
-                        DB::table('sponsorships')->where('id', $sponsorship->id)->update([
-                            'relation_id_number' => $newFileId,
-                            'updated_at' => now()
-                        ]);
-                    }
+                    // ✅ تحديث relation_id_number في sponsorships دائماً بالرقم الجديد
+                    DB::table('sponsorships')->where('id', $sponsorship->id)->update([
+                        'relation_id_number' => $newFileId,
+                        'updated_at' => now()
+                    ]);
+                    
+                    Log::info('✅ تم تحديث relation_id_number في sponsorships', [
+                        'sponsorship_id' => $sponsorship->id,
+                        'new_relation_id_number' => $newFileId
+                    ]);
 
                     $result['success'] = true;
                     $result['message'] = 'تم إنشاء سجل جديد للأم المتوفية';
