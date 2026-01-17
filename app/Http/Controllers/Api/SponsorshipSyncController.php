@@ -1150,7 +1150,7 @@ class SponsorshipSyncController extends Controller
     {
         try {
             // � تعريف إصدار الكود - للتأكد من أن الكود المُحدَّث يعمل
-            Log::info('🔖 uploadSyncData VERSION: 2026-01-17-v2 (with guardian_city_id support)');
+            Log::info('🔖 uploadSyncData VERSION: 2026-01-17-v3 (with breadwinner & deceased city support)');
 
             // �📋 Log كل البيانات القادمة للفحص
             Log::info('📥 uploadSyncData: البيانات القادمة من التطبيق', [
@@ -1927,6 +1927,10 @@ class SponsorshipSyncController extends Controller
                 if (isset($updates['orphan_detailed_address']) || isset($updates['guardian_detailed_address'])) {
                     $updateData['data_current_address'] = $updates['orphan_detailed_address'] ?? $updates['guardian_detailed_address'];
                 }
+                // ✅ حفظ المدينة للمعيل
+                if (isset($updates['orphan_city_id']) || isset($updates['guardian_city_id'])) {
+                    $updateData['data_city'] = $updates['orphan_city_id'] ?? $updates['guardian_city_id'];
+                }
 
                 if ($record) {
                     // تحديث سجل موجود
@@ -1941,10 +1945,11 @@ class SponsorshipSyncController extends Controller
                     // إنشاء سجل جديد للمعيل
                     $newFileId = generateFileIdFromDataTable();
 
-                    // تحضير أرقام الهاتف
+                    // تحضير أرقام الهاتف والعنوان والمدينة
                     $phone = $updates['orphan_phone'] ?? $updates['guardian_phone'] ?? null;
                     $altPhone = $updates['orphan_phone2'] ?? $updates['guardian_phone2'] ?? null;
                     $address = $updates['orphan_detailed_address'] ?? $updates['guardian_detailed_address'] ?? null;
+                    $cityId = $updates['orphan_city_id'] ?? $updates['guardian_city_id'] ?? null;
 
                     // استخدام identity_number من التحديثات أو من المتغير الممرر
                     $dataIdNumber = $updates['identity_number'] ?? $identityNumber ?? null;
@@ -1961,6 +1966,7 @@ class SponsorshipSyncController extends Controller
                         'data_phone_number' => !empty($phone) ? (int)preg_replace('/[^0-9]/', '', $phone) : null,
                         'data_alt_phone_number' => !empty($altPhone) ? (int)preg_replace('/[^0-9]/', '', $altPhone) : null,
                         'data_current_address' => $address,
+                        'data_city' => $cityId,
                         'created_at' => now(),
                         'updated_at' => now()
                     ]);
@@ -4382,12 +4388,26 @@ class SponsorshipSyncController extends Controller
             );
         }
 
+        // ✅ حفظ المدينة للمتوفين
+        $cityId = $updates['orphan_city_id'] ?? $updates['guardian_city_id'] ?? null;
+        if (!empty($cityId)) {
+            $this->savePortalFieldValue(
+                $sponsorship->id,
+                $sponsorship->internal_file_number ?? $sponsorship->relation_id_number ?? '',
+                $updates['identity_number'] ?? $sponsorship->identity_number ?? null,
+                'field_data_city',
+                $cityId,
+                $userId
+            );
+        }
+
         Log::info('✅ تم حفظ البيانات الإضافية للمتوفي', [
             'person_type' => $personType,
             'sponsorship_id' => $sponsorship->id,
             'phone' => $phone,
             'alt_phone' => $altPhone,
-            'address' => $address
+            'address' => $address,
+            'city_id' => $cityId
         ]);
     }
 
