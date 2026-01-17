@@ -1149,7 +1149,10 @@ class SponsorshipSyncController extends Controller
     public function uploadSyncData(Request $request): JsonResponse
     {
         try {
-            // 📋 Log كل البيانات القادمة للفحص
+            // � تعريف إصدار الكود - للتأكد من أن الكود المُحدَّث يعمل
+            Log::info('🔖 uploadSyncData VERSION: 2026-01-17-v2 (with guardian_city_id support)');
+
+            // �📋 Log كل البيانات القادمة للفحص
             Log::info('📥 uploadSyncData: البيانات القادمة من التطبيق', [
                 'all_request_data' => $request->all(),
                 'user_id' => $request->user()->id ?? 'N/A',
@@ -1385,7 +1388,10 @@ class SponsorshipSyncController extends Controller
                     Log::info('✅ تم إنشاء سجل جديد للمعيل في جدول data', [
                         'sponsorship_id' => $sponsorshipId,
                         'new_data_id' => $newDataId,
-                        'file_id_number' => $unifiedFileIdNumber
+                        'file_id_number' => $unifiedFileIdNumber,
+                        'inserted_fields' => array_keys($newDataRecord),
+                        'guardian_city_id' => $updates['guardian_city_id'] ?? 'NOT SET',
+                        'data_city_value' => $newDataRecord['data_city'] ?? 'NOT SET'
                     ]);
 
                     // تحديث relation_id_number في الكفالة
