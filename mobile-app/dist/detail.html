@@ -558,12 +558,19 @@
             const field = e.target.dataset.field;
             const newValue = e.target.value;
             const originalValue = originalData[field] || '';
+            console.log(`🔄 handleFieldChange: ${field}`, {
+                newValue: newValue,
+                originalValue: originalValue,
+                comparison: newValue !== String(originalValue || '')
+            });
             if (newValue !== String(originalValue || '')) {
                 modifiedFields[field] = newValue;
                 e.target.classList.add('modified');
+                console.log(`✅ Added to modifiedFields: ${field} = ${newValue}`);
             } else {
                 delete modifiedFields[field];
                 e.target.classList.remove('modified');
+                console.log(`❌ Removed from modifiedFields: ${field}`);
             }
             updateSaveButton();
         }
@@ -643,9 +650,10 @@
                     // إضافة نوع الشخص الحالي (سواء تم تغييره أو لا)
                     dataToSave.guardian_person_type = modifiedFields.guardian_person_type || document.getElementById('guardian_person_type').value || 'breadwinner';
                     dataToSave.guardian_identity_number = modifiedFields.guardian_identity_number || originalData.guardian_identity_number || '';
-                    // تضمين المدينة للمعيل (family_member)
-                    if (modifiedFields.guardian_city_id) {
-                        dataToSave.guardian_city_id = modifiedFields.guardian_city_id;
+                    // ✅ تضمين المدينة للمعيل دائماً (إذا تم تعديلها أو كانت موجودة)
+                    const currentCityId = modifiedFields.guardian_city_id || document.getElementById('guardian_city_id').value;
+                    if (currentCityId) {
+                        dataToSave.guardian_city_id = currentCityId;
                         console.log('🏙️ إرسال المدينة للمعيل:', dataToSave.guardian_city_id);
                     }
 
