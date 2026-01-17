@@ -112,6 +112,8 @@ class SponsorshipsDataTable extends DataTable
                 // للمتوفين: جلب من portal_general_registration_field_values
                 if (in_array($personType, ['deceased_father', 'deceased_mother'])) {
                     $fileIdNumber = $row->relation_id_number ?: $row->internal_file_number;
+                    
+                    // البحث بـ file_id_number أولاً
                     if ($fileIdNumber) {
                         $portalValue = \App\Models\PortalGeneralRegistrationFieldValue::where('file_id_number', $fileIdNumber)
                             ->where('field_key', 'field_housing_address_detail')
@@ -120,6 +122,15 @@ class SponsorshipsDataTable extends DataTable
                             return $portalValue->field_value;
                         }
                     }
+                    
+                    // ✅ fallback: البحث بـ sponsorship_id
+                    $portalValue = \App\Models\PortalGeneralRegistrationFieldValue::where('sponsorship_id', $row->id)
+                        ->where('field_key', 'field_housing_address_detail')
+                        ->first();
+                    if ($portalValue && $portalValue->field_value) {
+                        return $portalValue->field_value;
+                    }
+                    
                     return '-';
                 }
 
@@ -140,6 +151,8 @@ class SponsorshipsDataTable extends DataTable
                 // للمتوفين: جلب من portal_general_registration_field_values
                 if (in_array($personType, ['deceased_father', 'deceased_mother'])) {
                     $fileIdNumber = $row->relation_id_number ?: $row->internal_file_number;
+                    
+                    // البحث بـ file_id_number أولاً
                     if ($fileIdNumber) {
                         $portalValue = \App\Models\PortalGeneralRegistrationFieldValue::where('file_id_number', $fileIdNumber)
                             ->where('field_key', 'field_data_city')
@@ -154,6 +167,20 @@ class SponsorshipsDataTable extends DataTable
                             return $portalValue->field_value;
                         }
                     }
+                    
+                    // ✅ fallback: البحث بـ sponsorship_id
+                    $portalValue = \App\Models\PortalGeneralRegistrationFieldValue::where('sponsorship_id', $row->id)
+                        ->where('field_key', 'field_data_city')
+                        ->first();
+                    if ($portalValue && $portalValue->field_value) {
+                        $cityId = $portalValue->field_value;
+                        if (is_numeric($cityId)) {
+                            $city = \App\Models\City::find($cityId);
+                            return $city ? $city->city : $cityId;
+                        }
+                        return $portalValue->field_value;
+                    }
+                    
                     return '-';
                 }
 
