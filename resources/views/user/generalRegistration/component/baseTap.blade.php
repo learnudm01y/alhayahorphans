@@ -693,6 +693,9 @@
 
                 // رقم الهوية صحيح
                 this.style.border = '2px solid green';
+
+                // 🆕 التحقق من وجود المعيل في قاعدة البيانات
+                checkExistingGuardian(value);
             });
 
             // إزالة التنسيق عند بدء الكتابة
@@ -703,5 +706,238 @@
             });
         }
     });
-</script>
-</script>
+
+    /**
+     * 🆕 دالة التحقق من وجود المعيل في قاعدة البيانات
+     * وجلب بياناته والحسابات البنكية إن وجدت
+     */
+    async function checkExistingGuardian(identityNumber) {
+        if (!identityNumber || identityNumber.length !== 9) return;
+
+        try {
+            // إظهار مؤشر التحميل
+            Swal.fire({
+                title: 'جاري البحث...',
+                text: 'جاري التحقق من وجود بيانات سابقة لهذا الرقم',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            const response = await fetch('{{ route("check.existing.guardian") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({ identity_number: identityNumber })
+            });
+
+            const result = await response.json();
+
+            if (result.exists) {
+                // تم العثور على المعيل
+                Swal.fire({
+                    icon: 'info',
+                    title: '✅ تم العثور على بيانات موجودة!',
+                    html: `
+                        <div class="text-start">
+                            <p><strong>المصدر:</strong> ${getSourceName(result.source)}</p>
+                            <p><strong>رقم الملف:</strong> ${result.file_id_number || 'غير متاح'}</p>
+                            <p><strong>الاسم:</strong> ${result.guardian_data?.full_name || 'غير متاح'}</p>
+                            <p><strong>عدد الحسابات البنكية:</strong> ${result.bank_accounts?.length || 0}</p>
+                            <hr>
+                            <p class="text-warning"><i class="fas fa-info-circle"></i> سيتم ربط الطلب الجديد بهذا المعيل بدلاً من إنشاء سجل جديد.</p>
+                        </div>
+                    `,
+                    confirmButtonText: 'ملء البيانات تلقائياً',
+                    showCancelButton: true,
+                    cancelButtonText: 'تجاهل',
+                }).then((swalResult) => {
+                    if (swalResult.isConfirmed) {
+                        fillGuardianData(result);
+                    }
+                });
+
+                // تخزين رقم الملف للاستخدام لاحقاً في الربط
+                window.existingGuardianFileId = result.file_id_number;
+                window.existingGuardianSource = result.source;
+
+            } else {
+                // لم يتم العثور - سيتم إنشاء سجل جديد
+                Swal.close();
+                window.existingGuardianFileId = null;
+                window.existingGuardianSource = null;
+            }
+
+        } catch (error) {
+            console.error('خطأ في التحقق من المعيل:', error);
+            Swal.close();
+        }
+    }
+
+    /**
+     * جلب اسم المصدر بالعربية
+     */
+    function getSourceName(source) {
+        const sources = {
+            'data': 'جدول المعيلين (data)',
+            'dead_people_father': 'سجل المتوفين (الأب)',
+            'dead_people_mother': 'سجل المتوفين (الأم)'
+        };
+        return sources[source] || source;
+    }
+
+    /**
+     * 🆕 ملء بيانات المعيل تلقائياً من البيانات المسترجعة
+     */
+    function fillGuardianData(result) {
+        const data = result.guardian_data;
+        if (!data) return;
+
+        // ملء الحقول الأساسية
+        const fieldMappings = {
+            'data_first_name': data.first_name,
+            'data_father_name': data.father_name,
+            'data_grand_father_name': data.grand_father_name,
+            'data_family_name': data.family_name,
+            'data_phone_number': data.phone_number,
+            'data_alt_phone_number': data.alt_phone_number,
+            'data_birth_date': data.birth_date,
+            'data_current_address': data.current_address,
+            'data_city': data.city,
+            'data_province': data.province,
+        };
+
+        for (const [fieldName, fieldValue] of Object.entries(fieldMappings)) {
+            if (fieldValue) {
+                const input = document.querySelector(`[name="${fieldName}"]`);
+                if (input) {
+                    input.value = fieldValue;
+                    // إضافة تنسيق للحقول المملوءة تلقائياً
+                    input.style.backgroundColor = '#e8f5e9';
+                }
+            }
+        }
+
+        // ملء الجنس (select)
+        if (data.gender) {
+            const genderSelect = document.querySelector('[name="data_gender"]');
+            if (genderSelect) {
+                genderSelect.value = data.gender;
+                genderSelect.style.backgroundColor = '#e8f5e9';
+            }
+        }
+
+        // ملء الحالة الاجتماعية (select)
+        if (data.marital_status) {
+            const maritalSelect = document.querySelector('[name="data_marital_status"]');
+            if (maritalSelect) {
+                maritalSelect.value = data.marital_status;
+                maritalSelect.style.backgroundColor = '#e8f5e9';
+            }
+        }
+
+        // 🆕 ملء الحسابات البنكية إن وجدت
+        if (result.bank_accounts && result.bank_accounts.length > 0) {
+            fillBankAccounts(result.bank_accounts);
+        }
+
+        // إضافة حقل مخفي لتخزين رقم الملف الموجود
+        let hiddenField = document.getElementById('existing_file_id_number');
+        if (!hiddenField) {
+            hiddenField = document.createElement('input');
+            hiddenField.type = 'hidden';
+            hiddenField.name = 'existing_file_id_number';
+            hiddenField.id = 'existing_file_id_number';
+            document.getElementById('main_form')?.appendChild(hiddenField);
+        }
+        hiddenField.value = result.file_id_number || '';
+
+        // إضافة حقل مخفي للمصدر
+        let sourceField = document.getElementById('existing_guardian_source');
+        if (!sourceField) {
+            sourceField = document.createElement('input');
+            sourceField.type = 'hidden';
+            sourceField.name = 'existing_guardian_source';
+            sourceField.id = 'existing_guardian_source';
+            document.getElementById('main_form')?.appendChild(sourceField);
+        }
+        sourceField.value = result.source || '';
+
+        Swal.fire({
+            icon: 'success',
+            title: 'تم ملء البيانات!',
+            text: 'تم ملء البيانات تلقائياً. يمكنك تعديلها إذا لزم الأمر.',
+            timer: 2000,
+            showConfirmButton: false
+        });
+    }
+
+    /**
+     * 🆕 ملء الحسابات البنكية من البيانات المسترجعة
+     */
+    function fillBankAccounts(bankAccounts) {
+        if (!bankAccounts || bankAccounts.length === 0) return;
+
+        const addBankAccountBtn = document.getElementById('addBankAccountBtn');
+        const bankAccountsContainer = document.getElementById('bankAccountsContainer');
+
+        if (!addBankAccountBtn || !bankAccountsContainer) return;
+
+        // إظهار منطقة الحسابات البنكية
+        bankAccountsContainer.classList.remove('d-none');
+
+        bankAccounts.forEach((account, index) => {
+            // إضافة نموذج حساب بنكي جديد
+            addBankAccountBtn.click();
+
+            // الانتظار قليلاً لإنشاء النموذج
+            setTimeout(() => {
+                const forms = document.querySelectorAll('.bank-account-form');
+                const lastForm = forms[forms.length - 1];
+
+                if (lastForm) {
+                    // ملء بيانات الحساب
+                    const bankNameSelect = lastForm.querySelector('[name*="bank_name"]');
+                    if (bankNameSelect && account.bank_name) {
+                        bankNameSelect.value = account.bank_name;
+                        bankNameSelect.style.backgroundColor = '#e8f5e9';
+                    }
+
+                    const ibanUsd = lastForm.querySelector('[name*="iban_usd"]');
+                    if (ibanUsd && account.iban_usd) {
+                        ibanUsd.value = account.iban_usd;
+                        ibanUsd.style.backgroundColor = '#e8f5e9';
+                    }
+
+                    const ibanShekel = lastForm.querySelector('[name*="iban_shekel"]');
+                    if (ibanShekel && account.iban_shekel) {
+                        ibanShekel.value = account.iban_shekel;
+                        ibanShekel.style.backgroundColor = '#e8f5e9';
+                    }
+
+                    const ownerIdInput = lastForm.querySelector('[name*="person_owner_identity_number"]');
+                    if (ownerIdInput && account.person_owner_identity_number) {
+                        ownerIdInput.value = account.person_owner_identity_number;
+                        ownerIdInput.style.backgroundColor = '#e8f5e9';
+                    }
+
+                    const ownerNameInput = lastForm.querySelector('[name*="re_guardian_name"]');
+                    if (ownerNameInput && account.re_guardian_name) {
+                        ownerNameInput.value = account.re_guardian_name;
+                        ownerNameInput.style.backgroundColor = '#e8f5e9';
+                    }
+
+                    const phoneInput = lastForm.querySelector('[name*="re_phone_number"]');
+                    if (phoneInput && account.re_phone_number) {
+                        phoneInput.value = account.re_phone_number;
+                        phoneInput.style.backgroundColor = '#e8f5e9';
+                    }
+                }
+            }, 100 * (index + 1));
+        });
+    }

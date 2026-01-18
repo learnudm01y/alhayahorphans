@@ -145,6 +145,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/search-all-tables', [GeneralRegistrationController::class, 'searchAllTables'])->name('search.all.tables');
     Route::post('/fill-from-civil-registry', [GeneralRegistrationController::class, 'fillFromCivilRegistry'])->name('fill.civil.registry');
 
+    // 🆕 مسارات التحقق من وجود المعيل وجلب بياناته
+    Route::post('/check-existing-guardian', [GeneralRegistrationController::class, 'checkExistingGuardian'])->name('check.existing.guardian');
+    Route::post('/get-guardian-with-bank-accounts', [GeneralRegistrationController::class, 'getGuardianWithBankAccounts'])->name('get.guardian.bank.accounts');
+
 
 // Reserved Codes Management Routes (Admin Only)
 Route::middleware(['auth', 'verified'])->prefix('admin/reserved-codes')->group(function () {

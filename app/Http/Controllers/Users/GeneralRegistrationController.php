@@ -130,8 +130,57 @@ class GeneralRegistrationController extends Controller
             // استخدم رقم الملف مع الأصفار البادئة دائماً
             $fileIdNumber = str_pad($request->input('file_id_number'), 6, '0', STR_PAD_LEFT);
 
-            // تحقق من عدم تكرار رقم الملف العام
-            if (\App\Models\Data::where('file_id_number', $fileIdNumber)->exists()) {
+            // 🆕 التحقق إذا كان المعيل موجود مسبقاً في قاعدة البيانات
+            $existingFileIdNumber = $request->input('existing_file_id_number');
+            $existingGuardianSource = $request->input('existing_guardian_source');
+            $guardianIdentity = $request->input('data_id_number');
+            $useExistingGuardian = false;
+            $existingGuardianData = null;
+
+            // التحقق إذا تم تمرير معيل موجود من الواجهة
+            if (!empty($existingFileIdNumber)) {
+                $existingGuardianData = Data::where('file_id_number', $existingFileIdNumber)->first();
+                if ($existingGuardianData) {
+                    $useExistingGuardian = true;
+                    Log::info('🔗 استخدام معيل موجود من الواجهة', [
+                        'existing_file_id' => $existingFileIdNumber,
+                        'guardian_identity' => $guardianIdentity
+                    ]);
+                }
+            }
+
+            // إذا لم يتم تمرير معيل موجود، نبحث عنه تلقائياً
+            if (!$useExistingGuardian && !empty($guardianIdentity)) {
+                // البحث في جدول data
+                $existingGuardianData = Data::where('data_id_number', $guardianIdentity)->first();
+
+                if ($existingGuardianData) {
+                    $useExistingGuardian = true;
+                    $existingFileIdNumber = $existingGuardianData->file_id_number;
+                    Log::info('🔗 تم العثور على معيل موجود في جدول data', [
+                        'existing_file_id' => $existingFileIdNumber,
+                        'guardian_identity' => $guardianIdentity
+                    ]);
+                } else {
+                    // البحث في جدول dead_people (الأب أو الأم)
+                    $deadPerson = DeadPepole::where('father_id', $guardianIdentity)
+                        ->orWhere('mother_id', $guardianIdentity)
+                        ->first();
+
+                    if ($deadPerson) {
+                        $existingFileIdNumber = $deadPerson->re_file_id;
+                        Log::info('🔗 تم العثور على شخص في جدول dead_people، سيتم الربط بالملف', [
+                            'dead_people_file_id' => $existingFileIdNumber,
+                            'guardian_identity' => $guardianIdentity,
+                            'is_father' => ($deadPerson->father_id == $guardianIdentity)
+                        ]);
+                        // لا نستخدم المعيل الموجود، لكن نحتفظ برقم الملف للربط
+                    }
+                }
+            }
+
+            // تحقق من عدم تكرار رقم الملف العام (إلا إذا كنا نستخدم معيل موجود)
+            if (!$useExistingGuardian && \App\Models\Data::where('file_id_number', $fileIdNumber)->exists()) {
                 // إذا كان الطلب AJAX أرجع رسالة واضحة
                 if ($request->ajax() || $request->wantsJson()) {
                     return response()->json([
@@ -145,8 +194,22 @@ class GeneralRegistrationController extends Controller
                     ->with('error', 'رقم الملف العام مستخدم مسبقاً. يرجى تحديث الصفحة أو استخدام رقم جديد.');
             }
 
-            // 2. Store main Data record
-            $data = Data::create([
+            // 2. Store main Data record أو استخدام المعيل الموجود
+            $data = null;
+
+            if ($useExistingGuardian && $existingGuardianData) {
+                // 🆕 استخدام المعيل الموجود - لا نقوم بإنشاء سجل جديد
+                $data = $existingGuardianData;
+                $fileIdNumber = $existingFileIdNumber;
+
+                Log::info('✅ تم استخدام معيل موجود بدلاً من إنشاء سجل جديد', [
+                    'file_id_number' => $fileIdNumber,
+                    'guardian_identity' => $guardianIdentity,
+                    'guardian_name' => $existingGuardianData->data_first_name . ' ' . $existingGuardianData->data_family_name
+                ]);
+            } else {
+                // إنشاء سجل معيل جديد
+                $data = Data::create([
                 'file_id_number' => $fileIdNumber,
                 'data_section_id' => $request->input('data_section_id'),
                 'data_id_number' => $request->input('data_id_number'),
@@ -180,9 +243,10 @@ class GeneralRegistrationController extends Controller
                 'data_request_status' => 1, // تأكد من وجود هذا السطر دائماً
             ]);
 
-            // وضع علامة على الرقم كمستخدم في جدول reserved_codes
-            markCodeAsUsed($fileIdNumber);
-            Log::info('✅ تم حفظ الرقم بنجاح: ' . $fileIdNumber);
+                // وضع علامة على الرقم كمستخدم في جدول reserved_codes
+                markCodeAsUsed($fileIdNumber);
+                Log::info('✅ تم إنشاء سجل معيل جديد: ' . $fileIdNumber);
+            } // نهاية else (إنشاء سجل جديد)
 
             // إضافة بيانات الحساب البنكي إذا وُجدت أي قيمة بنكية مع التحقق من التكرار
             $bankAccounts = $request->input('bank_accounts', []);
@@ -1162,6 +1226,272 @@ class GeneralRegistrationController extends Controller
                 {$column},
                 'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ة', 'ه'), 'ى', 'ي'), 'ـ', '')),
                 ' ', '')";
+    }
+
+    /**
+     * 🆕 التحقق من وجود المعيل وجلب بياناته من الجداول المختلفة
+     * هذه الدالة تُستخدم عبر API لجلب بيانات المعيل الموجود مسبقاً
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function checkExistingGuardian(Request $request)
+    {
+        try {
+            $identityNumber = $request->input('identity_number');
+
+            if (empty($identityNumber) || strlen($identityNumber) != 9) {
+                return response()->json([
+                    'success' => false,
+                    'exists' => false,
+                    'message' => 'رقم الهوية يجب أن يكون 9 أرقام'
+                ]);
+            }
+
+            $result = [
+                'exists' => false,
+                'source' => null,
+                'file_id_number' => null,
+                'guardian_data' => null,
+                'bank_accounts' => [],
+                'message' => ''
+            ];
+
+            // 1️⃣ البحث في جدول data (المعيلين)
+            $dataRecord = Data::where('data_id_number', $identityNumber)->first();
+
+            if ($dataRecord) {
+                $result['exists'] = true;
+                $result['source'] = 'data';
+                $result['file_id_number'] = $dataRecord->file_id_number;
+                $result['guardian_data'] = [
+                    'file_id_number' => $dataRecord->file_id_number,
+                    'identity_number' => $dataRecord->data_id_number,
+                    'first_name' => $dataRecord->data_first_name,
+                    'father_name' => $dataRecord->data_father_name,
+                    'grand_father_name' => $dataRecord->data_grand_father_name,
+                    'family_name' => $dataRecord->data_family_name,
+                    'full_name' => trim(
+                        ($dataRecord->data_first_name ?? '') . ' ' .
+                        ($dataRecord->data_father_name ?? '') . ' ' .
+                        ($dataRecord->data_grand_father_name ?? '') . ' ' .
+                        ($dataRecord->data_family_name ?? '')
+                    ),
+                    'phone_number' => $dataRecord->data_phone_number,
+                    'alt_phone_number' => $dataRecord->data_alt_phone_number,
+                    'birth_date' => $dataRecord->data_birth_date,
+                    'gender' => $dataRecord->data_gender,
+                    'marital_status' => $dataRecord->data_marital_status,
+                    'province' => $dataRecord->data_province,
+                    'city' => $dataRecord->data_city,
+                    'current_address' => $dataRecord->data_current_address,
+                    'section_id' => $dataRecord->data_section_id,
+                ];
+
+                // جلب الحسابات البنكية
+                $bankAccounts = GuardianBankAccount::where('guardian_registration', $dataRecord->file_id_number)->get();
+                $result['bank_accounts'] = $bankAccounts->map(function($account) {
+                    return [
+                        'id' => $account->id,
+                        'bank_name' => $account->bank_name,
+                        'iban_usd' => $account->iban_usd,
+                        'iban_shekel' => $account->iban_shekel,
+                        'person_owner_identity_number' => $account->person_owner_identity_number,
+                        're_guardian_name' => $account->re_guardian_name,
+                        're_phone_number' => $account->re_phone_number,
+                        'check_account' => $account->check_account,
+                    ];
+                })->toArray();
+
+                $result['message'] = 'تم العثور على المعيل في قاعدة البيانات. سيتم ربط الشخص المكفول به.';
+
+                Log::info('✅ تم العثور على معيل موجود في جدول data', [
+                    'identity' => $identityNumber,
+                    'file_id_number' => $dataRecord->file_id_number,
+                    'bank_accounts_count' => count($result['bank_accounts'])
+                ]);
+
+                return response()->json($result);
+            }
+
+            // 2️⃣ البحث في جدول dead_people (الأب أو الأم المتوفي)
+            $deadRecord = DeadPepole::where('father_id', $identityNumber)
+                ->orWhere('mother_id', $identityNumber)
+                ->first();
+
+            if ($deadRecord) {
+                $isFather = ($deadRecord->father_id == $identityNumber);
+                $result['exists'] = true;
+                $result['source'] = $isFather ? 'dead_people_father' : 'dead_people_mother';
+                $result['file_id_number'] = $deadRecord->re_file_id;
+
+                $result['guardian_data'] = [
+                    'file_id_number' => $deadRecord->re_file_id,
+                    'identity_number' => $identityNumber,
+                    'first_name' => $isFather ? $deadRecord->father_first_name : $deadRecord->mother_first_name,
+                    'father_name' => $isFather ? $deadRecord->father_second_name : $deadRecord->mother_second_name,
+                    'grand_father_name' => $isFather ? $deadRecord->father_third_name : $deadRecord->mother_third_name,
+                    'family_name' => $isFather ? $deadRecord->father_last_name : $deadRecord->mother_last_name,
+                    'full_name' => $isFather ?
+                        trim(
+                            ($deadRecord->father_first_name ?? '') . ' ' .
+                            ($deadRecord->father_second_name ?? '') . ' ' .
+                            ($deadRecord->father_third_name ?? '') . ' ' .
+                            ($deadRecord->father_last_name ?? '')
+                        ) :
+                        trim(
+                            ($deadRecord->mother_first_name ?? '') . ' ' .
+                            ($deadRecord->mother_second_name ?? '') . ' ' .
+                            ($deadRecord->mother_third_name ?? '') . ' ' .
+                            ($deadRecord->mother_last_name ?? '')
+                        ),
+                    'death_date' => $isFather ? $deadRecord->father_death_date : $deadRecord->mother_death_date,
+                    'death_reason' => $isFather ? $deadRecord->father_death_reason : $deadRecord->mother_death_reason,
+                    'is_deceased' => true,
+                    'deceased_type' => $isFather ? 'father' : 'mother',
+                ];
+
+                // جلب البيانات الإضافية من portal_general_registration_field_values
+                $portalFields = \App\Models\PortalGeneralRegistrationFieldValue::where('file_id_number', $deadRecord->re_file_id)
+                    ->orWhere('identity_number', $identityNumber)
+                    ->get()
+                    ->keyBy('field_key');
+
+                if ($portalFields->isNotEmpty()) {
+                    $result['guardian_data']['phone_number'] = $portalFields->get('phone_number')?->field_value;
+                    $result['guardian_data']['alt_phone_number'] = $portalFields->get('alt_phone_number')?->field_value;
+                    $result['guardian_data']['current_address'] = $portalFields->get('current_address')?->field_value;
+                    $result['guardian_data']['city'] = $portalFields->get('city')?->field_value;
+                    $result['guardian_data']['province'] = $portalFields->get('province')?->field_value;
+                }
+
+                // جلب الحسابات البنكية
+                $bankAccounts = GuardianBankAccount::where('guardian_registration', $deadRecord->re_file_id)->get();
+                $result['bank_accounts'] = $bankAccounts->map(function($account) {
+                    return [
+                        'id' => $account->id,
+                        'bank_name' => $account->bank_name,
+                        'iban_usd' => $account->iban_usd,
+                        'iban_shekel' => $account->iban_shekel,
+                        'person_owner_identity_number' => $account->person_owner_identity_number,
+                        're_guardian_name' => $account->re_guardian_name,
+                        're_phone_number' => $account->re_phone_number,
+                        'check_account' => $account->check_account,
+                    ];
+                })->toArray();
+
+                $result['message'] = 'تم العثور على الشخص في سجل المتوفين. سيتم الربط بالملف الموجود.';
+
+                Log::info('✅ تم العثور على شخص في جدول dead_people', [
+                    'identity' => $identityNumber,
+                    'file_id_number' => $deadRecord->re_file_id,
+                    'type' => $isFather ? 'father' : 'mother',
+                    'bank_accounts_count' => count($result['bank_accounts'])
+                ]);
+
+                return response()->json($result);
+            }
+
+            // 3️⃣ لم يتم العثور على الشخص
+            $result['message'] = 'لم يتم العثور على الشخص في قاعدة البيانات. سيتم إنشاء سجل جديد.';
+
+            return response()->json($result);
+
+        } catch (\Exception $e) {
+            Log::error('❌ خطأ في التحقق من وجود المعيل', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'exists' => false,
+                'message' => 'حدث خطأ أثناء البحث: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * 🆕 جلب بيانات المعيل الموجود مع الحسابات البنكية لعرضها في النموذج
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getGuardianWithBankAccounts(Request $request)
+    {
+        try {
+            $fileIdNumber = $request->input('file_id_number');
+            $identityNumber = $request->input('identity_number');
+
+            if (empty($fileIdNumber) && empty($identityNumber)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'يجب توفير رقم الملف أو رقم الهوية'
+                ]);
+            }
+
+            // البحث بالأولوية: رقم الملف ثم رقم الهوية
+            $guardian = null;
+
+            if (!empty($fileIdNumber)) {
+                $guardian = Data::where('file_id_number', $fileIdNumber)->first();
+            }
+
+            if (!$guardian && !empty($identityNumber)) {
+                $guardian = Data::where('data_id_number', $identityNumber)->first();
+            }
+
+            if (!$guardian) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لم يتم العثور على المعيل'
+                ]);
+            }
+
+            // جلب الحسابات البنكية
+            $bankAccounts = GuardianBankAccount::where('guardian_registration', $guardian->file_id_number)
+                ->with(['bankNameRelation'])
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'guardian' => [
+                    'file_id_number' => $guardian->file_id_number,
+                    'identity_number' => $guardian->data_id_number,
+                    'full_name' => trim(
+                        ($guardian->data_first_name ?? '') . ' ' .
+                        ($guardian->data_father_name ?? '') . ' ' .
+                        ($guardian->data_grand_father_name ?? '') . ' ' .
+                        ($guardian->data_family_name ?? '')
+                    ),
+                    'phone_number' => $guardian->data_phone_number,
+                    'alt_phone_number' => $guardian->data_alt_phone_number,
+                ],
+                'bank_accounts' => $bankAccounts->map(function($account) {
+                    return [
+                        'id' => $account->id,
+                        'bank_name' => $account->bank_name,
+                        'bank_description' => $account->bankNameRelation?->description ?? '',
+                        'iban_usd' => $account->iban_usd,
+                        'iban_shekel' => $account->iban_shekel,
+                        'person_owner_identity_number' => $account->person_owner_identity_number,
+                        're_guardian_name' => $account->re_guardian_name,
+                        're_phone_number' => $account->re_phone_number,
+                        'check_account' => $account->check_account,
+                    ];
+                })->toArray()
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('خطأ في جلب بيانات المعيل مع الحسابات البنكية', [
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }
 
