@@ -134,6 +134,41 @@
     .change-sponsorship-status option {
         padding: 5px 10px;
     }
+
+    /* 🔥 تنسيقات نظام Pagination في المودال */
+    #importExcelModal .modal-body {
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+
+    #missing_persons_section .table-responsive {
+        max-height: 350px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+    }
+
+    #missing_persons_section .table thead {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    #missing_persons_section .pagination .page-link {
+        padding: 0.35rem 0.65rem;
+        font-size: 0.875rem;
+    }
+
+    #missing_persons_section .pagination .page-item.active .page-link {
+        background-color: #f1c40f;
+        border-color: #f1c40f;
+        color: #000;
+    }
+
+    #missing_persons_section .form-select-sm {
+        padding: 0.25rem 2rem 0.25rem 0.75rem;
+        font-size: 0.875rem;
+    }
 </style>
 @endpush
 
@@ -257,7 +292,7 @@
 
 <!-- Modal for Import Excel -->
 <div class="modal fade" id="importExcelModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header">
                 <h2 class="fw-bold">رفع ملف Excel</h2>
@@ -2284,6 +2319,136 @@
                 return tables[tableName] || tableName;
             }
 
+            // 🔥 دوال Pagination للأشخاص المفقودين
+            function renderMissingPersonsPage(page) {
+                const data = window.missingPersonsData || [];
+                const itemsPerPage = window.missingPersonsItemsPerPage || 20;
+                const startIndex = (page - 1) * itemsPerPage;
+                const endIndex = Math.min(startIndex + itemsPerPage, data.length);
+                const totalPages = Math.ceil(data.length / itemsPerPage);
+
+                const tbody = $('#missing_persons_tbody');
+                tbody.empty();
+
+                for (let i = startIndex; i < endIndex; i++) {
+                    const person = data[i];
+                    const typeLabel = getPersonTypeLabel(person.type);
+                    const typeBadge = getPersonTypeBadge(person.type);
+
+                    let phoneDisplay = '-';
+                    let altPhoneDisplay = '-';
+                    let phoneStatusBadge = '';
+
+                    if (person.type === 'معيل') {
+                        phoneDisplay = person.phone || '-';
+                        altPhoneDisplay = person.alt_phone || '-';
+                        if (person.phone_status) {
+                            phoneStatusBadge = `<br><small class="text-muted">${person.phone_status}</small>`;
+                        }
+                    }
+
+                    tbody.append(`
+                        <tr>
+                            <td class="text-center fw-bold">${i + 1}</td>
+                            <td><span class="badge ${typeBadge}">${typeLabel}</span></td>
+                            <td class="font-monospace">${person.identity || '-'}</td>
+                            <td>${person.name || '-'}</td>
+                            <td class="font-monospace">${phoneDisplay}${phoneStatusBadge}</td>
+                            <td class="font-monospace">${altPhoneDisplay}</td>
+                            <td><code class="text-primary">${getTableNameInArabic(person.target_table)}</code></td>
+                            <td class="text-center"><span class="badge badge-light-primary">${person.row}</span></td>
+                        </tr>
+                    `);
+                }
+
+                // تحديث معلومات Pagination
+                $('#pagination_info').html(`عرض ${startIndex + 1}-${endIndex} من ${data.length}`);
+                $('#pagination_info_bottom').html(`صفحة ${page} من ${totalPages}`);
+            }
+
+            function renderPaginationControls(currentPage, totalPages) {
+                const paginationHtml = buildPaginationHtml(currentPage, totalPages);
+                $('#pagination_controls').html(paginationHtml);
+                $('#pagination_controls_bottom').html(paginationHtml);
+
+                // إضافة event listeners للأزرار
+                $('.pagination-page-btn').off('click').on('click', function(e) {
+                    e.preventDefault();
+                    const page = parseInt($(this).data('page'));
+                    if (page >= 1 && page <= totalPages) {
+                        renderMissingPersonsPage(page);
+                        renderPaginationControls(page, totalPages);
+                    }
+                });
+            }
+
+            function buildPaginationHtml(currentPage, totalPages) {
+                if (totalPages <= 1) return '';
+
+                let html = '';
+
+                // زر الصفحة الأولى والسابقة
+                html += `
+                    <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                        <a class="page-link pagination-page-btn" href="#" data-page="1" title="الأولى">
+                            <i class="bi bi-chevron-double-right"></i>
+                        </a>
+                    </li>
+                    <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                        <a class="page-link pagination-page-btn" href="#" data-page="${currentPage - 1}" title="السابقة">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                `;
+
+                // حساب نطاق الصفحات المعروضة
+                let startPage = Math.max(1, currentPage - 2);
+                let endPage = Math.min(totalPages, currentPage + 2);
+
+                // ضبط النطاق إذا كنا في البداية أو النهاية
+                if (currentPage <= 3) {
+                    endPage = Math.min(5, totalPages);
+                }
+                if (currentPage >= totalPages - 2) {
+                    startPage = Math.max(1, totalPages - 4);
+                }
+
+                // نقاط البداية
+                if (startPage > 1) {
+                    html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                }
+
+                // أرقام الصفحات
+                for (let i = startPage; i <= endPage; i++) {
+                    html += `
+                        <li class="page-item ${i === currentPage ? 'active' : ''}">
+                            <a class="page-link pagination-page-btn" href="#" data-page="${i}">${i}</a>
+                        </li>
+                    `;
+                }
+
+                // نقاط النهاية
+                if (endPage < totalPages) {
+                    html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                }
+
+                // زر الصفحة التالية والأخيرة
+                html += `
+                    <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                        <a class="page-link pagination-page-btn" href="#" data-page="${currentPage + 1}" title="التالية">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
+                    </li>
+                    <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                        <a class="page-link pagination-page-btn" href="#" data-page="${totalPages}" title="الأخيرة">
+                            <i class="bi bi-chevron-double-left"></i>
+                        </a>
+                    </li>
+                `;
+
+                return html;
+            }
+
             // عرض نتائج الفحص
             function displayValidationResults(response) {
                 console.log('🔍 Displaying Validation Results...');
@@ -2329,8 +2494,18 @@
                     // 🆕 لا يعتبر خطأ - سيتم الإدخال بدون relation_id_number
                     // hasErrors = false; // لا نغير hasErrors
 
+                    // 🔥 نظام Pagination - عرض 20 سجل في كل صفحة
+                    const missingPersons = response.validation.missing_persons;
+                    const itemsPerPage = 20;
+                    const totalPages = Math.ceil(missingPersons.length / itemsPerPage);
+                    let currentPage = 1;
+
+                    // حفظ البيانات في متغير عام للوصول إليها
+                    window.missingPersonsData = missingPersons;
+                    window.missingPersonsItemsPerPage = itemsPerPage;
+
                     let personsTableHtml = `
-                        <div class="alert alert-warning mb-5">
+                        <div class="alert alert-warning mb-5" id="missing_persons_section">
                             <div class="d-flex align-items-start mb-3">
                                 <i class="ki-duotone ki-information-5 fs-2x text-warning me-4">
                                     <span class="path1"></span>
@@ -2338,15 +2513,37 @@
                                     <span class="path3"></span>
                                 </i>
                                 <div class="flex-grow-1">
-                                    <h5 class="mb-2">⚠️ أشخاص غير موجودين في قاعدة البيانات (${response.validation.missing_persons.length})</h5>
+                                    <h5 class="mb-2">⚠️ أشخاص غير موجودين في قاعدة البيانات (${missingPersons.length})</h5>
                                     <p class="mb-1"><strong>ملاحظة:</strong> سيتم إدخال هؤلاء الأشخاص في جدول الكفالات <strong>بدون ربطهم</strong> برقم ملف (relation_id_number).</p>
                                     <p class="mb-3">يمكنك إنشاء سجلاتهم أولاً ثم إعادة الفحص، أو المتابعة بالاستيراد مباشرة:</p>
                                 </div>
                             </div>
 
-                            <div class="table-responsive">
+                            <!-- 🔥 Pagination Controls - Top -->
+                            <div class="d-flex justify-content-between align-items-center mb-3 p-3 bg-light rounded">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="text-muted">عرض:</span>
+                                    <select id="persons_per_page" class="form-select form-select-sm" style="width: 80px;">
+                                        <option value="10">10</option>
+                                        <option value="20" selected>20</option>
+                                        <option value="50">50</option>
+                                        <option value="100">100</option>
+                                    </select>
+                                    <span class="text-muted">سجل</span>
+                                </div>
+                                <div id="pagination_info" class="fw-bold text-primary">
+                                    عرض 1-${Math.min(itemsPerPage, missingPersons.length)} من ${missingPersons.length}
+                                </div>
+                                <nav aria-label="Pagination">
+                                    <ul class="pagination pagination-sm mb-0" id="pagination_controls">
+                                        <!-- سيتم ملؤها بواسطة JavaScript -->
+                                    </ul>
+                                </nav>
+                            </div>
+
+                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
                                 <table class="table table-bordered table-hover table-sm align-middle">
-                                    <thead class="table-dark">
+                                    <thead class="table-dark sticky-top">
                                         <tr>
                                             <th class="text-center" style="width: 60px;">#</th>
                                             <th>نوع الشخص</th>
@@ -2358,47 +2555,30 @@
                                             <th class="text-center" style="width: 80px;">الصف</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
-                    `;
-
-                    response.validation.missing_persons.forEach((person, index) => {
-                        const typeLabel = getPersonTypeLabel(person.type);
-                        const typeBadge = getPersonTypeBadge(person.type);
-
-                        // عرض أرقام الهاتف إذا كان الشخص معيل
-                        let phoneDisplay = '-';
-                        let altPhoneDisplay = '-';
-                        let phoneStatusBadge = '';
-
-                        if (person.type === 'معيل') {
-                            phoneDisplay = person.phone || '-';
-                            altPhoneDisplay = person.alt_phone || '-';
-
-                            // عرض حالة التحديث إذا كانت موجودة
-                            if (person.phone_status) {
-                                phoneStatusBadge = `<br><small class="text-muted">${person.phone_status}</small>`;
-                            }
-                        }
-
-                        personsTableHtml += `
-                            <tr>
-                                <td class="text-center fw-bold">${index + 1}</td>
-                                <td><span class="badge ${typeBadge}">${typeLabel}</span></td>
-                                <td class="font-monospace">${person.identity || '-'}</td>
-                                <td>${person.name || '-'}</td>
-                                <td class="font-monospace">${phoneDisplay}${phoneStatusBadge}</td>
-                                <td class="font-monospace">${altPhoneDisplay}</td>
-                                <td><code class="text-primary">${getTableNameInArabic(person.target_table)}</code></td>
-                                <td class="text-center"><span class="badge badge-light-primary">${person.row}</span></td>
-                            </tr>
-                        `;
-                    });
-
-                    personsTableHtml += `
+                                    <tbody id="missing_persons_tbody">
+                                        <!-- سيتم ملؤها بواسطة JavaScript -->
                                     </tbody>
                                 </table>
                             </div>
 
+                            <!-- 🔥 Pagination Controls - Bottom -->
+                            <div class="d-flex justify-content-between align-items-center mt-3 p-3 bg-light rounded">
+                                <div id="pagination_info_bottom" class="text-muted">
+                                    صفحة 1 من ${totalPages}
+                                </div>
+                                <nav aria-label="Pagination Bottom">
+                                    <ul class="pagination pagination-sm mb-0" id="pagination_controls_bottom">
+                                        <!-- سيتم ملؤها بواسطة JavaScript -->
+                                    </ul>
+                                </nav>
+                            </div>
+                    `;
+
+                    // إضافة HTML للجدول أولاً
+                    container.append(personsTableHtml);
+
+                    // ثم إضافة ملاحظة التذييل
+                    container.append(`
                             <div class="alert alert-success mt-4 mb-0">
                                 <i class="ki-duotone ki-information-5 fs-2x text-success me-2">
                                     <span class="path1"></span>
@@ -2409,8 +2589,19 @@
                                 <br><small class="text-muted">لإضافة بياناتهم الكاملة، يرجى استخدام بوابة إدارة  التسجيلات.</small>
                             </div>
                         </div>
-                    `;
-                    container.append(personsTableHtml);
+                    `);
+
+                    // 🔥 تهيئة نظام Pagination
+                    renderMissingPersonsPage(1);
+                    renderPaginationControls(1, totalPages);
+
+                    // إضافة event listener لتغيير عدد العناصر في الصفحة
+                    $(document).off('change', '#persons_per_page').on('change', '#persons_per_page', function() {
+                        window.missingPersonsItemsPerPage = parseInt($(this).val());
+                        const newTotalPages = Math.ceil(window.missingPersonsData.length / window.missingPersonsItemsPerPage);
+                        renderMissingPersonsPage(1);
+                        renderPaginationControls(1, newTotalPages);
+                    });
                 }
 
                 // عرض المعيلين الذين تم تحديث أرقام هواتفهم

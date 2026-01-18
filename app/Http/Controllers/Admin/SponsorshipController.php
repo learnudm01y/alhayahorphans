@@ -2272,7 +2272,11 @@ class SponsorshipController extends Controller
                     $phoneNumber = trim($row[$columnMap[$requiredColumns['data_phone_number']] ?? -1] ?? '');
                     $altPhoneNumber = trim($row[$columnMap[$requiredColumns['data_alt_phone_number']] ?? -1] ?? '');
                     $bankName = trim($row[$columnMap[$requiredColumns['bank_name']] ?? 0] ?? '');
-                    $personOwnerIdentityNumber = trim($row[$columnMap[$requiredColumns['person_owner_identity_number']] ?? 0] ?? '');
+                    // 🔧 FIX: البحث عن عمود هوية المحفظة بالاسم الأساسي أو البديل
+                    $personOwnerIdentityIndex = $columnMap[$requiredColumns['person_owner_identity_number']]
+                        ?? $columnMap[$requiredColumns['person_owner_identity_number_alt']]
+                        ?? -1;
+                    $personOwnerIdentityNumber = $personOwnerIdentityIndex >= 0 ? trim($row[$personOwnerIdentityIndex] ?? '') : '';
                     $reGuardianName = trim($row[$columnMap[$requiredColumns['re_guardian_name']] ?? 0] ?? '');
                     $rePhoneNumber = trim($row[$columnMap[$requiredColumns['re_phone_number']] ?? 0] ?? '');
 
@@ -2460,11 +2464,16 @@ class SponsorshipController extends Controller
                     $sponsorship->created_by = auth()->id();
                     $sponsorship->save();
 
-                    // ربط الكفالة بالمؤسسة الكافلة
-                    $sponsorship->sponsors()->attach($request->sponsor_id);
+                    // ربط الكفالة بالمؤسسة الكافلة (تجنب التكرار)
+                    // 🔥 FIX: استخدام syncWithoutDetaching بدلاً من attach لتجنب خطأ Duplicate entry
+                    $sponsorship->sponsors()->syncWithoutDetaching([$request->sponsor_id]);
 
                     // إضافة البيانات البنكية - استخدام رقم ملف المعيل الحقيقي (للربط الداخلي) مع التحقق من التكرار
-                    if ($bankId) {
+                    // 🔥 FIX: استخدام displayFileNumber إذا كان internalFileNumber فارغ
+                    // هذا يضمن أن guardian_registration لن يكون null أبداً
+                    $bankAccountFileNumber = $internalFileNumber ?: $displayFileNumber;
+
+                    if ($bankId && $bankAccountFileNumber) {
                         // 🎯 تحديد رقم هوية المعيل بشكل قاطع (بغض النظر عن نوع الشخص)
                         // في حالة المعيل: يكون نفسه المكفول (sponsoredIdentity)
                         // في الحالات الأخرى: نستخدم guardianIdentity
@@ -2509,7 +2518,7 @@ class SponsorshipController extends Controller
                         $bankValidationService = app(BankAccountValidationService::class);
 
                         $duplicateCheck = $bankValidationService->checkDuplicateBankAccount([
-                            'guardian_registration' => $internalFileNumber,
+                            'guardian_registration' => $bankAccountFileNumber,
                             'person_owner_identity_number' => $accountOwnerIdentity,
                             're_id_number' => $actualGuardianIdentity,
                             're_phone_number' => $rePhoneNumber ?: $phoneNumber,
@@ -2518,7 +2527,7 @@ class SponsorshipController extends Controller
 
                         if (!$duplicateCheck['is_duplicate']) {
                             $bankAccount = new GuardianBankAccount();
-                            $bankAccount->guardian_registration = $internalFileNumber; // استخدام رقم ملف المعيل من جدول data
+                            $bankAccount->guardian_registration = $bankAccountFileNumber; // استخدام رقم ملف المعيل (أصلي أو مولد)
 
                             // ✅ person_owner_identity_number: رقم هوية صاحب الحساب البنكي (من عمود "هوية المحفظة")
                             $bankAccount->person_owner_identity_number = $accountOwnerIdentity;
@@ -2536,7 +2545,8 @@ class SponsorshipController extends Controller
                             Log::info('💾 تم حفظ الحساب البنكي', [
                                 'row' => $rowNumber,
                                 'person_type' => $personType,
-                                'guardian_registration' => $internalFileNumber,
+                                'guardian_registration' => $bankAccountFileNumber,
+                                'original_internal_number' => $internalFileNumber,
                                 're_id_number (المعيل)' => $actualGuardianIdentity,
                                 'person_owner_identity_number (صاحب المحفظة)' => $accountOwnerIdentity,
                                 'bank_name' => $bankId
@@ -2545,7 +2555,7 @@ class SponsorshipController extends Controller
                             Log::warning('🚫 تم منع إدخال حساب بنكي مكرر - جميع الأعمدة الخمسة متطابقة', [
                                 'row' => $rowNumber,
                                 'person_type' => $personType,
-                                '1_guardian_registration' => $internalFileNumber,
+                                '1_guardian_registration' => $bankAccountFileNumber,
                                 '2_person_owner_identity_number' => $accountOwnerIdentity,
                                 '3_re_id_number' => $actualGuardianIdentity,
                                 '4_re_phone_number' => $rePhoneNumber ?: $phoneNumber,
