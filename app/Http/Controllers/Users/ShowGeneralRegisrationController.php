@@ -2001,6 +2001,14 @@ class ShowGeneralRegisrationController extends Controller
 
             DB::commit();
 
+            // 🆕 إضافة Job لإنشاء تقرير PDF إلى الطابور بعد حفظ البيانات
+            \App\Jobs\GenerateOrphanReportPdf::dispatch($sponsorship->id);
+
+            Log::info('PDF_REPORT_JOB_DISPATCHED', [
+                'sponsorship_id' => $sponsorship->id,
+                'relation_id_number' => $sponsorship->relation_id_number,
+            ]);
+
             return redirect()
                 ->route('user.generalRegistration.index')
                 ->with('success', 'تم حفظ التغييرات بنجاح');

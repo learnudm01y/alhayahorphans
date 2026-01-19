@@ -28,13 +28,17 @@
             }
 
             // عند إضافة فرد جديد
-            addFamilyMemberBtn.addEventListener('click', function() {
-                setTimeout(() => {
-                    const templates = document.querySelectorAll('.family-member-form');
-                    const lastTemplate = templates[templates.length - 1];
-                    fillFamilyMemberFields(lastTemplate);
-                }, 50);
-            });
+            if (addFamilyMemberBtn) {
+                addFamilyMemberBtn.addEventListener('click', function() {
+                    setTimeout(() => {
+                        const templates = document.querySelectorAll('.family-member-form');
+                        const lastTemplate = templates[templates.length - 1];
+                        fillFamilyMemberFields(lastTemplate);
+                    }, 50);
+                });
+            } else {
+                console.warn('⚠️ [autoComplete] عنصر addFamilyMember غير موجود');
+            }
 
             // عند تغيير القسم، حدث أفراد الأسرة الحاليين
             sectionSelect.addEventListener('change', function() {

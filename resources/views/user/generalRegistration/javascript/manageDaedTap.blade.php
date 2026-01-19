@@ -66,11 +66,13 @@
             handleDeceasedTab();
 
             // تحديث النماذج الجديدة عند إضافة فرد جديد
-            const originalAddFamilyMember = document.getElementById('addFamilyMember').onclick;
-            document.getElementById('addFamilyMember').onclick = function() {
-                if (originalAddFamilyMember) {
-                    originalAddFamilyMember.apply(this, arguments);
-                }
+            const addFamilyMemberElement = document.getElementById('addFamilyMember');
+            if (addFamilyMemberElement) {
+                const originalAddFamilyMember = addFamilyMemberElement.onclick;
+                addFamilyMemberElement.onclick = function() {
+                    if (originalAddFamilyMember) {
+                        originalAddFamilyMember.apply(this, arguments);
+                    }
 
                 if (sectionSelect.value === '1') {
                     const lastForm = document.querySelector('.family-member-form:last-child');
@@ -98,6 +100,9 @@
                     });
                 }
             };
+            } else {
+                console.warn('⚠️ [manageDaedTap] عنصر addFamilyMember غير موجود');
+            }
         });
     </script>
     {{-- التحكم في إظهار وإخفاء نموذج ادخال الام --}}
