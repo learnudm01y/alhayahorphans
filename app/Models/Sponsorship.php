@@ -42,6 +42,18 @@ class Sponsorship extends Model
     ];
 
     /**
+     * 🔥 FIX: حذف علاقات الجمعيات تلقائياً عند حذف الكفالة
+     * هذا يضمن عدم بقاء سجلات يتيمة في جدول sponsorship_sponsor
+     */
+    protected static function booted()
+    {
+        static::deleting(function ($sponsorship) {
+            // فك ارتباط جميع الجمعيات قبل حذف الكفالة
+            $sponsorship->sponsors()->detach();
+        });
+    }
+
+    /**
      * علاقة مع جدول الكفلاء (sponsors) - العلاقة القديمة
      * @deprecated استخدم sponsors() للحصول على جميع الكفلاء
      */

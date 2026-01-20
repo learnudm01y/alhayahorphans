@@ -4,11 +4,42 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
 
+if (!function_exists('cleanupOldUnusedReservedCodes')) {
+    /**
+     * تنظيف الأرقام المحجوزة القديمة غير المستخدمة
+     * يحذف الأرقام المحجوزة التي مر عليها أكثر من ساعة ولم تُستخدم
+     *
+     * @param int $hoursOld عدد الساعات (افتراضي: 1)
+     * @return int عدد السجلات المحذوفة
+     */
+    function cleanupOldUnusedReservedCodes(int $hoursOld = 1): int
+    {
+        try {
+            $deleted = DB::table('reserved_codes')
+                ->where('used', false)
+                ->where('reserved_at', '<', now()->subHours($hoursOld))
+                ->delete();
+
+            if ($deleted > 0) {
+                Log::info("🧹 تم تنظيف الأرقام المحجوزة القديمة غير المستخدمة", [
+                    'deleted_count' => $deleted,
+                    'hours_threshold' => $hoursOld
+                ]);
+            }
+
+            return $deleted;
+        } catch (\Exception $e) {
+            Log::error("❌ خطأ في تنظيف الأرقام المحجوزة: " . $e->getMessage());
+            return 0;
+        }
+    }
+}
+
 if (!function_exists('findSmallestGap')) {
     /**
      * البحث عن أصغر فجوة (رقم غير مستخدم) في التسلسل
      * Find the smallest gap (unused number) in the sequence
-     * يبحث في جداول data, sponsorships, dead_people, re_people معاً
+     * 🆕 تحسين: استخدام SQL مباشرة بدلاً من جلب كل الأرقام في الذاكرة
      */
     function findSmallestGap(string $table, string $column): ?int
     {
@@ -19,87 +50,75 @@ if (!function_exists('findSmallestGap')) {
                 return null; // الميزة معطلة، استخدم MAX + 1
             }
 
-            // جلب جميع الأرقام المستخدمة من الجدول الرئيسي (data)
-            $usedCodesInTable = DB::table($table)
-                ->select(DB::raw("CAST($column as UNSIGNED) as code_num"))
-                ->whereRaw("LENGTH($column) = 6 AND $column REGEXP '^[0-9]+$'")
-                ->orderBy('code_num', 'asc')
-                ->pluck('code_num')
-                ->toArray();
+            // 🆕 استخدام SQL مباشرة للبحث عن أصغر فجوة
+            // هذا أسرع بكثير من جلب كل الأرقام في الذاكرة
 
-            // جلب جميع الأرقام المستخدمة من جدول sponsorships
-            $usedCodesInSponsorships = DB::table('sponsorships')
-                ->select(DB::raw("CAST(internal_file_number as UNSIGNED) as code_num"))
-                ->whereRaw("LENGTH(internal_file_number) = 6 AND internal_file_number REGEXP '^[0-9]+$'")
-                ->pluck('code_num')
-                ->toArray();
+            // الخطوة 1: إنشاء جدول مؤقت بجميع الأرقام المستخدمة
+            $sql = "
+                SELECT MIN(gap_start) as smallest_gap
+                FROM (
+                    SELECT t1.num + 1 as gap_start
+                    FROM (
+                        -- جميع الأرقام المستخدمة
+                        SELECT CAST(file_id_number AS UNSIGNED) as num FROM data WHERE LENGTH(file_id_number) = 6 AND file_id_number REGEXP '^[0-9]+$'
+                        UNION
+                        SELECT CAST(internal_file_number AS UNSIGNED) as num FROM sponsorships WHERE LENGTH(internal_file_number) = 6 AND internal_file_number REGEXP '^[0-9]+$'
+                        UNION
+                        SELECT CAST(relation_id_number AS UNSIGNED) as num FROM sponsorships WHERE LENGTH(relation_id_number) = 6 AND relation_id_number REGEXP '^[0-9]+$'
+                        UNION
+                        SELECT CAST(re_file_id AS UNSIGNED) as num FROM dead_people WHERE LENGTH(re_file_id) = 6 AND re_file_id REGEXP '^[0-9]+$'
+                        UNION
+                        SELECT CAST(registration_id AS UNSIGNED) as num FROM re_people WHERE LENGTH(registration_id) = 6 AND registration_id REGEXP '^[0-9]+$'
+                        UNION
+                        SELECT CAST(code AS UNSIGNED) as num FROM reserved_codes WHERE LENGTH(code) = 6 AND code REGEXP '^[0-9]+$' AND (used = 1 OR reserved_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR))
+                    ) t1
+                    LEFT JOIN (
+                        SELECT CAST(file_id_number AS UNSIGNED) as num FROM data WHERE LENGTH(file_id_number) = 6 AND file_id_number REGEXP '^[0-9]+$'
+                        UNION
+                        SELECT CAST(internal_file_number AS UNSIGNED) as num FROM sponsorships WHERE LENGTH(internal_file_number) = 6 AND internal_file_number REGEXP '^[0-9]+$'
+                        UNION
+                        SELECT CAST(relation_id_number AS UNSIGNED) as num FROM sponsorships WHERE LENGTH(relation_id_number) = 6 AND relation_id_number REGEXP '^[0-9]+$'
+                        UNION
+                        SELECT CAST(re_file_id AS UNSIGNED) as num FROM dead_people WHERE LENGTH(re_file_id) = 6 AND re_file_id REGEXP '^[0-9]+$'
+                        UNION
+                        SELECT CAST(registration_id AS UNSIGNED) as num FROM re_people WHERE LENGTH(registration_id) = 6 AND registration_id REGEXP '^[0-9]+$'
+                        UNION
+                        SELECT CAST(code AS UNSIGNED) as num FROM reserved_codes WHERE LENGTH(code) = 6 AND code REGEXP '^[0-9]+$' AND (used = 1 OR reserved_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR))
+                    ) t2 ON t1.num + 1 = t2.num
+                    WHERE t2.num IS NULL AND t1.num + 1 < 999999
+                ) gaps
+                WHERE gap_start > 0
+            ";
 
-            // 🆕 جلب جميع الأرقام المستخدمة من جدول dead_people (re_file_id)
-            $usedCodesInDeadPeople = DB::table('dead_people')
-                ->select(DB::raw("CAST(re_file_id as UNSIGNED) as code_num"))
-                ->whereRaw("LENGTH(re_file_id) = 6 AND re_file_id REGEXP '^[0-9]+$'")
-                ->pluck('code_num')
-                ->toArray();
+            $result = DB::selectOne($sql);
 
-            // 🆕 جلب جميع الأرقام المستخدمة من جدول re_people (registration_id)
-            $usedCodesInRePeople = DB::table('re_people')
-                ->select(DB::raw("CAST(registration_id as UNSIGNED) as code_num"))
-                ->whereRaw("LENGTH(registration_id) = 6 AND registration_id REGEXP '^[0-9]+$'")
-                ->pluck('code_num')
-                ->toArray();
-
-            // 🆕 جلب أرقام relation_id_number من sponsorships (للمتوفين)
-            $usedCodesInRelationId = DB::table('sponsorships')
-                ->select(DB::raw("CAST(relation_id_number as UNSIGNED) as code_num"))
-                ->whereRaw("LENGTH(relation_id_number) = 6 AND relation_id_number REGEXP '^[0-9]+$'")
-                ->pluck('code_num')
-                ->toArray();
-
-            // التحقق من الحد الأقصى للبحث (لتحسين الأداء)
-            $totalCodes = count($usedCodesInTable) + count($usedCodesInSponsorships) +
-                         count($usedCodesInDeadPeople) + count($usedCodesInRePeople) + count($usedCodesInRelationId);
-            $searchLimit = config('code_generation.gap_search_limit', 10000);
-            if ($totalCodes > $searchLimit) {
-                Log::info("⚠️ تجاوز حد البحث عن الفجوات ({$searchLimit})، استخدام MAX + 1");
-                return null;
+            if ($result && $result->smallest_gap) {
+                $gap = (int) $result->smallest_gap;
+                Log::info("🔍 وجدت فجوة باستخدام SQL مباشرة", [
+                    'gap_number' => $gap,
+                    'formatted' => str_pad($gap, 6, '0', STR_PAD_LEFT)
+                ]);
+                return $gap;
             }
 
-            // جلب الأرقام المحجوزة في reserved_codes
-            $reservedCodes = DB::table('reserved_codes')
-                ->select(DB::raw("CAST(code as UNSIGNED) as code_num"))
-                ->whereRaw("LENGTH(code) = 6 AND code REGEXP '^[0-9]+$'")
-                ->pluck('code_num')
-                ->toArray();
+            // التحقق من وجود الرقم 1 (إذا كان غير مستخدم)
+            $checkOne = DB::selectOne("
+                SELECT 1 as exists_flag FROM (
+                    SELECT 1 as num
+                ) t
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM data WHERE file_id_number = '000001'
+                    UNION SELECT 1 FROM sponsorships WHERE internal_file_number = '000001'
+                    UNION SELECT 1 FROM sponsorships WHERE relation_id_number = '000001'
+                    UNION SELECT 1 FROM dead_people WHERE re_file_id = '000001'
+                    UNION SELECT 1 FROM re_people WHERE registration_id = '000001'
+                    UNION SELECT 1 FROM reserved_codes WHERE code = '000001' AND (used = 1 OR reserved_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR))
+                )
+            ");
 
-            // دمج جميع القوائم
-            $allUsedCodes = array_unique(array_merge(
-                $usedCodesInTable,
-                $usedCodesInSponsorships,
-                $usedCodesInDeadPeople,
-                $usedCodesInRePeople,
-                $usedCodesInRelationId,
-                $reservedCodes
-            ));
-            sort($allUsedCodes);
-
-            // إذا لم يوجد أي أرقام، ابدأ من 1
-            if (empty($allUsedCodes)) {
+            if ($checkOne) {
+                Log::info("🔍 الرقم 1 غير مستخدم");
                 return 1;
-            }
-
-            // البحث عن أول فجوة في التسلسل
-            $expectedNext = 1;
-            foreach ($allUsedCodes as $usedCode) {
-                if ($usedCode > $expectedNext) {
-                    // وجدنا فجوة!
-                    Log::info("🔍 وجدت فجوة في التسلسل", [
-                        'gap_number' => $expectedNext,
-                        'next_used' => $usedCode,
-                        'gap_size' => $usedCode - $expectedNext
-                    ]);
-                    return $expectedNext;
-                }
-                $expectedNext = $usedCode + 1;
             }
 
             // لا توجد فجوات

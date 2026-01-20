@@ -130,6 +130,13 @@
         color: #ffffff;
     }
 
+    /* تنسيق alert-light للمودال */
+    .alert-light {
+        color: #000000;
+        border-color: var(--bs-light);
+        background-color: var(--bs-light-light);
+    }
+
     /* تنسيق النقطة في القائمة المنسدلة */
     .change-sponsorship-status option {
         padding: 5px 10px;
@@ -157,6 +164,69 @@
     #missing_persons_section .pagination .page-link {
         padding: 0.35rem 0.65rem;
         font-size: 0.875rem;
+    }
+
+    /* 🆕 تنسيقات الجداول مع pagination في المودال */
+    .table-primary-soft {
+        background-color: rgba(13, 110, 253, 0.05) !important;
+    }
+
+    .table-success-soft {
+        background-color: rgba(25, 135, 84, 0.05) !important;
+    }
+
+    .table-info-soft {
+        background-color: rgba(13, 202, 240, 0.05) !important;
+    }
+
+    .table-warning-soft {
+        background-color: rgba(255, 193, 7, 0.08) !important;
+    }
+
+    .table-secondary-soft {
+        background-color: rgba(108, 117, 125, 0.05) !important;
+    }
+
+    .bg-light-primary {
+        background-color: rgba(13, 110, 253, 0.1) !important;
+    }
+
+    .bg-light-success {
+        background-color: rgba(25, 135, 84, 0.1) !important;
+    }
+
+    .bg-light-info {
+        background-color: rgba(13, 202, 240, 0.1) !important;
+    }
+
+    .bg-light-warning {
+        background-color: rgba(255, 193, 7, 0.15) !important;
+    }
+
+    .bg-light-secondary {
+        background-color: rgba(108, 117, 125, 0.1) !important;
+    }
+
+    /* تنسيق pagination controls داخل جميع أقسام الجداول */
+    #validation_results .pagination .page-item.active .page-link {
+        background-color: var(--bs-primary);
+        border-color: var(--bs-primary);
+    }
+
+    #validation_results .pagination .page-link {
+        padding: 0.35rem 0.65rem;
+        font-size: 0.875rem;
+        margin: 0 1px;
+    }
+
+    /* تنسيق scrollable tables */
+    #validation_results .table-responsive {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+    }
+
+    #validation_results .table thead.sticky-top {
+        z-index: 10;
     }
 
     #missing_persons_section .pagination .page-item.active .page-link {
@@ -328,7 +398,7 @@
                                     </small>
                                     <div class="alert alert-warning mt-3 mb-0 py-2">
                                         <small>
-                                            <strong>⚠️ مهم:</strong>
+                                            <strong> مهم:</strong>
                                             <strong>"هوية المعيل"</strong> = رقم هوية ولي الأمر (للتحقق من وجوده) |
                                             <strong>"المحفظة"</strong> = اسم البنك
                                         </small>
@@ -423,7 +493,7 @@
                                 <span class="path2"></span>
                             </i>
                             <div>
-                                <h5 class="mb-1">✅ الملف جاهز للاستيراد</h5>
+                                <h5 class="mb-1"> الملف جاهز للاستيراد</h5>
                                 <span>جميع البيانات صحيحة ويمكنك الآن بدء عملية الاستيراد</span>
                             </div>
                         </div>
@@ -989,7 +1059,7 @@
                     // إعادة رسم الجدول مرة واحدة فقط
                     table.columns.adjust().draw(false);
 
-                    console.log('✅ تم استعادة إعدادات الأعمدة بنجاح');
+                    console.log(' تم استعادة إعدادات الأعمدة بنجاح');
                 } catch (e) {
                     console.error('❌ خطأ في استعادة إعدادات الأعمدة:', e);
                     deleteCookie(COLUMN_COOKIE_NAME);
@@ -1010,7 +1080,7 @@
                         saveColumnVisibility();
                     });
 
-                    console.log('✅ تم تفعيل نظام حفظ إعدادات الأعمدة');
+                    console.log(' تم تفعيل نظام حفظ إعدادات الأعمدة');
                 }
             }, 1000); // انتظار ثانية لضمان تحميل DataTable
 
@@ -1548,7 +1618,7 @@
                     });
 
                     searchInitialized = true;
-                    console.log('✅ Search engine activated successfully!');
+                    console.log(' Search engine activated successfully!');
                     console.log('🔍 You can now search for: names, IDs, files, etc.');
                 } catch (error) {
                     console.error('❌ Error initializing search:', error);
@@ -1659,12 +1729,12 @@
                     success: function(response) {
                         if (response.success && response.record_number) {
                             $('#internal_file_number').val(response.record_number);
-                            console.log('✅ تم توليد رقم الملف:', response.record_number);
+                            console.log(' تم توليد رقم الملف:', response.record_number);
                         } else {
                             // محاولة بديلة باستخدام timestamp
                             const fallbackNumber = 'SP' + Date.now().toString().slice(-8);
                             $('#internal_file_number').val(fallbackNumber);
-                            console.warn('⚠️ استخدام رقم بديل:', fallbackNumber);
+                            console.warn(' استخدام رقم بديل:', fallbackNumber);
                         }
                     },
                     error: function(xhr) {
@@ -1722,7 +1792,7 @@
 
                         if (response.info && response.info.bank_duplicates && response.info.bank_duplicates.length > 0) {
                             icon = 'warning';
-                            message += '\n\n⚠️ تم تجاهل الحسابات البنكية المكررة التالية:\n\n';
+                            message += '\n\n تم تجاهل الحسابات البنكية المكررة التالية:\n\n';
                             response.info.bank_duplicates.forEach(function(dup) {
                                 message += `${dup.index}. ${dup.message}\n\n`;
                             });
@@ -2200,9 +2270,54 @@
                 $('#validation_results_container').hide();
                 $('#import_progress_bar').css('width', '0%');
                 $('#import_progress_text').text('0%');
-                $('#import_status_text').text('جاري فحص الملف...');
+                $('#import_status_text').text('جاري تحميل الملف...');
                 $('#check_file_btn').prop('disabled', true);
                 $('#import_submit_btn').hide();
+
+                // 🔥 نظام تقدم واقعي متعدد المراحل
+                let currentProgress = 0;
+                let progressInterval = null;
+                let uploadComplete = false;
+                let processingStarted = false;
+
+                // مراحل التقدم:
+                // 0-30%: رفع الملف
+                // 30-50%: قراءة وتحليل الملف
+                // 50-80%: فحص البيانات والبحث في قاعدة البيانات
+                // 80-95%: تجهيز النتائج
+                // 95-100%: اكتمال
+
+                function updateProgress(progress, statusText) {
+                    currentProgress = progress;
+                    $('#import_progress_bar').css('width', progress + '%');
+                    $('#import_progress_text').text(progress + '%');
+                    if (statusText) {
+                        $('#import_status_text').text(statusText);
+                    }
+                }
+
+                // بدء التقدم التدريجي للمعالجة
+                function startProcessingProgress() {
+                    processingStarted = true;
+                    updateProgress(30, 'جاري قراءة وتحليل الملف...');
+
+                    progressInterval = setInterval(() => {
+                        if (currentProgress < 50) {
+                            currentProgress += 2;
+                            updateProgress(currentProgress, 'جاري قراءة وتحليل الملف...');
+                        } else if (currentProgress < 70) {
+                            currentProgress += 1;
+                            updateProgress(currentProgress, 'جاري فحص البيانات والبحث في قاعدة البيانات...');
+                        } else if (currentProgress < 85) {
+                            currentProgress += 0.5;
+                            updateProgress(Math.round(currentProgress), 'جاري البحث في السجل المدني...');
+                        } else if (currentProgress < 95) {
+                            currentProgress += 0.3;
+                            updateProgress(Math.round(currentProgress), 'جاري تجهيز النتائج...');
+                        }
+                        // التوقف عند 95% وانتظار الاستجابة الفعلية
+                    }, 200);
+                }
 
                 $.ajax({
                     url: '{{ route("admin.sponsorships.import") }}',
@@ -2214,18 +2329,29 @@
                         const xhr = new window.XMLHttpRequest();
                         xhr.upload.addEventListener('progress', function(e) {
                             if (e.lengthComputable) {
-                                const percentComplete = Math.round((e.loaded / e.total) * 100);
-                                $('#import_progress_bar').css('width', percentComplete + '%');
-                                $('#import_progress_text').text(percentComplete + '%');
+                                // رفع الملف: 0-30%
+                                const uploadPercent = Math.round((e.loaded / e.total) * 30);
+                                updateProgress(uploadPercent, 'جاري تحميل الملف...');
+
+                                if (e.loaded === e.total && !uploadComplete) {
+                                    uploadComplete = true;
+                                    // بدء مرحلة المعالجة
+                                    startProcessingProgress();
+                                }
                             }
                         }, false);
                         return xhr;
                     },
                     success: function(response) {
-                        console.log('✅ Response received:', response);
-                        $('#import_progress_bar').css('width', '100%');
-                        $('#import_progress_text').text('100%');
-                        $('#import_status_text').text('اكتمل الفحص');
+                        console.log(' Response received:', response);
+
+                        // إيقاف التقدم التدريجي
+                        if (progressInterval) {
+                            clearInterval(progressInterval);
+                        }
+
+                        // إكمال التقدم إلى 100%
+                        updateProgress(100, 'اكتمل الفحص ✓');
                         $('#check_file_btn').prop('disabled', false);
 
                         setTimeout(() => {
@@ -2233,7 +2359,7 @@
                         }, 1000);
 
                         if (response.success) {
-                            console.log('✅ Displaying validation results...');
+                            console.log(' Displaying validation results...');
                             displayValidationResults(response);
                         } else {
                             console.error('❌ Response success is false:', response);
@@ -2248,6 +2374,11 @@
                         console.error('❌ AJAX Error:', xhr);
                         console.error('Status:', xhr.status);
                         console.error('Response:', xhr.responseText);
+
+                        // 🔥 إيقاف التقدم التدريجي عند حدوث خطأ
+                        if (progressInterval) {
+                            clearInterval(progressInterval);
+                        }
 
                         $('#check_file_btn').prop('disabled', false);
                         $('#import_progress_container').hide();
@@ -2449,11 +2580,178 @@
                 return html;
             }
 
+            // 🆕 نظام Pagination معمم لجميع الجداول
+            window.paginatedTables = {};
+
+            function initPaginatedTable(tableId, data, renderRowFn, options = {}) {
+                const defaults = {
+                    itemsPerPage: 20,
+                    tbodyId: `${tableId}_tbody`,
+                    paginationTopId: `${tableId}_pagination_top`,
+                    paginationBottomId: `${tableId}_pagination_bottom`,
+                    infoTopId: `${tableId}_info_top`,
+                    infoBottomId: `${tableId}_info_bottom`,
+                    perPageSelectId: `${tableId}_per_page`
+                };
+
+                const config = { ...defaults, ...options };
+
+                window.paginatedTables[tableId] = {
+                    data: data,
+                    itemsPerPage: config.itemsPerPage,
+                    currentPage: 1,
+                    config: config,
+                    renderRowFn: renderRowFn
+                };
+
+                renderTablePage(tableId, 1);
+
+                // Event listener لتغيير عدد العناصر
+                $(document).off('change', `#${config.perPageSelectId}`).on('change', `#${config.perPageSelectId}`, function() {
+                    window.paginatedTables[tableId].itemsPerPage = parseInt($(this).val());
+                    renderTablePage(tableId, 1);
+                });
+            }
+
+            function renderTablePage(tableId, page) {
+                const tableData = window.paginatedTables[tableId];
+                if (!tableData) return;
+
+                const { data, itemsPerPage, config, renderRowFn } = tableData;
+                const startIndex = (page - 1) * itemsPerPage;
+                const endIndex = Math.min(startIndex + itemsPerPage, data.length);
+                const totalPages = Math.ceil(data.length / itemsPerPage);
+
+                tableData.currentPage = page;
+
+                const tbody = $(`#${config.tbodyId}`);
+                tbody.empty();
+
+                for (let i = startIndex; i < endIndex; i++) {
+                    tbody.append(renderRowFn(data[i], i));
+                }
+
+                // تحديث معلومات Pagination
+                $(`#${config.infoTopId}`).html(`عرض ${startIndex + 1}-${endIndex} من ${data.length}`);
+                $(`#${config.infoBottomId}`).html(`صفحة ${page} من ${totalPages}`);
+
+                // تحديث أزرار Pagination
+                const paginationHtml = buildPaginationHtmlForTable(tableId, page, totalPages);
+                $(`#${config.paginationTopId}`).html(paginationHtml);
+                $(`#${config.paginationBottomId}`).html(paginationHtml);
+
+                // Event listeners للأزرار
+                $(`.${tableId}-page-btn`).off('click').on('click', function(e) {
+                    e.preventDefault();
+                    const newPage = parseInt($(this).data('page'));
+                    if (newPage >= 1 && newPage <= totalPages) {
+                        renderTablePage(tableId, newPage);
+                    }
+                });
+            }
+
+            function buildPaginationHtmlForTable(tableId, currentPage, totalPages) {
+                if (totalPages <= 1) return '';
+
+                let html = '';
+
+                html += `
+                    <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                        <a class="page-link ${tableId}-page-btn" href="#" data-page="1" title="الأولى">
+                            <i class="bi bi-chevron-double-right"></i>
+                        </a>
+                    </li>
+                    <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                        <a class="page-link ${tableId}-page-btn" href="#" data-page="${currentPage - 1}" title="السابقة">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                `;
+
+                let startPage = Math.max(1, currentPage - 2);
+                let endPage = Math.min(totalPages, currentPage + 2);
+
+                if (currentPage <= 3) endPage = Math.min(5, totalPages);
+                if (currentPage >= totalPages - 2) startPage = Math.max(1, totalPages - 4);
+
+                if (startPage > 1) {
+                    html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                }
+
+                for (let i = startPage; i <= endPage; i++) {
+                    html += `
+                        <li class="page-item ${i === currentPage ? 'active' : ''}">
+                            <a class="page-link ${tableId}-page-btn" href="#" data-page="${i}">${i}</a>
+                        </li>
+                    `;
+                }
+
+                if (endPage < totalPages) {
+                    html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+                }
+
+                html += `
+                    <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                        <a class="page-link ${tableId}-page-btn" href="#" data-page="${currentPage + 1}" title="التالية">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
+                    </li>
+                    <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                        <a class="page-link ${tableId}-page-btn" href="#" data-page="${totalPages}" title="الأخيرة">
+                            <i class="bi bi-chevron-double-left"></i>
+                        </a>
+                    </li>
+                `;
+
+                return html;
+            }
+
+            // 🆕 دالة مساعدة لإنشاء HTML كامل للجدول مع pagination
+            function createPaginatedTableHtml(tableId, headerHtml, alertClass, options = {}) {
+                const itemsPerPage = options.itemsPerPage || 20;
+                const maxHeight = options.maxHeight || '400px';
+
+                return `
+                    <div class="d-flex justify-content-between align-items-center mb-3 p-3 bg-light-${alertClass.replace('alert-', '')} rounded">
+                        <div class="d-flex align-items-center gap-2">
+                            <label class="form-label mb-0">عرض:</label>
+                            <select class="form-select form-select-sm" id="${tableId}_per_page" style="width: auto;">
+                                <option value="10" ${itemsPerPage === 10 ? 'selected' : ''}>10</option>
+                                <option value="20" ${itemsPerPage === 20 ? 'selected' : ''}>20</option>
+                                <option value="50" ${itemsPerPage === 50 ? 'selected' : ''}>50</option>
+                                <option value="100" ${itemsPerPage === 100 ? 'selected' : ''}>100</option>
+                            </select>
+                            <span class="text-muted">سجل</span>
+                        </div>
+                        <div id="${tableId}_info_top" class="fw-bold text-primary"></div>
+                        <nav aria-label="Pagination">
+                            <ul class="pagination pagination-sm mb-0" id="${tableId}_pagination_top"></ul>
+                        </nav>
+                    </div>
+
+                    <div class="table-responsive" style="max-height: ${maxHeight}; overflow-y: auto;">
+                        <table class="table table-bordered table-hover table-sm align-middle">
+                            <thead class="${options.theadClass || 'table-dark'} sticky-top">
+                                ${headerHtml}
+                            </thead>
+                            <tbody id="${tableId}_tbody"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mt-3 p-3 bg-light rounded">
+                        <div id="${tableId}_info_bottom" class="text-muted"></div>
+                        <nav aria-label="Pagination Bottom">
+                            <ul class="pagination pagination-sm mb-0" id="${tableId}_pagination_bottom"></ul>
+                        </nav>
+                    </div>
+                `;
+            }
+
             // عرض نتائج الفحص
             function displayValidationResults(response) {
                 console.log('🔍 Displaying Validation Results...');
                 console.log('📊 Full Response:', response);
-                console.log('✅ Response.validation exists:', !!response.validation);
+                console.log(' Response.validation exists:', !!response.validation);
 
                 if (!response.validation) {
                     console.error('❌ No validation data in response!');
@@ -2465,7 +2763,7 @@
                     return;
                 }
 
-                console.log('📋 Missing Persons:', response.validation.missing_persons);
+                console.log(' Missing Persons:', response.validation.missing_persons);
                 console.log('🏦 Missing Banks:', response.validation.missing_banks);
 
                 const container = $('#validation_results');
@@ -2513,7 +2811,7 @@
                                     <span class="path3"></span>
                                 </i>
                                 <div class="flex-grow-1">
-                                    <h5 class="mb-2">⚠️ أشخاص غير موجودين في قاعدة البيانات (${missingPersons.length})</h5>
+                                    <h5 class="mb-2"> أشخاص غير موجودين في قاعدة البيانات (${missingPersons.length})</h5>
                                     <p class="mb-1"><strong>ملاحظة:</strong> سيتم إدخال هؤلاء الأشخاص في جدول الكفالات <strong>بدون ربطهم</strong> برقم ملف (relation_id_number).</p>
                                     <p class="mb-3">يمكنك إنشاء سجلاتهم أولاً ثم إعادة الفحص، أو المتابعة بالاستيراد مباشرة:</p>
                                 </div>
@@ -2606,6 +2904,8 @@
 
                 // عرض المعيلين الذين تم تحديث أرقام هواتفهم
                 if (response.validation.updated_phones && response.validation.updated_phones.length > 0) {
+                    const updatedPhones = response.validation.updated_phones;
+
                     let updatedPhonesHtml = `
                         <div class="alert alert-info mb-5">
                             <div class="d-flex align-items-start mb-3">
@@ -2614,35 +2914,35 @@
                                     <span class="path2"></span>
                                 </i>
                                 <div class="flex-grow-1">
-                                    <h5 class="mb-2">📞 تم تحديث أرقام الهاتف (${response.validation.updated_phones.length})</h5>
-                                    <p class="mb-3">تم تحديث أرقام الهاتف التالية في قاعدة البيانات:</p>
+                                    <h5 class="mb-2">📞 تم تحديث أرقام الهاتف (${updatedPhones.length})</h5>
+                                    <p class="mb-3">سيتم تحديث أرقام الهاتف التالية في قاعدة البيانات عند الاستيراد:</p>
                                 </div>
                             </div>
 
-                            <div class="table-responsive">
-                                <table class="table table-bordered table-hover table-sm align-middle">
-                                    <thead class="table-info">
-                                        <tr>
-                                            <th class="text-center" style="width: 60px;">#</th>
-                                            <th>رقم الهوية</th>
-                                            <th>الاسم</th>
-                                            <th>رقم الهاتف القديم</th>
-                                            <th>رقم الهاتف الجديد</th>
-                                            <th>جوال بديل قديم</th>
-                                            <th>جوال بديل جديد</th>
-                                            <th class="text-center" style="width: 80px;">الصف</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
+                            ${createPaginatedTableHtml('updated_phones', `
+                                <tr>
+                                    <th class="text-center" style="width: 60px;">#</th>
+                                    <th>رقم الهوية</th>
+                                    <th>الاسم</th>
+                                    <th>رقم الهاتف القديم</th>
+                                    <th>رقم الهاتف الجديد</th>
+                                    <th>جوال بديل قديم</th>
+                                    <th>جوال بديل جديد</th>
+                                    <th class="text-center" style="width: 80px;">الصف</th>
+                                </tr>
+                            `, 'info', { theadClass: 'table-info', maxHeight: '350px' })}
+                        </div>
                     `;
+                    container.append(updatedPhonesHtml);
 
-                    response.validation.updated_phones.forEach((person, index) => {
+                    // تهيئة pagination للهواتف المحدثة
+                    initPaginatedTable('updated_phones', updatedPhones, (person, index) => {
                         const phoneOld = person.changes.phone ? person.changes.phone.old : '-';
                         const phoneNew = person.changes.phone ? person.changes.phone.new : '-';
                         const altPhoneOld = person.changes.alt_phone ? person.changes.alt_phone.old : '-';
                         const altPhoneNew = person.changes.alt_phone ? person.changes.alt_phone.new : '-';
 
-                        updatedPhonesHtml += `
+                        return `
                             <tr>
                                 <td class="text-center fw-bold">${index + 1}</td>
                                 <td class="font-monospace">${person.identity}</td>
@@ -2655,14 +2955,704 @@
                             </tr>
                         `;
                     });
+                }
 
-                    updatedPhonesHtml += `
-                                    </tbody>
-                                </table>
+                // 🆕 عرض الأشخاص الذين سيتم ربطهم بسجلات موجودة مسبقاً
+                if (response.validation.existing_persons && response.validation.existing_persons.length > 0) {
+                    const existingPersons = response.validation.existing_persons;
+
+                    let existingPersonsHtml = `
+                        <div class="alert alert-primary mb-5">
+                            <div class="d-flex align-items-start mb-3">
+                                <i class="ki-duotone ki-abstract-26 fs-2x text-primary me-4">
+                                    <span class="path1"></span>
+                                    <span class="path2"></span>
+                                </i>
+                                <div class="flex-grow-1">
+                                    <h5 class="mb-2"> أشخاص سيتم ربطهم بسجلات موجودة (${existingPersons.length})</h5>
+                                    <p class="mb-3">هؤلاء الأشخاص موجودون مسبقاً في قاعدة البيانات وسيتم ربط الكفالات الجديدة بسجلاتهم:</p>
+                                </div>
+                            </div>
+
+                            ${createPaginatedTableHtml('existing_persons', `
+                                <tr>
+                                    <th class="text-center" style="width: 60px;">#</th>
+                                    <th>النوع</th>
+                                    <th>رقم الهوية</th>
+                                    <th>الاسم من الملف</th>
+                                    <th>الاسم في قاعدة البيانات</th>
+                                    <th>الجدول</th>
+                                    <th>رقم التسجيل/الملف</th>
+                                    <th class="text-center" style="width: 80px;">الصف</th>
+                                </tr>
+                            `, 'primary', { theadClass: 'table-primary', maxHeight: '350px' })}
+
+                            <div class="alert alert-light mt-3 mb-0 py-2">
+                                <i class="ki-duotone ki-information fs-4 text-primary me-2">
+                                    <span class="path1"></span>
+                                    <span class="path2"></span>
+                                    <span class="path3"></span>
+                                </i>
+                                <strong>ملاحظة:</strong> سيتم ربط الكفالات الجديدة بالسجلات الموجودة تلقائياً دون إنشاء سجلات مكررة.
                             </div>
                         </div>
                     `;
-                    container.append(updatedPhonesHtml);
+                    container.append(existingPersonsHtml);
+
+                    // تهيئة pagination للأشخاص الموجودين
+                    initPaginatedTable('existing_persons', existingPersons, (person, index) => {
+                        const typeLabel = person.type === 'guardian' ? 'معيل' : (person.type === 'أب متوفي' || person.type === 'أم متوفية' ? person.type : 'فرد عائلة');
+                        const typeBadge = person.type === 'guardian' ? 'badge-light-warning' : (person.type === 'أب متوفي' || person.type === 'أم متوفية' ? 'badge-light-dark' : 'badge-light-info');
+                        const tableLabel = person.table === 're_people' ? 'أفراد الأسرة' : (person.table === 'data' ? 'بيانات المعيلين' : 'المتوفين');
+                        const idLabel = person.registration_id || person.file_id_number || '-';
+
+                        return `
+                            <tr class="table-primary-soft">
+                                <td class="text-center fw-bold">${index + 1}</td>
+                                <td><span class="badge ${typeBadge}">${typeLabel}</span></td>
+                                <td class="font-monospace fw-bold">${person.identity}</td>
+                                <td>${person.name || '-'}</td>
+                                <td class="fw-bold text-success">${person.existing_name || '-'}</td>
+                                <td><code class="text-primary">${tableLabel}</code></td>
+                                <td class="font-monospace">${idLabel}</td>
+                                <td class="text-center"><span class="badge badge-light-primary">${person.row}</span></td>
+                            </tr>
+                        `;
+                    });
+                }
+
+                // 🆕 عرض المعيلين الذين سيتم إنشاؤهم تلقائياً من السجل المدني
+                if (response.validation.guardians_to_create && response.validation.guardians_to_create.length > 0) {
+                    const guardiansToCreate = response.validation.guardians_to_create;
+
+                    let guardiansHtml = `
+                        <div class="alert alert-success mb-5">
+                            <div class="d-flex align-items-start mb-3">
+                                <i class="ki-duotone ki-user-tick fs-2x text-success me-4">
+                                    <span class="path1"></span>
+                                    <span class="path2"></span>
+                                    <span class="path3"></span>
+                                </i>
+                                <div class="flex-grow-1">
+                                    <h5 class="mb-2"> معيلون سيتم إنشاؤهم تلقائياً من السجل المدني (${guardiansToCreate.length})</h5>
+                                    <p class="mb-3">تم العثور على هؤلاء المعيلين في السجل المدني وسيتم إنشاء سجلاتهم تلقائياً في جدول البيانات عند الاستيراد:</p>
+                                </div>
+                            </div>
+
+                            ${createPaginatedTableHtml('guardians_to_create', `
+                                <tr>
+                                    <th class="text-center" style="width: 60px;">#</th>
+                                    <th>رقم الهوية</th>
+                                    <th>الاسم من السجل المدني</th>
+                                    <th>رقم الهاتف</th>
+                                    <th>جوال بديل</th>
+                                    <th class="text-center" style="width: 80px;">الصف</th>
+                                </tr>
+                            `, 'success', { theadClass: 'table-success', maxHeight: '350px' })}
+
+                            <div class="alert alert-light mt-3 mb-0 py-2">
+                                <i class="ki-duotone ki-information fs-4 text-primary me-2">
+                                    <span class="path1"></span>
+                                    <span class="path2"></span>
+                                    <span class="path3"></span>
+                                </i>
+                                <strong>ملاحظة:</strong> سيتم إنشاء هؤلاء المعيلين في جدول <code>data</code> مع حجز أرقام ملفات جديدة لهم تلقائياً، ثم سيتم ربط المكفولين بهم.
+                            </div>
+                        </div>
+                    `;
+                    container.append(guardiansHtml);
+
+                    // تهيئة pagination للمعيلين الجدد
+                    initPaginatedTable('guardians_to_create', guardiansToCreate, (guardian, index) => {
+                        const civilName = guardian.civil_registry ? guardian.civil_registry.full_name : guardian.name;
+                        return `
+                            <tr class="table-success-soft">
+                                <td class="text-center fw-bold">${index + 1}</td>
+                                <td class="font-monospace fw-bold">${guardian.identity}</td>
+                                <td>
+                                    <span class="fw-bold">${civilName}</span>
+                                    ${guardian.civil_registry && guardian.civil_registry.birth_date ?
+                                        `<br><small class="text-muted">تاريخ الميلاد: ${guardian.civil_registry.birth_date}</small>` : ''}
+                                </td>
+                                <td class="font-monospace">${guardian.phone || '-'}</td>
+                                <td class="font-monospace">${guardian.alt_phone || '-'}</td>
+                                <td class="text-center"><span class="badge badge-light-success">${guardian.row}</span></td>
+                            </tr>
+                        `;
+                    });
+                }
+
+                // 🆕 عرض المكفولين (أفراد العائلة) الذين سيتم إنشاؤهم تلقائياً من السجل المدني
+                if (response.validation.sponsored_to_create && response.validation.sponsored_to_create.length > 0) {
+                    const sponsoredToCreate = response.validation.sponsored_to_create;
+
+                    let sponsoredHtml = `
+                        <div class="alert alert-info mb-5">
+                            <div class="d-flex align-items-start mb-3">
+                                <i class="ki-duotone ki-people fs-2x text-info me-4">
+                                    <span class="path1"></span>
+                                    <span class="path2"></span>
+                                    <span class="path3"></span>
+                                    <span class="path4"></span>
+                                    <span class="path5"></span>
+                                </i>
+                                <div class="flex-grow-1">
+                                    <h5 class="mb-2"> مكفولون (أفراد عائلة) سيتم إنشاؤهم تلقائياً من السجل المدني (${sponsoredToCreate.length})</h5>
+                                    <p class="mb-3">تم العثور على هؤلاء المكفولين في السجل المدني وسيتم إنشاء سجلاتهم تلقائياً في جدول <code>re_people</code> عند الاستيراد:</p>
+                                </div>
+                            </div>
+
+                            ${createPaginatedTableHtml('sponsored_to_create', `
+                                <tr>
+                                    <th class="text-center" style="width: 60px;">#</th>
+                                    <th>رقم هوية المكفول</th>
+                                    <th>الاسم من السجل المدني</th>
+                                    <th>هوية المعيل</th>
+                                    <th>تاريخ الميلاد</th>
+                                    <th class="text-center" style="width: 80px;">الصف</th>
+                                </tr>
+                            `, 'info', { theadClass: 'table-info', maxHeight: '350px' })}
+
+                            <div class="alert alert-light mt-3 mb-0 py-2">
+                                <i class="ki-duotone ki-information fs-4 text-info me-2">
+                                    <span class="path1"></span>
+                                    <span class="path2"></span>
+                                    <span class="path3"></span>
+                                </i>
+                                <strong>ملاحظة:</strong> سيتم إنشاء هؤلاء المكفولين في جدول <code>re_people</code> مع ربطهم بالمعيلين تلقائياً.
+                            </div>
+                        </div>
+                    `;
+                    container.append(sponsoredHtml);
+
+                    // تهيئة pagination للمكفولين الجدد
+                    initPaginatedTable('sponsored_to_create', sponsoredToCreate, (sponsored, index) => {
+                        const civilName = sponsored.civil_registry ? sponsored.civil_registry.full_name : sponsored.name;
+                        const birthDate = sponsored.civil_registry && sponsored.civil_registry.birth_date ? sponsored.civil_registry.birth_date : '-';
+                        return `
+                            <tr class="table-info-soft">
+                                <td class="text-center fw-bold">${index + 1}</td>
+                                <td class="font-monospace fw-bold">${sponsored.identity}</td>
+                                <td><span class="fw-bold">${civilName}</span></td>
+                                <td class="font-monospace">${sponsored.guardian_identity || '-'}</td>
+                                <td>${birthDate}</td>
+                                <td class="text-center"><span class="badge badge-light-info">${sponsored.row}</span></td>
+                            </tr>
+                        `;
+                    });
+                }
+
+                // 🆕 عرض المتوفين (أب/أم) الذين سيتم إنشاؤهم تلقائياً من السجل المدني
+                if (response.validation.deceased_to_create && response.validation.deceased_to_create.length > 0) {
+                    const deceasedToCreate = response.validation.deceased_to_create;
+
+                    let deceasedHtml = `
+                        <div class="alert alert-primary mb-5">
+                            <div class="d-flex align-items-start mb-3">
+                                <i class="ki-duotone ki-user fs-2x text-primary me-4">
+                                    <span class="path1"></span>
+                                    <span class="path2"></span>
+                                </i>
+                                <div class="flex-grow-1">
+                                    <h5 class="mb-2">🕯️ متوفين (أب/أم) سيتم إنشاؤهم تلقائياً من السجل المدني (${deceasedToCreate.length})</h5>
+                                    <p class="mb-3">تم العثور على هؤلاء المتوفين في السجل المدني وسيتم إنشاء سجلاتهم تلقائياً في جدول <code>dead_people</code> عند الاستيراد:</p>
+                                </div>
+                            </div>
+
+                            ${createPaginatedTableHtml('deceased_to_create', `
+                                <tr>
+                                    <th class="text-center" style="width: 60px;">#</th>
+                                    <th>رقم الهوية</th>
+                                    <th>الاسم من السجل المدني</th>
+                                    <th>النوع</th>
+                                    <th>تاريخ الميلاد</th>
+                                    <th class="text-center" style="width: 80px;">الصف</th>
+                                </tr>
+                            `, 'primary', { theadClass: 'table-primary', maxHeight: '350px' })}
+
+                            <div class="alert alert-light mt-3 mb-0 py-2">
+                                <i class="ki-duotone ki-information fs-4 text-primary me-2">
+                                    <span class="path1"></span>
+                                    <span class="path2"></span>
+                                    <span class="path3"></span>
+                                </i>
+                                <strong>ملاحظة:</strong> سيتم إنشاء هؤلاء المتوفين في جدول <code>dead_people</code> مع حجز أرقام ملفات جديدة لهم تلقائياً، ثم سيتم ربط الكفالات بهم.
+                            </div>
+                        </div>
+                    `;
+                    container.append(deceasedHtml);
+
+                    // تهيئة pagination للمتوفين الجدد
+                    initPaginatedTable('deceased_to_create', deceasedToCreate, (deceased, index) => {
+                        const civilName = deceased.civil_registry ? deceased.civil_registry.full_name : deceased.name;
+                        const birthDate = deceased.civil_registry && deceased.civil_registry.birth_date ? deceased.civil_registry.birth_date : '-';
+                        const typeLabel = deceased.type === 'deceased_father' ? 'أب متوفي' : 'أم متوفية';
+                        const typeBadge = deceased.type === 'deceased_father' ? 'badge-light-primary' : 'badge-light-danger';
+                        return `
+                            <tr class="table-primary-soft">
+                                <td class="text-center fw-bold">${index + 1}</td>
+                                <td class="font-monospace fw-bold">${deceased.identity}</td>
+                                <td><span class="fw-bold">${civilName}</span></td>
+                                <td><span class="badge ${typeBadge}">${typeLabel}</span></td>
+                                <td>${birthDate}</td>
+                                <td class="text-center"><span class="badge badge-light-primary">${deceased.row}</span></td>
+                            </tr>
+                        `;
+                    });
+                }
+
+                // 🆕 عرض المتوفين الذين سيتم تقسيم أسمائهم (غير موجودين في السجل المدني)
+                if (response.validation.deceased_from_segmentation && response.validation.deceased_from_segmentation.length > 0) {
+                    const deceasedSegmented = response.validation.deceased_from_segmentation;
+
+                    let deceasedSegHtml = `
+                        <div class="alert alert-secondary mb-5">
+                            <div class="d-flex align-items-start mb-3">
+                                <i class="ki-duotone ki-abstract-24 fs-2x text-secondary me-4">
+                                    <span class="path1"></span>
+                                    <span class="path2"></span>
+                                </i>
+                                <div class="flex-grow-1">
+                                    <h5 class="mb-2">🕯️ متوفين غير موجودين في السجل المدني - سيتم تقسيم أسمائهم (${deceasedSegmented.length})</h5>
+                                    <p class="mb-3">
+                                        هؤلاء المتوفون <strong class="text-danger">غير موجودين في السجل المدني</strong>، لذا سيتم استخدام
+                                        <span class="badge badge-secondary">خوارزمية تقسيم الأسماء (NameSegmentation)</span>
+                                        لتقسيم أسمائهم من ملف Excel:
+                                    </p>
+                                </div>
+                            </div>
+
+                            ${createPaginatedTableHtml('deceased_segmented', `
+                                <tr>
+                                    <th class="text-center" style="width: 50px;">#</th>
+                                    <th>رقم الهوية</th>
+                                    <th>الاسم من Excel</th>
+                                    <th>الاسم الأول</th>
+                                    <th>اسم الأب</th>
+                                    <th>العائلة</th>
+                                    <th>النوع</th>
+                                    <th class="text-center" style="width: 60px;">الصف</th>
+                                </tr>
+                            `, 'secondary', { theadClass: 'table-secondary', maxHeight: '350px' })}
+
+                            <div class="alert alert-success mt-3 mb-0 py-2">
+                                <i class="ki-duotone ki-check-circle fs-4 text-success me-2">
+                                    <span class="path1"></span>
+                                    <span class="path2"></span>
+                                </i>
+                                <strong>✅ سيتم إدخال البيانات بنجاح:</strong> سيتم إنشاء سجل لكل متوفي في جدول <code>dead_people</code> باستخدام الاسم المقسم.
+                            </div>
+                        </div>
+                    `;
+                    container.append(deceasedSegHtml);
+
+                    // تهيئة pagination للمتوفين المقسمة أسماؤهم
+                    initPaginatedTable('deceased_segmented', deceasedSegmented, (deceased, index) => {
+                        const seg = deceased.segmented_name || {};
+                        const typeLabel = deceased.type === 'deceased_father' ? 'أب متوفي' : 'أم متوفية';
+                        const typeBadge = deceased.type === 'deceased_father' ? 'badge-light-primary' : 'badge-light-danger';
+                        return `
+                            <tr class="table-secondary-soft">
+                                <td class="text-center fw-bold">${index + 1}</td>
+                                <td class="font-monospace fw-bold">${deceased.identity}</td>
+                                <td><span class="text-muted">${deceased.name || '-'}</span></td>
+                                <td class="fw-bold text-dark">${seg.first_name || '-'}</td>
+                                <td class="fw-bold text-dark">${seg.father_name || '-'}</td>
+                                <td class="fw-bold text-dark">${seg.family_name || '-'}</td>
+                                <td><span class="badge ${typeBadge}">${typeLabel}</span></td>
+                                <td class="text-center"><span class="badge badge-light-secondary">${deceased.row}</span></td>
+                            </tr>
+                        `;
+                    });
+                }
+
+                // 🆕 عرض المعيلين الذين سيتم تقسيم أسمائهم (غير موجودين في السجل المدني)
+                if (response.validation.guardians_from_segmentation && response.validation.guardians_from_segmentation.length > 0) {
+                    const guardiansSegmented = response.validation.guardians_from_segmentation;
+
+                    let guardiansSegHtml = `
+                        <div class="alert alert-warning mb-5">
+                            <div class="d-flex align-items-start mb-3">
+                                <i class="ki-duotone ki-abstract-24 fs-2x text-warning me-4">
+                                    <span class="path1"></span>
+                                    <span class="path2"></span>
+                                </i>
+                                <div class="flex-grow-1">
+                                    <h5 class="mb-2"> معيلون غير موجودين في السجل المدني - سيتم تقسيم أسمائهم (${guardiansSegmented.length})</h5>
+                                    <p class="mb-3">
+                                        هؤلاء المعيلون <strong class="text-danger">غير موجودين في السجل المدني</strong>، لذا سيتم استخدام
+                                        <span class="badge badge-warning">خوارزمية تقسيم الأسماء (NameSegmentation)</span>
+                                        لتقسيم أسمائهم من ملف Excel إلى الأعمدة المطلوبة:
+                                    </p>
+                                </div>
+                            </div>
+
+                            ${createPaginatedTableHtml('guardians_segmented', `
+                                <tr>
+                                    <th class="text-center" style="width: 50px;">#</th>
+                                    <th>رقم الهوية</th>
+                                    <th>الاسم من Excel</th>
+                                    <th>الاسم الأول</th>
+                                    <th>اسم الأب</th>
+                                    <th>اسم الجد</th>
+                                    <th>العائلة</th>
+                                    <th>الهاتف</th>
+                                    <th class="text-center" style="width: 60px;">الصف</th>
+                                </tr>
+                            `, 'warning', { theadClass: 'table-warning', maxHeight: '350px' })}
+
+                            <div class="alert alert-light mt-3 mb-0 py-2">
+                                <i class="ki-duotone ki-information fs-4 text-warning me-2">
+                                    <span class="path1"></span>
+                                    <span class="path2"></span>
+                                    <span class="path3"></span>
+                                </i>
+                                <strong>تنبيه:</strong> تم تقسيم الأسماء تلقائياً باستخدام الخوارزمية الذكية. يُرجى التحقق من صحة التقسيم قبل الاستيراد.
+                                <br><small class="text-muted">سيتم إنشاء هؤلاء المعيلين في جدول <code>data</code> مع الأسماء المقسمة.</small>
+                            </div>
+                        </div>
+                    `;
+                    container.append(guardiansSegHtml);
+
+                    // تهيئة pagination للمعيلين المقسمة أسماؤهم
+                    initPaginatedTable('guardians_segmented', guardiansSegmented, (guardian, index) => {
+                        const seg = guardian.segmented_name || {};
+                        return `
+                            <tr class="table-warning-soft">
+                                <td class="text-center fw-bold">${index + 1}</td>
+                                <td class="font-monospace fw-bold">${guardian.identity}</td>
+                                <td>
+                                    <span class="text-muted">${guardian.name || '-'}</span>
+                                </td>
+                                <td class="fw-bold text-primary">${seg.first_name || '-'}</td>
+                                <td class="fw-bold text-primary">${seg.father_name || '-'}</td>
+                                <td class="fw-bold text-primary">${seg.grand_father_name || '-'}</td>
+                                <td class="fw-bold text-primary">${seg.family_name || '-'}</td>
+                                <td class="font-monospace">${guardian.phone || '-'}</td>
+                                <td class="text-center"><span class="badge badge-light-warning">${guardian.row}</span></td>
+                            </tr>
+                        `;
+                    });
+                }
+
+                // 🆕 عرض المكفولين الذين سيتم تقسيم أسمائهم (غير موجودين في السجل المدني)
+                if (response.validation.sponsored_from_segmentation && response.validation.sponsored_from_segmentation.length > 0) {
+                    const sponsoredSegmented = response.validation.sponsored_from_segmentation;
+
+                    let sponsoredSegHtml = `
+                        <div class="alert alert-info mb-5">
+                            <div class="d-flex align-items-start mb-3">
+                                <i class="ki-duotone ki-abstract-45 fs-2x text-info me-4">
+                                    <span class="path1"></span>
+                                    <span class="path2"></span>
+                                </i>
+                                <div class="flex-grow-1">
+                                    <h5 class="mb-2"> مكفولون غير موجودين في السجل المدني - سيتم تقسيم أسمائهم (${sponsoredSegmented.length})</h5>
+                                    <p class="mb-3">
+                                        هؤلاء المكفولون <strong class="text-primary">غير موجودين في السجل المدني</strong>، لذا سيتم:
+                                        <br>• استخدام <span class="badge badge-info">خوارزمية تقسيم الأسماء (NameSegmentation)</span> لتقسيم أسمائهم تلقائياً
+                                        <br>• <strong class="text-success"> إنشاء سجل لهم في جدول <code>re_people</code></strong> مع الاسم المقسم
+                                        <br>• <strong class="text-success"> ربطهم بالمعيل الخاص بهم</strong> عبر <code>registration_id</code>
+                                        <br>• <strong class="text-success"> إدخال بيانات الكفالة في جدول <code>sponsorships</code></strong> مع <code>relation_id_number</code>
+                                    </p>
+                                </div>
+                            </div>
+
+                            ${createPaginatedTableHtml('sponsored_segmented', `
+                                <tr>
+                                    <th class="text-center" style="width: 50px;">#</th>
+                                    <th>رقم الهوية</th>
+                                    <th>الاسم من Excel</th>
+                                    <th>الاسم الأول</th>
+                                    <th>اسم الأب</th>
+                                    <th>اسم الجد</th>
+                                    <th>العائلة</th>
+                                    <th>هوية المعيل</th>
+                                    <th class="text-center" style="width: 60px;">الصف</th>
+                                </tr>
+                            `, 'info', { theadClass: 'table-info', maxHeight: '350px' })}
+
+                            <div class="alert alert-success mt-3 mb-0 py-2">
+                                <i class="ki-duotone ki-check-circle fs-4 text-success me-2">
+                                    <span class="path1"></span>
+                                    <span class="path2"></span>
+                                </i>
+                                <strong> سيتم إدخال البيانات بنجاح:</strong> سيتم إنشاء سجل لكل مكفول في جدول <code>re_people</code> باستخدام الاسم المقسم، وربطه بالمعيل، ثم إدخال بيانات الكفالة.
+                            </div>
+                        </div>
+                    `;
+                    container.append(sponsoredSegHtml);
+
+                    // تهيئة pagination للمكفولين المقسمة أسماؤهم
+                    initPaginatedTable('sponsored_segmented', sponsoredSegmented, (sponsored, index) => {
+                        const seg = sponsored.segmented_name || {};
+                        return `
+                            <tr class="table-secondary-soft">
+                                <td class="text-center fw-bold">${index + 1}</td>
+                                <td class="font-monospace fw-bold">${sponsored.identity}</td>
+                                <td>
+                                    <span class="text-muted">${sponsored.name || '-'}</span>
+                                </td>
+                                <td class="fw-bold text-dark">${seg.first_name || '-'}</td>
+                                <td class="fw-bold text-dark">${seg.father_name || '-'}</td>
+                                <td class="fw-bold text-dark">${seg.grand_father_name || '-'}</td>
+                                <td class="fw-bold text-dark">${seg.family_name || '-'}</td>
+                                <td class="font-monospace">${sponsored.guardian_identity || '-'}</td>
+                                <td class="text-center"><span class="badge badge-light-secondary">${sponsored.row}</span></td>
+                            </tr>
+                        `;
+                    });
+                }
+
+                // 🆕 عرض التكرارات داخل ملف Excel (نفس الشخص أكثر من مرة في الملف)
+                if (response.validation.duplicates_in_excel && response.validation.duplicates_in_excel.length > 0) {
+                    const duplicatesExcel = response.validation.duplicates_in_excel;
+
+                    let duplicatesExcelHtml = `
+                        <div class="alert alert-info mb-5">
+                            <div class="d-flex align-items-start mb-3">
+                                <i class="ki-duotone ki-copy fs-2x text-info me-4">
+                                    <span class="path1"></span>
+                                    <span class="path2"></span>
+                                </i>
+                                <div class="flex-grow-1">
+                                    <h5 class="mb-2">📋 تكرارات داخل ملف Excel (${duplicatesExcel.length})</h5>
+                                    <p class="mb-3">
+                                        تم اكتشاف أشخاص <strong>مكررين داخل ملف Excel</strong>.
+                                        سيتم استيراد آخر صف فقط لكل شخص مكرر:
+                                    </p>
+                                </div>
+                            </div>
+
+                            ${createPaginatedTableHtml('duplicates_excel', `
+                                <tr>
+                                    <th class="text-center" style="width: 50px;">#</th>
+                                    <th>رقم الهوية</th>
+                                    <th>الأسماء</th>
+                                    <th>الأنواع</th>
+                                    <th>عدد التكرارات</th>
+                                    <th>أرقام الصفوف</th>
+                                </tr>
+                            `, 'info', { theadClass: 'table-info', maxHeight: '250px' })}
+                        </div>
+                    `;
+                    container.append(duplicatesExcelHtml);
+
+                    // تهيئة pagination للتكرارات داخل Excel
+                    initPaginatedTable('duplicates_excel', duplicatesExcel, (dup, index) => {
+                        const names = Array.isArray(dup.names) ? dup.names.join('، ') : (dup.names || '-');
+                        const types = Array.isArray(dup.types) ? dup.types.map(t => `<span class="badge badge-light-primary me-1">${t}</span>`).join('') : (dup.types || '-');
+                        const rows = Array.isArray(dup.rows) ? dup.rows.map(r => `<span class="badge badge-info me-1">${r}</span>`).join('') : (dup.rows || '-');
+
+                        return `
+                            <tr class="table-info-soft">
+                                <td class="text-center fw-bold">${index + 1}</td>
+                                <td class="font-monospace fw-bold">${dup.identity}</td>
+                                <td>${names}</td>
+                                <td>${types}</td>
+                                <td class="text-center"><span class="badge badge-primary">${dup.count}</span></td>
+                                <td>${rows}</td>
+                            </tr>
+                        `;
+                    });
+                }
+
+                // 🆕 عرض السجلات المكررة في قاعدة البيانات (نفس الشخص مع نفس الجمعية)
+                if (response.validation.duplicates_in_database && response.validation.duplicates_in_database.length > 0) {
+                    // لا نمنع الاستيراد - سيتم تخطي السجلات المكررة فقط
+                    const duplicatesDb = response.validation.duplicates_in_database;
+
+                    let duplicatesDbHtml = `
+                        <div class="alert alert-warning mb-5">
+                            <div class="d-flex align-items-start mb-3">
+                                <i class="ki-duotone ki-information-2 fs-2x text-warning me-4">
+                                    <span class="path1"></span>
+                                    <span class="path2"></span>
+                                    <span class="path3"></span>
+                                </i>
+                                <div class="flex-grow-1">
+                                    <h5 class="mb-2">⚠️ سجلات مكررة سيتم تخطيها (${duplicatesDb.length})</h5>
+                                    <p class="mb-3">
+                                        هؤلاء الأشخاص <strong class="text-warning">مسجلون مسبقاً مع نفس الجمعية</strong>.
+                                        <strong>سيتم تخطيهم تلقائياً</strong> وإدخال باقي السجلات الصحيحة:
+                                    </p>
+                                </div>
+                            </div>
+
+                            ${createPaginatedTableHtml('duplicates_db', `
+                                <tr>
+                                    <th class="text-center" style="width: 50px;">#</th>
+                                    <th>رقم الهوية</th>
+                                    <th>الاسم</th>
+                                    <th>النوع</th>
+                                    <th>رقم الملف الموجود</th>
+                                    <th>تاريخ التسجيل</th>
+                                    <th class="text-center" style="width: 60px;">الصف</th>
+                                </tr>
+                            `, 'warning', { theadClass: 'table-warning', maxHeight: '300px' })}
+
+                            <div class="alert alert-light mt-3 mb-0 py-2">
+                                <i class="ki-duotone ki-information fs-4 text-warning me-2">
+                                    <span class="path1"></span>
+                                    <span class="path2"></span>
+                                    <span class="path3"></span>
+                                </i>
+                                <strong>ملاحظة:</strong> سيتم تخطي هذه السجلات المكررة وإدخال باقي البيانات الصحيحة.
+                            </div>
+                        </div>
+                    `;
+                    container.append(duplicatesDbHtml);
+
+                    // تهيئة pagination للتكرارات في قاعدة البيانات
+                    initPaginatedTable('duplicates_db', duplicatesDb, (dup, index) => {
+                        return `
+                            <tr class="table-warning-soft">
+                                <td class="text-center fw-bold">${index + 1}</td>
+                                <td class="font-monospace fw-bold">${dup.identity}</td>
+                                <td>${dup.name || '-'}</td>
+                                <td><span class="badge badge-light-dark">${dup.type || '-'}</span></td>
+                                <td class="font-monospace text-primary">${dup.existing_file_number || '-'}</td>
+                                <td>${dup.existing_date || '-'}</td>
+                                <td class="text-center"><span class="badge badge-warning">${dup.row}</span></td>
+                            </tr>
+                        `;
+                    });
+                }
+
+                // 🆕 عرض بيانات البنك الناقصة
+                if (response.validation.incomplete_bank_data && response.validation.incomplete_bank_data.length > 0) {
+                    const incompleteBanks = response.validation.incomplete_bank_data;
+
+                    let incompleteBanksHtml = `
+                        <div class="alert alert-warning mb-5">
+                            <div class="d-flex align-items-start mb-3">
+                                <i class="ki-duotone ki-bank fs-2x text-warning me-4">
+                                    <span class="path1"></span>
+                                    <span class="path2"></span>
+                                </i>
+                                <div class="flex-grow-1">
+                                    <h5 class="mb-2">⚠️ بيانات بنكية ناقصة (${incompleteBanks.length})</h5>
+                                    <p class="mb-3">
+                                        هؤلاء الأشخاص لديهم <strong>بيانات بنكية جزئية</strong> - بعض الحقول مفقودة.
+                                        يمكن المتابعة لكن ستكون البيانات البنكية غير مكتملة:
+                                    </p>
+                                </div>
+                            </div>
+
+                            ${createPaginatedTableHtml('incomplete_banks', `
+                                <tr>
+                                    <th class="text-center" style="width: 50px;">#</th>
+                                    <th>رقم الهوية</th>
+                                    <th>الاسم</th>
+                                    <th>الحقول الموجودة</th>
+                                    <th>الحقول الناقصة</th>
+                                    <th class="text-center" style="width: 60px;">الصف</th>
+                                </tr>
+                            `, 'warning', { theadClass: 'table-warning', maxHeight: '300px' })}
+
+                            <div class="alert alert-light mt-3 mb-0 py-2">
+                                <i class="ki-duotone ki-information fs-4 text-warning me-2">
+                                    <span class="path1"></span>
+                                    <span class="path2"></span>
+                                    <span class="path3"></span>
+                                </i>
+                                <strong>ملاحظة:</strong> يمكنك المتابعة مع البيانات الناقصة، لكن يُفضل إكمال البيانات البنكية في ملف Excel.
+                            </div>
+                        </div>
+                    `;
+                    container.append(incompleteBanksHtml);
+
+                    // تهيئة pagination للبيانات البنكية الناقصة
+                    initPaginatedTable('incomplete_banks', incompleteBanks, (item, index) => {
+                        // الحقول الموجودة
+                        let existingFields = [];
+                        if (item.has_fields.bank_name) existingFields.push(`<span class="badge badge-light-success me-1">المحفظة: ${item.has_fields.bank_name}</span>`);
+                        if (item.has_fields.owner_identity) existingFields.push(`<span class="badge badge-light-success me-1">الهوية: ${item.has_fields.owner_identity}</span>`);
+                        if (item.has_fields.owner_name) existingFields.push(`<span class="badge badge-light-success me-1">الاسم: ${item.has_fields.owner_name}</span>`);
+                        if (item.has_fields.phone) existingFields.push(`<span class="badge badge-light-success me-1">الجوال: ${item.has_fields.phone}</span>`);
+
+                        // الحقول الناقصة
+                        const missingFields = item.missing_fields.map(f => `<span class="badge badge-light-danger me-1">${f}</span>`).join('');
+
+                        return `
+                            <tr class="table-warning-soft">
+                                <td class="text-center fw-bold">${index + 1}</td>
+                                <td class="font-monospace fw-bold">${item.identity}</td>
+                                <td>${item.name || '-'}</td>
+                                <td>${existingFields.join('') || '-'}</td>
+                                <td>${missingFields}</td>
+                                <td class="text-center"><span class="badge badge-warning">${item.row}</span></td>
+                            </tr>
+                        `;
+                    });
+                }
+
+                // ⚠️ عرض أفراد العائلة بدون معيل - سيتم إدخالهم في الكفالات فقط بدون ربط
+                if (response.validation.family_members_without_guardian && response.validation.family_members_without_guardian.length > 0) {
+                    // فقط الأشخاص الذين ليس لديهم هوية معيل
+                    const membersWithoutGuardian = response.validation.family_members_without_guardian.filter(m => !m.guardian_identity);
+
+                    if (membersWithoutGuardian.length > 0) {
+                        let noGuardianHtml = `
+                            <div class="alert alert-warning mb-5">
+                                <div class="d-flex align-items-start mb-3">
+                                    <i class="ki-duotone ki-information-5 fs-2x text-warning me-4">
+                                        <span class="path1"></span>
+                                        <span class="path2"></span>
+                                        <span class="path3"></span>
+                                    </i>
+                                    <div class="flex-grow-1">
+                                        <h5 class="mb-2"> أفراد عائلة بدون ولي أمر (${membersWithoutGuardian.length})</h5>
+                                        <p class="mb-3">
+                                            هؤلاء الأشخاص من نوع <strong class="text-warning">"فرد عائلة"</strong> ولكن <strong>ليس لديهم رقم هوية ولي أمر</strong>.
+                                            <br><br>
+                                            <strong class="text-primary"> ما سيحدث:</strong>
+                                            <br>•  لن يتم إضافة البيانات الخاصة بجدول اولياء الأمور لعدم توفرها
+                                            <br>•  عدم ربط افراد العائلة بجدول أولياء الأمور يعني عدم فتح سجلات داخلية للمكفولين في الجداول المركزية المخصصة للنظام
+                                            <br>•  لن يتم ربطهم بملف ولي أمر (بدون رقم ملف داخلي)
+                                            <br>•  يمكنك لاحقاً ربطهم يدوياً عند إضافة بيانات ولي الأمر
+                                        </p>
+                                    </div>
+                                </div>
+
+                                ${createPaginatedTableHtml('no_guardian_members', `
+                                    <tr>
+                                        <th class="text-center" style="width: 50px;">#</th>
+                                        <th>رقم هوية المكفول</th>
+                                        <th>الاسم من Excel</th>
+                                        <th>هوية ولي الأمر</th>
+                                        <th>الحالة</th>
+                                        <th class="text-center" style="width: 60px;">الصف</th>
+                                    </tr>
+                                `, 'warning', { theadClass: 'table-warning', maxHeight: '300px' })}
+
+                                <div class="alert alert-info mt-3 mb-0 py-2">
+                                    <i class="ki-duotone ki-information fs-4 text-info me-2">
+                                        <span class="path1"></span>
+                                        <span class="path2"></span>
+                                        <span class="path3"></span>
+                                    </i>
+                                    <strong>ملاحظة:</strong> سيتم إدخال هؤلاء الأشخاص في سجل الكفالات، لكن بدون ربط بملف ولي أمر.
+                                    <br><small class="text-muted">💡 نصيحة: إذا أردت ربطهم، أضف رقم هوية ولي الأمر في ملف Excel وأعد الاستيراد.</small>
+                                </div>
+                            </div>
+                        `;
+                        container.append(noGuardianHtml);
+
+                        // تهيئة pagination لأفراد العائلة بدون معيل
+                        initPaginatedTable('no_guardian_members', membersWithoutGuardian, (member, index) => {
+                            return `
+                                <tr class="table-warning-soft">
+                                    <td class="text-center fw-bold">${index + 1}</td>
+                                    <td class="font-monospace fw-bold">${member.identity}</td>
+                                    <td>${member.name || '-'}</td>
+                                    <td class="text-warning fw-bold">${member.guardian_identity || '<span class="badge badge-warning">غير محدد</span>'}</td>
+                                    <td><span class="badge badge-light-info">سيتم الإدخال بدون ربط</span></td>
+                                    <td class="text-center"><span class="badge badge-warning">${member.row}</span></td>
+                                </tr>
+                            `;
+                        });
+                    }
                 }
 
                 // البنوك المفقودة - هذه فقط تمنع الاستيراد
@@ -2709,8 +3699,52 @@
                 $('#import_progress_container').show();
                 $('#import_progress_bar').css('width', '0%');
                 $('#import_progress_text').text('0%');
-                $('#import_status_text').text('جاري الاستيراد...');
+                $('#import_status_text').text('جاري تحميل الملف...');
                 $('#import_submit_btn').prop('disabled', true);
+
+                // 🔥 نظام تقدم واقعي للاستيراد
+                let importProgress = 0;
+                let importProgressInterval = null;
+                let importUploadComplete = false;
+
+                // مراحل الاستيراد:
+                // 0-20%: رفع الملف
+                // 20-40%: قراءة وتحليل البيانات
+                // 40-70%: إنشاء المعيلين والمكفولين
+                // 70-90%: إدخال الكفالات
+                // 90-100%: حفظ البيانات البنكية
+
+                function updateImportProgress(progress, statusText) {
+                    importProgress = progress;
+                    $('#import_progress_bar').css('width', progress + '%');
+                    $('#import_progress_text').text(progress + '%');
+                    if (statusText) {
+                        $('#import_status_text').text(statusText);
+                    }
+                }
+
+                function startImportProcessingProgress() {
+                    updateImportProgress(20, 'جاري قراءة وتحليل البيانات...');
+
+                    importProgressInterval = setInterval(() => {
+                        if (importProgress < 35) {
+                            importProgress += 1.5;
+                            updateImportProgress(Math.round(importProgress), 'جاري قراءة وتحليل البيانات...');
+                        } else if (importProgress < 50) {
+                            importProgress += 1;
+                            updateImportProgress(Math.round(importProgress), 'جاري إنشاء المعيلين من السجل المدني...');
+                        } else if (importProgress < 65) {
+                            importProgress += 0.8;
+                            updateImportProgress(Math.round(importProgress), 'جاري إنشاء المكفولين...');
+                        } else if (importProgress < 80) {
+                            importProgress += 0.5;
+                            updateImportProgress(Math.round(importProgress), 'جاري إدخال بيانات الكفالات...');
+                        } else if (importProgress < 95) {
+                            importProgress += 0.3;
+                            updateImportProgress(Math.round(importProgress), 'جاري حفظ البيانات البنكية...');
+                        }
+                    }, 300);
+                }
 
                 $.ajax({
                     url: '{{ route("admin.sponsorships.import") }}',
@@ -2718,37 +3752,104 @@
                     data: formData,
                     processData: false,
                     contentType: false,
+                    xhr: function() {
+                        const xhr = new window.XMLHttpRequest();
+                        xhr.upload.addEventListener('progress', function(e) {
+                            if (e.lengthComputable) {
+                                const uploadPercent = Math.round((e.loaded / e.total) * 20);
+                                updateImportProgress(uploadPercent, 'جاري تحميل الملف...');
+
+                                if (e.loaded === e.total && !importUploadComplete) {
+                                    importUploadComplete = true;
+                                    startImportProcessingProgress();
+                                }
+                            }
+                        }, false);
+                        return xhr;
+                    },
                     success: function(response) {
-                        $('#import_progress_bar').css('width', '100%');
-                        $('#import_progress_text').text('100%');
+                        // إيقاف التقدم التدريجي
+                        if (importProgressInterval) {
+                            clearInterval(importProgressInterval);
+                        }
+
+                        updateImportProgress(100, 'اكتمل الاستيراد ✓');
+
+                        // 🔧 DEBUG: طباعة الاستجابة للتحقق
+                        console.log('Import Response:', response);
+                        console.log('Summary:', response.summary);
 
                         if (response.success) {
                             $('#importExcelModal').modal('hide');
 
-                            // 🆕 إضافة معلومات الربط في الرسالة
-                            let linkedInfo = '';
-                            if (response.summary.linked !== undefined && response.summary.unlinked !== undefined) {
-                                linkedInfo = `
+                            // 🆕 بناء رسالة النتيجة بشكل واضح
+                            let resultHtml = `
+                                <div class="text-start">
+                                    <p><strong>📋 إجمالي السجلات في الملف:</strong> ${response.summary.total}</p>
                                     <hr>
-                                    <p><strong>📊 تفاصيل الربط:</strong></p>
-                                    <p><i class="ki-duotone ki-check-circle text-success"></i> <strong>مرتبطين بملفات موجودة:</strong> <span class="text-success">${response.summary.linked}</span></p>
-                                    <p><i class="ki-duotone ki-information text-warning"></i> <strong>بدون ربط (سجلات جديدة):</strong> <span class="text-warning">${response.summary.unlinked}</span></p>
+                            `;
+
+                            // ✅ كفالات جديدة تم إدخالها
+                            if (response.summary.success > 0) {
+                                resultHtml += `
+                                    <div class="alert alert-success py-2">
+                                        <p class="mb-1"><strong>✅ كفالات جديدة تم إدخالها:</strong> ${response.summary.success}</p>
+                                        <small>
+                                            • مرتبطين بملفات موجودة: ${response.summary.linked || 0}<br>
+                                            • بدون ربط (سجلات جديدة): ${response.summary.unlinked || 0}
+                                        </small>
+                                    </div>
                                 `;
                             }
 
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'اكتملت عملية الاستيراد',
-                                html: `
-                                    <p><strong>إجمالي السجلات:</strong> ${response.summary.total}</p>
-                                    <p><strong>تم الإدخال بنجاح:</strong> <span class="text-success">${response.summary.success}</span></p>
-                                    <p><strong>أخطاء:</strong> <span class="text-danger">${response.summary.errors}</span></p>
-                                    ${linkedInfo}
-                                    <div class="alert alert-info mt-3 text-start" style="font-size: 0.9rem;">
-                                        <strong>ℹ️ ملاحظة:</strong> السجلات غير المرتبطة تم إدخالها في جدول الكفالات فقط.
-                                        يمكنك لاحقاً ربطها يدوياً عند إضافة بيانات الأشخاص.
+                            // ⏭️ كفالات تم تخطيها (موجودة مسبقاً)
+                            const skippedCount = response.summary.skipped || 0;
+                            const bankAccountsAdded = response.summary.bank_accounts_added_for_skipped || 0;
+
+                            if (skippedCount > 0) {
+                                resultHtml += `
+                                    <div class="alert alert-warning py-2">
+                                        <p class="mb-1"><strong>⏭️ كفالات موجودة مسبقاً (تم تخطيها):</strong> ${skippedCount}</p>
+                                        <small>هذه الكفالات مسجلة مسبقاً مع نفس الجمعية</small>
+                                `;
+
+                                if (bankAccountsAdded > 0) {
+                                    resultHtml += `
+                                        <hr class="my-2">
+                                        <p class="mb-0 text-success"><strong>🏦 حسابات بنكية جديدة تم إضافتها:</strong> ${bankAccountsAdded}</p>
+                                        <small class="text-muted">تم إضافة بيانات بنكية جديدة للكفالات الموجودة</small>
+                                    `;
+                                }
+
+                                resultHtml += `</div>`;
+                            }
+
+                            // ❌ أخطاء
+                            if (response.summary.errors > 0) {
+                                resultHtml += `
+                                    <div class="alert alert-danger py-2">
+                                        <p class="mb-0"><strong>❌ أخطاء:</strong> ${response.summary.errors}</p>
                                     </div>
-                                `
+                                `;
+                            }
+
+                            // 📊 ملخص إذا لم يكن هناك كفالات جديدة ولا أخطاء
+                            if (response.summary.success === 0 && response.summary.errors === 0 && skippedCount > 0) {
+                                resultHtml += `
+                                    <div class="alert alert-info py-2 mt-2">
+                                        <strong>ℹ️ ملخص:</strong> جميع الكفالات في هذا الملف موجودة مسبقاً في النظام.
+                                        ${bankAccountsAdded > 0 ? '<br>تم إضافة البيانات البنكية الجديدة فقط.' : ''}
+                                    </div>
+                                `;
+                            }
+
+                            resultHtml += `</div>`;
+
+                            Swal.fire({
+                                icon: skippedCount > 0 && response.summary.success === 0 ? 'info' : 'success',
+                                title: 'اكتملت عملية الاستيراد',
+                                html: resultHtml,
+                                width: '500px'
                             }).then(() => {
                                 // تنظيف modal backdrop بعد إغلاق SweetAlert
                                 cleanupModalBackdrop();
@@ -2761,6 +3862,11 @@
                         }
                     },
                     error: function(xhr) {
+                        // 🔥 إيقاف التقدم التدريجي عند حدوث خطأ
+                        if (importProgressInterval) {
+                            clearInterval(importProgressInterval);
+                        }
+
                         $('#import_submit_btn').prop('disabled', false);
                         $('#import_progress_container').hide();
 
