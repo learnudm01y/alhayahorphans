@@ -1987,6 +1987,7 @@ class SponsorshipController extends Controller
             $uniquePersons = []; // تغيير من uniqueGuardians لتشمل جميع الأشخاص
             $personsToCreate = []; // قائمة الأشخاص الذين يحتاجون للإنشاء
             $incompleteBankData = []; // 🆕 قائمة الصفوف التي بها بيانات بنك ناقصة
+            $existingActiveAccounts = []; // 🆕 قائمة الحسابات البنكية النشطة التي ستتأثر (سيتم تحويلها إلى 0)
 
             foreach ($rows as $index => $row) {
                 $rowNumber = $index + 2;
@@ -2053,6 +2054,26 @@ class SponsorshipController extends Controller
                 $isGuardianType = in_array($normalizedPersonType, ['معيل', 'معيل اسره', 'معيل اسرة', 'معيل أسرة', 'معيل عائله', 'معيل عائلة']);
 
                 if (!empty($guardianIdentity) && !$isGuardianType) {
+                    // 🆕 إذا كان اسم المعيل فارغاً ولكن الهوية موجودة، نحاول جلب الاسم من السجل المدني
+                    $guardianNameToUse = $guardianName;
+                    $guardianNameSource = 'excel';
+                    
+                    if (empty($guardianName) && !empty($guardianIdentity)) {
+                        // البحث في السجل المدني عن اسم المعيل
+                        $civilRegistryData = $this->searchCivilRegistryForGuardian($guardianIdentity);
+                        if ($civilRegistryData && !empty($civilRegistryData['full_name'])) {
+                            $guardianNameToUse = $civilRegistryData['full_name'];
+                            $guardianNameSource = 'civil_registry';
+                            Log::info('🔍 تم جلب اسم المعيل من السجل المدني (الاسم كان فارغاً في Excel)', [
+                                'row' => $rowNumber,
+                                'guardian_identity' => $guardianIdentity,
+                                'civil_name' => $guardianNameToUse,
+                                'sponsored_identity' => $sponsoredIdentity,
+                                'sponsored_name' => $sponsoredName
+                            ]);
+                        }
+                    }
+                    
                     // تجنب التكرار - التحقق أولاً إذا كان المعيل موجود مسبقاً
                     $guardianExists = false;
                     $guardianIndex = -1;
@@ -2071,14 +2092,20 @@ class SponsorshipController extends Controller
                             'row' => $rowNumber,
                             'type' => 'معيل',
                             'identity' => $guardianIdentity,
-                            'name' => $guardianName,
+                            'name' => $guardianNameToUse,
+                            'name_source' => $guardianNameSource, // 🆕 مصدر الاسم
                             'phone' => $phoneNumber,
                             'alt_phone' => $altPhoneNumber,
                             'full_row' => $row
                         ];
                         $uniquePersons[] = $guardianData;
                     } else {
-                        // المعيل موجود مسبقاً، نحدّث أرقام الهاتف فقط إذا كانت الحالية أفضل (غير فارغة)
+                        // المعيل موجود مسبقاً، نحدّث الاسم إذا كان فارغاً والآن لدينا اسم من السجل المدني
+                        if (empty($uniquePersons[$guardianIndex]['name']) && !empty($guardianNameToUse)) {
+                            $uniquePersons[$guardianIndex]['name'] = $guardianNameToUse;
+                            $uniquePersons[$guardianIndex]['name_source'] = $guardianNameSource;
+                        }
+                        // نحدّث أرقام الهاتف فقط إذا كانت الحالية أفضل (غير فارغة)
                         if (!empty($phoneNumber) && empty($uniquePersons[$guardianIndex]['phone'])) {
                             $uniquePersons[$guardianIndex]['phone'] = $phoneNumber;
                         }
@@ -2131,6 +2158,210 @@ class SponsorshipController extends Controller
                 if (!empty($bankName) && !in_array($bankName, $uniqueBanks)) {
                     $uniqueBanks[] = $bankName;
                 }
+
+                // 🆕 فحص الحسابات البنكية النشطة القديمة التي ستتأثر
+                // إذا كان هناك بيانات بنك جديدة وكاملة، نتحقق من وجود حسابات نشطة قديمة مختلفة
+                if ($hasBankName && $hasBankOwnerIdentity && $hasBankPhone) {
+                    // نحتاج البحث عن relation_id_number للشخص
+                    $fileNumberForSearch = null;
+                    $actualGuardianIdentityForCheck = null;
+
+                    // البحث حسب نوع الشخص
+                    $normalizedType = $this->normalizeArabicText($personType);
+                    $isPersonAsGuardianType = in_array($normalizedType, [
+                        'معيل', 'معيل اسره', 'معيل اسرة', 'معيل أسرة', 'معيل عائله', 'معيل عائلة',
+                        'أب متوفي', 'اب متوفي', 'الاب المتوفي', 'الأب المتوفي',
+                        'أم متوفيه', 'ام متوفيه', 'أم متوفية', 'ام متوفية', 'الأم المتوفية', 'الام المتوفية'
+                    ]);
+
+                    if (in_array($normalizedType, ['معيل', 'معيل اسره', 'معيل اسرة', 'معيل أسرة', 'معيل عائله', 'معيل عائلة'])) {
+                        // المعيل: البحث في data
+                        $dataRecord = Data::where('data_id_number', $sponsoredIdentity)->first();
+                        if ($dataRecord) {
+                            $fileNumberForSearch = $dataRecord->file_id_number;
+                            $actualGuardianIdentityForCheck = $sponsoredIdentity;
+                        }
+                    } elseif (in_array($normalizedType, ['أب متوفي', 'اب متوفي', 'الاب المتوفي', 'الأب المتوفي'])) {
+                        // الأب المتوفي: البحث في dead_people
+                        $deadRecord = DeadPepole::where('father_id', $sponsoredIdentity)->first();
+                        if ($deadRecord) {
+                            $fileNumberForSearch = $deadRecord->re_file_id;
+                            $actualGuardianIdentityForCheck = $sponsoredIdentity;
+                        }
+                    } elseif (in_array($normalizedType, ['أم متوفيه', 'ام متوفيه', 'أم متوفية', 'ام متوفية', 'الأم المتوفية', 'الام المتوفية'])) {
+                        // الأم المتوفية: البحث في dead_people
+                        $deadRecord = DeadPepole::where('mother_id', $sponsoredIdentity)->first();
+                        if ($deadRecord) {
+                            $fileNumberForSearch = $deadRecord->re_file_id;
+                            $actualGuardianIdentityForCheck = $sponsoredIdentity;
+                        }
+                    } else {
+                        // فرد عائلة أو آخر: البحث بهوية المعيل
+                        if (!empty($guardianIdentity)) {
+                            $guardianRecord = Data::where('data_id_number', $guardianIdentity)->first();
+                            if ($guardianRecord) {
+                                $fileNumberForSearch = $guardianRecord->file_id_number;
+                                $actualGuardianIdentityForCheck = $guardianIdentity;
+                            }
+                        }
+                    }
+
+                    // إذا وجدنا رقم ملف، نبحث عن حسابات بنكية
+                    if ($fileNumberForSearch) {
+                        // 🔍 البحث عن البنك الجديد في النظام
+                        $newBankRecord = BankName::where(function($query) use ($bankName) {
+                            $this->addSmartSearch($query, 'description', $bankName, false);
+                        })->first();
+                        $newBankId = $newBankRecord ? $newBankRecord->id : null;
+
+                        // 🔍 تحديد هوية صاحب المحفظة للحساب الجديد
+                        $newAccountOwnerIdentity = $isPersonAsGuardianType ? $sponsoredIdentity : $guardianIdentity;
+                        $cleanedOwnerIdentity = preg_replace('/\D/', '', $personOwnerIdentityNumber);
+                        if (!empty($personOwnerIdentityNumber) && strlen($cleanedOwnerIdentity) >= 9) {
+                            $newAccountOwnerIdentity = $personOwnerIdentityNumber;
+                        }
+
+                        // ✅ التحقق من وجود الحساب الجديد بالـ 4 أعمدة الأساسية
+                        // bank_name, re_id_number, re_phone_number, person_owner_identity_number
+                        $existingExactAccount = GuardianBankAccount::where('bank_name', $newBankId)
+                            ->where('re_id_number', $actualGuardianIdentityForCheck)
+                            ->where('re_phone_number', $rePhoneNumber)
+                            ->where('person_owner_identity_number', $newAccountOwnerIdentity)
+                            ->first();
+
+                        if ($existingExactAccount) {
+                            // ✅ الحساب موجود مسبقاً بنفس الـ 4 أعمدة
+                            // إذا كان check_account = 0 سيتم تحويله إلى 1
+                            if ($existingExactAccount->check_account == 0) {
+                                // تجنب التكرار
+                                $alreadyAdded = false;
+                                foreach ($existingActiveAccounts as $existing) {
+                                    if ($existing['account_id'] === $existingExactAccount->id) {
+                                        $alreadyAdded = true;
+                                        break;
+                                    }
+                                }
+
+                                if (!$alreadyAdded) {
+                                    $oldBankName = '-';
+                                    if ($existingExactAccount->bank_name) {
+                                        $oldBankRecord = BankName::find($existingExactAccount->bank_name);
+                                        if ($oldBankRecord) {
+                                            $oldBankName = $oldBankRecord->description;
+                                        }
+                                    }
+
+                                    $existingActiveAccounts[] = [
+                                        'row' => $rowNumber,
+                                        'account_id' => $existingExactAccount->id,
+                                        'guardian_registration' => $existingExactAccount->guardian_registration,
+                                        'identity' => $sponsoredIdentity,
+                                        'name' => $sponsoredName,
+                                        'old_bank_name' => $oldBankName,
+                                        'old_bank_id' => $existingExactAccount->bank_name,
+                                        'old_phone' => $existingExactAccount->re_phone_number,
+                                        'old_owner_identity' => $existingExactAccount->person_owner_identity_number,
+                                        'old_check_account' => $existingExactAccount->check_account,
+                                        'new_bank_name' => $bankName,
+                                        'new_bank_id' => $newBankId,
+                                        'new_phone' => $rePhoneNumber,
+                                        'new_owner_identity' => $newAccountOwnerIdentity,
+                                        'action' => 'reactivate', // سيتم إعادة تفعيله من 0 إلى 1
+                                        'will_be_deactivated' => false,
+                                        'will_be_reactivated' => true,
+                                        'difference' => []
+                                    ];
+
+                                    Log::info('🔄 تم اكتشاف حساب بنكي غير نشط سيتم إعادة تفعيله', [
+                                        'row' => $rowNumber,
+                                        'account_id' => $existingExactAccount->id,
+                                        'guardian_registration' => $existingExactAccount->guardian_registration,
+                                        'bank' => $oldBankName
+                                    ]);
+                                }
+                            }
+                            // إذا كان check_account = 1 فلا حاجة لفعل شيء (الحساب نشط بالفعل)
+                        }
+
+                        // 🔍 البحث عن حسابات نشطة أخرى بنفس guardian_registration لتعطيلها
+                        // (لأن الأولوية للحساب الأخير المُدخل)
+                        $otherActiveAccounts = GuardianBankAccount::where('guardian_registration', $fileNumberForSearch)
+                            ->where('check_account', 1)
+                            ->where(function($query) use ($newBankId, $actualGuardianIdentityForCheck, $rePhoneNumber, $newAccountOwnerIdentity) {
+                                // استثناء الحساب المطابق تماماً (نفس الـ 4 أعمدة)
+                                $query->where('bank_name', '!=', $newBankId)
+                                    ->orWhere('re_id_number', '!=', $actualGuardianIdentityForCheck)
+                                    ->orWhere('re_phone_number', '!=', $rePhoneNumber)
+                                    ->orWhere('person_owner_identity_number', '!=', $newAccountOwnerIdentity);
+                            })
+                            ->get();
+
+                        foreach ($otherActiveAccounts as $activeAccount) {
+                            // تجنب التكرار
+                            $alreadyAdded = false;
+                            foreach ($existingActiveAccounts as $existing) {
+                                if ($existing['account_id'] === $activeAccount->id) {
+                                    $alreadyAdded = true;
+                                    break;
+                                }
+                            }
+
+                            if (!$alreadyAdded) {
+                                $oldBankName = '-';
+                                if ($activeAccount->bank_name) {
+                                    $oldBankRecord = BankName::find($activeAccount->bank_name);
+                                    if ($oldBankRecord) {
+                                        $oldBankName = $oldBankRecord->description;
+                                    }
+                                }
+
+                                $existingActiveAccounts[] = [
+                                    'row' => $rowNumber,
+                                    'account_id' => $activeAccount->id,
+                                    'guardian_registration' => $fileNumberForSearch,
+                                    'identity' => $sponsoredIdentity,
+                                    'name' => $sponsoredName,
+                                    'old_bank_name' => $oldBankName,
+                                    'old_bank_id' => $activeAccount->bank_name,
+                                    'old_phone' => $activeAccount->re_phone_number,
+                                    'old_owner_identity' => $activeAccount->person_owner_identity_number,
+                                    'old_check_account' => $activeAccount->check_account,
+                                    'new_bank_name' => $bankName,
+                                    'new_bank_id' => $newBankId,
+                                    'new_phone' => $rePhoneNumber,
+                                    'new_owner_identity' => $newAccountOwnerIdentity,
+                                    'action' => 'deactivate', // سيتم تعطيله من 1 إلى 0
+                                    'will_be_deactivated' => true,
+                                    'will_be_reactivated' => false,
+                                    'difference' => [
+                                        'bank_changed' => ($activeAccount->bank_name != $newBankId),
+                                        'phone_changed' => ($activeAccount->re_phone_number != $rePhoneNumber),
+                                        'owner_changed' => ($activeAccount->person_owner_identity_number != $newAccountOwnerIdentity),
+                                        're_id_changed' => ($activeAccount->re_id_number != $actualGuardianIdentityForCheck)
+                                    ]
+                                ];
+
+                                Log::info('🔄 تم اكتشاف حساب بنكي نشط سيتم تعطيله', [
+                                    'row' => $rowNumber,
+                                    'account_id' => $activeAccount->id,
+                                    'guardian_registration' => $fileNumberForSearch,
+                                    'old_bank' => $oldBankName,
+                                    'new_bank' => $bankName,
+                                    'old_phone' => $activeAccount->re_phone_number,
+                                    'new_phone' => $rePhoneNumber
+                                ]);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 🆕 تسجيل الحسابات البنكية التي ستتأثر
+            if (!empty($existingActiveAccounts)) {
+                Log::info('🔄 حسابات بنكية نشطة ستتحول إلى غير نشطة عند الاستيراد:', [
+                    'count' => count($existingActiveAccounts),
+                    'accounts' => array_slice($existingActiveAccounts, 0, 5) // أول 5 فقط
+                ]);
             }
 
             // 🆕 كشف التكرارات في ملف Excel (نفس الشخص مكرر أكثر من مرة)
@@ -2378,10 +2609,12 @@ class SponsorshipController extends Controller
                         $civilRegistryData = $this->searchCivilRegistryForGuardian($identity);
                         if ($civilRegistryData) {
                             // ✅ وُجد في السجل المدني - يمكن إنشاؤه تلقائياً
+                            // 🆕 استخدام اسم السجل المدني إذا كان اسم Excel فارغاً
+                            $nameToUse = !empty($personData['name']) ? $personData['name'] : $civilRegistryData['full_name'];
                             $guardiansToCreate[$identity] = [
                                 'row' => $personData['row'],
                                 'identity' => $identity,
-                                'name' => $personData['name'] ?? '',
+                                'name' => $nameToUse,
                                 'phone' => $personData['phone'] ?? '',
                                 'alt_phone' => $personData['alt_phone'] ?? '',
                                 'civil_registry' => $civilRegistryData,
@@ -2389,7 +2622,9 @@ class SponsorshipController extends Controller
                             ];
                             Log::info('✅ تم العثور على المعيل في السجل المدني', [
                                 'identity' => $identity,
-                                'civil_name' => $civilRegistryData['full_name']
+                                'civil_name' => $civilRegistryData['full_name'],
+                                'excel_name' => $personData['name'] ?? '',
+                                'name_used' => $nameToUse
                             ]);
                         } else {
                             // 🆕 المعيل غير موجود في السجل المدني - نستخدم NameSegmentation لتقسيم الاسم من Excel
@@ -2413,6 +2648,14 @@ class SponsorshipController extends Controller
                                         'segmented' => $segmentedName
                                     ]);
                                 }
+                            } else {
+                                // 🆕 الاسم فارغ وغير موجود في السجل المدني - لا نستطيع فتح سجل له
+                                // سيتم فقط إدخال البيانات في جدول sponsorships
+                                Log::warning('⚠️ المعيل غير موجود في السجل المدني واسمه فارغ في Excel', [
+                                    'identity' => $identity,
+                                    'row' => $personData['row'],
+                                    'note' => 'سيتم إدخال البيانات المتوفرة فقط في جدول sponsorships بدون فتح سجل داخلي'
+                                ]);
                             }
                         }
                     }
@@ -2533,10 +2776,14 @@ class SponsorshipController extends Controller
                             // البحث عن المعيل في السجل المدني
                             $guardianCivilData = $this->searchCivilRegistryForGuardian($guardianIdentity);
                             if ($guardianCivilData) {
+                                // 🆕 استخدام اسم السجل المدني إذا كان اسم Excel فارغاً
+                                $guardianNameFromExcel = $personData['guardian_name'] ?? '';
+                                $guardianNameToUse = !empty($guardianNameFromExcel) ? $guardianNameFromExcel : $guardianCivilData['full_name'];
+                                
                                 $guardiansToCreate[$guardianIdentity] = [
                                     'row' => $personData['row'],
                                     'identity' => $guardianIdentity,
-                                    'name' => $personData['guardian_name'] ?? '',
+                                    'name' => $guardianNameToUse,
                                     'phone' => $personData['phone'] ?? '',
                                     'alt_phone' => $personData['alt_phone'] ?? '',
                                     'civil_registry' => $guardianCivilData,
@@ -2546,8 +2793,23 @@ class SponsorshipController extends Controller
                                 Log::info('✅ تم العثور على معيل فرد العائلة في السجل المدني', [
                                     'guardian_identity' => $guardianIdentity,
                                     'family_member_identity' => $identity,
-                                    'civil_name' => $guardianCivilData['full_name']
+                                    'civil_name' => $guardianCivilData['full_name'],
+                                    'excel_guardian_name' => $guardianNameFromExcel,
+                                    'name_used' => $guardianNameToUse
                                 ]);
+                            } else {
+                                // 🆕 المعيل غير موجود في السجل المدني
+                                // إذا كان اسم المعيل فارغاً في Excel، نسجل ذلك
+                                $guardianNameFromExcel = $personData['guardian_name'] ?? '';
+                                if (empty($guardianNameFromExcel)) {
+                                    Log::warning('⚠️ معيل فرد العائلة غير موجود في السجل المدني واسمه فارغ في Excel', [
+                                        'guardian_identity' => $guardianIdentity,
+                                        'family_member_identity' => $identity,
+                                        'family_member_name' => $personData['name'] ?? '',
+                                        'row' => $personData['row'],
+                                        'note' => 'سيتم إدخال بيانات فرد العائلة في sponsorships فقط بدون فتح سجل للمعيل'
+                                    ]);
+                                }
                             }
                         }
                     }
@@ -2797,9 +3059,11 @@ class SponsorshipController extends Controller
                         'duplicates_in_database' => $duplicatesInDatabase, // 🆕 السجلات المكررة في قاعدة البيانات
                         'family_members_without_guardian' => $familyMembersWithoutGuardian, // 🆕 أفراد العائلة بدون معيل
                         'incomplete_bank_data' => $incompleteBankData, // 🆕 بيانات البنك الناقصة
+                        'existing_active_accounts' => $existingActiveAccounts, // 🆕 الحسابات البنكية النشطة التي ستتحول إلى غير نشطة
                         'allow_import_without_relation' => true, // 🆕 إشارة للسماح بالاستيراد بدون relation_id_number
                         'can_auto_create_guardians' => count($guardiansFromCivilRegistry) > 0 || count($guardiansFromSegmentation) > 0, // 🆕 إشارة لإمكانية الإنشاء التلقائي
                         'can_auto_create_deceased' => count($deceasedFromCivilRegistry) > 0 || count($deceasedFromSegmentation) > 0, // 🆕 إشارة لإمكانية الإنشاء التلقائي للمتوفين
+                        'will_deactivate_old_accounts' => count($existingActiveAccounts) > 0, // 🆕 إشارة لوجود حسابات ستُعطّل
                     ]
                 ]);
             }
@@ -3003,6 +3267,54 @@ class SponsorshipController extends Controller
                     $bankName = ($bankNameIndex !== null) ? trim($row[$bankNameIndex] ?? '') : '';
                     $reGuardianName = ($reGuardianNameIndex !== null) ? trim($row[$reGuardianNameIndex] ?? '') : '';
                     $rePhoneNumber = ($rePhoneNumberIndex !== null) ? trim($row[$rePhoneNumberIndex] ?? '') : '';
+
+                    // 🆕 إذا كان اسم المعيل فارغاً ولكن الهوية موجودة، نحاول جلبه من السجل المدني
+                    if (empty($guardianName) && !empty($guardianIdentity)) {
+                        // أولاً: البحث في المعيلين الذين تم إنشاؤهم
+                        if (isset($createdGuardians[$guardianIdentity])) {
+                            $createdGuardian = $createdGuardians[$guardianIdentity];
+                            $guardianName = trim(
+                                ($createdGuardian->data_first_name ?? '') . ' ' .
+                                ($createdGuardian->data_father_name ?? '') . ' ' .
+                                ($createdGuardian->data_grand_father_name ?? '') . ' ' .
+                                ($createdGuardian->data_family_name ?? '')
+                            );
+                            Log::info('🔍 تم جلب اسم المعيل من المعيلين المُنشأين حديثاً', [
+                                'row' => $rowNumber,
+                                'guardian_identity' => $guardianIdentity,
+                                'guardian_name' => $guardianName
+                            ]);
+                        }
+                        // ثانياً: البحث في جدول data الموجود
+                        elseif (empty($guardianName)) {
+                            $existingGuardian = Data::where('data_id_number', $guardianIdentity)->first();
+                            if ($existingGuardian) {
+                                $guardianName = trim(
+                                    ($existingGuardian->data_first_name ?? '') . ' ' .
+                                    ($existingGuardian->data_father_name ?? '') . ' ' .
+                                    ($existingGuardian->data_grand_father_name ?? '') . ' ' .
+                                    ($existingGuardian->data_family_name ?? '')
+                                );
+                                Log::info('🔍 تم جلب اسم المعيل من جدول data', [
+                                    'row' => $rowNumber,
+                                    'guardian_identity' => $guardianIdentity,
+                                    'guardian_name' => $guardianName
+                                ]);
+                            }
+                        }
+                        // ثالثاً: البحث في السجل المدني
+                        if (empty($guardianName)) {
+                            $civilData = $this->searchCivilRegistryForGuardian($guardianIdentity);
+                            if ($civilData && !empty($civilData['full_name'])) {
+                                $guardianName = $civilData['full_name'];
+                                Log::info('🔍 تم جلب اسم المعيل من السجل المدني (أثناء الاستيراد)', [
+                                    'row' => $rowNumber,
+                                    'guardian_identity' => $guardianIdentity,
+                                    'civil_name' => $guardianName
+                                ]);
+                            }
+                        }
+                    }
 
                     // 🔧 FIX: البحث عن عمود هوية المحفظة بالاسم الأساسي أو البديل
                     $personOwnerIdentityIndex = $columnMap[$requiredColumns['person_owner_identity_number']]
@@ -3265,6 +3577,28 @@ class SponsorshipController extends Controller
                             ]);
 
                             if (!$duplicateCheck['is_duplicate']) {
+                                // 🆕 قبل إضافة الحساب الجديد، نعطّل جميع الحسابات النشطة القديمة لنفس رقم الملف
+                                // التي لا تتطابق مع الحساب الجديد (بالـ 4 أعمدة)
+                                $deactivatedCount = GuardianBankAccount::where('guardian_registration', $bankAccountFileNumber)
+                                    ->where('check_account', 1)
+                                    ->where(function($query) use ($bankId, $actualGuardianIdentity, $rePhoneNumber, $phoneNumber, $accountOwnerIdentity) {
+                                        // استثناء الحساب المطابق تماماً
+                                        $query->where('bank_name', '!=', $bankId)
+                                            ->orWhere('re_id_number', '!=', $actualGuardianIdentity)
+                                            ->orWhere('re_phone_number', '!=', ($rePhoneNumber ?: $phoneNumber))
+                                            ->orWhere('person_owner_identity_number', '!=', $accountOwnerIdentity);
+                                    })
+                                    ->update(['check_account' => 0]);
+
+                                if ($deactivatedCount > 0) {
+                                    Log::info('🔄 تم تعطيل الحسابات البنكية القديمة (كفالة مكررة)', [
+                                        'row' => $rowNumber,
+                                        'guardian_registration' => $bankAccountFileNumber,
+                                        'deactivated_count' => $deactivatedCount,
+                                        'reason' => 'إضافة حساب جديد من Excel للكفالة المكررة'
+                                    ]);
+                                }
+
                                 $bankAccount = new GuardianBankAccount();
                                 $bankAccount->guardian_registration = $bankAccountFileNumber;
                                 $bankAccount->person_owner_identity_number = $accountOwnerIdentity;
@@ -3284,9 +3618,33 @@ class SponsorshipController extends Controller
                                     're_id_number (المعيل)' => $actualGuardianIdentity,
                                     'person_owner_identity_number (صاحب المحفظة)' => $accountOwnerIdentity,
                                     'bank_name' => $bankId,
-                                    'existing_sponsorship_id' => $duplicateSponsorship->id
+                                    'existing_sponsorship_id' => $duplicateSponsorship->id,
+                                    'deactivated_old_accounts' => $deactivatedCount
                                 ]);
                             } else {
+                                // ✅ الحساب موجود مسبقاً - نتحقق إذا كان غير نشط ونعيد تفعيله
+                                $existingAccount = $duplicateCheck['existing_account'] ?? null;
+                                if ($existingAccount && isset($existingAccount['id'])) {
+                                    $accountToReactivate = GuardianBankAccount::find($existingAccount['id']);
+                                    if ($accountToReactivate && $accountToReactivate->check_account == 0) {
+                                        // 🔄 تعطيل أي حسابات نشطة أخرى لنفس guardian_registration أولاً
+                                        $otherDeactivatedCount = GuardianBankAccount::where('guardian_registration', $bankAccountFileNumber)
+                                            ->where('check_account', 1)
+                                            ->where('id', '!=', $accountToReactivate->id)
+                                            ->update(['check_account' => 0]);
+
+                                        // ✅ إعادة تفعيل الحساب الموجود
+                                        $accountToReactivate->check_account = 1;
+                                        $accountToReactivate->save();
+
+                                        Log::info('✅ تم إعادة تفعيل حساب بنكي موجود (كفالة مكررة)', [
+                                            'row' => $rowNumber,
+                                            'account_id' => $accountToReactivate->id,
+                                            'guardian_registration' => $bankAccountFileNumber,
+                                            'other_deactivated' => $otherDeactivatedCount
+                                        ]);
+                                    }
+                                }
                                 Log::info('🔄 الحساب البنكي موجود مسبقاً - لا حاجة لإعادة الإدخال', [
                                     'row' => $rowNumber,
                                     'existing_account_id' => $duplicateCheck['existing_account']['id'] ?? null
@@ -3438,6 +3796,28 @@ class SponsorshipController extends Controller
                         ]);
 
                         if (!$duplicateCheck['is_duplicate']) {
+                            // 🆕 قبل إضافة الحساب الجديد، نعطّل جميع الحسابات النشطة القديمة لنفس رقم الملف
+                            // التي لا تتطابق مع الحساب الجديد (بالـ 4 أعمدة)
+                            $deactivatedCount = GuardianBankAccount::where('guardian_registration', $bankAccountFileNumber)
+                                ->where('check_account', 1)
+                                ->where(function($query) use ($bankId, $actualGuardianIdentity, $rePhoneNumber, $phoneNumber, $accountOwnerIdentity) {
+                                    // استثناء الحساب المطابق تماماً
+                                    $query->where('bank_name', '!=', $bankId)
+                                        ->orWhere('re_id_number', '!=', $actualGuardianIdentity)
+                                        ->orWhere('re_phone_number', '!=', ($rePhoneNumber ?: $phoneNumber))
+                                        ->orWhere('person_owner_identity_number', '!=', $accountOwnerIdentity);
+                                })
+                                ->update(['check_account' => 0]);
+
+                            if ($deactivatedCount > 0) {
+                                Log::info('🔄 تم تعطيل الحسابات البنكية القديمة', [
+                                    'row' => $rowNumber,
+                                    'guardian_registration' => $bankAccountFileNumber,
+                                    'deactivated_count' => $deactivatedCount,
+                                    'reason' => 'إضافة حساب جديد من Excel'
+                                ]);
+                            }
+
                             $bankAccount = new GuardianBankAccount();
                             $bankAccount->guardian_registration = $bankAccountFileNumber; // استخدام رقم ملف المعيل (أصلي أو مولد)
 
@@ -3465,14 +3845,52 @@ class SponsorshipController extends Controller
                                 'bank_name' => $bankId
                             ]);
                         } else {
-                            Log::warning('🚫 تم منع إدخال حساب بنكي مكرر - جميع الأعمدة الخمسة متطابقة', [
+                            // ✅ الحساب موجود مسبقاً بنفس الـ 4 أعمدة - نتحقق إذا كان غير نشط ونعيد تفعيله
+                            $existingAccount = $duplicateCheck['existing_account'] ?? null;
+                            if ($existingAccount && isset($existingAccount['id'])) {
+                                $accountToReactivate = GuardianBankAccount::find($existingAccount['id']);
+                                if ($accountToReactivate && $accountToReactivate->check_account == 0) {
+                                    // 🔄 تعطيل أي حسابات نشطة أخرى لنفس guardian_registration أولاً
+                                    $otherDeactivatedCount = GuardianBankAccount::where('guardian_registration', $bankAccountFileNumber)
+                                        ->where('check_account', 1)
+                                        ->where('id', '!=', $accountToReactivate->id)
+                                        ->update(['check_account' => 0]);
+
+                                    // ✅ إعادة تفعيل الحساب الموجود
+                                    $accountToReactivate->check_account = 1;
+                                    $accountToReactivate->save();
+
+                                    Log::info('✅ تم إعادة تفعيل حساب بنكي موجود', [
+                                        'row' => $rowNumber,
+                                        'account_id' => $accountToReactivate->id,
+                                        'guardian_registration' => $bankAccountFileNumber,
+                                        'other_deactivated' => $otherDeactivatedCount
+                                    ]);
+                                } else {
+                                    // الحساب موجود ونشط بالفعل، لكن تأكد من تعطيل أي حسابات أخرى
+                                    $otherDeactivatedCount = GuardianBankAccount::where('guardian_registration', $bankAccountFileNumber)
+                                        ->where('check_account', 1)
+                                        ->where('id', '!=', $accountToReactivate->id)
+                                        ->update(['check_account' => 0]);
+
+                                    if ($otherDeactivatedCount > 0) {
+                                        Log::info('🔄 تم تعطيل حسابات أخرى لنفس رقم الملف', [
+                                            'row' => $rowNumber,
+                                            'active_account_id' => $accountToReactivate->id,
+                                            'guardian_registration' => $bankAccountFileNumber,
+                                            'deactivated_count' => $otherDeactivatedCount
+                                        ]);
+                                    }
+                                }
+                            }
+
+                            Log::warning('🚫 تم منع إدخال حساب بنكي مكرر - الأعمدة الأربعة متطابقة', [
                                 'row' => $rowNumber,
                                 'person_type' => $personType,
-                                '1_guardian_registration' => $bankAccountFileNumber,
-                                '2_person_owner_identity_number' => $accountOwnerIdentity,
-                                '3_re_id_number' => $actualGuardianIdentity,
-                                '4_re_phone_number' => $rePhoneNumber ?: $phoneNumber,
-                                '5_bank_name' => $bankId,
+                                '1_bank_name' => $bankId,
+                                '2_re_id_number' => $actualGuardianIdentity,
+                                '3_re_phone_number' => $rePhoneNumber ?: $phoneNumber,
+                                '4_person_owner_identity_number' => $accountOwnerIdentity,
                                 'duplicate_message' => $duplicateCheck['message'],
                                 'existing_account_id' => $duplicateCheck['existing_account']['id'] ?? null
                             ]);

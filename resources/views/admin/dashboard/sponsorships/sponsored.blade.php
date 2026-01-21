@@ -3587,6 +3587,137 @@
                     });
                 }
 
+                // 🆕 عرض الحسابات البنكية التي ستتأثر (تعطيل أو إعادة تفعيل)
+                if (response.validation.existing_active_accounts && response.validation.existing_active_accounts.length > 0) {
+                    const allAccounts = response.validation.existing_active_accounts;
+
+                    // فصل الحسابات حسب الإجراء
+                    const accountsToDeactivate = allAccounts.filter(a => a.action === 'deactivate' || a.will_be_deactivated);
+                    const accountsToReactivate = allAccounts.filter(a => a.action === 'reactivate' || a.will_be_reactivated);
+
+                    // 🔴 عرض الحسابات التي ستُعطّل (من 1 إلى 0)
+                    if (accountsToDeactivate.length > 0) {
+                        let deactivateHtml = `
+                            <div class="alert alert-warning mb-5">
+                                <div class="d-flex align-items-start mb-3">
+                                    <i class="ki-duotone ki-arrows-circle fs-2x text-warning me-4">
+                                        <span class="path1"></span>
+                                        <span class="path2"></span>
+                                    </i>
+                                    <div class="flex-grow-1">
+                                        <h5 class="mb-2">🔄 حسابات بنكية نشطة ستُعطّل (${accountsToDeactivate.length})</h5>
+                                        <p class="mb-3">
+                                            هذه الحسابات البنكية <strong class="text-success">نشطة حالياً (check_account = 1)</strong> وسيتم تحويلها إلى
+                                            <span class="badge badge-light-danger">غير نشطة (check_account = 0)</span>
+                                            لأن هناك حسابات جديدة بنفس رقم الملف (guardian_registration) ستكون هي النشطة:
+                                        </p>
+                                    </div>
+                                </div>
+
+                                ${createPaginatedTableHtml('accounts_to_deactivate', '<tr><th class="text-center" style="width: 50px;">#</th><th>رقم الهوية</th><th>الاسم</th><th>الحساب الحالي (سيُعطّل)</th><th>الحساب الجديد (سيُفعّل)</th><th class="text-center">الإجراء</th></tr>', 'warning', { theadClass: 'table-warning', maxHeight: '300px' })}
+
+                                <div class="alert alert-success mt-3 mb-0 py-2">
+                                    <i class="ki-duotone ki-check-circle fs-4 text-success me-2">
+                                        <span class="path1"></span>
+                                        <span class="path2"></span>
+                                    </i>
+                                    <strong>✅ عملية آمنة:</strong> سيتم الاحتفاظ بالحسابات القديمة في قاعدة البيانات لكن بحالة غير نشطة.
+                                </div>
+                            </div>
+                        `;
+                        container.append(deactivateHtml);
+
+                        initPaginatedTable('accounts_to_deactivate', accountsToDeactivate, (account, index) => {
+                            let oldBankDisplay = account.old_bank_name || '-';
+                            let newBankDisplay = account.new_bank_name || '-';
+
+                            // شارات الاختلافات
+                            let changesHtml = '';
+                            if (account.difference) {
+                                if (account.difference.bank_changed) changesHtml += '<span class="badge badge-light-warning fs-9 me-1">🏦</span>';
+                                if (account.difference.phone_changed) changesHtml += '<span class="badge badge-light-warning fs-9 me-1">📱</span>';
+                                if (account.difference.owner_changed) changesHtml += '<span class="badge badge-light-warning fs-9 me-1">👤</span>';
+                                if (account.difference.re_id_changed) changesHtml += '<span class="badge badge-light-warning fs-9 me-1">🆔</span>';
+                            }
+
+                            return `
+                                <tr>
+                                    <td class="text-center fw-bold">${index + 1}</td>
+                                    <td class="font-monospace fw-bold">${account.identity}</td>
+                                    <td>${account.name || '-'}</td>
+                                    <td>
+                                        <div class="d-flex flex-column gap-1">
+                                            <span class="text-danger fs-9">🏦 ${oldBankDisplay}</span>
+                                            <span class="text-danger fs-9">📱 ${account.old_phone || '-'}</span>
+                                            <span class="text-danger fs-9">👤 ${account.old_owner_identity || '-'}</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex flex-column gap-1">
+                                            <span class="text-success fs-9">🏦 ${newBankDisplay}</span>
+                                            <span class="text-success fs-9">📱 ${account.new_phone || '-'}</span>
+                                            <span class="text-success fs-9">👤 ${account.new_owner_identity || '-'}</span>
+                                        </div>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge badge-danger">1 → 0</span>
+                                        <div class="mt-1">${changesHtml}</div>
+                                        <small class="text-muted">صف ${account.row}</small>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                    }
+
+                    // 🟢 عرض الحسابات التي ستُعاد تفعيلها (من 0 إلى 1)
+                    if (accountsToReactivate.length > 0) {
+                        let reactivateHtml = `
+                            <div class="alert alert-success mb-5">
+                                <div class="d-flex align-items-start mb-3">
+                                    <i class="ki-duotone ki-check-circle fs-2x text-success me-4">
+                                        <span class="path1"></span>
+                                        <span class="path2"></span>
+                                    </i>
+                                    <div class="flex-grow-1">
+                                        <h5 class="mb-2">✅ حسابات بنكية موجودة ستُعاد تفعيلها (${accountsToReactivate.length})</h5>
+                                        <p class="mb-3">
+                                            هذه الحسابات البنكية <strong class="text-danger">غير نشطة حالياً (check_account = 0)</strong> وموجودة مسبقاً بنفس البيانات الأربعة
+                                            <span class="badge badge-light-info">(البنك، هوية الوصي، الهاتف، هوية المالك)</span>
+                                            وسيتم إعادة تفعيلها إلى <span class="badge badge-light-success">نشطة (check_account = 1)</span>:
+                                        </p>
+                                    </div>
+                                </div>
+
+                                ${createPaginatedTableHtml('accounts_to_reactivate', '<tr><th class="text-center" style="width: 50px;">#</th><th>رقم الهوية</th><th>الاسم</th><th>بيانات الحساب</th><th class="text-center">الإجراء</th></tr>', 'success', { theadClass: 'table-success', maxHeight: '300px' })}
+                            </div>
+                        `;
+                        container.append(reactivateHtml);
+
+                        initPaginatedTable('accounts_to_reactivate', accountsToReactivate, (account, index) => {
+                            let bankDisplay = account.old_bank_name || account.new_bank_name || '-';
+
+                            return `
+                                <tr>
+                                    <td class="text-center fw-bold">${index + 1}</td>
+                                    <td class="font-monospace fw-bold">${account.identity}</td>
+                                    <td>${account.name || '-'}</td>
+                                    <td>
+                                        <div class="d-flex flex-column gap-1">
+                                            <span class="fs-9">🏦 ${bankDisplay}</span>
+                                            <span class="fs-9">📱 ${account.old_phone || account.new_phone || '-'}</span>
+                                            <span class="fs-9">👤 ${account.old_owner_identity || account.new_owner_identity || '-'}</span>
+                                        </div>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge badge-success">0 → 1</span>
+                                        <br><small class="text-muted">صف ${account.row}</small>
+                                    </td>
+                                </tr>
+                            `;
+                        });
+                    }
+                }
+
                 // ⚠️ عرض أفراد العائلة بدون معيل - سيتم إدخالهم في الكفالات فقط بدون ربط
                 if (response.validation.family_members_without_guardian && response.validation.family_members_without_guardian.length > 0) {
                     // فقط الأشخاص الذين ليس لديهم هوية معيل
