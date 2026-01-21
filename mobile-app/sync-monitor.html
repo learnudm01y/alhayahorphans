@@ -552,7 +552,7 @@
                 // أولاً: مزامنة الجمعيات والحالات
                 updateProgress(10, 'جاري تحميل الجمعيات والحالات...');
                 const initialResult = await SyncService.performInitialSync();
-                
+
                 if (initialResult.success) {
                     addLog(`تم تحميل ${initialResult.sponsors_count} جمعية و ${initialResult.statuses_count} حالة`, 'success');
                 }
@@ -631,17 +631,48 @@
         // مسح البيانات المحلية
         // ========================================
         async function clearLocalData() {
-            if (!confirm('هل أنت متأكد من مسح جميع البيانات المحلية؟\nسيتم حذف جميع الكفالات والملفات المخزنة.')) {
+            if (!confirm('هل أنت متأكد من مسح جميع البيانات المحلية؟\nسيتم حذف جميع الكفالات والملفات والجداول المرجعية المخزنة.')) {
                 return;
             }
 
             try {
+                // مسح جدول الكفالات الرئيسي
                 await SyncService.dbClear('sponsorships');
-                await SyncService.dbClear('pending_uploads');
-                await SyncService.dbClear('files');
+                addLog('تم مسح جدول الكفالات', 'success');
 
-                addLog('تم مسح البيانات المحلية', 'success');
-                showStatus('success', 'تم مسح البيانات المحلية');
+                // مسح التحديثات المعلقة
+                await SyncService.dbClear('pending_uploads');
+                addLog('تم مسح التحديثات المعلقة', 'success');
+
+                // مسح الملفات
+                await SyncService.dbClear('files');
+                addLog('تم مسح الملفات', 'success');
+
+                // مسح الجداول المرجعية
+                await SyncService.dbClear('sponsors');
+                addLog('تم مسح جدول الجمعيات', 'success');
+
+                await SyncService.dbClear('sponsorship_statuses');
+                addLog('تم مسح جدول حالات الكفالة', 'success');
+
+                await SyncService.dbClear('cities');
+                addLog('تم مسح جدول المدن', 'success');
+
+                await SyncService.dbClear('bank_names');
+                addLog('تم مسح جدول البنوك', 'success');
+
+                await SyncService.dbClear('health_statuses');
+                addLog('تم مسح جدول الحالات الصحية', 'success');
+
+                await SyncService.dbClear('sponsorship_types');
+                addLog('تم مسح جدول أنواع الكفالة', 'success');
+
+                // مسح معلومات المزامنة (مهم جداً لإعادة المزامنة الكاملة)
+                await SyncService.dbClear('sync_meta');
+                addLog('تم مسح معلومات المزامنة', 'success');
+
+                addLog('تم مسح جميع البيانات المحلية بنجاح', 'success');
+                showStatus('success', 'تم مسح جميع البيانات المحلية - يمكنك الآن إعادة المزامنة');
 
                 await loadStats();
 

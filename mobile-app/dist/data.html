@@ -575,6 +575,7 @@
                 const statusName = statusObj ? statusObj.name : 'غير محدد';
                 const sponsor = sponsors.find(sp => sp.id == s.sponsor_id);
                 const sponsorName = sponsor ? sponsor.name : '-';
+                const sponsoringOrg = s.sponsoring_organization || '-'; // اسم الكافل
 
                 return `
                     <div class="orphan-card" data-id="${s.id}">
@@ -588,6 +589,7 @@
                         </div>
                         <div class="orphan-meta" style="margin-top: 5px;">
                             <span>🏢 ${sponsorName}</span>
+                            <span>👤 ${sponsoringOrg}</span>
                         </div>
                     </div>
                 `;

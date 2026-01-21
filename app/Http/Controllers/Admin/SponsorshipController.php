@@ -2057,7 +2057,7 @@ class SponsorshipController extends Controller
                     // 🆕 إذا كان اسم المعيل فارغاً ولكن الهوية موجودة، نحاول جلب الاسم من السجل المدني
                     $guardianNameToUse = $guardianName;
                     $guardianNameSource = 'excel';
-                    
+
                     if (empty($guardianName) && !empty($guardianIdentity)) {
                         // البحث في السجل المدني عن اسم المعيل
                         $civilRegistryData = $this->searchCivilRegistryForGuardian($guardianIdentity);
@@ -2073,7 +2073,7 @@ class SponsorshipController extends Controller
                             ]);
                         }
                     }
-                    
+
                     // تجنب التكرار - التحقق أولاً إذا كان المعيل موجود مسبقاً
                     $guardianExists = false;
                     $guardianIndex = -1;
@@ -2779,7 +2779,7 @@ class SponsorshipController extends Controller
                                 // 🆕 استخدام اسم السجل المدني إذا كان اسم Excel فارغاً
                                 $guardianNameFromExcel = $personData['guardian_name'] ?? '';
                                 $guardianNameToUse = !empty($guardianNameFromExcel) ? $guardianNameFromExcel : $guardianCivilData['full_name'];
-                                
+
                                 $guardiansToCreate[$guardianIdentity] = [
                                     'row' => $personData['row'],
                                     'identity' => $guardianIdentity,

@@ -759,9 +759,16 @@ const SyncService = {
             // إرسال إشعار بدء المزامنة (نحتفظ بالمعرف ليتم إخفاؤه عند الانتهاء)
             const fullNotifId = await this.sendNotification('جاري مزامنة الكفالات...', 'يتم جلب البيانات من الخادم', 0);
 
-            // جلب آخر وقت مزامنة
+            // التحقق من عدد الكفالات المحلية
+            const localCount = await this.dbCount('sponsorships');
+            console.log('📊 عدد الكفالات المحلية:', localCount);
+
+            // جلب آخر وقت مزامنة - فقط إذا كانت هناك كفالات محلية
             const lastSyncMeta = await this.dbGet('sync_meta', 'last_full_sync');
-            const lastSync = lastSyncMeta ? lastSyncMeta.value : null;
+            // استخدام last_sync فقط إذا كانت هناك كفالات محلية
+            const lastSync = (localCount > 0 && lastSyncMeta) ? lastSyncMeta.value : null;
+
+            console.log('📅 آخر مزامنة:', lastSync || 'مزامنة كاملة جديدة');
 
             while (hasMore) {
                 const params = new URLSearchParams();
@@ -770,6 +777,8 @@ const SyncService = {
                 if (lastSync) {
                     params.append('last_sync', lastSync);
                 }
+
+                console.log('🔄 جلب الصفحة:', page, 'مع last_sync:', lastSync || 'بدون');
 
                 const result = await this.request(`/mobile/sync/full?${params.toString()}`);
 

@@ -247,6 +247,7 @@ class SponsorshipSyncController extends Controller
                     'sponsorships.sponsorship_start_date',
                     'sponsorships.sponsorship_end_date',
                     'sponsorships.person_type',
+                    'sponsorships.sponsoring_organization', // اسم الكافل
                     'sponsorships.notes',
                     'sponsorships.created_at',
                     'sponsorships.updated_at'
@@ -3983,6 +3984,7 @@ class SponsorshipSyncController extends Controller
                     'sponsorships.sponsorship_start_date',
                     'sponsorships.sponsorship_end_date',
                     'sponsorships.person_type',
+                    'sponsorships.sponsoring_organization', // اسم الكافل
                     'sponsorships.notes',
                     'sponsorships.created_at',
                     'sponsorships.updated_at'
