@@ -337,6 +337,11 @@ class SponsorshipSyncController extends Controller
         $result['needs_orphan_name_input'] = false;
         $result['needs_guardian_name_input'] = false;
 
+        // التأكد من وجود حقل اسم الكافل
+        if (!isset($result['sponsoring_organization'])) {
+            $result['sponsoring_organization'] = $sponsorship->sponsoring_organization ?? '';
+        }
+
         // إضافة نوع الشخص (المعيل) - للتمييز في التطبيق
         $result['guardian_person_type'] = $sponsorship->person_type ?? 'breadwinner';
 

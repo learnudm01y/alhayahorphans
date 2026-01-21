@@ -569,6 +569,12 @@
             const end = start + PAGE_SIZE;
             const pageData = allResults.slice(start, end);
 
+            // للتشخيص: طباعة أول عنصر للتحقق من البيانات
+            if (pageData.length > 0) {
+                console.log('📊 بيانات أول كفالة:', pageData[0]);
+                console.log('📊 sponsoring_organization:', pageData[0].sponsoring_organization);
+            }
+
             const orphanList = document.getElementById('orphanList');
             orphanList.innerHTML = pageData.map(s => {
                 const statusObj = statuses.find(st => st.id == s.sponsorship_status_id);

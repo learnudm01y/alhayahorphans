@@ -605,12 +605,16 @@
             namesList.innerHTML = pageData.map(s => {
                 const statusObj = statuses.find(st => st.id == s.sponsorship_status_id);
                 const statusName = statusObj ? statusObj.name : 'غير محدد';
+                const sponsor = sponsors.find(sp => sp.id == s.sponsor_id);
+                const sponsorName = sponsor ? sponsor.name : '-';
+                const sponsoringOrg = s.sponsoring_organization || '-'; // اسم الكافل
 
                 return `
                     <div class="name-item" data-id="${s.id}">
                         <div>
                             <div class="name-text">${s.orphan_name || 'بدون اسم'}</div>
                             <div class="identity-text">${s.identity_number || 'بدون هوية'}</div>
+                            <div class="identity-text" style="margin-top: 3px;">🏢 ${sponsorName} | 👤 ${sponsoringOrg}</div>
                         </div>
                         <span class="status-badge">${statusName}</span>
                     </div>
