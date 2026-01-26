@@ -7,19 +7,33 @@
 @page {
     margin: 2cm;
 }
-/* استخدام خطوط عربية تعمل مع wkhtmltopdf */
+/* تضمين خط Cairo للعربية */
+@font-face {
+    font-family: 'Cairo';
+    src: url('{{ public_path("fonts/Cairo-Regular.ttf") }}') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'Cairo';
+    src: url('{{ public_path("fonts/Cairo-Bold.ttf") }}') format('truetype');
+    font-weight: bold;
+    font-style: normal;
+}
+/* استخدام خط Cairo للعربية */
 body {
-    font-family: Arial, "Traditional Arabic", "Simplified Arabic", Tahoma, sans-serif;
+    font-family: 'Cairo', Arial, sans-serif;
     font-size: 14pt;
     direction: rtl;
     text-align: right;
     line-height: 1.6;
 }
 h1 {
-    font-family: Arial, "Traditional Arabic", "Simplified Arabic", Tahoma, sans-serif;
+    font-family: 'Cairo', Arial, sans-serif;
     text-align: center;
     color: #003366;
     font-size: 20pt;
+    font-weight: bold;
     border-bottom: 2px solid #003366;
     padding-bottom: 10px;
     margin-bottom: 20px;
@@ -30,7 +44,7 @@ table {
     margin-bottom: 15px;
 }
 td, th {
-    font-family: Arial, "Traditional Arabic", "Simplified Arabic", Tahoma, sans-serif;
+    font-family: 'Cairo', Arial, sans-serif;
     border: 1px solid #cccccc;
     padding: 8px;
     text-align: center;
