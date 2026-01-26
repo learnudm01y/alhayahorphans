@@ -227,42 +227,44 @@
 
             let html = '';
             files.forEach(file => {
-                // Enhanced image detection
+                // Enhanced image and PDF detection
                 const fileExtension = (file.file_extension || file.extension || file.file_path?.split('.').pop() || '').toLowerCase();
                 const mimeType = file.mime_type || '';
                 const isImage = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].includes(fileExtension) ||
                             mimeType.includes('image/') ||
                             file.is_image === true;
+                const isPdf = fileExtension === 'pdf' || mimeType === 'application/pdf' || file.file_type === 'pdf';
 
                 console.log('File analysis:', {
                     name: file.original_file_name,
                     extension: fileExtension,
                     mime: mimeType,
                     isImage: isImage,
+                    isPdf: isPdf,
                     download_url: file.download_url
                 });
 
                 const fileIcon = getFileIcon(file);
 
-                // Build image URL with enhanced validation
-                let imageUrl = file.download_url || '';
+                // Build image/file URL with enhanced validation
+                let fileUrl = file.download_url || file.file_path || '';
 
-                // استخدام العرض الآمن للصور
-                if (imageUrl && !imageUrl.startsWith('http')) {
+                // استخدام العرض الآمن للصور والملفات
+                if (fileUrl && !fileUrl.startsWith('http')) {
                     // استخراج اسم الملف من المسار
-                    const filename = imageUrl.replace(/^\/?(storage\/)+/, '').split('/').pop();
-                    imageUrl = `{{ route('admin.file.show', '') }}/${filename}`;
+                    const filename = fileUrl.replace(/^\/?(storage\/)+/, '').split('/').pop();
+                    fileUrl = isImage ? `{{ route('admin.file.show', '') }}/${filename}` : fileUrl;
                 }
 
-                // Create preview HTML with enhanced design and no black overlay
-                const previewHtml = isImage && imageUrl ?
-                    `<div class="image-container" data-image-url="${imageUrl}" style="position: relative; height: 220px; overflow: hidden; border-radius: 15px; cursor: pointer; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); box-shadow: 0 8px 25px rgba(0,0,0,0.1); transition: all 0.3s ease; border: 2px solid transparent;">
-                        <img src="${imageUrl}"
-                            class="w-100 h-100"
+                // Create preview HTML with enhanced design
+                const previewHtml = isImage && fileUrl ?
+                    `<div class="image-container" data-image-url="${fileUrl}" style="position: relative; height: 220px; overflow: hidden; border-radius: 15px; cursor: pointer; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); box-shadow: 0 8px 25px rgba(0,0,0,0.1); transition: all 0.3s ease; border: 2px solid transparent;">
+                        <img src="${fileUrl}"
+                            class="w-100 h-100 image-preview"
                             style="object-fit: cover; transition: transform 0.3s ease;"
                             alt="${file.original_file_name || file.stored_file_name || file.file_name}"
                             loading="lazy"
-                            data-src="${imageUrl}"
+                            data-src="${fileUrl}"
                             onload="console.log('✅ Image loaded successfully:', this.src); this.parentElement.style.border='2px solid #28a745'; this.parentElement.style.boxShadow='0 8px 30px rgba(40, 167, 69, 0.2)';"
                             onerror="console.error('❌ Image failed to load:', this.src);
                                     this.style.display='none';
@@ -278,10 +280,36 @@
                         </div>
 
                         <!-- زر عرض مخفي يظهر عند الـ hover -->
-                        <div class="position-absolute bottom-0 start-50 translate-middle-x mb-3" style="opacity: 0; transition: opacity 0.3s ease;">
+                        <div class="position-absolute bottom-0 start-50 translate-middle-x mb-3 hover-btn" style="opacity: 0; transition: opacity 0.3s ease;">
                             <button class="btn btn-light btn-sm rounded-pill px-3 py-1" style="backdrop-filter: blur(10px); background: rgba(255,255,255,0.9) !important; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
                                 <i class="fas fa-eye me-1"></i>
                                 عرض
+                            </button>
+                        </div>
+                    </div>` :
+                    isPdf ?
+                    `<div class="pdf-preview-container" onclick="showPdfModal('${file.file_path}')" style="position: relative; height: 220px; overflow: hidden; border-radius: 15px; cursor: pointer; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); box-shadow: 0 8px 25px rgba(0,0,0,0.1); transition: all 0.3s ease; border: 2px solid #4caf50;">
+                        <div class="d-flex flex-column align-items-center justify-content-center h-100">
+                            <i class="fas fa-file-pdf" style="font-size: 80px; color: #d32f2f; margin-bottom: 15px;"></i>
+                            <span class="badge rounded-pill bg-danger px-3 py-2" style="font-size: 12px;">
+                                <i class="fas fa-file-pdf me-1"></i>
+                                ملف PDF
+                            </span>
+                        </div>
+
+                        <!-- شارة نوع الملف -->
+                        <div class="position-absolute top-0 end-0 m-2">
+                            <span class="badge rounded-pill bg-danger" style="padding: 6px 12px; font-size: 11px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+                                <i class="fas fa-file-pdf me-1"></i>
+                                PDF
+                            </span>
+                        </div>
+
+                        <!-- زر معاينة -->
+                        <div class="position-absolute bottom-0 start-50 translate-middle-x mb-3 hover-btn" style="opacity: 0; transition: opacity 0.3s ease;">
+                            <button class="btn btn-danger btn-sm rounded-pill px-3 py-1" style="backdrop-filter: blur(10px); background: rgba(211, 47, 47, 0.9) !important; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+                                <i class="fas fa-eye me-1"></i>
+                                معاينة PDF
                             </button>
                         </div>
                     </div>` :
@@ -347,7 +375,7 @@
                                     <div class="d-flex justify-content-center gap-2">
                                         <button type="button"
                                                 class="btn btn-outline-primary btn-sm flex-fill"
-                                                onclick="downloadFile('${imageUrl || file.download_url || '#'}', '${file.original_file_name || file.stored_file_name || file.file_name}')"
+                                                onclick="downloadFile('${fileUrl || file.download_url || '#'}', '${file.original_file_name || file.stored_file_name || file.file_name}')"
                                                 style="border-radius: 20px; font-weight: 600; transition: all 0.3s ease;"
                                                 onmouseover="this.style.backgroundColor='#0d6efd'; this.style.color='white'; this.style.transform='translateY(-2px)';"
                                                 onmouseout="this.style.backgroundColor='transparent'; this.style.color='#0d6efd'; this.style.transform='translateY(0)';">
@@ -355,15 +383,26 @@
                                             تحميل
                                         </button>
 
-                                        ${file.mime_type && file.mime_type.includes('image') ? `
+                                        ${isImage ? `
                                             <button type="button"
                                                     class="btn btn-outline-success btn-sm"
-                                                    onclick="openImageModal('${imageUrl}', '${file.original_file_name || file.stored_file_name || file.file_name}')"
+                                                    onclick="openImageModal('${fileUrl}', '${file.original_file_name || file.stored_file_name || file.file_name}')"
                                                     style="border-radius: 20px; font-weight: 600; transition: all 0.3s ease;"
                                                     onmouseover="this.style.backgroundColor='#198754'; this.style.color='white'; this.style.transform='translateY(-2px)';"
                                                     onmouseout="this.style.backgroundColor='transparent'; this.style.color='#198754'; this.style.transform='translateY(0)';">
                                                 <i class="fas fa-eye me-1"></i>
                                                 معاينة
+                                            </button>
+                                        ` : ''}
+                                        ${isPdf ? `
+                                            <button type="button"
+                                                    class="btn btn-outline-danger btn-sm"
+                                                    onclick="showPdfModal('${file.file_path}')"
+                                                    style="border-radius: 20px; font-weight: 600; transition: all 0.3s ease;"
+                                                    onmouseover="this.style.backgroundColor='#dc3545'; this.style.color='white'; this.style.transform='translateY(-2px)';"
+                                                    onmouseout="this.style.backgroundColor='transparent'; this.style.color='#dc3545'; this.style.transform='translateY(0)';">
+                                                <i class="fas fa-file-pdf me-1"></i>
+                                                معاينة PDF
                                             </button>
                                         ` : ''}
                                     </div>
@@ -711,8 +750,16 @@
                 return;
             }
 
+            // التحقق من نوع البيانات وتحويلها إلى array إذا لزم الأمر
+            let dataArray = results.data;
+            if (!Array.isArray(dataArray)) {
+                console.log('🔄 Converting data object to array');
+                // إذا كان object، حوله إلى array
+                dataArray = Object.values(dataArray);
+            }
+
             // إظهار عدد النتائج
-            const resultCount = results.data.length;
+            const resultCount = dataArray.length;
             const totalCount = results.total || resultCount;
 
             let tableHtml = `
@@ -737,7 +784,7 @@
                         </thead>
                         <tbody>`;
 
-            results.data.forEach(file => {
+            dataArray.forEach(file => {
                 const fileSize = file.formatted_size || (file.file_size ? formatFileSize(file.file_size) : 'غير معروف');
                 const recordNumber = file.record_number || file.extracted_folder_name || 'غير محدد';
                 const fileName = file.original_file_name || file.stored_file_name || file.file_name || 'ملف غير معروف';
@@ -1061,5 +1108,146 @@
 #kt_filemanager_search:focus {
     box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.25);
 }
+
+/* PDF Modal - حل نهائي للمسافة البيضاء */
+#pdfModal {
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+#pdfModal .modal-dialog {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: 100vw !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    transform: none !important;
+    overflow: hidden !important;
+}
+
+#pdfModal .modal-content {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 100vh !important;
+    border: none !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+}
+
+#pdfModal .modal-body {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    height: calc(100vh - 40px) !important;
+    max-height: calc(100vh - 40px) !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+}
+
+#pdfModal .modal-footer {
+    position: absolute !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    height: 40px !important;
+    max-height: 40px !important;
+    min-height: 40px !important;
+    padding: 8px 15px !important;
+    background: #2c3e50 !important;
+    border-top: none !important;
+    border-radius: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 10px !important;
+    margin: 0 !important;
+}
+
+#pdfModal .modal-footer .btn {
+    padding: 6px 16px !important;
+    font-size: 13px !important;
+    margin: 0 !important;
+    line-height: 1.2 !important;
+    border-radius: 4px !important;
+}
+
+#pdfModal iframe {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    border: none !important;
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+}
 </style>
+
+<script>
+// دالة عرض PDF في modal
+function showPdfModal(pdfSrc) {
+    if (!pdfSrc) {
+        console.error('PDF source is empty');
+        return;
+    }
+
+    // إنشاء modal إذا لم يكن موجوداً
+    let pdfModal = document.getElementById('pdfModal');
+    if (!pdfModal) {
+        const modalHtml = `
+            <div class="modal fade" id="pdfModal" tabindex="-1" data-bs-backdrop="static">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-body">
+                            <iframe id="pdfViewer" src=""></iframe>
+                        </div>
+                        <div class="modal-footer">
+                            <a href="#" id="pdfDownloadBtn" class="btn btn-sm btn-primary" download>
+                                <i class="bi bi-download"></i> تحميل
+                            </a>
+                            <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">
+                                <i class="bi bi-x-circle"></i> إغلاق
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        pdfModal = document.getElementById('pdfModal');
+    }
+
+    // إعداد URL للمعاينة
+    const viewUrl = `{{ route('admin.folders.view.pdf') }}?file=${encodeURIComponent(pdfSrc)}`;
+    const downloadUrl = `{{ route('admin.folders.download.pdf') }}?file=${encodeURIComponent(pdfSrc)}`;
+
+    // تحديث iframe و زر التحميل
+    document.getElementById('pdfViewer').src = viewUrl;
+    document.getElementById('pdfDownloadBtn').href = downloadUrl;
+
+    // عرض modal
+    const modal = new bootstrap.Modal(pdfModal);
+    modal.show();
+}
+</script>
 @endpush

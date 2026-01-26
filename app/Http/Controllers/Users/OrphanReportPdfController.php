@@ -74,7 +74,7 @@ class OrphanReportPdfController extends Controller
                 'autoLangToFont' => true,
             ]);
 
-            $mpdf->SetTitle('تقرير اليتيم - ' . ($reportData['orphan_name'] ?? 'غير معروف'));
+            $mpdf->SetTitle('تقرير  - ' . ($reportData['orphan_name'] ?? 'غير معروف'));
             $mpdf->WriteHTML($html);
 
             // استخدام relation_id_number للمسار

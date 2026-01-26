@@ -15,7 +15,7 @@ use App\Models\Sponsorship;
 use App\Models\RePeople;
 use App\Models\DeadPepole;
 use App\Models\PortalGeneralRegistrationFieldValue;
-use Mpdf\Mpdf;
+use Barryvdh\Snappy\Facades\SnappyPdf as PDF;
 
 class GenerateOrphanReportPdf implements ShouldQueue
 {
@@ -62,24 +62,8 @@ class GenerateOrphanReportPdf implements ShouldQueue
             // جمع البيانات للتقرير
             $reportData = $this->collectReportData($sponsorship);
 
-            // إنشاء PDF
+            // إنشاء PDF باستخدام Laravel Snappy (بديل mpdf)
             $html = view('user.dashboard.pdf.orphan-report', $reportData)->render();
-
-            // إعداد mPDF - استخدام خط xbriyaz المدمج والمتوافق مع اللغة العربية
-            $mpdf = new Mpdf([
-                'mode' => 'utf-8',
-                'format' => 'A4',
-                'default_font_size' => 12,
-                'margin_left' => 10,
-                'margin_right' => 10,
-                'margin_top' => 10,
-                'margin_bottom' => 10,
-                'directionality' => 'rtl',
-                'default_font' => 'xbriyaz',
-            ]);
-
-            $mpdf->SetTitle('تقرير اليتيم - ' . ($reportData['orphan_name'] ?? 'غير معروف'));
-            $mpdf->WriteHTML($html);
 
             // استخدام relation_id_number للمسار
             $relationIdNumber = $sponsorship->relation_id_number ?? $sponsorship->internal_file_number ?? 'unknown';
@@ -96,15 +80,49 @@ class GenerateOrphanReportPdf implements ShouldQueue
             $fileName = 'orphan_report_' . $relationIdNumber . '_' . date('Y-m-d_H-i-s') . '.pdf';
             $fullPath = $folderPath . '/' . $fileName;
 
+            // إنشاء PDF باستخدام Snappy مع إعدادات اللغة العربية المحسّنة
+            $pdfContent = PDF::loadHTML($html)
+                ->setOption('encoding', 'UTF-8')
+                ->setOption('page-size', 'A4')
+                ->setOption('margin-top', '20mm')
+                ->setOption('margin-right', '20mm')
+                ->setOption('margin-bottom', '20mm')
+                ->setOption('margin-left', '20mm')
+                ->setOption('enable-local-file-access', true)
+                ->setOption('no-stop-slow-scripts', true)
+                ->setOption('javascript-delay', '1000')
+                ->setOption('enable-javascript', false)
+                ->setOption('print-media-type', true)
+                ->setOption('title', 'تقرير  - ' . ($reportData['orphan_name'] ?? 'غير معروف'))
+                ->output();
+
             // حفظ PDF في الملف
-            $pdfContent = $mpdf->Output('', 'S'); // S = String
             Storage::put($fullPath, $pdfContent);
+
+            // حفظ معلومات الملف في قاعدة البيانات
+            $fileSize = strlen($pdfContent);
+            $publicPath = str_replace('public/', '', $fullPath);
+
+            DB::table('attachments')->insert([
+                'person_identity_number' => $relationIdNumber,
+                'stored_file_name' => $fileName,
+                'file_path' => 'storage/' . $publicPath,
+                'file_type' => 'pdf',
+                'file_size' => $fileSize,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // رفع PDF إلى Google Drive إذا كان مفعلاً للجمعية
+            $this->uploadToGoogleDriveIfEnabled($sponsorship, $fullPath, $fileName);
 
             Log::info('GenerateOrphanReportPdf: PDF Report Generated and Saved', [
                 'sponsorship_id' => $sponsorship->id,
                 'relation_id_number' => $relationIdNumber,
                 'file_path' => $fullPath,
-                'file_name' => $fileName
+                'file_name' => $fileName,
+                'file_size' => $fileSize,
+                'saved_to_database' => true
             ]);
 
         } catch (\Exception $e) {
@@ -120,6 +138,7 @@ class GenerateOrphanReportPdf implements ShouldQueue
 
     /**
      * جمع بيانات التقرير من جميع الجداول
+     * 🆕 إصلاح شامل لجلب البيانات من جميع المصادر بالترتيب الصحيح
      */
     private function collectReportData($sponsorship)
     {
@@ -133,67 +152,230 @@ class GenerateOrphanReportPdf implements ShouldQueue
         $data['guardian_name'] = $sponsorship->guardian_name ?? $na;
         $data['guardian_identity_number'] = $sponsorship->guardian_identity_number ?? $na;
 
-        // جلب بيانات جدول data
+        Log::info('COLLECT_REPORT_DATA_START', [
+            'sponsorship_id' => $sponsorship->id,
+            'identity_number' => $sponsorship->identity_number,
+            'internal_file_number' => $sponsorship->internal_file_number,
+            'relation_id_number' => $sponsorship->relation_id_number,
+            'person_type' => $sponsorship->person_type
+        ]);
+
+        // 1. جلب البيانات الأساسية من جدول data - البحث بجميع الطرق
         $dataRecord = null;
-        if ($sponsorship->relationData) {
-            $dataRecord = $sponsorship->relationData;
-        } else {
+
+        // أولاً: البحث بـ relation_id_number (الأكثر دقة)
+        if ($sponsorship->relation_id_number) {
+            $dataRecord = Data::where('file_id_number', $sponsorship->relation_id_number)->first();
+        }
+
+        // ثانياً: البحث بـ internal_file_number
+        if (!$dataRecord && $sponsorship->internal_file_number) {
             $dataRecord = Data::where('file_id_number', $sponsorship->internal_file_number)->first();
         }
 
+        // ثالثاً: البحث بـ identity_number
+        if (!$dataRecord && $sponsorship->identity_number) {
+            $dataRecord = Data::where('data_id_number', $sponsorship->identity_number)->first();
+        }
+
         if ($dataRecord) {
+            Log::info('DATA_RECORD_FOUND', [
+                'file_id_number' => $dataRecord->file_id_number,
+                'data_phone_number' => $dataRecord->data_phone_number
+            ]);
+
             $data['phone_number'] = $dataRecord->data_phone_number ?? $na;
             $data['city'] = $this->getCityName($dataRecord->data_city) ?? $na;
             $data['province'] = $this->getProvinceName($dataRecord->data_province) ?? $na;
             $data['housing_status'] = $this->getHousingStatus($dataRecord->data_housing_status) ?? $na;
             $data['current_housing_type'] = $this->getHousingType($dataRecord->data_current_housing_type) ?? $na;
-            $data['displacement_status'] = $this->getDisplacementStatus($dataRecord->data_displacement_status) ?? $na;
             $data['health_status'] = $this->getHealthStatus($dataRecord->data_health_status) ?? $na;
             $data['description_needs'] = $dataRecord->data_description_needs ?? $na;
             $data['number_of_individuals'] = $dataRecord->data_number_of_individuals ?? $na;
             $data['employment_status'] = $this->getEmploymentStatus($dataRecord->data_employment_status_breadwinner) ?? $na;
-            $data['marital_status'] = $this->getMaritalStatus($dataRecord->data_marital_status) ?? $na;
-            $data['academic_qualification'] = $this->getAcademicQualification($dataRecord->data_academic_qualification) ?? $na;
         } else {
-            $data['phone_number'] = $na;
-            $data['city'] = $na;
-            $data['province'] = $na;
-            $data['housing_status'] = $na;
-            $data['current_housing_type'] = $na;
-            $data['displacement_status'] = $na;
-            $data['health_status'] = $na;
-            $data['description_needs'] = $na;
-            $data['number_of_individuals'] = $na;
-            $data['employment_status'] = $na;
-            $data['marital_status'] = $na;
-            $data['academic_qualification'] = $na;
+            Log::warning('DATA_RECORD_NOT_FOUND', [
+                'searched_by_relation_id' => $sponsorship->relation_id_number,
+                'searched_by_file_number' => $sponsorship->internal_file_number,
+                'searched_by_identity' => $sponsorship->identity_number
+            ]);
         }
 
-        // جلب الحقول الإضافية من portal_general_registration_field_values
-        $portalValues = $this->getPortalFieldValues($sponsorship);
-        $data = array_merge($data, $portalValues);
+        // 2. جلب البيانات من portal_general_registration_field_values
+        $portalFields = PortalGeneralRegistrationFieldValue::where('sponsorship_id', $sponsorship->id)
+            ->orWhere('file_id_number', $sponsorship->internal_file_number)
+            ->orWhere('identity_number', $sponsorship->identity_number)
+            ->get()
+            ->keyBy('field_key');
 
-        // استخدام relation_id_number للبحث
+        Log::info('PORTAL_FIELDS_FOUND', ['count' => $portalFields->count()]);
+
+        // استخراج البيانات من Portal Fields (أولوية عالية)
+        $data['phone_number'] = $portalFields->get('field_data_phone_number')?->field_value ?? $data['phone_number'] ?? $na;
+        $data['city'] = $portalFields->get('field_data_city')?->field_value ?? $data['city'] ?? $na;
+        $data['housing_status'] = $portalFields->get('field_housing_status')?->field_value ?? $data['housing_status'] ?? $na;
+        $data['current_housing_type'] = $portalFields->get('field_housing_type')?->field_value ?? $data['current_housing_type'] ?? $na;
+        $data['housing_type'] = $data['current_housing_type']; // نسخ للعرض في القالب
+
+        // البيانات المدرسية (من portal فقط)
+        $data['school_name'] = $portalFields->get('field_school_name')?->field_value ?? $na;
+        $data['school_address'] = $portalFields->get('field_school_address')?->field_value ?? $na;
+        $data['grade_level'] = $portalFields->get('field_grade')?->field_value ?? $na;
+        $data['academic_stage'] = $portalFields->get('field_grade')?->field_value ?? $na;
+        $data['student_level'] = $portalFields->get('field_student_level')?->field_value ?? $na;
+        $data['weakness_reason'] = $portalFields->get('field_weakness_reason')?->field_value ?? $na;
+
+        // البيانات النفسية والسلوكية (من portal فقط)
+        $data['psychological_status'] = $portalFields->get('field_psychological_state')?->field_value ?? $na;
+        $data['behavioral_status'] = $portalFields->get('field_behavioral_state')?->field_value ?? $na;
+        $data['religious_commitment'] = $portalFields->get('field_religious_commitment')?->field_value ?? $na;
+        $data['quran_memorization'] = $portalFields->get('field_quran_memorization')?->field_value ?? $na;
+
+        // البيانات الصحية (أولوية لـ portal)
+        $data['orphan_health_status'] = $portalFields->get('field_health_status')?->field_value ?? $data['health_status'] ?? $na;
+        $data['health_status'] = $data['orphan_health_status']; // نسخ للعرض
+
+        // الاحتياجات والإبداع (من portal فقط)
+        $data['orphan_needs'] = $portalFields->get('field_orphan_needs')?->field_value ?? $na;
+        $data['description_needs'] = $data['orphan_needs']; // نسخ للعرض
+        $data['creativity_aspects'] = $portalFields->get('field_creativity_aspects')?->field_value ?? $na;
+
+        // تأثير الكفالة والأحداث (من portal فقط)
+        $data['sponsorship_impact'] = $portalFields->get('field_sponsorship_impact')?->field_value ?? $na;
+        $data['family_events'] = $portalFields->get('field_important_events')?->field_value ?? $na;
+
+        // بيانات المعيل
+        $guardianRelationId = $portalFields->get('field_guardian_relationship')?->field_value;
+        $data['guardian_relation'] = $guardianRelationId ? $this->getRelation($guardianRelationId) : $na;
+        $data['guardian_health'] = $portalFields->get('field_guardian_health')?->field_value ?? $na;
+        $data['guardian_job'] = $portalFields->get('field_guardian_job')?->field_value ?? $portalFields->get('field_guardian_job_text')?->field_value ?? $data['employment_status'] ?? $na;
+
+        // اسم المعيل الرباعي (أولوية لـ portal)
+        $data['guardian_full_name'] = $this->formatFullName(
+            $portalFields->get('field_data_first_name')?->field_value,
+            $portalFields->get('field_data_father_name')?->field_value,
+            $portalFields->get('field_data_grand_father_name')?->field_value,
+            $portalFields->get('field_data_family_name')?->field_value
+        ) ?: ($sponsorship->guardian_name ?? $na);
+
+        // عدد المعالين (أولوية لـ portal)
+        $maleCount = (int) ($portalFields->get('field_dependents_male')?->field_value ?? 0);
+        $femaleCount = (int) ($portalFields->get('field_dependents_female')?->field_value ?? 0);
+        $totalDependents = $maleCount + $femaleCount;
+        $data['dependents_count'] = $totalDependents > 0 ? $totalDependents : ($dataRecord->data_number_of_individuals ?? $na);
+        $data['number_of_individuals'] = $data['dependents_count']; // نسخ للعرض
+
+        // الطابع الزمني
+        $data['timestamp'] = $portalFields->get('field_data_update_date')?->field_value ?? date('Y-m-d');
+
+        // 🔥 تحويل portalFields إلى array بسيط للوصول السهل
+        $fieldValues = [];
+        foreach ($portalFields as $field) {
+            $fieldValues[$field->field_key] = $field->field_value;
+        }
+
+        // 🔥 جلب بيانات الأسماء من names JSON
+        $namesRecord = DB::table('portal_general_registration_field_values')
+            ->where('sponsorship_id', $sponsorship->id)
+            ->where('field_key', 'names')
+            ->first();
+
+        if ($namesRecord && $namesRecord->field_value) {
+            $namesData = json_decode($namesRecord->field_value, true);
+            $fieldValues['_names_data'] = $namesData;
+            Log::info('NAMES_DATA_LOADED', ['names' => $namesData]);
+        }
+
+        // 3. جلب بيانات المتوفين من dead_people
         $relationIdNumber = $sponsorship->relation_id_number ?? $sponsorship->internal_file_number;
+        // 3. معالجة ذكية لبيانات الأم بناءً على حالتها
+        $guardianRelationship = $fieldValues['field_guardian_relationship'] ?? null;
+        $motherStatus = $fieldValues['field_mother_status'] ?? null;
+        $guardianIsMother = ($guardianRelationship == 2); // 2 = أم
 
-        // جلب بيانات المتوفين
+        Log::info('MOTHER_STATUS_CHECK', [
+            'guardian_relationship' => $guardianRelationship,
+            'mother_status' => $motherStatus,
+            'guardian_is_mother' => $guardianIsMother
+        ]);
+
+        if ($guardianIsMother) {
+            // الحالة 1: المعيل هو الأم - لا نعرض بيانات الأم (لأنها موجودة في قسم المعيل)
+            Log::info('MOTHER_IS_GUARDIAN - Hiding mother section');
+            $data['mother_name'] = null; // سيتم إخفاء القسم في PDF
+            $data['mother_id'] = null;
+            $data['mother_alive'] = null;
+
+        } elseif ($motherStatus === 'حية') {
+            // الحالة 2: الأم حية لكن ليست المعيل - جلب من portal_general_registration_field_values
+            Log::info('MOTHER_ALIVE - Using living mother fields from field_values');
+
+            $data['mother_name'] = $this->formatFullName(
+                $fieldValues['field_living_mother_first_name'] ?? null,
+                $fieldValues['field_living_mother_second_name'] ?? null,
+                $fieldValues['field_living_mother_third_name'] ?? null,
+                $fieldValues['field_living_mother_last_name'] ?? null
+            ) ?: $na;
+            $data['mother_id'] = $fieldValues['field_living_mother_id'] ?? $na;
+            $data['mother_alive'] = 'نعم (على قيد الحياة)';
+
+        } elseif ($motherStatus === 'متوفية') {
+            // الحالة 3: الأم متوفية - جلب من dead_people أو field_values
+            Log::info('MOTHER_DECEASED - Using deceased mother data');
+
+            // أولاً: محاولة الحصول من dead_people
+            $deadPeople = DeadPepole::where('re_file_id', $relationIdNumber)->first();
+            if (!$deadPeople) {
+                $deadPeople = DeadPepole::where('re_file_id', $sponsorship->internal_file_number)->first();
+            }
+
+            if ($deadPeople && $deadPeople->mother_first_name) {
+                // جلب من dead_people
+                Log::info('DEAD_PEOPLE_FOUND', ['re_file_id' => $deadPeople->re_file_id]);
+
+                $data['mother_name'] = $this->formatFullName(
+                    $deadPeople->mother_first_name,
+                    $deadPeople->mother_second_name,
+                    $deadPeople->mother_third_name,
+                    $deadPeople->mother_last_name
+                ) ?: $na;
+                $data['mother_id'] = $deadPeople->mother_id ?? $na;
+            } else {
+                // جلب من field_values (الاسم الرباعي الكامل من قسم الأسماء)
+                Log::info('USING_FIELD_VALUES_MOTHER_DECEASED');
+
+                // البحث عن الاسم في names JSON
+                $motherNameParts = [];
+                if (isset($fieldValues['_names_data']['mother'])) {
+                    $motherNameParts = $fieldValues['_names_data']['mother'];
+                }
+
+                $data['mother_name'] = $this->formatFullName(
+                    $motherNameParts['first_name'] ?? $fieldValues['field_mother_first_name'] ?? null,
+                    $motherNameParts['second_name'] ?? null,
+                    $motherNameParts['third_name'] ?? null,
+                    $motherNameParts['last_name'] ?? null
+                ) ?: $na;
+                $data['mother_id'] = $fieldValues['field_mother_id'] ?? $na;
+            }
+
+            $data['mother_alive'] = 'لا (متوفية)';
+
+        } else {
+            // الحالة 4: حالة الأم غير محددة - إخفاء القسم
+            Log::info('MOTHER_STATUS_UNKNOWN - Hiding mother section');
+            $data['mother_name'] = null;
+            $data['mother_id'] = null;
+            $data['mother_alive'] = null;
+        }
+
+        // معلومات الأب (نفس المنطق السابق)
         $deadPeople = DeadPepole::where('re_file_id', $relationIdNumber)->first();
         if (!$deadPeople) {
             $deadPeople = DeadPepole::where('re_file_id', $sponsorship->internal_file_number)->first();
         }
 
         if ($deadPeople) {
-            $data['mother_name'] = $this->formatFullName(
-                $deadPeople->mother_first_name,
-                $deadPeople->mother_second_name,
-                $deadPeople->mother_third_name,
-                $deadPeople->mother_last_name
-            ) ?: $na;
-            $data['mother_id'] = $deadPeople->mother_id ?? $na;
-            $data['mother_alive'] = empty($deadPeople->mother_death_date) ? 'نعم' : 'لا';
-            $data['mother_death_date'] = $deadPeople->mother_death_date ?? $na;
-            $data['mother_death_reason'] = $this->getDeathReason($deadPeople->mother_death_reason) ?? $na;
-
             $data['father_name'] = $this->formatFullName(
                 $deadPeople->father_first_name,
                 $deadPeople->father_second_name,
@@ -201,192 +383,57 @@ class GenerateOrphanReportPdf implements ShouldQueue
                 $deadPeople->father_last_name
             ) ?: $na;
             $data['father_id'] = $deadPeople->father_id ?? $na;
-            $data['father_death_date'] = $deadPeople->father_death_date ?? $na;
-            $data['father_death_reason'] = $this->getDeathReason($deadPeople->father_death_reason) ?? $na;
         } else {
-            $data['mother_name'] = $na;
-            $data['mother_id'] = $na;
-            $data['mother_alive'] = $na;
-            $data['mother_death_date'] = $na;
-            $data['mother_death_reason'] = $na;
+            Log::warning('DEAD_PEOPLE_NOT_FOUND', ['searched_relation_id' => $relationIdNumber]);
+
             $data['father_name'] = $na;
             $data['father_id'] = $na;
-            $data['father_death_date'] = $na;
-            $data['father_death_reason'] = $na;
         }
 
-        // جلب بيانات المعيل
-        $guardianData = $this->getGuardianData($sponsorship, $dataRecord);
-        $data = array_merge($data, $guardianData);
-
-        // جلب أفراد الأسرة
+        // 4. جلب أفراد الأسرة من re_people
         $data['family_members'] = $this->getFamilyMembers($relationIdNumber, $sponsorship->identity_number);
 
-        return $data;
-    }
+        // 5. إذا كان اليتيم نفسه في re_people، جلب بياناته
+        $orphanInRePeople = RePeople::where('person_id', $sponsorship->identity_number)->first();
+        if ($orphanInRePeople) {
+            Log::info('ORPHAN_FOUND_IN_RE_PEOPLE', ['person_id' => $orphanInRePeople->person_id]);
 
-    private function getPortalFieldValues($sponsorship)
-    {
-        $na = self::NOT_AVAILABLE;
-        $values = [];
-
-        $portalFields = PortalGeneralRegistrationFieldValue::where('sponsorship_id', $sponsorship->id)
-            ->orWhere('file_id_number', $sponsorship->internal_file_number)
-            ->orWhere('identity_number', $sponsorship->identity_number)
-            ->get();
-
-        // تصحيح أسماء الحقول لتطابق الأسماء الفعلية في قاعدة البيانات
-        $expectedFields = [
-            'school_name' => 'field_school_name',
-            'school_address' => 'field_school_address',
-            'grade_level' => 'field_grade',
-            'academic_stage' => 'field_grade',  // نفس الحقل للمرحلة والصف
-            'student_level' => 'field_student_level',
-            'weakness_reason' => 'field_weakness_reason',
-            'psychological_status' => 'field_psychological_state',
-            'behavioral_status' => 'field_behavioral_state',
-            'religious_commitment' => 'field_religious_commitment',
-            'quran_memorization' => 'field_quran_memorization',
-            'orphan_health_status' => 'field_health_status',
-            'orphan_needs' => 'field_orphan_needs',
-            'creativity_aspects' => 'field_creativity_aspects',
-            'sponsorship_impact' => 'field_sponsorship_impact',
-            'family_events' => 'field_important_events',
-            'guardian_relation' => 'field_guardian_relationship',
-            'guardian_health' => 'field_guardian_health',
-            'guardian_job' => 'field_guardian_job',
-            'timestamp' => 'field_data_update_date',
-        ];
-
-        foreach ($expectedFields as $key => $fieldKey) {
-            $field = $portalFields->where('field_key', $fieldKey)->first();
-            $values[$key] = $field ? $field->field_value : $na;
-        }
-
-        // حساب عدد المعالين (ذكور + إناث)
-        $maleField = $portalFields->where('field_key', 'field_dependents_male')->first();
-        $femaleField = $portalFields->where('field_key', 'field_dependents_female')->first();
-        $maleCount = $maleField ? (int)$maleField->field_value : 0;
-        $femaleCount = $femaleField ? (int)$femaleField->field_value : 0;
-        $totalDependents = $maleCount + $femaleCount;
-        $values['dependents_count'] = $totalDependents > 0 ? $totalDependents : $na;
-
-        return $values;
-    }
-
-    private function getGuardianData($sponsorship, $dataRecord)
-    {
-        $na = self::NOT_AVAILABLE;
-        $data = [];
-
-        // جلب اسم المعيل من portal fields أولاً
-        $portalFirstName = PortalGeneralRegistrationFieldValue::where(function($q) use ($sponsorship) {
-            $q->where('sponsorship_id', $sponsorship->id)
-                ->orWhere('file_id_number', $sponsorship->internal_file_number);
-        })->where('field_key', 'field_data_first_name')->first();
-
-        $portalFatherName = PortalGeneralRegistrationFieldValue::where(function($q) use ($sponsorship) {
-            $q->where('sponsorship_id', $sponsorship->id)
-                ->orWhere('file_id_number', $sponsorship->internal_file_number);
-        })->where('field_key', 'field_data_father_name')->first();
-
-        $portalGrandFatherName = PortalGeneralRegistrationFieldValue::where(function($q) use ($sponsorship) {
-            $q->where('sponsorship_id', $sponsorship->id)
-                ->orWhere('file_id_number', $sponsorship->internal_file_number);
-        })->where('field_key', 'field_data_grand_father_name')->first();
-
-        $portalFamilyName = PortalGeneralRegistrationFieldValue::where(function($q) use ($sponsorship) {
-            $q->where('sponsorship_id', $sponsorship->id)
-                ->orWhere('file_id_number', $sponsorship->internal_file_number);
-        })->where('field_key', 'field_data_family_name')->first();
-
-        // تجميع اسم المعيل رباعي من الحقول
-        if ($portalFirstName || $portalFatherName || $portalGrandFatherName || $portalFamilyName) {
-            $data['guardian_full_name'] = $this->formatFullName(
-                $portalFirstName ? $portalFirstName->field_value : null,
-                $portalFatherName ? $portalFatherName->field_value : null,
-                $portalGrandFatherName ? $portalGrandFatherName->field_value : null,
-                $portalFamilyName ? $portalFamilyName->field_value : null
-            ) ?: ($sponsorship->guardian_name ?? $na);
-        } else {
-            // fallback to re_people or sponsorship
-            $guardian = null;
-            if ($sponsorship->guardian_identity_number) {
-                $guardian = RePeople::where('person_id', $sponsorship->guardian_identity_number)->first();
-            }
-
-            if ($guardian) {
-                $data['guardian_full_name'] = $this->formatFullName(
-                    $guardian->first_name,
-                    $guardian->second_name,
-                    $guardian->third_name,
-                    $guardian->last_name
-                ) ?: ($sponsorship->guardian_name ?? $na);
-            } else {
-                $data['guardian_full_name'] = $sponsorship->guardian_name ?? $na;
+            // استخدم بيانات re_people كـ fallback
+            if ($data['orphan_name'] === $na || empty($data['orphan_name'])) {
+                $data['orphan_name'] = $this->formatFullName(
+                    $orphanInRePeople->first_name,
+                    $orphanInRePeople->second_name,
+                    $orphanInRePeople->third_name,
+                    $orphanInRePeople->last_name
+                ) ?: $sponsorship->orphan_name;
             }
         }
 
-        // جلب صلة القرابة - استخدام الأسماء الصحيحة للحقول
-        $portalRelation = PortalGeneralRegistrationFieldValue::where(function($q) use ($sponsorship) {
-            $q->where('sponsorship_id', $sponsorship->id)
-                ->orWhere('file_id_number', $sponsorship->internal_file_number);
-        })->where('field_key', 'field_guardian_relationship')->first();
-
-        if ($portalRelation) {
-            // قد تكون القيمة رقم (ID) أو نص
-            $relationValue = $portalRelation->field_value;
-            if (is_numeric($relationValue)) {
-                $data['guardian_relation'] = $this->getRelation($relationValue) ?? $na;
-            } else {
-                $data['guardian_relation'] = $relationValue ?: $na;
-            }
-        } elseif ($dataRecord && $dataRecord->data_relationship) {
-            $data['guardian_relation'] = $this->getRelation($dataRecord->data_relationship) ?? $na;
-        } else {
-            $data['guardian_relation'] = $na;
-        }
-
-        // جلب الحالة الصحية للمعيل
-        $portalHealth = PortalGeneralRegistrationFieldValue::where(function($q) use ($sponsorship) {
-            $q->where('sponsorship_id', $sponsorship->id)
-                ->orWhere('file_id_number', $sponsorship->internal_file_number);
-        })->where('field_key', 'field_guardian_health')->first();
-        $data['guardian_health'] = $portalHealth ? $portalHealth->field_value : $na;
-
-        // جلب وظيفة المعيل
-        $portalJob = PortalGeneralRegistrationFieldValue::where(function($q) use ($sponsorship) {
-            $q->where('sponsorship_id', $sponsorship->id)
-                ->orWhere('file_id_number', $sponsorship->internal_file_number);
-        })->where('field_key', 'field_guardian_job')->first();
-        $data['guardian_job'] = $portalJob ? $portalJob->field_value : ($dataRecord ? $this->getEmploymentStatus($dataRecord->data_employment_status_breadwinner) : $na);
-
-        // جلب عدد المعالين (ذكور + إناث)
-        $portalMale = PortalGeneralRegistrationFieldValue::where(function($q) use ($sponsorship) {
-            $q->where('sponsorship_id', $sponsorship->id)
-                ->orWhere('file_id_number', $sponsorship->internal_file_number);
-        })->where('field_key', 'field_dependents_male')->first();
-
-        $portalFemale = PortalGeneralRegistrationFieldValue::where(function($q) use ($sponsorship) {
-            $q->where('sponsorship_id', $sponsorship->id)
-                ->orWhere('file_id_number', $sponsorship->internal_file_number);
-        })->where('field_key', 'field_dependents_female')->first();
-
-        $maleCount = $portalMale ? (int)$portalMale->field_value : 0;
-        $femaleCount = $portalFemale ? (int)$portalFemale->field_value : 0;
-        $totalDependents = $maleCount + $femaleCount;
-        $data['dependents_count'] = $totalDependents > 0 ? $totalDependents : ($dataRecord->data_number_of_individuals ?? $na);
+        Log::info('COLLECT_REPORT_DATA_COMPLETE', [
+            'data_fields_filled' => array_filter($data, function($v) { return $v !== self::NOT_AVAILABLE; }),
+            'family_members_count' => count($data['family_members'])
+        ]);
 
         return $data;
     }
 
     private function getFamilyMembers($fileIdNumber, $excludeIdentity = null)
     {
+        Log::info('GET_FAMILY_MEMBERS_START', [
+            'file_id_number' => $fileIdNumber,
+            'exclude_identity' => $excludeIdentity
+        ]);
+
         $members = RePeople::where('registration_id', $fileIdNumber)
             ->when($excludeIdentity, function($q) use ($excludeIdentity) {
                 $q->where('person_id', '!=', $excludeIdentity);
             })
             ->get();
+
+        Log::info('GET_FAMILY_MEMBERS_QUERY_RESULT', [
+            'total_found' => $members->count(),
+            'members' => $members->pluck('first_name', 'person_id')->toArray()
+        ]);
 
         $na = self::NOT_AVAILABLE;
         $result = [];
@@ -405,6 +452,11 @@ class GenerateOrphanReportPdf implements ShouldQueue
                 'health_status' => $this->getHealthStatus($member->person_health_status) ?? $na,
             ];
         }
+
+        Log::info('GET_FAMILY_MEMBERS_RESULT', [
+            'family_members_count' => count($result),
+            'family_members' => $result
+        ]);
 
         return $result;
     }
@@ -482,5 +534,90 @@ class GenerateOrphanReportPdf implements ShouldQueue
     {
         if (!$id) return null;
         return DB::table('category_of_relations')->where('id', $id)->value('attribute');
+    }
+
+    /**
+     * رفع PDF إلى Google Drive إذا كان مفعلاً للجمعية
+     */
+    private function uploadToGoogleDriveIfEnabled($sponsorship, $fullPath, $fileName)
+    {
+        try {
+            // التحقق من أن الجمعية لديها Google Drive مفعل
+            $sponsor = $sponsorship->sponsor;
+
+            if (!$sponsor || !$sponsor->google_drive_enabled) {
+                Log::info('Google Drive upload skipped - not enabled for sponsor', [
+                    'sponsor_id' => $sponsor ? $sponsor->id : 'null',
+                    'google_drive_enabled' => $sponsor ? $sponsor->google_drive_enabled : 'null'
+                ]);
+                return;
+            }
+
+            // التحقق من وجود إعدادات Rclone
+            $rclonePath = env('RCLONE_PATH');
+            $rcloneRemote = env('RCLONE_REMOTE_NAME');
+
+            if (!$rclonePath || !$rcloneRemote) {
+                Log::warning('Google Drive upload skipped - Rclone configuration missing', [
+                    'rclone_path_exists' => !empty($rclonePath),
+                    'rclone_remote_exists' => !empty($rcloneRemote)
+                ]);
+                return;
+            }
+
+            // الحصول على المسار المحلي للملف
+            $localFilePath = Storage::path($fullPath);
+
+            if (!file_exists($localFilePath)) {
+                Log::error('PDF file not found for Google Drive upload', [
+                    'local_path' => $localFilePath
+                ]);
+                return;
+            }
+
+            // إعداد البيانات للرفع على Google Drive
+            // 1. اسم الجمعية فقط (بدون رقم الملف)
+            $organizationName = $sponsor->sponsor_name;
+
+            // 2. اسم الشخص المكفول فقط
+            $personName = $sponsorship->orphan_name ?? 'unknown';
+
+            // 3. اسم الملف في Google Drive: "استمارة بيانات"
+            $documentTypeName = 'استمارة بيانات';
+
+            // استخدام RcloneGoogleDriveService للرفع
+            $rcloneService = app(\App\Services\RcloneGoogleDriveService::class);
+
+            $uploadResult = $rcloneService->uploadFile(
+                $localFilePath,
+                $organizationName,     // اسم الجمعية فقط
+                $personName,           // اسم الشخص المكفول
+                $documentTypeName,     // "استمارة بيانات"
+                'pdf',                 // الامتداد
+                1                      // رقم الملف
+            );
+
+            if ($uploadResult['success']) {
+                Log::info('PDF uploaded to Google Drive successfully', [
+                    'sponsor_id' => $sponsor->id,
+                    'sponsor_name' => $sponsor->sponsor_name,
+                    'file_name' => $fileName,
+                    'remote_path' => $uploadResult['remote_path'],
+                    'file_size' => filesize($localFilePath)
+                ]);
+            } else {
+                Log::error('Failed to upload PDF to Google Drive', [
+                    'sponsor_id' => $sponsor->id,
+                    'error' => $uploadResult['message'] ?? 'Unknown error'
+                ]);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Exception during Google Drive upload', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            // لا نرمي الخطأ لأن رفع Google Drive اختياري
+        }
     }
 }

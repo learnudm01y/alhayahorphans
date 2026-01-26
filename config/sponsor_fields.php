@@ -641,7 +641,65 @@ return [
             'required' => false,
         ],
 
-        // ===== BANK ACCOUNT FIELDS - بنفس الترتيب في الصورة =====
+        // ===== معلومات الأم (حية أو متوفية) =====
+        'field_mother_status' => [
+            'id' => 83,
+            'db_column' => 'field_mother_status',
+            'display_name' => 'هل الأم على قيد الحياة',
+            'category' => 'معلومات الأم',
+            'category_id' => 13.5,
+            'order' => 70,
+            'required' => false,
+            'type' => 'dropdown',
+            'options' => ['حية', 'متوفية'],
+        ],
+        'field_living_mother_id' => [
+            'id' => 88,
+            'db_column' => 'field_living_mother_id',
+            'display_name' => 'رقم هوية الأم',
+            'category' => 'معلومات الأم',
+            'category_id' => 13.5,
+            'order' => 70.5,
+            'required' => false,
+        ],
+        'field_living_mother_first_name' => [
+            'id' => 84,
+            'db_column' => 'field_living_mother_first_name',
+            'display_name' => 'الاسم الأول للأم',
+            'category' => 'معلومات الأم',
+            'category_id' => 13.5,
+            'order' => 71,
+            'required' => false,
+        ],
+        'field_living_mother_second_name' => [
+            'id' => 85,
+            'db_column' => 'field_living_mother_second_name',
+            'display_name' => 'اسم والد الأم',
+            'category' => 'معلومات الأم',
+            'category_id' => 13.5,
+            'order' => 72,
+            'required' => false,
+        ],
+        'field_living_mother_third_name' => [
+            'id' => 86,
+            'db_column' => 'field_living_mother_third_name',
+            'display_name' => 'اسم جد الأم',
+            'category' => 'معلومات الأم',
+            'category_id' => 13.5,
+            'order' => 73,
+            'required' => false,
+        ],
+        'field_living_mother_last_name' => [
+            'id' => 87,
+            'db_column' => 'field_living_mother_last_name',
+            'display_name' => 'اسم عائلة الأم',
+            'category' => 'معلومات الأم',
+            'category_id' => 13.5,
+            'order' => 73.5,
+            'required' => false,
+        ],
+
+        // ===== NEW FIELDS - Dead People Info =====
         'field_guardian_id_owner' => [
             'id' => 89,
             'db_column' => 'field_guardian_id_owner',
@@ -737,7 +795,7 @@ return [
         // 12 => 'معلومات الكفالة', // تم حذفها - غير مستخدمة
         13 => 'معلومات المعيل التفصيلية',
         14 => 'معلومات الوالدين المتوفين',
-        // 15 => 'معلومات اليتيم', // تم حذفها - غير مستخدمة
+        15 => 'معلومات الأم',
         16 => 'المعلومات البنكية',
         17 => 'أقسام الصفحة',
     ],

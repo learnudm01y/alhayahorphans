@@ -136,6 +136,18 @@ class FolderManagementController extends Controller
             // تحويل إلى collection وتطبيق الترقيم التصفحي
             $folders = collect($processedFolders)->sortByDesc('last_modified');
 
+            // إضافة المجلدات الفيزيائية غير الموجودة في قاعدة البيانات
+            $physicalFolders = $this->getPhysicalFoldersOnly();
+            foreach ($physicalFolders as $physicalFolder) {
+                if (!isset($processedFolders[$physicalFolder->folder_name])) {
+                    $processedFolders[$physicalFolder->folder_name] = $physicalFolder;
+                    $folders->push($physicalFolder);
+                }
+            }
+
+            // إعادة الترتيب بعد إضافة المجلدات الفيزيائية
+            $folders = $folders->sortByDesc('last_modified');
+
             // إذا لم نجد مجلدات، جرب المسح الفيزيائي
             if ($folders->isEmpty()) {
                 Log::info('No folders found in database, attempting physical scan', [
@@ -1365,5 +1377,89 @@ class FolderManagementController extends Controller
         ]);
 
         return array_merge($attachmentFiles->toArray(), $enhancedFiles->toArray());
+    }
+
+    /**
+     * معاينة ملف PDF في المتصفح
+     */
+    public function viewPdf(Request $request)
+    {
+        $filePath = $request->get('file');
+
+        if (!$filePath) {
+            abort(404, 'File not specified');
+        }
+
+        // إزالة "storage/" من المسار إذا كان موجوداً
+        $cleanPath = str_replace('storage/', '', $filePath);
+
+        // البحث في المسارات المحتملة
+        $possiblePaths = [
+            storage_path('app/public/' . $cleanPath),
+            storage_path('app/' . $filePath),
+            public_path($filePath),
+            public_path('storage/' . $cleanPath)
+        ];
+
+        $actualPath = null;
+        foreach ($possiblePaths as $path) {
+            if (file_exists($path)) {
+                $actualPath = $path;
+                break;
+            }
+        }
+
+        if (!$actualPath || !file_exists($actualPath)) {
+            abort(404, 'PDF file not found');
+        }
+
+        // التحقق من نوع الملف
+        $mimeType = mime_content_type($actualPath);
+        if ($mimeType !== 'application/pdf') {
+            abort(400, 'File is not a PDF');
+        }
+
+        // إرجاع الملف للعرض في المتصفح
+        return response()->file($actualPath, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . basename($actualPath) . '"'
+        ]);
+    }
+
+    /**
+     * تحميل ملف PDF
+     */
+    public function downloadPdf(Request $request)
+    {
+        $filePath = $request->get('file');
+
+        if (!$filePath) {
+            abort(404, 'File not specified');
+        }
+
+        // إزالة "storage/" من المسار إذا كان موجوداً
+        $cleanPath = str_replace('storage/', '', $filePath);
+
+        // البحث في المسارات المحتملة
+        $possiblePaths = [
+            storage_path('app/public/' . $cleanPath),
+            storage_path('app/' . $filePath),
+            public_path($filePath),
+            public_path('storage/' . $cleanPath)
+        ];
+
+        $actualPath = null;
+        foreach ($possiblePaths as $path) {
+            if (file_exists($path)) {
+                $actualPath = $path;
+                break;
+            }
+        }
+
+        if (!$actualPath || !file_exists($actualPath)) {
+            abort(404, 'PDF file not found');
+        }
+
+        return response()->download($actualPath);
     }
 }

@@ -94,12 +94,38 @@ class SponsorFieldsManager {
                     defaultContent: '',
                     className: 'text-center',
                     render: function(data, type, row) {
+                        const driveEnabled = row.google_drive_enabled || false;
+
+                        // تصميم جديد كلياً: زر كامل مع badge
+                        const driveButtonClass = driveEnabled
+                            ? 'btn-success'
+                            : 'btn-light-danger';
+                        const driveIcon = driveEnabled
+                            ? 'fa-cloud-arrow-up'
+                            : 'fa-cloud-slash';
+                        const driveText = driveEnabled
+                            ? '<span class="fw-bold">Google Drive</span>'
+                            : '<span class="fw-bold">Google Drive</span>';
+                        const driveBadge = driveEnabled
+                            ? '<span class="badge badge-light-success ms-2">مفعل</span>'
+                            : '<span class="badge badge-light-secondary ms-2">معطل</span>';
+
                         return `
-                            <div class="text-center">
+                            <div class="d-flex flex-column gap-2">
                                 <button type="button"
-                                        class="btn btn-sm btn-primary manage-fields-btn"
+                                        class="btn btn-sm ${driveButtonClass} toggle-google-drive-btn w-100"
                                         data-sponsor-id="${row.id}"
-                                        data-sponsor-name="${row.sponsor_name}">
+                                        data-enabled="${driveEnabled ? '1' : '0'}"
+                                        style="min-width: 160px;">
+                                    <i class="fas ${driveIcon} me-2"></i>
+                                    ${driveText}
+                                    ${driveBadge}
+                                </button>
+                                <button type="button"
+                                        class="btn btn-sm btn-primary manage-fields-btn w-100"
+                                        data-sponsor-id="${row.id}"
+                                        data-sponsor-name="${row.sponsor_name}"
+                                        style="min-width: 160px;">
                                     <i class="fas fa-cogs me-2"></i>
                                     إدارة الحقول
                                 </button>
@@ -139,7 +165,7 @@ class SponsorFieldsManager {
                 { width: 'auto', targets: 2 },
                 { width: '150px', targets: 3 },
                 { width: '150px', targets: 4 },
-                { width: '180px', targets: 5 }
+                { width: '220px', targets: 5 } // زيادة عرض عمود الإجراءات للتصميم الجديد
             ]
         });
 
@@ -162,11 +188,26 @@ class SponsorFieldsManager {
             self.openFieldsModal(sponsorId, sponsorName);
         });
 
-        // تبديل حالة الحقل
+        // تبديل حالة Google Drive
+        $(document).on('click', '.toggle-google-drive-btn', function() {
+            const sponsorId = $(this).data('sponsor-id');
+            const isEnabled = $(this).data('enabled') === 1;
+            self.toggleGoogleDrive(sponsorId, !isEnabled, $(this));
+        });
+
+        // تبديل حالة الحقل العادي
         $(document).on('change', '.field-switch', function() {
             const fieldId = $(this).data('field-id');
             const isActive = $(this).is(':checked');
             self.toggleField(fieldId, isActive);
+        });
+
+        // تبديل حالة الحقول المدمجة
+        $(document).on('change', '.merged-fields-switch', function() {
+            const mergedFields = $(this).data('merged-fields');
+            const mergedType = $(this).data('merged-type');
+            const isActive = $(this).is(':checked');
+            self.toggleMergedFields(mergedFields, mergedType, isActive);
         });
 
         // البحث في الحقول
@@ -181,11 +222,32 @@ class SponsorFieldsManager {
 
         // النقر على عنصر الحقل (لتفعيله/تعطيله)
         $(document).on('click', '.field-item', function(e) {
-            if (!$(e.target).is('.field-switch')) {
-                const checkbox = $(this).find('.field-switch');
+            if (!$(e.target).is('.field-switch, .merged-fields-switch')) {
+                const checkbox = $(this).find('.field-switch, .merged-fields-switch');
                 checkbox.prop('checked', !checkbox.prop('checked')).trigger('change');
             }
         });
+    }
+
+    /**
+     * تبديل حالة الحقول المدمجة
+     */
+    toggleMergedFields(mergedFields, mergedType, isActive) {
+        mergedFields.forEach(fieldDbColumn => {
+            const field = this.fieldsData.find(f => f.db_column === fieldDbColumn);
+            if (field) {
+                field.active = isActive;
+            }
+        });
+
+        const fieldItem = $(`.field-item[data-merged="${mergedType}"]`);
+        if (isActive) {
+            fieldItem.addClass('active');
+        } else {
+            fieldItem.removeClass('active');
+        }
+
+        this.updateActiveFieldsDisplay();
     }
 
     /**
@@ -276,6 +338,39 @@ class SponsorFieldsManager {
                 <h5 class="text-gray-700 fw-bold mb-3">${category}</h5>`;
 
             categories[category].forEach(field => {
+                // إخفاء الحقول المكررة (النسخ السفلية)
+                if (this.shouldHideField(field)) {
+                    return; // تخطي هذا الحقل
+                }
+
+                // معالجة دمج حقول أسماء المعيل الأربعة
+                if (this.isMergedNameField(field)) {
+                    if (field.db_column === 'field_data_first_name') {
+                        // عرض حقل مدمج واحد للأسماء الأربعة
+                        fieldsHtml += this.createMergedNameFieldItem(field, categories[category]);
+
+                        if (this.areMergedFieldsActive('guardian_name')) {
+                            activeFieldsHtml += this.createMergedActiveFieldItem('guardian_name');
+                        }
+                    } else if (field.db_column === 'field_father_id') {
+                        // عرض حقل مدمج لمعلومات الأب المتوفي
+                        fieldsHtml += this.createMergedDeadParentFieldItem(field, 'father');
+
+                        if (this.areMergedFieldsActive('father')) {
+                            activeFieldsHtml += this.createMergedActiveFieldItem('father');
+                        }
+                    } else if (field.db_column === 'field_mother_id') {
+                        // عرض حقل مدمج لمعلومات الأم المتوفية
+                        fieldsHtml += this.createMergedDeadParentFieldItem(field, 'mother');
+
+                        if (this.areMergedFieldsActive('mother')) {
+                            activeFieldsHtml += this.createMergedActiveFieldItem('mother');
+                        }
+                    }
+                    // تخطي باقي الحقول المدمجة
+                    return;
+                }
+
                 fieldsHtml += this.createFieldItem(field);
 
                 if (field.active) {
@@ -290,6 +385,234 @@ class SponsorFieldsManager {
         $('#activeFieldsContainer').html(
             activeFieldsHtml || '<div class="text-center py-10"><p class="text-muted">لا توجد حقول مفعلة</p></div>'
         );
+    }
+
+    /**
+     * التحقق من الحقول التي يجب إخفاؤها (النسخ المكررة السفلية)
+     */
+    shouldHideField(field) {
+        const hiddenFields = [
+            'field_data_relationship',      // صلة قرابة المعيل (مكرر)
+            'field_re_guardian_name',       // اسم الوصي (مكرر)
+            'field_re_guardian_phone',      // هاتف الوصي (مكرر)
+            'field_re_guardian_id',         // رقم هوية الوصي (مكرر)
+            'field_family_members_count'    // عدد أفراد الأسرة مع اليتيم
+        ];
+
+        return hiddenFields.includes(field.db_column);
+    }
+
+    /**
+     * التحقق من حقول الأسماء المدمجة
+     */
+    isMergedNameField(field) {
+        const mergedNameFields = [
+            'field_data_first_name',
+            'field_data_father_name',
+            'field_data_grand_father_name',
+            'field_data_family_name'
+        ];
+
+        const mergedFatherFields = [
+            'field_father_id',
+            'field_father_first_name',
+            'field_father_death_date',
+            'field_father_death_reason'
+        ];
+
+        const mergedMotherFields = [
+            'field_mother_id',
+            'field_mother_first_name',
+            'field_mother_death_date',
+            'field_mother_death_reason'
+        ];
+
+        return mergedNameFields.includes(field.db_column) ||
+               mergedFatherFields.includes(field.db_column) ||
+               mergedMotherFields.includes(field.db_column);
+    }
+
+    /**
+     * التحقق من تفعيل حقول الأسماء المدمجة
+     */
+    areMergedFieldsActive(type) {
+        let fieldsToCheck = [];
+
+        if (type === 'guardian_name') {
+            fieldsToCheck = [
+                'field_data_first_name',
+                'field_data_father_name',
+                'field_data_grand_father_name',
+                'field_data_family_name'
+            ];
+        } else if (type === 'father') {
+            fieldsToCheck = [
+                'field_father_id',
+                'field_father_first_name',
+                'field_father_death_date',
+                'field_father_death_reason'
+            ];
+        } else if (type === 'mother') {
+            fieldsToCheck = [
+                'field_mother_id',
+                'field_mother_first_name',
+                'field_mother_death_date',
+                'field_mother_death_reason'
+            ];
+        }
+
+        return this.fieldsData.some(f =>
+            fieldsToCheck.includes(f.db_column) && f.active
+        );
+    }
+
+    /**
+     * إنشاء عنصر الحقل المدمج للأسماء الأربعة
+     */
+    createMergedNameFieldItem(baseField, categoryFields) {
+        const mergedNameFields = [
+            'field_data_first_name',
+            'field_data_father_name',
+            'field_data_grand_father_name',
+            'field_data_family_name'
+        ];
+
+        // الحصول على جميع الحقول الأربعة
+        const nameFields = this.fieldsData.filter(f =>
+            mergedNameFields.includes(f.db_column)
+        );
+
+        // التحقق من أي حقل مفعل
+        const isAnyActive = nameFields.some(f => f.active);
+        const checkedAttr = isAnyActive ? 'checked' : '';
+        const activeClass = isAnyActive ? 'active' : '';
+
+        return `
+            <div class="field-item ${activeClass} merged-name-field" data-merged="guardian_name">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="flex-grow-1">
+                        <div class="fw-bold text-gray-800">
+                            أسماء المعيل (الأربعة)
+                            <span class="badge badge-info badge-sm ms-2">حقل مدمج</span>
+                        </div>
+                        <div class="text-muted fs-7 mt-1">
+                            <span class="badge badge-light-primary field-category-badge">${baseField.category}</span>
+                            <small class="text-muted d-block mt-1">
+                                يشمل: الاسم الأول، اسم الأب، اسم الجد، اسم العائلة
+                            </small>
+                        </div>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input merged-fields-switch"
+                               type="checkbox"
+                               id="merged_guardian_name_field"
+                               data-merged-type="guardian_name"
+                               data-merged-fields='${JSON.stringify(mergedNameFields)}'
+                               ${checkedAttr}>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * إنشاء عنصر الحقل المدمج للوالدين المتوفين
+     */
+    createMergedDeadParentFieldItem(baseField, parentType) {
+        let mergedFields = [];
+        let displayName = '';
+        let description = '';
+
+        if (parentType === 'father') {
+            mergedFields = [
+                'field_father_id',
+                'field_father_first_name',
+                'field_father_death_date',
+                'field_father_death_reason'
+            ];
+            displayName = 'معلومات الأب المتوفى';
+            description = 'يشمل: رقم الهوية، الاسم، تاريخ الوفاة، سبب الوفاة';
+        } else if (parentType === 'mother') {
+            mergedFields = [
+                'field_mother_id',
+                'field_mother_first_name',
+                'field_mother_death_date',
+                'field_mother_death_reason'
+            ];
+            displayName = 'معلومات الأم المتوفية';
+            description = 'يشمل: رقم الهوية، الاسم، تاريخ الوفاة، سبب الوفاة';
+        }
+
+        // الحصول على جميع الحقول
+        const parentFields = this.fieldsData.filter(f =>
+            mergedFields.includes(f.db_column)
+        );
+
+        // التحقق من أي حقل مفعل
+        const isAnyActive = parentFields.some(f => f.active);
+        const checkedAttr = isAnyActive ? 'checked' : '';
+        const activeClass = isAnyActive ? 'active' : '';
+
+        return `
+            <div class="field-item ${activeClass} merged-parent-field" data-merged="${parentType}">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="flex-grow-1">
+                        <div class="fw-bold text-gray-800">
+                            ${displayName}
+                            <span class="badge badge-info badge-sm ms-2">حقل مدمج</span>
+                        </div>
+                        <div class="text-muted fs-7 mt-1">
+                            <span class="badge badge-light-primary field-category-badge">${baseField.category}</span>
+                            <small class="text-muted d-block mt-1">
+                                ${description}
+                            </small>
+                        </div>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input merged-fields-switch"
+                               type="checkbox"
+                               id="merged_${parentType}_field"
+                               data-merged-type="${parentType}"
+                               data-merged-fields='${JSON.stringify(mergedFields)}'
+                               ${checkedAttr}>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * إنشاء عنصر الحقل المدمج النشط
+     */
+    createMergedActiveFieldItem(type) {
+        let displayName = '';
+
+        if (type === 'guardian_name') {
+            displayName = 'أسماء المعيل (الأربعة)';
+        } else if (type === 'father') {
+            displayName = 'معلومات الأب المتوفى';
+        } else if (type === 'mother') {
+            displayName = 'معلومات الأم المتوفية';
+        }
+
+        return `
+            <div class="field-item active mb-3" data-merged="${type}">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="flex-grow-1">
+                        <div class="fw-bold text-gray-800">${displayName}</div>
+                        <div class="text-muted fs-7">
+                            <span class="badge badge-light-primary field-category-badge">
+                                ${type === 'guardian_name' ? 'معلومات المعيل التفصيلية' : 'معلومات الوالدين المتوفين'}
+                            </span>
+                            <span class="badge badge-info ms-2">حقل مدمج</span>
+                        </div>
+                    </div>
+                    <div>
+                        <span class="badge badge-success">مفعل</span>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
     /**
@@ -393,12 +716,76 @@ class SponsorFieldsManager {
     updateActiveFieldsDisplay() {
         let activeFieldsHtml = '';
 
-        const activeFields = this.fieldsData.filter(f => f.active);
+        // قائمة الحقول المدمجة
+        const mergedGuardianNameFields = [
+            'field_data_first_name',
+            'field_data_father_name',
+            'field_data_grand_father_name',
+            'field_data_family_name'
+        ];
+
+        const mergedFatherFields = [
+            'field_father_id',
+            'field_father_first_name',
+            'field_father_death_date',
+            'field_father_death_reason'
+        ];
+
+        const mergedMotherFields = [
+            'field_mother_id',
+            'field_mother_first_name',
+            'field_mother_death_date',
+            'field_mother_death_reason'
+        ];
+
+        // قائمة الحقول المخفية
+        const hiddenFields = [
+            'field_data_relationship',
+            'field_re_guardian_name',
+            'field_re_guardian_phone',
+            'field_re_guardian_id',
+            'field_family_members_count'
+        ];
+
+        const activeFields = this.fieldsData.filter(f =>
+            f.active && !hiddenFields.includes(f.db_column)
+        );
 
         if (activeFields.length === 0) {
             activeFieldsHtml = '<div class="text-center py-10"><p class="text-muted">لا توجد حقول مفعلة</p></div>';
         } else {
+            let guardianNameAdded = false;
+            let fatherAdded = false;
+            let motherAdded = false;
+
             activeFields.forEach(field => {
+                // التحقق من حقول أسماء المعيل
+                if (mergedGuardianNameFields.includes(field.db_column)) {
+                    if (!guardianNameAdded) {
+                        activeFieldsHtml += this.createMergedActiveFieldItem('guardian_name');
+                        guardianNameAdded = true;
+                    }
+                    return;
+                }
+
+                // التحقق من حقول الأب المتوفي
+                if (mergedFatherFields.includes(field.db_column)) {
+                    if (!fatherAdded) {
+                        activeFieldsHtml += this.createMergedActiveFieldItem('father');
+                        fatherAdded = true;
+                    }
+                    return;
+                }
+
+                // التحقق من حقول الأم المتوفية
+                if (mergedMotherFields.includes(field.db_column)) {
+                    if (!motherAdded) {
+                        activeFieldsHtml += this.createMergedActiveFieldItem('mother');
+                        motherAdded = true;
+                    }
+                    return;
+                }
+
                 activeFieldsHtml += this.createActiveFieldItem(field);
             });
         }
@@ -576,6 +963,75 @@ class SponsorFieldsManager {
 
     // تم حذف جميع الوظائف القديمة للوثائق
     // النظام الجديد موجود في documents-management-new.js
+
+    /**
+     * تبديل حالة Google Drive للجمعية
+     */
+    toggleGoogleDrive(sponsorId, enable, buttonElement) {
+        const self = this;
+        const action = enable ? 'تفعيل' : 'إيقاف';
+
+        Swal.fire({
+            title: `هل أنت متأكد من ${action} رفع PDF إلى Google Drive؟`,
+            text: enable ? 'سيتم رفع تقارير PDF تلقائياً إلى Google Drive' : 'سيتم إيقاف رفع التقارير إلى Google Drive',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، متأكد',
+            cancelButtonText: 'إلغاء',
+            confirmButtonColor: enable ? '#50cd89' : '#f1416c'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                $.ajax({
+                    url: `/admin/sponsors/${sponsorId}/toggle-google-drive`,
+                    method: 'POST',
+                    data: {
+                        enabled: enable ? 1 : 0
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'تم بنجاح!',
+                                text: response.message,
+                                timer: 2000,
+                                showConfirmButton: false
+                            });
+
+                            // تحديث حالة الزر بالتصميم الجديد
+                            buttonElement.data('enabled', enable ? 1 : 0);
+                            buttonElement.attr('data-enabled', enable ? 1 : 0);
+
+                            if (enable) {
+                                // تفعيل: زر أخضر مع badge "مفعل"
+                                buttonElement.removeClass('btn-light-danger').addClass('btn-success');
+                                buttonElement.find('i').removeClass('fa-cloud-slash').addClass('fa-cloud-arrow-up');
+                                buttonElement.find('.badge').removeClass('badge-light-secondary').addClass('badge-light-success').text('مفعل');
+                            } else {
+                                // تعطيل: زر رمادي مع badge "معطل"
+                                buttonElement.removeClass('btn-success').addClass('btn-light-danger');
+                                buttonElement.find('i').removeClass('fa-cloud-arrow-up').addClass('fa-cloud-slash');
+                                buttonElement.find('.badge').removeClass('badge-light-success').addClass('badge-light-secondary').text('معطل');
+                            }
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'خطأ!',
+                                text: response.message || 'حدث خطأ أثناء التحديث'
+                            });
+                        }
+                    },
+                    error: function(xhr) {
+                        console.error('خطأ في تبديل Google Drive:', xhr);
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'خطأ!',
+                            text: 'حدث خطأ أثناء الاتصال بالخادم'
+                        });
+                    }
+                });
+            }
+        });
+    }
 }
 
 // تهيئة المدير عند تحميل الصفحة

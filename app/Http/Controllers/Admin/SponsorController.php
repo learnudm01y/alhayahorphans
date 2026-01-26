@@ -558,6 +558,50 @@ class SponsorController extends Controller
     }
 
     /**
+     * تفعيل/إيقاف رفع PDF إلى Google Drive للجمعية
+     */
+    public function toggleGoogleDrive(Request $request, $sponsorId)
+    {
+        try {
+            $sponsor = Sponsor::findOrFail($sponsorId);
+
+            $enabled = $request->input('enabled', 0);
+            $sponsor->google_drive_enabled = (bool) $enabled;
+
+            // إذا كان التفعيل للمرة الأولى، قم بإنشاء اسم المجلد من اسم الجمعية
+            if ($enabled && empty($sponsor->google_drive_folder_name)) {
+                $sponsor->google_drive_folder_name = $sponsor->file_id . '_' . $sponsor->sponsor_name;
+            }
+
+            $sponsor->save();
+
+            Log::info('Google Drive toggle for sponsor', [
+                'sponsor_id' => $sponsorId,
+                'enabled' => $enabled,
+                'folder_name' => $sponsor->google_drive_folder_name
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => $enabled ? 'تم تفعيل رفع PDF إلى Google Drive بنجاح' : 'تم إيقاف رفع PDF إلى Google Drive',
+                'enabled' => (bool) $enabled,
+                'folder_name' => $sponsor->google_drive_folder_name
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error toggling Google Drive:', [
+                'sponsor_id' => $sponsorId,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء تحديث الإعدادات'
+            ], 500);
+        }
+    }
+
+    /**
      * حفظ إعدادات الوثائق لجمعية معينة
      */
     public function saveDocumentSettings(Request $request, $sponsorId)

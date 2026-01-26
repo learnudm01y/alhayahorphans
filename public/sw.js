@@ -7,7 +7,6 @@ const CACHE_NAME = 'alhayah-sponsorships-v24';
 const OFFLINE_PAGES = [
     '/',
     '/index.html',
-    '/login.html',
     '/data.html',
     '/detail.html',
     '/photography.html',

@@ -834,6 +834,55 @@ class ShowGeneralRegisrationController extends Controller
         $values['field_data_relationship'] = $guardianRelationship; // نفس القيمة لحقل المعيل التفصيلي
         $values['show_mother_death_fields'] = $showMotherDeathFields;
 
+        // 🆕 معالجة ذكية لمعلومات الأم (حية أو متوفية)
+        $guardianIsMother = ($guardianRelationship == 2 || $guardianRelationshipText === 'أم');
+        $showMotherSection = true; // افتراضياً نعرض قسم الأم
+        $showLivingMotherFields = false; // افتراضياً لا نعرض حقول الأم الحية
+        $motherIsGuardian = false;
+
+        if ($guardianIsMother) {
+            // المعيل هو الأم - استخدام بيانات المعيل
+            $motherIsGuardian = true;
+            $showMotherSection = false; // لا نعرض قسم منفصل للأم
+            $values['field_mother_status'] = 'حية';
+
+            // نسخ بيانات المعيل كبيانات للأم
+            $values['field_living_mother_first_name'] = $guardianData->data_first_name ?? '';
+            $values['field_living_mother_second_name'] = $guardianData->data_father_name ?? '';
+            $values['field_living_mother_third_name'] = $guardianData->data_grand_father_name ?? '';
+            $values['field_living_mother_last_name'] = $guardianData->data_family_name ?? '';
+            $values['field_living_mother_id'] = $guardianData->data_id_number ?? '';
+        } else {
+            // المعيل ليس الأم - فحص حالة الأم من البيانات المحفوظة
+            $motherStatus = $values['field_mother_status'] ?? ''; // فارغة افتراضياً
+            $values['field_mother_status'] = $motherStatus;
+
+            if ($motherStatus === 'حية') {
+                $showLivingMotherFields = true;
+                $showMotherDeathFields = false;
+            } elseif ($motherStatus === 'متوفية') {
+                $showLivingMotherFields = false;
+                $showMotherDeathFields = true;
+            } else {
+                // لم يتم الاختيار بعد - عرض جميع الحقول
+                $showLivingMotherFields = true;
+                $showMotherDeathFields = true;
+            }
+        }
+
+        $values['_mother_is_guardian'] = $motherIsGuardian;
+        $values['_show_mother_section'] = $showMotherSection;
+        $values['_show_living_mother_fields'] = $showLivingMotherFields;
+
+        Log::info('MOTHER STATUS', [
+            'guardian_is_mother' => $guardianIsMother,
+            'mother_is_guardian' => $motherIsGuardian,
+            'show_mother_section' => $showMotherSection,
+            'show_living_mother_fields' => $showLivingMotherFields,
+            'show_mother_death_fields' => $showMotherDeathFields,
+            'mother_status' => $values['field_mother_status'] ?? 'غير محدد'
+        ]);
+
         Log::info('GUARDIAN RELATIONSHIP', [
             'relationship_id' => $guardianRelationship,
             'relationship_text' => $guardianRelationshipText,

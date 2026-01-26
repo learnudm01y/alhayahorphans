@@ -154,6 +154,7 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::post('sponsors/{sponsor}/fields', [SponsorController::class, 'saveSponsorFields'])->name('sponsors.save-fields');
     Route::get('sponsors/{sponsor}/documents', [SponsorController::class, 'getDocumentSettings'])->name('sponsors.get-documents');
     Route::post('sponsors/{sponsor}/documents', [SponsorController::class, 'saveDocumentSettings'])->name('sponsors.save-documents');
+    Route::post('sponsors/{sponsor}/toggle-google-drive', [SponsorController::class, 'toggleGoogleDrive'])->name('sponsors.toggle-google-drive');
     Route::get('sponsors/generate-file-id', [SponsorController::class, 'generateFileId'])->name('sponsors.generate-file-id');
     Route::post('sponsors/{sponsor}/employees', [SponsorController::class, 'storeEmployee'])->name('sponsors.employees.store');
     Route::get('sponsors/{sponsor}/employees', [SponsorController::class, 'getEmployees'])->name('sponsors.employees.index');
@@ -222,6 +223,8 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::get('folders/contents', [FolderManagementController::class, 'getFolderContents'])->name('folders.contents');
     Route::get('folders/search', [FolderManagementController::class, 'search'])->name('folders.search');
     Route::get('folders/download-zip', [FolderManagementController::class, 'downloadFolderAsZip'])->name('folders.download.zip');
+    Route::get('folders/view-pdf', [FolderManagementController::class, 'viewPdf'])->name('folders.view.pdf');
+    Route::get('folders/download-pdf', [FolderManagementController::class, 'downloadPdf'])->name('folders.download.pdf');
 
     // File System Sync Routes
     Route::get('sync-files', [FileSystemSyncController::class, 'syncPhysicalFiles'])->name('sync.files');

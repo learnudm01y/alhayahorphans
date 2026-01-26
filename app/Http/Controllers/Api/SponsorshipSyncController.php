@@ -4723,4 +4723,147 @@ class SponsorshipSyncController extends Controller
 
         return $updated;
     }
+
+    // ========================================
+    // Additional Methods for Online Mode
+    // ========================================
+
+    /**
+     * POST /api/online/update-sponsorship
+     * تحديث بيانات كفالة مباشرة
+     */
+    public function updateSponsorship(Request $request): JsonResponse
+    {
+        try {
+            $sponsorshipId = $request->input('sponsorship_id');
+            $updates = $request->input('updates', []);
+
+            if (!$sponsorshipId) {
+                return response()->json(['success' => false, 'message' => 'معرف الكفالة مطلوب'], 400);
+            }
+
+            $sponsorship = DB::table('sponsorships')->where('id', $sponsorshipId)->first();
+            if (!$sponsorship) {
+                return response()->json(['success' => false, 'message' => 'الكفالة غير موجودة'], 404);
+            }
+
+            $updates['updated_at'] = now();
+            DB::table('sponsorships')->where('id', $sponsorshipId)->update($updates);
+
+            Log::info('Sponsorship updated via online mode', ['id' => $sponsorshipId, 'user' => auth()->id()]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم التحديث بنجاح',
+                'sponsorship_id' => $sponsorshipId
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Failed to update sponsorship', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'فشل التحديث'], 500);
+        }
+    }
+
+    /**
+     * POST /api/online/update-photo
+     * رفع صورة وتحديثها مباشرة
+     */
+    public function updatePhoto(Request $request): JsonResponse
+    {
+        try {
+            $sponsorshipId = $request->input('sponsorship_id');
+            $photoType = $request->input('photo_type'); // 'orphan' or 'guardian'
+
+            if (!$request->hasFile('photo')) {
+                return response()->json(['success' => false, 'message' => 'الصورة مطلوبة'], 400);
+            }
+
+            $file = $request->file('photo');
+            $path = $file->store('photos/' . $photoType, 'public');
+
+            // تحديث قاعدة البيانات
+            $column = $photoType === 'orphan' ? 'orphan_photo_path' : 'guardian_photo_path';
+            DB::table('sponsorships')
+                ->where('id', $sponsorshipId)
+                ->update([$column => $path, 'updated_at' => now()]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم رفع الصورة بنجاح',
+                'path' => $path
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Photo upload failed', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'فشل رفع الصورة'], 500);
+        }
+    }
+
+    /**
+     * POST /api/online/register-device
+     * تسجيل جهاز لإشعارات Push
+     */
+    public function registerDevice(Request $request): JsonResponse
+    {
+        try {
+            $userId = auth()->id();
+            $deviceToken = $request->input('device_token');
+            $deviceId = $request->input('device_id');
+            $platform = $request->input('platform', 'android'); // android or ios
+
+            if (!$deviceToken) {
+                return response()->json(['success' => false, 'message' => 'Device token مطلوب'], 400);
+            }
+
+            // حفظ في جدول devices (يجب إنشاؤه)
+            DB::table('user_devices')->updateOrInsert(
+                ['device_id' => $deviceId],
+                [
+                    'user_id' => $userId,
+                    'device_token' => $deviceToken,
+                    'platform' => $platform,
+                    'last_active' => now(),
+                    'updated_at' => now(),
+                    'created_at' => DB::raw('COALESCE(created_at, NOW())')
+                ]
+            );
+
+            Log::info('Device registered for push notifications', [
+                'user_id' => $userId,
+                'device_id' => $deviceId
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم تسجيل الجهاز بنجاح'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Device registration failed', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'فشل تسجيل الجهاز'], 500);
+        }
+    }
+
+    /**
+     * POST /api/online/unregister-device
+     * إلغاء تسجيل جهاز
+     */
+    public function unregisterDevice(Request $request): JsonResponse
+    {
+        try {
+            $deviceId = $request->input('device_id');
+
+            DB::table('user_devices')->where('device_id', $deviceId)->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم إلغاء تسجيل الجهاز'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Device unregistration failed', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'فشل إلغاء التسجيل'], 500);
+        }
+    }
 }
+

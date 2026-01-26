@@ -163,7 +163,7 @@ const ApiService = {
      * Get all initial sync data (associations + statuses + counts)
      */
     async getInitialSync() {
-        const data = await this.request('/mobile/initial-sync');
+        const data = await this.request('/mobile/sync/initial');
 
         if (data.success) {
             // Cache the data locally

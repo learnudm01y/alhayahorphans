@@ -320,7 +320,7 @@
 
     #sponsors_fields_table th:nth-child(6),
     #sponsors_fields_table td:nth-child(6) {
-        width: 180px !important;
+        width: 220px !important; /* عرض أكبر لعمود الإجراءات */
     }
 
     /* تحسين مظهر الجدول */
@@ -331,6 +331,39 @@
 
     .dataTables_wrapper .dataTables_scroll {
         overflow-x: hidden;
+    }
+
+    /* تنسيق أزرار Google Drive المحدثة */
+    .toggle-google-drive-btn {
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        border: 2px solid transparent;
+    }
+
+    .toggle-google-drive-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .toggle-google-drive-btn.btn-success {
+        background: linear-gradient(135deg, #50cd89 0%, #40b76f 100%);
+        border-color: #50cd89;
+    }
+
+    .toggle-google-drive-btn.btn-success:hover {
+        background: linear-gradient(135deg, #40b76f 0%, #38a665 100%);
+    }
+
+    .toggle-google-drive-btn.btn-light-danger {
+        background: #f1f1f4;
+        color: #7e8299;
+        border-color: #e4e6ef;
+    }
+
+    .toggle-google-drive-btn.btn-light-danger:hover {
+        background: #f8f9fa;
+        border-color: #f1416c;
+        color: #f1416c;
     }
 
     /* تنسيق بطاقات الوثائق */

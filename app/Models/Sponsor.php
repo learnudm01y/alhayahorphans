@@ -23,6 +23,12 @@ class Sponsor extends Model
         'sponsor_bank_related_phone_number',
         'sponsor_bank_account_currency',
         'country_code',
+        'google_drive_enabled',
+        'google_drive_folder_name',
+    ];
+
+    protected $casts = [
+        'google_drive_enabled' => 'boolean',
     ];
 
     public function bankName()

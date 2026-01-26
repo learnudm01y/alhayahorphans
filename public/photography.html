@@ -300,7 +300,7 @@
     </div>
 
     <!-- خدمة المزامنة -->
-    <script src="js/sync-service.js"></script>
+    <script src="js/sync-service.js?v=20260124-fixed"></script>
     <script src="js/pagination.js"></script>
 
     <script>
@@ -317,6 +317,11 @@
 
         // ========================================
         // تهيئة الصفحة
+        // تحويل إلى الصفحة الرئيسية لتسجيل الدخول
+        function showLoginForm() {
+            window.location.href = 'index.html';
+        }
+
         // ========================================
         document.addEventListener('DOMContentLoaded', async function() {
             try {
@@ -325,7 +330,8 @@
 
                 // التحقق من المصادقة
                 if (!SyncService.isAuthenticated()) {
-                    window.location.href = 'login.html';
+                    // عرض نموذج تسجيل الدخول المدمج
+                    showLoginForm();
                     return;
                 }
 

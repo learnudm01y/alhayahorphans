@@ -175,10 +175,15 @@
         let cities = [];
         let bankNames = [];
 
+        // تحويل إلى الصفحة الرئيسية لتسجيل الدخول
+        function showLoginForm() {
+            window.location.href = 'index.html';
+        }
+
         document.addEventListener('DOMContentLoaded', async function() {
             try {
                 await SyncService.init();
-                if (!SyncService.isAuthenticated()) { window.location.href = 'login.html'; return; }
+                if (!SyncService.isAuthenticated()) { showLoginForm(); return; }
                 await loadLookupData();
                 const urlParams = new URLSearchParams(window.location.search);
                 const sponsorshipId = urlParams.get('id');
@@ -245,7 +250,7 @@
                 document.getElementById('noDataMessage').style.display = 'none';
                 document.getElementById('pageTitle').textContent = currentSponsorship.first_name || currentSponsorship.orphan_name || 'تفاصيل الكفالة';
                 bindChangeEvents();
-                
+
                 // 🔥🔥🔥 تنفيذ الإظهار القوي بعد كل شيء 🔥🔥🔥
                 setTimeout(forceShowExtraFieldsForSpecialTypes, 200);
                 setTimeout(forceShowExtraFieldsForSpecialTypes, 500);
@@ -263,9 +268,9 @@
         function forceShowExtraFieldsForSpecialTypes() {
             const personType = document.getElementById('person_type')?.value || currentSponsorship?.person_type || '';
             const extraFieldsContainer = document.getElementById('extraFieldsContainer');
-            
+
             console.log('🔥 forceShowExtraFieldsForSpecialTypes - personType:', personType);
-            
+
             // القوة القاسية: إظهار الحقول الإضافية لهذه الأنواع بأي ثمن
             if (personType === 'breadwinner' || personType === 'deceased_father' || personType === 'deceased_mother') {
                 if (extraFieldsContainer) {
@@ -275,36 +280,36 @@
                     extraFieldsContainer.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important;';
                     extraFieldsContainer.classList.remove('hidden');
                     extraFieldsContainer.hidden = false;
-                    
+
                     console.log('✅ تم إظهار الحقول الإضافية بالقوة لـ:', personType);
-                    
+
                     // تعبئة البيانات من guardian_* إلى orphan_* بالقوة
                     if (currentSponsorship) {
                         const phone1 = currentSponsorship.guardian_phone || currentSponsorship.orphan_phone || '';
                         const phone2 = currentSponsorship.guardian_phone2 || currentSponsorship.orphan_phone2 || '';
                         const address = currentSponsorship.guardian_detailed_address || currentSponsorship.orphan_detailed_address || '';
-                        
+
                         const phoneEl = document.getElementById('orphan_phone');
                         const phone2El = document.getElementById('orphan_phone2');
                         const addressEl = document.getElementById('orphan_detailed_address');
-                        
+
                         if (phoneEl && !phoneEl.value && phone1) phoneEl.value = phone1;
                         if (phone2El && !phone2El.value && phone2) phone2El.value = phone2;
                         if (addressEl && !addressEl.value && address) addressEl.value = address;
-                        
+
                         console.log('📞 تعبئة بيانات الاتصال:', { phone1, phone2, address });
                     }
                 }
             }
         }
-        
+
         // تنفيذ الدالة عند كل تحميل للصفحة
         window.addEventListener('load', forceShowExtraFieldsForSpecialTypes);
         window.addEventListener('pageshow', forceShowExtraFieldsForSpecialTypes);
         document.addEventListener('visibilitychange', function() {
             if (!document.hidden) forceShowExtraFieldsForSpecialTypes();
         });
-        
+
         // تنفيذ كل 500ms للتأكد من عدم الإخفاء
         setInterval(function() {
             const personType = document.getElementById('person_type')?.value || '';
@@ -407,7 +412,7 @@
                     orphanSectionTitle.textContent = 'بيانات المكفول';
                     break;
             }
-            
+
             // 🔥 تنفيذ الدالة القوية بعد الانتهاء
             setTimeout(forceShowExtraFieldsForSpecialTypes, 100);
         }

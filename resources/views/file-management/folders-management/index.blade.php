@@ -146,7 +146,7 @@
                         <span>
                             {{ request('type', 'images') === 'images' ? ' مجلدات الصور والوثائق' : ' ملفات Excel' }}
                             @if(isset($scanned_from_disk) && $scanned_from_disk)
-                                <small class="text-warning ms-2">(مسح فيزيائي)</small>
+                               
                             @endif
                         </span>
                         </div>
@@ -187,19 +187,6 @@
                     </div>
                 @endif
 
-                @if(isset($scanned_from_disk) && $scanned_from_disk)
-                    <div class="alert alert-info d-flex align-items-center p-5 mb-5">
-                        <i class="ki-duotone ki-information-5 fs-2hx text-info me-4">
-                            <span class="path1"></span>
-                            <span class="path2"></span>
-                            <span class="path3"></span>
-                        </i>
-                        <div class="d-flex flex-column">
-                            <h4 class="mb-1 text-dark">مسح فيزيائي</h4>
-                            <span>تم مسح المجلدات مباشرة من نظام الملفات. تم العثور على {{ $total_folders_found }} مجلد.</span>
-                        </div>
-                    </div>
-                @endif
 
                 @if(isset($debug_info))
                     <div class="alert alert-light d-flex align-items-center p-5 mb-5">

@@ -2,16 +2,21 @@
 <html dir="rtl">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
 <style>
-/* خط Cairo - الخط المفضل للعربية */
+@page {
+    margin: 2cm;
+}
+/* استخدام خطوط عربية تعمل مع wkhtmltopdf */
 body {
-    font-family: 'cairo', 'xbriyaz', 'aealarabiya', sans-serif;
-    font-size: 12pt;
+    font-family: Arial, "Traditional Arabic", "Simplified Arabic", Tahoma, sans-serif;
+    font-size: 14pt;
     direction: rtl;
     text-align: right;
+    line-height: 1.6;
 }
 h1 {
-    font-family: 'cairo', 'xbriyaz', 'aealarabiya', sans-serif;
+    font-family: Arial, "Traditional Arabic", "Simplified Arabic", Tahoma, sans-serif;
     text-align: center;
     color: #003366;
     font-size: 20pt;
@@ -25,7 +30,7 @@ table {
     margin-bottom: 15px;
 }
 td, th {
-    font-family: 'cairo', 'xbriyaz', 'aealarabiya', sans-serif;
+    font-family: Arial, "Traditional Arabic", "Simplified Arabic", Tahoma, sans-serif;
     border: 1px solid #cccccc;
     padding: 8px;
     text-align: center;
@@ -82,7 +87,7 @@ td, th {
 </head>
 <body>
 
-<h1>تقرير بيانات اليتيم</h1>
+<h1>تقرير بيانات</h1>
 
 <!-- الصف الأول: معلومات أساسية -->
 <table>
@@ -95,12 +100,12 @@ td, th {
 <td class="header-blue">المدينة</td>
 </tr>
 <tr>
-<td class="content">{{ $file_number }}</td>
-<td class="content">{{ $orphan_name }}</td>
-<td class="content">{{ $phone_number }}</td>
-<td class="content">{{ $housing_status }}</td>
-<td class="content">{{ $current_housing_type }}</td>
-<td class="content">{{ $city }}</td>
+<td class="content">{{ $file_number ?? 'غير متوفر' }}</td>
+<td class="content">{{ $orphan_name ?? 'غير متوفر' }}</td>
+<td class="content">{{ $phone_number ?? 'غير متوفر' }}</td>
+<td class="content">{{ $housing_status ?? 'غير متوفر' }}</td>
+<td class="content">{{ $housing_type ?? 'غير متوفر' }}</td>
+<td class="content">{{ $city ?? 'غير متوفر' }}</td>
 </tr>
 </table>
 
@@ -146,25 +151,27 @@ td, th {
 <td class="header-blue">جوانب الإبداع</td>
 </tr>
 <tr>
-<td class="content">{{ $orphan_health_status ?? $health_status }}</td>
-<td class="content">{{ $orphan_needs ?? $description_needs }}</td>
+<td class="content">{{ $orphan_health_status ?? 'غير متوفر' }}</td>
+<td class="content">{{ $orphan_needs ?? 'غير متوفر' }}</td>
 <td class="content">{{ $creativity_aspects ?? '/|\\' }}</td>
 </tr>
 </table>
 
-<!-- قسم الأم -->
+<!-- قسم الأم - يظهر فقط إذا كانت الأم ليست المعيل -->
+@if(!empty($mother_name))
 <table>
 <tr>
-<td class="header-pink">اسم الأم</td>
-<td class="header-pink">رقم الهوية</td>
-<td class="header-pink">هل الأم على قيد الحياة</td>
+<td class="header-pink" style="width:33.33%;">اسم الأم</td>
+<td class="header-pink" style="width:33.33%;">رقم الهوية</td>
+<td class="header-pink" style="width:33.33%;">هل الأم على قيد الحياة</td>
 </tr>
 <tr>
-<td class="content">{{ $mother_name }}</td>
-<td class="content">{{ $mother_id }}</td>
-<td class="content">{{ $mother_alive }}</td>
+<td class="content" style="width:33.33%;">{{ $mother_name ?? 'غير متوفر' }}</td>
+<td class="content" style="width:33.33%;">{{ $mother_id ?? 'غير متوفر' }}</td>
+<td class="content" style="width:33.33%;">{{ $mother_alive ?? 'غير متوفر' }}</td>
 </tr>
 </table>
+@endif
 
 <!-- قسم المعيل -->
 <table>
@@ -176,8 +183,8 @@ td, th {
 <td class="header-black">عدد من يعيلهم</td>
 </tr>
 <tr>
-<td class="content">{{ $guardian_full_name }}</td>
-<td class="content">{{ $guardian_relation }}</td>
+<td class="content">{{ $guardian_full_name ?? 'غير متوفر' }}</td>
+<td class="content">{{ $guardian_relation ?? 'غير متوفر' }}</td>
 <td class="content">{{ $guardian_health ?? '/|\\' }}</td>
 <td class="content">{{ $guardian_job ?? $employment_status }}</td>
 <td class="content">{{ $dependents_count ?? $number_of_individuals }}</td>
@@ -199,7 +206,7 @@ td, th {
 <td class="content">{{ $member['full_name'] }}</td>
 <td class="content">{{ $member['birth_date'] }}</td>
 <td class="content">{{ $member['academic_degree'] }}</td>
-<td class="content">{{ $member['health_status'] }}</td>
+<td class="content">{{ $member['health_status'] ?? 'غير متوفر' }}</td>
 </tr>
 @empty
 <tr>

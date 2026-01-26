@@ -151,7 +151,7 @@
 <div class="container py-4">
     @if(isset($sponsorship) && $sponsorship)
         {{-- Form --}}
-        <form method="POST" action="{{ route('user.update-sponsorship-data') }}" id="sponsorshipForm" enctype="multipart/form-data">
+        <form method="POST" action="{{ route('user.update-sponsorship-data') }}" id="sponsorshipForm" enctype="multipart/form-data" novalidate>
             @csrf
             <input type="hidden" name="sponsorship_id" value="{{ $sponsorship->id }}">
 
@@ -259,22 +259,18 @@
                                     $isSponsoredNameField = ($field['db_column'] === 'field_sponsor_name');
                                     $showSponsoredAs1Field = $isSponsoredNameField && !$sponsoredShow4Fields && !$needsCentralDataEntry;
 
-                                    // تحديد حقول الأم (الاسم، رقم الهوية، تاريخ الوفاة، سبب الوفاة)
-                                    $motherFields = ['field_mother_first_name', 'field_mother_second_name', 'field_mother_third_name', 'field_mother_last_name', 'field_mother_id', 'field_mother_death_date', 'field_mother_death_reason'];
-                                    $isMotherField = in_array($field['db_column'], $motherFields);
+                                    // تحديد حقول الأم المتوفية
+                                    $motherDeathFields = ['field_mother_first_name', 'field_mother_id', 'field_mother_death_date', 'field_mother_death_reason'];
+                                    $isMotherDeathField = in_array($field['db_column'], $motherDeathFields);
 
-                                    // الحصول على قيمة عرض حقول الأم من fieldValues
-                                    $showMotherDeathFields = $fieldValues['show_mother_death_fields'] ?? true;
+                                    // تحديد حقول الأم الحية
+                                    $livingMotherFields = ['field_living_mother_first_name', 'field_living_mother_second_name', 'field_living_mother_third_name', 'field_living_mother_last_name', 'field_living_mother_id'];
+                                    $isLivingMotherField = in_array($field['db_column'], $livingMotherFields);
 
                                     // 🆕 تحديد حقول رقم هوية الأب والأم (المكررة - تُخفى عند عرضها في البحث التلقائي)
                                     $deceasedIdFields = ['field_father_id', 'field_mother_id'];
                                     $isDeceasedIdField = in_array($field['db_column'], $deceasedIdFields);
                                 @endphp
-
-                                {{-- إخفاء حقول الأم إذا كانت صلة القرابة "أم" --}}
-                                @if($isMotherField && !$showMotherDeathFields)
-                                    @continue
-                                @endif
 
                                 {{-- 🆕 إخفاء حقول رقم هوية الأب والأم العادية - أصبحت مدمجة في قسم الأسماء --}}
                                 @if($isDeceasedIdField)
@@ -299,7 +295,7 @@
                                                 class="form-control"
                                                 value="{{ old('fields.' . $field['db_column'], $value) }}"
                                                 placeholder="أدخل {{ $field['display_name'] }}"
-                                                {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                                {{ $fieldRequired ? 'required' : '' }}
                                             >
                                             <small class="text-muted d-block mt-1">
                                                 <i class="bi bi-info-circle me-1"></i>
@@ -465,8 +461,11 @@
                                         $prefix = $nameConfig['prefix'];
                                         // تحديد إذا كان حقل للوالدين المتوفين
                                         $isDeceasedParentField = in_array($prefix, ['father', 'mother']);
+                                        // 🔥 حقول الأم المتوفية مخفية افتراضياً
+                                        $nameWrapperStyle = ($prefix == 'mother') ? 'display: none;' : '';
+                                        $nameWrapperClass = ($prefix == 'mother') ? 'mother-deceased-field' : '';
                                     @endphp
-                                    <div class="col-12">
+                                    <div class="col-12 {{ $nameWrapperClass }}" @if($nameWrapperStyle) style="{{ $nameWrapperStyle }}" @endif>
                                         <div class="border rounded p-3 bg-light mb-2">
                                             <label class="info-label fw-bold mb-2">
                                                 <i class="bi bi-person-badge me-1"></i>
@@ -510,7 +509,7 @@
                                                             class="form-control"
                                                             value="{{ old("names.{$prefix}.{$namePart}", $nameValue) }}"
                                                             placeholder="{{ $nameLabel }}"
-                                                            {{ ($field['required'] ?? false) && $namePart == 'first_name' ? 'required' : '' }}
+                                                            {{ ($field['required'] ?? false) && $namePart == 'first_name' && $prefix != 'mother' ? 'required' : '' }}
                                                         >
                                                     </div>
                                                 @endforeach
@@ -520,9 +519,18 @@
                                 @else
                                 {{-- تحديد الحقول المشروطة التي تحتاج إخفاء/إظهار --}}
                                 @php
+                                    // 🆕 حقول الأم مخفية افتراضياً - يتحكم فيها JavaScript
+                                    $isMotherField = $isMotherDeathField || $isLivingMotherField;
+
                                     $isConditionalField = in_array($field['db_column'], ['field_treatment_cost', 'field_family_disease_cost', 'field_orphan_health']);
-                                    $conditionalWrapperStyle = '';
                                     $conditionalWrapperId = '';
+                                    $conditionalWrapperStyle = '';
+
+                                    // 🔥 إزالة required من الحقول المخفية - حل جذري
+                                    $fieldRequired = ($field['required'] ?? false);
+                                    if ($isMotherField || $isConditionalField) {
+                                        $fieldRequired = false; // حقول مشروطة لا تكون required في HTML
+                                    }
 
                                     if ($field['db_column'] == 'field_treatment_cost') {
                                         $conditionalWrapperId = 'treatment_cost_field_wrapper';
@@ -533,9 +541,12 @@
                                     } elseif ($field['db_column'] == 'field_family_disease_cost') {
                                         $conditionalWrapperId = 'family_disease_cost_field_wrapper';
                                         $conditionalWrapperStyle = ($fieldValues['field_family_sick_member'] ?? '') == 'نعم' ? '' : 'display: none;';
+                                    } elseif ($isMotherField) {
+                                        // حقول الأم مخفية افتراضياً
+                                        $conditionalWrapperStyle = 'display: none;';
                                     }
                                 @endphp
-                                <div class="col-md-6 col-12" @if($isConditionalField) id="{{ $conditionalWrapperId }}" style="{{ $conditionalWrapperStyle }}" @endif>
+                                <div class="col-md-6 col-12" @if($isConditionalField) id="{{ $conditionalWrapperId }}" @endif @if($conditionalWrapperStyle) style="{{ $conditionalWrapperStyle }}" @endif>
                                     <label class="info-label">
                                         <i class="bi bi-dot me-1"></i>
                                         {{ $field['display_name'] }}
@@ -556,7 +567,7 @@
                                                 placeholder="أدخل رقم الهوية (9 أرقام)"
                                                 pattern="[0-9]{9,10}"
                                                 maxlength="10"
-                                                {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                                {{ $fieldRequired ? 'required' : '' }}
                                                 @if($guardianNeedsCivilSearch)
                                                     oninput="handleGuardianIdentityInput(this)"
                                                 @endif
@@ -579,12 +590,24 @@
                                                أدخل رقم الهوية بشكل دقيق
                                             </small>
                                         @endif
+                                    @elseif($field['db_column'] == 'field_mother_status')
+                                        {{-- Mother Status Dropdown - حالة الأم --}}
+                                        <select
+                                            name="fields[{{ $field['db_column'] }}]"
+                                            class="form-select"
+                                            id="field_mother_status"
+                                            {{ $fieldRequired ? 'required' : '' }}
+                                        >
+                                            <option value="">اختر حالة الأم</option>
+                                            <option value="حية" {{ $value == 'حية' ? 'selected' : '' }}>حية</option>
+                                            <option value="متوفية" {{ $value == 'متوفية' ? 'selected' : '' }}>متوفية</option>
+                                        </select>
                                     @elseif($field['db_column'] == 'field_health_status')
                                         {{-- Health Status Dropdown --}}
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر الحالة الصحية</option>
                                             @foreach($healthStatuses as $status)
@@ -599,7 +622,7 @@
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر حالة السكن</option>
                                             @foreach($housingStatuses as $status)
@@ -614,7 +637,7 @@
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر نوع السكن</option>
                                             @foreach($housingTypes as $type)
@@ -629,7 +652,7 @@
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر حالة الهدم</option>
                                             <option value="غير مهدوم" {{ $value == 'غير مهدوم' ? 'selected' : '' }}>غير مهدوم</option>
@@ -641,7 +664,7 @@
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر حالة الترميم</option>
                                             <option value="لا يحتاج" {{ $value == 'لا يحتاج' ? 'selected' : '' }}>لا يحتاج</option>
@@ -654,7 +677,7 @@
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر الصف</option>
                                             @foreach($academicDegrees as $degree)
@@ -669,7 +692,7 @@
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر مستوى الطالب</option>
                                             <option value="ممتاز" {{ $value == 'ممتاز' ? 'selected' : '' }}>ممتاز</option>
@@ -683,7 +706,7 @@
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر سبب الضعف</option>
                                             <option value="ظروف نفسية" {{ $value == 'ظروف نفسية' ? 'selected' : '' }}>ظروف نفسية</option>
@@ -698,7 +721,7 @@
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر</option>
                                             <option value="نعم" {{ $value == 'نعم' ? 'selected' : '' }}>نعم</option>
@@ -709,7 +732,7 @@
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر الحالة النفسية</option>
                                             <option value="مستقرة" {{ $value == 'مستقرة' ? 'selected' : '' }}>مستقرة</option>
@@ -723,7 +746,7 @@
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر الحالة السلوكية</option>
                                             <option value="جيدة" {{ $value == 'جيدة' ? 'selected' : '' }}>جيدة</option>
@@ -737,7 +760,7 @@
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر سلوك اليتيم</option>
                                             <option value="ملتزم" {{ $value == 'ملتزم' ? 'selected' : '' }}>ملتزم</option>
@@ -749,7 +772,7 @@
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر الإلتزام الديني</option>
                                             <option value="ملتزم" {{ $value == 'ملتزم' ? 'selected' : '' }}>ملتزم</option>
@@ -761,7 +784,7 @@
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر مقدار الحفظ</option>
                                             <option value="لا يحفظ" {{ $value == 'لا يحفظ' ? 'selected' : '' }}>لا يحفظ</option>
@@ -774,7 +797,7 @@
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر مستوى الالتزام</option>
                                             <option value="دائمًا" {{ $value == 'دائمًا' ? 'selected' : '' }}>دائمًا</option>
@@ -787,7 +810,7 @@
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
                                             id="field_receives_treatment"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                             onchange="toggleTreatmentCost(this.value)"
                                         >
                                             <option value="">اختر</option>
@@ -799,7 +822,7 @@
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر تكاليف العلاج</option>
                                             <option value="لا يوجد" {{ $value == 'لا يوجد' ? 'selected' : '' }}>لا يوجد</option>
@@ -813,7 +836,7 @@
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
                                             id="field_family_sick_member"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                             onchange="toggleFamilyDiseaseCost(this.value)"
                                         >
                                             <option value="">اختر</option>
@@ -825,7 +848,7 @@
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر الحالة الصحية</option>
                                             @foreach($healthStatuses as $status)
@@ -840,7 +863,7 @@
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر الحالة</option>
                                             @foreach($employmentStatuses as $employment)
@@ -855,7 +878,7 @@
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر احتياج المكفول</option>
                                             @foreach($orphanNeeds as $need)
@@ -870,7 +893,7 @@
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر جانب الإبداع</option>
                                             @foreach($creativityAspects as $aspect)
@@ -889,14 +912,14 @@
                                             value="{{ old('fields.' . $field['db_column'], $value) }}"
                                             min="0"
                                             placeholder="أدخل {{ $field['display_name'] }}"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                     @elseif($field['db_column'] == 'field_sponsorship_impact')
                                         {{-- Sponsorship Impact Dropdown - تأثير الكفالة --}}
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر تأثير الكفالة</option>
                                             <option value="إيجابي جدًا" {{ $value == 'إيجابي جدًا' ? 'selected' : '' }}>إيجابي جدًا</option>
@@ -909,7 +932,7 @@
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر اسم البنك</option>
                                             @foreach($bankNames as $bank)
@@ -924,7 +947,7 @@
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر سبب الوفاة</option>
                                             @foreach($deathReasons as $reason)
@@ -939,7 +962,7 @@
                                         <select
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر المدينة</option>
                                             @foreach($cities as $city)
@@ -958,8 +981,7 @@
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
                                             id="guardian_relationship"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
-                                            onchange="handleRelationshipChange(this.value)"
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر صلة القرابة</option>
                                             @foreach($categoryOfRelations as $relation)
@@ -978,8 +1000,7 @@
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-select"
                                             id="data_relationship"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
-                                            onchange="handleRelationshipChange(this.value)"
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                             <option value="">اختر صلة القرابة</option>
                                             @foreach($categoryOfRelations as $relation)
@@ -996,7 +1017,7 @@
                                             class="form-control"
                                             rows="3"
                                             placeholder="أدخل {{ $field['display_name'] }}"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >{{ old('fields.' . $field['db_column'], $value) }}</textarea>
                                     @elseif(Str::contains($fieldKey, ['_date', '_birth_date']) || (Str::contains($fieldKey, ['death']) && Str::contains($fieldKey, ['date'])))
                                         {{-- Date Input - فقط للحقول التي تحتوي على _date أو _birth_date أو death_date --}}
@@ -1005,7 +1026,7 @@
                                             name="fields[{{ $field['db_column'] }}]"
                                             class="form-control"
                                             value="{{ old('fields.' . $field['db_column'], $value) }}"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                     @elseif(Str::contains($fieldKey, ['phone', 'mobile', 'tel']))
                                         {{-- Phone Input --}}
@@ -1016,7 +1037,7 @@
                                             value="{{ old('fields.' . $field['db_column'], $value) }}"
                                             placeholder="مثال: 0599123456"
                                             pattern="[0-9]*"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                     @elseif(Str::contains($fieldKey, ['email', 'mail']))
                                         {{-- Email Input --}}
@@ -1026,7 +1047,7 @@
                                             class="form-control"
                                             value="{{ old('fields.' . $field['db_column'], $value) }}"
                                             placeholder="example@email.com"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                     @elseif($field['db_column'] == 'field_guardian_id_owner')
                                         {{-- حقل رقم هوية صاحب الحساب مع البحث في قاعدة البيانات المركزية --}}
@@ -1041,7 +1062,7 @@
                                                 pattern="[0-9]{9,10}"
                                                 maxlength="10"
                                                 oninput="this.value = this.value.replace(/[^0-9]/g, ''); searchBankOwnerInCivil(this.value);"
-                                                {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                                {{ $fieldRequired ? 'required' : '' }}
                                             >
                                             <span class="input-group-text bg-light" id="bank_owner_spinner" style="display: none;">
                                                 <i class="bi bi-hourglass-split text-primary"></i>
@@ -1061,8 +1082,28 @@
                                             class="form-control"
                                             value="{{ old('fields.' . $field['db_column'], $value) }}"
                                             placeholder="أدخل {{ $field['display_name'] }}"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
+                                    @elseif($field['db_column'] == 'field_living_mother_id')
+                                        {{-- حقل رقم هوية الأم الحية مع البحث في السجل المدني --}}
+                                        <div class="input-group">
+                                            <input
+                                                type="text"
+                                                name="fields[{{ $field['db_column'] }}]"
+                                                id="living_mother_identity"
+                                                class="form-control"
+                                                value="{{ old('fields.' . $field['db_column'], $value) }}"
+                                                placeholder="أدخل رقم الهوية (9 أرقام)"
+                                                pattern="[0-9]{9,10}"
+                                                maxlength="10"
+                                                oninput="this.value = this.value.replace(/[^0-9]/g, '');"
+                                                {{ $fieldRequired ? 'required' : '' }}
+                                            >
+                                            <span class="input-group-text bg-light">
+                                                <i class="bi bi-search text-primary"></i>
+                                            </span>
+                                        </div>
+
                                     @elseif(Str::contains($fieldKey, ['age', 'count', 'duration', 'months']) && !Str::contains($fieldKey, ['account', 'phone', 'iban', 'id']))
                                         {{-- Number Input --}}
                                         <input
@@ -1071,7 +1112,7 @@
                                             class="form-control"
                                             value="{{ old('fields.' . $field['db_column'], $value) }}"
                                             min="0"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                     @else
                                         {{-- Text Input (Default) --}}
@@ -1081,7 +1122,7 @@
                                             class="form-control"
                                             value="{{ old('fields.' . $field['db_column'], $value) }}"
                                             placeholder="أدخل {{ $field['display_name'] }}"
-                                            {{ ($field['required'] ?? false) ? 'required' : '' }}
+                                            {{ $fieldRequired ? 'required' : '' }}
                                         >
                                     @endif
 
@@ -1398,6 +1439,125 @@
 
         <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
         <script>
+        // التحكم الديناميكي الكامل في حقول الأم
+        function updateMotherFieldsVisibility() {
+            const guardianRelationship = document.querySelector('[name="fields[field_guardian_relationship]"]') ||
+                                        document.querySelector('[name="fields[field_data_relationship]"]') ||
+                                        document.getElementById('guardian_relationship');
+            const motherStatusSelect = document.querySelector('[name="fields[field_mother_status]"]');
+
+            if (!motherStatusSelect) return;
+
+            const isMotherGuardian = guardianRelationship && guardianRelationship.value == '2';
+            const motherStatus = motherStatusSelect.value;
+
+            console.log('تحديث ظهور حقول الأم:', { isMotherGuardian, motherStatus });
+
+            // حقول الأم المتوفية
+            const motherDeathFields = [
+                'field_mother_first_name',
+                'field_mother_id',
+                'field_mother_death_date',
+                'field_mother_death_reason'
+            ];
+
+            // حقول الأم الحية (مع رقم الهوية أولاً)
+            const livingMotherFields = [
+                'field_living_mother_id',
+                'field_living_mother_first_name',
+                'field_living_mother_second_name',
+                'field_living_mother_third_name',
+                'field_living_mother_last_name'
+            ];
+
+            // إخفاء/إظهار قسم اختيار حالة الأم
+            const motherStatusWrapper = motherStatusSelect.closest('.col-6, .col-12, .col-md-6');
+            if (motherStatusWrapper) {
+                motherStatusWrapper.style.display = isMotherGuardian ? 'none' : '';
+            }
+
+            if (isMotherGuardian) {
+                // المعيل هو الأم - إخفاء جميع الحقول
+                livingMotherFields.forEach(fieldName => {
+                    const wrapper = document.querySelector(`[name="fields[${fieldName}]"]`)?.closest('.col-6, .col-12, .col-md-6');
+                    const input = document.querySelector(`[name="fields[${fieldName}]"]`);
+                    if (wrapper) wrapper.style.display = 'none';
+                    if (input) input.removeAttribute('required');
+                });
+                motherDeathFields.forEach(fieldName => {
+                    const wrapper = document.querySelector(`[name="fields[${fieldName}]"]`)?.closest('.col-6, .col-12, .col-md-6');
+                    const input = document.querySelector(`[name="fields[${fieldName}]"]`);
+                    if (wrapper) wrapper.style.display = 'none';
+                    if (input) input.removeAttribute('required');
+                });
+                // 🔥 إخفاء wrapper حقول اسم الأم المتوفية
+                document.querySelectorAll('.mother-deceased-field').forEach(el => {
+                    el.style.display = 'none';
+                    el.querySelectorAll('input, select, textarea').forEach(input => input.removeAttribute('required'));
+                });
+            } else {
+                // المعيل ليس الأم - عرض الحقول حسب الاختيار
+                if (motherStatus === 'متوفية') {
+                    // عرض حقول الأم المتوفية فقط
+                    motherDeathFields.forEach(fieldName => {
+                        const wrapper = document.querySelector(`[name="fields[${fieldName}]"]`)?.closest('.col-6, .col-12, .col-md-6');
+                        if (wrapper) wrapper.style.display = '';
+                    });
+                    // 🔥 عرض wrapper حقول اسم الأم المتوفية
+                    document.querySelectorAll('.mother-deceased-field').forEach(el => {
+                        el.style.display = '';
+                    });
+                    livingMotherFields.forEach(fieldName => {
+                        const wrapper = document.querySelector(`[name="fields[${fieldName}]"]`)?.closest('.col-6, .col-12, .col-md-6');
+                        const input = document.querySelector(`[name="fields[${fieldName}]"]`);
+                        if (wrapper) wrapper.style.display = 'none';
+                        if (input) input.removeAttribute('required');
+                    });
+                } else if (motherStatus === 'حية') {
+                    // عرض حقول الأم الحية فقط
+                    livingMotherFields.forEach(fieldName => {
+                        const wrapper = document.querySelector(`[name="fields[${fieldName}]"]`)?.closest('.col-6, .col-12, .col-md-6');
+                        if (wrapper) wrapper.style.display = '';
+                    });
+                    motherDeathFields.forEach(fieldName => {
+                        const wrapper = document.querySelector(`[name="fields[${fieldName}]"]`)?.closest('.col-6, .col-12, .col-md-6');
+                        const input = document.querySelector(`[name="fields[${fieldName}]"]`);
+                        if (wrapper) wrapper.style.display = 'none';
+                        if (input) input.removeAttribute('required');
+                    });
+                    // 🔥 إخفاء wrapper حقول اسم الأم المتوفية
+                    document.querySelectorAll('.mother-deceased-field').forEach(el => {
+                        el.style.display = 'none';
+                        el.querySelectorAll('input, select, textarea').forEach(input => input.removeAttribute('required'));
+                    });
+                } else {
+                    // لم يتم الاختيار - إخفاء جميع حقول البيانات
+                    livingMotherFields.forEach(fieldName => {
+                        const wrapper = document.querySelector(`[name="fields[${fieldName}]"]`)?.closest('.col-6, .col-12, .col-md-6');
+                        const input = document.querySelector(`[name="fields[${fieldName}]"]`);
+                        if (wrapper) wrapper.style.display = 'none';
+                        if (input) input.removeAttribute('required');
+                    });
+                    motherDeathFields.forEach(fieldName => {
+                        const wrapper = document.querySelector(`[name="fields[${fieldName}]"]`)?.closest('.col-6, .col-12, .col-md-6');
+                        const input = document.querySelector(`[name="fields[${fieldName}]"]`);
+                        if (wrapper) wrapper.style.display = 'none';
+                        if (input) input.removeAttribute('required');
+                    });
+                    // 🔥 إخفاء wrapper حقول اسم الأم المتوفية
+                    document.querySelectorAll('.mother-deceased-field').forEach(el => {
+                        el.style.display = 'none';
+                        el.querySelectorAll('input, select, textarea').forEach(input => input.removeAttribute('required'));
+                    });
+                }
+            }
+        }
+
+        // دالة مساعدة للتوافق
+        function toggleMotherFields(status) {
+            updateMotherFieldsVisibility();
+        }
+
         // التحكم في إظهار/إخفاء حقول العلاج (تكاليف العلاج + الوضع الصحي للمكفول)
         function toggleTreatmentCost(value) {
             const treatmentCostWrapper = document.getElementById('treatment_cost_field_wrapper');
@@ -1426,6 +1586,46 @@
 
         // تهيئة حالة الحقول المشروطة عند تحميل الصفحة
         document.addEventListener('DOMContentLoaded', function() {
+            const motherStatusSelect = document.querySelector('[name="fields[field_mother_status]"]');
+            const guardianRelationship = document.querySelector('[name="fields[field_guardian_relationship]"]') ||
+                                        document.querySelector('[name="fields[field_data_relationship]"]') ||
+                                        document.getElementById('guardian_relationship');
+
+            if (motherStatusSelect) {
+                // التهيئة الأولية
+                if (guardianRelationship && guardianRelationship.value == '2' && !motherStatusSelect.value) {
+                    motherStatusSelect.value = 'حية';
+                    motherStatusSelect.disabled = true;
+                }
+
+                // تحديث الظهور عند التحميل
+                updateMotherFieldsVisibility();
+
+                // مراقبة تغيير حالة الأم
+                motherStatusSelect.addEventListener('change', function() {
+                    updateMotherFieldsVisibility();
+                });
+
+                // مراقبة تغيير صلة القرابة
+                if (guardianRelationship) {
+                    guardianRelationship.addEventListener('change', function() {
+                        if (this.value == '2') {
+                            // المعيل هو الأم
+                            motherStatusSelect.value = 'حية';
+                            motherStatusSelect.disabled = true;
+                        } else {
+                            // المعيل ليس الأم
+                            motherStatusSelect.disabled = false;
+                            // إذا كانت القيمة "حية" تلقائياً، إفراغها
+                            if (motherStatusSelect.value === 'حية') {
+                                motherStatusSelect.value = '';
+                            }
+                        }
+                        updateMotherFieldsVisibility();
+                    });
+                }
+            }
+
             // تهيئة حقل تكاليف العلاج والوضع الصحي
             const receivesTreatmentSelect = document.getElementById('field_receives_treatment');
             if (receivesTreatmentSelect) {
@@ -1437,45 +1637,55 @@
             if (familySickMemberSelect) {
                 toggleFamilyDiseaseCost(familySickMemberSelect.value);
             }
+
+            // 🔥 حذف الحقول المخفية قبل الإرسال - حل جذري نهائي
+            const form = document.getElementById('sponsorshipForm');
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    // حذف required من جميع الحقول المخفية
+                    removeRequiredFromHiddenFields();
+                });
+            }
         });
 
-        // التعامل مع تغيير صلة القرابة
-        function handleRelationshipChange(relationshipId) {
-            // id = 2 يمثل "أم"
-            const isMotherRelationship = (relationshipId == '2');
+        // 🔥 دالة إزالة required من الحقول المخفية - حل جذري 100%
+        function removeRequiredFromHiddenFields() {
+            // البحث عن جميع الحقول في الفورم
+            const allInputs = document.querySelectorAll('#sponsorshipForm input, #sponsorshipForm select, #sponsorshipForm textarea');
 
-            // البحث عن جميع حقول الأم وإخفائها/عرضها
-            const motherFieldNames = [
-                'field_mother_first_name', 'field_mother_second_name',
-                'field_mother_third_name', 'field_mother_last_name',
-                'field_mother_id', 'field_mother_death_date', 'field_mother_death_reason'
-            ];
-
-            motherFieldNames.forEach(function(fieldName) {
-                // البحث عن الحقل بالاسم
-                const inputs = document.querySelectorAll('[name*="' + fieldName + '"]');
-                inputs.forEach(function(input) {
-                    // الصعود للعنصر الأب (div.col-md-6 أو div.col-12)
-                    let container = input.closest('.col-md-6, .col-12');
-                    if (container) {
-                        container.style.display = isMotherRelationship ? 'none' : 'block';
-                    }
-                });
-
-                // البحث عن حقول الأسماء المنفصلة (names[mother][...])
-                const nameInputs = document.querySelectorAll('[name^="names[mother]"]');
-                nameInputs.forEach(function(input) {
-                    let container = input.closest('.col-12');
-                    if (container) {
-                        container.style.display = isMotherRelationship ? 'none' : 'block';
-                    }
-                });
+            allInputs.forEach(input => {
+                // تحقق إذا كان الحقل مخفي (غير مرئي)
+                if (!isElementVisible(input)) {
+                    // إزالة required
+                    input.removeAttribute('required');
+                    console.log('🔥 إزالة required من حقل مخفي:', input.name);
+                }
             });
 
-            // إظهار رسالة توضيحية
-            if (isMotherRelationship) {
-                console.log('صلة القرابة: أم - تم إخفاء حقول الأم المتوفية');
+            console.log('✅ تم إزالة required من جميع الحقول المخفية');
+        }
+
+        // دالة فحص إذا كان العنصر مرئي
+        function isElementVisible(el) {
+            if (!el) return false;
+
+            // فحص الحقل نفسه
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+                return false;
             }
+
+            // فحص جميع العناصر الأب
+            let parent = el.parentElement;
+            while (parent && parent !== document.body) {
+                const parentStyle = window.getComputedStyle(parent);
+                if (parentStyle.display === 'none' || parentStyle.visibility === 'hidden') {
+                    return false;
+                }
+                parent = parent.parentElement;
+            }
+
+            return true;
         }
 
         // البحث في قاعدة البيانات المركزية عند إدخال رقم الهوية
@@ -1518,6 +1728,12 @@
                 setInputValue('names[mother][second_name]', data.second_name);
                 setInputValue('names[mother][third_name]', data.third_name);
                 setInputValue('names[mother][last_name]', data.last_name);
+            } else if (personType === 'living_mother') {
+                // ملء حقول الأم الحية
+                setInputValue('fields[field_living_mother_first_name]', data.first_name);
+                setInputValue('fields[field_living_mother_second_name]', data.second_name);
+                setInputValue('fields[field_living_mother_third_name]', data.third_name);
+                setInputValue('fields[field_living_mother_last_name]', data.last_name);
             }
 
             Swal.fire({
@@ -1547,7 +1763,7 @@
                 });
             }
 
-            // حقل رقم هوية الأم
+            // حقل رقم هوية الأم المتوفية
             const motherIdInput = document.querySelector('[name="fields[field_mother_id]"]');
             if (motherIdInput) {
                 motherIdInput.addEventListener('blur', function() {
@@ -1555,16 +1771,14 @@
                 });
             }
 
-            // تطبيق حالة صلة القرابة عند التحميل
-            const relationshipSelect = document.getElementById('guardian_relationship');
-            if (relationshipSelect && relationshipSelect.value) {
-                handleRelationshipChange(relationshipSelect.value);
-            }
-
-            // تطبيق حالة صلة القرابة للمعيل التفصيلي
-            const dataRelationshipSelect = document.getElementById('data_relationship');
-            if (dataRelationshipSelect && dataRelationshipSelect.value) {
-                handleRelationshipChange(dataRelationshipSelect.value);
+            // 🆕 حقل رقم هوية الأم الحية
+            const livingMotherIdInput = document.querySelector('[name="fields[field_living_mother_id]"]');
+            if (livingMotherIdInput) {
+                livingMotherIdInput.addEventListener('blur', function() {
+                    if (this.value && this.value.length >= 9) {
+                        searchCivilRegistry(this.value, 'living_mother');
+                    }
+                });
             }
         });
 
