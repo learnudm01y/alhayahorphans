@@ -2048,6 +2048,16 @@ class ShowGeneralRegisrationController extends Controller
                 ]);
             }
 
+            // ✅ تحديث حالة الكفالة إلى "محدث" (ID = 3) بعد حفظ البيانات
+            $sponsorship->sponsorship_status_id = 3; // 3 = محدث
+            $sponsorship->save();
+
+            Log::info('SPONSORSHIP_STATUS_UPDATED', [
+                'sponsorship_id' => $sponsorship->id,
+                'new_status_id' => 3,
+                'status_name' => 'محدث'
+            ]);
+
             DB::commit();
 
             // 🆕 إضافة Job لإنشاء تقرير PDF إلى الطابور بعد حفظ البيانات

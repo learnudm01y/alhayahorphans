@@ -1664,13 +1664,19 @@ class SponsorshipController extends Controller
                 'filters' => $request->all()
             ]);
 
-            // بناء الاستعلام مع الفلاتر
+            // بناء الاستعلام مع الفلاتر - INCLUDING BANKING DATA
             $query = Sponsorship::with([
                 'sponsor',
                 'sponsors',
                 'sponsorshipType',
                 'sponsorshipStatus',
-                'creator'
+                'creator',
+                'guardianData',
+                'guardianData.city',
+                'guardianData.province',
+                'relationData',
+                'relationData.city',
+                'relationData.province'
             ]);
 
             // تطبيق فلتر المؤسسة الكافلة
@@ -1712,6 +1718,7 @@ class SponsorshipController extends Controller
                 }
             }
 
+            // ✅ استخدام get() بدلاً من paginate() لجلب جميع السجلات
             $sponsorships = $query->orderBy('id', 'desc')->get();
 
             Log::info('✅ تم جلب البيانات للتصدير', [
@@ -1722,6 +1729,14 @@ class SponsorshipController extends Controller
             // إنشاء ملف Excel باستخدام PhpSpreadsheet
             $spreadsheet = new Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
+
+            // ✅ جلب الأعمدة المرئية من الطلب
+            $visibleColumns = $request->get('visible_columns', []);
+
+            Log::info('📋 الأعمدة المرئية المستلمة', [
+                'visible_columns' => $visibleColumns,
+                'count' => count($visibleColumns)
+            ]);
 
             // تحديد الرؤوس والبيانات حسب نوع التصدير
             if ($exportType === 'login') {
@@ -1780,80 +1795,166 @@ class SponsorshipController extends Controller
                 $filename = 'sponsorships_login_' . date('Y-m-d_His') . '.xlsx';
 
             } else {
-                // تصدير كامل البيانات (الطريقة القديمة)
-                $headers = [
-                    '#',
-                    'المؤسسة الكافلة',
-                    'رقم ملف داخلي',
-                    'رقم ملف خارجي',
-                    'رقم هوية ولي الأمر',
-                    'رقم هوية اليتيم',
-                    'اسم اليتيم',
-                    'اسم ولي الأمر',
-                    'المؤسسة الراعية',
-                    'تاريخ بدء الكفالة',
-                    'تاريخ نهاية الكفالة',
-                    'مدة الكفالة (أشهر)',
-                    'نوع الكفالة',
-                    'حالة الكفالة',
-                    'المبلغ الشهري',
-                    'ملاحظات',
-                    'تم الإنشاء بواسطة',
-                    'تاريخ الإنشاء',
+                // ✅ تصدير كامل البيانات - بناءً على الأعمدة المرئية
+
+                // تعريف جميع الأعمدة المتاحة
+                $allColumns = [
+                    'orphan_name' => ['title' => 'الإسم', 'callback' => function($s) { return $s->orphan_name ?: '-'; }],
+                    'identity_number' => ['title' => 'رقم الهوية', 'callback' => function($s) { return $s->identity_number ?: '-'; }],
+                    'guardian_name' => ['title' => 'إسم المعيل', 'callback' => function($s) { return $s->guardian_name ?: '-'; }],
+                    'guardian_identity' => ['title' => 'رقم هوية المعيل', 'callback' => function($s) { return $s->guardian_identity_number ?: '-'; }],
+                    'sponsor_name' => ['title' => 'إسم المؤسسة الكافلة', 'callback' => function($s) {
+                        return $s->sponsors && $s->sponsors->count() > 0 ? $s->sponsors->pluck('sponsor_name')->implode(' + ') : ($s->sponsor ? $s->sponsor->sponsor_name : '-');
+                    }],
+                    'sponsoring_organization' => ['title' => 'إسم الكافل', 'callback' => function($s) { return $s->sponsoring_organization ?: '-'; }],
+                    'internal_file_number' => ['title' => 'رقم الملف الداخلي', 'callback' => function($s) { return $s->internal_file_number ?: '-'; }],
+                    'external_file_number' => ['title' => 'رقم الملف الخارجي', 'callback' => function($s) { return $s->external_file_number ?: '-'; }],
+                    'sponsorship_duration' => ['title' => 'مدة الكفالة', 'callback' => function($s) {
+                        return $s->sponsorship_duration_months ? $s->sponsorship_duration_months . ' شهر' : '-';
+                    }],
+                    'sponsorship_period' => ['title' => 'فترة الكفالة', 'callback' => function($s) {
+                        $start = $s->sponsorship_start_date ? $s->sponsorship_start_date->format('Y-m-d') : '-';
+                        $end = $s->sponsorship_end_date ? $s->sponsorship_end_date->format('Y-m-d') : '-';
+                        return $start . ' → ' . $end;
+                    }],
+                    'sponsorship_type' => ['title' => 'نوع الكفالة', 'callback' => function($s) { return $s->sponsorshipType?->description ?: '-'; }],
+                    'sponsorship_status' => ['title' => 'حالة الكفالة', 'callback' => function($s) { return $s->sponsorshipStatus?->description ?: '-'; }],
+                    'city' => ['title' => 'المدينة', 'callback' => function($s) {
+                        if ($s->relationData && $s->relationData->city) return $s->relationData->city->city;
+                        if ($s->guardianData && $s->guardianData->city) return $s->guardianData->city->city;
+                        return '-';
+                    }],
+                    'address' => ['title' => 'العنوان', 'callback' => function($s) {
+                        if ($s->relationData && $s->relationData->data_current_address) return $s->relationData->data_current_address;
+                        if ($s->guardianData && $s->guardianData->data_current_address) return $s->guardianData->data_current_address;
+                        return '-';
+                    }],
+                    'bank_name' => ['title' => 'إسم البنك', 'callback' => function($s) {
+                        $fileId = $s->relationData?->file_id_number ?: $s->guardianData?->file_id_number;
+                        if ($fileId) {
+                            $account = GuardianBankAccount::where('guardian_registration', $fileId)->where('check_account', 1)->first();
+                            if ($account) {
+                                $bankName = $account->bank_name;
+                                if (is_numeric($bankName)) {
+                                    $bankModel = \App\Models\BankName::find($bankName);
+                                    return $bankModel ? $bankModel->description : $bankName;
+                                }
+                                return $bankName;
+                            }
+                        }
+                        return '-';
+                    }],
+                    'account_holder_name' => ['title' => 'إسم صاحب الحساب', 'callback' => function($s) {
+                        $fileId = $s->relationData?->file_id_number ?: $s->guardianData?->file_id_number;
+                        if ($fileId) {
+                            $account = GuardianBankAccount::where('guardian_registration', $fileId)->where('check_account', 1)->first();
+                            return $account?->re_guardian_name ?: '-';
+                        }
+                        return '-';
+                    }],
+                    'account_holder_id' => ['title' => 'رقم هوية صاحب الحساب', 'callback' => function($s) {
+                        $fileId = $s->relationData?->file_id_number ?: $s->guardianData?->file_id_number;
+                        if ($fileId) {
+                            $account = GuardianBankAccount::where('guardian_registration', $fileId)->where('check_account', 1)->first();
+                            return $account?->person_owner_identity_number ?: '-';
+                        }
+                        return '-';
+                    }],
+                    'account_phone' => ['title' => 'رقم الجوال المربوط بالحساب', 'callback' => function($s) {
+                        $fileId = $s->relationData?->file_id_number ?: $s->guardianData?->file_id_number;
+                        if ($fileId) {
+                            $account = GuardianBankAccount::where('guardian_registration', $fileId)->where('check_account', 1)->first();
+                            return $account?->re_phone_number ?: '-';
+                        }
+                        return '-';
+                    }],
+                    'iban_shekel_export' => ['title' => 'حساب شيكل (IBAN)', 'callback' => function($s) {
+                        $fileId = $s->relationData?->file_id_number ?: $s->guardianData?->file_id_number;
+                        if ($fileId) {
+                            $account = GuardianBankAccount::where('guardian_registration', $fileId)->where('check_account', 1)->first();
+                            return $account?->iban_shekel ?: '-';
+                        }
+                        return '-';
+                    }],
+                    'iban_usd_export' => ['title' => 'حساب دولار (IBAN)', 'callback' => function($s) {
+                        $fileId = $s->relationData?->file_id_number ?: $s->guardianData?->file_id_number;
+                        if ($fileId) {
+                            $account = GuardianBankAccount::where('guardian_registration', $fileId)->where('check_account', 1)->first();
+                            return $account?->iban_usd ?: '-';
+                        }
+                        return '-';
+                    }],
+                    'remaining_days' => ['title' => 'المتبقي', 'callback' => function($s) {
+                        if ($s->remaining_days !== null) {
+                            if ($s->remaining_days == 0) return 'منتهية';
+                            return $s->remaining_days . ' يوم';
+                        }
+                        return 'غير محدد';
+                    }],
+                    'created_at' => ['title' => 'تاريخ الإضافة', 'callback' => function($s) { return $s->created_at->format('Y-m-d H:i:s'); }],
                 ];
 
-                // كتابة رؤوس الأعمدة
-                $sheet->fromArray($headers, NULL, 'A1');            // تنسيق رؤوس الأعمدة
-            $headerStyle = [
-                'font' => [
-                    'bold' => true,
-                    'size' => 12,
-                    'color' => ['rgb' => 'FFFFFF']
-                ],
-                'fill' => [
-                    'fillType' => Fill::FILL_SOLID,
-                    'startColor' => ['rgb' => '009EF7']
-                ],
-                'alignment' => [
-                    'horizontal' => Alignment::HORIZONTAL_CENTER,
-                    'vertical' => Alignment::VERTICAL_CENTER,
-                ]
-            ];
-            $sheet->getStyle('A1:R1')->applyFromArray($headerStyle);
+                // ✅ تحديد الأعمدة المراد تصديرها بناءً على الأعمدة المرئية
+                $columnsToExport = [];
 
-            // كتابة البيانات
-            $row = 2;
-            foreach ($sponsorships as $sponsorship) {
-                $sponsorNames = $sponsorship->sponsors->pluck('sponsor_name')->implode(' + ');
+                if (!empty($visibleColumns) && is_array($visibleColumns)) {
+                    // استخدام الأعمدة المرئية المرسلة من الواجهة
+                    Log::info('✅ استخدام الأعمدة المرئية من الواجهة');
+                    foreach ($visibleColumns as $colName) {
+                        if (isset($allColumns[$colName])) {
+                            $columnsToExport[$colName] = $allColumns[$colName];
+                        } else {
+                            Log::warning('⚠️ عمود غير موجود في التعريفات', ['column' => $colName]);
+                        }
+                    }
+                } else {
+                    // إذا لم يتم إرسال أعمدة، استخدم جميع الأعمدة
+                    Log::info('⚠️ لم يتم إرسال أعمدة مرئية، سيتم استخدام جميع الأعمدة');
+                    $columnsToExport = $allColumns;
+                }
 
-                $data = [
-                    $sponsorship->id,
-                    $sponsorNames ?: '-',
-                    $sponsorship->internal_file_number ?: '-',
-                    $sponsorship->external_file_number ?: '-',
-                    $sponsorship->guardian_identity_number ?: '-',
-                    $sponsorship->identity_number ?: '-',
-                    $sponsorship->orphan_name ?: '-',
-                    $sponsorship->guardian_name ?: '-',
-                    $sponsorship->sponsoring_organization ?: '-',
-                    $sponsorship->sponsorship_start_date ? date('Y-m-d', strtotime($sponsorship->sponsorship_start_date)) : '-',
-                    $sponsorship->sponsorship_end_date ? date('Y-m-d', strtotime($sponsorship->sponsorship_end_date)) : '-',
-                    $sponsorship->sponsorship_duration_months ?: '-',
-                    $sponsorship->sponsorshipType?->description ?: '-',
-                    $sponsorship->sponsorshipStatus?->description ?: '-',
-                    $sponsorship->monthly_amount ?: '-',
-                    $sponsorship->notes ?: '-',
-                    $sponsorship->creator?->name ?: '-',
-                    $sponsorship->created_at ? $sponsorship->created_at->format('Y-m-d H:i') : '-',
+                Log::info('📊 عدد الأعمدة للتصدير', ['count' => count($columnsToExport)]);
+
+                // إنشاء رؤوس الأعمدة
+                $headers = array_map(function($col) { return $col['title']; }, $columnsToExport);
+                $sheet->fromArray($headers, NULL, 'A1');
+
+                // تنسيق رؤوس الأعمدة
+                $headerStyle = [
+                    'font' => [
+                        'bold' => true,
+                        'size' => 12,
+                        'color' => ['rgb' => 'FFFFFF']
+                    ],
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
+                        'startColor' => ['rgb' => '009EF7']
+                    ],
+                    'alignment' => [
+                        'horizontal' => Alignment::HORIZONTAL_CENTER,
+                        'vertical' => Alignment::VERTICAL_CENTER,
+                    ]
                 ];
 
-                $sheet->fromArray($data, NULL, 'A' . $row);
-                $row++;
-            }
+                $lastColumn = chr(64 + count($columnsToExport)); // A=65, so we use 64+count
+                $sheet->getStyle('A1:' . $lastColumn . '1')->applyFromArray($headerStyle);
+
+                // كتابة البيانات
+                $row = 2;
+                foreach ($sponsorships as $sponsorship) {
+                    $data = [];
+                    foreach ($columnsToExport as $colKey => $colDef) {
+                        $data[] = $colDef['callback']($sponsorship);
+                    }
+                    $sheet->fromArray($data, NULL, 'A' . $row);
+                    $row++;
+                }
 
                 // ضبط عرض الأعمدة تلقائياً
-                foreach (range('A', 'R') as $col) {
-                    $sheet->getColumnDimension($col)->setAutoSize(true);
+                $colIndex = 'A';
+                for ($i = 0; $i < count($columnsToExport); $i++) {
+                    $sheet->getColumnDimension($colIndex)->setAutoSize(true);
+                    $colIndex++;
                 }
 
                 $filename = 'sponsorships_' . date('Y-m-d_His') . '.xlsx';

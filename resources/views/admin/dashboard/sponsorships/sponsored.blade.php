@@ -2155,17 +2155,8 @@
             // تصدير Excel مع الفلاتر
             // ============================================
 
-            // تصدير كامل البيانات
-            // ربط زر تصدير كامل مع وظيفة DataTable Excel
+            // ✅ تصدير كامل البيانات - بناءً على الأعمدة المرئية
             $('#export_excel_full_btn').click(function() {
-                // تفعيل تصدير Excel من DataTable
-                var table = $('#sponsorships-table').DataTable();
-                table.button('.buttons-excel').trigger();
-                return;
-            });
-
-            // الكود القديم للتصدير (احتياطي)
-            $('#export_excel_full_btn_old').click(function() {
                 exportExcel('full');
             });
 
@@ -2183,6 +2174,33 @@
                 const typeFilter = $('#filter_sponsorship_type').val();
                 const statusFilter = $('#filter_sponsorship_status').val();
 
+                // ✅ جمع الأعمدة المرئية من DataTable (من زر التحكم بالأعمدة)
+                const visibleColumns = [];
+                if (type === 'full' && $.fn.DataTable.isDataTable('#sponsorships-table')) {
+                    const table = $('#sponsorships-table').DataTable();
+                    const columns = table.settings()[0].aoColumns;
+
+                    console.log('📋 جميع الأعمدة:', columns.length);
+
+                    columns.forEach(function(column, index) {
+                        // تحقق من أن العمود مرئي وله اسم data
+                        if (column.bVisible && column.data) {
+                            // استثناء أعمدة الإجراءات والأعمدة التي لا يجب تصديرها
+                            if (column.data !== 'actions' &&
+                                column.data !== 'sponsorship_status_dropdown' &&
+                                column.data !== 'bank_account_numbers') {
+                                visibleColumns.push(column.data);
+                                console.log('✅ عمود مرئي:', column.data, '| العنوان:', column.sTitle);
+                            }
+                        } else if (column.data) {
+                            console.log('❌ عمود مخفي:', column.data);
+                        }
+                    });
+
+                    console.log('📊 إجمالي الأعمدة المرئية للتصدير:', visibleColumns.length);
+                    console.log('📋 قائمة الأعمدة:', visibleColumns);
+                }
+
                 // بناء الـ URL
                 let exportUrl = '{{ route("admin.sponsorships.export") }}';
                 const params = [];
@@ -2197,6 +2215,13 @@
                 // إضافة البحث من DataTable
                 const searchValue = $('#sponsorships-table_filter input').val();
                 if (searchValue) params.push('search=' + encodeURIComponent(searchValue));
+
+                // ✅ إضافة الأعمدة المرئية للتصدير الكامل
+                if (type === 'full' && visibleColumns.length > 0) {
+                    visibleColumns.forEach(function(col) {
+                        params.push('visible_columns[]=' + encodeURIComponent(col));
+                    });
+                }
 
                 const queryString = params.length > 0 ? '?' + params.join('&') : '';
 

@@ -570,7 +570,7 @@ class SponsorshipsDataTable extends DataTable
             Column::computed('sponsorship_duration')->title('مدة الكفالة')->orderable(false)->searchable(false),
             Column::computed('sponsorship_period')->title('فترة الكفالة')->orderable(false)->searchable(false),
             Column::computed('sponsorship_type')->title('نوع الكفالة')->orderable(false)->searchable(false),
-            Column::computed('sponsorship_status')->title('حالة الكفالة')->orderable(false)->searchable(false)->visible(false),
+            Column::computed('sponsorship_status')->title('حالة الكفالة (نص)')->orderable(false)->searchable(false)->visible(false)->addClass('no-export'),
             Column::computed('sponsorship_status_dropdown')->title('حالة الكفالة')->orderable(false)->searchable(false)->addClass('no-export'),
             Column::computed('actions')
                 ->title('الإجراءات')
