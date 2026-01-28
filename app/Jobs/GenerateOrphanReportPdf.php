@@ -76,6 +76,16 @@ class GenerateOrphanReportPdf implements ShouldQueue
                 Storage::makeDirectory($folderPath);
             }
 
+            // ✅ حذف ملفات PDF القديمة لنفس الكفالة لتجنب التكرار
+            $existingFiles = Storage::files($folderPath);
+            foreach ($existingFiles as $file) {
+                // حذف ملفات orphan_report_*.pdf القديمة لنفس relation_id
+                if (basename($file) !== 'index.html' && str_starts_with(basename($file), 'orphan_report_' . $relationIdNumber)) {
+                    Storage::delete($file);
+                    Log::info('DELETED_OLD_PDF_REPORT', ['file' => $file]);
+                }
+            }
+
             // اسم الملف
             $fileName = 'orphan_report_' . $relationIdNumber . '_' . date('Y-m-d_H-i-s') . '.pdf';
             $fullPath = $folderPath . '/' . $fileName;
@@ -220,7 +230,7 @@ class GenerateOrphanReportPdf implements ShouldQueue
         // البيانات المدرسية (من portal فقط)
         $data['school_name'] = $portalFields->get('field_school_name')?->field_value ?? $na;
         $data['school_address'] = $portalFields->get('field_school_address')?->field_value ?? $na;
-        $data['grade_level'] = $portalFields->get('field_grade')?->field_value ?? $na;
+        // المرحلة الدراسية من field_grade فقط (إزالة grade_level)
         $data['academic_stage'] = $portalFields->get('field_grade')?->field_value ?? $na;
         $data['student_level'] = $portalFields->get('field_student_level')?->field_value ?? $na;
         $data['weakness_reason'] = $portalFields->get('field_weakness_reason')?->field_value ?? $na;
@@ -231,8 +241,49 @@ class GenerateOrphanReportPdf implements ShouldQueue
         $data['religious_commitment'] = $portalFields->get('field_religious_commitment')?->field_value ?? $na;
         $data['quran_memorization'] = $portalFields->get('field_quran_memorization')?->field_value ?? $na;
 
-        // البيانات الصحية (أولوية لـ portal)
-        $data['orphan_health_status'] = $portalFields->get('field_health_status')?->field_value ?? $data['health_status'] ?? $na;
+        // البيانات الصحية للمكفول - الأولوية لـ re_people.person_health_status
+        $orphanHealthStatus = null;
+
+        // الأولوية الأولى: جدول re_people (طالما نوع المكفول فرد عائلة)
+        if ($sponsorship->identity_number) {
+            $orphanRePeople = RePeople::where('person_id', $sponsorship->identity_number)->first();
+            if ($orphanRePeople && $orphanRePeople->person_health_status) {
+                $orphanHealthStatus = $this->getHealthStatus($orphanRePeople->person_health_status);
+                Log::info('ORPHAN_HEALTH_FROM_RE_PEOPLE', [
+                    'person_id' => $sponsorship->identity_number,
+                    'health_status_id' => $orphanRePeople->person_health_status,
+                    'health_status_text' => $orphanHealthStatus
+                ]);
+            }
+        }
+
+        // الأولوية الثانية: portal (field_health_status من النموذج)
+        if (!$orphanHealthStatus) {
+            $orphanHealthStatus = $portalFields->get('field_health_status')?->field_value;
+            if ($orphanHealthStatus) {
+                Log::info('ORPHAN_HEALTH_FROM_PORTAL', ['health_status' => $orphanHealthStatus]);
+            }
+        }
+
+        // الأولوية الثالثة: جدول data بناءً على رقم هوية المكفول
+        if (!$orphanHealthStatus && $sponsorship->identity_number) {
+            $orphanDataRecord = Data::where('data_id_number', $sponsorship->identity_number)->first();
+            if ($orphanDataRecord && $orphanDataRecord->data_health_status) {
+                $orphanHealthStatus = $this->getHealthStatus($orphanDataRecord->data_health_status);
+                Log::info('ORPHAN_HEALTH_FROM_DATA', [
+                    'data_id_number' => $sponsorship->identity_number,
+                    'health_status_id' => $orphanDataRecord->data_health_status,
+                    'health_status_text' => $orphanHealthStatus
+                ]);
+            }
+        }
+
+        // Fallback إلى البيانات من dataRecord إذا كانت موجودة
+        if (!$orphanHealthStatus && isset($data['health_status']) && $data['health_status'] !== $na) {
+            $orphanHealthStatus = $data['health_status'];
+        }
+
+        $data['orphan_health_status'] = $orphanHealthStatus ?? $na;
         $data['health_status'] = $data['orphan_health_status']; // نسخ للعرض
 
         // الاحتياجات والإبداع (من portal فقط)
@@ -244,10 +295,45 @@ class GenerateOrphanReportPdf implements ShouldQueue
         $data['sponsorship_impact'] = $portalFields->get('field_sponsorship_impact')?->field_value ?? $na;
         $data['family_events'] = $portalFields->get('field_important_events')?->field_value ?? $na;
 
-        // بيانات المعيل
+        // بيانات المعيل - جلب صلة القرابة من المصدر الصحيح
+        // تحديد relation_id_number للاستخدام
+        $relationIdNumber = $sponsorship->relation_id_number ?? $sponsorship->internal_file_number;
+
+        // البحث في portal_general_registration_field_values أولاً
         $guardianRelationId = $portalFields->get('field_guardian_relationship')?->field_value;
+
+        // إذا لم توجد، البحث في جدول data بناءً على رقم هوية المعيل
+        if (!$guardianRelationId && $sponsorship->guardian_identity_number) {
+            $guardianDataRecord = Data::where('data_id_number', $sponsorship->guardian_identity_number)->first();
+            if ($guardianDataRecord && $guardianDataRecord->data_relationship) {
+                $guardianRelationId = $guardianDataRecord->data_relationship;
+            }
+        }
+
+        // إذا لم توجد، البحث في جدول dead_people
+        if (!$guardianRelationId && $relationIdNumber) {
+            $deadPeopleRecord = DeadPepole::where('re_file_id', $relationIdNumber)
+                ->orWhere('re_file_id', $sponsorship->internal_file_number)
+                ->first();
+            if ($deadPeopleRecord && $deadPeopleRecord->relationship_id) {
+                $guardianRelationId = $deadPeopleRecord->relationship_id;
+            }
+        }
+
         $data['guardian_relation'] = $guardianRelationId ? $this->getRelation($guardianRelationId) : $na;
-        $data['guardian_health'] = $portalFields->get('field_guardian_health')?->field_value ?? $na;
+
+        // جلب الحالة الصحية للمعيل من المصادر الصحيحة
+        $guardianHealthStatus = $portalFields->get('field_guardian_health')?->field_value;
+
+        // إذا لم توجد، البحث في جدول data
+        if (!$guardianHealthStatus && $sponsorship->guardian_identity_number) {
+            $guardianDataRecord = $guardianDataRecord ?? Data::where('data_id_number', $sponsorship->guardian_identity_number)->first();
+            if ($guardianDataRecord && $guardianDataRecord->data_health_status) {
+                $guardianHealthStatus = $this->getHealthStatus($guardianDataRecord->data_health_status);
+            }
+        }
+
+        $data['guardian_health'] = $guardianHealthStatus ?? $na;
         $data['guardian_job'] = $portalFields->get('field_guardian_job')?->field_value ?? $portalFields->get('field_guardian_job_text')?->field_value ?? $data['employment_status'] ?? $na;
 
         // اسم المعيل الرباعي (أولوية لـ portal)
@@ -262,7 +348,35 @@ class GenerateOrphanReportPdf implements ShouldQueue
         $maleCount = (int) ($portalFields->get('field_dependents_male')?->field_value ?? 0);
         $femaleCount = (int) ($portalFields->get('field_dependents_female')?->field_value ?? 0);
         $totalDependents = $maleCount + $femaleCount;
-        $data['dependents_count'] = $totalDependents > 0 ? $totalDependents : ($dataRecord->data_number_of_individuals ?? $na);
+
+        // إذا لم يوجد في portal، البحث في جدول data بناءً على رقم الهوية
+        if ($totalDependents == 0) {
+            // البحث بناءً على رقم هوية المعيل أو المكفول
+            $dependentsDataRecord = null;
+            if ($sponsorship->guardian_identity_number) {
+                $dependentsDataRecord = Data::where('data_id_number', $sponsorship->guardian_identity_number)->first();
+            }
+            if (!$dependentsDataRecord && $sponsorship->identity_number) {
+                $dependentsDataRecord = Data::where('data_id_number', $sponsorship->identity_number)->first();
+            }
+            if (!$dependentsDataRecord && $dataRecord) {
+                $dependentsDataRecord = $dataRecord;
+            }
+
+            if ($dependentsDataRecord) {
+                // جمع data_number_female + data_number_mail
+                $dataFemale = (int) ($dependentsDataRecord->data_number_female ?? 0);
+                $dataMale = (int) ($dependentsDataRecord->data_number_mail ?? 0);
+                $totalDependents = $dataFemale + $dataMale;
+
+                // إذا لم يتم العثور على الحقول المنفصلة، استخدم data_number_of_individuals
+                if ($totalDependents == 0 && $dependentsDataRecord->data_number_of_individuals) {
+                    $totalDependents = $dependentsDataRecord->data_number_of_individuals;
+                }
+            }
+        }
+
+        $data['dependents_count'] = $totalDependents > 0 ? $totalDependents : $na;
         $data['number_of_individuals'] = $data['dependents_count']; // نسخ للعرض
 
         // الطابع الزمني
@@ -286,8 +400,6 @@ class GenerateOrphanReportPdf implements ShouldQueue
             Log::info('NAMES_DATA_LOADED', ['names' => $namesData]);
         }
 
-        // 3. جلب بيانات المتوفين من dead_people
-        $relationIdNumber = $sponsorship->relation_id_number ?? $sponsorship->internal_file_number;
         // 3. معالجة ذكية لبيانات الأم بناءً على حالتها
         $guardianRelationship = $fieldValues['field_guardian_relationship'] ?? null;
         $motherStatus = $fieldValues['field_mother_status'] ?? null;

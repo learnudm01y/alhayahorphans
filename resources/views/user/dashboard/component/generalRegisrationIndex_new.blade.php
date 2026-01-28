@@ -31,8 +31,8 @@
                 </div>
             </div>
 
-            {{-- معلومات المكفول الأساسية --}}
-            @if(isset($enabledFields) && count(array_filter($enabledFields, fn($f) => $f['category_id'] == 1)) > 0)
+            {{-- معلومات المكفول الأساسية - يتم إخفاؤها عندما يكون الشخص معيل --}}
+            @if(isset($enabledFields) && count(array_filter($enabledFields, fn($f) => $f['category_id'] == 1)) > 0 && $sponsorship->person_type !== 'breadwinner')
             <div class="card card-custom p-4 mb-4">
                 <h4 class="field-group-title">معلومات المكفول الأساسية</h4>
                 <div class="row">
@@ -80,6 +80,7 @@
             @if(isset($enabledFields) && count(array_filter($enabledFields, fn($f) => $f['category_id'] == 2)) > 0)
             <div class="card card-custom p-4 mb-4">
                 <h4 class="field-group-title">معلومات السكن</h4>
+                {{-- ملاحظة: معلومات السكن تظهر للجميع --}}
                 <div class="row">
                     @foreach($enabledFields as $fieldKey => $fieldInfo)
                         @if($fieldInfo['category_id'] == 2)

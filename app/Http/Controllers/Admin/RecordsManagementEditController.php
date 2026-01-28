@@ -125,6 +125,7 @@ class RecordsManagementEditController extends Controller
 
     public function show($id)
     {
+        // جلب البيانات الأساسية فقط لتقليل الضغط على قاعدة البيانات
         $data = Data::with([
             'section',
             'requestStatus',
@@ -138,11 +139,226 @@ class RecordsManagementEditController extends Controller
             'housingStatus',
             'currentHousingType',
             'attachments',
-            'rePeople.attachments', // إضافة مرفقات أفراد الأسرة
-            'deadPepole.fatherAttachments', // إضافة مرفقات الأب
-            'deadPepole.motherAttachments', // إضافة مرفقات الأم
+            'rePeople.healthStatus', // البيانات الأساسية لأفراد الأسرة فقط
+            'rePeople.guaranteeType',
+            'rePeople.sponsorshipStatus',
+            'rePeople.attachments', // إضافة المرفقات لأفراد الأسرة
+            'deadPepole.fatherAttachments',
+            'deadPepole.motherAttachments',
         ])->findOrFail($id);
-        return view('admin.dashboard.records_management.show', compact('data'));
+
+        // جلب معلومات الكفالة لولي الأمر
+        $guardianSponsorships = \App\Models\Sponsorship::with(['sponsorshipType', 'sponsorshipStatus', 'sponsors'])
+            ->where('identity_number', $data->data_id_number)
+            ->get();
+
+        // جلب البيانات الإضافية للمعيل من portal_general_registration_field_values
+        $guardianPortalFields = \App\Models\PortalGeneralRegistrationFieldValue::where('identity_number', $data->data_id_number)
+            ->get()
+            ->map(function($field) {
+                return [
+                    'key' => $this->translateFieldKey($field->field_key),
+                    'value' => $field->field_value
+                ];
+            });
+
+        // معلومات الأم على قيد الحياة من جدول re_people
+        // نبحث عن أنثى (person_gender = 2) وليست في جدول dead_people
+        $liveMother = null;
+        $motherPortalFields = collect([]);
+
+        // التحقق من عدم وجود الأم في جدول المتوفين
+        $deadMother = $data->deadPepole ? $data->deadPepole->mother_id : null;
+
+        if (!$deadMother) {
+            // البحث عن الأم في re_people (أنثى وعمر مناسب لتكون أم)
+            $liveMother = \App\Models\RePeople::where('registration_id', $data->file_id_number)
+                ->where('person_gender', 2) // 2 = أنثى
+                ->orderBy('person_age', 'desc') // الأكبر سناً غالباً هي الأم
+                ->first();
+
+            // جلب البيانات الإضافية للأم من portal_general_registration_field_values
+            if ($liveMother && $liveMother->person_id) {
+                $motherPortalFields = \App\Models\PortalGeneralRegistrationFieldValue::where('identity_number', $liveMother->person_id)
+                    ->get()
+                    ->map(function($field) {
+                        return [
+                            'key' => $this->translateFieldKey($field->field_key),
+                            'value' => $field->field_value
+                        ];
+                    });
+            }
+        }
+
+        return view('admin.dashboard.records_management.show', compact('data', 'guardianSponsorships', 'guardianPortalFields', 'liveMother', 'motherPortalFields'));
+    }
+
+    /**
+     * جلب البيانات الإضافية ومعلومات الكفالة عبر AJAX
+     */
+    public function getAdditionalInfo(Request $request)
+    {
+        $type = $request->input('type'); // 'family_member' فقط
+        $personId = $request->input('person_id');
+        $fileId = $request->input('file_id');
+
+        $response = [
+            'portal_fields' => [],
+            'sponsorships' => []
+        ];
+
+        if ($type === 'family_member') {
+            // جلب البيانات الإضافية لفرد الأسرة فقط
+            $portalFields = \App\Models\PortalGeneralRegistrationFieldValue::where('identity_number', $personId)->get();
+            foreach ($portalFields as $field) {
+                $response['portal_fields'][] = [
+                    'key' => $this->translateFieldKey($field->field_key),
+                    'value' => $field->field_value
+                ];
+            }
+
+            // جلب معلومات الكفالة لفرد الأسرة
+            $sponsorships = \App\Models\Sponsorship::with(['sponsorshipType', 'sponsorshipStatus', 'sponsors'])
+                ->where('identity_number', $personId)
+                ->get();
+
+            foreach ($sponsorships as $sponsorship) {
+                $response['sponsorships'][] = $this->formatSponsorshipData($sponsorship, $personId);
+            }
+        }
+
+        return response()->json($response);
+    }
+
+    /**
+     * تحويل مفاتيح الحقول من الإنجليزية إلى العربية
+     */
+    private function translateFieldKey($key)
+    {
+        $translations = [
+            // معلومات السكن
+            'housing_status' => 'الحالة السكنية',
+            'housing_type' => 'نوع السكن',
+            'current_housing_type' => 'نوع السكن الحالي',
+            'field_house_demolition' => 'حالة هدم المنزل',
+            'field_house_repair_need' => 'حاجة المنزل للترميم',
+
+            // معلومات النزوح
+            'displacement_status' => 'حالة النزوح',
+            'previous_address' => 'العنوان قبل النزوح',
+            'address_before_displacement' => 'العنوان قبل النزوح',
+            'current_address' => 'العنوان الحالي',
+
+            // معلومات الاتصال
+            'phone_number' => 'رقم الهاتف',
+            'alt_phone_number' => 'رقم هاتف بديل',
+            'alternative_phone' => 'رقم هاتف بديل',
+
+            // معلومات العمل والدخل
+            'employment_status' => 'حالة العمل',
+            'employment_status_breadwinner' => 'حالة عمل العائل',
+            'monthly_income' => 'الدخل الشهري',
+            'income' => 'الدخل',
+            'field_guardian_job_text' => 'وظيفة المعيل',
+
+            // معلومات العائلة
+            'number_of_males' => 'عدد الذكور',
+            'number_of_females' => 'عدد الإناث',
+            'number_of_individuals' => 'عدد أفراد الأسرة',
+            'chronic_diseases_count' => 'عدد المصابين بأمراض مزمنة',
+            'number_of_individuals_with_chronic_diseases' => 'عدد المصابين بأمراض مزمنة',
+            'special_needs_count' => 'عدد ذوي الاحتياجات الخاصة',
+            'number_of_people_with_special_needs' => 'عدد ذوي الاحتياجات الخاصة',
+            'field_family_sick_member' => 'وجود فرد مريض في الأسرة',
+            'field_family_disease_cost' => 'تكلفة علاج الأسرة',
+
+            // معلومات عامة
+            'city' => 'المدينة',
+            'province' => 'المحافظة',
+            'description_needs' => 'وصف الاحتياج',
+            'needs_description' => 'وصف الاحتياج',
+            'marital_status' => 'الحالة الاجتماعية',
+            'academic_qualification' => 'المؤهل العلمي',
+            'health_status' => 'الحالة الصحية',
+            'birth_date' => 'تاريخ الميلاد',
+            'gender' => 'الجنس',
+            'age' => 'العمر',
+
+            // معلومات الكفالة
+            'guardian_name' => 'اسم المعيل',
+            'guardian_relationship' => 'صلة القرابة مع المعيل',
+            'sponsorship_type' => 'نوع الكفالة',
+            'sponsorship_status' => 'حالة الكفالة',
+            'sponsor_name' => 'اسم الكفيل',
+            'field_sponsorship_impact' => 'أثر الكفالة',
+
+            // معلومات المدرسة والدراسة
+            'field_school_name' => 'اسم المدرسة',
+            'field_school_address' => 'عنوان المدرسة',
+            'field_grade' => 'المرحلة الدراسية',
+            'field_student_level' => 'مستوى الطالب',
+            'field_weakness_reason' => 'سبب الضعف الدراسي',
+            'field_tent_school' => 'مدرسة خيمة',
+
+            // معلومات المكفول
+            'field_orphan_ambition' => 'طموح المكفول',
+            'field_psychological_state' => 'الحالة النفسية',
+            'field_behavioral_state' => 'الحالة السلوكية',
+            'field_orphan_behavior' => 'سلوك المكفول',
+            'field_religious_commitment' => 'الالتزام الديني',
+            'field_commitment' => 'الالتزام',
+            'field_quran_memorization' => 'حفظ القرآن',
+            'field_prayer_commitment' => 'الالتزام بالصلاة',
+            'field_orphan_needs' => 'احتياجات المكفول',
+            'field_creativity_aspects' => 'جوانب الإبداع',
+
+            // معلومات الصحة
+            'field_receives_treatment' => 'يتلقى علاج',
+            'field_orphan_health' => 'الحالة الصحية للمكفول',
+            'field_treatment_cost' => 'تكلفة العلاج',
+
+            // معلومات الأم
+            'field_mother_status' => 'حالة الأم',
+            'field_living_mother_first_name' => 'الاسم الأول للأم',
+            'field_living_mother_second_name' => 'اسم الأب للأم',
+            'field_living_mother_third_name' => 'اسم الجد للأم',
+            'field_living_mother_last_name' => 'اسم العائلة للأم',
+            'field_living_mother_id' => 'رقم هوية الأم',
+
+            // معلومات إدارية
+            'field_important_events' => 'الأحداث المهمة',
+            'field_supervisor_notes' => 'ملاحظات المشرف',
+            'field_data_update_date' => 'تاريخ تحديث البيانات',
+            'field_supervisor_name' => 'اسم المشرف',
+        ];
+
+        return $translations[$key] ?? $key;
+    }
+
+    /**
+     * تنسيق بيانات الكفالة للعرض
+     */
+    private function formatSponsorshipData($sponsorship, $personId)
+    {
+        $isGuardian = $sponsorship->guardian_identity_number === $personId;
+        $role = $isGuardian ? 'معيل' : 'مكفول';
+
+        return [
+            'role' => $role,
+            'internal_file_number' => $sponsorship->internal_file_number,
+            'external_file_number' => $sponsorship->external_file_number,
+            'orphan_name' => $sponsorship->orphan_name,
+            'guardian_name' => $sponsorship->guardian_name,
+            'guardian_identity' => $sponsorship->guardian_identity_number,
+            'birth_date' => $sponsorship->sponsored_birth_date ? $sponsorship->sponsored_birth_date->format('Y-m-d') : null,
+            'sponsorship_type' => optional($sponsorship->sponsorshipType)->description,
+            'sponsorship_status' => optional($sponsorship->sponsorshipStatus)->description,
+            'start_date' => $sponsorship->sponsorship_start_date ? $sponsorship->sponsorship_start_date->format('Y-m-d') : null,
+            'end_date' => $sponsorship->sponsorship_end_date ? $sponsorship->sponsorship_end_date->format('Y-m-d') : null,
+            'duration_months' => $sponsorship->sponsorship_duration_months,
+            'sponsors' => $sponsorship->sponsors ? $sponsorship->sponsors->pluck('sponsor_name')->toArray() : [],
+            'notes' => $sponsorship->notes,
+        ];
     }
 
  public function update(Request $request, $id)

@@ -64,4 +64,22 @@ class RePeople extends Model
     {
         return $this->belongsTo(Data::class, 'registration_id', 'file_id_number');
     }
+
+    /**
+     * علاقة مع جدول portal_general_registration_field_values
+     * لجلب الحقول الإضافية المخزنة لهذا الشخص
+     */
+    public function portalFieldValues()
+    {
+        return $this->hasMany(PortalGeneralRegistrationFieldValue::class, 'identity_number', 'person_id');
+    }
+
+    /**
+     * علاقة مع جدول sponsorships
+     * لجلب معلومات الكفالة لهذا الشخص
+     */
+    public function sponsorships()
+    {
+        return $this->hasMany(Sponsorship::class, 'identity_number', 'person_id');
+    }
 }

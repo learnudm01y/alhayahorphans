@@ -10,13 +10,13 @@
 /* تضمين خط Cairo للعربية */
 @font-face {
     font-family: 'Cairo';
-    src: url('{{ public_path("fonts/Cairo-Regular.ttf") }}') format('truetype');
+    src: url('file:///{{ str_replace("\\", "/", public_path("fonts/Cairo-Regular.ttf")) }}') format('truetype');
     font-weight: normal;
     font-style: normal;
 }
 @font-face {
     font-family: 'Cairo';
-    src: url('{{ public_path("fonts/Cairo-Bold.ttf") }}') format('truetype');
+    src: url('file:///{{ str_replace("\\", "/", public_path("fonts/Cairo-Bold.ttf")) }}') format('truetype');
     font-weight: bold;
     font-style: normal;
 }
@@ -107,7 +107,7 @@ td, th {
 <table>
 <tr>
 <td class="header-blue">رقم الملف</td>
-<td class="header-blue">اسم اليتيم</td>
+<td class="header-blue">اسم المكفول</td>
 <td class="header-blue">رقم الجوال</td>
 <td class="header-blue">حالة السكن السابق</td>
 <td class="header-blue">نوع السكن</td>
@@ -126,15 +126,13 @@ td, th {
 <!-- الصف الثاني: معلومات المدرسة -->
 <table>
 <tr>
-<td class="header-blue" style="width:25%;">عنوان المدرسة</td>
-<td class="header-blue">الصف الدراسي</td>
+<td class="header-blue" style="width:30%;">عنوان المدرسة</td>
 <td class="header-blue">المرحلة الدراسية</td>
 <td class="header-blue">مستوى الطالب</td>
 <td class="header-blue">سبب الضعف</td>
 </tr>
 <tr>
 <td class="content">{{ $school_address ?? '/|\\' }}</td>
-<td class="content">{{ $grade_level ?? '/|\\' }}</td>
 <td class="content">{{ $academic_stage ?? '/|\\' }}</td>
 <td class="content">{{ $student_level ?? '/|\\' }}</td>
 <td class="content">{{ $weakness_reason ?? '/|\\' }}</td>

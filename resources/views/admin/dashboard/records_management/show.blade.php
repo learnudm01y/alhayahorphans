@@ -152,6 +152,39 @@
         border-color: #198754;
         color: #ffffff;
     }
+
+    /* تنسيق للـ SweetAlert RTL */
+    .swal-rtl {
+        text-align: right !important;
+        direction: rtl !important;
+    }
+
+    .swal-rtl .swal2-html-container {
+        text-align: right !important;
+    }
+
+    /* Modal ملء الشاشة */
+    .swal-fullscreen {
+        min-height: 85vh !important;
+        max-height: 90vh !important;
+    }
+
+    .swal-fullscreen .swal2-html-container {
+        max-height: 70vh !important;
+        overflow-y: auto !important;
+    }
+
+    .info-label {
+        color: #888;
+        font-size: 0.95rem;
+        margin-bottom: 2px;
+    }
+
+    .info-value {
+        font-weight: bold;
+        color: #222;
+        font-size: 1rem;
+    }
 </style>
 <!-- Modal HTML -->
 <div class="modal fade" id="attachmentsModal" tabindex="-1" aria-labelledby="attachmentsModalLabel" aria-hidden="true">
@@ -270,6 +303,145 @@
                 <div class="info-value">{{ $data->data_description_needs }}</div>
             </div>
         </div>
+
+        {{-- البيانات الإضافية للمعيل من portal_general_registration_field_values --}}
+        @if(isset($guardianPortalFields) && $guardianPortalFields->count() > 0)
+        <div class="mt-3 w-100">
+            <div class="info-label mb-2" style="font-size: 1.05rem; font-weight: bold; color: #2c3e50;">معلومات إضافية للمعيل:</div>
+            <div class="row">
+                @foreach($guardianPortalFields as $field)
+                    <div class="col-md-4 col-6 mb-2">
+                        <div class="info-label">{{ $field['key'] }}</div>
+                        <div class="info-value">{{ $field['value'] ?? '-' }}</div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+        @endif
+
+        {{-- معلومات الأم على قيد الحياة --}}
+        @if(isset($liveMother))
+        <div class="mt-4 w-100">
+            <div class="card" style="border-right: 4px solid #17a2b8; background: #f8f9fa;">
+                <div class="card-body" style="direction: rtl;">
+                    <h6 class="mb-3" style="font-weight: bold; color: #17a2b8;">معلومات الأم</h6>
+                    <div class="row">
+                        <div class="col-md-4 col-6 mb-2">
+                            <div class="info-label">الاسم الكامل</div>
+                            <div class="info-value">{{ $liveMother->first_name }} {{ $liveMother->second_name }} {{ $liveMother->third_name }} {{ $liveMother->last_name }}</div>
+                        </div>
+                        <div class="col-md-4 col-6 mb-2">
+                            <div class="info-label">رقم الهوية</div>
+                            <div class="info-value">{{ $liveMother->person_id ?? '-' }}</div>
+                        </div>
+                        <div class="col-md-4 col-6 mb-2">
+                            <div class="info-label">العمر</div>
+                            <div class="info-value">{{ $liveMother->person_age ?? '-' }}</div>
+                        </div>
+                        <div class="col-md-4 col-6 mb-2">
+                            <div class="info-label">تاريخ الميلاد</div>
+                            <div class="info-value">{{ $liveMother->person_birth_date ?? '-' }}</div>
+                        </div>
+                        <div class="col-md-4 col-6 mb-2">
+                            <div class="info-label">الحالة الصحية</div>
+                            <div class="info-value">{{ optional($liveMother->healthStatus)->description ?? '-' }}</div>
+                        </div>
+                        <div class="col-md-4 col-6 mb-2">
+                            <div class="info-label">الجنس</div>
+                            <div class="info-value">
+                                @if($liveMother->person_gender == 1) ذكر @elseif($liveMother->person_gender == 2) أنثى @else - @endif
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- البيانات الإضافية للأم من portal_general_registration_field_values --}}
+                    @if(isset($motherPortalFields) && $motherPortalFields->count() > 0)
+                    <div class="mt-3">
+                        <div class="info-label mb-2" style="font-size: 1.05rem; font-weight: bold;">معلومات إضافية:</div>
+                        <div class="row">
+                            @foreach($motherPortalFields as $field)
+                                <div class="col-md-4 col-6 mb-2">
+                                    <div class="info-label">{{ $field['key'] }}</div>
+                                    <div class="info-value">{{ $field['value'] ?? '-' }}</div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+        @endif
+
+        {{-- معلومات الكفالة لولي الأمر --}}
+        @if(isset($guardianSponsorships) && $guardianSponsorships->count() > 0)
+        <div class="mt-3 w-100">
+            <div class="info-label mb-2" style="font-size: 1.1rem; font-weight: bold;">معلومات الكفالة:</div>
+            @foreach($guardianSponsorships as $sponsorship)
+            <div class="card mb-3" style="border-right: 4px solid #28a745; background: #f8f9fa;">
+                <div class="card-body" style="direction: rtl;">
+                    <div class="row">
+                        <div class="col-md-4 col-6 mb-2">
+                            <div class="info-label">رقم الملف الداخلي</div>
+                            <div class="info-value">{{ $sponsorship->internal_file_number ?? '-' }}</div>
+                        </div>
+                        <div class="col-md-4 col-6 mb-2">
+                            <div class="info-label">رقم الملف الخارجي</div>
+                            <div class="info-value">{{ $sponsorship->external_file_number ?? '-' }}</div>
+                        </div>
+                        <div class="col-md-4 col-6 mb-2">
+                            <div class="info-label">نوع الكفالة</div>
+                            <div class="info-value">{{ optional($sponsorship->sponsorshipType)->description ?? '-' }}</div>
+                        </div>
+                        <div class="col-md-4 col-6 mb-2">
+                            <div class="info-label">حالة الكفالة</div>
+                            <div class="info-value">
+                                <span class="badge" style="background-color: {{ optional($sponsorship->sponsorshipStatus)->color ?? '#6c757d' }}; color: #fff;">
+                                    {{ optional($sponsorship->sponsorshipStatus)->description ?? '-' }}
+                                </span>
+                            </div>
+                        </div>
+                        @if($sponsorship->start_date)
+                        <div class="col-md-4 col-6 mb-2">
+                            <div class="info-label">تاريخ بداية الكفالة</div>
+                            <div class="info-value">{{ $sponsorship->start_date }}</div>
+                        </div>
+                        @endif
+                        @if($sponsorship->end_date)
+                        <div class="col-md-4 col-6 mb-2">
+                            <div class="info-label">تاريخ نهاية الكفالة</div>
+                            <div class="info-value">{{ $sponsorship->end_date }}</div>
+                        </div>
+                        @endif
+                        @if($sponsorship->duration_months)
+                        <div class="col-md-4 col-6 mb-2">
+                            <div class="info-label">مدة الكفالة</div>
+                            <div class="info-value">{{ $sponsorship->duration_months }} شهر</div>
+                        </div>
+                        @endif
+                        @if($sponsorship->sponsors && $sponsorship->sponsors->count() > 0)
+                        <div class="col-12 mb-2">
+                            <div class="info-label">الكفلاء</div>
+                            <div class="info-value">
+                                @foreach($sponsorship->sponsors as $sponsor)
+                                    <span class="badge bg-primary me-1">{{ $sponsor->sponsor_name }}</span>
+                                @endforeach
+                            </div>
+                        </div>
+                        @endif
+                        @if($sponsorship->notes)
+                        <div class="col-12 mb-2">
+                            <div class="info-label">ملاحظات</div>
+                            <div class="info-value">{{ $sponsorship->notes }}</div>
+                        </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+            @endforeach
+        </div>
+        @endif
+
         <div class="mt-3 w-100">
                 <div class="info-label mb-1">المعلومات البنكية:</div>
                 @php
@@ -367,7 +539,6 @@
         </div>
     </div>
 
-
     {{-- أفراد الأسرة --}}
     <div class="card card-custom p-3 mb-4">
         <h5 class="mb-3">أفراد الأسرة</h5>
@@ -377,21 +548,23 @@
                     <div class="col-md-6 col-lg-4 col-12 mb-4 family-member-card">
                         <div class="card h-100 shadow-sm border-0">
                             <div class="card-body d-flex flex-column align-items-start" style="direction: rtl;">
-                                {{-- تم حذف صورة الشخص --}}
-                                <div class="info-value mb-1">{{ $member->first_name ?? '' }} {{ $member->second_name ?? '' }} {{ $member->third_name ?? '' }} {{ $member->last_name ?? '' }}</div>
+                                <div class="info-value mb-2" style="font-size: 1.15rem; color: #2c3e50;">
+                                    {{ $member->first_name ?? '' }} {{ $member->second_name ?? '' }} {{ $member->third_name ?? '' }} {{ $member->last_name ?? '' }}
+                                </div>
                                 <div class="info-label mb-1">رقم الهوية: <span class="info-value">{{ $member->person_id ?? '-' }}</span></div>
                                 <div class="info-label mb-1">العمر: <span class="info-value">{{ $member->person_age ?? '-' }}</span></div>
                                 <div class="info-label mb-1">الجنس: <span class="info-value">
                                     @if($member->person_gender == 1) ذكر @elseif($member->person_gender == 2) أنثى @else - @endif
                                 </span></div>
+                                <div class="info-label mb-1">تاريخ الميلاد: <span class="info-value">{{ $member->person_birth_date ?? '-' }}</span></div>
                                 <div class="info-label mb-1">الحالة الصحية: <span class="info-value">{{ optional($member->healthStatus)->description ?? '-' }}</span></div>
                                 <div class="info-label mb-1">نوع الكفالة: <span class="info-value">{{ optional($member->guaranteeType)->description ?? '-' }}</span></div>
                                 <div class="info-label mb-1">حالة الكفالة: <span class="info-value">{{ optional($member->sponsorshipStatus)->description ?? '-' }}</span></div>
-                                <div class="info-label mb-1">تاريخ الميلاد: <span class="info-value">{{ $member->person_birth_date ?? '-' }}</span></div>
+
                                 {{-- مرفقات الشخص --}}
-                                <div class="mt-2 w-100">
-                                    <div class="info-label mb-1">المرفقات:</div>
-                                    @if($member->attachments && count($member->attachments))
+                                @if($member->attachments && count($member->attachments) > 0)
+                                    <div class="mt-2 w-100">
+                                        <div class="info-label mb-1">المرفقات:</div>
                                         <div class="d-flex flex-wrap">
                                             @foreach($member->attachments as $att)
                                                 @php
@@ -418,9 +591,18 @@
                                                 </a>
                                             @endforeach
                                         </div>
-                                    @else
-                                        <span class="text-muted">لا يوجد</span>
-                                    @endif
+                                    </div>
+                                @endif
+
+                                {{-- زر مشاهدة المزيد --}}
+                                <div class="mt-3 w-100 text-center">
+                                    <button type="button" class="btn btn-sm btn-info view-more-btn"
+                                            data-type="family_member"
+                                            data-person-id="{{ $member->person_id }}"
+                                            data-file-id="{{ $data->file_id_number }}"
+                                            data-person-name="{{ $member->first_name }} {{ $member->second_name }} {{ $member->third_name }} {{ $member->last_name }}">
+                                        <i class="bi bi-eye"></i> مشاهدة المزيد
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -549,6 +731,143 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // ====================================================================
+    // معالج زر مشاهدة المزيد (AJAX)
+    // ====================================================================
+    document.querySelectorAll('.view-more-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+
+            const type = this.getAttribute('data-type');
+            const personId = this.getAttribute('data-person-id');
+            const fileId = this.getAttribute('data-file-id');
+            const personName = this.getAttribute('data-person-name');
+
+            // عرض مؤشر التحميل
+            Swal.fire({
+                title: 'جاري التحميل...',
+                html: 'يتم جلب البيانات الإضافية',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            // إرسال طلب AJAX
+            fetch('{{ route("admin.records.management.getAdditionalInfo") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({
+                    type: type,
+                    person_id: personId,
+                    file_id: fileId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                Swal.close();
+                showAdditionalInfoModal(data, personName, type);
+            })
+            .catch(error => {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'خطأ',
+                    text: 'حدث خطأ أثناء جلب البيانات'
+                });
+            });
+        });
+    });
+
+    function showAdditionalInfoModal(data, personName, type) {
+        let htmlContent = '<div style="direction: rtl; text-align: right; max-height: 75vh; overflow-y: auto; padding: 10px;">';
+
+        // عرض البيانات الإضافية
+        if (data.portal_fields && data.portal_fields.length > 0) {
+            htmlContent += '<h5 class="mb-3" style="color: #495057; border-bottom: 2px solid #007bff; padding-bottom: 8px;">البيانات الإضافية</h5>';
+            htmlContent += '<div class="row mb-4">';
+            data.portal_fields.forEach(field => {
+                htmlContent += `
+                    <div class="col-md-4 col-sm-6 col-12 mb-2">
+                        <div class="info-label" style="color: #888; font-size: 0.95rem;">${field.key}</div>
+                        <div class="info-value" style="font-weight: bold; color: #222;">${field.value || '-'}</div>
+                    </div>
+                `;
+            });
+            htmlContent += '</div>';
+        } else {
+            htmlContent += '<p class="text-muted mb-3">لا توجد بيانات إضافية</p>';
+        }
+
+        // عرض معلومات الكفالة
+        if (data.sponsorships && data.sponsorships.length > 0) {
+            htmlContent += '<h5 class="mb-3 mt-3" style="color: #495057; border-bottom: 2px solid #28a745; padding-bottom: 8px;">معلومات الكفالة</h5>';
+            data.sponsorships.forEach((sponsorship, index) => {
+                const roleColor = sponsorship.role === 'معيل' ? '#28a745' : '#007bff';
+                const roleBadge = sponsorship.role === 'معيل' ? 'bg-success' : 'bg-primary';
+
+                htmlContent += `
+                    <div class="card mb-3" style="border: 2px solid ${roleColor}; border-radius: 10px; background: #f8f9fa;">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="mb-0" style="color: ${roleColor}; font-weight: bold;">
+                                    <i class="bi bi-person-badge"></i>
+                                    معلومات الكفالة ${index + 1}
+                                </h6>
+                                <span class="badge ${roleBadge}" style="font-size: 0.9rem;">الدور: ${sponsorship.role}</span>
+                            </div>
+                            <div class="row">
+                                ${sponsorship.internal_file_number ? `<div class="col-md-6 col-sm-6 col-12 mb-2"><div class="info-label">رقم الملف الداخلي</div><div class="info-value">${sponsorship.internal_file_number}</div></div>` : ''}
+                                ${sponsorship.external_file_number ? `<div class="col-md-6 col-sm-6 col-12 mb-2"><div class="info-label">رقم الملف الخارجي</div><div class="info-value">${sponsorship.external_file_number}</div></div>` : ''}
+                                ${sponsorship.sponsorship_type ? `<div class="col-md-6 col-sm-6 col-12 mb-2"><div class="info-label">نوع الكفالة</div><div class="info-value" style="color: #28a745; font-weight: bold;">${sponsorship.sponsorship_type}</div></div>` : ''}
+                                ${sponsorship.sponsorship_status ? `<div class="col-md-6 col-sm-6 col-12 mb-2"><div class="info-label">حالة الكفالة</div><div class="info-value" style="color: #007bff; font-weight: bold;">${sponsorship.sponsorship_status}</div></div>` : ''}
+                                ${sponsorship.start_date ? `<div class="col-md-6 col-sm-6 col-12 mb-2"><div class="info-label">تاريخ بداية الكفالة</div><div class="info-value">${sponsorship.start_date}</div></div>` : ''}
+                                ${sponsorship.end_date ? `<div class="col-md-6 col-sm-6 col-12 mb-2"><div class="info-label">تاريخ نهاية الكفالة</div><div class="info-value">${sponsorship.end_date}</div></div>` : ''}
+                                ${sponsorship.duration_months ? `<div class="col-md-6 col-sm-6 col-12 mb-2"><div class="info-label">مدة الكفالة</div><div class="info-value">${sponsorship.duration_months} شهر</div></div>` : ''}
+                            </div>
+                            ${sponsorship.sponsors && sponsorship.sponsors.length > 0 ? `
+                                <div class="mt-3 p-2" style="background: white; border-radius: 6px; border: 1px solid #dee2e6;">
+                                    <div class="info-label mb-2">الجمعيات الكافلة:</div>
+                                    <div>
+                                        ${sponsorship.sponsors.map(s => `<span class="badge bg-primary me-1 mb-1" style="font-size: 0.85rem;">${s}</span>`).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                            ${sponsorship.notes ? `
+                                <div class="mt-3">
+                                    <div class="info-label mb-1">ملاحظات:</div>
+                                    <div class="p-2" style="background: white; border-radius: 6px; border: 1px solid #dee2e6;">
+                                        ${sponsorship.notes}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+        } else {
+            htmlContent += '<div class="alert alert-info" role="alert" style="direction: rtl;">لا توجد معلومات كفالة لهذا الشخص</div>';
+        }
+
+        htmlContent += '</div>';
+
+        Swal.fire({
+            title: `<strong>${personName}</strong>`,
+            html: htmlContent,
+            width: '95%',
+            heightAuto: false,
+            confirmButtonText: 'إغلاق',
+            showCloseButton: true,
+            customClass: {
+                popup: 'swal-rtl swal-fullscreen',
+                confirmButton: 'btn btn-primary',
+                container: 'swal-fullscreen-container'
+            }
+        });
+    }
+
     // ====================================================================
     // معالج زر اعتماد الحساب البنكي
     // ====================================================================

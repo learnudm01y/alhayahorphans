@@ -195,6 +195,22 @@
             @if(isset($groupedFields) && count($groupedFields) > 0)
                 {{-- Display Fields by Category --}}
                 @foreach($groupedFields as $categoryId => $categoryData)
+                    @php
+                        // 🆕 إخفاء الأقسام التالية عندما يكون الشخص من نوع معيل (breadwinner):
+                        // - معلومات المكفول الأساسية (category 1)
+                        // - المعلومات الدراسية (category 3)
+                        // - الحالة النفسية والسلوكية (category 4)
+                        // - الجوانب الدينية (category 5)
+                        // - احتياجات وإبداع (category 7)
+                        $hiddenCategoriesForBreadwinner = [1, 3, 4, 5, 7];
+                        $personType = $sponsorship->person_type ?? null;
+
+                        // تخطي هذه الفئات إذا كان الشخص معيل
+                        if ($personType === 'breadwinner' && in_array($categoryId, $hiddenCategoriesForBreadwinner)) {
+                            continue;
+                        }
+                    @endphp
+
                     <div class="card card-custom p-4 mb-4">
                         <h3 class="category-title">
                             <i class="bi bi-folder2-open field-icon"></i>
@@ -270,6 +286,9 @@
                                     // 🆕 تحديد حقول رقم هوية الأب والأم (المكررة - تُخفى عند عرضها في البحث التلقائي)
                                     $deceasedIdFields = ['field_father_id', 'field_mother_id'];
                                     $isDeceasedIdField = in_array($field['db_column'], $deceasedIdFields);
+
+                                    // 🆕 تعريف $fieldRequired لتجنب خطأ Undefined variable
+                                    $fieldRequired = ($field['required'] ?? false);
                                 @endphp
 
                                 {{-- 🆕 إخفاء حقول رقم هوية الأب والأم العادية - أصبحت مدمجة في قسم الأسماء --}}
@@ -278,7 +297,12 @@
                                 @endif
 
                                 @if($isNameField && $showSponsoredAs1Field)
-                                    {{-- عرض حقل واحد فقط للاسم (البيانات من sponsorship فقط) --}}
+                                    {{-- عرض حقل واحد فقط للاسم (البيانات من sponsorship فقط) مع 4 حقول للإدخال في re_people --}}
+                                    @php
+                                        $nameConfig = $nameFieldsMapping[$field['db_column']];
+                                        $prefix = $nameConfig['prefix'];
+                                    @endphp
+
                                     <div class="col-12">
                                         <div class="border rounded p-3 bg-light mb-2">
                                             <label class="info-label fw-bold mb-2">
@@ -296,11 +320,39 @@
                                                 value="{{ old('fields.' . $field['db_column'], $value) }}"
                                                 placeholder="أدخل {{ $field['display_name'] }}"
                                                 {{ $fieldRequired ? 'required' : '' }}
+                                                readonly
                                             >
                                             <small class="text-muted d-block mt-1">
                                                 <i class="bi bi-info-circle me-1"></i>
-                                                قاعدة البيانات الموحدة
+                                                قاعدة البيانات الموحدة - قم بإدخال الاسم الكامل أدناه
                                             </small>
+
+                                            {{-- 🆕 4 حقول منفصلة للاسم لحفظه في re_people --}}
+                                            <div class="row g-2 mt-2">
+                                                <div class="col-12">
+                                                    <label class="small fw-bold text-primary">
+                                                        <i class="bi bi-pencil-square me-1"></i>
+                                                        إدخال الاسم الكامل (لحفظه في قاعدة البيانات)
+                                                    </label>
+                                                </div>
+                                                @foreach($nameConfig['fields'] as $namePart => $nameLabel)
+                                                    @php
+                                                        $nameFieldKey = "field_{$prefix}_{$namePart}";
+                                                        $nameValue = $fieldValues[$nameFieldKey] ?? '';
+                                                    @endphp
+                                                    <div class="col-md-3 col-6">
+                                                        <label class="small text-muted">{{ $nameLabel }}</label>
+                                                        <input
+                                                            type="text"
+                                                            name="names[{{ $prefix }}][{{ $namePart }}]"
+                                                            class="form-control"
+                                                            value="{{ old("names.{$prefix}.{$namePart}", $nameValue) }}"
+                                                            placeholder="{{ $nameLabel }}"
+                                                            {{ $field['required'] ?? false ? 'required' : '' }}
+                                                        >
+                                                    </div>
+                                                @endforeach
+                                            </div>
                                         </div>
                                     </div>
                                 @elseif($isNameField && $needsCentralDataEntry)

@@ -235,4 +235,31 @@ class Data extends Model
         // علاقة واحد لواحد مع جدول المتوفين عبر re_file_id <-> file_id_number
         return $this->hasOne(\App\Models\DeadPepole::class, 're_file_id', 'file_id_number');
     }
+
+    /**
+     * علاقة مع جدول portal_general_registration_field_values
+     * لجلب الحقول الإضافية المخزنة للملف أو لأفراد العائلة
+     */
+    public function portalFieldValues()
+    {
+        return $this->hasMany(PortalGeneralRegistrationFieldValue::class, 'file_id_number', 'file_id_number');
+    }
+
+    /**
+     * علاقة مع جدول sponsorships
+     * لجلب معلومات الكفالة لصاحب الملف (المعيل)
+     */
+    public function sponsorshipsAsBreadwinner()
+    {
+        return $this->hasMany(Sponsorship::class, 'guardian_identity_number', 'data_id_number');
+    }
+
+    /**
+     * علاقة مع جدول sponsorships
+     * لجلب معلومات الكفالة كمكفول (يتيم/شخص مكفول)
+     */
+    public function sponsorshipsAsOrphan()
+    {
+        return $this->hasMany(Sponsorship::class, 'identity_number', 'data_id_number');
+    }
 }

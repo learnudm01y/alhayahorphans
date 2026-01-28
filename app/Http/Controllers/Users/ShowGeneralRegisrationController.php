@@ -554,7 +554,18 @@ class ShowGeneralRegisrationController extends Controller
             $healthStatus = DB::table('health_statuses')->where('id', $dataByIdentity->data_health_status)->first();
             $healthStatusValue = $healthStatus->description ?? '';
         }
+        // ✅ عرض الحالة الصحية للمكفول في field_health_status
         $values['field_health_status'] = $healthStatusValue;
+
+        // ✅ الحالة الصحية للمعيل - من data.data_health_status
+        if ($guardianData && $guardianData->data_health_status) {
+            $guardianHealthStatus = DB::table('health_statuses')->where('id', $guardianData->data_health_status)->first();
+            $values['field_guardian_health'] = $guardianHealthStatus->description ?? '';
+            Log::info('GUARDIAN_HEALTH_LOADED', [
+                'health_status_id' => $guardianData->data_health_status,
+                'health_status_text' => $values['field_guardian_health']
+            ]);
+        }
 
         // 🆕 تحديد ما إذا كان الشخص متوفي
         $isDeceased = in_array($storedPersonType, ['deceased_father', 'deceased_mother']);
@@ -624,7 +635,21 @@ class ShowGeneralRegisrationController extends Controller
             $values['field_data_family_name'] = $guardianData->data_family_name;
             $values['field_data_birth_date'] = $guardianData->data_birth_date;
             $values['field_data_phone_number'] = $guardianData->data_phone_number;
-            $values['field_data_address'] = $guardianData->data_address ?? $guardianData->data_current_address ?? '';
+            $values['field_data_address'] = $guardianData->data_current_address ?? '';
+
+            // 🆕 جلب حقل السكن من جدول data
+            $values['field_housing_address_detail'] = $guardianData->data_current_address ?? '';
+
+            // 🆕 جلب حقول الوظيفة والمعالين من data بالأسماء الصحيحة
+            // field_guardian_job -> data_employment_status_breadwinner (ID)
+            if (isset($guardianData->data_employment_status_breadwinner) && $guardianData->data_employment_status_breadwinner) {
+                $employment = DB::table('employment')->where('id', $guardianData->data_employment_status_breadwinner)->first();
+                $values['field_guardian_job'] = $employment->description ?? '';
+            }
+            // field_dependents_female -> data_number_female
+            $values['field_dependents_female'] = $guardianData->data_number_female ?? '';
+            // field_dependents_male -> data_number_mail
+            $values['field_dependents_male'] = $guardianData->data_number_mail ?? '';
 
             // جلب المحافظة والمدينة
             $province = DB::table('provinces')->where('id', $guardianData->data_province)->first();
@@ -655,7 +680,21 @@ class ShowGeneralRegisrationController extends Controller
             $values['field_data_family_name'] = $data->data_family_name;
             $values['field_data_birth_date'] = $data->data_birth_date;
             $values['field_data_phone_number'] = $data->data_phone_number;
-            $values['field_data_address'] = $data->data_address ?? $data->data_current_address ?? '';
+            $values['field_data_address'] = $data->data_current_address ?? '';
+
+            // 🆕 جلب حقل السكن من جدول data
+            $values['field_housing_address_detail'] = $data->data_current_address ?? '';
+
+            // 🆕 جلب حقول الوظيفة والمعالين من data بالأسماء الصحيحة
+            // field_guardian_job -> data_employment_status_breadwinner (ID)
+            if (isset($data->data_employment_status_breadwinner) && $data->data_employment_status_breadwinner) {
+                $employment = DB::table('employment')->where('id', $data->data_employment_status_breadwinner)->first();
+                $values['field_guardian_job'] = $employment->description ?? '';
+            }
+            // field_dependents_female -> data_number_female
+            $values['field_dependents_female'] = $data->data_number_female ?? '';
+            // field_dependents_male -> data_number_mail
+            $values['field_dependents_male'] = $data->data_number_mail ?? '';
 
             // جلب المحافظة والمدينة
             $values['field_data_province'] = optional($data->province)->description ?? '';
@@ -1063,9 +1102,10 @@ class ShowGeneralRegisrationController extends Controller
             }
 
             // التحقق من أن المستخدم يملك هذه الكفالة
+            // 🆕 استخدام sponsorship_id فقط لتجنب مشكلة تغيير رقم الهوية
+            // التحقق من الصلاحية يتم من خلال الجلسة - sponsorship_id مخزن في الجلسة
             $sponsorship = Sponsorship::with(['relationData', 'sponsor'])
                 ->where('id', $sponsorshipId)
-                ->where('identity_number', $user->email)
                 ->firstOrFail();
 
             // التحقق من البيانات
@@ -1166,7 +1206,43 @@ class ShowGeneralRegisrationController extends Controller
 
             // $fieldsData تم تعريفه مسبقاً
 
+            // 🆕 قائمة الحقول التي يجب أن لا تُحفظ في portal_general_registration_field_values
+            // لأنها تُحفظ في جدول data أو جداول أخرى
+            $excludedFromPortalFields = [
+                // الحقول الأساسية الموجودة في جدول data
+                'field_data_id_number',
+                'field_data_first_name',
+                'field_data_father_name',
+                'field_data_grand_father_name',
+                'field_data_family_name',
+                'field_data_birth_date',
+                'field_data_phone_number',
+                'field_guardian_relationship',
+                'field_guardian_health',
+                'field_guardian_job', // data_employment_status_breadwinner
+                'field_dependents_female', // data_number_female
+                'field_dependents_male', // data_number_mail
+                // حقول السكن التي تُحفظ في جدول data
+                'field_housing_status',
+                'field_housing_type',
+                'field_housing_address_detail',
+                'field_data_city',
+                'field_data_province',
+                // حقول الوفاة التي تُحفظ في جدول dead_people
+                'field_father_id',
+                'field_father_death_date',
+                'field_father_death_reason',
+                'field_mother_id',
+                'field_mother_death_date',
+                'field_mother_death_reason',
+                // حقول تُحفظ في re_people
+                'field_health_status', // person_health_status
+                'field_person_birth_date', // person_birth_date في re_people
+                'field_identity_number', // person_id في re_people
+            ];
+
             // تخزين جميع الحقول الواردة في جدول مخصص (حتى لو لم يكن لها عمود/جدول بعد)
+            // مع استثناء الحقول المحددة أعلاه
             try {
                 $fileIdNumberForPortal = (string) ($sponsorship->relationData?->file_id_number ?: $sponsorship->relation_id_number ?: $sponsorship->internal_file_number ?: '');
                 $identityForPortal = (string) ($sponsorship->identity_number ?: '');
@@ -1174,6 +1250,31 @@ class ShowGeneralRegisrationController extends Controller
 
                 if (is_array($fieldsData) && $fileIdNumberForPortal !== '') {
                     foreach ($fieldsData as $fieldKey => $fieldValue) {
+                        // 🆕 تخطي الحقول المستثناة من الحفظ في portal
+                        if (in_array($fieldKey, $excludedFromPortalFields)) {
+                            continue;
+                        }
+
+                        // 🆕 تحديد identity_number بناءً على نوع الحقل
+                        $targetIdentityNumber = $identityForPortal;
+
+                        // حقول الأم الحية - استخدام رقم هوية الأم
+                        $livingMotherFields = [
+                            'field_living_mother_first_name',
+                            'field_living_mother_second_name',
+                            'field_living_mother_third_name',
+                            'field_living_mother_last_name',
+                            'field_living_mother_id',
+                        ];
+
+                        if (in_array($fieldKey, $livingMotherFields)) {
+                            // استخدام رقم هوية الأم من field_living_mother_id
+                            $motherIdNumber = $fieldsData['field_living_mother_id'] ?? '';
+                            if (!empty($motherIdNumber)) {
+                                $targetIdentityNumber = (string) $motherIdNumber;
+                            }
+                        }
+
                         // نخزن القيم كسلسلة أو JSON إذا كانت مصفوفة
                         if (is_array($fieldValue)) {
                             $fieldValue = json_encode($fieldValue, JSON_UNESCAPED_UNICODE);
@@ -1190,7 +1291,7 @@ class ShowGeneralRegisrationController extends Controller
                             ],
                             [
                                 'sponsorship_id' => $sponsorship->id,
-                                'identity_number' => $identityForPortal,
+                                'identity_number' => $targetIdentityNumber,
                                 'field_value' => $fieldValue,
                                 'updated_by_user_id' => $user?->id,
                             ]
@@ -1205,6 +1306,7 @@ class ShowGeneralRegisrationController extends Controller
                     'file_id_number' => $fileIdNumberForPortal,
                     'stored_count' => $storedCount,
                     'fields_received_count' => is_array($fieldsData) ? count($fieldsData) : 0,
+                    'excluded_fields_count' => count($excludedFromPortalFields),
                 ]);
             } catch (\Throwable $e) {
                 Log::error('PORTAL_FIELDS_STORE_FAILED', [
@@ -1215,9 +1317,7 @@ class ShowGeneralRegisrationController extends Controller
 
             // حقول البنك الجديدة
             $bankFields = [];
-            // حقول أسباب الوفاة
-            $deathReasonFields = [];
-            // 🆕 حقول بيانات المتوفين (الأب والأم)
+            // 🆕 حقول بيانات المتوفين (الأب والأم) - يتم حفظها مباشرة في dead_people
             $deadPeopleFields = [];
             // 🆕 حقول السكن للمتوفين (تُخزن في portal_general_registration_field_values)
             $housingFieldsForDeceased = [];
@@ -1249,6 +1349,104 @@ class ShowGeneralRegisrationController extends Controller
                     continue;
                 }
 
+                // 🆕 معالجة field_guardian_health -> data_health_status
+                if ($fieldKey === 'field_guardian_health' && $fieldValue !== null && $fieldValue !== '' && $sponsorship->relationData) {
+                    $healthStatusId = $this->resolveLookupIdByDescription('health_statuses', (string) $fieldValue);
+                    if ($healthStatusId !== null) {
+                        $sponsorship->relationData->data_health_status = $healthStatusId;
+                        $mappedToData[] = $fieldKey;
+                    } else {
+                        Log::warning('LOOKUP_ID_NOT_FOUND', [
+                            'field' => 'field_guardian_health',
+                            'value' => (string) $fieldValue,
+                            'sponsorship_id' => $sponsorship->id,
+                        ]);
+                    }
+                    continue;
+                }
+
+                // 🆕 معالجة field_guardian_relationship -> data_relationship
+                if ($fieldKey === 'field_guardian_relationship' && $fieldValue !== null && $fieldValue !== '' && $sponsorship->relationData) {
+                    // يمكن أن يكون ID أو نص
+                    if (is_numeric($fieldValue)) {
+                        $sponsorship->relationData->data_relationship = (int) $fieldValue;
+                    } else {
+                        $relationId = DB::table('category_of_relations')->where('attribute', $fieldValue)->value('id');
+                        if ($relationId) {
+                            $sponsorship->relationData->data_relationship = (int) $relationId;
+                        } else {
+                            Log::warning('LOOKUP_ID_NOT_FOUND', [
+                                'field' => 'field_guardian_relationship',
+                                'value' => (string) $fieldValue,
+                                'sponsorship_id' => $sponsorship->id,
+                            ]);
+                        }
+                    }
+                    $mappedToData[] = $fieldKey;
+                    continue;
+                }
+
+                // 🆕 معالجة field_guardian_job -> data_employment_status_breadwinner
+                if ($fieldKey === 'field_guardian_job' && $fieldValue !== null && $fieldValue !== '' && $sponsorship->relationData) {
+                    // يمكن أن يكون ID أو نص
+                    if (is_numeric($fieldValue)) {
+                        $sponsorship->relationData->data_employment_status_breadwinner = (int) $fieldValue;
+                    } else {
+                        $employmentId = DB::table('employment')->where('description', $fieldValue)->value('id');
+                        if ($employmentId) {
+                            $sponsorship->relationData->data_employment_status_breadwinner = (int) $employmentId;
+                        } else {
+                            Log::warning('LOOKUP_ID_NOT_FOUND', [
+                                'field' => 'field_guardian_job',
+                                'value' => (string) $fieldValue,
+                                'sponsorship_id' => $sponsorship->id,
+                            ]);
+                        }
+                    }
+                    $mappedToData[] = $fieldKey;
+                    continue;
+                }
+
+                // 🆕 معالجة field_dependents_female -> data_number_female
+                if ($fieldKey === 'field_dependents_female' && $fieldValue !== null && $fieldValue !== '' && $sponsorship->relationData) {
+                    $sponsorship->relationData->data_number_female = (int) $fieldValue;
+                    $mappedToData[] = $fieldKey;
+                    continue;
+                }
+
+                // 🆕 معالجة field_dependents_male -> data_number_mail
+                if ($fieldKey === 'field_dependents_male' && $fieldValue !== null && $fieldValue !== '' && $sponsorship->relationData) {
+                    $sponsorship->relationData->data_number_mail = (int) $fieldValue;
+                    $mappedToData[] = $fieldKey;
+                    continue;
+                }
+
+                // 🆕 معالجة field_housing_address_detail -> data_current_address
+                if ($fieldKey === 'field_housing_address_detail' && $fieldValue !== null && $fieldValue !== '' && $sponsorship->relationData) {
+                    $sponsorship->relationData->data_current_address = $fieldValue;
+                    $mappedToData[] = $fieldKey;
+                    continue;
+                }
+
+                // 🆕 معالجة الحقول الأساسية في جدول data
+                if ($sponsorship->relationData && $fieldValue !== null && $fieldValue !== '') {
+                    $basicFieldsMapping = [
+                        'field_data_id_number' => 'data_id_number',
+                        'field_data_first_name' => 'data_first_name',
+                        'field_data_father_name' => 'data_father_name',
+                        'field_data_grand_father_name' => 'data_grand_father_name',
+                        'field_data_family_name' => 'data_family_name',
+                        'field_data_birth_date' => 'data_birth_date',
+                        'field_data_phone_number' => 'data_phone_number',
+                    ];
+
+                    if (isset($basicFieldsMapping[$fieldKey])) {
+                        $sponsorship->relationData->{$basicFieldsMapping[$fieldKey]} = $fieldValue;
+                        $mappedToData[] = $fieldKey;
+                        continue;
+                    }
+                }
+
                 // معالجة حقل إسم المكفول - تحديث في الجدول الصحيح بناءً على رقم الهوية
                 if ($fieldKey === 'field_sponsor_name' && $fieldValue !== null && $fieldValue !== '') {
                     $this->updateSponsoredPersonName($sponsorship, $fieldValue);
@@ -1258,14 +1456,145 @@ class ShowGeneralRegisrationController extends Controller
                     continue;
                 }
 
-                // 🔒 حقل تاريخ ميلاد المكفول - للعرض فقط، لا يتم الحفظ من هنا
-                // يتم تخزين تاريخ الميلاد فقط عند إنشاء الكفالة من المودال
-                if ($fieldKey === 'field_person_birth_date') {
-                    $mappedToSponsorship[] = $fieldKey;
-                    Log::info('SPONSORED_BIRTH_DATE_SKIPPED', [
-                        'sponsorship_id' => $sponsorship->id,
-                        'reason' => 'تاريخ الميلاد للعرض فقط - لا يتم الحفظ من general-registration'
-                    ]);
+                // 🆕 حقل تاريخ ميلاد المكفول - يتم حفظه في re_people إذا كان فرد عائلة
+                if ($fieldKey === 'field_person_birth_date' && $fieldValue !== null && $fieldValue !== '') {
+                    // إذا كان الشخص المكفول فرد عائلة، نحفظ التاريخ في re_people
+                    if ($sponsorship->person_type === 'family_member') {
+                        // البحث عن سجل الشخص في re_people
+                        $rePerson = DB::table('re_people')
+                            ->where('person_id', $sponsorship->identity_number)
+                            ->first();
+
+                        if ($rePerson) {
+                            // تحديث تاريخ الميلاد في re_people
+                            DB::table('re_people')
+                                ->where('id', $rePerson->id)
+                                ->update([
+                                    'person_birth_date' => $fieldValue,
+                                    'updated_at' => now(),
+                                ]);
+
+                            Log::info('FAMILY_MEMBER_BIRTH_DATE_UPDATED', [
+                                'sponsorship_id' => $sponsorship->id,
+                                'person_id' => $sponsorship->identity_number,
+                                're_people_id' => $rePerson->id,
+                                'birth_date' => $fieldValue,
+                            ]);
+                        } else {
+                            Log::warning('RE_PEOPLE_NOT_FOUND_FOR_BIRTH_DATE', [
+                                'sponsorship_id' => $sponsorship->id,
+                                'person_id' => $sponsorship->identity_number,
+                                'birth_date' => $fieldValue,
+                            ]);
+                        }
+
+                        // تحديث أيضاً في sponsorship
+                        $sponsorship->sponsored_birth_date = $fieldValue;
+                        $mappedToSponsorship[] = $fieldKey;
+                    } else {
+                        // للأنواع الأخرى (معيل، متوفي)، نحفظ في sponsorship فقط
+                        $sponsorship->sponsored_birth_date = $fieldValue;
+                        $mappedToSponsorship[] = $fieldKey;
+                        Log::info('BIRTH_DATE_SAVED_TO_SPONSORSHIP', [
+                            'sponsorship_id' => $sponsorship->id,
+                            'person_type' => $sponsorship->person_type,
+                            'birth_date' => $fieldValue,
+                        ]);
+                    }
+                    continue;
+                }
+
+                // ✅ حقل الحالة الصحية - تحديث في re_people لفرد العائلة
+                if ($fieldKey === 'field_health_status' && $fieldValue !== null && $fieldValue !== '') {
+                    if ($sponsorship->person_type === 'family_member') {
+                        // فرد عائلة: تحديث في re_people.person_health_status
+                        $healthStatusId = $this->resolveLookupIdByDescription('health_statuses', $fieldValue);
+
+                        if ($healthStatusId !== null) {
+                            $rePerson = DB::table('re_people')
+                                ->where('person_id', $sponsorship->identity_number)
+                                ->first();
+
+                            if ($rePerson) {
+                                DB::table('re_people')
+                                    ->where('id', $rePerson->id)
+                                    ->update([
+                                        'person_health_status' => $healthStatusId,
+                                        'updated_at' => now(),
+                                    ]);
+
+                                Log::info('✅ FAMILY_MEMBER_HEALTH_STATUS_UPDATED', [
+                                    'sponsorship_id' => $sponsorship->id,
+                                    'person_id' => $sponsorship->identity_number,
+                                    're_people_id' => $rePerson->id,
+                                    'health_status_id' => $healthStatusId,
+                                    'health_status_text' => $fieldValue,
+                                ]);
+                            } else {
+                                Log::warning('RE_PEOPLE_NOT_FOUND_FOR_HEALTH_STATUS', [
+                                    'sponsorship_id' => $sponsorship->id,
+                                    'person_id' => $sponsorship->identity_number,
+                                    'health_status' => $fieldValue,
+                                ]);
+                            }
+                        } else {
+                            Log::warning('HEALTH_STATUS_ID_NOT_FOUND', [
+                                'field_value' => $fieldValue,
+                                'sponsorship_id' => $sponsorship->id,
+                            ]);
+                        }
+
+                        $mappedToRePeople[] = $fieldKey;
+                    }
+                    continue;
+                }
+
+                // 🆕 حقل رقم هوية المكفول - يتم تحديثه في re_people إذا كان فرد عائلة
+                if ($fieldKey === 'field_identity_number' && $fieldValue !== null && $fieldValue !== '' && $sponsorship->person_type === 'family_member') {
+                    $oldIdentityNumber = $sponsorship->identity_number;
+                    $newIdentityNumber = $fieldValue;
+
+                    // البحث عن سجل الشخص في re_people بالرقم القديم
+                    $rePerson = DB::table('re_people')
+                        ->where('person_id', $oldIdentityNumber)
+                        ->first();
+
+                    if ($rePerson) {
+                        // تحديث رقم الهوية في re_people
+                        DB::table('re_people')
+                            ->where('id', $rePerson->id)
+                            ->update([
+                                'person_id' => $newIdentityNumber,
+                                'updated_at' => now(),
+                            ]);
+
+                        // تحديث رقم الهوية في sponsorships
+                        $sponsorship->identity_number = $newIdentityNumber;
+
+                        // تحديث رقم الهوية في attachments إذا كانت موجودة
+                        DB::table('attachments')
+                            ->where('person_identity_number', $oldIdentityNumber)
+                            ->update(['person_identity_number' => $newIdentityNumber]);
+
+                        Log::info('FAMILY_MEMBER_IDENTITY_UPDATED', [
+                            'sponsorship_id' => $sponsorship->id,
+                            'old_identity' => $oldIdentityNumber,
+                            'new_identity' => $newIdentityNumber,
+                            're_people_id' => $rePerson->id,
+                        ]);
+
+                        $mappedToSponsorship[] = $fieldKey;
+                    } else {
+                        Log::warning('RE_PEOPLE_NOT_FOUND_FOR_IDENTITY_UPDATE', [
+                            'sponsorship_id' => $sponsorship->id,
+                            'old_identity' => $oldIdentityNumber,
+                            'new_identity' => $newIdentityNumber,
+                        ]);
+
+                        // تحديث في sponsorship فقط إذا لم يوجد سجل في re_people
+                        $sponsorship->identity_number = $newIdentityNumber;
+                        $mappedToSponsorship[] = $fieldKey;
+                    }
                     continue;
                 }
 
@@ -1358,6 +1687,7 @@ class ShowGeneralRegisrationController extends Controller
                         $resolved = $this->resolveLookupIdByDescription('type_of_accommodation', (string) $fieldValue);
                         if ($resolved !== null) {
                             $sponsorship->relationData->data_current_housing_type = $resolved;
+                            $mappedToData[] = $fieldKey;
                         } else {
                             Log::warning('LOOKUP_ID_NOT_FOUND', [
                                 'field' => 'housing_type',
@@ -1367,6 +1697,44 @@ class ShowGeneralRegisrationController extends Controller
                         }
                         continue;
                     }
+                }
+
+                // 🆕 معالجة field_house_repair_need و field_house_demolition - يجب ربطهم برقم هوية المعيل
+                if (in_array($fieldKey, ['field_house_repair_need', 'field_house_demolition'])) {
+                    // في حالة فرد عائلة، نربط الحقول برقم هوية المعيل (guardian)
+                    // وليس برقم هوية المكفول
+                    $targetFileNumber = $fileIdNumberForPortal;
+                    $targetIdentity = $identityForPortal;
+
+                    // إذا كان الشخص فرد عائلة، نستخدم رقم ملف المعيل
+                    if ($sponsorship->person_type === 'family_member' && $sponsorship->relationData) {
+                        $targetFileNumber = (string) $sponsorship->relationData->file_id_number;
+                        $targetIdentity = (string) ($sponsorship->guardian_identity_number ?: $sponsorship->relationData->data_id_number);
+                    }
+
+                    // حفظ في portal_general_registration_field_values مرتبط برقم المعيل
+                    PortalGeneralRegistrationFieldValue::query()->updateOrCreate(
+                        [
+                            'file_id_number' => $targetFileNumber,
+                            'field_key' => (string) $fieldKey,
+                        ],
+                        [
+                            'sponsorship_id' => $sponsorship->id,
+                            'identity_number' => $targetIdentity,
+                            'field_value' => is_array($fieldValue) ? json_encode($fieldValue, JSON_UNESCAPED_UNICODE) : (string) $fieldValue,
+                            'updated_by_user_id' => $user?->id,
+                        ]
+                    );
+
+                    Log::info('HOUSE_REPAIR_DEMOLITION_SAVED', [
+                        'sponsorship_id' => $sponsorship->id,
+                        'field_key' => $fieldKey,
+                        'person_type' => $sponsorship->person_type,
+                        'target_file_number' => $targetFileNumber,
+                        'target_identity' => $targetIdentity,
+                    ]);
+
+                    continue;
                 }
 
                 // جمع حقول البنك
@@ -1382,18 +1750,12 @@ class ShowGeneralRegisrationController extends Controller
                     continue;
                 }
 
-                // جمع حقول أسباب الوفاة
-                if (in_array($fieldKey, ['field_father_death_reason', 'field_mother_death_reason'])) {
-                    $deathReasonFields[$fieldKey] = $fieldValue;
-                    continue;
-                }
-
                 // 🆕 جمع حقول بيانات المتوفين (dead_people) - الأب والأم
                 if (in_array($fieldKey, [
                     'field_father_first_name', 'field_father_second_name', 'field_father_third_name', 'field_father_last_name',
-                    'field_father_id', 'field_father_death_date',
+                    'field_father_id', 'field_father_death_date', 'field_father_death_reason',
                     'field_mother_first_name', 'field_mother_second_name', 'field_mother_third_name', 'field_mother_last_name',
-                    'field_mother_id', 'field_mother_death_date'
+                    'field_mother_id', 'field_mother_death_date', 'field_mother_death_reason'
                 ])) {
                     $deadPeopleFields[$fieldKey] = $fieldValue;
                     continue;
@@ -1588,45 +1950,9 @@ class ShowGeneralRegisrationController extends Controller
                 }
             }
 
-            // تحديث أسباب الوفاة في جدول dead_people
-            if (!empty($deathReasonFields) && $sponsorship->relationData) {
-                $deadPeople = DB::table('dead_people')
-                    ->where('re_file_id', $sponsorship->relationData->file_id_number)
-                    ->first();
-
-                if ($deadPeople) {
-                    $updates = [];
-
-                    // تحويل وصف سبب الوفاة إلى ID
-                    if (isset($deathReasonFields['field_father_death_reason'])) {
-                        $reason = DB::table('death_reasons')
-                            ->where('description', $deathReasonFields['field_father_death_reason'])
-                            ->first();
-                        if ($reason) {
-                            $updates['father_death_reason'] = $reason->id;
-                        }
-                    }
-
-                    if (isset($deathReasonFields['field_mother_death_reason'])) {
-                        $reason = DB::table('death_reasons')
-                            ->where('description', $deathReasonFields['field_mother_death_reason'])
-                            ->first();
-                        if ($reason) {
-                            $updates['mother_death_reason'] = $reason->id;
-                        }
-                    }
-
-                    if (!empty($updates)) {
-                        DB::table('dead_people')
-                            ->where('id', $deadPeople->id)
-                            ->update($updates);
-                    }
-                }
-            }
-
             // 🆕 معالجة بيانات المتوفين (dead_people) - CRUD كامل
             // يجب معالجتها باستخدام relation_id_number مباشرة من sponsorship
-            if (!empty($deadPeopleFields) || !empty($deathReasonFields)) {
+            if (!empty($deadPeopleFields)) {
                 $relationIdNumber = $sponsorship->relation_id_number;
 
                 // إذا لا يوجد relation_id_number، نستخدم file_id_number من relationData
@@ -1660,6 +1986,17 @@ class ShowGeneralRegisrationController extends Controller
                     if (isset($deadPeopleFields['field_father_death_date'])) {
                         $deadPeopleUpdates['father_death_date'] = $deadPeopleFields['field_father_death_date'];
                     }
+                    // سبب وفاة الأب - تحويل من نص إلى ID
+                    if (isset($deadPeopleFields['field_father_death_reason'])) {
+                        $deathReason = $deadPeopleFields['field_father_death_reason'];
+                        if (!is_numeric($deathReason)) {
+                            $reason = DB::table('death_reasons')->where('description', $deathReason)->first();
+                            if ($reason) {
+                                $deathReason = $reason->id;
+                            }
+                        }
+                        $deadPeopleUpdates['father_death_reason'] = $deathReason;
+                    }
 
                     // حقول الأم المتوفية
                     if (isset($deadPeopleFields['field_mother_first_name'])) {
@@ -1680,23 +2017,16 @@ class ShowGeneralRegisrationController extends Controller
                     if (isset($deadPeopleFields['field_mother_death_date'])) {
                         $deadPeopleUpdates['mother_death_date'] = $deadPeopleFields['field_mother_death_date'];
                     }
-
-                    // إضافة أسباب الوفاة أيضاً إذا لم يتم معالجتها سابقاً
-                    if (isset($deathReasonFields['field_father_death_reason'])) {
-                        $reason = DB::table('death_reasons')
-                            ->where('description', $deathReasonFields['field_father_death_reason'])
-                            ->first();
-                        if ($reason) {
-                            $deadPeopleUpdates['father_death_reason'] = $reason->id;
+                    // سبب وفاة الأم - تحويل من نص إلى ID
+                    if (isset($deadPeopleFields['field_mother_death_reason'])) {
+                        $deathReason = $deadPeopleFields['field_mother_death_reason'];
+                        if (!is_numeric($deathReason)) {
+                            $reason = DB::table('death_reasons')->where('description', $deathReason)->first();
+                            if ($reason) {
+                                $deathReason = $reason->id;
+                            }
                         }
-                    }
-                    if (isset($deathReasonFields['field_mother_death_reason'])) {
-                        $reason = DB::table('death_reasons')
-                            ->where('description', $deathReasonFields['field_mother_death_reason'])
-                            ->first();
-                        if ($reason) {
-                            $deadPeopleUpdates['mother_death_reason'] = $reason->id;
-                        }
+                        $deadPeopleUpdates['mother_death_reason'] = $deathReason;
                     }
 
                     if (!empty($deadPeopleUpdates)) {
@@ -1747,7 +2077,6 @@ class ShowGeneralRegisrationController extends Controller
                 'fields_mapped_sponsorship_count' => count($mappedToSponsorship),
                 'fields_mapped_data_count' => count($mappedToData),
                 'bank_fields_count' => count($bankFields),
-                'death_reason_fields_count' => count($deathReasonFields),
                 'dead_people_fields_count' => count($deadPeopleFields),
             ]);
 
@@ -3027,6 +3356,20 @@ class ShowGeneralRegisrationController extends Controller
                     $rePeopleRecord['person_gender'] = 1;
                 } elseif ($gender == 'أنثى' || $gender == 2) {
                     $rePeopleRecord['person_gender'] = 2;
+                }
+            }
+
+            // ✅ حفظ الحالة الصحية للمكفول (family_member) في re_people.person_health_status
+            // الحقل الصحيح: field_health_status من النموذج name="fields[field_health_status]"
+            if (isset($fieldsData['field_health_status']) && $fieldsData['field_health_status'] !== '') {
+                $healthStatusId = $this->resolveLookupIdByDescription('health_statuses', $fieldsData['field_health_status']);
+                if ($healthStatusId !== null) {
+                    $rePeopleRecord['person_health_status'] = $healthStatusId;
+                    Log::info('SAVING_ORPHAN_HEALTH_TO_RE_PEOPLE', [
+                        'person_id' => $identityNumber,
+                        'health_status_id' => $healthStatusId,
+                        'health_status_text' => $fieldsData['field_health_status']
+                    ]);
                 }
             }
 
