@@ -15,6 +15,7 @@ use App\Models\Sponsorship;
 use App\Models\RePeople;
 use App\Models\DeadPepole;
 use App\Models\PortalGeneralRegistrationFieldValue;
+use App\Models\Attachment;
 use Barryvdh\Snappy\Facades\SnappyPdf as PDF;
 
 class GenerateOrphanReportPdf implements ShouldQueue
@@ -521,9 +522,35 @@ class GenerateOrphanReportPdf implements ShouldQueue
             }
         }
 
+        // 6. جلب جميع الوثائق من جدول attachments بناءً على رقم الملف
+        $allAttachments = $this->getAllAttachments($relationIdNumber, $sponsorship, $data['family_members']);
+
+        // فصل الصور الشخصية عن باقي الوثائق
+        $personalPhotos = [];
+        $otherAttachments = [];
+
+        foreach ($allAttachments as $attachment) {
+            if ($attachment['is_personal_photo']) {
+                // حفظ الصورة الشخصية حسب رقم الهوية
+                $personalPhotos[$attachment['person_identity']] = $attachment;
+            } else {
+                $otherAttachments[] = $attachment;
+            }
+        }
+
+        // إضافة الصور الشخصية للمكفول والمعيل
+        $data['orphan_photo'] = $personalPhotos[$sponsorship->identity_number] ?? null;
+        $data['guardian_photo'] = $personalPhotos[$sponsorship->guardian_identity_number] ?? null;
+
+        // باقي الوثائق (بدون الصور الشخصية)
+        $data['attachments'] = $otherAttachments;
+
         Log::info('COLLECT_REPORT_DATA_COMPLETE', [
             'data_fields_filled' => array_filter($data, function($v) { return $v !== self::NOT_AVAILABLE; }),
-            'family_members_count' => count($data['family_members'])
+            'family_members_count' => count($data['family_members']),
+            'attachments_count' => count($data['attachments']),
+            'orphan_photo' => $data['orphan_photo'] ? 'موجودة' : 'غير موجودة',
+            'guardian_photo' => $data['guardian_photo'] ? 'موجودة' : 'غير موجودة'
         ]);
 
         return $data;
@@ -551,8 +578,32 @@ class GenerateOrphanReportPdf implements ShouldQueue
         $result = [];
 
         foreach ($members as $index => $member) {
+            // جلب الصورة الشخصية لفرد الأسرة
+            $personalPhoto = Attachment::where('person_identity_number', $member->person_id)
+                ->whereIn('file_type', ['صورة شخصية', 'الصورة الشخصية', 'personal_photo', '1'])
+                ->first();
+
+            $photoData = null;
+            if ($personalPhoto) {
+                $filePath = $personalPhoto->file_path;
+                // تحويل المسار النسبي إلى مسار مطلق
+                if (!str_starts_with($filePath, '/') && !str_starts_with($filePath, 'http')) {
+                    if (str_starts_with($filePath, 'storage/')) {
+                        $filePath = storage_path('app/public/' . str_replace('storage/', '', $filePath));
+                    } else {
+                        $filePath = public_path($filePath);
+                    }
+                }
+
+                $photoData = [
+                    'file_path' => $filePath,
+                    'file_exists' => file_exists($filePath)
+                ];
+            }
+
             $result[] = [
                 'index' => $index + 1,
+                'person_id' => $member->person_id,
                 'full_name' => $this->formatFullName(
                     $member->first_name,
                     $member->second_name,
@@ -562,6 +613,7 @@ class GenerateOrphanReportPdf implements ShouldQueue
                 'birth_date' => $member->person_birth_date ? date('d/m/Y', strtotime($member->person_birth_date)) : $na,
                 'academic_degree' => $member->acadimic_degree ?? $na,
                 'health_status' => $this->getHealthStatus($member->person_health_status) ?? $na,
+                'photo' => $photoData
             ];
         }
 
@@ -646,6 +698,198 @@ class GenerateOrphanReportPdf implements ShouldQueue
     {
         if (!$id) return null;
         return DB::table('category_of_relations')->where('id', $id)->value('attribute');
+    }
+
+    /**
+     * جلب جميع الوثائق من جدول attachments بناءً على رقم الملف
+     */
+    private function getAllAttachments($relationIdNumber, $sponsorship, $familyMembers)
+    {
+        Log::info('GET_ALL_ATTACHMENTS_START', [
+            'relation_id_number' => $relationIdNumber,
+            'orphan_identity' => $sponsorship->identity_number,
+            'guardian_identity' => $sponsorship->guardian_identity_number
+        ]);
+
+        $attachments = [];
+        $na = self::NOT_AVAILABLE;
+
+        // جمع جميع أرقام الهوية المتعلقة بهذا الملف
+        $identityNumbers = [];
+
+        // 1. رقم هوية اليتيم/المكفول
+        if ($sponsorship->identity_number) {
+            $identityNumbers[] = $sponsorship->identity_number;
+        }
+
+        // 2. رقم هوية المعيل
+        if ($sponsorship->guardian_identity_number) {
+            $identityNumbers[] = $sponsorship->guardian_identity_number;
+        }
+
+        // 3. أرقام هوية أفراد الأسرة من جدول re_people
+        if (!empty($familyMembers)) {
+            $familyIdentities = RePeople::where('registration_id', $relationIdNumber)
+                ->pluck('person_id')
+                ->toArray();
+            $identityNumbers = array_merge($identityNumbers, $familyIdentities);
+        }
+
+        // 4. البحث في جدول data عن أفراد بنفس رقم الملف
+        $dataIdentities = DB::table('data')
+            ->where('file_id_number', $relationIdNumber)
+            ->pluck('data_id_number')
+            ->toArray();
+        $identityNumbers = array_merge($identityNumbers, $dataIdentities);
+
+        // إزالة التكرارات والقيم الفارغة
+        $identityNumbers = array_unique(array_filter($identityNumbers));
+
+        Log::info('IDENTITY_NUMBERS_COLLECTED', [
+            'count' => count($identityNumbers),
+            'identities' => $identityNumbers
+        ]);
+
+        // جلب جميع الوثائق لجميع أرقام الهوية
+        if (!empty($identityNumbers)) {
+            $dbAttachments = Attachment::whereIn('person_identity_number', $identityNumbers)
+                ->orderBy('person_identity_number')
+                ->orderBy('file_type')
+                ->get();
+
+            Log::info('ATTACHMENTS_FOUND', [
+                'count' => $dbAttachments->count()
+            ]);
+
+            // تنظيم الوثائق حسب الشخص ونوع الوثيقة
+            foreach ($dbAttachments as $attachment) {
+                // تحديد اسم الشخص
+                $personName = $this->getPersonNameByIdentity($attachment->person_identity_number, $sponsorship, $familyMembers);
+
+                // تحديد نوع الوثيقة
+                $documentType = $this->getDocumentTypeName($attachment->file_type);
+
+                // تحديد نوع الشخص (يتيم، معيل، فرد من الأسرة)
+                $personType = 'آخر';
+                if ($attachment->person_identity_number == $sponsorship->identity_number) {
+                    $personType = 'المكفول';
+                } elseif ($attachment->person_identity_number == $sponsorship->guardian_identity_number) {
+                    $personType = 'المعيل';
+                } else {
+                    $personType = 'فرد من الأسرة';
+                }
+
+                // إعداد مسار الملف
+                $filePath = $attachment->file_path;
+
+                // تحويل المسار النسبي إلى مسار مطلق
+                if (!str_starts_with($filePath, '/') && !str_starts_with($filePath, 'http')) {
+                    // إذا كان المسار يبدأ بـ storage/، استخدم storage_path
+                    if (str_starts_with($filePath, 'storage/')) {
+                        $filePath = storage_path('app/public/' . str_replace('storage/', '', $filePath));
+                    } else {
+                        $filePath = public_path($filePath);
+                    }
+                }
+
+                // التحقق من وجود الملف
+                $fileExists = file_exists($filePath);
+
+                // للصور الشخصية، نحتفظ بها منفصلة
+                $isPersonalPhoto = in_array($attachment->file_type, ['صورة شخصية', 'الصورة الشخصية', 'personal_photo', '1', 1, 'صوره شخصيه']);
+
+                // يمكن أيضاً التحقق من اسم الملف إذا احتوى على "personal" أو "صورة"
+                if (!$isPersonalPhoto && $attachment->stored_file_name) {
+                    $fileName = strtolower($attachment->stored_file_name);
+                    $isPersonalPhoto = str_contains($fileName, 'personal') ||
+                                      str_contains($fileName, 'صورة') ||
+                                      str_contains($fileName, 'صوره');
+                }
+
+                $attachments[] = [
+                    'person_identity' => $attachment->person_identity_number,
+                    'person_name' => $personName,
+                    'person_type' => $personType,
+                    'document_type' => $documentType,
+                    'file_name' => $attachment->stored_file_name ?? basename($attachment->file_path),
+                    'file_path' => $filePath,
+                    'file_exists' => $fileExists,
+                    'is_personal_photo' => $isPersonalPhoto,
+                    'is_image' => in_array(strtolower(pathinfo($filePath, PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'png', 'gif']),
+                    'created_at' => $attachment->created_at
+                ];
+            }
+        }
+
+        Log::info('GET_ALL_ATTACHMENTS_COMPLETE', [
+            'total_attachments' => count($attachments)
+        ]);
+
+        return $attachments;
+    }
+
+    /**
+     * الحصول على اسم الشخص من رقم الهوية
+     */
+    private function getPersonNameByIdentity($identityNumber, $sponsorship, $familyMembers)
+    {
+        // تحقق من اليتيم
+        if ($identityNumber == $sponsorship->identity_number) {
+            return $sponsorship->orphan_name ?? 'المكفول';
+        }
+
+        // تحقق من المعيل
+        if ($identityNumber == $sponsorship->guardian_identity_number) {
+            return $sponsorship->guardian_name ?? 'المعيل';
+        }
+
+        // البحث في أفراد الأسرة
+        $member = RePeople::where('person_id', $identityNumber)->first();
+        if ($member) {
+            return $this->formatFullName(
+                $member->first_name,
+                $member->second_name,
+                $member->third_name,
+                $member->last_name
+            ) ?: 'فرد من الأسرة';
+        }
+
+        // البحث في جدول data
+        $dataRecord = DB::table('data')
+            ->where('data_id_number', $identityNumber)
+            ->first();
+
+        if ($dataRecord) {
+            return $this->formatFullName(
+                $dataRecord->data_first_name ?? null,
+                $dataRecord->data_father_name ?? null,
+                $dataRecord->data_grand_father_name ?? null,
+                $dataRecord->data_family_name ?? null
+            ) ?: 'شخص';
+        }
+
+        return 'غير معروف';
+    }
+
+    /**
+     * الحصول على اسم نوع الوثيقة
+     */
+    private function getDocumentTypeName($fileType)
+    {
+        // إذا كان رقم، ابحث في جدول document_types
+        if (is_numeric($fileType)) {
+            $docType = DB::table('document_types')
+                ->where('id', $fileType)
+                ->orWhere('pref', $fileType)
+                ->first();
+
+            if ($docType) {
+                return $docType->description ?? $docType->pref ?? 'وثيقة';
+            }
+        }
+
+        // إرجاع النوع كما هو
+        return $fileType ?: 'وثيقة';
     }
 
     /**

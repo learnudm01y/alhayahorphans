@@ -217,6 +217,7 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::resource('TypeOfGuarantee_name', TypeOfGuaranteeController::class);
     Route::get('records-management/{id}/show', [RecordsManagementEditController::class, 'show'])->name('records.management.show');
     Route::post('records-management/get-additional-info', [RecordsManagementEditController::class, 'getAdditionalInfo'])->name('records.management.getAdditionalInfo');
+    Route::get('records-management/{id}/export-family-report', [RecordsManagementEditController::class, 'exportFamilyReport'])->name('records.management.export-family-report');
      // AJAX: جلب سجلات موظف مع pagination
     Route::get('ajax/admin-records/{admin}', [RecordsManagementEditController::class, 'ajaxAdminRecords'])->name('ajax.admin-records');
      // AJAX: جلب سجلات موظف مع pagination

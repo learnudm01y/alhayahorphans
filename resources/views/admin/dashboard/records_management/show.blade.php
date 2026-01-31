@@ -594,8 +594,8 @@
                                     </div>
                                 @endif
 
-                                {{-- زر مشاهدة المزيد --}}
-                                <div class="mt-3 w-100 text-center">
+                                {{-- أزرار الإجراءات --}}
+                                <div class="mt-3 w-100 d-flex gap-2 justify-content-center">
                                     <button type="button" class="btn btn-sm btn-info view-more-btn"
                                             data-type="family_member"
                                             data-person-id="{{ $member->person_id }}"
@@ -603,6 +603,11 @@
                                             data-person-name="{{ $member->first_name }} {{ $member->second_name }} {{ $member->third_name }} {{ $member->last_name }}">
                                         <i class="bi bi-eye"></i> مشاهدة المزيد
                                     </button>
+                                    <a href="{{ route('admin.records.management.export-family-report', ['id' => $data->id, 'member_id' => $member->id]) }}"
+                                       class="btn btn-sm btn-success"
+                                       target="_blank">
+                                        <i class="bi bi-file-earmark-pdf"></i> تصدير التقرير
+                                    </a>
                                 </div>
                             </div>
                         </div>

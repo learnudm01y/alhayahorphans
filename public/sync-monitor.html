@@ -43,11 +43,11 @@
         }
 
         /* منع التأثير المطاطي */
-        html, body {
+        html {
             overscroll-behavior: none;
             overscroll-behavior-y: none;
-            -webkit-overflow-scrolling: auto;
             overflow-x: hidden;
+            height: 100%;
         }
 
         body {
@@ -55,7 +55,17 @@
             background-color: var(--light-bg);
             color: #333;
             min-height: 100vh;
+            height: auto;
             direction: rtl;
+            overflow-x: hidden;
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
+            position: relative;
+        }
+
+        /* التأكد من عدم منع scroll بسبب keyboard */
+        body.keyboard-visible {
+            overflow-y: auto !important;
         }
 
         /* Header */
@@ -668,7 +678,7 @@
     </div>
 
     <!-- نافذة كلمة المرور -->
-    <div id="passwordModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000; align-items: center; justify-content: center;">
+    <div id="passwordModal" style="display: none; pointer-events: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000; align-items: center; justify-content: center;">
         <div style="background: white; padding: 25px; border-radius: 12px; width: 90%; max-width: 350px; text-align: center;">
             <h3 style="margin: 0 0 15px; color: #dc3545;">⚠️ تأكيد الحذف</h3>
             <p style="color: #666; margin-bottom: 20px;">هذا الإجراء سيحذف جميع البيانات المحلية. أدخل كلمة المرور للمتابعة:</p>
@@ -681,7 +691,7 @@
     </div>
 
     <!-- نافذة التحديثات المعلقة -->
-    <div id="pendingModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000; align-items: center; justify-content: center;">
+    <div id="pendingModal" style="display: none; pointer-events: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000; align-items: center; justify-content: center;">
         <div style="background: white; border-radius: 12px; width: 95%; max-width: 500px; max-height: 80vh; overflow: hidden; display: flex; flex-direction: column;">
             <div style="background: #ff9800; color: white; padding: 15px; display: flex; align-items: center; justify-content: space-between;">
                 <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;">
@@ -753,6 +763,9 @@
 
         document.addEventListener('DOMContentLoaded', async function() {
             try {
+                // ✅ التأكد من أن scroll يعمل على body
+                ensureBodyScroll();
+
                 await SyncService.init();
 
                 if (!SyncService.isAuthenticated()) {
@@ -768,6 +781,39 @@
                 showStatus('error', 'حدث خطأ في تهيئة الصفحة');
             }
         });
+
+        // ========================================
+        // دالة للتأكد من عمل scroll دائماً
+        // ========================================
+        function ensureBodyScroll() {
+            document.body.style.overflowY = 'auto';
+            document.body.style.overflowX = 'hidden';
+            document.body.style.position = 'relative';
+            document.body.style.height = 'auto';
+
+            // إزالة أي classes قد تمنع الـ scroll
+            document.body.classList.remove('modal-open', 'no-scroll');
+
+            // التحقق من الـ Modals وإخفائها
+            const modals = document.querySelectorAll('[id*="Modal"]');
+            modals.forEach(modal => {
+                if (modal.style.display !== 'flex') {
+                    modal.style.display = 'none';
+                    modal.style.pointerEvents = 'none';
+                }
+            });
+
+            console.log('✅ Body scroll ensured');
+        }
+
+        // فحص دوري للتأكد من scroll (كل 5 ثواني)
+        setInterval(() => {
+            const bodyOverflow = window.getComputedStyle(document.body).overflowY;
+            if (bodyOverflow === 'hidden' || bodyOverflow === 'clip') {
+                console.warn('⚠️ Body overflow was blocked! Fixing...');
+                ensureBodyScroll();
+            }
+        }, 5000);
 
         // ========================================
         // تحميل جميع الإحصائيات
@@ -920,13 +966,18 @@
         // مسح البيانات المحلية
         // ========================================
         function requestClearLocalData() {
-            document.getElementById('passwordModal').style.display = 'flex';
+            const modal = document.getElementById('passwordModal');
+            modal.style.display = 'flex';
+            modal.style.pointerEvents = 'auto';
             document.getElementById('deletePassword').value = '';
-            document.getElementById('deletePassword').focus();
+            setTimeout(() => document.getElementById('deletePassword').focus(), 100);
         }
 
         function cancelClearLocalData() {
-            document.getElementById('passwordModal').style.display = 'none';
+            const modal = document.getElementById('passwordModal');
+            modal.style.display = 'none';
+            modal.style.pointerEvents = 'none';
+            ensureBodyScroll();
         }
 
         async function confirmClearLocalData() {
@@ -947,7 +998,10 @@
                     return;
                 }
 
-                document.getElementById('passwordModal').style.display = 'none';
+                const modal = document.getElementById('passwordModal');
+                modal.style.display = 'none';
+                modal.style.pointerEvents = 'none';
+                ensureBodyScroll();
                 await clearLocalData();
 
             } catch (error) {
@@ -1054,7 +1108,9 @@
         // عرض التحديثات المعلقة
         // ========================================
         async function showPendingDetails() {
-            document.getElementById('pendingModal').style.display = 'flex';
+            const modal = document.getElementById('pendingModal');
+            modal.style.display = 'flex';
+            modal.style.pointerEvents = 'auto';
             const listContainer = document.getElementById('pendingList');
             listContainer.innerHTML = '<p style="text-align: center; color: #888;">جاري التحميل...</p>';
 
@@ -1112,7 +1168,10 @@
         }
 
         function closePendingModal() {
-            document.getElementById('pendingModal').style.display = 'none';
+            const modal = document.getElementById('pendingModal');
+            modal.style.display = 'none';
+            modal.style.pointerEvents = 'none';
+            ensureBodyScroll();
         }
 
         async function uploadPendingFromModal() {

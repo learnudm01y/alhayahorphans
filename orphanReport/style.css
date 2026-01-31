@@ -1,0 +1,386 @@
+/* Global Styles */
+body {
+    font-family: 'Tajawal', sans-serif;
+    margin: 0;
+    padding: 20px;
+    background-color: #f0f0f0;
+    direction: rtl;
+    box-sizing: border-box;
+}
+
+.page-container {
+    width: 210mm;
+    /* A4 width */
+    min-height: 297mm;
+    /* A4 height */
+    margin: 0 auto;
+    background-color: white;
+    background-image: url('background102.jpg');
+    background-size: cover;
+    /* Or contain/100% 100% depending on exact need, cover is safer */
+    background-position: center;
+    position: relative;
+    padding: 30px 40px 40px 40px;
+    /* Reduced top padding to move elements up */
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    /* For viewing in browser */
+    box-sizing: border-box;
+}
+
+/* Colors from image roughly */
+:root {
+    --primary-purple: #6c2b6d;
+    /* Deep purple header */
+    --secondary-teal: #19a19a;
+    /* Teal/Greenish headers */
+    --border-color: #a0a0a0;
+    --text-color: #333;
+}
+
+/* Header */
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    position: relative;
+}
+
+/* Logo Section */
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.logo-text h1 {
+    font-size: 18px;
+    color: var(--primary-purple);
+    margin: 0;
+    font-weight: 700;
+}
+
+.logo-text h2 {
+    font-size: 14px;
+    color: var(--secondary-teal);
+    margin: 0;
+    font-weight: 500;
+}
+
+.logo-icon svg {
+    height: 50px;
+    width: 50px;
+}
+
+/* Form Title */
+.form-title {
+    color: #1a6496;
+    /* Blueish title in center */
+    font-size: 24px;
+    font-weight: 700;
+    text-decoration: underline;
+    text-align: center;
+    width: 100%;
+    position: absolute;
+    left: 0;
+    right: 0;
+    pointer-events: none;
+    /* Let logo be clickable if needed */
+}
+
+/* Re-centering title logic */
+.header {
+    justify-content: space-between;
+    /* Keep logo left/right */
+}
+
+/* Actually title is center of page below logo?
+   Looking at image 1: Logo is top right (in RTL). The text "استمارة أيتام" is centered below it. 
+   Let's adjust.
+*/
+.header {
+    flex-direction: column;
+    align-items: flex-start;
+    /* Logo is on the right */
+}
+
+.logo-container {
+    align-self: flex-start;
+    /* Right side in RTL */
+    margin-bottom: 20px;
+}
+
+.form-title {
+    position: static;
+    text-align: center;
+    margin: 0 auto;
+    color: #0b5fa5;
+    text-decoration: none;
+    border-bottom: 2px solid #0b5fa5;
+    padding-bottom: 2px;
+    display: inline-block;
+}
+
+.header {
+    align-items: center;
+}
+
+.logo-container {
+    align-self: flex-start;
+    width: 100%;
+    display: flex;
+    justify-content: flex-start;
+}
+
+/* Tables Layout */
+.top-tables-container {
+    display: flex;
+    gap: 15px;
+    /* Slight gap increase */
+    margin-bottom: 20px;
+    align-items: stretch;
+    /* Stretch to match heights if simple flex works, but table content dictates height usually */
+}
+
+.table-block {
+    flex: 1;
+    /* Force equal width */
+    width: 50%;
+    /* Explicit base */
+}
+
+/* Specific flex overrides removed */
+
+/* Table Styles */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 2px solid var(--primary-purple);
+    background: white;
+    height: 100%;
+    /* Try to fill block */
+}
+
+.main-header {
+    background-color: var(--primary-purple);
+    color: white;
+    padding: 6px;
+    /* Reduced specific padding on header might help text size contrast */
+    text-align: center;
+    font-size: 16px;
+    /* Reduced from 18px */
+    border: 1px solid var(--primary-purple);
+}
+
+.sub-header th {
+    background-color: #888;
+    color: white;
+    padding: 5px;
+    font-size: 13px;
+    border: 1px solid white;
+}
+
+.siblings-table .sub-header th {
+    background-color: #777;
+    border: 1px solid white;
+}
+
+td {
+    padding: 4px 6px;
+    /* Reduced side padding slightly */
+    border: 1px solid #ccc;
+    font-size: 12px;
+    /* Reduced from 14px to prevent break */
+    vertical-align: middle;
+}
+
+.label {
+    font-weight: 700;
+    color: white;
+    width: 30%;
+    /* Fixed width for labels */
+    background-color: var(--secondary-teal);
+    text-align: center;
+    border: 1px solid white;
+}
+
+/* Override for specific styling */
+.styled-table .label {
+    background-color: var(--secondary-teal);
+    color: white;
+    width: 30%;
+}
+
+.styled-table .value {
+    background-color: white;
+    color: black;
+    text-align: center;
+    font-weight: 700;
+    border: 1px solid #ccc;
+    white-space: nowrap;
+    /* Prevent text wrapping */
+    overflow: hidden;
+    /* Safety */
+    text-overflow: ellipsis;
+    /* Safety */
+}
+
+/* Photo Cell */
+.photo-cell {
+    width: 110px;
+    /* Refined width */
+    padding: 0;
+    border: 1px solid #ccc;
+    background: #fff;
+    vertical-align: middle;
+}
+
+.photo-cell img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+    min-height: 160px;
+    /* Ensure minimum height */
+}
+
+/* Specific Height Balancing */
+/* Guardian table has fewer rows, so let's increase its cell height */
+.guardian-block td {
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
+.orphan-block td {
+    padding-top: 4px;
+    /* Standard */
+    padding-bottom: 4px;
+}
+
+/* Siblings Table Styling */
+.siblings-block {
+    margin-bottom: 20px;
+}
+
+.siblings-block .main-header {
+    background-color: var(--primary-purple);
+    /* Purple for main title */
+}
+
+.siblings-block .sub-header th {
+    background-color: #7d7d7d;
+    /* Grey for column headers */
+    color: white;
+    border: 2px solid white;
+    /* White grid feel */
+}
+
+.siblings-block td {
+    text-align: center;
+    font-weight: 600;
+    border: 2px solid #ccc;
+    /* Thicker borders */
+}
+
+/* Photos Grid */
+.photos-grid {
+    display: flex;
+    gap: 8px;
+    /* Reduced gap */
+    margin-bottom: 30px;
+    /* Ensure space from bottom */
+    flex-wrap: wrap;
+    justify-content: center;
+    /* Center them */
+}
+
+.photo-item {
+    width: 15%;
+    /* Smaller width ~6 per row or just smaller generally */
+    border: 1px solid #ccc;
+    background: white;
+    padding: 2px;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    margin-bottom: 5px;
+}
+
+.photo-item img {
+    width: 100%;
+    height: 90px;
+    /* Much reduced height */
+    object-fit: cover;
+}
+
+.photo-item .caption {
+    font-size: 9px;
+    /* Smaller font */
+    text-align: center;
+    margin-top: 2px;
+    font-weight: bold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Footer */
+.footer {
+    border-top: 5px solid var(--secondary-teal);
+    padding-top: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: #333;
+}
+
+.footer-contact {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.contact-line {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.footer-address {
+    text-align: right;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.footer-qr img {
+    width: 50px;
+    height: 50px;
+}
+
+/* Specific tweaks for "Guardian Table" labels -> White bg?
+   Image 1: Guardian table (Left side). Columns: Name, ID, Relation...
+   Label column is Teal? No.
+   Let's look at crop 2 (Left side).
+   "بيانات المعيل" (Purple Top)
+   "الاسم رباعي" -> Teal Background? Yes.
+   "اسماء ..." -> White.
+   Okay, consistent style for both tables.
+*/
+/* Fix border colors and thickness */
+.styled-table {
+    border: 2px solid var(--primary-purple);
+}
+
+.styled-table thead tr:first-child th {
+    border-bottom: 2px solid white;
+    /* Separator between title and content */
+}
+
+/* Adjustments for inputs */
+.value-cell.number {
+    font-family: sans-serif;
+    /* For numbers to look right */
+}

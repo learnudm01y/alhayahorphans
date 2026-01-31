@@ -27,6 +27,8 @@ use App\Models\RePeople;
 use App\Models\BankName;
 use App\Models\GuardianBankAccount;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Barryvdh\Snappy\Facades\SnappyPdf as PDF;
 
 class RecordsManagementEditController extends Controller
 {
@@ -1389,5 +1391,160 @@ class RecordsManagementEditController extends Controller
             ], 500);
         }
     }
-}
 
+    /**
+     * تصدير تقرير الأسرة بصيغة PDF
+     */
+    public function exportFamilyReport($id, Request $request)
+    {
+        // جلب معرف الفرد المحدد
+        $memberId = $request->query('member_id');
+
+        // جلب البيانات الأساسية للمعيل
+        $data = Data::with([
+            'section',
+            'requestStatus',
+            'categoryOfRelation',
+            'healthStatus',
+            'city',
+            'province',
+            'attachments',
+            'rePeople.healthStatus',
+            'rePeople.guaranteeType',
+            'rePeople.sponsorshipStatus',
+            'rePeople.attachments',
+        ])->findOrFail($id);
+
+        // جلب أفراد الأسرة
+        $allFamilyMembers = $data->rePeople;
+
+        // البحث عن الفرد المحدد
+        $selectedMember = $allFamilyMembers->firstWhere('id', $memberId);
+
+        if (!$selectedMember) {
+            abort(404, 'الفرد المحدد غير موجود');
+        }
+
+        // ترتيب الأفراد: الفرد المحدد أولاً، ثم الباقي
+        $familyMembers = collect([$selectedMember])->merge(
+            $allFamilyMembers->filter(function($member) use ($memberId) {
+                return $member->id != $memberId;
+            })
+        );
+
+        // حساب عدد الأفراد الذين يعيلهم المعيل عندما تكون القيمة غير متوفرة
+        // يتضمن العدد اليتيم الأساسي والموجودين في جدول الإخوة المعروض
+        $computedDependents = $familyMembers->count();
+
+        // التحقق من حالة الكفالة لكل فرد
+        foreach ($familyMembers as $member) {
+            $hasSponsorship = \App\Models\Sponsorship::where('identity_number', $member->person_id)->exists();
+            $member->is_sponsored = $hasSponsorship;
+        }
+
+        // جلب حالة كفالة المعيل
+        $guardianHasSponsorship = \App\Models\Sponsorship::where('identity_number', $data->data_id_number)->exists();
+        $data->is_sponsored = $guardianHasSponsorship;
+
+        // جلب جميع صور الملف من المرفقات
+        $allAttachments = collect();
+
+        // إضافة مرفقات المعيل
+        if ($data->attachments) {
+            $allAttachments = $allAttachments->merge($data->attachments);
+        }
+
+        // إضافة مرفقات أفراد الأسرة
+        foreach ($familyMembers as $member) {
+            if ($member->attachments) {
+                $allAttachments = $allAttachments->merge($member->attachments);
+            }
+        }
+
+        // تنظيم الوثائق حسب نوعها
+        $personalPhotos = collect();
+        $otherDocuments = collect();
+
+        // جلب أنواع الوثائق من قاعدة البيانات
+        $documentTypes = DB::table('document_types')->get()->keyBy('pref');
+
+        foreach ($allAttachments as $attachment) {
+
+            // التحقق من نوع الوثيقة
+            $isPersonalPhoto = false;
+            $isFullBodyPhoto = false;
+
+            // البحث عن نوع الوثيقة في document_types
+            $docType = $documentTypes->get($attachment->file_type);
+            if ($docType) {
+                $description = strtolower($docType->description ?? '');
+                // النوع 12 فقط = صور شخصية (صورة الهوية النوع 3 تُعتبر وثيقة عادية)
+                $isPersonalPhoto = str_contains($description, 'صور شخصية') ||
+                                  $attachment->file_type == '12';
+                $isFullBodyPhoto = str_contains($description, 'صورة طولية') ||
+                                  str_contains($description, 'full body') ||
+                                  $attachment->file_type == '19';
+            }
+
+            // يمكن أيضاً الفحص من اسم الملف
+            if (!$isPersonalPhoto && $attachment->stored_file_name) {
+                $fileName = strtolower($attachment->stored_file_name);
+                // الملفات التي تبدأ بـ 12_ فقط هي صور شخصية
+                $isPersonalPhoto = str_starts_with($fileName, '12_') ||
+                                  str_contains($fileName, 'personal_photo');
+            }
+
+            if (!$isFullBodyPhoto && $attachment->stored_file_name) {
+                $fileName = strtolower($attachment->stored_file_name);
+                // الملفات التي تبدأ بـ 19_ هي صور طولية
+                $isFullBodyPhoto = str_starts_with($fileName, '19_') ||
+                                  str_contains($fileName, 'full_body');
+            }
+
+            // تصنيف الوثيقة
+            if ($isPersonalPhoto && !$isFullBodyPhoto) {
+                $personalPhotos->push($attachment);
+            } elseif (!$isFullBodyPhoto) {
+                // استبعاد الصور الطولية
+                $otherDocuments->push($attachment);
+            }
+        }
+
+        // فلترة الصور فقط (استبعاد PDF)
+        $documentImages = $allAttachments->filter(function($attachment) {
+            return Str::endsWith(strtolower($attachment->stored_file_name), ['jpg', 'jpeg', 'png', 'gif']);
+        });
+
+        // المسار الكامل لصورة الخلفية
+        $backgroundPath = public_path('background102.jpg');
+
+        // تحويل صورة الخلفية إلى base64
+        $backgroundBase64 = '';
+        if (file_exists($backgroundPath)) {
+            $backgroundBase64 = base64_encode(file_get_contents($backgroundPath));
+        }
+
+        // توليد PDF
+        $pdf = PDF::loadView('admin.dashboard.reports.family_report', [
+            'guardian' => $data,
+            'selectedMember' => $selectedMember,
+            'familyMembers' => $familyMembers,
+            'documentImages' => $documentImages,
+            'personalPhotos' => $personalPhotos,
+            'otherDocuments' => $otherDocuments,
+            'computedDependents' => $computedDependents,
+            'backgroundBase64' => $backgroundBase64
+        ]);
+
+        // تحسين إعدادات PDF
+        $pdf->setPaper('A4', 'portrait');
+        $pdf->setOption('enable-local-file-access', true);
+        $pdf->setOption('encoding', 'UTF-8');
+        $pdf->setOption('margin-top', 0);
+        $pdf->setOption('margin-bottom', 0);
+        $pdf->setOption('margin-left', 0);
+        $pdf->setOption('margin-right', 0);
+
+        return $pdf->stream('family_report_' . $selectedMember->person_id . '.pdf');
+    }
+}

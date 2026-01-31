@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>استمارة أيتام</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="page-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo-container">
+                <!-- Logo text and graphic removed as requested -->
+            </div>
+            <h1 class="form-title">استمارة أيتام</h1>
+        </header>
+        <div class="content-wrapper">
+            <!-- Top Section: Guardian and Orphan Tables -->
+            <div class="top-tables-container">
+                <!-- Orphan Table (Right Side in RTL) -->
+                <!-- Note: In visual layout, Orphan is on the Right. 
+                      In HTML RTL flow, the first element is usually on the Right. 
+                      So we place Orphan Table first. -->
+                <div class="table-block orphan-block">
+                    <table class="styled-table">
+                        <thead>
+                            <tr>
+                                <th colspan="3" class="main-header">بيانات اليتيم</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="label">الاسم رباعي</td>
+                                <td class="value" colspan="2">نهيل محمد عبد الرحيم الصعيدي</td>
+                            </tr>
+                            <tr>
+                                <td class="label">رقم الهوية</td>
+                                <td class="value">437014475</td>
+                                <td class="photo-cell" rowspan="6">
+                                    <img src="nature_orphan_placeholder_1769650865617.png" alt="صورة اليتيم">
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="label">تاريخ الميلاد</td>
+                                <td class="value">09/12/2016</td>
+                            </tr>
+                            <tr>
+                                <td class="label">الجنس</td>
+                                <td class="value">انثى</td>
+                            </tr>
+                            <tr>
+                                <td class="label">الحالة الصحية</td>
+                                <td class="value">سليم</td>
+                            </tr>
+                            <tr>
+                                <td class="label">مستوى التعليم</td>
+                                <td class="value">ابتدائي</td>
+                            </tr>
+                            <tr>
+                                <td class="label">حالة الكفالة</td>
+                                <td class="value">مكفول</td>
+                            </tr>
+                            <tr>
+                                <td class="label">المتوفى</td>
+                                <td class="value" colspan="2">الأب</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Guardian Table (Left Side in RTL) -->
+                <div class="table-block guardian-block">
+                    <table class="styled-table">
+                        <thead>
+                            <tr>
+                                <th colspan="3" class="main-header">بيانات المعيل</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="label">الاسم رباعي</td>
+                                <td class="value" colspan="2">اسماء اسماعيل محمد الصعيدي</td>
+                            </tr>
+                            <tr>
+                                <td class="label">رقم الهوية</td>
+                                <td class="value number">803744309</td>
+                                <td class="photo-cell" rowspan="4">
+                                    <img src="nature_guardian_placeholder_1769651440260.png" alt="صورة المعيل">
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="label">صلة القرابة</td>
+                                <td class="value">أم</td>
+                            </tr>
+                            <tr>
+                                <td class="label">عدد من يعيلهم</td>
+                                <td class="value number">4</td>
+                            </tr>
+                            <tr>
+                                <td class="label">العنوان الحالي</td>
+                                <td class="value">النصيرات</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <!-- Siblings Table -->
+            <div class="siblings-block">
+                <table class="styled-table full-width">
+                    <thead>
+                        <tr>
+                            <th colspan="7" class="main-header">بيانات الإخوة الأيتام</th>
+                        </tr>
+                        <tr class="sub-header">
+                            <th>الاسم رباعي</th>
+                            <th>رقم الهوية</th>
+                            <th>الجنس</th>
+                            <th>تاريخ الميلاد</th>
+                            <th>مستوى التعليم</th>
+                            <th>الحالة الصحية</th>
+                            <th class="last-col">حالة الكفالة</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- 1 -->
+                        <tr>
+                            <td>عبدالرحيم محمد عبدالرحيم الصعيدي</td>
+                            <td>444185607</td>
+                            <td>ذكر</td>
+                            <td>20/01/2023</td>
+                            <td>طفل</td>
+                            <td>سليم</td>
+                            <td>مكفول</td>
+                        </tr>
+                        <!-- 2 -->
+                        <tr>
+                            <td>فاطمة الزهراء محمد عبدالرحيم الصعيدي</td>
+                            <td>441126794</td>
+                            <td>انثى</td>
+                            <td>22/12/2018</td>
+                            <td>ابتدائي</td>
+                            <td>سليم</td>
+                            <td>مكفول</td>
+                        </tr>
+                        <!-- 3 -->
+                        <tr>
+                            <td>فضل احسان تحسين بريخ</td>
+                            <td>440726503</td>
+                            <td>انثى</td>
+                            <td>16/02/2019</td>
+                            <td>ابتدائي</td>
+                            <td>سليم</td>
+                            <td>مكفول</td>
+                        </tr>
+                        <!-- 4 -->
+                        <tr>
+                            <td>محمد حسام علي المصري</td>
+                            <td>445566778</td>
+                            <td>ذكر</td>
+                            <td>10/05/2020</td>
+                            <td>روضة</td>
+                            <td>سليم</td>
+                            <td>مكفول</td>
+                        </tr>
+                        <!-- 5 -->
+                        <tr>
+                            <td>سارة احمد يوسف خليل</td>
+                            <td>449988776</td>
+                            <td>انثى</td>
+                            <td>01/01/2017</td>
+                            <td>ابتدائي</td>
+                            <td>سليم</td>
+                            <td>مكفول</td>
+                        </tr>
+                        <!-- 6 -->
+                        <tr>
+                            <td>يوسف محمد عبدالرحمن</td>
+                            <td>441122334</td>
+                            <td>ذكر</td>
+                            <td>15/03/2015</td>
+                            <td>اعدادي</td>
+                            <td>سليم</td>
+                            <td>مكفول</td>
+                        </tr>
+                        <!-- 7 -->
+                        <tr>
+                            <td>حلا محمود ابراهيم</td>
+                            <td>447766554</td>
+                            <td>انثى</td>
+                            <td>20/09/2021</td>
+                            <td>طفل</td>
+                            <td>سليم</td>
+                            <td>مكفول</td>
+                        </tr>
+                        <!-- 8 -->
+                        <tr>
+                            <td>عمر حسن عبدالله</td>
+                            <td>443322119</td>
+                            <td>ذكر</td>
+                            <td>05/11/2019</td>
+                            <td>روضة</td>
+                            <td>سليم</td>
+                            <td>مكفول</td>
+                        </tr>
+                        <!-- 9 -->
+                        <tr>
+                            <td>لين كريم سمير</td>
+                            <td>448855221</td>
+                            <td>انثى</td>
+                            <td>30/06/2016</td>
+                            <td>ابتدائي</td>
+                            <td>سليم</td>
+                            <td>مكفول</td>
+                        </tr>
+                        <!-- 10 -->
+                        <tr>
+                            <td>كريم علاء الدين</td>
+                            <td>446699887</td>
+                            <td>ذكر</td>
+                            <td>12/12/2022</td>
+                            <td>طفل</td>
+                            <td>سليم</td>
+                            <td>مكفول</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <!-- Photos Grid -->
+            <div class="photos-grid">
+                <!-- 1 -->
+                <div class="photo-item">
+                    <img src="nature_sibling1_placeholder_1769650893578.png" alt="Sibling 1">
+                    <div class="caption">فاطمة الزهراء</div>
+                </div>
+                <!-- 2 -->
+                <div class="photo-item">
+                    <img src="nature_sibling2_placeholder_1769650911767.png" alt="Sibling 2">
+                    <div class="caption">عبدالرحيم محمد</div>
+                </div>
+                <!-- 3 -->
+                <div class="photo-item">
+                    <img src="nature_sibling3_1769652507137.png" alt="Sibling 3">
+                    <div class="caption">فضل احسان</div>
+                </div>
+                <!-- 4 -->
+                <div class="photo-item">
+                    <img src="nature_sibling4_1769652523725.png" alt="Sibling 4">
+                    <div class="caption">محمد حسام</div>
+                </div>
+                <!-- 5 (Reuse 1) -->
+                <div class="photo-item">
+                    <img src="nature_sibling1_placeholder_1769650893578.png" alt="Sibling 5">
+                    <div class="caption">سارة احمد</div>
+                </div>
+                <!-- 6 (Reuse 2) -->
+                <div class="photo-item">
+                    <img src="nature_sibling2_placeholder_1769650911767.png" alt="Sibling 6">
+                    <div class="caption">يوسف محمد</div>
+                </div>
+                <!-- 7 (Reuse 3) -->
+                <div class="photo-item">
+                    <img src="nature_sibling3_1769652507137.png" alt="Sibling 7">
+                    <div class="caption">حلا محمود</div>
+                </div>
+                <!-- 8 (Reuse 4) -->
+                <div class="photo-item">
+                    <img src="nature_sibling4_1769652523725.png" alt="Sibling 8">
+                    <div class="caption">عمر حسن</div>
+                </div>
+                <!-- 9 (Reuse 1) -->
+                <div class="photo-item">
+                    <img src="nature_sibling1_placeholder_1769650893578.png" alt="Sibling 9">
+                    <div class="caption">لين كريم</div>
+                </div>
+                <!-- 10 (Reuse 2) -->
+                <div class="photo-item">
+                    <img src="nature_sibling2_placeholder_1769650911767.png" alt="Sibling 10">
+                    <div class="caption">كريم علاء</div>
+                </div>
+            </div>
+        </div>
+        <!-- Footer -->
+        <!-- Footer Removed -->
+    </div>
+</body>
+
+</html>
