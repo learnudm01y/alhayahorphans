@@ -595,19 +595,47 @@
                                 @endif
 
                                 {{-- أزرار الإجراءات --}}
-                                <div class="mt-3 w-100 d-flex gap-2 justify-content-center">
-                                    <button type="button" class="btn btn-sm btn-info view-more-btn"
-                                            data-type="family_member"
-                                            data-person-id="{{ $member->person_id }}"
-                                            data-file-id="{{ $data->file_id_number }}"
-                                            data-person-name="{{ $member->first_name }} {{ $member->second_name }} {{ $member->third_name }} {{ $member->last_name }}">
-                                        <i class="bi bi-eye"></i> مشاهدة المزيد
-                                    </button>
-                                    <a href="{{ route('admin.records.management.export-family-report', ['id' => $data->id, 'member_id' => $member->id]) }}"
-                                       class="btn btn-sm btn-success"
-                                       target="_blank">
-                                        <i class="bi bi-file-earmark-pdf"></i> تصدير التقرير
-                                    </a>
+                                <div class="mt-3 w-100 d-flex flex-column gap-2">
+                                    {{-- جلب الجمعيات المرتبطة بالشخص من جدول sponsorships --}}
+                                    @php
+                                        $memberSponsors = DB::table('sponsorships')
+                                            ->join('sponsors', 'sponsorships.sponsor_id', '=', 'sponsors.id')
+                                            ->where('sponsorships.identity_number', $member->person_id)
+                                            ->select('sponsors.id', 'sponsors.sponsor_name')
+                                            ->distinct()
+                                            ->get();
+                                    @endphp
+
+                                    @if($memberSponsors->count() > 0)
+                                        <div class="form-group mb-2">
+                                            <label for="sponsor_select_{{ $member->id }}" class="form-label text-end d-block" style="font-size: 0.85rem;">
+                                                <i class="bi bi-building"></i> اختر الجمعية لتصدير التقرير
+                                            </label>
+                                            <select id="sponsor_select_{{ $member->id }}" class="form-select form-select-sm sponsor-selector" style="font-size: 0.85rem;">
+                                                <option value="">-- اختر الجمعية --</option>
+                                                @foreach($memberSponsors as $sponsor)
+                                                    <option value="{{ $sponsor->id }}">{{ $sponsor->sponsor_name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                    @endif
+
+                                    <div class="d-flex gap-2 justify-content-center">
+                                        <button type="button" class="btn btn-sm btn-info view-more-btn"
+                                                data-type="family_member"
+                                                data-person-id="{{ $member->person_id }}"
+                                                data-file-id="{{ $data->file_id_number }}"
+                                                data-person-name="{{ $member->first_name }} {{ $member->second_name }} {{ $member->third_name }} {{ $member->last_name }}">
+                                            <i class="bi bi-eye"></i> مشاهدة المزيد
+                                        </button>
+                                        <a href="{{ route('admin.records.management.export-family-report', ['id' => $data->id, 'member_id' => $member->id]) }}"
+                                           class="btn btn-sm btn-success export-report-btn"
+                                           data-member-id="{{ $member->id }}"
+                                           data-original-url="{{ route('admin.records.management.export-family-report', ['id' => $data->id, 'member_id' => $member->id]) }}"
+                                           target="_blank">
+                                            <i class="bi bi-file-earmark-pdf"></i> تصدير التقرير
+                                        </a>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1015,6 +1043,35 @@ document.addEventListener('DOMContentLoaded', function() {
         var modal = new bootstrap.Modal(document.getElementById('attachmentsModal'));
         modal.show();
     }
+});
+
+// معالج لتحديث رابط التصدير عند اختيار جمعية
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.sponsor-selector').forEach(function(select) {
+        select.addEventListener('change', function() {
+            const memberId = this.id.replace('sponsor_select_', '');
+            const exportBtn = document.querySelector(`.export-report-btn[data-member-id="${memberId}"]`);
+
+            if (exportBtn) {
+                // الحصول على الرابط الأساسي (مع member_id)
+                let baseUrl = exportBtn.getAttribute('href').split('?')[0];
+
+                // الحصول على member_id من الرابط الأصلي
+                const originalUrl = new URL(exportBtn.getAttribute('data-original-url') || exportBtn.href, window.location.origin);
+                const memberIdParam = originalUrl.searchParams.get('member_id');
+
+                // بناء الرابط الجديد
+                if (this.value) {
+                    const newUrl = `${baseUrl}?member_id=${memberIdParam}&sponsor_id=${this.value}`;
+                    exportBtn.href = newUrl;
+                } else {
+                    // إذا لم يتم اختيار جمعية، نعود للرابط الأساسي
+                    const newUrl = `${baseUrl}?member_id=${memberIdParam}`;
+                    exportBtn.href = newUrl;
+                }
+            }
+        });
+    });
 });
 </script>
 @endpush

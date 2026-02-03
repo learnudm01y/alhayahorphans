@@ -1400,6 +1400,15 @@ class RecordsManagementEditController extends Controller
         // جلب معرف الفرد المحدد
         $memberId = $request->query('member_id');
 
+        // جلب معرف الجمعية إن وجد
+        $sponsorId = $request->query('sponsor_id');
+
+        // تحميل تصميم التقرير للجمعية إن وجد
+        $reportDesign = null;
+        if ($sponsorId) {
+            $reportDesign = \App\Models\SponsorReportDesign::where('sponsor_id', $sponsorId)->first();
+        }
+
         // جلب البيانات الأساسية للمعيل
         $data = Data::with([
             'section',
@@ -1524,6 +1533,23 @@ class RecordsManagementEditController extends Controller
             $backgroundBase64 = base64_encode(file_get_contents($backgroundPath));
         }
 
+        // إعداد بيانات التصميم المخصص
+        $customDesign = null;
+        if ($reportDesign) {
+            $customDesign = [
+                'background_type' => $reportDesign->background_type,
+                'theme_colors' => $reportDesign->theme_colors ?? [
+                    'primary' => '#1a1a1a',
+                    'secondary' => '#4a4a4a',
+                    'accent' => '#007bff'
+                ],
+                'single_image' => $reportDesign->single_image_base64,
+                'header_image' => $reportDesign->header_image_base64,
+                'main_image' => $reportDesign->main_image_base64,
+                'footer_image' => $reportDesign->footer_image_base64,
+            ];
+        }
+
         // توليد PDF
         $pdf = PDF::loadView('admin.dashboard.reports.family_report', [
             'guardian' => $data,
@@ -1533,7 +1559,8 @@ class RecordsManagementEditController extends Controller
             'personalPhotos' => $personalPhotos,
             'otherDocuments' => $otherDocuments,
             'computedDependents' => $computedDependents,
-            'backgroundBase64' => $backgroundBase64
+            'backgroundBase64' => $backgroundBase64,
+            'customDesign' => $customDesign
         ]);
 
         // تحسين إعدادات PDF

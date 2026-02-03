@@ -378,6 +378,10 @@
 
             <div class="modal-footer">
                 <button type="button" class="btn btn-light" data-bs-dismiss="modal">إغلاق</button>
+                <button type="button" class="btn btn-warning" id="designReportBtn">
+                    <i class="bi bi-palette-fill"></i>
+                    تصميم التقرير
+                </button>
                 <button type="button" class="btn btn-primary" id="editFromViewBtn">
                     <i class="ki-duotone ki-pencil fs-3">
                         <span class="path1"></span>
@@ -578,6 +582,111 @@
                         <span class="indicator-progress">جاري الحفظ...
                             <span class="spinner-border spinner-border-sm align-middle ms-2"></span>
                         </span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Report Design Modal -->
+<div class="modal fade" id="reportDesignModal" tabindex="-1" aria-labelledby="reportDesignModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title" id="reportDesignModalLabel">
+                    <i class="bi bi-palette-fill"></i> تصميم تقرير الجمعية
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="reportDesignForm" enctype="multipart/form-data">
+                @csrf
+                <input type="hidden" id="design_sponsor_id" name="sponsor_id">
+
+                <div class="modal-body">
+                    <!-- نوع الخلفية -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">نوع الخلفية</label>
+                        <div class="d-flex gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="background_type" id="bg_single" value="single" checked>
+                                <label class="form-check-label" for="bg_single">
+                                    <i class="bi bi-file-earmark"></i> صورة واحدة كاملة (A4)
+                                </label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="background_type" id="bg_triple" value="triple">
+                                <label class="form-check-label" for="bg_triple">
+                                    <i class="bi bi-layout-three-columns"></i> ثلاث صور (رأس - محتوى - تذييل)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- صورة واحدة -->
+                    <div id="single_image_section" class="mb-4">
+                        <label for="single_image" class="form-label fw-bold">
+                            <i class="bi bi-image"></i> صورة الخلفية الكاملة
+                        </label>
+                        <input type="file" class="form-control" id="single_image" name="single_image" accept="image/*">
+                        <small class="text-muted">الحجم الموصى به: A4 (595 × 842 بكسل)</small>
+                        <div id="single_image_preview" class="mt-2"></div>
+                    </div>
+
+                    <!-- الصور الثلاثية -->
+                    <div id="triple_images_section" class="mb-4" style="display: none;">
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="header_image" class="form-label fw-bold">
+                                    <i class="bi bi-arrow-up-square"></i> صورة الرأس
+                                </label>
+                                <input type="file" class="form-control" id="header_image" name="header_image" accept="image/*">
+                                <div id="header_image_preview" class="mt-2"></div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="main_image" class="form-label fw-bold">
+                                    <i class="bi bi-square"></i> الصورة الرئيسية
+                                </label>
+                                <input type="file" class="form-control" id="main_image" name="main_image" accept="image/*">
+                                <div id="main_image_preview" class="mt-2"></div>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="footer_image" class="form-label fw-bold">
+                                    <i class="bi bi-arrow-down-square"></i> صورة التذييل
+                                </label>
+                                <input type="file" class="form-control" id="footer_image" name="footer_image" accept="image/*">
+                                <div id="footer_image_preview" class="mt-2"></div>
+                            </div>
+                        </div>
+                        <small class="text-muted d-block">يمكنك تحميل 1 أو 2 أو 3 صور حسب الحاجة</small>
+                    </div>
+
+                    <!-- ألوان التصميم -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">
+                            <i class="bi bi-palette"></i> ألوان التصميم (اختياري)
+                        </label>
+                        <div class="row">
+                            <div class="col-md-4 mb-2">
+                                <label for="primary_color" class="form-label">اللون الأساسي</label>
+                                <input type="color" class="form-control form-control-color" id="primary_color" name="primary_color" value="#1a1a1a">
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                <label for="secondary_color" class="form-label">اللون الثانوي</label>
+                                <input type="color" class="form-control form-control-color" id="secondary_color" name="secondary_color" value="#4a4a4a">
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                <label for="accent_color" class="form-label">لون التمييز</label>
+                                <input type="color" class="form-control form-control-color" id="accent_color" name="accent_color" value="#007bff">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="submit" class="btn btn-warning" id="saveDesignBtn">
+                        <i class="bi bi-save"></i> حفظ التصميم
                     </button>
                 </div>
             </form>
@@ -1257,5 +1366,180 @@
                 });
             });
         });
+
+        // معالج زر تصميم التقرير
+        let currentDesignSponsorId = null;
+
+        $('#designReportBtn').on('click', function() {
+            currentDesignSponsorId = $('#view_sponsor_id').val();
+            $('#design_sponsor_id').val(currentDesignSponsorId);
+
+            // إخفاء modal العرض وإظهار modal التصميم
+            $('#viewSponsorModal').modal('hide');
+
+            // تحميل التصميم الحالي إن وجد
+            loadCurrentDesign(currentDesignSponsorId);
+
+            setTimeout(() => {
+                $('#reportDesignModal').modal('show');
+            }, 300);
+        });
+
+        // تبديل بين أقسام الصور
+        $('input[name="background_type"]').on('change', function() {
+            if ($(this).val() === 'single') {
+                $('#single_image_section').show();
+                $('#triple_images_section').hide();
+            } else {
+                $('#single_image_section').hide();
+                $('#triple_images_section').show();
+            }
+        });
+
+        // معاينة الصور
+        function setupImagePreview(inputId, previewId) {
+            $(`#${inputId}`).on('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        $(`#${previewId}`).html(`
+                            <img src="${e.target.result}" class="img-thumbnail" style="max-height: 150px;">
+                            <button type="button" class="btn btn-sm btn-danger mt-1 remove-image" data-input="${inputId}">
+                                <i class="bi bi-trash"></i> إزالة
+                            </button>
+                        `);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+        }
+
+        setupImagePreview('single_image', 'single_image_preview');
+        setupImagePreview('header_image', 'header_image_preview');
+        setupImagePreview('main_image', 'main_image_preview');
+        setupImagePreview('footer_image', 'footer_image_preview');
+
+        // إزالة الصورة
+        $(document).on('click', '.remove-image', function() {
+            const inputId = $(this).data('input');
+            $(`#${inputId}`).val('');
+            $(this).parent().html('');
+        });
+
+        // حفظ التصميم
+        $('#reportDesignForm').on('submit', function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            const submitBtn = $('#saveDesignBtn');
+
+            submitBtn.prop('disabled', true).html('<i class="spinner-border spinner-border-sm"></i> جاري الحفظ...');
+
+            $.ajax({
+                url: '{{ route("admin.sponsors.save-report-design") }}',
+                method: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'تم الحفظ!',
+                        text: response.message,
+                        timer: 2000
+                    });
+
+                    $('#reportDesignModal').modal('hide');
+                    $('#reportDesignForm')[0].reset();
+
+                    // مسح المعاينات
+                    $('#single_image_preview, #header_image_preview, #main_image_preview, #footer_image_preview').html('');
+                },
+                error: function(xhr) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'خطأ!',
+                        text: xhr.responseJSON?.message || 'حدث خطأ أثناء حفظ التصميم',
+                        confirmButtonText: 'حسناً'
+                    });
+                },
+                complete: function() {
+                    submitBtn.prop('disabled', false).html('<i class="bi bi-save"></i> حفظ التصميم');
+                }
+            });
+        });
+
+        // تحميل التصميم الحالي
+        function loadCurrentDesign(sponsorId) {
+            if (!sponsorId) {
+                console.log('No sponsor ID provided');
+                return;
+            }
+
+            $.ajax({
+                url: `/admin/sponsors/${sponsorId}/report-design`,
+                method: 'GET',
+                success: function(response) {
+                    if (response.design) {
+                        const design = response.design;
+
+                        // تحديد نوع الخلفية
+                        $(`input[name="background_type"][value="${design.background_type}"]`).prop('checked', true).trigger('change');
+
+                        // الألوان
+                        if (design.theme_colors) {
+                            $('#primary_color').val(design.theme_colors.primary || '#1a1a1a');
+                            $('#secondary_color').val(design.theme_colors.secondary || '#4a4a4a');
+                            $('#accent_color').val(design.theme_colors.accent || '#007bff');
+                        }
+
+                        // عرض الصور الموجودة مع معالجة الأخطاء
+                        if (design.single_image) {
+                            $('#single_image_preview').html(`
+                                <img src="/storage/${design.single_image}"
+                                     class="img-thumbnail"
+                                     style="max-height: 150px;"
+                                     onerror="this.style.display='none'; this.nextElementSibling.innerHTML='<i class=\'bi bi-exclamation-triangle text-warning\'></i> الصورة غير موجودة'">
+                                <p class="text-muted mt-1">الصورة الحالية</p>
+                            `);
+                        }
+
+                        if (design.header_image) {
+                            $('#header_image_preview').html(`
+                                <img src="/storage/${design.header_image}"
+                                     class="img-thumbnail"
+                                     style="max-height: 150px;"
+                                     onerror="this.style.display='none'; this.nextElementSibling.innerHTML='<i class=\'bi bi-exclamation-triangle text-warning\'></i> الصورة غير موجودة'">
+                                <p class="text-muted mt-1">الصورة الحالية</p>
+                            `);
+                        }
+
+                        if (design.main_image) {
+                            $('#main_image_preview').html(`
+                                <img src="/storage/${design.main_image}"
+                                     class="img-thumbnail"
+                                     style="max-height: 150px;"
+                                     onerror="this.style.display='none'; this.nextElementSibling.innerHTML='<i class=\'bi bi-exclamation-triangle text-warning\'></i> الصورة غير موجودة'">
+                                <p class="text-muted mt-1">الصورة الحالية</p>
+                            `);
+                        }
+
+                        if (design.footer_image) {
+                            $('#footer_image_preview').html(`
+                                <img src="/storage/${design.footer_image}"
+                                     class="img-thumbnail"
+                                     style="max-height: 150px;"
+                                     onerror="this.style.display='none'; this.nextElementSibling.innerHTML='<i class=\'bi bi-exclamation-triangle text-warning\'></i> الصورة غير موجودة'">
+                                <p class="text-muted mt-1">الصورة الحالية</p>
+                            `);
+                        }
+                    }
+                },
+                error: function(xhr) {
+                    console.log('No existing design found');
+                }
+            });
+        }
     </script>
 @endpush

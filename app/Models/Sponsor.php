@@ -87,4 +87,12 @@ class Sponsor extends Model
     {
         return $this->hasMany(SponsorDocumentType::class);
     }
+
+    /**
+     * العلاقة مع تصميم التقرير الخاص بالجمعية
+     */
+    public function reportDesign()
+    {
+        return $this->hasOne(SponsorReportDesign::class);
+    }
 }

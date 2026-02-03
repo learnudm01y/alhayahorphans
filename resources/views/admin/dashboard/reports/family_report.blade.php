@@ -6,6 +6,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>استمارة أيتام</title>
     <style>
+        @php
+            // تحديد الألوان الديناميكية
+            $primaryColor = $customDesign['theme_colors']['primary'] ?? '#6c2b6d';
+            $secondaryColor = $customDesign['theme_colors']['secondary'] ?? '#19a19a';
+            $accentColor = $customDesign['theme_colors']['accent'] ?? '#7d7d7d';
+
+            // تحديد الخلفية المستخدمة
+            $backgroundType = $customDesign['background_type'] ?? 'single';
+            $singleBg = $customDesign['single_image'] ?? ('data:image/jpeg;base64,' . $backgroundBase64);
+        @endphp
+
         /* Global Styles */
         @page {
             margin: 0;
@@ -24,30 +35,80 @@
             background-color: #fff;
             direction: rtl;
             box-sizing: border-box;
-            font-size: 13px; /* Reduced from 15px */
+            font-size: 13px;
         }
 
         .page-container {
             width: 100%;
-            min-height: 340mm !important; /* Force high height as requested "very high" */
+            min-height: 340mm !important;
             height: auto;
             background-color: white;
-            background-image: url('data:image/jpeg;base64,{{ $backgroundBase64 }}');
 
-            /* FORCE STRETCH: 100% width and 100% of the new tall height */
+            @if($backgroundType === 'single')
+            background-image: url('{{ $singleBg }}');
             background-size: 100% 100% !important;
             background-position: center top;
             background-repeat: no-repeat;
+            @endif
 
             position: relative;
             padding: 30px 30px 40px 30px;
             box-sizing: border-box;
         }
 
-        /* Colors - Direct values for wkhtmltopdf compatibility */
-        /* Purple: #6c2b6d */
-        /* Teal: #19a19a */
-        /* Grey: #7d7d7d */
+        @if($backgroundType === 'triple')
+        .page-header-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 15%;
+            @if(!empty($customDesign['header_image']))
+            background-image: url('{{ $customDesign['header_image'] }}');
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
+            @endif
+            z-index: 0;
+        }
+
+        .page-main-bg {
+            position: absolute;
+            top: 15%;
+            left: 0;
+            right: 0;
+            height: 70%;
+            @if(!empty($customDesign['main_image']))
+            background-image: url('{{ $customDesign['main_image'] }}');
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
+            @endif
+            z-index: 0;
+        }
+
+        .page-footer-bg {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 15%;
+            @if(!empty($customDesign['footer_image']))
+            background-image: url('{{ $customDesign['footer_image'] }}');
+            background-size: 100% 100%;
+            background-repeat: no-repeat;
+            @endif
+            z-index: 0;
+        }
+
+        .page-container > * {
+            position: relative;
+            z-index: 1;
+        }
+        @endif
+
+        /* Colors - Using dynamic colors */
+        /* Primary: {{ $primaryColor }} */
+        /* Secondary: {{ $secondaryColor }} */
+        /* Accent: {{ $accentColor }} */
         /* Border: #ccc */
 
         /* Header */
@@ -83,11 +144,11 @@
 
 /* Form Title */
 .form-title {
-    color: #0b5fa5;
+    color: {{ $accentColor }};
     font-size: 28px; /* Reduced */
     font-weight: 700;
     text-align: center;
-    border-bottom: 3px solid #0b5fa5;
+    border-bottom: 3px solid {{ $accentColor }};
     padding-bottom: 4px;
     display: inline-block;
     margin: 0 auto;
@@ -124,7 +185,7 @@
 table.styled-table {
     width: 100%;
     border-collapse: collapse;
-    border: 4px solid #6c2b6d;
+    border: 4px solid {{ $primaryColor }};
     background: white;
 }
 
@@ -137,7 +198,7 @@ table.styled-table th {
 }
 
 .main-header {
-    background-color: #6c2b6d;
+    background-color: {{ $primaryColor }};
     color: white;
     padding: 8px; /* Reduced */
     text-align: center;
@@ -147,7 +208,7 @@ table.styled-table th {
 }
 
 .sub-header th {
-    background-color: #7d7d7d;
+    background-color: {{ $accentColor }};
     color: white;
     padding: 6px 4px; /* Reduced */
     font-size: 14px; /* Reduced */
@@ -157,7 +218,7 @@ table.styled-table th {
 }
 
 .siblings-table .sub-header th {
-    background-color: #7d7d7d;
+    background-color: {{ $accentColor }};
     border: 1px solid #000 !important;
 }
 
@@ -173,7 +234,7 @@ td {
     font-weight: bold;
     color: white;
     width: 35%;
-    background-color: #19a19a;
+    background-color: {{ $secondaryColor }};
     text-align: center;
     border: 1px solid #000 !important;
     padding: 6px 6px; /* Reduced */
@@ -183,7 +244,7 @@ td {
 
 /* Override for specific styling */
 .styled-table .label {
-    background-color: #19a19a;
+    background-color: {{ $secondaryColor }};
     color: white;
     width: 35%;
 }
@@ -226,11 +287,11 @@ td {
         }
 
 .siblings-block .main-header {
-    background-color: #6c2b6d;
+    background-color: {{ $primaryColor }};
 }
 
         .siblings-block .sub-header th {
-            background-color: #7d7d7d;
+            background-color: {{ $accentColor }};
             color: white;
             border: 2px solid white;
             padding: 6px 4px; /* Increased from 4px 3px */
@@ -305,7 +366,7 @@ td {
 */
 /* Fix border colors and thickness */
 .styled-table {
-    border: 2px solid #6c2b6d;
+    border: 2px solid {{ $primaryColor }};
 }
 
 .styled-table thead tr:first-child th {
@@ -348,6 +409,13 @@ td {
 
 <body>
     <div class="page-container">
+        @if($backgroundType === 'triple')
+        <!-- خلفيات ثلاثية -->
+        <div class="page-header-bg"></div>
+        <div class="page-main-bg"></div>
+        <div class="page-footer-bg"></div>
+        @endif
+
         <!-- Header -->
         <header class="header">
             <div class="logo-container">
@@ -762,22 +830,22 @@ td {
                 @endphp
 
                 <!-- عنوان الوثيقة واسم الشخص فوق الصورة -->
-                <h2 style="text-align: center; color: #6c2b6d; margin-bottom: 15px; font-size: 26px; font-weight: bold;">
+                <h2 style="text-align: center; color: {{ $primaryColor }}; margin-bottom: 15px; font-size: 26px; font-weight: bold;">
                     {{ $docTypeName }}
                 </h2>
-                <h3 style="text-align: center; color: #0b5fa5; margin-bottom: 25px; font-size: 22px;">
+                <h3 style="text-align: center; color: {{ $accentColor }}; margin-bottom: 25px; font-size: 22px;">
                     {{ $personName }}
                 </h3>
 
                 @if($base64Image)
                     <div style="text-align: center; width: 100%; flex-grow: 1; display: flex; align-items: center; justify-content: center;">
                         <img src="{{ $base64Image }}"
-                             style="max-width: 95%; max-height: 80vh; width: auto; height: auto; object-fit: contain; border: 4px solid #6c2b6d; box-shadow: 0 6px 25px rgba(0,0,0,0.2); border-radius: 4px;"
+                             style="max-width: 95%; max-height: 80vh; width: auto; height: auto; object-fit: contain; border: 4px solid {{ $primaryColor }}; box-shadow: 0 6px 25px rgba(0,0,0,0.2); border-radius: 4px;"
                              alt="{{ $docTypeName }}">
                     </div>
                 @elseif($fileExists && !$isImage)
                     <div style="text-align: center; padding: 100px; background: #f5f5f5; border: 2px dashed #ccc; border-radius: 10px;">
-                        <div style="font-size: 80px; color: #6c2b6d; margin-bottom: 20px;">📄</div>
+                        <div style="font-size: 80px; color: {{ $primaryColor }}; margin-bottom: 20px;">📄</div>
                         <p style="font-size: 18px; color: #333; margin-bottom: 10px;">ملف {{ strtoupper(pathinfo($document->stored_file_name, PATHINFO_EXTENSION)) }}</p>
                     </div>
                 @else

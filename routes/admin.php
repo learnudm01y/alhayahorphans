@@ -159,6 +159,12 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::post('sponsors/{sponsor}/employees', [SponsorController::class, 'storeEmployee'])->name('sponsors.employees.store');
     Route::get('sponsors/{sponsor}/employees', [SponsorController::class, 'getEmployees'])->name('sponsors.employees.index');
     Route::delete('sponsors/employees/{employee}', [SponsorController::class, 'destroyEmployee'])->name('sponsors.employees.destroy');
+
+    // تصميم تقارير الجمعيات
+    Route::post('sponsors/save-report-design', [\App\Http\Controllers\Admin\SponsorReportDesignController::class, 'saveReportDesign'])->name('sponsors.save-report-design');
+    Route::get('sponsors/{sponsor}/report-design', [\App\Http\Controllers\Admin\SponsorReportDesignController::class, 'getReportDesign'])->name('sponsors.get-report-design');
+    Route::delete('sponsors/{sponsor}/report-design', [\App\Http\Controllers\Admin\SponsorReportDesignController::class, 'deleteReportDesign'])->name('sponsors.delete-report-design');
+
     Route::get('sponsors/test-form', [SponsorController::class, 'testForm'])->name('sponsors.test');
     Route::get('sponsors/test-final', [SponsorController::class, 'testFinal'])->name('sponsors.test.final');
     Route::resource('sponsors', SponsorController::class);
