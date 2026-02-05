@@ -12,7 +12,7 @@
 
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
-            android:name=".MainActivity"
+            android:name="com.aso.app.MainActivity"
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
@@ -35,7 +35,7 @@
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
 
-        <!-- Boot Receiver - استئناف نظام الرفع بعد إعادة تشغيل الجهاز -->
+        <!-- Boot Receiver - استئناف نظام رفع الملفات بعد إعادة تشغيل الجهاز -->
         <receiver
             android:name="com.aso.app.UploadBootReceiver"
             android:enabled="true"
@@ -46,9 +46,27 @@
             </intent-filter>
         </receiver>
 
-        <!-- Upload Foreground Service - رفع مستمر حتى عند إغلاق التطبيق -->
+        <!-- Boot Receiver - استئناف نظام مزامنة البيانات بعد إعادة تشغيل الجهاز (معزول) -->
+        <receiver
+            android:name="org.alhayah.sponsorships.DataSyncBootReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Upload Foreground Service - رفع الملفات المستمر حتى عند إغلاق التطبيق -->
         <service
             android:name="com.aso.app.UploadForegroundService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Data Sync Foreground Service - مزامنة البيانات المستمرة (معزول) -->
+        <service
+            android:name="org.alhayah.sponsorships.DataSyncForegroundService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />

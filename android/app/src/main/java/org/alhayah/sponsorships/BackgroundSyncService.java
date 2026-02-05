@@ -14,6 +14,9 @@ import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
 
+import com.aso.app.MainActivity;
+import com.aso.app.R;
+
 public class BackgroundSyncService extends Service {
     private static final String TAG = "BackgroundSyncService";
     private static final String CHANNEL_ID = "background_sync_channel";

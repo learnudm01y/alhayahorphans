@@ -56,18 +56,7 @@
                             </div>
                         </div>
 
-                        <div class="col-md-4">
-                            <div class="card card-success">
-                                <div class="card-header">
-                                    <h3 class="card-title">الملف الشخصي</h3>
-                                </div>
-                                <div class="card-body">
-                                    <a href="{{ route('user.index.profile') }}" class="btn btn-success btn-block">
-                                        <i class="fas fa-user-edit"></i> تعديل الملف الشخصي
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
+                     
 
                         <div class="col-md-4">
                             <div class="card card-warning">

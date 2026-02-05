@@ -134,7 +134,7 @@
                                     </div>
                                     <div class="separator my-2"></div>
                                     <div class="menu-item px-5">
-                                        <a href="{{ route('user.index.profile') }}" class="menu-link px-5">الملف الشخصي</a>
+                                       
                                     </div>
                                     <div class="separator my-2"></div>
 

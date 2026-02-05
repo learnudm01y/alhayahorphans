@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار نظام مزامنة البيانات</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+            direction: rtl;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .status-box {
+            background: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .stat {
+            display: inline-block;
+            margin: 0 15px;
+            font-size: 18px;
+        }
+        .stat strong {
+            color: #2c3e50;
+        }
+        .pending { color: #f39c12; }
+        .uploaded { color: #27ae60; }
+        .failed { color: #e74c3c; }
+
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        button.success {
+            background: #27ae60;
+        }
+        button.danger {
+            background: #e74c3c;
+        }
+
+        .log-box {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .log-box pre {
+            margin: 5px 0;
+            white-space: pre-wrap;
+        }
+
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #3498db;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 اختبار نظام مزامنة البيانات</h1>
+
+        <!-- Status -->
+        <div class="status-box" id="statusBox">
+            <h3>📊 الحالة</h3>
+            <div>
+                <span class="stat pending">⏳ منتظر: <strong id="pendingCount">-</strong></span>
+                <span class="stat uploaded">✅ مرفوع: <strong id="uploadedCount">-</strong></span>
+                <span class="stat failed">❌ فاشل: <strong id="failedCount">-</strong></span>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div>
+            <button onclick="testPlugin()">🔍 فحص Plugin</button>
+            <button onclick="refreshStatus()">🔄 تحديث الحالة</button>
+            <button onclick="addTestData()">➕ إضافة بيانات تجريبية</button>
+            <button class="success" onclick="startSync()">🚀 بدء المزامنة</button>
+            <button class="danger" onclick="retryFailed()">♻️ إعادة المحاولة</button>
+            <button onclick="clearCompleted()">🗑️ حذف المكتملة</button>
+        </div>
+
+        <!-- Test Sections -->
+        <div class="test-section">
+            <h3>1️⃣ إضافة كفالة</h3>
+            <p>إضافة بيانات كفالة جديدة للمزامنة مع السيرفر</p>
+            <button onclick="addSponsorship()">إضافة كفالة</button>
+        </div>
+
+        <div class="test-section">
+            <h3>2️⃣ إضافة دفعة مالية</h3>
+            <p>إضافة بيانات دفعة مالية للمزامنة</p>
+            <button onclick="addPayment()">إضافة دفعة</button>
+        </div>
+
+        <div class="test-section">
+            <h3>3️⃣ تحديث بيانات يتيم</h3>
+            <p>تحديث معلومات يتيم موجود</p>
+            <button onclick="updateOrphan()">تحديث يتيم</button>
+        </div>
+
+        <!-- Logs -->
+        <div class="log-box" id="logBox">
+            <pre id="logs">جاري التحميل...</pre>
+        </div>
+    </div>
+
+    <script>
+        let logs = [];
+
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString('ar-EG');
+            const emoji = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+            logs.unshift(`[${timestamp}] ${emoji} ${message}`);
+            if (logs.length > 50) logs.pop();
+            document.getElementById('logs').textContent = logs.join('\n');
+        }
+
+        async function testPlugin() {
+            addLog('فحص BackgroundSync plugin...');
+
+            if (!window.BackgroundSync) {
+                addLog('Plugin غير موجود!', 'error');
+                alert('❌ BackgroundSync plugin غير موجود!\n\nتأكد من:\n1. تسجيل BackgroundSyncPlugin في MainActivity.java\n2. بناء APK جديد\n3. تثبيت APK على الجهاز');
+                return;
+            }
+
+            addLog('✅ Plugin موجود', 'success');
+
+            const methods = Object.keys(window.BackgroundSync);
+            addLog(`الوظائف المتاحة: ${methods.join(', ')}`);
+
+            console.log('BackgroundSync plugin:', window.BackgroundSync);
+        }
+
+        async function refreshStatus() {
+            if (!window.BackgroundSync) {
+                addLog('Plugin غير متاح', 'error');
+                return;
+            }
+
+            try {
+                const status = await window.BackgroundSync.getSyncStatus();
+
+                document.getElementById('pendingCount').textContent = status.pending;
+                document.getElementById('uploadedCount').textContent = status.uploaded;
+                document.getElementById('failedCount').textContent = status.failed;
+
+                addLog(`الحالة: منتظر=${status.pending}, مرفوع=${status.uploaded}, فاشل=${status.failed}`, 'success');
+
+            } catch (error) {
+                addLog(`خطأ في الحصول على الحالة: ${error.message}`, 'error');
+            }
+        }
+
+        async function addTestData() {
+            if (!window.BackgroundSync) {
+                addLog('Plugin غير متاح', 'error');
+                alert('BackgroundSync plugin غير متاح!');
+                return;
+            }
+
+            try {
+                const testData = {
+                    id: Math.floor(Math.random() * 10000),
+                    name: 'بيانات تجريبية ' + new Date().toLocaleTimeString('ar-EG'),
+                    created_at: new Date().toISOString()
+                };
+
+                const result = await window.BackgroundSync.addDataToQueue({
+                    dataType: 'test',
+                    dataJson: JSON.stringify(testData),
+                    endpoint: '/api/mobile/test-sync'
+                });
+
+                addLog(`✅ تمت الإضافة: ID=${result.id}`, 'success');
+
+                await refreshStatus();
+
+            } catch (error) {
+                addLog(`خطأ في الإضافة: ${error.message}`, 'error');
+            }
+        }
+
+        async function startSync() {
+            if (!window.BackgroundSync) {
+                addLog('Plugin غير متاح', 'error');
+                return;
+            }
+
+            try {
+                const result = await window.BackgroundSync.startService();
+                addLog('🚀 تم بدء خدمة المزامنة', 'success');
+
+                // تحديث الحالة بعد 3 ثواني
+                setTimeout(refreshStatus, 3000);
+
+            } catch (error) {
+                addLog(`خطأ في بدء المزامنة: ${error.message}`, 'error');
+            }
+        }
+
+        async function retryFailed() {
+            if (!window.BackgroundSync) {
+                addLog('Plugin غير متاح', 'error');
+                return;
+            }
+
+            try {
+                const result = await window.BackgroundSync.retryFailedData();
+                addLog(`♻️ تمت إعادة ${result.retried} عنصر`, 'success');
+
+                await refreshStatus();
+
+            } catch (error) {
+                addLog(`خطأ في إعادة المحاولة: ${error.message}`, 'error');
+            }
+        }
+
+        async function clearCompleted() {
+            if (!window.BackgroundSync) {
+                addLog('Plugin غير متاح', 'error');
+                return;
+            }
+
+            try {
+                const result = await window.BackgroundSync.clearCompletedData();
+                addLog(`🗑️ تم حذف ${result.cleared} عنصر`, 'success');
+
+                await refreshStatus();
+
+            } catch (error) {
+                addLog(`خطأ في الحذف: ${error.message}`, 'error');
+            }
+        }
+
+        async function addSponsorship() {
+            if (!window.BackgroundSync) {
+                addLog('Plugin غير متاح', 'error');
+                return;
+            }
+
+            try {
+                const sponsorshipData = {
+                    sponsor_id: Math.floor(Math.random() * 1000),
+                    orphan_id: Math.floor(Math.random() * 1000),
+                    amount: 1000,
+                    date: new Date().toISOString(),
+                    status: 'active'
+                };
+
+                const result = await window.BackgroundSync.addDataToQueue({
+                    dataType: 'sponsorship',
+                    dataJson: JSON.stringify(sponsorshipData),
+                    endpoint: '/api/mobile/sponsorships/sync'
+                });
+
+                addLog(`✅ كفالة مضافة: ID=${result.id}`, 'success');
+                await refreshStatus();
+
+            } catch (error) {
+                addLog(`خطأ: ${error.message}`, 'error');
+            }
+        }
+
+        async function addPayment() {
+            if (!window.BackgroundSync) {
+                addLog('Plugin غير متاح', 'error');
+                return;
+            }
+
+            try {
+                const paymentData = {
+                    sponsorship_id: Math.floor(Math.random() * 1000),
+                    amount: 500,
+                    payment_method: 'cash',
+                    date: new Date().toISOString()
+                };
+
+                const result = await window.BackgroundSync.addDataToQueue({
+                    dataType: 'payment',
+                    dataJson: JSON.stringify(paymentData),
+                    endpoint: '/api/mobile/payments/sync'
+                });
+
+                addLog(`✅ دفعة مضافة: ID=${result.id}`, 'success');
+                await refreshStatus();
+
+            } catch (error) {
+                addLog(`خطأ: ${error.message}`, 'error');
+            }
+        }
+
+        async function updateOrphan() {
+            if (!window.BackgroundSync) {
+                addLog('Plugin غير متاح', 'error');
+                return;
+            }
+
+            try {
+                const orphanData = {
+                    id: Math.floor(Math.random() * 1000),
+                    name: 'محمد أحمد',
+                    age: 10,
+                    health_status: 'جيد',
+                    updated_at: new Date().toISOString()
+                };
+
+                const result = await window.BackgroundSync.addDataToQueue({
+                    dataType: 'orphan',
+                    dataJson: JSON.stringify(orphanData),
+                    endpoint: '/api/mobile/orphans/sync'
+                });
+
+                addLog(`✅ يتيم محدّث: ID=${result.id}`, 'success');
+                await refreshStatus();
+
+            } catch (error) {
+                addLog(`خطأ: ${error.message}`, 'error');
+            }
+        }
+
+        // تهيئة عند التحميل
+        document.addEventListener('DOMContentLoaded', async () => {
+            addLog('تحميل الصفحة...');
+
+            // انتظار Capacitor
+            document.addEventListener('deviceready', async () => {
+                addLog('Capacitor جاهز');
+
+                await testPlugin();
+                await refreshStatus();
+
+                // تحديث تلقائي كل 5 ثواني
+                setInterval(refreshStatus, 5000);
+            });
+        });
+    </script>
+</body>
+</html>

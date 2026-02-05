@@ -20,11 +20,7 @@
                     <span class="bullet bg-gray-400 w-5px h-2px"></span>
                 </li>
                 <!--end::Item-->
-                <!--begin::Item-->
-                <li class="breadcrumb-item text-muted">
-                    <a href="{{ route('user.index.profile') }}" class="text-muted text-hover-primary"> الملف الشخصي </a>
-                </li>
-                <!--end::Item-->
+         
             </ul>
             <!--end::Breadcrumb-->
         </div>

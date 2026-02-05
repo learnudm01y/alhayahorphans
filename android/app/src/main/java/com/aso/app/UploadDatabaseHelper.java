@@ -437,4 +437,42 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
                     '}';
         }
     }
+
+    /**
+     * الحصول على عدد الملفات المرفوعة بنجاح
+     */
+    public int getUploadedFilesCount() {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.rawQuery(
+            "SELECT COUNT(*) FROM " + TABLE_UPLOAD_QUEUE +
+            " WHERE " + COLUMN_STATUS + " = ?",
+            new String[]{STATUS_COMPLETED}
+        );
+
+        int count = 0;
+        if (cursor.moveToFirst()) {
+            count = cursor.getInt(0);
+        }
+        cursor.close();
+        return count;
+    }
+
+    /**
+     * الحصول على عدد الملفات الفاشلة
+     */
+    public int getFailedFilesCount() {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.rawQuery(
+            "SELECT COUNT(*) FROM " + TABLE_UPLOAD_QUEUE +
+            " WHERE " + COLUMN_STATUS + " = ?",
+            new String[]{STATUS_FAILED}
+        );
+
+        int count = 0;
+        if (cursor.moveToFirst()) {
+            count = cursor.getInt(0);
+        }
+        cursor.close();
+        return count;
+    }
 }

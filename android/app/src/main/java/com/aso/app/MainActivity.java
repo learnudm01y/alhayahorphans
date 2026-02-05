@@ -1,35 +1,45 @@
 package com.aso.app;
 
 import android.os.Bundle;
+import android.webkit.WebView;
 import com.getcapacitor.BridgeActivity;
+import org.alhayah.sponsorships.JavaScriptBridge;
 
 public class MainActivity extends BridgeActivity {
     private static final String TAG = "MainActivity";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        android.util.Log.e(TAG, "");
-        android.util.Log.e(TAG, "╔═══════════════════════════════════════════════════════════╗");
-        android.util.Log.e(TAG, "║  🚀 MainActivity.onCreate() STARTED                        ║");
-        android.util.Log.e(TAG, "╚═══════════════════════════════════════════════════════════╝");
+        // 🔥 FIRST LOG - قبل كل شيء للتأكد من التحميل
+        android.util.Log.e(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        android.util.Log.e(TAG, "🔥🔥🔥 MainActivity.onCreate() - NEW APK v10:08 🔥🔥🔥");
+        android.util.Log.e(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
         super.onCreate(savedInstanceState);
-        android.util.Log.e(TAG, "✅ [1/3] super.onCreate() completed");
 
-        // تسجيل Plugin رفع الملفات
-        android.util.Log.e(TAG, "📝 [2/3] Registering UploadServicePlugin...");
+        // تسجيل Plugins
         registerPlugin(UploadServicePlugin.class);
-        android.util.Log.e(TAG, "✅ [2/3] UploadServicePlugin registered successfully");
-
-        // تسجيل IndexedDBBridge للحصول على أسماء الجمعيات والمكفولين
-        android.util.Log.e(TAG, "📝 [3/3] Registering IndexedDBBridge...");
+        registerPlugin(GoogleDriveUploadPlugin.class);
         registerPlugin(IndexedDBBridge.class);
-        android.util.Log.e(TAG, "✅ [3/3] IndexedDBBridge registered successfully");
+        registerPlugin(org.alhayah.sponsorships.BackgroundSyncPlugin.class);
 
+        // ✨ JavaScript Bridge - ربط مباشر بين JS و Java ✨
         android.util.Log.e(TAG, "");
-        android.util.Log.e(TAG, "╔═══════════════════════════════════════════════════════════╗");
-        android.util.Log.e(TAG, "║  ✅ MainActivity READY - Plugin Available in JavaScript   ║");
-        android.util.Log.e(TAG, "╚═══════════════════════════════════════════════════════════╝");
+        android.util.Log.e(TAG, "🌉🌉🌉 ADDING JAVASCRIPT BRIDGE 🌉🌉🌉");
+        try {
+            WebView webView = getBridge().getWebView();
+            JavaScriptBridge jsBridge = new JavaScriptBridge(this);
+            webView.addJavascriptInterface(jsBridge, "AndroidBridge");
+            android.util.Log.e(TAG, "✅✅✅ window.AndroidBridge is NOW AVAILABLE!");
+            android.util.Log.e(TAG, "🎯 JavaScript can call: window.AndroidBridge.onDataSaved(...)");
+        } catch (Exception e) {
+            android.util.Log.e(TAG, "❌❌❌ FAILED to add AndroidBridge", e);
+        }
+        android.util.Log.e(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         android.util.Log.e(TAG, "");
+        android.util.Log.e(TAG, "✅ MainActivity - All systems registered:");
+        android.util.Log.e(TAG, "   📁 Files: UploadServicePlugin");
+        android.util.Log.e(TAG, "   📊 Data: BackgroundSyncPlugin");
+        android.util.Log.e(TAG, "   🌉 Bridge: window.AndroidBridge ← ACTIVE!");
     }
 }
