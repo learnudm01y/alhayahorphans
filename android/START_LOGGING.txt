@@ -1,0 +1,73 @@
+═══════════════════════════════════════════════════════════════════════════════
+🔍 ASO APP - COMPLETE LOGGING COMMAND
+═══════════════════════════════════════════════════════════════════════════════
+
+📋 أمر قراءة جميع الـ Logs من التطبيق (VERBOSE - يسجل كل شيء):
+───────────────────────────────────────────────────────────────────────────────
+
+adb logcat -v threadtime -v color MainActivity:V UploadServicePlugin:V AutoUploadApp:V UploadTaskScheduler:V BackgroundUploadWorker:V UploadDatabaseHelper:V UploadBootReceiver:V chromium:V Console:V *:S
+
+
+📝 لحفظ اللوجات في ملف:
+───────────────────────────────────────────────────────────────────────────────
+
+adb logcat -v threadtime MainActivity:V UploadServicePlugin:V AutoUploadApp:V UploadTaskScheduler:V BackgroundUploadWorker:V UploadDatabaseHelper:V UploadBootReceiver:V chromium:V Console:V *:S > aso_complete_logs.txt
+
+
+🌐 ملاحظة: استخدام V (Verbose) يعرض:
+───────────────────────────────────────────────────────────────────────────────
+
+✅ Log.v() - Verbose
+✅ Log.d() - Debug
+✅ Log.i() - Info
+✅ Log.w() - Warning
+✅ Log.e() - Error
+✅ console.log() من JavaScript
+✅ console.error() من JavaScript
+✅ console.warn() من JavaScript
+
+
+═══════════════════════════════════════════════════════════════════════════════
+📊 شرح المعاملات:
+═══════════════════════════════════════════════════════════════════════════════
+
+-v threadtime          : يعرض الوقت والـThread ID
+-v color              : يضيف ألوان للأخطاء (اختياري)
+MainActivity:E        : فقط ERROR logs من MainActivity
+UploadServicePlugin:E : فقط ERROR logs من Plugin
+AutoUploadApp:E       : فقط ERROR logs من Application
+chromium:I            : INFO من Chrome WebView (JavaScript console)
+Console:I             : JavaScript console.log()
+*:S                   : Silent - إخفاء كل شيء آخر
+
+═══════════════════════════════════════════════════════════════════════════════
+🎯 استخدام مبسط:
+═══════════════════════════════════════════════════════════════════════════════
+
+1. وصّل الهاتف عبر USB
+2. فعّل USB Debugging
+3. افتح Terminal/PowerShell
+4. انسخ الأمر أعلاه
+5. اضغط Enter
+6. افتح التطبيق والتقط صورة
+7. راقب اللوجات مباشرة
+
+═══════════════════════════════════════════════════════════════════════════════
+🔄 لمسح اللوجات القديمة قبل البدء:
+═══════════════════════════════════════════════════════════════════════════════
+
+adb logcat -c
+
+
+═══════════════════════════════════════════════════════════════════════════════
+✅ الأمر الموصى به (الأكثر شمولاً):
+═══════════════════════════════════════════════════════════════════════════════
+
+adb logcat -c && adb logcat -v threadtime MainActivity:E UploadServicePlugin:E AutoUploadApp:E UploadTaskScheduler:E BackgroundUploadWorker:E UploadDatabaseHelper:E UploadBootReceiver:E chromium:I *:S | tee aso_app_logs.txt
+
+هذا الأمر:
+  ✅ يمسح اللوجات القديمة
+  ✅ يعرض اللوجات على الشاشة
+  ✅ يحفظها في ملف aso_app_logs.txt في نفس الوقت
+
+═══════════════════════════════════════════════════════════════════════════════

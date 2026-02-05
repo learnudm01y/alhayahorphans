@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار النسخة Offline - نظام الكفالات</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/material-icons.css">
+    <link rel="stylesheet" href="css/tajawal-fonts.css">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Tajawal', 'Segoe UI', Tahoma, sans-serif;
+            background: linear-gradient(135deg, #1a5276 0%, #2980b9 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            direction: rtl;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        h2 {
+            color: #1a5276;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
+            margin: 5px;
+        }
+        .btn-primary {
+            background: #2980b9;
+            color: white;
+        }
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+        .btn-warning {
+            background: #f39c12;
+            color: white;
+        }
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        #sponsorships-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .sponsorship-item {
+            padding: 16px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            transition: background 0.2s;
+        }
+        .sponsorship-item:hover {
+            background: #f8f9fa;
+        }
+        .sponsorship-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: #1a5276;
+            margin-bottom: 4px;
+        }
+        .sponsorship-info {
+            color: #666;
+            font-size: 14px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .badge-family_member { background: #3498db; color: white; }
+        .badge-breadwinner { background: #27ae60; color: white; }
+        .badge-orphan { background: #9b59b6; color: white; }
+        .badge-deceased_father { background: #e74c3c; color: white; }
+        .badge-deceased_mother { background: #c0392b; color: white; }
+        #log {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            max-height: 200px;
+            overflow-y: auto;
+            direction: ltr;
+            text-align: left;
+        }
+        .links-section a {
+            display: inline-block;
+            margin: 8px;
+            padding: 12px 20px;
+            background: #ecf0f1;
+            color: #2c3e50;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        .links-section a:hover {
+            background: #2980b9;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 اختبار النسخة Offline</h1>
+
+        <!-- حالة النظام -->
+        <div class="card">
+            <h2><span class="material-icons">info</span> حالة النظام</h2>
+            <div class="status info" id="status-mode">
+                <span class="material-icons">wifi_off</span>
+                <span>وضع Offline - بيانات وهمية للاختبار</span>
+            </div>
+            <div class="status" id="status-auth">
+                <span class="material-icons">account_circle</span>
+                <span id="auth-text">جاري التحقق...</span>
+            </div>
+            <div class="status" id="status-data">
+                <span class="material-icons">storage</span>
+                <span id="data-text">جاري تحميل البيانات...</span>
+            </div>
+        </div>
+
+        <!-- الإجراءات -->
+        <div class="card">
+            <h2><span class="material-icons">settings</span> الإجراءات</h2>
+            <button class="btn btn-primary" onclick="testLogin()">
+                <span class="material-icons" style="vertical-align: middle;">login</span>
+                اختبار تسجيل الدخول
+            </button>
+            <button class="btn btn-success" onclick="loadSponsorships()">
+                <span class="material-icons" style="vertical-align: middle;">refresh</span>
+                تحميل الكفالات
+            </button>
+            <button class="btn btn-warning" onclick="testUpdate()">
+                <span class="material-icons" style="vertical-align: middle;">edit</span>
+                اختبار التحديث
+            </button>
+            <button class="btn btn-danger" onclick="resetData()">
+                <span class="material-icons" style="vertical-align: middle;">restart_alt</span>
+                إعادة تعيين البيانات
+            </button>
+        </div>
+
+        <!-- الكفالات -->
+        <div class="card">
+            <h2><span class="material-icons">people</span> الكفالات المتاحة (<span id="count">0</span>)</h2>
+            <div id="sponsorships-list">
+                <p style="color: #999; text-align: center;">اضغط "تحميل الكفالات" للبدء</p>
+            </div>
+        </div>
+
+        <!-- سجل العمليات -->
+        <div class="card">
+            <h2><span class="material-icons">terminal</span> سجل العمليات</h2>
+            <div id="log">Waiting...</div>
+        </div>
+
+        <!-- روابط الصفحات -->
+        <div class="card links-section">
+            <h2><span class="material-icons">link</span> صفحات التطبيق</h2>
+            <a href="login.html">📱 صفحة الدخول</a>
+            <a href="index.html">🏠 الصفحة الرئيسية</a>
+            <a href="data.html">📋 البيانات</a>
+            <a href="detail.html">📄 التفاصيل</a>
+            <a href="photography.html">📷 التصوير</a>
+            <a href="upload.html">☁️ الرفع</a>
+        </div>
+    </div>
+
+    <script src="js/sync-service.js"></script>
+    <script>
+        // سجل العمليات
+        function log(message) {
+            const logEl = document.getElementById('log');
+            const time = new Date().toLocaleTimeString('ar-EG');
+            logEl.innerHTML = `[${time}] ${message}\n` + logEl.innerHTML;
+            console.log(message);
+        }
+
+        // تهيئة
+        async function init() {
+            log('🔧 تهيئة النظام...');
+
+            await SyncService.init();
+
+            // فحص المصادقة
+            const authStatus = document.getElementById('status-auth');
+            const authText = document.getElementById('auth-text');
+
+            if (SyncService.isAuthenticated()) {
+                authStatus.className = 'status success';
+                authText.textContent = 'مسجل الدخول: ' + (SyncService.user?.name || 'مستخدم');
+                log('✅ تم تسجيل الدخول مسبقاً');
+            } else {
+                authStatus.className = 'status warning';
+                authText.textContent = 'غير مسجل الدخول';
+                log('⚠️ غير مسجل الدخول - اضغط "اختبار تسجيل الدخول"');
+            }
+
+            // فحص البيانات
+            const dataStatus = document.getElementById('status-data');
+            const dataText = document.getElementById('data-text');
+
+            const count = SyncService.mockData.sponsorships.length;
+            dataStatus.className = 'status success';
+            dataText.textContent = `${count} كفالة متاحة للاختبار`;
+            log(`📊 ${count} كفالة متاحة`);
+        }
+
+        // اختبار تسجيل الدخول
+        async function testLogin() {
+            log('🔐 جاري تسجيل الدخول...');
+
+            try {
+                const result = await SyncService.login('admin@gmail.com', 'password');
+
+                if (result.success) {
+                    log('✅ تم تسجيل الدخول بنجاح');
+                    log(`👤 المستخدم: ${result.user.name}`);
+
+                    document.getElementById('status-auth').className = 'status success';
+                    document.getElementById('auth-text').textContent = 'مسجل الدخول: ' + result.user.name;
+
+                    // تحميل الكفالات
+                    await loadSponsorships();
+                } else {
+                    log('❌ فشل تسجيل الدخول: ' + result.message);
+                }
+            } catch (error) {
+                log('❌ خطأ: ' + error.message);
+            }
+        }
+
+        // تحميل الكفالات
+        async function loadSponsorships() {
+            log('📥 جاري تحميل الكفالات...');
+
+            try {
+                const result = await SyncService.getSponsorships({ page: 1, perPage: 20 });
+
+                if (result.success) {
+                    const count = result.data.length;
+                    log(`✅ تم تحميل ${count} كفالة`);
+                    document.getElementById('count').textContent = count;
+
+                    renderSponsorships(result.data);
+                }
+            } catch (error) {
+                log('❌ خطأ: ' + error.message);
+            }
+        }
+
+        // عرض الكفالات
+        function renderSponsorships(sponsorships) {
+            const container = document.getElementById('sponsorships-list');
+
+            if (sponsorships.length === 0) {
+                container.innerHTML = '<p style="color: #999; text-align: center;">لا توجد كفالات</p>';
+                return;
+            }
+
+            container.innerHTML = sponsorships.map(sp => `
+                <div class="sponsorship-item" onclick="showDetails(${sp.id})">
+                    <div class="sponsorship-name">${sp.orphan_name || 'بدون اسم'}</div>
+                    <div class="sponsorship-info">
+                        <span class="badge badge-${sp.person_type}">${getPersonTypeName(sp.person_type)}</span>
+                        رقم الملف: ${sp.internal_file_number || '-'}
+                        ${sp.guardian_name ? ' | المعيل: ' + sp.guardian_name : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // اسم نوع الشخص
+        function getPersonTypeName(type) {
+            const types = {
+                'family_member': 'فرد عائلة',
+                'orphan': 'يتيم',
+                'breadwinner': 'معيل',
+                'deceased_father': 'أب متوفى',
+                'deceased_mother': 'أم متوفية'
+            };
+            return types[type] || type;
+        }
+
+        // عرض تفاصيل كفالة
+        async function showDetails(id) {
+            log(`📋 عرض تفاصيل الكفالة: ${id}`);
+
+            const sp = await SyncService.getSponsorshipById(id);
+            if (sp) {
+                alert(`
+                    الاسم: ${sp.orphan_name}
+                    الهوية: ${sp.identity_number}
+                    النوع: ${getPersonTypeName(sp.person_type)}
+                    المعيل: ${sp.guardian_name || '-'}
+                    الهاتف: ${sp.guardian_phone || sp.orphan_phone || '-'}
+                    العنوان: ${sp.guardian_detailed_address || sp.orphan_detailed_address || '-'}
+                `);
+            }
+        }
+
+        // اختبار التحديث
+        async function testUpdate() {
+            log('📝 اختبار تحديث البيانات...');
+
+            const testId = 1001;
+            const newName = 'اختبار التحديث ' + Date.now();
+
+            try {
+                const result = await SyncService.updateSponsorship(testId, {
+                    first_name: newName.split(' ')[0],
+                    second_name: newName.split(' ')[1]
+                });
+
+                if (result.success) {
+                    log(`✅ تم تحديث الكفالة ${testId}`);
+                    log(`📝 الاسم الجديد: ${result.sponsorship.orphan_name}`);
+                    await loadSponsorships();
+                }
+            } catch (error) {
+                log('❌ خطأ: ' + error.message);
+            }
+        }
+
+        // إعادة تعيين البيانات
+        function resetData() {
+            if (confirm('هل تريد إعادة تعيين جميع البيانات؟')) {
+                localStorage.removeItem('offline_sponsorships');
+                localStorage.removeItem('auth_token');
+                localStorage.removeItem('user_data');
+                log('🔄 تم إعادة تعيين البيانات');
+                location.reload();
+            }
+        }
+
+        // بدء التهيئة
+        init();
+    </script>
+</body>
+</html>

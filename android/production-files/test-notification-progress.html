@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>اختبار إشعارات Android</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            background: #1a1a2e;
+            min-height: 100vh;
+            padding: 20px;
+            color: #fff;
+        }
+        .container { max-width: 400px; margin: 0 auto; }
+        h1 { text-align: center; font-size: 18px; margin-bottom: 20px; color: #4fc3f7; }
+
+        .info-box {
+            background: rgba(79, 195, 247, 0.2);
+            border: 1px solid #4fc3f7;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .info-box strong { color: #4fc3f7; }
+
+        .status-box {
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            font-size: 14px;
+        }
+        .status-item:last-child { border-bottom: none; }
+        .status-ok { color: #81c784; }
+        .status-error { color: #e57373; }
+        .status-warning { color: #ffb74d; }
+
+        .btn {
+            width: 100%;
+            padding: 18px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .btn:active { transform: scale(0.98); }
+        .btn-primary { background: linear-gradient(135deg, #4fc3f7, #29b6f6); color: #fff; }
+        .btn-success { background: linear-gradient(135deg, #81c784, #66bb6a); color: #fff; }
+        .btn-warning { background: linear-gradient(135deg, #ffb74d, #ffa726); color: #333; }
+        .btn-danger { background: linear-gradient(135deg, #e57373, #ef5350); color: #fff; }
+        .btn-purple { background: linear-gradient(135deg, #9575cd, #7e57c2); color: #fff; }
+
+        .log-box {
+            background: #0d1117;
+            border-radius: 10px;
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+        .log-entry { padding: 5px; margin: 2px 0; border-radius: 4px; }
+        .log-info { background: rgba(79, 195, 247, 0.2); color: #4fc3f7; }
+        .log-success { background: rgba(129, 199, 132, 0.2); color: #81c784; }
+        .log-error { background: rgba(229, 115, 115, 0.2); color: #e57373; }
+
+        .arrow { font-size: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔔 اختبار إشعارات Android</h1>
+
+        <div class="info-box">
+            <strong>ℹ️ هام:</strong> هذه الصفحة ترسل إشعارات حقيقية لشريط إشعارات Android.
+            <br><br>
+            <strong>👆 اسحب من أعلى الشاشة</strong> لرؤية الإشعار مع Progress Bar.
+        </div>
+
+        <div class="status-box">
+            <div class="status-item">
+                <span>المنصة</span>
+                <span id="platform" class="status-warning">جاري الفحص...</span>
+            </div>
+            <div class="status-item">
+                <span>Plugin متاح</span>
+                <span id="pluginStatus" class="status-warning">جاري الفحص...</span>
+            </div>
+        </div>
+
+        <!-- الأزرار الرئيسية -->
+        <button class="btn btn-primary" onclick="startService()">
+            <span>🚀</span> بدء خدمة الخلفية
+        </button>
+
+        <button class="btn btn-success" onclick="runProgressDemo()">
+            <span>📊</span> عرض Progress Bar (0% → 100%)
+        </button>
+
+        <button class="btn btn-warning" onclick="showIndeterminate()">
+            <span>🔄</span> عرض تحميل دائري
+        </button>
+
+        <button class="btn btn-purple" onclick="showComplete()">
+            <span>✅</span> عرض إشعار الاكتمال
+        </button>
+
+        <button class="btn btn-danger" onclick="stopService()">
+            <span>⏹️</span> إيقاف الخدمة
+        </button>
+
+        <div class="log-box" id="logBox"></div>
+    </div>
+
+    <script>
+        let BackgroundSyncPlugin = null;
+
+        function log(msg, type = 'info') {
+            const box = document.getElementById('logBox');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            box.insertBefore(entry, box.firstChild);
+        }
+
+        // تهيئة
+        document.addEventListener('DOMContentLoaded', async () => {
+            log('🚀 بدء التهيئة...');
+
+            // فحص Capacitor
+            if (typeof Capacitor !== 'undefined') {
+                const platform = Capacitor.getPlatform();
+                document.getElementById('platform').textContent = platform;
+                document.getElementById('platform').className = platform === 'android' ? 'status-ok' : 'status-warning';
+                log(`📱 المنصة: ${platform}`, 'info');
+
+                if (platform === 'android') {
+                    // فحص Plugin
+                    if (Capacitor.Plugins && Capacitor.Plugins.BackgroundSync) {
+                        BackgroundSyncPlugin = Capacitor.Plugins.BackgroundSync;
+                        document.getElementById('pluginStatus').textContent = 'متاح ✓';
+                        document.getElementById('pluginStatus').className = 'status-ok';
+                        log('✓ BackgroundSync Plugin جاهز!', 'success');
+                    } else {
+                        document.getElementById('pluginStatus').textContent = 'غير متاح ✗';
+                        document.getElementById('pluginStatus').className = 'status-error';
+                        log('✗ Plugin غير متاح!', 'error');
+                    }
+                } else {
+                    document.getElementById('pluginStatus').textContent = 'يعمل فقط على Android';
+                    document.getElementById('pluginStatus').className = 'status-warning';
+                    log('⚠️ هذا الاختبار يعمل فقط على Android', 'error');
+                }
+            } else {
+                document.getElementById('platform').textContent = 'متصفح (ليس Capacitor)';
+                document.getElementById('platform').className = 'status-error';
+                document.getElementById('pluginStatus').textContent = 'غير متاح';
+                document.getElementById('pluginStatus').className = 'status-error';
+                log('⚠️ Capacitor غير متاح - شغّل على Android!', 'error');
+            }
+        });
+
+        // بدء الخدمة
+        async function startService() {
+            if (!BackgroundSyncPlugin) {
+                log('✗ Plugin غير متاح!', 'error');
+                alert('يجب تشغيل التطبيق على Android!');
+                return;
+            }
+
+            try {
+                log('🚀 بدء خدمة الخلفية...', 'info');
+                const result = await BackgroundSyncPlugin.startService();
+                log('✓ تم بدء الخدمة - افحص شريط الإشعارات!', 'success');
+            } catch (e) {
+                log(`✗ خطأ: ${e.message}`, 'error');
+            }
+        }
+
+        // إيقاف الخدمة
+        async function stopService() {
+            if (!BackgroundSyncPlugin) return;
+
+            try {
+                log('⏹️ إيقاف الخدمة...', 'info');
+                await BackgroundSyncPlugin.stopService();
+                log('✓ تم إيقاف الخدمة', 'success');
+            } catch (e) {
+                log(`✗ خطأ: ${e.message}`, 'error');
+            }
+        }
+
+        // عرض Progress Bar من 0 إلى 100
+        async function runProgressDemo() {
+            if (!BackgroundSyncPlugin) {
+                log('✗ Plugin غير متاح!', 'error');
+                alert('يجب تشغيل التطبيق على Android!');
+                return;
+            }
+
+            try {
+                // بدء الخدمة أولاً
+                log('🚀 بدء الخدمة...', 'info');
+                await BackgroundSyncPlugin.startService();
+
+                log('📊 بدء عرض Progress Bar...', 'info');
+                log('👆 اسحب من أعلى الشاشة لرؤية الإشعار!', 'success');
+
+                // Progress من 0 إلى 100
+                for (let i = 0; i <= 100; i += 10) {
+                    await BackgroundSyncPlugin.updateProgress({
+                        progress: i,
+                        max: 100,
+                        status: `جاري المزامنة... ${i}%`
+                    });
+                    log(`📊 ${i}%`, 'info');
+                    await new Promise(r => setTimeout(r, 800));
+                }
+
+                // إشعار الاكتمال
+                await BackgroundSyncPlugin.showComplete({
+                    message: '✅ اكتملت المزامنة بنجاح!'
+                });
+                log('✓ اكتمل العرض!', 'success');
+
+            } catch (e) {
+                log(`✗ خطأ: ${e.message}`, 'error');
+            }
+        }
+
+        // عرض تحميل دائري
+        async function showIndeterminate() {
+            if (!BackgroundSyncPlugin) {
+                log('✗ Plugin غير متاح!', 'error');
+                alert('يجب تشغيل التطبيق على Android!');
+                return;
+            }
+
+            try {
+                await BackgroundSyncPlugin.startService();
+                log('🔄 عرض تحميل دائري...', 'info');
+
+                await BackgroundSyncPlugin.setIndeterminate({
+                    message: 'جاري التحميل...'
+                });
+
+                log('👆 اسحب من أعلى الشاشة لرؤية الإشعار!', 'success');
+            } catch (e) {
+                log(`✗ خطأ: ${e.message}`, 'error');
+            }
+        }
+
+        // عرض إشعار الاكتمال
+        async function showComplete() {
+            if (!BackgroundSyncPlugin) {
+                log('✗ Plugin غير متاح!', 'error');
+                alert('يجب تشغيل التطبيق على Android!');
+                return;
+            }
+
+            try {
+                log('✅ عرض إشعار الاكتمال...', 'info');
+
+                await BackgroundSyncPlugin.showComplete({
+                    message: '✅ تمت العملية بنجاح!'
+                });
+
+                log('👆 اسحب من أعلى الشاشة لرؤية الإشعار!', 'success');
+            } catch (e) {
+                log(`✗ خطأ: ${e.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

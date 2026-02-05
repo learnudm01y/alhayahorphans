@@ -32,6 +32,15 @@ class SponsorshipSyncController extends Controller
      */
     public function login(Request $request): JsonResponse
     {
+        // 🔍 LOG 1: بداية الطلب
+        Log::info('🔐 [MOBILE LOGIN] ========================================');
+        Log::info('🔐 [MOBILE LOGIN] طلب تسجيل دخول جديد', [
+            'username' => $request->username,
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'timestamp' => now()->toDateTimeString()
+        ]);
+
         $request->validate([
             'username' => 'required|string',
             'password' => 'required|string',
@@ -39,20 +48,55 @@ class SponsorshipSyncController extends Controller
         ]);
 
         try {
+            // 🔍 LOG 2: البحث عن المستخدم
+            Log::info('🔐 [MOBILE LOGIN] البحث عن المستخدم...', ['username' => $request->username]);
+
             $user = User::where('name', $request->username)
                 ->orWhere('email', $request->username)
                 ->orWhere('phone', $request->username)
                 ->first();
 
             if (!$user) {
+                // 🔍 LOG 3: المستخدم غير موجود
+                Log::warning('🔐 [MOBILE LOGIN] ❌ المستخدم غير موجود', [
+                    'username_tried' => $request->username,
+                    'total_users' => User::count(),
+                    'admin_users' => User::where('role', 'admin')->count()
+                ]);
+
                 return response()->json([
                     'success' => false,
                     'message' => 'اسم المستخدم غير موجود',
-                    'error_code' => 'USER_NOT_FOUND'
+                    'error_code' => 'USER_NOT_FOUND',
+                    'debug_info' => [
+                        'username_tried' => $request->username,
+                        'total_users_count' => User::count(),
+                        'admin_users_count' => User::where('role', 'admin')->count()
+                    ]
                 ], 401);
             }
 
-            if (!Hash::check($request->password, $user->password)) {
+            // 🔍 LOG 4: المستخدم موجود
+            Log::info('🔐 [MOBILE LOGIN] ✅ المستخدم موجود', [
+                'user_id' => $user->id,
+                'user_name' => $user->name,
+                'user_email' => $user->email,
+                'user_role' => $user->role
+            ]);
+
+            // 🔍 LOG 5: التحقق من كلمة المرور
+            $passwordValid = Hash::check($request->password, $user->password);
+            Log::info('🔐 [MOBILE LOGIN] التحقق من كلمة المرور', [
+                'password_valid' => $passwordValid,
+                'password_length' => strlen($request->password)
+            ]);
+
+            if (!$passwordValid) {
+                Log::warning('🔐 [MOBILE LOGIN] ❌ كلمة المرور خاطئة', [
+                    'user_id' => $user->id,
+                    'username' => $user->name
+                ]);
+
                 return response()->json([
                     'success' => false,
                     'message' => 'كلمة المرور غير صحيحة',
@@ -60,17 +104,42 @@ class SponsorshipSyncController extends Controller
                 ], 401);
             }
 
+            // 🔍 LOG 6: التحقق من الصلاحية
+            Log::info('🔐 [MOBILE LOGIN] التحقق من الصلاحية', [
+                'user_role' => $user->role,
+                'required_role' => 'admin',
+                'has_permission' => $user->role === 'admin'
+            ]);
+
             if ($user->role !== 'admin') {
+                Log::warning('🔐 [MOBILE LOGIN] ❌ صلاحية غير كافية', [
+                    'user_id' => $user->id,
+                    'username' => $user->name,
+                    'current_role' => $user->role,
+                    'required_role' => 'admin'
+                ]);
+
                 return response()->json([
                     'success' => false,
                     'message' => 'ليس لديك صلاحية الدخول. مطلوب صلاحية مدير.',
-                    'error_code' => 'INSUFFICIENT_PERMISSIONS'
+                    'error_code' => 'INSUFFICIENT_PERMISSIONS',
+                    'debug_info' => [
+                        'your_role' => $user->role,
+                        'required_role' => 'admin'
+                    ]
                 ], 403);
             }
 
+            // 🔍 LOG 7: إنشاء Token
+            Log::info('🔐 [MOBILE LOGIN] إنشاء token...', ['user_id' => $user->id]);
             $token = $user->createToken('mobile-app-token', ['*'])->plainTextToken;
 
-            Log::info('Mobile user logged in', ['user_id' => $user->id, 'username' => $user->name]);
+            Log::info('🔐 [MOBILE LOGIN] ✅✅✅ تم تسجيل الدخول بنجاح!', [
+                'user_id' => $user->id,
+                'username' => $user->name,
+                'token_length' => strlen($token)
+            ]);
+            Log::info('🔐 [MOBILE LOGIN] ========================================');
 
             return response()->json([
                 'success' => true,
@@ -86,10 +155,15 @@ class SponsorshipSyncController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Mobile login failed', ['error' => $e->getMessage()]);
+            Log::error('🔐 [MOBILE LOGIN] ❌❌❌ خطأ في تسجيل الدخول', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'حدث خطأ في تسجيل الدخول'
+                'message' => 'حدث خطأ في تسجيل الدخول',
+                'error' => config('app.debug') ? $e->getMessage() : null
             ], 500);
         }
     }

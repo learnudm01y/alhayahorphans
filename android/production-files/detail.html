@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#2a8b8b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>الحياة - تفاصيل الكفالة</title>
+
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="logo01.png">
+    <!-- Safe Area يجب أن يكون قبل style.css -->
+    <link rel="stylesheet" href="css/safe-area.css">
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Material Icons & Fonts - Offline Version -->
+    <link rel="stylesheet" href="css/material-icons.css">
+    <link rel="stylesheet" href="css/icons-fallback.css">
+    <link rel="stylesheet" href="css/tajawal-fonts.css">
+
+    <style>
+        * { box-sizing: border-box; }
+        html, body { overscroll-behavior: none; -webkit-overflow-scrolling: auto; }
+        /* body styles are in safe-area.css and style.css */
+        .detail-header { background: linear-gradient(135deg, #2a8b8b, #1e6b6b); color: white; padding: 15px 20px; display: flex; align-items: center; gap: 15px; position: fixed; top: 30px; left: 0; right: 0; z-index: 9999; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+        .back-btn { background: rgba(255,255,255,0.2); border: none; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .detail-header h1 { font-size: 1.1rem; flex: 1; margin: 0; }
+        .save-btn { background: #28a745; border: none; color: white; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 5px; }
+        .save-btn:disabled { background: #ccc; cursor: not-allowed; }
+        .detail-content { padding: 15px; padding-bottom: 100px; margin-top: 100px; }
+        .detail-section { background: white; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden; }
+        .section-title { background: linear-gradient(135deg, #2a8b8b, #1e6b6b); color: white; padding: 12px 15px; font-size: 1rem; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 10px; }
+        .section-title .material-icons { font-size: 20px; }
+        .section-content { padding: 15px; }
+        .form-field { margin-bottom: 15px; }
+        .form-field:last-child { margin-bottom: 0; }
+        .form-label { display: block; color: #666; font-size: 0.85rem; margin-bottom: 6px; font-weight: 500; }
+        .form-input, .form-select { width: 100%; padding: 12px 14px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.95rem; color: #333; background: #fff; transition: border-color 0.3s; }
+        .form-input:focus, .form-select:focus { outline: none; border-color: #2a8b8b; }
+        .form-input.modified, .form-select.modified { border-color: #007bff; background: #f0f7ff; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .bank-account-card { background: #f8f9fa; border-radius: 10px; padding: 15px; margin-bottom: 15px; border-right: 4px solid #2a8b8b; }
+        .bank-account-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #e0e0e0; }
+        .bank-account-title { font-weight: bold; color: #2a8b8b; display: flex; align-items: center; gap: 8px; }
+        .bank-account-status { padding: 4px 12px; border-radius: 15px; font-size: 12px; font-weight: 500; }
+        .bank-account-status.approved { background: #d4edda; color: #155724; }
+        .bank-account-status.pending { background: #fff3cd; color: #856404; }
+        .toast { position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%); background: #333; color: white; padding: 12px 24px; border-radius: 8px; z-index: 1000; display: none; }
+        .toast.show { display: block; }
+        .toast.success { background: #28a745; }
+        .toast.error { background: #dc3545; }
+        .loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 1000; }
+        .loading-overlay.active { display: flex; }
+        .loading-spinner { width: 50px; height: 50px; border: 4px solid #fff; border-top-color: #2a8b8b; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .no-data { text-align: center; padding: 40px 20px; color: #888; }
+        .no-data .material-icons { font-size: 60px; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+    <!-- Safe Area Bars -->
+    <div class="safe-area-top"></div>
+    <div class="safe-area-bottom"></div>
+
+    <header class="detail-header">
+        <button class="back-btn" onclick="goBack()"><span class="material-icons">arrow_forward</span></button>
+        <h1 id="pageTitle">تفاصيل الكفالة</h1>
+        <button class="save-btn" id="saveBtn" onclick="saveChanges()" disabled><span class="material-icons">save</span> حفظ</button>
+    </header>
+
+    <div class="detail-content" id="detailContent">
+        <div class="no-data" id="noDataMessage">
+            <span class="material-icons">error_outline</span>
+            <p>لم يتم العثور على البيانات</p>
+            <button onclick="goBack()" style="padding: 10px 20px; background: #2a8b8b; color: white; border: none; border-radius: 8px; margin-top: 10px;">العودة</button>
+        </div>
+
+        <!-- بيانات المكفول -->
+        <div class="detail-section" id="orphanSection" style="display: none;">
+            <h3 class="section-title"><span class="material-icons">person</span> <span id="orphanSectionTitle">بيانات المكفول</span></h3>
+            <!-- نوع الشخص المكفول (مهم للتوجيه للجدول الصحيح) -->
+            <input type="hidden" id="person_type" data-field="person_type" value="">
+            <div class="section-content">
+                <!-- عرض نوع الشخص إذا كان متوفي -->
+                <div class="form-row" id="personTypeDisplay" style="display: none;">
+                    <div class="form-field" style="width: 100%;">
+                        <div id="personTypeLabel" style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 8px; text-align: center; font-weight: bold;">
+                            <span class="material-icons" style="vertical-align: middle;">info</span>
+                            <span id="personTypeName"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-field"><label class="form-label">الاسم الأول</label><input type="text" class="form-input" id="first_name" data-field="first_name"></div>
+                    <div class="form-field"><label class="form-label">اسم الأب</label><input type="text" class="form-input" id="second_name" data-field="second_name"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-field"><label class="form-label">اسم الجد</label><input type="text" class="form-input" id="third_name" data-field="third_name"></div>
+                    <div class="form-field"><label class="form-label">اسم العائلة</label><input type="text" class="form-input" id="last_name" data-field="last_name"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-field"><label class="form-label">رقم الهوية</label><input type="text" class="form-input" id="identity_number" data-field="identity_number"></div>
+                    <div class="form-field" id="birthDateContainer">
+                        <label class="form-label" id="birthDateLabel">تاريخ الميلاد</label>
+                        <input type="date" class="form-input" id="birth_date" data-field="birth_date">
+                    </div>
+                </div>
+                <div class="form-row" id="genderRow">
+                    <div class="form-field" id="genderContainer">
+                        <label class="form-label">الجنس</label>
+                        <select class="form-select" id="orphan_gender" data-field="orphan_gender">
+                            <option value="">-- اختر --</option><option value="ذكر">ذكر</option><option value="أنثى">أنثى</option>
+                        </select>
+                        <!-- حقل قراءة فقط للمتوفين (الجنس محدد تلقائياً) -->
+                        <input type="text" class="form-input" id="orphan_gender_readonly" readonly style="display: none; background: #e9ecef;">
+                    </div>
+                    <div class="form-field"><label class="form-label">الحالة الصحية</label>
+                        <select class="form-select" id="health_status_id" data-field="health_status_id"><option value="">-- اختر --</option></select>
+                    </div>
+                </div>
+                <!-- حقول إضافية للمعيل والمتوفين - تظهر فقط في حالة breadwinner, deceased_father, deceased_mother -->
+                <div id="extraFieldsContainer" style="display: none;">
+                    <div class="form-row">
+                        <div class="form-field"><label class="form-label">رقم الهاتف</label><input type="tel" class="form-input" id="orphan_phone" data-field="orphan_phone"></div>
+                        <div class="form-field"><label class="form-label">رقم الهاتف البديل</label><input type="tel" class="form-input" id="orphan_phone2" data-field="orphan_phone2"></div>
+                    </div>
+                    <div class="form-field">
+                        <label class="form-label">المدينة</label>
+                        <select class="form-select" id="orphan_city_id" data-field="orphan_city_id">
+                            <option value="">-- اختر المدينة --</option>
+                        </select>
+                    </div>
+                    <div class="form-field"><label class="form-label">العنوان التفصيلي</label><textarea class="form-input" id="orphan_detailed_address" data-field="orphan_detailed_address" rows="3" style="resize: vertical;"></textarea></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- بيانات المعيل -->
+        <div class="detail-section" id="guardianSection" style="display: none;">
+            <h3 class="section-title"><span class="material-icons">supervisor_account</span> بيانات المعيل / الولي</h3>
+            <div class="section-content">
+                <!-- نوع الشخص مخفي - يتم تحديده من قاعدة البيانات -->
+                <input type="hidden" id="guardian_person_type" data-field="guardian_person_type" value="breadwinner">
+                <div class="form-row">
+                    <div class="form-field"><label class="form-label">الاسم الأول</label><input type="text" class="form-input" id="guardian_first_name" data-field="guardian_first_name"></div>
+                    <div class="form-field"><label class="form-label">اسم الأب</label><input type="text" class="form-input" id="guardian_father_name" data-field="guardian_father_name"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-field"><label class="form-label">اسم الجد</label><input type="text" class="form-input" id="guardian_grandfather_name" data-field="guardian_grandfather_name"></div>
+                    <div class="form-field"><label class="form-label">اسم العائلة</label><input type="text" class="form-input" id="guardian_family_name" data-field="guardian_family_name"></div>
+                </div>
+                <div class="form-field"><label class="form-label">رقم هوية المعيل</label><input type="text" class="form-input" id="guardian_identity_number" data-field="guardian_identity_number"></div>
+                <div class="form-row">
+                    <div class="form-field"><label class="form-label">رقم الهاتف الأول</label><input type="tel" class="form-input" id="guardian_phone" data-field="guardian_phone"></div>
+                    <div class="form-field"><label class="form-label">رقم الهاتف الثاني</label><input type="tel" class="form-input" id="guardian_phone2" data-field="guardian_phone2"></div>
+                </div>
+                <div class="form-field">
+                    <label class="form-label">المدينة</label>
+                    <select class="form-select" id="guardian_city_id" data-field="guardian_city_id">
+                        <option value="">-- اختر المدينة --</option>
+                    </select>
+                </div>
+                <div class="form-field"><label class="form-label">العنوان التفصيلي</label><textarea class="form-input" id="guardian_detailed_address" data-field="guardian_detailed_address" rows="3" style="resize: vertical;"></textarea></div>
+            </div>
+        </div>
+
+        <!-- الحسابات البنكية -->
+        <div class="detail-section" id="bankSection" style="display: none;">
+            <h3 class="section-title">
+                <span class="material-icons">account_balance</span> الحسابات البنكية للمعيل
+                <button class="add-bank-btn" onclick="addNewBankAccount()" style="margin-right: auto; background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 5px;">
+                    <span class="material-icons" style="font-size: 18px;">add</span> إضافة حساب
+                </button>
+            </h3>
+            <div class="section-content" id="bankAccountsContainer"><p style="color: #888; text-align: center;">لا توجد حسابات بنكية</p></div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <div class="loading-overlay" id="loadingOverlay"><div class="loading-spinner"></div></div>
+
+    <script src="js/sync-service-real.js?v=20260122-production"></script>
+    <script>
+        let currentSponsorship = null;
+        let originalData = {};
+        let modifiedFields = {};
+        let healthStatuses = [];
+        let cities = [];
+        let bankNames = [];
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                await SyncService.init();
+                if (!SyncService.isAuthenticated()) { window.location.href = 'login.html'; return; }
+                await loadLookupData();
+                const urlParams = new URLSearchParams(window.location.search);
+                const sponsorshipId = urlParams.get('id');
+                if (!sponsorshipId) { showNoData(); return; }
+                await loadData(parseInt(sponsorshipId));
+            } catch (error) {
+                console.error('Init error:', error);
+                showToast('حدث خطأ في تحميل البيانات', 'error');
+            }
+        });
+
+        async function loadLookupData() {
+            try {
+                healthStatuses = await SyncService.getLocalData('health_statuses') || [];
+                console.log('🏥 healthStatuses loaded:', healthStatuses.length, 'items:', healthStatuses);
+                populateSelect('health_status_id', healthStatuses, 'id', 'name');
+                cities = await SyncService.getLocalData('cities') || [];
+                console.log('🏙️ cities loaded:', cities.length, 'items');
+                // تعبئة قائمة المدن للمكفول (breadwinner, deceased_father, deceased_mother)
+                populateSelect('orphan_city_id', cities, 'id', 'city');
+                // تعبئة قائمة المدن للمعيل/الولي (family_member)
+                populateSelect('guardian_city_id', cities, 'id', 'city');
+                bankNames = await SyncService.getLocalData('banks') || [];
+                console.log('🏦 bankNames loaded:', bankNames.length, 'items:', bankNames);
+            } catch (error) { console.error('Load lookup data error:', error); }
+        }
+
+        function populateSelect(selectId, data, valueField, textField) {
+            const select = document.getElementById(selectId);
+            if (!select) return;
+            const defaultOption = select.querySelector('option[value=""]');
+            select.innerHTML = '';
+            if (defaultOption) select.appendChild(defaultOption);
+            data.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item[valueField];
+                option.textContent = item[textField];
+                select.appendChild(option);
+            });
+        }
+
+        async function loadData(sponsorshipId) {
+            showLoading(true);
+            try {
+                currentSponsorship = await SyncService.getLocalSponsorship(sponsorshipId);
+
+                // Logging تفصيلي للبيانات المستلمة
+                console.log('📥 ===== بيانات الكفالة المحملة =====');
+                console.log('🆔 ID:', sponsorshipId);
+                console.log('📋 الاسم الكامل:', currentSponsorship?.orphan_name);
+                console.log('👤 بيانات المكفول:', {
+                    first_name: currentSponsorship?.first_name,
+                    second_name: currentSponsorship?.second_name,
+                    third_name: currentSponsorship?.third_name,
+                    last_name: currentSponsorship?.last_name,
+                    gender: currentSponsorship?.orphan_gender,
+                    health_status_id: currentSponsorship?.health_status_id
+                });
+                console.log('👨‍👩‍👧 بيانات المعيل:', {
+                    guardian_name: currentSponsorship?.guardian_name,
+                    guardian_first_name: currentSponsorship?.guardian_first_name,
+                    guardian_father_name: currentSponsorship?.guardian_father_name,
+                    guardian_grandfather_name: currentSponsorship?.guardian_grandfather_name,
+                    guardian_family_name: currentSponsorship?.guardian_family_name,
+                    guardian_phone: currentSponsorship?.guardian_phone,
+                    guardian_phone2: currentSponsorship?.guardian_phone2,
+                    guardian_identity_number: currentSponsorship?.guardian_identity_number,
+                    guardian_detailed_address: currentSponsorship?.guardian_detailed_address
+                });
+                console.log('🏦 الحسابات البنكية:', currentSponsorship?.bank_accounts);
+                console.log('📝 معرفات الربط:', {
+                    internal_file_number: currentSponsorship?.internal_file_number,
+                    identity_number: currentSponsorship?.identity_number,
+                    relation_id_number: currentSponsorship?.relation_id_number
+                });
+                console.log('======================================');
+
+                if (!currentSponsorship) { showNoData(); return; }
+                originalData = JSON.parse(JSON.stringify(currentSponsorship));
+                populateForm(currentSponsorship);
+                document.getElementById('orphanSection').style.display = 'block';
+
+                // التعامل مع أنواع الأشخاص المختلفة
+                const personType = currentSponsorship.person_type || '';
+                console.log('🔍 Person Type:', personType);
+                console.log('🏦 Bank Accounts:', currentSponsorship.bank_accounts);
+                handlePersonTypeDisplay(personType);
+
+                // عرض قسم البيانات البنكية دائماً - للجميع
+                document.getElementById('bankSection').style.display = 'block';
+
+                // إخفاء قسم المعيل إذا كان المكفول هو المعيل نفسه أو متوفي
+                if (personType === 'breadwinner' || personType === 'deceased_father' || personType === 'deceased_mother') {
+                    document.getElementById('guardianSection').style.display = 'none';
+                    console.log('👤 ' + personType + ' - hiding guardian section, showing bank section');
+                } else {
+                    document.getElementById('guardianSection').style.display = 'block';
+                }
+                document.getElementById('noDataMessage').style.display = 'none';
+                document.getElementById('pageTitle').textContent = currentSponsorship.first_name || currentSponsorship.orphan_name || 'تفاصيل الكفالة';
+                bindChangeEvents();
+            } catch (error) {
+                console.error('Load error:', error);
+                showToast('فشل في تحميل البيانات', 'error');
+            } finally { showLoading(false); }
+        }
+
+        /**
+         * التعامل مع عرض نوع الشخص - تخصيص الواجهة بناءً على النوع
+         * @param {string} personType - نوع الشخص (breadwinner, family_member, orphan, deceased_father, deceased_mother)
+         */
+        function handlePersonTypeDisplay(personType) {
+            const personTypeDisplay = document.getElementById('personTypeDisplay');
+            const personTypeName = document.getElementById('personTypeName');
+            const orphanSectionTitle = document.getElementById('orphanSectionTitle');
+            const genderSelect = document.getElementById('orphan_gender');
+            const genderReadonly = document.getElementById('orphan_gender_readonly');
+            const birthDateLabel = document.getElementById('birthDateLabel');
+            const extraFieldsContainer = document.getElementById('extraFieldsContainer');
+
+            // تعيين قيمة person_type في الحقل المخفي
+            document.getElementById('person_type').value = personType;
+
+            // إخفاء عرض نوع الشخص افتراضياً
+            personTypeDisplay.style.display = 'none';
+            genderSelect.style.display = 'block';
+            genderReadonly.style.display = 'none';
+            birthDateLabel.textContent = 'تاريخ الميلاد';
+            // إخفاء الحقول الإضافية افتراضياً
+            extraFieldsContainer.style.display = 'none';
+
+            switch (personType) {
+                case 'deceased_father':
+                    // أب متوفي
+                    orphanSectionTitle.textContent = 'بيانات الأب المتوفي';
+                    personTypeName.textContent = '👨 أب متوفي - الجنس: ذكر (تلقائي)';
+                    personTypeDisplay.style.display = 'block';
+                    personTypeDisplay.querySelector('.form-field > div').style.background = '#f8d7da';
+                    // الجنس محدد تلقائياً للأب = ذكر
+                    genderSelect.style.display = 'none';
+                    genderReadonly.style.display = 'block';
+                    genderReadonly.value = 'ذكر';
+                    // تغيير تسمية تاريخ الميلاد لتاريخ الوفاة
+                    birthDateLabel.textContent = 'تاريخ الوفاة';
+                    // إظهار الحقول الإضافية (هاتف، هاتف بديل، عنوان)
+                    extraFieldsContainer.style.display = 'block';
+                    break;
+
+                case 'deceased_mother':
+                    // أم متوفية
+                    orphanSectionTitle.textContent = 'بيانات الأم المتوفية';
+                    personTypeName.textContent = '👩 أم متوفية - الجنس: أنثى (تلقائي)';
+                    personTypeDisplay.style.display = 'block';
+                    personTypeDisplay.querySelector('.form-field > div').style.background = '#f8d7da';
+                    // الجنس محدد تلقائياً للأم = أنثى
+                    genderSelect.style.display = 'none';
+                    genderReadonly.style.display = 'block';
+                    genderReadonly.value = 'أنثى';
+                    // تغيير تسمية تاريخ الميلاد لتاريخ الوفاة
+                    birthDateLabel.textContent = 'تاريخ الوفاة';
+                    // إظهار الحقول الإضافية (هاتف، هاتف بديل، عنوان)
+                    extraFieldsContainer.style.display = 'block';
+                    break;
+
+                case 'breadwinner':
+                    // معيل (المكفول هو المعيل نفسه)
+                    orphanSectionTitle.textContent = 'بيانات المعيل المكفول';
+                    personTypeName.textContent = '👤 معيل';
+                    personTypeDisplay.style.display = 'block';
+                    personTypeDisplay.querySelector('.form-field > div').style.background = '#d4edda';
+                    personTypeDisplay.querySelector('.form-field > div').style.color = '#155724';
+                    // إظهار الحقول الإضافية (هاتف، هاتف بديل، عنوان)
+                    extraFieldsContainer.style.display = 'block';
+                    break;
+
+                case 'family_member':
+                    // فرد عائلة
+                    orphanSectionTitle.textContent = 'بيانات فرد العائلة';
+                    personTypeName.textContent = '👨‍👩‍👧 فرد عائلة';
+                    personTypeDisplay.style.display = 'block';
+                    personTypeDisplay.querySelector('.form-field > div').style.background = '#cce5ff';
+                    personTypeDisplay.querySelector('.form-field > div').style.color = '#004085';
+                    break;
+
+                case 'orphan':
+                    // يتيم
+                    orphanSectionTitle.textContent = 'بيانات اليتيم';
+                    personTypeName.textContent = '👶 يتيم';
+                    personTypeDisplay.style.display = 'block';
+                    personTypeDisplay.querySelector('.form-field > div').style.background = '#fff3cd';
+                    personTypeDisplay.querySelector('.form-field > div').style.color = '#856404';
+                    break;
+
+                default:
+                    // نوع غير محدد - عرض افتراضي
+                    orphanSectionTitle.textContent = 'بيانات المكفول';
+                    break;
+            }
+        }
+
+        function populateForm(data) {
+            console.log('📋 populateForm - orphan_gender:', data.orphan_gender, 'type:', typeof data.orphan_gender);
+            console.log('📋 populateForm - health_status_id:', data.health_status_id, 'type:', typeof data.health_status_id);
+            console.log('📋 populateForm - city data:', {
+                orphan_city_id: data.orphan_city_id,
+                guardian_city_id: data.guardian_city_id,
+                person_type: data.person_type
+            });
+            console.log('👤 Guardian data:', {
+                first_name: data.guardian_first_name,
+                father_name: data.guardian_father_name,
+                grandfather_name: data.guardian_grandfather_name,
+                family_name: data.guardian_family_name,
+                identity: data.guardian_identity_number,
+                data_source: data.guardian_data_source
+            });
+            // بيانات المكفول - دعم الأسماء القديمة والجديدة
+            setValue('first_name', data.first_name || data.orphan_first_name || '');
+            setValue('second_name', data.second_name || data.orphan_father_name || '');
+            setValue('third_name', data.third_name || data.orphan_grandfather_name || '');
+            setValue('last_name', data.last_name || data.orphan_family_name || '');
+            setValue('identity_number', data.identity_number);
+            setValue('birth_date', formatDate(data.sponsored_birth_date));
+            setValue('orphan_gender', data.orphan_gender || '');
+            setValue('health_status_id', data.health_status_id || '');
+            // تعيين person_type للمكفول
+            setValue('person_type', data.person_type || '');
+            // تعبئة الحقول الإضافية للمعيل والمتوفين
+            setValue('orphan_phone', data.orphan_phone || data.sponsored_phone || '');
+            setValue('orphan_phone2', data.orphan_phone2 || data.sponsored_phone2 || '');
+            // تعيين المدينة للمكفول (breadwinner, deceased_father, deceased_mother)
+            setValue('orphan_city_id', data.orphan_city_id || '');
+            setValue('orphan_detailed_address', data.orphan_detailed_address || data.sponsored_address || '');
+            setValue('guardian_person_type', data.guardian_person_type || data.person_type || 'breadwinner');
+            setValue('guardian_first_name', data.guardian_first_name || '');
+            setValue('guardian_father_name', data.guardian_father_name || '');
+            setValue('guardian_grandfather_name', data.guardian_grandfather_name || '');
+            setValue('guardian_family_name', data.guardian_family_name || '');
+            setValue('guardian_identity_number', data.guardian_identity_number || '');
+            setValue('guardian_phone', data.guardian_phone || '');
+            setValue('guardian_phone2', data.guardian_phone2 || '');
+            // تعيين المدينة للمعيل/الولي (family_member)
+            setValue('guardian_city_id', data.guardian_city_id || '');
+            setValue('guardian_detailed_address', data.guardian_detailed_address || '');
+            populateBankAccounts(data.bank_accounts || []);
+        }
+
+        function populateBankAccounts(accounts) {
+            console.log('📊 Bank accounts data:', accounts);
+            const container = document.getElementById('bankAccountsContainer');
+
+            // إذا لم تكن هناك حسابات، نعرض نموذج إضافة حساب جديد فارغ
+            if (!accounts || accounts.length === 0) {
+                container.innerHTML = `
+                    <div class="no-bank-message" style="text-align: center; padding: 20px; color: #666;">
+                        <span class="material-icons" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 10px;">account_balance</span>
+                        <p style="margin-bottom: 15px;">لا توجد حسابات بنكية لهذا الشخص</p>
+                        <p style="font-size: 12px; color: #999;">اضغط على زر "إضافة حساب" أعلاه لإضافة حساب بنكي جديد</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            accounts.forEach((account, index) => {
+                console.log('🏦 Account ' + (index + 1) + ':', account);
+                const statusClass = account.check_account === 1 ? 'approved' : 'pending';
+                const statusText = account.check_account === 1 ? 'حساب معتمد' : 'قيد المراجعة';
+
+                const bankOptions = bankNames.map(b =>
+                    '<option value="' + b.id + '" ' + ((account.bank_name == b.id) ? 'selected' : '') + '>' + b.name + '</option>'
+                ).join('');
+
+                html += '<div class="bank-account-card" data-account-index="' + index + '">' +
+                    '<div class="bank-account-header">' +
+                        '<span class="bank-account-title"><span class="material-icons">account_balance</span> حساب بنكي رقم ' + (index + 1) + '</span>' +
+                        '<span class="bank-account-status ' + statusClass + '">' + statusText + '</span>' +
+                    '</div>' +
+                    '<div class="form-field"><label class="form-label">اسم البنك</label>' +
+                        '<select class="form-select" data-bank-field="bank_name" data-account-index="' + index + '">' +
+                            '<option value="">-- اختر البنك --</option>' +
+                            bankOptions +
+                        '</select>' +
+                    '</div>' +
+                    '<div class="form-field"><label class="form-label">اسم صاحب الحساب</label>' +
+                        '<input type="text" class="form-input" value="' + (account.re_guardian_name || '') + '" data-bank-field="re_guardian_name" data-account-index="' + index + '">' +
+                    '</div>' +
+                    '<div class="form-field"><label class="form-label">رقم هوية صاحب الحساب</label>' +
+                        '<input type="text" class="form-input" value="' + (account.person_owner_identity_number || '') + '" data-bank-field="person_owner_identity_number" data-account-index="' + index + '">' +
+                    '</div>' +
+                    '<div class="form-field"><label class="form-label">رقم هاتف صاحب الحساب</label>' +
+                        '<input type="tel" class="form-input" value="' + (account.re_phone_number || '') + '" data-bank-field="re_phone_number" data-account-index="' + index + '">' +
+                    '</div>' +
+                    '<div class="form-field"><label class="form-label">رقم IBAN بالدولار</label>' +
+                        '<input type="text" class="form-input" value="' + (account.iban_usd || account.iban || '') + '" data-bank-field="iban_usd" data-account-index="' + index + '" dir="ltr" style="text-align: left; font-family: monospace;">' +
+                    '</div>' +
+                    '<div class="form-field"><label class="form-label">رقم IBAN بالشيكل</label>' +
+                        '<input type="text" class="form-input" value="' + (account.iban_shekel || '') + '" data-bank-field="iban_shekel" data-account-index="' + index + '" dir="ltr" style="text-align: left; font-family: monospace;">' +
+                    '</div>' +
+                '</div>';
+            });
+            container.innerHTML = html;
+            bindBankAccountEvents();
+        }
+
+        function bindChangeEvents() {
+            document.querySelectorAll('[data-field]').forEach(input => {
+                input.addEventListener('input', handleFieldChange);
+                input.addEventListener('change', handleFieldChange);
+            });
+        }
+
+        function bindBankAccountEvents() {
+            document.querySelectorAll('[data-bank-field]').forEach(input => {
+                input.addEventListener('input', handleBankFieldChange);
+                input.addEventListener('change', handleBankFieldChange);
+            });
+        }
+
+        function handleFieldChange(e) {
+            const field = e.target.dataset.field;
+            const newValue = e.target.value;
+            const originalValue = originalData[field] || '';
+            console.log(`🔄 handleFieldChange: ${field}`, {
+                newValue: newValue,
+                originalValue: originalValue,
+                comparison: newValue !== String(originalValue || '')
+            });
+            if (newValue !== String(originalValue || '')) {
+                modifiedFields[field] = newValue;
+                e.target.classList.add('modified');
+                console.log(`✅ Added to modifiedFields: ${field} = ${newValue}`);
+            } else {
+                delete modifiedFields[field];
+                e.target.classList.remove('modified');
+                console.log(`❌ Removed from modifiedFields: ${field}`);
+            }
+            updateSaveButton();
+        }
+
+        function handleBankFieldChange(e) {
+            const field = e.target.dataset.bankField;
+            const accountIndex = e.target.dataset.accountIndex;
+            const value = e.target.value;
+            console.log(`✏️ Bank field changed: Account ${accountIndex}, Field ${field} = ${value}`);
+            if (!modifiedFields.bank_accounts_updates) modifiedFields.bank_accounts_updates = {};
+            if (!modifiedFields.bank_accounts_updates[accountIndex]) modifiedFields.bank_accounts_updates[accountIndex] = {};
+            modifiedFields.bank_accounts_updates[accountIndex][field] = value;
+            e.target.classList.add('modified');
+            console.log('💾 Modified fields:', modifiedFields);
+            updateSaveButton();
+        }
+
+        function updateSaveButton() {
+            document.getElementById('saveBtn').disabled = Object.keys(modifiedFields).length === 0;
+        }
+
+        async function saveChanges() {
+            if (Object.keys(modifiedFields).length === 0) { showToast('لا توجد تغييرات للحفظ', 'error'); return; }
+            showLoading(true);
+            try {
+                // ✅✅✅ إرسال جميع البيانات دائماً بغض النظر عن التعديل ✅✅✅
+                // هذا يضمن أن البيانات الجديدة والموجودة يتم إرسالها للسيرفر
+                const dataToSave = {};
+
+                // 1️⃣ بيانات المكفول الأساسية - تُرسل دائماً
+                const personType = currentSponsorship.person_type || document.getElementById('person_type').value || 'orphan';
+                dataToSave.person_type = personType;
+
+                dataToSave.first_name = document.getElementById('first_name')?.value || originalData.first_name || '';
+                dataToSave.second_name = document.getElementById('second_name')?.value || originalData.second_name || '';
+                dataToSave.third_name = document.getElementById('third_name')?.value || originalData.third_name || '';
+                dataToSave.last_name = document.getElementById('last_name')?.value || originalData.last_name || '';
+                dataToSave.identity_number = document.getElementById('identity_number')?.value || originalData.identity_number || '';
+                dataToSave.birth_date = document.getElementById('birth_date')?.value || originalData.sponsored_birth_date || '';
+                dataToSave.health_status_id = document.getElementById('health_status_id')?.value || originalData.health_status_id || '';
+
+                // الاسم الرباعي للمكفول
+                const oldOrphanName = originalData.orphan_name || `${originalData.first_name || ''} ${originalData.second_name || ''} ${originalData.third_name || ''} ${originalData.last_name || ''}`.trim();
+                dataToSave.orphan_name = [dataToSave.first_name, dataToSave.second_name, dataToSave.third_name, dataToSave.last_name].filter(n => n).join(' ');
+                dataToSave.old_orphan_name = oldOrphanName;
+
+                // 2️⃣ الجنس - حسب نوع الشخص
+                if (personType === 'deceased_father') {
+                    dataToSave.orphan_gender = 'ذكر';
+                    console.log('👨 أب متوفي - الجنس: ذكر');
+                } else if (personType === 'deceased_mother') {
+                    dataToSave.orphan_gender = 'أنثى';
+                    console.log('👩 أم متوفية - الجنس: أنثى');
+                } else {
+                    dataToSave.orphan_gender = document.getElementById('orphan_gender')?.value || originalData.orphan_gender || '';
+                }
+
+                // 3️⃣ بيانات إضافية للمكفول (هاتف، عنوان، مدينة) - للأنواع breadwinner, deceased_father, deceased_mother
+                if (personType === 'breadwinner' || personType === 'deceased_father' || personType === 'deceased_mother') {
+                    dataToSave.orphan_phone = document.getElementById('orphan_phone')?.value || originalData.orphan_phone || originalData.guardian_phone || '';
+                    dataToSave.orphan_phone2 = document.getElementById('orphan_phone2')?.value || originalData.orphan_phone2 || originalData.guardian_phone2 || '';
+                    dataToSave.orphan_city_id = document.getElementById('orphan_city_id')?.value || originalData.orphan_city_id || '';
+                    dataToSave.orphan_detailed_address = document.getElementById('orphan_detailed_address')?.value || originalData.orphan_detailed_address || originalData.guardian_detailed_address || '';
+
+                    console.log('📤 بيانات المكفول (' + personType + '):', {
+                        name: dataToSave.orphan_name,
+                        identity: dataToSave.identity_number,
+                        phone: dataToSave.orphan_phone,
+                        city: dataToSave.orphan_city_id,
+                        address: dataToSave.orphan_detailed_address
+                    });
+                }
+
+                // 4️⃣ بيانات المعيل/الولي - تُرسل دائماً (لأنواع family_member, orphan)
+                if (personType === 'family_member' || personType === 'orphan') {
+                    dataToSave.guardian_person_type = document.getElementById('guardian_person_type')?.value || originalData.guardian_person_type || 'breadwinner';
+                    dataToSave.guardian_first_name = document.getElementById('guardian_first_name')?.value || originalData.guardian_first_name || '';
+                    dataToSave.guardian_father_name = document.getElementById('guardian_father_name')?.value || originalData.guardian_father_name || '';
+                    dataToSave.guardian_grandfather_name = document.getElementById('guardian_grandfather_name')?.value || originalData.guardian_grandfather_name || '';
+                    dataToSave.guardian_family_name = document.getElementById('guardian_family_name')?.value || originalData.guardian_family_name || '';
+                    dataToSave.guardian_identity_number = document.getElementById('guardian_identity_number')?.value || originalData.guardian_identity_number || '';
+                    dataToSave.guardian_phone = document.getElementById('guardian_phone')?.value || originalData.guardian_phone || '';
+                    dataToSave.guardian_phone2 = document.getElementById('guardian_phone2')?.value || originalData.guardian_phone2 || '';
+                    dataToSave.guardian_city_id = document.getElementById('guardian_city_id')?.value || originalData.guardian_city_id || '';
+                    dataToSave.guardian_detailed_address = document.getElementById('guardian_detailed_address')?.value || originalData.guardian_detailed_address || '';
+
+                    // الاسم الرباعي للمعيل
+                    dataToSave.guardian_name = [dataToSave.guardian_first_name, dataToSave.guardian_father_name, dataToSave.guardian_grandfather_name, dataToSave.guardian_family_name].filter(n => n).join(' ');
+
+                    console.log('👤 بيانات المعيل:', {
+                        name: dataToSave.guardian_name,
+                        identity: dataToSave.guardian_identity_number,
+                        phone: dataToSave.guardian_phone,
+                        city: dataToSave.guardian_city_id
+                    });
+                }
+
+                // 5️⃣ الحسابات البنكية - إذا تم تعديلها
+                if (modifiedFields.bank_accounts_updates) {
+                    dataToSave.bank_accounts_updates = modifiedFields.bank_accounts_updates;
+                }
+
+                await SyncService.saveLocalChange(currentSponsorship.id, dataToSave);
+
+                // تحديث البيانات البنكية محلياً (تحديث وإضافة حسابات جديدة)
+                if (dataToSave.bank_accounts_updates) {
+                    // التأكد من وجود مصفوفة bank_accounts
+                    if (!currentSponsorship.bank_accounts) {
+                        currentSponsorship.bank_accounts = [];
+                    }
+                    if (!originalData.bank_accounts) {
+                        originalData.bank_accounts = [];
+                    }
+
+                    const bankUpdates = dataToSave.bank_accounts_updates;
+                    Object.keys(bankUpdates).forEach(accountIndex => {
+                        const index = parseInt(accountIndex);
+                        if (currentSponsorship.bank_accounts[index]) {
+                            // تحديث حساب موجود
+                            Object.keys(bankUpdates[accountIndex]).forEach(field => {
+                                currentSponsorship.bank_accounts[index][field] = bankUpdates[accountIndex][field];
+                            });
+                        } else {
+                            // إضافة حساب جديد
+                            currentSponsorship.bank_accounts[index] = {
+                                ...bankUpdates[accountIndex],
+                                _isNew: true,
+                                check_account: 0
+                            };
+                        }
+                        // تحديث originalData أيضاً
+                        originalData.bank_accounts[index] = { ...currentSponsorship.bank_accounts[index] };
+                    });
+                    console.log('💳 تم تحديث البيانات البنكية محلياً:', currentSponsorship.bank_accounts);
+                }
+
+                Object.keys(dataToSave).forEach(key => {
+                    if (key !== 'bank_accounts_updates' && key !== 'old_orphan_name') {
+                        originalData[key] = dataToSave[key];
+                        currentSponsorship[key] = dataToSave[key];
+                    }
+                });
+
+                modifiedFields = {};
+                document.querySelectorAll('.modified').forEach(el => el.classList.remove('modified'));
+                document.getElementById('saveBtn').disabled = true;
+                showToast('تم حفظ التغييرات بنجاح', 'success');
+                document.getElementById('pageTitle').textContent = currentSponsorship.first_name || currentSponsorship.orphan_name || 'تفاصيل الكفالة';
+            } catch (error) {
+                console.error('Save error:', error);
+                showToast('فشل في حفظ التغييرات: ' + error.message, 'error');
+            } finally { showLoading(false); }
+        }
+
+        function setValue(id, value) {
+            const el = document.getElementById(id);
+            if (el) {
+                // تحويل القيمة إلى string للمقارنة الصحيحة في select elements
+                el.value = value !== null && value !== undefined ? String(value) : '';
+            }
+        }
+
+        function addNewBankAccount() {
+            if (!currentSponsorship) {
+                showToast('لا توجد بيانات كفالة', 'error');
+                return;
+            }
+
+            // التحقق من عدم وجود أكثر من حساب واحد
+            const existingAccountsCount = currentSponsorship.bank_accounts?.length || 0;
+            if (existingAccountsCount >= 1) {
+                showToast('يُسمح بإضافة حساب بنكي واحد فقط', 'error');
+                return;
+            }
+
+            // إنشاء حساب جديد فارغ
+            const newAccount = {
+                bank_name: '',
+                re_guardian_name: currentSponsorship.guardian_name || '',
+                person_owner_identity_number: currentSponsorship.guardian_identity_number || '',
+                re_phone_number: currentSponsorship.guardian_phone || '',
+                iban_usd: '',
+                iban_shekel: '',
+                check_account: 0,
+                _isNew: true
+            };
+
+            // إضافة الحساب للقائمة
+            if (!currentSponsorship.bank_accounts) {
+                currentSponsorship.bank_accounts = [];
+            }
+            currentSponsorship.bank_accounts.push(newAccount);
+
+            // ✅ إضافة الحساب الجديد إلى modifiedFields فوراً
+            // حتى لو لم يكتب المستخدم أي شيء، سيتم إرسال بيانات افتراضية
+            const newIndex = currentSponsorship.bank_accounts.length - 1;
+            if (!modifiedFields.bank_accounts_updates) {
+                modifiedFields.bank_accounts_updates = {};
+            }
+            modifiedFields.bank_accounts_updates[newIndex] = {
+                re_guardian_name: newAccount.re_guardian_name,
+                person_owner_identity_number: newAccount.person_owner_identity_number,
+                re_phone_number: newAccount.re_phone_number,
+                bank_name: '',
+                iban_usd: '',
+                iban_shekel: ''
+            };
+
+            console.log('🆕 حساب جديد تمت إضافته:', {
+                index: newIndex,
+                account: newAccount,
+                modifiedFields: modifiedFields.bank_accounts_updates
+            });
+
+            // إعادة عرض القائمة
+            populateBankAccounts(currentSponsorship.bank_accounts);
+
+            // تفعيل زر الحفظ فوراً
+            updateSaveButton();
+
+            showToast('تم إضافة حساب بنكي جديد. قم بملء البيانات وحفظها.', 'success');
+        }
+
+        function formatDate(dateStr) { if (!dateStr) return ''; const d = new Date(dateStr); return isNaN(d.getTime()) ? dateStr : d.toISOString().split('T')[0]; }
+        function showNoData() { document.getElementById('noDataMessage').style.display = 'block'; ['orphanSection','guardianSection','bankSection'].forEach(id => document.getElementById(id).style.display = 'none'); }
+        function showLoading(show) { document.getElementById('loadingOverlay').classList.toggle('active', show); }
+        function showToast(msg, type = 'info') { const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast show ' + type; setTimeout(() => t.classList.remove('show'), 3000); }
+        function goBack() { if (Object.keys(modifiedFields).length > 0 && !confirm('توجد تغييرات غير محفوظة. هل تريد المتابعة؟')) return; window.location.href = 'data.html'; }
+
+        document.addEventListener('backbutton', e => { e.preventDefault(); goBack(); }, false);
+        if (window.Capacitor?.Plugins?.App) window.Capacitor.Plugins.App.addListener('backButton', goBack);
+    </script>
+    <script src="js/icons-fallback.js"></script>
+    <script src="js/safe-area-keyboard.js"></script>
+</body>
+</html>
