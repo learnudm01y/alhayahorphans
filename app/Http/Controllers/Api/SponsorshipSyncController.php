@@ -51,10 +51,16 @@ class SponsorshipSyncController extends Controller
             // 🔍 LOG 2: البحث عن المستخدم
             Log::info('🔐 [MOBILE LOGIN] البحث عن المستخدم...', ['username' => $request->username]);
 
-            $user = User::where('name', $request->username)
-                ->orWhere('email', $request->username)
-                ->orWhere('phone', $request->username)
-                ->first();
+            // البحث بالترتيب: email أولاً (أعلى أولوية)، ثم name، ثم phone
+            $user = User::where('email', $request->username)->first();
+
+            if (!$user) {
+                $user = User::where('name', $request->username)->first();
+            }
+
+            if (!$user) {
+                $user = User::where('phone', $request->username)->first();
+            }
 
             if (!$user) {
                 // 🔍 LOG 3: المستخدم غير موجود
