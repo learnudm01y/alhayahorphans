@@ -122,7 +122,7 @@ public class BackgroundSyncPlugin extends Plugin {
             Context context = getContext();
             DataSyncDatabaseHelper dbHelper = DataSyncDatabaseHelper.getInstance(context);
 
-            int count = dbHelper.retryFailedData();
+            int count = dbHelper.resetFailedData();
 
             JSObject result = new JSObject();
             result.put("success", true);

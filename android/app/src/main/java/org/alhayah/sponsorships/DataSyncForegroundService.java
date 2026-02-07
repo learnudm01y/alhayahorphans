@@ -122,7 +122,7 @@ public class DataSyncForegroundService extends Service {
 
         while (isRunning) {
             try {
-                // الحصول على البيانات المنتظرة
+                // الحصول على البيانات المنتظرة (pending + failed بشرط retry < 3)
                 List<DataSyncDatabaseHelper.DataSyncItem> pendingItems = dbHelper.getPendingData();
 
                 if (pendingItems.isEmpty()) {
@@ -133,16 +133,24 @@ public class DataSyncForegroundService extends Service {
                 Log.e(TAG, "📊 Found " + pendingItems.size() + " pending data items");
 
                 // معالجة كل عنصر
+                int currentIndex = 0;
                 for (DataSyncDatabaseHelper.DataSyncItem item : pendingItems) {
                     if (!isRunning) {
                         Log.e(TAG, "⚠️ Service stopped - aborting sync");
                         break;
                     }
 
-                    // تحديث الإشعار
-                    updateNotification("جاري المزامنة: " + item.dataType,
-                                      currentSessionSuccessCount + currentSessionFailureCount + 1,
-                                      pendingItems.size());
+                    currentIndex++;
+
+                    // 🆕 إعادة تحويل failed items إلى pending للمحاولة مجدداً
+                    if ("failed".equals(item.status)) {
+                        dbHelper.markAsUploading(item.id); // تحويل إلى uploading مباشرة
+                        Log.d(TAG, "🔄 Retrying failed item: ID=" + item.id + " (retry " + (item.retryCount + 1) + "/3)");
+                    }
+
+                    // تحديث الإشعار بـ Progress حقيقي
+                    String message = "(" + currentIndex + "/" + pendingItems.size() + ") " + item.dataType;
+                    updateNotification(message, currentIndex, pendingItems.size());
 
                     // محاولة المزامنة
                     boolean success = syncDataItem(item);

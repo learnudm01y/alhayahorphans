@@ -23,6 +23,7 @@ public class DataSyncDatabaseHelper extends SQLiteOpenHelper {
 
     // Singleton instance
     private static DataSyncDatabaseHelper instance;
+    private Context context;
 
     // Database info
     private static final String DATABASE_NAME = "data_sync.db";
@@ -53,6 +54,7 @@ public class DataSyncDatabaseHelper extends SQLiteOpenHelper {
 
     private DataSyncDatabaseHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
+        this.context = context.getApplicationContext();
         Log.d(TAG, "DataSyncDatabaseHelper created - معزول تماماً عن نظام الملفات");
     }
 
@@ -117,17 +119,18 @@ public class DataSyncDatabaseHelper extends SQLiteOpenHelper {
     }
 
     /**
-     * الحصول على جميع البيانات المنتظرة (pending)
+     * الحصول على جميع البيانات المنتظرة (pending + failed بشرط retry < 3)
      */
     public List<DataSyncItem> getPendingData() {
         List<DataSyncItem> items = new ArrayList<>();
         SQLiteDatabase db = getReadableDatabase();
 
+        // البيانات المعلقة = pending أو failed بشرط أن retry < 3
         Cursor cursor = db.query(
             TABLE_SYNC_QUEUE,
             null,
-            COL_STATUS + " = ? AND " + COL_RETRY_COUNT + " < ?",
-            new String[]{STATUS_PENDING, String.valueOf(MAX_RETRY_ATTEMPTS)},
+            "(" + COL_STATUS + " = ? OR " + COL_STATUS + " = ?) AND " + COL_RETRY_COUNT + " < ?",
+            new String[]{STATUS_PENDING, STATUS_FAILED, String.valueOf(MAX_RETRY_ATTEMPTS)},
             null, null,
             COL_CREATED_AT + " ASC" // الأقدم أولاً
         );
@@ -166,6 +169,9 @@ public class DataSyncDatabaseHelper extends SQLiteOpenHelper {
 
         int rows = db.update(TABLE_SYNC_QUEUE, values, COL_ID + " = ?", new String[]{String.valueOf(id)});
         Log.d(TAG, "✅ Marked as uploaded: ID=" + id + " (rows=" + rows + ")");
+
+        // إرسال broadcast للـ JavaScript
+        sendStatsUpdateBroadcast();
     }
 
     /**
@@ -194,12 +200,16 @@ public class DataSyncDatabaseHelper extends SQLiteOpenHelper {
 
         Log.e(TAG, "❌ Marked as failed: ID=" + id + ", Retry=" + (retryCount + 1) + "/" + MAX_RETRY_ATTEMPTS +
                    ", Error=" + errorMessage);
+
+        // إرسال broadcast للـ JavaScript
+        sendStatsUpdateBroadcast();
     }
 
     /**
-     * إعادة محاولة البيانات الفاشلة (تحويلها إلى pending)
+     * ✨ NEW: إعادة تعيين البيانات الفاشلة إلى pending عند عودة الإنترنت
+     * هذه الدالة تُستدعى من DataSyncNetworkMonitor عند اكتشاف الاتصال
      */
-    public int retryFailedData() {
+    public int resetFailedData() {
         SQLiteDatabase db = getWritableDatabase();
 
         ContentValues values = new ContentValues();
@@ -211,7 +221,13 @@ public class DataSyncDatabaseHelper extends SQLiteOpenHelper {
                             COL_STATUS + " = ?",
                             new String[]{STATUS_FAILED});
 
-        Log.d(TAG, "🔄 Retrying " + rows + " failed data items");
+        // ✅ طباعة log فقط عندما يكون هناك failed items فعلاً (توفير الذاكرة)
+        if (rows > 0) {
+            Log.d(TAG, "🔄 Reset " + rows + " failed items to pending (retry count = 0)");
+            // إرسال broadcast لتحديث الواجهة
+            sendStatsUpdateBroadcast();
+        }
+
         return rows;
     }
 
@@ -230,15 +246,17 @@ public class DataSyncDatabaseHelper extends SQLiteOpenHelper {
     }
 
     /**
-     * الحصول على عدد البيانات المنتظرة
+     * الحصول على عدد البيانات المنتظرة (pending + failed)
+     * ✨ CRITICAL FIX: إزالة شرط retry < 3 حتى تبقى البيانات الفاشلة للأبد
      */
     public int getPendingDataCount() {
         SQLiteDatabase db = getReadableDatabase();
 
+        // البيانات المعلقة = pending أو failed (بدون حد للمحاولات!)
         Cursor cursor = db.rawQuery(
             "SELECT COUNT(*) FROM " + TABLE_SYNC_QUEUE +
-            " WHERE " + COL_STATUS + " = ? AND " + COL_RETRY_COUNT + " < ?",
-            new String[]{STATUS_PENDING, String.valueOf(MAX_RETRY_ATTEMPTS)}
+            " WHERE " + COL_STATUS + " = ? OR " + COL_STATUS + " = ?",
+            new String[]{STATUS_PENDING, STATUS_FAILED}
         );
 
         int count = 0;
@@ -311,6 +329,31 @@ public class DataSyncDatabaseHelper extends SQLiteOpenHelper {
         item.uploadedAt = cursor.isNull(uploadedIdx) ? 0 : cursor.getLong(uploadedIdx);
 
         return item;
+    }
+
+    /**
+     * إرسال broadcast للـ JavaScript لتحديث الإحصائيات
+     */
+    private void sendStatsUpdateBroadcast() {
+        try {
+            int pending = getPendingDataCount();
+            int uploaded = getUploadedDataCount();
+            int failed = getFailedDataCount();
+
+            android.content.Intent intent = new android.content.Intent("com.aso.app.DATA_SYNC_STATS");
+            intent.putExtra("pending", pending);
+            intent.putExtra("uploaded", uploaded);
+            intent.putExtra("failed", failed);
+            intent.putExtra("total", pending + uploaded + failed);
+            intent.setPackage(context.getPackageName());
+
+            if (context != null) {
+                context.sendBroadcast(intent);
+                Log.d(TAG, "📡 Broadcast sent: pending=" + pending + ", uploaded=" + uploaded + ", failed=" + failed);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "❌ Error sending broadcast", e);
+        }
     }
 
     /**

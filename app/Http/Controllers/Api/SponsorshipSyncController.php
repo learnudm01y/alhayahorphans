@@ -4206,7 +4206,9 @@ class SponsorshipSyncController extends Controller
             'file_type' => 'required|string',
             'file_data' => 'required|string',
             'folder_path' => 'nullable|string',
-            'sponsorship_id' => 'required|integer'
+            'sponsorship_id' => 'required|integer',
+            'person_name' => 'nullable|string',
+            'association_name' => 'nullable|string'
         ]);
 
         try {
@@ -4228,9 +4230,21 @@ class SponsorshipSyncController extends Controller
                 ], 404);
             }
 
-            // بناء هيكل المجلدات الصحيح: temp/[اسم الجمعية]/[اسم المكفول أو رقم هويته]
-            $organizationName = $sponsorship->sponsor_name ?: 'غير محدد';
-            $orphanName = $sponsorship->orphan_name ?: $sponsorship->identity_number ?: 'غير محدد';
+            // ✨ استخدام الاسم المُرسل من الجوال (إذا كان موجوداً) بدلاً من الموجود في قاعدة البيانات
+            // هذا يحل مشكلة المجلدات القديمة عند تغيير اسم المكفول
+            $organizationName = $request->association_name ?: $sponsorship->sponsor_name ?: 'غير محدد';
+            $orphanName = $request->person_name ?: $sponsorship->orphan_name ?: $sponsorship->identity_number ?: 'غير محدد';
+
+            // تسجيل لمعرفة الاسم المستخدم
+            Log::info('📂 Folder names for upload', [
+                'sponsorship_id' => $request->sponsorship_id,
+                'association_from_request' => $request->association_name,
+                'association_from_db' => $sponsorship->sponsor_name,
+                'association_used' => $organizationName,
+                'person_from_request' => $request->person_name,
+                'person_from_db' => $sponsorship->orphan_name,
+                'person_used' => $orphanName
+            ]);
 
             // فك تشفير البيانات
             $fileData = base64_decode($request->file_data);

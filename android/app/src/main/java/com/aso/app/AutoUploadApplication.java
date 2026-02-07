@@ -117,12 +117,32 @@ public class AutoUploadApplication extends Application {
         dataSyncNetworkMonitor.startMonitoring();
         android.util.Log.e(TAG, "✅ DataSyncNetworkMonitor active");
 
+        // ✨ CRITICAL: بدء AlarmManager للمزامنة القوية (يعمل حتى بعد إغلاق التطبيق)
+        android.util.Log.e(TAG, "⏰ Starting AlarmManager for persistent sync...");
+        org.alhayah.sponsorships.DataSyncAlarmReceiver.startAlarmManager(this);
+        android.util.Log.e(TAG, "✅ DataSyncAlarmReceiver active (10-second checks)");
+
+        // ✨ CRITICAL: بدء UploadAlarmReceiver لرفع الملفات بقوة (كل 10 ثوانٍ)
+        android.util.Log.e(TAG, "⏰ Starting UploadAlarmReceiver for file uploads...");
+        com.aso.app.UploadAlarmReceiver.startAlarmManager(this);
+        android.util.Log.e(TAG, "✅ UploadAlarmReceiver active (10-second aggressive checks)");
+
+        // ✨ CRITICAL: بدء NetworkConnectedWorker - يُطلق فوراً عند عودة الإنترنت
+        android.util.Log.e(TAG, "🌐 Starting NetworkConnectedWorker...");
+        org.alhayah.sponsorships.NetworkConnectedWorker.scheduleWork(this);
+        android.util.Log.e(TAG, "✅ NetworkConnectedWorker active (triggers on internet connect)");
+
         android.util.Log.e(TAG, "");
         android.util.Log.e(TAG, "╔════════════════════════════════════════════════════════════════╗");
-        android.util.Log.e(TAG, "║  ✅✅✅ APPLICATION READY - Both Systems Active          ✅✅✅  ║");
-        android.util.Log.e(TAG, "║  📁 Files Upload System: UploadForegroundService              ║");
-        android.util.Log.e(TAG, "║  📊 Data Sync System: DataSyncForegroundService               ║");
-        android.util.Log.e(TAG, "║  🌐🌐🌐 Network Monitor: Auto-upload on reconnect      🌐🌐🌐  ║");
+        android.util.Log.e(TAG, "║  ✅✅✅ APPLICATION READY - All Systems Active          ✅✅✅  ║");
+        android.util.Log.e(TAG, "║  📁 Files: UploadAlarm (10s) + ForegroundService + WorkManager║");
+        android.util.Log.e(TAG, "║  📊 Data: DataSyncAlarm (10s) + ForegroundService + WorkMgr   ║");
+        android.util.Log.e(TAG, "║  🌐 NetworkConnectedWorker: Triggers on internet connect      ║");
+        android.util.Log.e(TAG, "║  ⏰ AlarmManager: Every 10 sec (even when closed) - Doze OK   ║");
+        android.util.Log.e(TAG, "║  🔌 Boot Receiver: Auto-start on device reboot                ║");
+        android.util.Log.e(TAG, "║  📂 Folder Rename: Database tracking prevents duplicates      ║");
+        android.util.Log.e(TAG, "║  ⚡⚡⚡ IMMEDIATE SYNC (5 sec) when data saved!        ⚡⚡⚡  ║");
+        android.util.Log.e(TAG, "║  🚀🚀🚀 WORKS EVEN WHEN APP IS FULLY CLOSED!          🚀🚀🚀  ║");
         android.util.Log.e(TAG, "╚════════════════════════════════════════════════════════════════╝");
         android.util.Log.e(TAG, "");
     }

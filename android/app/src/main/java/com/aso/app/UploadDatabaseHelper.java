@@ -17,11 +17,12 @@ import java.util.List;
 public class UploadDatabaseHelper extends SQLiteOpenHelper {
     private static final String TAG = "UploadDatabaseHelper";
     private static final String DATABASE_NAME = "upload_queue.db";
-    private static final int DATABASE_VERSION = 4;  // Version 4: Added associationName and personName columns
+    private static final int DATABASE_VERSION = 5;  // Version 5: Added person_name_history table
 
     // Table name
     private static final String TABLE_UPLOAD_QUEUE = "upload_queue";
     private static final String TABLE_INDEXEDDB_MAPPING = "indexeddb_mapping";  // جدول جديد
+    private static final String TABLE_PERSON_NAME_HISTORY = "person_name_history";  // ✨ NEW: تتبع الأسماء
 
     // Columns - upload_queue
     private static final String COLUMN_ID = "id";
@@ -89,6 +90,20 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
                 + ")";
         db.execSQL(CREATE_MAPPING_TABLE);
         Log.d(TAG, "تم إنشاء جدول mapping بنجاح");
+
+        // ✨ NEW: إنشاء جدول تتبع الأسماء
+        String CREATE_NAME_HISTORY = "CREATE TABLE " + TABLE_PERSON_NAME_HISTORY + " ("
+                + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                + "sponsorship_id INTEGER NOT NULL UNIQUE, "
+                + "current_association_name TEXT, "
+                + "current_person_name TEXT NOT NULL, "
+                + "previous_association_name TEXT, "
+                + "previous_person_name TEXT, "
+                + "folder_path TEXT, "
+                + "updated_at INTEGER NOT NULL"
+                + ")";
+        db.execSQL(CREATE_NAME_HISTORY);
+        Log.d(TAG, "تم إنشاء جدول person_name_history بنجاح");
     }
 
     @Override
@@ -107,6 +122,21 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
             db.execSQL("ALTER TABLE " + TABLE_UPLOAD_QUEUE + " ADD COLUMN " + COLUMN_ASSOCIATION_NAME + " TEXT DEFAULT 'General'");
             db.execSQL("ALTER TABLE " + TABLE_UPLOAD_QUEUE + " ADD COLUMN " + COLUMN_PERSON_NAME + " TEXT DEFAULT 'unknown'");
             Log.d(TAG, "Database upgraded to version 4: Added associationName and personName columns");
+        }
+        if (oldVersion < 5) {
+            // إضافة جدول تتبع الأسماء في الإصدار 5
+            String CREATE_NAME_HISTORY = "CREATE TABLE IF NOT EXISTS " + TABLE_PERSON_NAME_HISTORY + " ("
+                    + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                    + "sponsorship_id INTEGER NOT NULL UNIQUE, "
+                    + "current_association_name TEXT, "
+                    + "current_person_name TEXT NOT NULL, "
+                    + "previous_association_name TEXT, "
+                    + "previous_person_name TEXT, "
+                    + "folder_path TEXT, "
+                    + "updated_at INTEGER NOT NULL"
+                    + ")";
+            db.execSQL(CREATE_NAME_HISTORY);
+            Log.d(TAG, "Database upgraded to version 5: Added person_name_history table");
         }
     }
 
@@ -133,6 +163,20 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
 
         long id = db.insert(TABLE_UPLOAD_QUEUE, null, values);
         Log.d(TAG, "Added new file to queue: " + fileName + " (ID: " + id + ", Association: " + associationName + ", Person: " + personName + ")");
+
+        // ✨ حفظ الاسم الحالي في person_name_history عند إضافة ملف لأول مرة
+        // هذا يضمن أننا نملك سجل للاسم الأصلي عند التعديل لاحقاً
+        if (photoId > 0 && personName != null && !personName.equals("unknown")) {
+            String folderPath = "Documents/sponsorships_alhayahorphans/" +
+                (associationName != null ? associationName : "General") + "/" + personName;
+
+            // حفظ فقط إذا لم يكن موجوداً من قبل (لا نريد استبدال السجل القديم)
+            String[] existingHistory = getPreviousPersonName(photoId);
+            if (existingHistory == null) {
+                savePersonNameHistory(photoId, associationName, personName, folderPath);
+                Log.d(TAG, "✅ Saved initial name history for sponsorship " + photoId + ": " + personName);
+            }
+        }
 
         return id;
     }
@@ -474,5 +518,172 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
         }
         cursor.close();
         return count;
+    }
+
+    /**
+     * تحديث اسم الشخص في جميع الملفات الخاصة به
+     * يُستخدم عند تعديل اسم المكفول
+     */
+    public int updatePersonNameInQueue(int sponsorshipId, String newPersonName) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(COLUMN_PERSON_NAME, newPersonName);
+
+        int rowsUpdated = db.update(
+            TABLE_UPLOAD_QUEUE,
+            values,
+            COLUMN_PHOTO_ID + " = ?",
+            new String[]{String.valueOf(sponsorshipId)}
+        );
+
+        Log.d(TAG, "✅ Updated person_name for sponsorshipId=" + sponsorshipId +
+                   " to '" + newPersonName + "' (" + rowsUpdated + " rows)");
+        return rowsUpdated;
+    }
+
+    /**
+     * ✨ NEW: حفظ أو تحديث سجل تاريخ الأسماء
+     */
+    public void savePersonNameHistory(int sponsorshipId, String associationName, String personName, String folderPath) {
+        SQLiteDatabase db = this.getWritableDatabase();
+
+        // الحصول على الاسم القديم إن وُجد
+        String previousAssociation = null;
+        String previousPerson = null;
+
+        Cursor cursor = db.query(
+            TABLE_PERSON_NAME_HISTORY,
+            new String[]{"current_association_name", "current_person_name"},
+            "sponsorship_id = ?",
+            new String[]{String.valueOf(sponsorshipId)},
+            null, null, null
+        );
+
+        if (cursor.moveToFirst()) {
+            previousAssociation = cursor.getString(0);
+            previousPerson = cursor.getString(1);
+        }
+        cursor.close();
+
+        ContentValues values = new ContentValues();
+        values.put("sponsorship_id", sponsorshipId);
+        values.put("current_association_name", associationName);
+        values.put("current_person_name", personName);
+        values.put("previous_association_name", previousAssociation);
+        values.put("previous_person_name", previousPerson);
+        values.put("folder_path", folderPath);
+        values.put("updated_at", System.currentTimeMillis());
+
+        int rows = db.update(
+            TABLE_PERSON_NAME_HISTORY,
+            values,
+            "sponsorship_id = ?",
+            new String[]{String.valueOf(sponsorshipId)}
+        );
+
+        if (rows == 0) {
+            db.insert(TABLE_PERSON_NAME_HISTORY, null, values);
+            Log.d(TAG, "✅ Created name history for sponsorship " + sponsorshipId);
+        } else {
+            Log.d(TAG, "✅ Updated name history for sponsorship " + sponsorshipId);
+        }
+    }
+
+    /**
+     * ✨ NEW: الحصول على الاسم السابق للمكفول
+     */
+    public String[] getPreviousPersonName(int sponsorshipId) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.query(
+            TABLE_PERSON_NAME_HISTORY,
+            new String[]{"previous_association_name", "previous_person_name", "current_association_name", "current_person_name"},
+            "sponsorship_id = ?",
+            new String[]{String.valueOf(sponsorshipId)},
+            null, null, null
+        );
+
+        String[] result = null;
+        if (cursor.moveToFirst()) {
+            String prevAssoc = cursor.getString(0);
+            String prevPerson = cursor.getString(1);
+            String currAssoc = cursor.getString(2);
+            String currPerson = cursor.getString(3);
+
+            // إذا لم يكن هناك اسم سابق، استخدم الاسم الحالي
+            result = new String[]{
+                prevAssoc != null ? prevAssoc : currAssoc,
+                prevPerson != null ? prevPerson : currPerson,
+                currAssoc,
+                currPerson
+            };
+        }
+        cursor.close();
+        return result; // [0]=old_assoc, [1]=old_person, [2]=current_assoc, [3]=current_person
+    }
+
+    /**
+     * ✨ NEW: الحصول على المسار الفعلي للمجلد من قاعدة البيانات
+     * هذا هو "المفتاح الفريد" للمجلد الفيزيائي - نستخدمه لإعادة تسمية المجلد بشكل صحيح
+     */
+    public String getFolderPath(int sponsorshipId) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.query(
+            TABLE_PERSON_NAME_HISTORY,
+            new String[]{"folder_path"},
+            "sponsorship_id = ?",
+            new String[]{String.valueOf(sponsorshipId)},
+            null, null, null
+        );
+
+        String folderPath = null;
+        if (cursor.moveToFirst()) {
+            folderPath = cursor.getString(0);
+        }
+        cursor.close();
+
+        Log.d(TAG, "🔑 getFolderPath for sponsorshipId=" + sponsorshipId + ": " + folderPath);
+        return folderPath;
+    }
+
+    /**
+     * ✨ NEW: تحديث المسار الفعلي للمجلد بعد إعادة التسمية
+     */
+    public void updateFolderPath(int sponsorshipId, String newFolderPath) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put("folder_path", newFolderPath);
+        values.put("updated_at", System.currentTimeMillis());
+
+        int rows = db.update(
+            TABLE_PERSON_NAME_HISTORY,
+            values,
+            "sponsorship_id = ?",
+            new String[]{String.valueOf(sponsorshipId)}
+        );
+
+        Log.d(TAG, "✅ updateFolderPath for sponsorshipId=" + sponsorshipId + " to: " + newFolderPath + " (" + rows + " rows)");
+    }
+
+    /**
+     * إعادة تعيين حالة الملفات الفاشلة لمكفول معين
+     * لإعادة محاولة رفعها بعد تغيير الاسم/المجلد
+     */
+    public int resetFailedUploads(int sponsorshipId) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(COLUMN_STATUS, STATUS_PENDING);
+        values.put(COLUMN_RETRY_COUNT, 0);
+        values.putNull(COLUMN_ERROR_MESSAGE);
+        values.put(COLUMN_UPDATED_AT, System.currentTimeMillis());
+
+        int rowsUpdated = db.update(
+            TABLE_UPLOAD_QUEUE,
+            values,
+            COLUMN_PHOTO_ID + " = ? AND " + COLUMN_STATUS + " = ?",
+            new String[]{String.valueOf(sponsorshipId), STATUS_FAILED}
+        );
+
+        Log.d(TAG, "✅ Reset " + rowsUpdated + " failed uploads for sponsorshipId=" + sponsorshipId);
+        return rowsUpdated;
     }
 }

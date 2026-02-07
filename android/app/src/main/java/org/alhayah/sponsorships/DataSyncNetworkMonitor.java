@@ -26,6 +26,8 @@ public class DataSyncNetworkMonitor {
     private NetworkCallback networkCallback;
     private BroadcastReceiver legacyReceiver;
     private boolean isMonitoring = false;
+    private long lastInternetConnectedTime = 0;
+    private static final long THROTTLE_INTERVAL_MS = 5000; // 5 ثوانٍ
 
     private DataSyncNetworkMonitor(Context context) {
         this.context = context.getApplicationContext();
@@ -152,30 +154,59 @@ public class DataSyncNetworkMonitor {
 
     /**
      * يُستدعى عند عودة الإنترنت - يبدأ خدمة المزامنة
+     * ✨ CRITICAL FIX: إعادة تعيين البيانات الفاشلة إلى pending قبل بدء المزامنة
+     * ✅ مع throttling لمنع الاستدعاءات المتكررة
      */
     private void onInternetConnected() {
+        // ✅ Throttling: تجاهل الاستدعاءات المتكررة خلال 5 ثوانٍ
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastInternetConnectedTime < THROTTLE_INTERVAL_MS) {
+            Log.d(TAG, "⏩ Ignoring duplicate internet connect event (throttled)");
+            return;
+        }
+        lastInternetConnectedTime = currentTime;
+
         Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        Log.d(TAG, "✅ Internet connection restored - checking for pending data");
+        Log.d(TAG, "✅ Internet connection restored - resetting failed data");
         Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
         try {
             DataSyncDatabaseHelper dbHelper = DataSyncDatabaseHelper.getInstance(context);
-            int pendingCount = dbHelper.getPendingDataCount();
 
-            Log.d(TAG, "📊 Pending data count: " + pendingCount);
+            // ✨ NEW: إعادة تعيين جميع البيانات الفاشلة إلى pending
+            int resetCount = dbHelper.resetFailedData();
+            if (resetCount > 0) {
+                Log.d(TAG, "🔄 Reset " + resetCount + " failed items to pending");
+            }
+
+            int pendingCount = dbHelper.getPendingDataCount();
+            Log.d(TAG, "📊 Total pending data count: " + pendingCount);
 
             if (pendingCount > 0) {
                 Log.d(TAG, "🚀 Starting DataSyncForegroundService with " + pendingCount + " pending items");
 
                 Intent serviceIntent = new Intent(context, DataSyncForegroundService.class);
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    context.startForegroundService(serviceIntent);
-                } else {
-                    context.startService(serviceIntent);
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        context.startForegroundService(serviceIntent);
+                    } else {
+                        context.startService(serviceIntent);
+                    }
+                    Log.d(TAG, "✅ DataSyncForegroundService started successfully");
+                } catch (IllegalStateException | SecurityException e) {
+                    // Android 12+ may throw ForegroundServiceStartNotAllowedException
+                    Log.e(TAG, "⚠️ Cannot start FGS from background: " + e.getMessage());
+                    Log.d(TAG, "🔄 Using WorkManager fallback...");
+                    
+                    // Fallback to WorkManager
+                    androidx.work.OneTimeWorkRequest syncWork = 
+                        new androidx.work.OneTimeWorkRequest.Builder(DataSyncWorker.class)
+                            .addTag("network_fallback_sync")
+                            .build();
+                    androidx.work.WorkManager.getInstance(context).enqueue(syncWork);
+                    Log.d(TAG, "✅ Sync scheduled via WorkManager");
                 }
-
-                Log.d(TAG, "✅ DataSyncForegroundService started successfully");
             } else {
                 Log.d(TAG, "ℹ️ No pending data - skipping sync");
             }

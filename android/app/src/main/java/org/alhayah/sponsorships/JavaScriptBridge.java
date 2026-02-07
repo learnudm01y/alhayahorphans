@@ -46,9 +46,27 @@ public class JavaScriptBridge {
             Log.d(TAG, "📋 Data Type: " + dataType);
             Log.d(TAG, "🌐 Endpoint: " + endpoint);
 
+            // تحويل البيانات لتنسيق Laravel API
+            // API يتوقع: { "sponsorship_id": 123, "updates": {...} }
+            JSONObject sponsorshipData = new JSONObject(dataJson);
+            int sponsorshipId = sponsorshipData.optInt("id", 0);
+
+            if (sponsorshipId == 0) {
+                Log.e(TAG, "❌ Invalid sponsorship_id");
+                return;
+            }
+
+            // بناء payload للـ API
+            JSONObject payload = new JSONObject();
+            payload.put("sponsorship_id", sponsorshipId);
+            payload.put("updates", sponsorshipData); // كل البيانات كـ updates
+
+            String formattedJson = payload.toString();
+            Log.d(TAG, "📦 Formatted payload: " + formattedJson.substring(0, Math.min(200, formattedJson.length())) + "...");
+
             // إضافة للـ queue مباشرة
             DataSyncDatabaseHelper dbHelper = DataSyncDatabaseHelper.getInstance(context);
-            long id = dbHelper.addDataToQueue(dataType, dataJson, endpoint);
+            long id = dbHelper.addDataToQueue(dataType, formattedJson, endpoint);
 
             if (id > 0) {
                 Log.e(TAG, "✅ Data added to sync queue: ID=" + id);
@@ -57,6 +75,11 @@ public class JavaScriptBridge {
                 Log.e(TAG, "🚀 Starting DataSyncForegroundService...");
                 DataSyncForegroundService.startSync(context);
                 Log.e(TAG, "✅ DataSyncForegroundService started!");
+
+                // ⚡ جدولة AlarmManager فوري (5 ثوانٍ) للتأكد من الرفع حتى عند إغلاق التطبيق
+                Log.e(TAG, "⚡ Scheduling immediate AlarmManager for background retry...");
+                DataSyncAlarmReceiver.scheduleImmediateCheck(context);
+                Log.e(TAG, "✅ Immediate alarm scheduled (will trigger in 5 sec even if app closed)");
             } else {
                 Log.e(TAG, "❌ Failed to add data to queue");
             }
@@ -102,7 +125,7 @@ public class JavaScriptBridge {
     public String retryFailed() {
         try {
             DataSyncDatabaseHelper dbHelper = DataSyncDatabaseHelper.getInstance(context);
-            int count = dbHelper.retryFailedData();
+            int count = dbHelper.resetFailedData();
 
             // بدء الخدمة للمزامنة
             if (count > 0) {
@@ -119,6 +142,40 @@ public class JavaScriptBridge {
         } catch (Exception e) {
             Log.e(TAG, "Error retrying failed data", e);
             return "{\"error\":\"" + e.getMessage() + "\"}";
+        }
+    }
+
+    /**
+     * حفظ API token و base URL من JavaScript إلى SharedPreferences
+     * يُستدعى بعد تسجيل الدخول مباشرة
+     */
+    @JavascriptInterface
+    public void saveAuthData(String token, String baseUrl) {
+        try {
+            Log.e(TAG, "");
+            Log.e(TAG, "🔐🔐🔐 saveAuthData() CALLED 🔐🔐🔐");
+            Log.d(TAG, "📥 Token: " + (token != null ? token.substring(0, Math.min(20, token.length())) + "..." : "null"));
+            Log.d(TAG, "🌐 Base URL (raw): " + baseUrl);
+
+            // إزالة /api من نهاية الرابط إذا كان موجود
+            if (baseUrl != null && baseUrl.endsWith("/api")) {
+                baseUrl = baseUrl.substring(0, baseUrl.length() - 4);
+                Log.d(TAG, "🔧 Base URL (cleaned): " + baseUrl);
+            }
+
+            android.content.SharedPreferences prefs = context.getSharedPreferences("auth_prefs", android.content.Context.MODE_PRIVATE);
+            android.content.SharedPreferences.Editor editor = prefs.edit();
+            editor.putString("api_token", token);
+            editor.putString("api_base_url", baseUrl != null ? baseUrl : "https://alhayahorphans.org");
+            editor.apply();
+
+            Log.e(TAG, "✅ Auth data saved to SharedPreferences");
+            Log.e(TAG, "   📡 Token: " + (token != null ? token.substring(0, Math.min(15, token.length())) + "..." : "null"));
+            Log.e(TAG, "   🌐 Base URL: " + (baseUrl != null ? baseUrl : "https://alhayahorphans.org"));
+            Log.e(TAG, "");
+
+        } catch (Exception e) {
+            Log.e(TAG, "❌ Error saving auth data", e);
         }
     }
 }

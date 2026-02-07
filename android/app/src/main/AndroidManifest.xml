@@ -57,6 +57,18 @@
             </intent-filter>
         </receiver>
 
+        <!-- ✨ CRITICAL: AlarmManager Receiver - مزامنة دورية قوية كل 10 ثوانٍ -->
+        <receiver
+            android:name="org.alhayah.sponsorships.DataSyncAlarmReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
+        <!-- ✨ NEW: AlarmManager Receiver لرفع الملفات - فحص كل 10 ثوانٍ -->
+        <receiver
+            android:name="com.aso.app.UploadAlarmReceiver"
+            android:enabled="true"
+            android:exported="false" />
+
         <!-- Upload Foreground Service - رفع الملفات المستمر حتى عند إغلاق التطبيق -->
         <service
             android:name="com.aso.app.UploadForegroundService"
@@ -81,6 +93,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />

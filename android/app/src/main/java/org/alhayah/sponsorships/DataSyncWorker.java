@@ -33,10 +33,16 @@ public class DataSyncWorker extends Worker {
             Context context = getApplicationContext();
             DataSyncDatabaseHelper dbHelper = DataSyncDatabaseHelper.getInstance(context);
 
+            // ✨ CRITICAL FIX: إعادة تعيين البيانات الفاشلة قبل الفحص
+            int resetCount = dbHelper.resetFailedData();
+            if (resetCount > 0) {
+                Log.d(TAG, "🔄 Reset " + resetCount + " failed items to pending");
+            }
+
             // فحص عدد البيانات المنتظرة
             int pendingCount = dbHelper.getPendingDataCount();
 
-            Log.d(TAG, "📊 Pending data count: " + pendingCount);
+            Log.d(TAG, "📊 Total pending data count: " + pendingCount);
 
             if (pendingCount > 0) {
                 Log.d(TAG, "✅ Found " + pendingCount + " pending data items - starting DataSyncForegroundService");

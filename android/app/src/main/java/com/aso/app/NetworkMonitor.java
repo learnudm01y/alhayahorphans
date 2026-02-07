@@ -165,16 +165,26 @@ public class NetworkMonitor {
                 Log.d(TAG, "🔥🔥🔥 بدء رفع " + pendingCount + " ملف معلق! 🔥🔥🔥");
                 Log.d(TAG, "");
 
-                // بدء UploadForegroundService فقط (تم تعطيل WorkManager لتجنب التعارض)
+                // بدء UploadForegroundService مع معالجة Android 12+ exceptions
                 android.content.Intent serviceIntent = new android.content.Intent(context, UploadForegroundService.class);
                 
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                    context.startForegroundService(serviceIntent);
-                } else {
-                    context.startService(serviceIntent);
+                try {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        context.startForegroundService(serviceIntent);
+                    } else {
+                        context.startService(serviceIntent);
+                    }
+                    Log.d(TAG, "✅ تم تشغيل UploadForegroundService بنجاح");
+                } catch (IllegalStateException | SecurityException e) {
+                    // Android 12+ may throw ForegroundServiceStartNotAllowedException
+                    Log.e(TAG, "⚠️ Cannot start FGS from background: " + e.getMessage());
+                    Log.d(TAG, "🔄 Using WorkManager fallback...");
+                    
+                    // Fallback to WorkManager
+                    UploadTaskScheduler scheduler = UploadTaskScheduler.getInstance(context);
+                    scheduler.scheduleUploadTask();
+                    Log.d(TAG, "✅ Upload scheduled via WorkManager");
                 }
-
-                Log.d(TAG, "✅ تم تشغيل UploadForegroundService بنجاح");
             } else {
                 Log.d(TAG, "ℹ️  لا توجد ملفات معلقة للرفع");
             }
