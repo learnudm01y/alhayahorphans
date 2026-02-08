@@ -1746,6 +1746,7 @@ class SponsorshipController extends Controller
                     'اسم المكفول',
                     'اسم المستخدم',  // رقم الهوية
                     'كلمة المرور',    // رقم الملف (خارجي أو داخلي)
+                    'رقم هاتف المعيل', // 🆕 رقم الهاتف من جدول data
                 ];
 
                 $sheet->fromArray($headers, NULL, 'A1');
@@ -1766,7 +1767,7 @@ class SponsorshipController extends Controller
                         'vertical' => Alignment::VERTICAL_CENTER,
                     ]
                 ];
-                $sheet->getStyle('A1:D1')->applyFromArray($headerStyle);
+                $sheet->getStyle('A1:E1')->applyFromArray($headerStyle);
 
                 // كتابة البيانات
                 $row = 2;
@@ -1776,11 +1777,15 @@ class SponsorshipController extends Controller
                     // 🔐 استخدام الرقم الداخلي (internal_file_number) ككلمة مرور
                     $fileNumber = $sponsorship->internal_file_number ?: $sponsorship->external_file_number;
 
+                    // 🆕 جلب رقم هاتف المعيل من جدول data أو portal_general_registration_field_values
+                    $guardianPhone = $this->getGuardianPhone($sponsorship->guardian_identity_number);
+
                     $data = [
                         $sponsorNames ?: '-',
                         $sponsorship->orphan_name ?: '-',
                         $sponsorship->identity_number ?: '-',  // اسم المستخدم
                         $fileNumber ?: '-',                    // كلمة المرور (الرقم الداخلي)
+                        $guardianPhone ?: '-',                 // 🆕 رقم هاتف المعيل
                     ];
 
                     $sheet->fromArray($data, NULL, 'A' . $row);
@@ -1788,7 +1793,7 @@ class SponsorshipController extends Controller
                 }
 
                 // ضبط عرض الأعمدة تلقائياً
-                foreach (range('A', 'D') as $col) {
+                foreach (range('A', 'E') as $col) {
                     $sheet->getColumnDimension($col)->setAutoSize(true);
                 }
 
@@ -4834,6 +4839,101 @@ class SponsorshipController extends Controller
                 'type' => $deceasedType,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * 🆕 جلب رقم هاتف المعيل من جدول data أو portal_general_registration_field_values
+     *
+     * @param string|null $guardianIdentityNumber رقم هوية المعيل
+     * @return string|null رقم الهاتف (الأساسي أو الثانوي)
+     */
+    private function getGuardianPhone($guardianIdentityNumber)
+    {
+        if (empty($guardianIdentityNumber)) {
+            return null;
+        }
+
+        try {
+            // 🔍 البحث في جدول data باستخدام رقم هوية المعيل
+            $guardianData = Data::where('data_id_number', $guardianIdentityNumber)->first();
+
+            if ($guardianData) {
+                // ✅ الأولوية للرقم الأساسي (data_phone_number)
+                if (!empty($guardianData->data_phone_number)) {
+                    Log::info('📞 تم جلب رقم الهاتف الأساسي من جدول data', [
+                        'guardian_identity' => $guardianIdentityNumber,
+                        'phone' => $guardianData->data_phone_number
+                    ]);
+                    return $guardianData->data_phone_number;
+                }
+
+                // ⚠️ إذا لم يكن موجود، استخدام الرقم الثانوي (data_alt_phone_number)
+                if (!empty($guardianData->data_alt_phone_number)) {
+                    Log::info('📞 تم جلب رقم الهاتف الثانوي من جدول data', [
+                        'guardian_identity' => $guardianIdentityNumber,
+                        'alt_phone' => $guardianData->data_alt_phone_number
+                    ]);
+                    return $guardianData->data_alt_phone_number;
+                }
+            }
+
+            // 🔍 البحث في جدول portal_general_registration_field_values
+            $phoneField = DB::table('portal_general_registration_field_values')
+                ->where('identity_number', $guardianIdentityNumber)
+                ->where(function($query) {
+                    $query->where('field_key', 'phone')
+                        ->orWhere('field_key', 'data_phone_number')
+                        ->orWhere('field_key', 'primary_phone')
+                        ->orWhere('field_key', 'guardian_phone');
+                })
+                ->whereNotNull('field_value')
+                ->where('field_value', '!=', '')
+                ->first();
+
+            if ($phoneField && !empty($phoneField->field_value)) {
+                Log::info('📞 تم جلب رقم الهاتف من جدول portal_general_registration_field_values', [
+                    'guardian_identity' => $guardianIdentityNumber,
+                    'field_key' => $phoneField->field_key,
+                    'phone' => $phoneField->field_value
+                ]);
+                return $phoneField->field_value;
+            }
+
+            // البحث عن الرقم الثانوي في portal_general_registration_field_values
+            $altPhoneField = DB::table('portal_general_registration_field_values')
+                ->where('identity_number', $guardianIdentityNumber)
+                ->where(function($query) {
+                    $query->where('field_key', 'alt_phone')
+                        ->orWhere('field_key', 'data_alt_phone_number')
+                        ->orWhere('field_key', 'secondary_phone')
+                        ->orWhere('field_key', 'guardian_alt_phone');
+                })
+                ->whereNotNull('field_value')
+                ->where('field_value', '!=', '')
+                ->first();
+
+            if ($altPhoneField && !empty($altPhoneField->field_value)) {
+                Log::info('📞 تم جلب رقم الهاتف الثانوي من جدول portal_general_registration_field_values', [
+                    'guardian_identity' => $guardianIdentityNumber,
+                    'field_key' => $altPhoneField->field_key,
+                    'alt_phone' => $altPhoneField->field_value
+                ]);
+                return $altPhoneField->field_value;
+            }
+
+            Log::warning('⚠️ لم يتم العثور على رقم هاتف للمعيل', [
+                'guardian_identity' => $guardianIdentityNumber
+            ]);
+
+            return null;
+
+        } catch (\Exception $e) {
+            Log::error('❌ خطأ في جلب رقم هاتف المعيل', [
+                'guardian_identity' => $guardianIdentityNumber,
+                'error' => $e->getMessage()
             ]);
             return null;
         }
