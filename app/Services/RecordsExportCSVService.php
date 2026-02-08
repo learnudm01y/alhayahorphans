@@ -21,7 +21,7 @@ class RecordsExportCSVService
     private const CHUNK_SIZE = 1000;
 
     /**
-     * تصدير جميع السجلات في ملف Excel واحد مع 4 sheets
+     * تصدير جميع السجلات في ملف Excel واحد مع 6 sheets
      * الأخف على الذاكرة والأسهل للاستخدام
      */
     public function exportAllAsCSV()
@@ -39,7 +39,7 @@ class RecordsExportCSVService
             // حذف الـ sheet الافتراضي
             $spreadsheet->removeSheetByIndex(0);
 
-            // إنشاء 4 sheets
+            // إنشاء 6 sheets
             $this->createDataSheet($spreadsheet);
             gc_collect_cycles(); // تحرير الذاكرة بعد أول sheet
 
@@ -50,6 +50,12 @@ class RecordsExportCSVService
             gc_collect_cycles();
 
             $this->createAttachmentsSheet($spreadsheet);
+            gc_collect_cycles();
+
+            $this->createGuardianBankAccountsSheet($spreadsheet);
+            gc_collect_cycles();
+
+            $this->createPortalFieldValuesSheet($spreadsheet);
             gc_collect_cycles();
 
             // تفعيل أول sheet
@@ -81,40 +87,14 @@ class RecordsExportCSVService
     }
 
     /**
-     * إنشاء Sheet لجدول Data (المعيلين) مع الحقول الديناميكية من portal
+     * إنشاء Sheet لجدول Data (المعيلين) - بدون الحقول البنكية والديناميكية
      */
     private function createDataSheet($spreadsheet)
     {
         $sheet = $spreadsheet->createSheet();
         $sheet->setTitle('المعيلين');
 
-        // ✅ جلب field_keys المستخدمة فعلياً من portal_general_registration_field_values
-        Log::info('🔍 جمع field_keys من portal_general_registration_field_values للمعيلين...');
-        $dynamicFieldKeys = [];
-
-        Data::select('data_id_number')
-            ->whereNotNull('data_id_number')
-            ->where('data_id_number', '!=', '')
-            ->chunk(500, function ($records) use (&$dynamicFieldKeys) {
-                $identityNumbers = $records->pluck('data_id_number')->unique()->filter()->toArray();
-
-                if (!empty($identityNumbers)) {
-                    $keys = PortalGeneralRegistrationFieldValue::whereIn('identity_number', $identityNumbers)
-                        ->whereNotNull('field_value')
-                        ->where('field_value', '!=', '')
-                        ->distinct()
-                        ->pluck('field_key')
-                        ->toArray();
-
-                    $dynamicFieldKeys = array_unique(array_merge($dynamicFieldKeys, $keys));
-                }
-
-                unset($identityNumbers, $keys);
-            });
-
-        Log::info("✅ تم جمع " . count($dynamicFieldKeys) . " field_key من portal");
-
-        // Headers الأساسية
+        // Headers الأساسية فقط (بدون البيانات البنكية أو الحقول الديناميكية)
         $headers = [
             'ID', 'رقم الملف', 'القسم', 'رقم الهوية', 'الاسم الأول', 'اسم الأب',
             'اسم الجد', 'اسم العائلة', 'صلة القرابة', 'تاريخ الميلاد', 'الجنس',
@@ -122,15 +102,8 @@ class RecordsExportCSVService
             'المؤهل الأكاديمي', 'حالة النزوح', 'العنوان قبل النزوح', 'العنوان الحالي',
             'المدينة', 'المحافظة', 'الحالة الصحية', 'وصف الاحتياجات',
             'حالة التوظيف', 'حالة السكن', 'نوع السكن', 'المستخدم', 'حالة الطلب',
-            'اسم البنك', 'IBAN USD', 'IBAN Shekel', 'رقم الحساب',
-            'رقم هوية صاحب الحساب', 'اسم ولي الأمر', 'رقم هاتف ولي الأمر',
             'تاريخ الإنشاء', 'تاريخ التحديث'
         ];
-
-        // ✅ إضافة field_keys الديناميكية للهيدر
-        foreach ($dynamicFieldKeys as $fieldKey) {
-            $headers[] = $fieldKey;
-        }
 
         $sheet->fromArray($headers, NULL, 'A1');
 
@@ -149,20 +122,10 @@ class RecordsExportCSVService
             'section', 'categoryOfRelation', 'maritalStatus', 'academicQualification',
             'displacementStatus', 'city', 'province', 'healthStatus',
             'employmentStatusBreadwinner', 'housingStatus', 'currentHousingType',
-            'userInserted', 'requestStatus', 'guardianBankAccount.bank'
+            'userInserted', 'requestStatus'
         ])
-        ->chunk(self::CHUNK_SIZE, function ($records) use ($sheet, &$row, &$count, $dynamicFieldKeys) {
+        ->chunk(self::CHUNK_SIZE, function ($records) use ($sheet, &$row, &$count) {
             foreach ($records as $record) {
-                // ✅ جلب الحقول الديناميكية لهذا المعيل من portal
-                $portalFields = [];
-                if ($record->data_id_number) {
-                    $portalFields = PortalGeneralRegistrationFieldValue::where('identity_number', $record->data_id_number)
-                        ->whereNotNull('field_value')
-                        ->where('field_value', '!=', '')
-                        ->pluck('field_value', 'field_key')
-                        ->toArray();
-                }
-
                 $data = [
                     $record->id,
                     $record->file_id_number,
@@ -192,28 +155,13 @@ class RecordsExportCSVService
                     $record->currentHousingType?->description ?? '-',
                     $record->userInserted?->name ?? '-',
                     $record->requestStatus?->description ?? '-',
-                    $record->guardianBankAccount?->bank?->description ?? '-',
-                    $record->guardianBankAccount?->iban_usd ?? '-',
-                    $record->guardianBankAccount?->iban_shekel ?? '-',
-                    $record->guardianBankAccount?->check_account ?? '-',
-                    $record->guardianBankAccount?->person_owner_identity_number ?? '-',
-                    $record->guardianBankAccount?->re_guardian_name ?? '-',
-                    $record->guardianBankAccount?->re_phone_number ?? '-',
                     $record->created_at,
                     $record->updated_at
                 ];
 
-                // ✅ إضافة القيم الديناميكية من portal
-                foreach ($dynamicFieldKeys as $fieldKey) {
-                    $data[] = $portalFields[$fieldKey] ?? '-';
-                }
-
                 $sheet->fromArray($data, NULL, 'A' . $row);
                 $row++;
                 $count++;
-
-                // تحرير الذاكرة
-                unset($portalFields);
             }
             Log::info("تم تصدير {$count} سجل من Data (المعيلين)");
             gc_collect_cycles();
@@ -225,7 +173,7 @@ class RecordsExportCSVService
             $sheet->getColumnDimensionByColumn($col)->setAutoSize(true);
         }
 
-        Log::info("اكتمل تصدير Data (المعيلين) - إجمالي {$count} سجل مع " . count($dynamicFieldKeys) . " حقل ديناميكي");
+        Log::info("اكتمل تصدير Data (المعيلين) - إجمالي {$count} سجل");
     }
 
     /**
@@ -418,5 +366,138 @@ class RecordsExportCSVService
         }
 
         Log::info("اكتمل تصدير Attachments - إجمالي {$count} سجل");
+    }
+
+    /**
+     * إنشاء Sheet لجدول GuardianBankAccounts
+     */
+    private function createGuardianBankAccountsSheet($spreadsheet)
+    {
+        $sheet = $spreadsheet->createSheet();
+        $sheet->setTitle('الحسابات البنكية');
+
+        $headers = [
+            'ID',
+            'رقم تسجيل المعيل',
+            'اسم البنك',
+            'IBAN USD',
+            'IBAN Shekel',
+            'رقم الحساب',
+            'رقم هوية صاحب الحساب',
+            'رقم هوية ولي الأمر',
+            'اسم ولي الأمر',
+            'رقم هاتف ولي الأمر',
+            'تاريخ الإنشاء',
+            'تاريخ التحديث'
+        ];
+
+        $sheet->fromArray($headers, NULL, 'A1');
+
+        $headerStyle = [
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '9B59B6']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER]
+        ];
+        $sheet->getStyle('A1:' . $sheet->getHighestColumn() . '1')->applyFromArray($headerStyle);
+
+        $row = 2;
+        $count = 0;
+
+        \App\Models\GuardianBankAccount::with(['bank', 'guardian'])
+            ->chunk(self::CHUNK_SIZE, function ($records) use ($sheet, &$row, &$count) {
+                foreach ($records as $record) {
+                    $data = [
+                        $record->id,
+                        $record->guardian_registration,
+                        $record->bank?->description ?? '-',
+                        $record->iban_usd ?? '-',
+                        $record->iban_shekel ?? '-',
+                        $record->check_account ?? '-',
+                        $record->person_owner_identity_number ?? '-',
+                        $record->re_id_number ?? '-',
+                        $record->re_guardian_name ?? '-',
+                        $record->re_phone_number ?? '-',
+                        $record->created_at,
+                        $record->updated_at
+                    ];
+
+                    $sheet->fromArray($data, NULL, 'A' . $row);
+                    $row++;
+                    $count++;
+                }
+                Log::info("تم تصدير {$count} سجل من GuardianBankAccounts");
+                gc_collect_cycles();
+            });
+
+        $highestColumn = $sheet->getHighestColumn();
+        $highestColumnIndex = Coordinate::columnIndexFromString($highestColumn);
+        for ($col = 1; $col <= $highestColumnIndex; $col++) {
+            $sheet->getColumnDimensionByColumn($col)->setAutoSize(true);
+        }
+
+        Log::info("اكتمل تصدير GuardianBankAccounts - إجمالي {$count} سجل");
+    }
+
+    /**
+     * إنشاء Sheet لجدول PortalGeneralRegistrationFieldValues
+     */
+    private function createPortalFieldValuesSheet($spreadsheet)
+    {
+        $sheet = $spreadsheet->createSheet();
+        $sheet->setTitle('حقول Portal الديناميكية');
+
+        $headers = [
+            'ID',
+            'Sponsorship ID',
+            'رقم الملف',
+            'رقم الهوية',
+            'مفتاح الحقل',
+            'قيمة الحقل',
+            'تم التحديث بواسطة',
+            'تاريخ الإنشاء',
+            'تاريخ التحديث'
+        ];
+
+        $sheet->fromArray($headers, NULL, 'A1');
+
+        $headerStyle = [
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '16A085']],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER]
+        ];
+        $sheet->getStyle('A1:' . $sheet->getHighestColumn() . '1')->applyFromArray($headerStyle);
+
+        $row = 2;
+        $count = 0;
+
+        PortalGeneralRegistrationFieldValue::chunk(self::CHUNK_SIZE, function ($records) use ($sheet, &$row, &$count) {
+            foreach ($records as $record) {
+                $data = [
+                    $record->id,
+                    $record->sponsorship_id ?? '-',
+                    $record->file_id_number ?? '-',
+                    $record->identity_number ?? '-',
+                    $record->field_key ?? '-',
+                    $record->field_value ?? '-',
+                    $record->updated_by_user_id ?? '-',
+                    $record->created_at,
+                    $record->updated_at
+                ];
+
+                $sheet->fromArray($data, NULL, 'A' . $row);
+                $row++;
+                $count++;
+            }
+            Log::info("تم تصدير {$count} سجل من PortalGeneralRegistrationFieldValues");
+            gc_collect_cycles();
+        });
+
+        $highestColumn = $sheet->getHighestColumn();
+        $highestColumnIndex = Coordinate::columnIndexFromString($highestColumn);
+        for ($col = 1; $col <= $highestColumnIndex; $col++) {
+            $sheet->getColumnDimensionByColumn($col)->setAutoSize(true);
+        }
+
+        Log::info("اكتمل تصدير PortalGeneralRegistrationFieldValues - إجمالي {$count} سجل");
     }
 }

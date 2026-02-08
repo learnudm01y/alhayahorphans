@@ -26,7 +26,7 @@ class GuardianBankAccount extends Model
 
     public function guardian()
     {
-        return $this->belongsTo(Data::class, 'guardian_registration', 'registration_id');
+        return $this->belongsTo(Data::class, 'guardian_registration', 'file_id_number');
     }
 
     public function bank()

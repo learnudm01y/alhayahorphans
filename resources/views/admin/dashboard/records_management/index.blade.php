@@ -68,9 +68,9 @@
                                     <i class="fas fa-search"></i> البحث الشامل في السجلات
                                 </button>
 
-                                <!-- زر التصدير الرئيسي - Excel مع 4 Sheets و Portal Fields -->
-                                <a href="{{ route('admin.records.management.exportAllCSV') }}" class="btn btn-success btn-sm mt-4" title="تصدير Excel شامل - 4 sheets مع الحقول الديناميكية من Portal">
-                                    <i class="fas fa-file-excel"></i> تصدير Excel (4 sheets)
+                                <!-- زر التصدير الرئيسي - Excel مع 6 Sheets (المعيلين، المتوفين، أفراد الأسرة، المرفقات، الحسابات البنكية، حقول Portal) -->
+                                <a href="{{ route('admin.records.management.exportAllCSV') }}" class="btn btn-success btn-sm mt-4" title="تصدير Excel شامل - 6 sheets مع جداول منفصلة للحسابات البنكية وحقول Portal">
+                                    <i class="fas fa-file-excel"></i> تصدير Excel (6 sheets)
                                 </a>
                             </div>
                         </div>
