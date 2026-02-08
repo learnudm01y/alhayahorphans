@@ -25,7 +25,7 @@ import com.aso.app.IndexedDBBridge;
 public class MainActivity extends BridgeActivity {
     private static final String TAG = "MainActivity";
     private static final int PERMISSION_REQUEST_CODE = 100;
-    
+
     // ✨ ActivityResultLauncher for exact alarms (Android 12+)
     private ActivityResultLauncher<Intent> exactAlarmLauncher;
 
@@ -127,7 +127,7 @@ public class MainActivity extends BridgeActivity {
             if (alarmManager != null && !alarmManager.canScheduleExactAlarms()) {
                 android.util.Log.e(TAG, "⚠️ SCHEDULE_EXACT_ALARM not granted - requesting...");
                 android.util.Log.e(TAG, "🔔 Opening system settings for exact alarms...");
-                
+
                 Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
                 intent.setData(Uri.parse("package:" + getPackageName()));
                 exactAlarmLauncher.launch(intent);
@@ -153,7 +153,7 @@ public class MainActivity extends BridgeActivity {
             if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
                 android.util.Log.e(TAG, "⚠️ Battery optimization is ON - this may kill background services");
                 android.util.Log.e(TAG, "💡 Recommend user to disable it from Settings > Battery");
-                
+
                 // Optional: Show dialog to request exemption
                 try {
                     Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
@@ -172,7 +172,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        
+
         if (requestCode == PERMISSION_REQUEST_CODE) {
             for (int i = 0; i < permissions.length; i++) {
                 if (grantResults[i] == PackageManager.PERMISSION_GRANTED) {

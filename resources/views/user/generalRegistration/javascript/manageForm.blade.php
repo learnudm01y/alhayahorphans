@@ -614,7 +614,7 @@
             // (يفترض أن أنواع الوثائق الإلزامية معروفة مسبقاً)
             const basicRequiredDocs = window.basicRequiredDocs || [];
             if (basicRequiredDocs.length > 0) {
-                preventTabSwitchIfDocsMissing('basic-tab-next', 'main', basicRequiredDocs, 'البيانات الأساسية');
+                preventTabSwitchIfDocsMissing('basic-tab-next', 'main', basicRequiredDocs, 'بيانات الوصي (المعيل)');
             }
 
             // مثال: منع الانتقال من تبويب المتوفين (الأب/الأم) إلا بعد رفع الوثائق المطلوبة
@@ -830,7 +830,7 @@
             // (يفترض أن أنواع الوثائق الإلزامية معروفة مسبقاً)
             const basicRequiredDocs = window.basicRequiredDocs || [];
             if (basicRequiredDocs.length > 0) {
-                preventTabSwitchIfDocsMissing('basic-tab-next', 'main', basicRequiredDocs, 'البيانات الأساسية');
+                preventTabSwitchIfDocsMissing('basic-tab-next', 'main', basicRequiredDocs, 'بيانات الوصي (المعيل)');
             }
 
             // مثال: منع الانتقال من تبويب المتوفين (الأب/الأم) إلا بعد رفع الوثائق المطلوبة
@@ -1439,7 +1439,7 @@
             const tabNextButtons = [{
                     btnId: 'basic-tab-next',
                     requiredDocs: window.basicRequiredDocs || [],
-                    tabName: 'البيانات الأساسية'
+                    tabName: 'بيانات الوصي (المعيل)'
                 },
                 {
                     btnId: 'deceased-tab-next',

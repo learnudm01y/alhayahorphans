@@ -16,7 +16,7 @@ import androidx.annotation.NonNull;
 public class NetworkMonitor {
     private static final String TAG = "NetworkMonitor";
     private static NetworkMonitor instance;
-    
+
     private Context context;
     private ConnectivityManager connectivityManager;
     private NetworkCallback networkCallback;
@@ -40,7 +40,7 @@ public class NetworkMonitor {
         this.connectivityManager = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
         this.uploadScheduler = UploadTaskScheduler.getInstance(context);
         this.dbHelper = UploadDatabaseHelper.getInstance(context);
-        
+
         Log.d(TAG, "✅ NetworkMonitor تم إنشاؤه");
     }
 
@@ -74,7 +74,7 @@ public class NetworkMonitor {
 
             // تسجيل Callback
             connectivityManager.registerNetworkCallback(networkRequest, networkCallback);
-            
+
             isMonitoring = true;
             Log.d(TAG, "✅ تم تفعيل المراقبة بنجاح");
             Log.d(TAG, "🎯 سيتم رفع الملفات تلقائيًا عند عودة الإنترنت");
@@ -120,7 +120,7 @@ public class NetworkMonitor {
                 }
 
                 NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(network);
-                return capabilities != null && 
+                return capabilities != null &&
                        capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
                        capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
             } else {
@@ -167,7 +167,7 @@ public class NetworkMonitor {
 
                 // بدء UploadForegroundService مع معالجة Android 12+ exceptions
                 android.content.Intent serviceIntent = new android.content.Intent(context, UploadForegroundService.class);
-                
+
                 try {
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                         context.startForegroundService(serviceIntent);
@@ -179,7 +179,7 @@ public class NetworkMonitor {
                     // Android 12+ may throw ForegroundServiceStartNotAllowedException
                     Log.e(TAG, "⚠️ Cannot start FGS from background: " + e.getMessage());
                     Log.d(TAG, "🔄 Using WorkManager fallback...");
-                    
+
                     // Fallback to WorkManager
                     UploadTaskScheduler scheduler = UploadTaskScheduler.getInstance(context);
                     scheduler.scheduleUploadTask();
@@ -215,16 +215,16 @@ public class NetworkMonitor {
      * Network Callback - استجابة لتغيرات حالة الشبكة
      */
     private class NetworkCallback extends ConnectivityManager.NetworkCallback {
-        
+
         @Override
         public void onAvailable(@NonNull Network network) {
             super.onAvailable(network);
-            
+
             boolean wasOffline = !isNetworkAvailable;
             isNetworkAvailable = true;
 
             Log.d(TAG, "📡 onAvailable() - شبكة متاحة");
-            
+
             // إذا كنا غير متصلين من قبل، نرفع الملفات
             if (wasOffline) {
                 handleNetworkAvailable();
@@ -234,7 +234,7 @@ public class NetworkMonitor {
         @Override
         public void onLost(@NonNull Network network) {
             super.onLost(network);
-            
+
             isNetworkAvailable = false;
             Log.d(TAG, "📡 onLost() - فقدان الشبكة");
             handleNetworkLost();
@@ -243,10 +243,10 @@ public class NetworkMonitor {
         @Override
         public void onCapabilitiesChanged(@NonNull Network network, @NonNull NetworkCapabilities networkCapabilities) {
             super.onCapabilitiesChanged(network, networkCapabilities);
-            
+
             boolean hasInternet = networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
                                 networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
-            
+
             boolean wasOffline = !isNetworkAvailable;
             isNetworkAvailable = hasInternet;
 

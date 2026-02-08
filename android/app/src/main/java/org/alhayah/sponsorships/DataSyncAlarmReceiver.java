@@ -62,9 +62,9 @@ public class DataSyncAlarmReceiver extends BroadcastReceiver {
                     // Android 12+ ForegroundServiceStartNotAllowedException
                     Log.e(TAG, "⚠️ Cannot start FGS from background: " + e.getMessage());
                     Log.d(TAG, "🔄 Using WorkManager fallback...");
-                    
+
                     // Fallback: Use DataSyncWorker
-                    androidx.work.OneTimeWorkRequest syncWork = 
+                    androidx.work.OneTimeWorkRequest syncWork =
                         new androidx.work.OneTimeWorkRequest.Builder(DataSyncWorker.class)
                             .addTag("alarm_fallback_sync")
                             .build();

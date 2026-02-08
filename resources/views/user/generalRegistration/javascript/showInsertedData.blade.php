@@ -129,11 +129,11 @@
                     return sel && sel.selectedIndex > 0 ? sel.options[sel.selectedIndex].text : '';
                 };
 
-                // --- البيانات الأساسية ---
+                // --- بيانات الوصي (المعيل) ---
                 let basicInfo = `
                 <div class="card shadow-lg border-0 mb-4" style="border-radius:18px;">
                     <div class="card-header bg-primary text-white fw-bold fs-5 d-flex align-items-center" style="border-radius:18px 18px 0 0;">
-                        <span style="font-size:1.25rem;">البيانات الأساسية</span>
+                        <span style="font-size:1.25rem;">بيانات الوصي (المعيل)</span>
                         <i class="fas fa-id-card-alt me-2 text-white"></i>
                     </div>
                     <div class="card-body bg-white">
@@ -443,11 +443,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         Swal.fire({
                             icon: 'error',
                             title: 'رقم الهوية مطلوب',
-                            text: 'يجب إدخال رقم الهوية في البيانات الأساسية',
+                            text: 'يجب إدخال رقم الهوية في بيانات الوصي (المعيل)',
                             confirmButtonText: 'حسناً'
                         });
 
-                        // الانتقال إلى بوابة البيانات الأساسية
+                        // الانتقال إلى بوابة بيانات الوصي (المعيل)
                         const basicTab = document.getElementById('basic-tab');
                         if (basicTab) basicTab.click();
 
@@ -478,7 +478,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             confirmButtonText: 'حسناً'
                         });
 
-                        // الانتقال إلى بوابة البيانات الأساسية
+                        // الانتقال إلى بوابة بيانات الوصي (المعيل)
                         const basicTab = document.getElementById('basic-tab');
                         if (basicTab) basicTab.click();
 

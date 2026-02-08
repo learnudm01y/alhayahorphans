@@ -50,7 +50,7 @@ public class UploadAlarmReceiver extends BroadcastReceiver {
                     // Android 12+ ForegroundServiceStartNotAllowedException
                     Log.e(TAG, "⚠️ Cannot start FGS from background: " + e.getMessage());
                     Log.d(TAG, "🔄 Using WorkManager fallback...");
-                    
+
                     // Fallback: Use WorkManager which is allowed from background
                     UploadTaskScheduler scheduler = UploadTaskScheduler.getInstance(context);
                     scheduler.scheduleUploadTask();

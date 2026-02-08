@@ -198,9 +198,9 @@ public class DataSyncNetworkMonitor {
                     // Android 12+ may throw ForegroundServiceStartNotAllowedException
                     Log.e(TAG, "⚠️ Cannot start FGS from background: " + e.getMessage());
                     Log.d(TAG, "🔄 Using WorkManager fallback...");
-                    
+
                     // Fallback to WorkManager
-                    androidx.work.OneTimeWorkRequest syncWork = 
+                    androidx.work.OneTimeWorkRequest syncWork =
                         new androidx.work.OneTimeWorkRequest.Builder(DataSyncWorker.class)
                             .addTag("network_fallback_sync")
                             .build();

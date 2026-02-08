@@ -13,7 +13,7 @@
             role="tab" aria-controls="basic" aria-selected="false">
             <div class="d-flex flex-column align-items-center">
                 <i class="fas fa-user tab-icon mb-2"></i>
-                <span class="fs-4 fw-bold tab-label">البيانات الأساسية</span>
+                <span class="fs-4 fw-bold tab-label">بيانات الوصي (المعيل)</span>
             </div>
         </button>
     </li>

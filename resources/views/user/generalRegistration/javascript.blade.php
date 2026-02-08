@@ -13,7 +13,7 @@
     // ...existing code...
 
 document.addEventListener('DOMContentLoaded', function() {
-    // --- بوابة البيانات الأساسية ---
+    // --- بوابة بيانات الوصي (المعيل) ---
     const mainDocType = document.getElementById('mainDocumentTypeSelect_main');
     const mainFileInput = document.getElementById('mainDocumentFileInput_main');
     if (mainDocType && mainFileInput) {
