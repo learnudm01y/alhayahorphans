@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * ✅ Streaming Export لجدول Attachments
- * 
+ *
  * المعمارية: cursor → process → write → free → repeat
  * الذاكرة: ثابتة (حتى مع ملايين المرفقات)
  */
@@ -44,7 +44,7 @@ class AttachmentsStreamingExport
 
         try {
             Log::info('🚀 بدء تصدير Attachments - Streaming Mode');
-            
+
             $startTime = microtime(true);
 
             // استخدام cursor للقراءة (سجل واحد في كل مرة)
@@ -84,7 +84,7 @@ class AttachmentsStreamingExport
                 'message' => $e->getMessage(),
                 'processed_count' => $this->processedCount
             ]);
-            
+
             throw $e;
         }
     }

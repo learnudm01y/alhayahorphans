@@ -57,11 +57,11 @@ class RecordsManagementController extends Controller
 
     /**
      * 🏆 التصدير الاحترافي - Streaming Architecture
-     * 
+     *
      * ✅ يعمل مع ملايين السجلات بدون crash
      * ✅ استهلاك ذاكرة ثابت (50-100MB فقط)
      * ✅ معمارية enterprise-grade
-     * 
+     *
      * الموصى به للاستخدام الدائم
      */
     public function exportAllStreaming(RecordsStreamingExportService $exportService)

@@ -21,25 +21,25 @@ try {
     // Load Laravel
     require __DIR__ . '/../vendor/autoload.php';
     echo "✅ Autoload نجح\n";
-    
+
     $app = require_once __DIR__ . '/../bootstrap/app.php';
     echo "✅ Bootstrap نجح\n";
-    
+
     $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
     $kernel->bootstrap();
     echo "✅ Kernel Bootstrap نجح\n";
-    
+
     echo "\nMemory after Laravel boot: " . round(memory_get_usage() / 1024 / 1024, 2) . " MB\n";
-    
+
     // Test database connection
     $count = DB::table('data')->count();
     echo "✅ Database connection نجح - عدد السجلات في Data: $count\n";
-    
+
     echo "\nMemory after DB query: " . round(memory_get_usage() / 1024 / 1024, 2) . " MB\n";
-    
+
     echo "\n<h2 style='color: green;'>✅ كل شيء يعمل بشكل صحيح!</h2>";
     echo "<p><a href='/admin/records-management/export-all'>جرب التصدير الآن</a></p>";
-    
+
 } catch (Exception $e) {
     echo "\n<h2 style='color: red;'>❌ خطأ!</h2>";
     echo "Message: " . $e->getMessage() . "\n";

@@ -15,7 +15,7 @@ class RePeopleStreamingExport
     {
         $timestamp = date('Ymd_His');
         $this->filePath = storage_path("app/exports/re_people_export_{$timestamp}.csv");
-        
+
         $exportDir = storage_path('app/exports');
         if (!is_dir($exportDir)) {
             mkdir($exportDir, 0755, true);
@@ -29,7 +29,7 @@ class RePeopleStreamingExport
             set_time_limit(0);
 
             Log::info('🚀 بدء تصدير RePeople - Streaming Mode');
-            
+
             $startTime = microtime(true);
 
             $this->handle = fopen($this->filePath, 'w');
@@ -55,7 +55,7 @@ class RePeopleStreamingExport
             if (isset($this->handle) && is_resource($this->handle)) {
                 fclose($this->handle);
             }
-            
+
             Log::error('❌ خطأ في تصدير RePeople: ' . $e->getMessage());
             throw $e;
         }
@@ -83,7 +83,7 @@ class RePeopleStreamingExport
             'تاريخ الإنشاء',
             'تاريخ التحديث'
         ];
-        
+
         fputcsv($handle, $headers);
     }
 
@@ -94,9 +94,9 @@ class RePeopleStreamingExport
     {
         $this->handle = $handle;
         $this->processedCount = 0;
-        
+
         $this->processRecords();
-        
+
         return $this->processedCount;
     }
 

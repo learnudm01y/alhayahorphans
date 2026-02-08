@@ -8,10 +8,10 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * ✅ Streaming Export - معمارية احترافية للتصدير
- * 
+ *
  * المبدأ: cursor → process → write → free → repeat
  * الذاكرة: ثابتة لا تزيد (حتى مع ملايين السجلات)
- * 
+ *
  * يمكن استخدامه لتصدير 1 مليون أو 100 مليون سجل بدون أي crash
  */
 class DataStreamingExport
@@ -24,7 +24,7 @@ class DataStreamingExport
     {
         $timestamp = date('Ymd_His');
         $this->filePath = storage_path("app/exports/data_export_{$timestamp}.csv");
-        
+
         // إنشاء مجلد exports إذا لم يكن موجود
         $exportDir = storage_path('app/exports');
         if (!is_dir($exportDir)) {
@@ -34,7 +34,7 @@ class DataStreamingExport
 
     /**
      * تصدير جدول Data بالكامل - Streaming Architecture
-     * 
+     *
      * ✅ يقرأ سجل واحد في كل مرة (cursor)
      * ✅ يكتب مباشرة إلى الملف
      * ✅ لا يحفظ أي بيانات في الذاكرة
@@ -47,13 +47,13 @@ class DataStreamingExport
             set_time_limit(0);
 
             Log::info('🚀 بدء تصدير Data - Streaming Mode');
-            
+
             $startTime = microtime(true);
             $startMemory = memory_get_usage();
 
             // فتح الملف للكتابة المباشرة
             $this->handle = fopen($this->filePath, 'w');
-            
+
             // UTF-8 BOM لدعم Excel العربي
             fprintf($this->handle, chr(0xEF).chr(0xBB).chr(0xBF));
 
@@ -84,13 +84,13 @@ class DataStreamingExport
             if (isset($this->handle) && is_resource($this->handle)) {
                 fclose($this->handle);
             }
-            
+
             Log::error('❌ خطأ في تصدير Data', [
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine()
             ]);
-            
+
             throw $e;
         }
     }
@@ -155,15 +155,15 @@ class DataStreamingExport
     {
         $this->handle = $handle;
         $this->processedCount = 0;
-        
+
         $this->processRecords();
-        
+
         return $this->processedCount;
     }
 
     /**
      * ✅ المعالجة الحقيقية - Cursor-based Streaming
-     * 
+     *
      * cursor() = يحمل سجل واحد فقط في الذاكرة
      * fputcsv() = يكتب مباشرة إلى القرص
      * unset() = يحرر الذاكرة فوراً
@@ -179,7 +179,7 @@ class DataStreamingExport
         // - يستهلك ذاكرة أقل
         // - يحمل سجل واحد في كل iteration
         // - لا يجمع البيانات في arrays
-        
+
         $cursor = Data::with([
             'section',
             'categoryOfRelation',
@@ -200,13 +200,13 @@ class DataStreamingExport
         foreach ($cursor as $record) {
             // كتابة السجل مباشرة إلى الملف
             $this->writeRecord($record);
-            
+
             $this->processedCount++;
 
             // تسجيل التقدم كل 1000 سجل
             if ($this->processedCount % 1000 === 0) {
                 Log::info("📝 معالجة: {$this->processedCount} / {$totalRecords}");
-                
+
                 // تحرير الذاكرة كل 1000 سجل
                 gc_collect_cycles();
             }
@@ -268,7 +268,7 @@ class DataStreamingExport
         ];
 
         fputcsv($this->handle, $data);
-        
+
         // ✅ تحرير فوري
         unset($data, $bankAccount);
     }

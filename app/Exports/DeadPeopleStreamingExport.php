@@ -15,7 +15,7 @@ class DeadPeopleStreamingExport
     {
         $timestamp = date('Ymd_His');
         $this->filePath = storage_path("app/exports/dead_people_export_{$timestamp}.csv");
-        
+
         $exportDir = storage_path('app/exports');
         if (!is_dir($exportDir)) {
             mkdir($exportDir, 0755, true);
@@ -29,7 +29,7 @@ class DeadPeopleStreamingExport
             set_time_limit(0);
 
             Log::info('🚀 بدء تصدير DeadPeople - Streaming Mode');
-            
+
             $startTime = microtime(true);
 
             $this->handle = fopen($this->filePath, 'w');
@@ -55,7 +55,7 @@ class DeadPeopleStreamingExport
             if (isset($this->handle) && is_resource($this->handle)) {
                 fclose($this->handle);
             }
-            
+
             Log::error('❌ خطأ في تصدير DeadPeople: ' . $e->getMessage());
             throw $e;
         }
@@ -86,7 +86,7 @@ class DeadPeopleStreamingExport
             'تاريخ الإنشاء',
             'تاريخ التحديث'
         ];
-        
+
         fputcsv($handle, $headers);
     }
 
@@ -97,9 +97,9 @@ class DeadPeopleStreamingExport
     {
         $this->handle = $handle;
         $this->processedCount = 0;
-        
+
         $this->processRecords();
-        
+
         return $this->processedCount;
     }
 

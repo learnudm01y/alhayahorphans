@@ -35,20 +35,20 @@ class RecordsExportCSVService
 
             // إنشاء Spreadsheet جديد
             $spreadsheet = new Spreadsheet();
-            
+
             // حذف الـ sheet الافتراضي
             $spreadsheet->removeSheetByIndex(0);
 
             // إنشاء 4 sheets
             $this->createDataSheet($spreadsheet);
             gc_collect_cycles(); // تحرير الذاكرة بعد أول sheet
-            
+
             $this->createDeadPeopleSheet($spreadsheet);
             gc_collect_cycles();
-            
+
             $this->createRePeopleSheet($spreadsheet);
             gc_collect_cycles();
-            
+
             $this->createAttachmentsSheet($spreadsheet);
             gc_collect_cycles();
 
@@ -58,9 +58,9 @@ class RecordsExportCSVService
             // حفظ الملف
             $fileName = 'all_records_' . date('Ymd_His') . '.xlsx';
             $filePath = storage_path('app/' . $fileName);
-            
+
             Log::info('💾 بدء حفظ الملف - Memory usage: ' . round(memory_get_usage(true) / 1048576, 2) . ' MB');
-            
+
             $writer = new Xlsx($spreadsheet);
             $writer->save($filePath);
 
@@ -87,17 +87,17 @@ class RecordsExportCSVService
     {
         $sheet = $spreadsheet->createSheet();
         $sheet->setTitle('المعيلين');
-        
+
         // ✅ جلب field_keys المستخدمة فعلياً من portal_general_registration_field_values
         Log::info('🔍 جمع field_keys من portal_general_registration_field_values للمعيلين...');
         $dynamicFieldKeys = [];
-        
+
         Data::select('data_id_number')
             ->whereNotNull('data_id_number')
             ->where('data_id_number', '!=', '')
             ->chunk(500, function ($records) use (&$dynamicFieldKeys) {
                 $identityNumbers = $records->pluck('data_id_number')->unique()->filter()->toArray();
-                
+
                 if (!empty($identityNumbers)) {
                     $keys = PortalGeneralRegistrationFieldValue::whereIn('identity_number', $identityNumbers)
                         ->whereNotNull('field_value')
@@ -105,15 +105,15 @@ class RecordsExportCSVService
                         ->distinct()
                         ->pluck('field_key')
                         ->toArray();
-                    
+
                     $dynamicFieldKeys = array_unique(array_merge($dynamicFieldKeys, $keys));
                 }
-                
+
                 unset($identityNumbers, $keys);
             });
-        
+
         Log::info("✅ تم جمع " . count($dynamicFieldKeys) . " field_key من portal");
-        
+
         // Headers الأساسية
         $headers = [
             'ID', 'رقم الملف', 'القسم', 'رقم الهوية', 'الاسم الأول', 'اسم الأب',
@@ -122,18 +122,18 @@ class RecordsExportCSVService
             'المؤهل الأكاديمي', 'حالة النزوح', 'العنوان قبل النزوح', 'العنوان الحالي',
             'المدينة', 'المحافظة', 'الحالة الصحية', 'وصف الاحتياجات',
             'حالة التوظيف', 'حالة السكن', 'نوع السكن', 'المستخدم', 'حالة الطلب',
-            'اسم البنك', 'IBAN USD', 'IBAN Shekel', 'رقم الحساب', 
+            'اسم البنك', 'IBAN USD', 'IBAN Shekel', 'رقم الحساب',
             'رقم هوية صاحب الحساب', 'اسم ولي الأمر', 'رقم هاتف ولي الأمر',
             'تاريخ الإنشاء', 'تاريخ التحديث'
         ];
-        
+
         // ✅ إضافة field_keys الديناميكية للهيدر
         foreach ($dynamicFieldKeys as $fieldKey) {
             $headers[] = $fieldKey;
         }
-        
+
         $sheet->fromArray($headers, NULL, 'A1');
-        
+
         // تنسيق الهيدر
         $headerStyle = [
             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
@@ -144,7 +144,7 @@ class RecordsExportCSVService
 
         $row = 2;
         $count = 0;
-        
+
         Data::with([
             'section', 'categoryOfRelation', 'maritalStatus', 'academicQualification',
             'displacementStatus', 'city', 'province', 'healthStatus',
@@ -162,7 +162,7 @@ class RecordsExportCSVService
                         ->pluck('field_value', 'field_key')
                         ->toArray();
                 }
-                
+
                 $data = [
                     $record->id,
                     $record->file_id_number,
@@ -202,16 +202,16 @@ class RecordsExportCSVService
                     $record->created_at,
                     $record->updated_at
                 ];
-                
+
                 // ✅ إضافة القيم الديناميكية من portal
                 foreach ($dynamicFieldKeys as $fieldKey) {
                     $data[] = $portalFields[$fieldKey] ?? '-';
                 }
-                
+
                 $sheet->fromArray($data, NULL, 'A' . $row);
                 $row++;
                 $count++;
-                
+
                 // تحرير الذاكرة
                 unset($portalFields);
             }
@@ -235,7 +235,7 @@ class RecordsExportCSVService
     {
         $sheet = $spreadsheet->createSheet();
         $sheet->setTitle('المتوفين');
-        
+
         $headers = [
             'ID', 'رقم الملف', 'اسم الأب الأول', 'اسم الأب الثاني', 'اسم الأب الثالث',
             'لقب الأب', 'رقم هوية الأب', 'تاريخ وفاة الأب', 'سبب وفاة الأب',
@@ -243,9 +243,9 @@ class RecordsExportCSVService
             'رقم هوية الأم', 'تاريخ وفاة الأم', 'سبب وفاة الأم',
             'تاريخ الإنشاء', 'تاريخ التحديث'
         ];
-        
+
         $sheet->fromArray($headers, NULL, 'A1');
-        
+
         $headerStyle = [
             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
             'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'E74C3C']],
@@ -255,7 +255,7 @@ class RecordsExportCSVService
 
         $row = 2;
         $count = 0;
-        
+
         DeadPepole::with(['fatherDeathReason', 'motherDeathReason'])
             ->chunk(self::CHUNK_SIZE, function ($records) use ($sheet, &$row, &$count) {
                 foreach ($records as $record) {
@@ -279,7 +279,7 @@ class RecordsExportCSVService
                         $record->created_at,
                         $record->updated_at
                     ];
-                    
+
                     $sheet->fromArray($data, NULL, 'A' . $row);
                     $row++;
                     $count++;
@@ -304,15 +304,15 @@ class RecordsExportCSVService
     {
         $sheet = $spreadsheet->createSheet();
         $sheet->setTitle('أفراد الأسرة');
-        
+
         $headers = [
             'ID', 'رقم التسجيل', 'حالة الكفالة', 'الاسم الأول', 'الاسم الثاني',
             'الاسم الثالث', 'اللقب', 'رقم الهوية', 'تاريخ الميلاد', 'العمر',
             'الجنس', 'الحالة الصحية', 'نوع الكفالة', 'تاريخ الإنشاء', 'تاريخ التحديث'
         ];
-        
+
         $sheet->fromArray($headers, NULL, 'A1');
-        
+
         $headerStyle = [
             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
             'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => '2ECC71']],
@@ -322,7 +322,7 @@ class RecordsExportCSVService
 
         $row = 2;
         $count = 0;
-        
+
         RePeople::with(['sponsorshipStatus', 'healthStatus', 'guaranteeType'])
             ->chunk(self::CHUNK_SIZE, function ($records) use ($sheet, &$row, &$count) {
                 foreach ($records as $record) {
@@ -343,7 +343,7 @@ class RecordsExportCSVService
                         $record->created_at,
                         $record->updated_at
                     ];
-                    
+
                     $sheet->fromArray($data, NULL, 'A' . $row);
                     $row++;
                     $count++;
@@ -368,7 +368,7 @@ class RecordsExportCSVService
     {
         $sheet = $spreadsheet->createSheet();
         $sheet->setTitle('المرفقات');
-        
+
         $headers = [
             'ID',
             'رقم الهوية',
@@ -378,9 +378,9 @@ class RecordsExportCSVService
             'تاريخ الإضافة',
             'تاريخ التحديث'
         ];
-        
+
         $sheet->fromArray($headers, NULL, 'A1');
-        
+
         $headerStyle = [
             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
             'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'F39C12']],
@@ -390,7 +390,7 @@ class RecordsExportCSVService
 
         $row = 2;
         $count = 0;
-        
+
         Attachment::chunk(self::CHUNK_SIZE, function ($records) use ($sheet, &$row, &$count) {
             foreach ($records as $record) {
                 $data = [
@@ -402,7 +402,7 @@ class RecordsExportCSVService
                     $record->created_at,
                     $record->updated_at
                 ];
-                
+
                 $sheet->fromArray($data, NULL, 'A' . $row);
                 $row++;
                 $count++;

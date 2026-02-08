@@ -11,27 +11,27 @@ use Illuminate\Support\Facades\Response;
 
 /**
  * 🏆 Enterprise-Grade Streaming Export Service
- * 
+ *
  * المعمارية:
  * - Cursor-based reading (سجل واحد في الذاكرة)
  * - Direct file writing (كتابة مباشرة للقرص)
  * - Zero memory accumulation (لا تجميع في RAM)
  * - Periodic garbage collection (تنظيف دوري)
  * - Unified CSV file (ملف واحد لجميع الجداول)
- * 
+ *
  * القدرات:
  * ✅ يمكنه تصدير 1 مليون سجل
  * ✅ يمكنه تصدير 10 مليون سجل
  * ✅ يمكنه تصدير 100 مليون سجل
- * 
+ *
  * استهلاك الذاكرة:
  * - ثابت حوالي 50-100MB (بغض النظر عن عدد السجلات!)
  * - Peak memory: أقل من 256MB
- * 
+ *
  * الفرق عن الكود القديم:
  * ❌ القديم: يجمع البيانات → ثم يصدر (Memory Crash مع البيانات الكبيرة)
  * ✅ الجديد: يقرأ → يكتب مباشرة → يحرر (لا crash أبداً)
- * 
+ *
  * الملفات المدمجة:
  * 1. Data (بيانات الأيتام)
  * 2. DeadPeople (بيانات المتوفين)
@@ -42,7 +42,7 @@ class RecordsStreamingExportService
 {
     /**
      * تصدير جميع السجلات - Streaming Architecture (ملف CSV واحد مدمج)
-     * 
+     *
      * @return \Symfony\Component\HttpFoundation\BinaryFileResponse
      */
     public function exportAll()
@@ -97,7 +97,7 @@ class RecordsStreamingExportService
     {
         $timestamp = date('Ymd_His');
         $filePath = storage_path("app/exports/all_records_{$timestamp}.csv");
-        
+
         // إنشاء مجلد exports إذا لم يكن موجود
         $exportDir = storage_path('app/exports');
         if (!is_dir($exportDir)) {
@@ -106,7 +106,7 @@ class RecordsStreamingExportService
 
         // فتح الملف للكتابة
         $handle = fopen($filePath, 'w');
-        
+
         // UTF-8 BOM لدعم Excel العربي
         fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
 
