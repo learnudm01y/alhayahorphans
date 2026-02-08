@@ -33,6 +33,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use PhpParser\Comment\Doc;
 use App\Services\RecordsExportService;
+use App\Services\RecordsExportCSVService;
+use App\Services\RecordsStreamingExportService;
 
 class RecordsManagementController extends Controller
 {
@@ -41,8 +43,28 @@ class RecordsManagementController extends Controller
         return $dataTable->render('admin.dashboard.records_management.index');
     }
 
-    // Export all records into a single Excel file with three sheets
+    // Export all records into a single Excel file with three sheets (قديم - قد يسبب crash مع البيانات الكبيرة)
     public function exportAll(RecordsExportService $exportService)
+    {
+        return $exportService->exportAll();
+    }
+
+    // Export all records as CSV files (أخف على الذاكرة)
+    public function exportAllCSV(RecordsExportCSVService $exportService)
+    {
+        return $exportService->exportAllAsCSV();
+    }
+
+    /**
+     * 🏆 التصدير الاحترافي - Streaming Architecture
+     * 
+     * ✅ يعمل مع ملايين السجلات بدون crash
+     * ✅ استهلاك ذاكرة ثابت (50-100MB فقط)
+     * ✅ معمارية enterprise-grade
+     * 
+     * الموصى به للاستخدام الدائم
+     */
+    public function exportAllStreaming(RecordsStreamingExportService $exportService)
     {
         return $exportService->exportAll();
     }

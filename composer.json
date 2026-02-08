@@ -19,6 +19,7 @@
         "laravel/telescope": "^5.14",
         "laravel/tinker": "^2.8",
         "laravelcollective/html": "6.4",
+        "maatwebsite/excel": "*",
         "mpdf/mpdf": "^8.2",
         "phpoffice/phpspreadsheet": "^1.29",
         "spatie/laravel-permission": "^6.17",

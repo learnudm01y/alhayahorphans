@@ -99,8 +99,16 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::get('user/user-role-management', [UserController::class, 'index102'])->name('role.management102');
     // records management
     Route::get('records-management', [RecordsManagementController::class, 'index'])->name('records.management');
-    // Export all records (Data, DeadPepole, RePeople) into one Excel
+    
+    // 🏆 التصدير الاحترافي - Streaming (الموصى به) ⚡
+    Route::get('records-management/export-streaming', [\App\Http\Controllers\Admin\RecordsManagementController::class, 'exportAllStreaming'])->name('records.management.exportStreaming');
+    
+    // Export all records (Excel - قديم، قد يسبب crash مع البيانات الكبيرة)
     Route::get('records-management/export-all', [\App\Http\Controllers\Admin\RecordsManagementController::class, 'exportAll'])->name('records.management.exportAll');
+    
+    // Export all records as CSV files (أخف على الذاكرة)
+    Route::get('records-management/export-all-csv', [\App\Http\Controllers\Admin\RecordsManagementController::class, 'exportAllCSV'])->name('records.management.exportAllCSV');
+    
     Route::get('records-management/create', [RecordsManagementController::class, 'create'])->name('records.management.create');
     Route::post('records-management/store', [RecordsManagementController::class, 'store'])->name('records.management.store');
     Route::post('records-management/upload', [RecordsManagementController::class, 'upload'])->name('documents.upload');

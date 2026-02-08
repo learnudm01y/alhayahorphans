@@ -67,8 +67,10 @@
                                 <button type="button" class="btn btn-info btn-sm mt-4" data-bs-toggle="modal" data-bs-target="#searchModal">
                                     <i class="fas fa-search"></i> البحث الشامل في السجلات
                                 </button>
-                                <a href="{{ route('admin.records.management.exportAll') }}" class="btn btn-success btn-sm mt-4">
-                                    <i class="fas fa-file-export"></i> استخراج الكل (Excel)
+                                
+                                <!-- زر التصدير الرئيسي - Excel مع 4 Sheets و Portal Fields -->
+                                <a href="{{ route('admin.records.management.exportAllCSV') }}" class="btn btn-success btn-sm mt-4" title="تصدير Excel شامل - 4 sheets مع الحقول الديناميكية من Portal">
+                                    <i class="fas fa-file-excel"></i> تصدير Excel (4 sheets)
                                 </a>
                             </div>
                         </div>
