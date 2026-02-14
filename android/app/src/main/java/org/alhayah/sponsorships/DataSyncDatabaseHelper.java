@@ -227,7 +227,7 @@ public class DataSyncDatabaseHelper extends SQLiteOpenHelper {
             // إرسال broadcast لتحديث الواجهة
             sendStatsUpdateBroadcast();
         }
-
+        
         return rows;
     }
 

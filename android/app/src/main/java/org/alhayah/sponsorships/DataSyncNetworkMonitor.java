@@ -172,13 +172,13 @@ public class DataSyncNetworkMonitor {
 
         try {
             DataSyncDatabaseHelper dbHelper = DataSyncDatabaseHelper.getInstance(context);
-
+            
             // ✨ NEW: إعادة تعيين جميع البيانات الفاشلة إلى pending
             int resetCount = dbHelper.resetFailedData();
             if (resetCount > 0) {
                 Log.d(TAG, "🔄 Reset " + resetCount + " failed items to pending");
             }
-
+            
             int pendingCount = dbHelper.getPendingDataCount();
             Log.d(TAG, "📊 Total pending data count: " + pendingCount);
 
@@ -187,26 +187,13 @@ public class DataSyncNetworkMonitor {
 
                 Intent serviceIntent = new Intent(context, DataSyncForegroundService.class);
 
-                try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        context.startForegroundService(serviceIntent);
-                    } else {
-                        context.startService(serviceIntent);
-                    }
-                    Log.d(TAG, "✅ DataSyncForegroundService started successfully");
-                } catch (IllegalStateException | SecurityException e) {
-                    // Android 12+ may throw ForegroundServiceStartNotAllowedException
-                    Log.e(TAG, "⚠️ Cannot start FGS from background: " + e.getMessage());
-                    Log.d(TAG, "🔄 Using WorkManager fallback...");
-
-                    // Fallback to WorkManager
-                    androidx.work.OneTimeWorkRequest syncWork =
-                        new androidx.work.OneTimeWorkRequest.Builder(DataSyncWorker.class)
-                            .addTag("network_fallback_sync")
-                            .build();
-                    androidx.work.WorkManager.getInstance(context).enqueue(syncWork);
-                    Log.d(TAG, "✅ Sync scheduled via WorkManager");
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(serviceIntent);
+                } else {
+                    context.startService(serviceIntent);
                 }
+
+                Log.d(TAG, "✅ DataSyncForegroundService started successfully");
             } else {
                 Log.d(TAG, "ℹ️ No pending data - skipping sync");
             }

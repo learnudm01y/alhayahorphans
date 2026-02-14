@@ -4198,18 +4198,59 @@ class SponsorshipSyncController extends Controller
     /**
      * POST /api/mobile/upload-file
      * رفع ملف إلى Google Drive
+     * يدعم كلا من multipart (FileSyncWorker.java) و base64 (JavaScript القديم)
      */
     public function uploadFile(Request $request): JsonResponse
     {
-        $request->validate([
-            'file_name' => 'required|string',
-            'file_type' => 'required|string',
-            'file_data' => 'required|string',
-            'folder_path' => 'nullable|string',
-            'sponsorship_id' => 'required|integer',
-            'person_name' => 'nullable|string',
-            'association_name' => 'nullable|string'
-        ]);
+        // ✅ دعم كلا النوعين: multipart OR base64
+        $isMultipart = $request->hasFile('files');
+
+        if ($isMultipart) {
+            // ══════════════════════════════════════════════════════════
+            // FileSyncWorker.java - multipart upload (NO BASE64!)
+            // ══════════════════════════════════════════════════════════
+            $request->validate([
+                'files.*' => 'required|file|max:512000', // 500MB max
+                'record_number' => 'required|integer',
+                'person_id' => 'nullable|integer',
+            ]);
+
+            $file = $request->file('files')[0]; // أول ملف
+            $sponsorshipId = $request->input('record_number');
+            $fileName = $file->getClientOriginalName();
+            $fileType = $file->getMimeType();
+            $fileData = file_get_contents($file->getRealPath());
+
+            Log::info('📤 Multipart upload from FileSyncWorker', [
+                'file_name' => $fileName,
+                'file_size' => strlen($fileData),
+                'mime_type' => $fileType,
+                'sponsorship_id' => $sponsorshipId
+            ]);
+        } else {
+            // ══════════════════════════════════════════════════════════
+            // JavaScript - base64 upload (legacy support)
+            // ══════════════════════════════════════════════════════════
+            $request->validate([
+                'file_name' => 'required|string',
+                'file_type' => 'required|string',
+                'file_data' => 'required|string',
+                'sponsorship_id' => 'required|integer',
+                'person_name' => 'nullable|string',
+                'association_name' => 'nullable|string'
+            ]);
+
+            $sponsorshipId = $request->sponsorship_id;
+            $fileName = $request->file_name;
+            $fileType = $request->file_type;
+            $fileData = base64_decode($request->file_data);
+
+            Log::info('📤 Base64 upload from JavaScript', [
+                'file_name' => $fileName,
+                'file_size' => strlen($fileData),
+                'sponsorship_id' => $sponsorshipId
+            ]);
+        }
 
         try {
             // جلب بيانات الكفالة للحصول على اسم الجمعية واسم المكفول
@@ -4237,7 +4278,7 @@ class SponsorshipSyncController extends Controller
 
             // تسجيل لمعرفة الاسم المستخدم
             Log::info('📂 Folder names for upload', [
-                'sponsorship_id' => $request->sponsorship_id,
+                'sponsorship_id' => $sponsorshipId,
                 'association_from_request' => $request->association_name,
                 'association_from_db' => $sponsorship->sponsor_name,
                 'association_used' => $organizationName,
@@ -4245,12 +4286,6 @@ class SponsorshipSyncController extends Controller
                 'person_from_db' => $sponsorship->orphan_name,
                 'person_used' => $orphanName
             ]);
-
-            // فك تشفير البيانات
-            $fileData = base64_decode($request->file_data);
-
-            // إنشاء اسم الملف
-            $fileName = $request->file_name;
 
             // حفظ الملف محلياً أولاً
             $localPath = storage_path('app/mobile_uploads/' . $this->sanitizeFolderName($organizationName) . '/' . $this->sanitizeFolderName($orphanName));
@@ -4274,13 +4309,13 @@ class SponsorshipSyncController extends Controller
                 'local_file_hash' => $fileHash,
                 'file_name' => $fileName,
                 'file_size_bytes' => $fileSize,
-                'mime_type' => $request->file_type,
+                'mime_type' => $fileType,
                 'google_drive_path' => $googleDrivePath,
                 'upload_status' => 'pending',
                 'upload_progress' => 0,
                 'entity_type' => 'sponsorship',
-                'entity_id' => (string)$request->sponsorship_id,
-                'attachment_type' => str_contains($request->file_type, 'video') ? 'video' : 'photo',
+                'entity_id' => (string)$sponsorshipId,
+                'attachment_type' => str_contains($fileType, 'video') ? 'video' : 'photo',
                 'device_id' => $request->header('X-Device-ID', 'unknown'),
                 'uploaded_by' => $request->user()->id ?? 0,
                 'retry_count' => 0,

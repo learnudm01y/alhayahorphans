@@ -162,28 +162,25 @@ public class NetworkMonitor {
 
             if (pendingCount > 0) {
                 Log.d(TAG, "");
-                Log.d(TAG, "🔥🔥🔥 بدء رفع " + pendingCount + " ملف معلق! 🔥🔥🔥");
+                Log.d(TAG, "🔥🔥🔥 جدولة رفع " + pendingCount + " ملف معلق! 🔥🔥🔥");
                 Log.d(TAG, "");
 
-                // بدء UploadForegroundService مع معالجة Android 12+ exceptions
-                android.content.Intent serviceIntent = new android.content.Intent(context, UploadForegroundService.class);
+                // ═══════════════════════════════════════════════════════════════════
+                // 🔄 Single Sync Orchestrator - استخدام FileSyncWorker بدلاً من ForegroundService
+                // ═══════════════════════════════════════════════════════════════════
+                // FileSyncWorker سيعالج الطابور بالتسلسل (ملف واحد في كل مرة)
+                // ForegroundService يُستخدم فقط للملفات الكبيرة >= 10MB
+                // ExistingWorkPolicy.KEEP يمنع تكرار العمل
+                // ═══════════════════════════════════════════════════════════════════
 
                 try {
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                        context.startForegroundService(serviceIntent);
-                    } else {
-                        context.startService(serviceIntent);
-                    }
-                    Log.d(TAG, "✅ تم تشغيل UploadForegroundService بنجاح");
-                } catch (IllegalStateException | SecurityException e) {
-                    // Android 12+ may throw ForegroundServiceStartNotAllowedException
-                    Log.e(TAG, "⚠️ Cannot start FGS from background: " + e.getMessage());
-                    Log.d(TAG, "🔄 Using WorkManager fallback...");
-
-                    // Fallback to WorkManager
-                    UploadTaskScheduler scheduler = UploadTaskScheduler.getInstance(context);
-                    scheduler.scheduleUploadTask();
-                    Log.d(TAG, "✅ Upload scheduled via WorkManager");
+                    // جدولة Worker للمعالجة الفورية
+                    com.aso.app.FileSyncWorker.scheduleImmediateSync(context);
+                    Log.d(TAG, "✅ FileSyncWorker scheduled - الرفع سيبدأ فوراً");
+                    Log.d(TAG, "   ✅ UniqueWork policy يمنع تكرار Workers");
+                    Log.d(TAG, "   ✅ معالجة تسلسلية (ملف واحد في كل مرة)");
+                } catch (Exception workerError) {
+                    Log.e(TAG, "❌ فشل جدولة FileSyncWorker: " + workerError.getMessage(), workerError);
                 }
             } else {
                 Log.d(TAG, "ℹ️  لا توجد ملفات معلقة للرفع");

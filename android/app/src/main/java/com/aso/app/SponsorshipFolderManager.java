@@ -11,7 +11,7 @@ import java.io.File;
 
 /**
  * Plugin لإدارة مجلدات المكفولين وإعادة تسميتها
- *
+ * 
  * المهمة:
  * - عند تعديل اسم مكفول، إعادة تسمية مجلده
  * - تحديث جميع مسارات الملفات في قاعدة البيانات
@@ -48,129 +48,106 @@ public class SponsorshipFolderManager extends Plugin {
         Context context = getContext();
         boolean success = false;
         int filesUpdated = 0;
+        String safeOldAssoc;
+        String safeOldPerson;
         String safeNewAssoc;
         String safeNewPerson;
 
         try {
-            // ✨ الخطوة 0: جلب المسار الفعلي للمجلد من قاعدة البيانات (المفتاح الفريد)
+            // ✨ الخطوة 0: الحصول على الاسم القديم من قاعدة البيانات
             UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(context);
-            String storedFolderPath = dbHelper.getFolderPath(sponsorshipId);
-
-            if (storedFolderPath == null || storedFolderPath.isEmpty()) {
-                Log.e(TAG, "⚠️⚠️⚠️ No folder_path found in database!");
-                Log.e(TAG, "⚠️ This means no files were saved yet for this sponsorship");
-                Log.e(TAG, "⚠️ Nothing to rename - operation skipped");
-
-                // لا يوجد مجلد للتسمية - نجاح افتراضي
-                JSObject result = new JSObject();
-                result.put("success", true);
-                result.put("filesUpdated", 0);
-                result.put("message", "No folder to rename (no files saved yet)");
-                call.resolve(result);
-                return;
+            String[] nameHistory = dbHelper.getPreviousPersonName(sponsorshipId);
+            
+            if (nameHistory != null) {
+                // استخدام الأسماء من قاعدة البيانات بدلاً من المُمررة
+                safeOldAssoc = (nameHistory[0] != null ? nameHistory[0] : "General")
+                    .replaceAll("[^a-zA-Z0-9_\\-\\u0600-\\u06FF\\s]", "_");
+                safeOldPerson = nameHistory[1].replaceAll("[^a-zA-Z0-9_\\-\\u0600-\\u06FF\\s]", "_");
+                
+                Log.e(TAG, "📚 Found name history in database:");
+                Log.e(TAG, "   OLD (from DB): " + nameHistory[0] + "/" + nameHistory[1]);
+                Log.e(TAG, "   CURRENT (from DB): " + nameHistory[2] + "/" + nameHistory[3]);
+            } else {
+                // استخدام الاسم الممرر كاسم قديم افتراضياً
+                safeOldAssoc = (oldAssociationName != null ? oldAssociationName : "General")
+                    .replaceAll("[^a-zA-Z0-9_\\-\\u0600-\\u06FF\\s]", "_");
+                safeOldPerson = oldPersonName.replaceAll("[^a-zA-Z0-9_\\-\\u0600-\\u06FF\\s]", "_");
+                
+                Log.e(TAG, "⚠️ No name history found, using passed oldPersonName");
             }
-
-            Log.e(TAG, "🔑 Found stored folder path in database:");
-            Log.e(TAG, "   📂 " + storedFolderPath);
-
-            // ✨ الخطوة 1: بناء المسار الجديد
-            safeNewAssoc = (newAssociationName != null && !newAssociationName.isEmpty() ? newAssociationName : "General")
+            
+            // تنظيف الأسماء
+            safeNewAssoc = (newAssociationName != null ? newAssociationName : "General")
                 .replaceAll("[^a-zA-Z0-9_\\-\\u0600-\\u06FF\\s]", "_");
             safeNewPerson = newPersonName.replaceAll("[^a-zA-Z0-9_\\-\\u0600-\\u06FF\\s]", "_");
 
-            // ✨ الخطوة 2: إعادة تسمية المجلد باستخدام المسار المحفوظ (المفتاح الفريد)
-            File storedFolder = new File(storedFolderPath);
-
-            // التأكد من أن المجلد الفعلي موجود
-            if (!storedFolder.exists()) {
-                Log.e(TAG, "⚠️ Stored folder not found on disk: " + storedFolderPath);
-                Log.e(TAG, "⚠️ Maybe it was deleted manually. Clearing database record...");
-
-                // تحديث قاعدة البيانات للإشارة إلى أن المجلد غير موجود
-                JSObject result = new JSObject();
-                result.put("success", false);
-                result.put("filesUpdated", 0);
-                result.put("error", "Folder not found on disk");
-                call.resolve(result);
-                return;
-            }
-
-            Log.e(TAG, "✅ Found physical folder: " + storedFolder.getAbsolutePath());
-
-            // بناء المسار الجديد
+            // ✨ الخطوة 1: إعادة تسمية المجلد
             File documentsDir = android.os.Environment.getExternalStoragePublicDirectory(
                 android.os.Environment.DIRECTORY_DOCUMENTS);
             File mainDir = new File(documentsDir, "sponsorships_alhayahorphans");
+            
+            File oldAssocDir = new File(mainDir, safeOldAssoc);
+            File oldPersonDir = new File(oldAssocDir, safeOldPerson);
+            
             File newAssocDir = new File(mainDir, safeNewAssoc);
             File newPersonDir = new File(newAssocDir, safeNewPerson);
 
-            // ✨ تعريف المسار الجديد مرة واحدة فقط (FIX: تجنب التكرار)
-            String newFolderPath = newPersonDir.getAbsolutePath();
-
-            Log.e(TAG, "📊 Rename operation:");
-            Log.e(TAG, "   FROM (stored): " + storedFolder.getAbsolutePath());
-            Log.e(TAG, "   TO (new):      " + newFolderPath);
-
-            // إنشاء مجلد الجمعية إذا لم يكن موجوداً
-            if (!newAssocDir.exists()) {
-                newAssocDir.mkdirs();
-                Log.e(TAG, "✅ Created association folder: " + safeNewAssoc);
-            }
-
-            // إعادة التسمية
-            boolean renamed = storedFolder.renameTo(newPersonDir);
-            if (renamed) {
-                Log.e(TAG, "✅ Folder renamed successfully!");
-                success = true;
-
-                // ✨ تحديث folder_path في قاعدة البيانات
-                dbHelper.updateFolderPath(sponsorshipId, newFolderPath);
-                Log.e(TAG, "✅ Updated folder_path in database: " + newFolderPath);
-            } else {
-                Log.e(TAG, "❌ Failed to rename folder (trying copy method...)");
-
-                // محاولة نسخ الملفات بدلاً من إعادة التسمية
-                if (copyDirectory(storedFolder, newPersonDir)) {
-                    Log.e(TAG, "✅ Files copied to new folder");
-                    deleteDirectory(storedFolder);
-                    Log.e(TAG, "✅ Old folder deleted");
-                    success = true;
-
-                    // ✨ تحديث folder_path في قاعدة البيانات
-                    dbHelper.updateFolderPath(sponsorshipId, newFolderPath);
-                    Log.e(TAG, "✅ Updated folder_path in database: " + newFolderPath);
+            if (oldPersonDir.exists()) {
+                Log.e(TAG, "📂 Found old folder: " + oldPersonDir.getAbsolutePath());
+                
+                // إنشاء المجلد الجديد إذا لم يكن موجوداً
+                if (!newAssocDir.exists()) {
+                    newAssocDir.mkdirs();
+                    Log.e(TAG, "✅ Created association folder: " + safeNewAssoc);
                 }
+
+                // إعادة التسمية
+                boolean renamed = oldPersonDir.renameTo(newPersonDir);
+                if (renamed) {
+                    Log.e(TAG, "✅ Folder renamed successfully!");
+                    Log.e(TAG, "   FROM: " + oldPersonDir.getAbsolutePath());
+                    Log.e(TAG, "   TO:   " + newPersonDir.getAbsolutePath());
+                    success = true;
+                } else {
+                    Log.e(TAG, "❌ Failed to rename folder");
+                    
+                    // محاولة نسخ الملفات بدلاً من إعادة التسمية
+                    if (copyDirectory(oldPersonDir, newPersonDir)) {
+                        Log.e(TAG, "✅ Files copied to new folder");
+                        deleteDirectory(oldPersonDir);
+                        Log.e(TAG, "✅ Old folder deleted");
+                        success = true;
+                    }
+                }
+            } else {
+                Log.e(TAG, "⚠️ Old folder not found: " + oldPersonDir.getAbsolutePath());
+                Log.e(TAG, "   (Maybe files were never saved, or already moved)");
+                success = true; // لا توجد مشكلة إذا المجلد غير موجود
             }
 
-            // ✨ الخطوة 3: تحديث قاعدة بيانات الرفع
+            // ✨ الخطوة 2: تحديث قاعدة بيانات الرفع
             filesUpdated = dbHelper.updatePersonNameInQueue(sponsorshipId, newPersonName);
             Log.e(TAG, "✅ Updated " + filesUpdated + " file records in upload queue");
 
-            // ✨ الخطوة 4: حفظ تاريخ الأسماء الجديد (استخدام المتغير الموجود)
+            // ✨ الخطوة 3: حفظ تاريخ الأسماء الجديد
+            String newFolderPath = newAssocDir.getAbsolutePath() + "/" + safeNewPerson;
             dbHelper.savePersonNameHistory(sponsorshipId, newAssociationName, newPersonName, newFolderPath);
             Log.e(TAG, "✅ Name history saved to database");
 
-            // ✨ الخطوة 5: إعادة جدولة الملفات الفاشلة
+            // ✨ الخطوة 4: إعادة جدولة الملفات الفاشلة
             if (filesUpdated > 0) {
                 dbHelper.resetFailedUploads(sponsorshipId);
                 Log.e(TAG, "✅ Reset failed uploads for re-upload");
-
-                // تشغيل الخدمة لمحاولة الرفع مع معالجة Android 12+ exceptions
-                try {
-                    android.content.Intent serviceIntent = new android.content.Intent(
-                        context, UploadForegroundService.class);
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                        context.startForegroundService(serviceIntent);
-                        Log.e(TAG, "🚀 Upload service triggered (Foreground)");
-                    } else {
-                        context.startService(serviceIntent);
-                        Log.e(TAG, "🚀 Upload service triggered (Background)");
-                    }
-                } catch (IllegalStateException | SecurityException e) {
-                    // Android 12+ may throw ForegroundServiceStartNotAllowedException
-                    Log.e(TAG, "⚠️ Cannot start FGS from background - using WorkManager fallback");
-                    UploadTaskScheduler.getInstance(context).scheduleUploadTask();
+                
+                // تشغيل الخدمة لمحاولة الرفع
+                android.content.Intent serviceIntent = new android.content.Intent(
+                    context, UploadForegroundService.class);
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    context.startForegroundService(serviceIntent);
+                } else {
+                    context.startService(serviceIntent);
                 }
+                Log.e(TAG, "🚀 Upload service triggered");
             }
 
             Log.e(TAG, "");
@@ -184,8 +161,8 @@ public class SponsorshipFolderManager extends Plugin {
             JSObject result = new JSObject();
             result.put("success", success);
             result.put("filesUpdated", filesUpdated);
-            result.put("oldPath", storedFolderPath);
-            result.put("newPath", newPersonDir.getAbsolutePath());
+            result.put("oldPath", safeOldAssoc + "/" + safeOldPerson);
+            result.put("newPath", safeNewAssoc + "/" + safeNewPerson);
             call.resolve(result);
 
         } catch (Exception e) {

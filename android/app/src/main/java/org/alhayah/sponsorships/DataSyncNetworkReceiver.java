@@ -11,11 +11,11 @@ import android.util.Log;
 /**
  * ✨ CRITICAL: BroadcastReceiver مسجل في Manifest
  * يعمل حتى عندما يكون التطبيق مغلقاً تماماً (ليس في Recent Apps)
- *
+ * 
  * التسجيل:
  * - في AndroidManifest.xml مباشرة (ليس programmatically)
  * - يُطلق عند تغيير حالة الشبكة (CONNECTIVITY_ACTION)
- *
+ * 
  * الوظيفة:
  * - اكتشاف عودة الإنترنت
  * - إعادة تعيين البيانات الفاشلة

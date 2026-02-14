@@ -11,7 +11,7 @@ import android.util.Log;
 
 /**
  * ✨ AlarmManager لرفع الملفات بشكل دوري
- *
+ * 
  * لماذا AlarmManager؟
  * - أقوى من WorkManager عندما التطبيق مغلق تماماً
  * - يعمل حتى في وضع Doze Mode (مع setExactAndAllowWhileIdle)
@@ -29,7 +29,7 @@ public class UploadAlarmReceiver extends BroadcastReceiver {
 
         try {
             UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(context);
-
+            
             // فحص عدد الملفات المعلقة
             int pendingCount = dbHelper.getPendingFilesCount();
             Log.d(TAG, "📊 Total pending files: " + pendingCount);
@@ -39,23 +39,13 @@ public class UploadAlarmReceiver extends BroadcastReceiver {
 
                 Intent serviceIntent = new Intent(context, UploadForegroundService.class);
 
-                try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        context.startForegroundService(serviceIntent);
-                    } else {
-                        context.startService(serviceIntent);
-                    }
-                    Log.d(TAG, "🚀 UploadForegroundService started from AlarmManager");
-                } catch (IllegalStateException | SecurityException e) {
-                    // Android 12+ ForegroundServiceStartNotAllowedException
-                    Log.e(TAG, "⚠️ Cannot start FGS from background: " + e.getMessage());
-                    Log.d(TAG, "🔄 Using WorkManager fallback...");
-
-                    // Fallback: Use WorkManager which is allowed from background
-                    UploadTaskScheduler scheduler = UploadTaskScheduler.getInstance(context);
-                    scheduler.scheduleUploadTask();
-                    Log.d(TAG, "✅ Upload scheduled via WorkManager");
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(serviceIntent);
+                } else {
+                    context.startService(serviceIntent);
                 }
+
+                Log.d(TAG, "🚀 UploadForegroundService started from AlarmManager");
             } else {
                 Log.d(TAG, "ℹ️  No pending files - skipping upload");
             }

@@ -247,83 +247,90 @@ public class UploadForegroundService extends Service {
     }
 
     /**
-     * رفع ملف واحد
+     * رفع ملف واحد باستخدام OkHttp Multipart (NO BASE64!)
+     * ✅ يدعم الملفات الكبيرة (streaming)
+     * ✅ بدون Base64 - يقرأ الملف مباشرة من disk
+     * ✅ Memory efficient - لا يحمل الملف بالكامل
      */
     private boolean uploadFile(UploadDatabaseHelper.UploadItem item) {
-        java.net.HttpURLConnection conn = null;
-
         try {
-            // قراءة الملف من Internal Storage
-            java.io.File file = new java.io.File(getFilesDir(), item.filePath);
+            // قراءة الملف من المسار المحفوظ
+            java.io.File file = new java.io.File(item.filePath);
             if (!file.exists()) {
                 Log.e(TAG, "❌ الملف غير موجود: " + file.getAbsolutePath());
                 return false;
             }
 
-            // قراءة bytes من الملف
-            byte[] fileBytes = new byte[(int) file.length()];
-            java.io.FileInputStream fis = new java.io.FileInputStream(file);
-            fis.read(fileBytes);
-            fis.close();
+            long fileSize = file.length();
+            Log.e(TAG, "✅ File found: " + fileSize + " bytes (" + (fileSize / 1024 / 1024) + " MB)");
+            Log.e(TAG, "   📍 Path: " + file.getAbsolutePath());
+            Log.e(TAG, "   🚀 Uploading with OkHttp Multipart (NO Base64!)");
 
-            // تحويل إلى Base64 للرفع
-            String base64Data = android.util.Base64.encodeToString(fileBytes, android.util.Base64.NO_WRAP);
-            Log.e(TAG, "✅ File read: " + fileBytes.length + " bytes, Base64: " + base64Data.length() + " chars");
+            // إنشاء OkHttpClient
+            okhttp3.OkHttpClient client = new okhttp3.OkHttpClient.Builder()
+                .connectTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(180, java.util.concurrent.TimeUnit.SECONDS)
+                .writeTimeout(180, java.util.concurrent.TimeUnit.SECONDS)
+                .build();
 
-            Log.d(TAG, "🌐 اتصال بـ: " + item.apiUrl);
+            // إنشاء RequestBody للملف
+            okhttp3.RequestBody fileBody = okhttp3.RequestBody.create(
+                file,
+                okhttp3.MediaType.parse(item.fileType)
+            );
 
-            java.net.URL url = new java.net.URL(item.apiUrl);
-            conn = (java.net.HttpURLConnection) url.openConnection();
-            conn.setDoOutput(true);
-            conn.setRequestMethod("POST");
-            conn.setRequestProperty("Content-Type", "application/json");
-            conn.setRequestProperty("Accept", "application/json");
+            // إنشاء Multipart body
+            okhttp3.MultipartBody.Builder multipartBuilder = new okhttp3.MultipartBody.Builder()
+                .setType(okhttp3.MultipartBody.FORM)
+                .addFormDataPart("files[]", item.fileName, fileBody)
+                .addFormDataPart("record_number", String.valueOf(item.photoId))
+                .addFormDataPart("person_id", String.valueOf(item.photoId));
+
+            okhttp3.RequestBody requestBody = multipartBuilder.build();
 
             // Auth token من SharedPreferences
             String authToken = getSharedPreferences("capacitor", Context.MODE_PRIVATE)
                     .getString("auth_token", "");
+
+            // إنشاء Request
+            okhttp3.Request.Builder requestBuilder = new okhttp3.Request.Builder()
+                .url(item.apiUrl)
+                .post(requestBody);
+
             if (!authToken.isEmpty()) {
-                conn.setRequestProperty("Authorization", "Bearer " + authToken);
+                requestBuilder.addHeader("Authorization", "Bearer " + authToken);
             }
 
-            conn.setConnectTimeout(30000);
-            conn.setReadTimeout(60000);
+            okhttp3.Request request = requestBuilder.build();
 
-            // JSON payload
-            org.json.JSONObject json = new org.json.JSONObject();
-            json.put("file_name", item.fileName);
-            json.put("file_type", item.fileType);
-            json.put("file_data", base64Data);
-            json.put("sponsorship_id", item.photoId);
+            // تنفيذ الرفع
+            Log.d(TAG, "📤 Starting upload: " + item.fileName);
+            okhttp3.Response response = client.newCall(request).execute();
 
-            java.io.OutputStream out = conn.getOutputStream();
-            byte[] jsonBytes = json.toString().getBytes("UTF-8");
-            out.write(jsonBytes);
-            out.flush();
-            out.close();
-
-            int responseCode = conn.getResponseCode();
-            Log.d(TAG, "📡 Response: " + responseCode);
+            int responseCode = response.code();
+            Log.d(TAG, "📡 Response code: " + responseCode);
 
             boolean success = (responseCode >= 200 && responseCode < 300);
 
-            // حذف الملف من Internal Storage بعد نجاح الرفع
             if (success) {
-                java.io.File uploadedFile = new java.io.File(getFilesDir(), item.filePath);
-                if (uploadedFile.exists() && uploadedFile.delete()) {
+                Log.e(TAG, "✅ Upload successful: " + item.fileName);
+
+                // حذف الملف من Internal Storage بعد نجاح الرفع
+                if (file.exists() && file.delete()) {
                     Log.e(TAG, "🗑️ تم حذف الملف من Internal Storage");
                 }
+            } else {
+                Log.e(TAG, "❌ Upload failed with code: " + responseCode);
+                String responseBody = response.body() != null ? response.body().string() : "No response body";
+                Log.e(TAG, "   Response: " + responseBody);
             }
 
+            response.close();
             return success;
 
         } catch (Exception e) {
-            Log.e(TAG, "❌ خطأ في رفع " + item.fileName + ": " + e.getMessage());
+            Log.e(TAG, "❌ خطأ في رفع " + item.fileName + ": " + e.getMessage(), e);
             return false;
-        } finally {
-            if (conn != null) {
-                conn.disconnect();
-            }
         }
     }
 

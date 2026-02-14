@@ -23,12 +23,9 @@ public class UploadBootReceiver extends BroadcastReceiver {
                 // إعادة تعيين الملفات التي كانت قيد الرفع
                 dbHelper.resetUploadingFiles();
 
-                // جدولة مهمة الرفع (استخدام WorkManager الآمن بدلاً من Foreground Service)
+                // جدولة مهمة الرفع
                 UploadTaskScheduler scheduler = UploadTaskScheduler.getInstance(context);
                 scheduler.scheduleUploadTask();
-
-                // ✨ إعادة تفعيل AlarmManager
-                UploadAlarmReceiver.startAlarmManager(context);
 
                 Log.d(TAG, "✅ تمت إعادة جدولة مهام الرفع - النظام يعمل");
 

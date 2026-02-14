@@ -57,13 +57,13 @@ class AppServiceProvider extends ServiceProvider
      */
     private function loadLargeFileSettings(): void
     {
-        // تطبيق إعدادات PHP برمجياً
+        // تطبيق إعدادات PHP برمجياً (دعم الفيديوهات الكبيرة - 2GB)
         if (function_exists('ini_set')) {
-            @ini_set('upload_max_filesize', '1024M');
-            @ini_set('post_max_size', '1024M');
-            @ini_set('memory_limit', '2048M');
-            @ini_set('max_execution_time', 3600);
-            @ini_set('max_input_time', 3600);
+            @ini_set('upload_max_filesize', '2048M');
+            @ini_set('post_max_size', '2048M');
+            @ini_set('memory_limit', '4096M');
+            @ini_set('max_execution_time', 7200);
+            @ini_set('max_input_time', 7200);
             @ini_set('max_file_uploads', 100);
             @ini_set('file_uploads', 'On');
             @ini_set('max_input_vars', 10000);

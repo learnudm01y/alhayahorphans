@@ -16,12 +16,12 @@ import androidx.work.WorkerParameters;
 
 /**
  * ✨ CRITICAL: NetworkConnectedWorker - يُطلق فوراً عند عودة الإنترنت
- *
+ * 
  * لماذا هذا الحل؟
  * - CONNECTIVITY_ACTION deprecated منذ Android 7.0 ولا يعمل مع التطبيقات المغلقة
  * - WorkManager مع NetworkConstraint يعمل حتى عند إغلاق التطبيق
  * - Android system يُطلق Worker تلقائياً عند اتصال الإنترنت
- *
+ * 
  * كيف يعمل؟
  * 1. يُجدول Worker مع constraint: NetworkType.CONNECTED
  * 2. عند عودة الإنترنت، Android يُطلق Worker تلقائياً
@@ -86,10 +86,10 @@ public class NetworkConnectedWorker extends Worker {
 
         } catch (Exception e) {
             Log.e(TAG, "❌ NetworkConnectedWorker failed", e);
-
+            
             // إعادة جدولة Worker حتى في حالة الفشل
             scheduleNextWork(getApplicationContext());
-
+            
             return Result.failure();
         }
     }

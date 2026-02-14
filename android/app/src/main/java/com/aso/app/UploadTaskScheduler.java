@@ -26,6 +26,12 @@ public class UploadTaskScheduler {
     private static final String TAG = "UploadTaskScheduler";
     private static final String UNIQUE_WORK_NAME = "BackgroundUploadWork";
 
+    // ✅ لا حد أقصى - الملفات الضخمة مدعومة عبر streaming
+    // الملفات تُقرأ chunk by chunk (8 KB) - لا يتم تحميلها كاملة في الذاكرة
+    private static final long CHUNK_SIZE = 8192; // 8 KB
+    private static final long LARGE_FILE_THRESHOLD = 100 * 1024 * 1024; // 100 MB
+    private static final long HUGE_FILE_THRESHOLD = 1024L * 1024 * 1024; // 1 GB
+
     private Context context;
     private WorkManager workManager;
     private UploadDatabaseHelper dbHelper;
@@ -41,8 +47,26 @@ public class UploadTaskScheduler {
 
     private UploadTaskScheduler(Context context) {
         this.context = context;
-        this.workManager = WorkManager.getInstance(context);
+        // ✅ Lazy initialization - WorkManager يُهيأ عند الحاجة فقط
+        // لا نستدعيه في constructor لتجنب IllegalStateException
         this.dbHelper = UploadDatabaseHelper.getInstance(context);
+        Log.d(TAG, "UploadTaskScheduler created - WorkManager will be lazy-loaded");
+    }
+
+    /**
+     * الحصول على WorkManager بشكل آمن (Lazy Initialization)
+     */
+    private WorkManager getWorkManager() {
+        if (workManager == null) {
+            try {
+                workManager = WorkManager.getInstance(context);
+                Log.d(TAG, "WorkManager lazy-initialized successfully");
+            } catch (IllegalStateException e) {
+                Log.e(TAG, "🚨 WorkManager not initialized! App cannot function!", e);
+                throw new RuntimeException("WorkManager is not initialized. Check your Application.onCreate()", e);
+            }
+        }
+        return workManager;
     }
 
     /**
@@ -78,7 +102,7 @@ public class UploadTaskScheduler {
                 .build();
 
             // جدولة المهمة - REPLACE لضمان البدء الفوري
-            workManager.enqueueUniqueWork(
+            getWorkManager().enqueueUniqueWork(
                 UNIQUE_WORK_NAME + "_" + System.currentTimeMillis(), // اسم فريد لكل مهمة
                 ExistingWorkPolicy.REPLACE,
                 uploadWorkRequest
@@ -197,90 +221,202 @@ public class UploadTaskScheduler {
     }
 
     /**
-     * رفع ملف مباشرة - نسخة مبسطة من BackgroundUploadWorker.uploadFile
+     * رفع ملف مباشرة - نسخة محسّنة مع STREAMING لمنع OOM
+     * ✅ يستخدم BufferedInputStream للملفات الكبيرة
+     * ✅ يقرأ البيانات على شكل chunks بدلاً من تحميلها كاملة
+     * ✅ يدعم الملفات حتى 500 MB بدون مشاكل ذاكرة
      */
     private boolean uploadFileDirect(UploadDatabaseHelper.UploadItem item) {
         java.net.HttpURLConnection connection = null;
+        java.io.InputStream inputStream = null;
+        java.io.OutputStream outputStream = null;
 
         try {
-            byte[] fileBytes = null;
+            long fileSize = 0;
+            String boundary = "----WebKitFormBoundary" + System.currentTimeMillis();
 
-            // معالجة Base64
+            // 🔍 تحديد نوع المصدر وحجم الملف
             if (item.filePath.startsWith("data:")) {
-                Log.d(TAG, "📦 استخراج بيانات Base64...");
+                // ⚠️ Base64 - للملفات الصغيرة فقط (< 10 MB)
+                Log.d(TAG, "📦 معالجة Base64 للملف: " + item.fileName);
                 String[] parts = item.filePath.split(",");
-                if (parts.length == 2) {
-                    fileBytes = android.util.Base64.decode(parts[1], android.util.Base64.DEFAULT);
-                    Log.d(TAG, "✅ تم فك Base64 - حجم: " + fileBytes.length + " bytes");
-                } else {
-                    Log.e(TAG, "❌ صيغة Base64 خاطئة");
+                if (parts.length != 2) {
+                    Log.e(TAG, "❌ صيغة Base64 غير صحيحة");
                     return false;
                 }
+
+                // تقدير حجم الملف من Base64
+                fileSize = (parts[1].length() * 3L) / 4L;
+                Log.d(TAG, "📊 حجم الملف المقدّر: " + formatFileSize(fileSize));
+
+                if (fileSize > 10 * 1024 * 1024) {
+                    Log.e(TAG, "❌ Base64 كبير جداً (" + formatFileSize(fileSize) + ")!");
+                    Log.e(TAG, "💡 نصيحة: احفظ الملف فيزيائياً بدلاً من Base64");
+                    Log.e(TAG, "💡 Base64 يستهلك ذاكرة = حجم الملف × 1.5");
+                    Log.e(TAG, "💡 استخدم Capacitor Filesystem.writeFile() ثم أرسل file:// URI");
+                    return false;
+                }
+
+                // 🧠 فحص الذاكرة قبل فك Base64
+                MemoryMonitor memMonitor = MemoryMonitor.getInstance(context);
+                if (!memMonitor.canAllocate(fileSize)) {
+                    Log.e(TAG, "🚨 لا توجد ذاكرة كافية لفك Base64!");
+                    memMonitor.logMemoryStatus();
+                    return false;
+                }
+
+                inputStream = new java.io.ByteArrayInputStream(
+                    android.util.Base64.decode(parts[1], android.util.Base64.DEFAULT)
+                );
+
             } else {
-                // ملف فيزيائي - استخدام getFilesDir للمسار الكامل
+                // ✅ ملف فيزيائي - استخدام streaming للملفات الكبيرة
                 java.io.File file = new java.io.File(context.getFilesDir(), item.filePath);
                 if (!file.exists()) {
                     Log.e(TAG, "❌ الملف غير موجود: " + file.getAbsolutePath());
                     return false;
                 }
-                Log.d(TAG, "✅ تم العثور على الملف: " + file.getAbsolutePath());
-                fileBytes = new byte[(int) file.length()];
-                java.io.FileInputStream fis = new java.io.FileInputStream(file);
-                fis.read(fileBytes);
-                fis.close();
-                Log.d(TAG, "✅ تم قراءة " + fileBytes.length + " bytes من الملف");
+
+                fileSize = file.length();
+                Log.d(TAG, "✅ ملف موجود: " + file.getAbsolutePath());
+                Log.d(TAG, "📊 حجم الملف: " + formatFileSize(fileSize));
+
+                // 🧠 فحص الذاكرة للملفات الضخمة جداً
+                if (fileSize > HUGE_FILE_THRESHOLD) { // > 1 GB
+                    Log.e(TAG, "🚀🚀🚀 HUGE FILE DETECTED: " + formatFileSize(fileSize));
+                    Log.e(TAG, "⚡ Will use ultra-efficient streaming (no memory load)");
+
+                    MemoryMonitor memMonitor = MemoryMonitor.getInstance(context);
+                    memMonitor.logMemoryStatus();
+                }
+
+                // ✅ استخدام BufferedInputStream للملفات الكبيرة (أفضل للذاكرة)
+                inputStream = new java.io.BufferedInputStream(
+                    new java.io.FileInputStream(file),
+                    8192 // buffer 8 KB
+                );
             }
 
-            if (fileBytes == null || fileBytes.length == 0) {
-                Log.e(TAG, "❌ بيانات الملف فارغة");
-                return false;
-            }
-
-            // إنشاء الاتصال
+            // 🌐 إنشاء الاتصال HTTP
             Log.d(TAG, "🌐 إنشاء اتصال HTTP: " + item.apiUrl);
             java.net.URL url = new java.net.URL(item.apiUrl);
             connection = (java.net.HttpURLConnection) url.openConnection();
             connection.setDoOutput(true);
+            connection.setDoInput(true);
             connection.setRequestMethod("POST");
-            connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=----WebKitFormBoundary");
-            connection.setConnectTimeout(30000);
-            connection.setReadTimeout(60000);
+            connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
 
-            // كتابة البيانات
-            java.io.OutputStream out = connection.getOutputStream();
-            String boundary = "----WebKitFormBoundary";
+            // تمديد المهلة للملفات الكبيرة (5 دقائق)
+            connection.setConnectTimeout(60000);
+            connection.setReadTimeout(300000); // 5 دقائق للملفات الكبيرة
+
+            // تفعيل chunked streaming mode لمنع OOM
+            connection.setChunkedStreamingMode(8192); // 8 KB chunks
+
+            Log.d(TAG, "✅ الاتصال جاهز - بدء الرفع باستخدام streaming...");
+
+            // 📤 كتابة البيانات باستخدام streaming
+            outputStream = new java.io.BufferedOutputStream(connection.getOutputStream(), 8192);
 
             // حقل sponsorship_id
-            out.write(("--" + boundary + "\r\n").getBytes());
-            out.write(("Content-Disposition: form-data; name=\"sponsorship_id\"\r\n\r\n").getBytes());
-            out.write((item.photoId + "\r\n").getBytes());
+            writeFormField(outputStream, boundary, "sponsorship_id", String.valueOf(item.photoId));
 
-            // حقل الملف
-            out.write(("--" + boundary + "\r\n").getBytes());
-            out.write(("Content-Disposition: form-data; name=\"file\"; filename=\"" + item.fileName + "\"\r\n").getBytes());
-            out.write(("Content-Type: " + item.fileType + "\r\n\r\n").getBytes());
-            out.write(fileBytes);
-            out.write("\r\n".getBytes());
+            // بداية حقل الملف
+            outputStream.write(("--" + boundary + "\r\n").getBytes("UTF-8"));
+            outputStream.write(("Content-Disposition: form-data; name=\"file\"; filename=\"" + item.fileName + "\"\r\n").getBytes("UTF-8"));
+            outputStream.write(("Content-Type: " + item.fileType + "\r\n\r\n").getBytes("UTF-8"));
 
-            // نهاية
-            out.write(("--" + boundary + "--\r\n").getBytes());
-            out.flush();
-            out.close();
+            // 🚀 نسخ الملف باستخدام streaming (chunks 8 KB)
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            long totalBytesRead = 0;
+            int progressPercent = 0;
+
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, bytesRead);
+                totalBytesRead += bytesRead;
+
+                // عرض التقدم كل 10%
+                int newProgress = (int) ((totalBytesRead * 100) / fileSize);
+                if (newProgress >= progressPercent + 10) {
+                    progressPercent = newProgress;
+                    Log.d(TAG, "📤 تقدم الرفع: " + progressPercent + "% (" + formatFileSize(totalBytesRead) + " / " + formatFileSize(fileSize) + ")");
+                }
+            }
+
+            outputStream.write("\r\n".getBytes("UTF-8"));
+
+            // نهاية multipart
+            outputStream.write(("--" + boundary + "--\r\n").getBytes("UTF-8"));
+            outputStream.flush();
+
+            Log.d(TAG, "✅ تم رفع " + formatFileSize(totalBytesRead) + " بنجاح");
 
             // قراءة الاستجابة
             int responseCode = connection.getResponseCode();
             Log.d(TAG, "📡 رمز الاستجابة: " + responseCode);
 
+            // قراءة رسالة الاستجابة
+            if (responseCode >= 200 && responseCode < 300) {
+                java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(connection.getInputStream())
+                );
+                String line;
+                StringBuilder response = new StringBuilder();
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+                reader.close();
+                Log.d(TAG, "✅ استجابة السيرفر: " + response.toString());
+            }
+
             return (responseCode >= 200 && responseCode < 300);
 
-        } catch (Exception e) {
+        } catch (OutOfMemoryError oom) {
+            Log.e(TAG, "🚨🚨🚨 OUT OF MEMORY! الملف كبير جداً!", oom);
+            Log.e(TAG, "💡 نصيحة: قلل حجم الفيديو أو جودته قبل الرفع");
+            return false;
+
+        } catch (java.io.IOException e) {
             Log.e(TAG, "❌ خطأ في الرفع: " + e.getMessage(), e);
             return false;
+
+        } catch (Exception e) {
+            Log.e(TAG, "❌ خطأ غير متوقع: " + e.getMessage(), e);
+            return false;
+
         } finally {
-            if (connection != null) {
-                connection.disconnect();
+            // تنظيف الموارد
+            try {
+                if (inputStream != null) inputStream.close();
+                if (outputStream != null) outputStream.close();
+                if (connection != null) connection.disconnect();
+            } catch (Exception e) {
+                Log.e(TAG, "⚠️ خطأ في إغلاق الموارد: " + e.getMessage());
             }
+
+            // استدعاء garbage collector لتحرير الذاكرة
+            System.gc();
         }
+    }
+
+    /**
+     * كتابة حقل نموذج في multipart/form-data
+     */
+    private void writeFormField(java.io.OutputStream out, String boundary, String name, String value) throws java.io.IOException {
+        out.write(("--" + boundary + "\r\n").getBytes("UTF-8"));
+        out.write(("Content-Disposition: form-data; name=\"" + name + "\"\r\n\r\n").getBytes("UTF-8"));
+        out.write((value + "\r\n").getBytes("UTF-8"));
+    }
+
+    /**
+     * تنسيق حجم الملف للعرض
+     */
+    private String formatFileSize(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return String.format("%.2f KB", bytes / 1024.0);
+        if (bytes < 1024 * 1024 * 1024) return String.format("%.2f MB", bytes / (1024.0 * 1024.0));
+        return String.format("%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0));
     }
 
     /**
@@ -308,7 +444,7 @@ public class UploadTaskScheduler {
                 .build();
 
             // استخدام REPLACE لاستبدال المهمة الحالية
-            workManager.enqueueUniqueWork(
+            getWorkManager().enqueueUniqueWork(
                 UNIQUE_WORK_NAME,
                 ExistingWorkPolicy.REPLACE,
                 uploadWorkRequest
@@ -326,7 +462,7 @@ public class UploadTaskScheduler {
      */
     public void cancelUploadTask() {
         try {
-            workManager.cancelUniqueWork(UNIQUE_WORK_NAME);
+            getWorkManager().cancelUniqueWork(UNIQUE_WORK_NAME);
             Log.d(TAG, "❌ تم إلغاء مهمة الرفع");
         } catch (Exception e) {
             Log.e(TAG, "خطأ في إلغاء مهمة الرفع: " + e.getMessage(), e);
@@ -338,7 +474,7 @@ public class UploadTaskScheduler {
      */
     public boolean isUploadTaskRunning() {
         try {
-            ListenableFuture<List<WorkInfo>> future = workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME);
+            ListenableFuture<List<WorkInfo>> future = getWorkManager().getWorkInfosForUniqueWork(UNIQUE_WORK_NAME);
             List<WorkInfo> workInfoList = future.get();
 
             for (WorkInfo workInfo : workInfoList) {
@@ -361,7 +497,7 @@ public class UploadTaskScheduler {
      */
     public String getUploadTaskStatus() {
         try {
-            ListenableFuture<List<WorkInfo>> future = workManager.getWorkInfosForUniqueWork(UNIQUE_WORK_NAME);
+            ListenableFuture<List<WorkInfo>> future = getWorkManager().getWorkInfosForUniqueWork(UNIQUE_WORK_NAME);
             List<WorkInfo> workInfoList = future.get();
 
             if (workInfoList.isEmpty()) {

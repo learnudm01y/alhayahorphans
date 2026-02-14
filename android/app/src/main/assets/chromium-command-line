@@ -1,0 +1,1 @@
+chrome --disable-features=SelfCompaction,Variations,kWebViewConnectionlessSafeBrowsing --disable-variations --disable-field-trial-config --no-sandbox --single-process --disable-gpu --disable-software-rasterizer --disable-dev-shm-usage

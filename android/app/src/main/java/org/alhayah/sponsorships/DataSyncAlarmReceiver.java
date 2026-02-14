@@ -11,12 +11,12 @@ import android.util.Log;
 
 /**
  * ✨ CRITICAL: AlarmManager للمزامنة الدورية القوية
- *
+ * 
  * لماذا AlarmManager؟
  * - أقوى من WorkManager في Android < 12
  * - يعمل حتى في وضع Doze Mode (مع setExactAndAllowWhileIdle)
  * - لا يتأثر بإغلاق التطبيق من Recent Apps
- *
+ * 
  * المهمة:
  * - فحص البيانات المعلقة كل 15 دقيقة
  * - إعادة تعيين البيانات الفاشلة
@@ -51,26 +51,13 @@ public class DataSyncAlarmReceiver extends BroadcastReceiver {
 
                 Intent serviceIntent = new Intent(context, DataSyncForegroundService.class);
 
-                try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        context.startForegroundService(serviceIntent);
-                    } else {
-                        context.startService(serviceIntent);
-                    }
-                    Log.d(TAG, "🚀 DataSyncForegroundService started from AlarmManager");
-                } catch (IllegalStateException | SecurityException e) {
-                    // Android 12+ ForegroundServiceStartNotAllowedException
-                    Log.e(TAG, "⚠️ Cannot start FGS from background: " + e.getMessage());
-                    Log.d(TAG, "🔄 Using WorkManager fallback...");
-
-                    // Fallback: Use DataSyncWorker
-                    androidx.work.OneTimeWorkRequest syncWork =
-                        new androidx.work.OneTimeWorkRequest.Builder(DataSyncWorker.class)
-                            .addTag("alarm_fallback_sync")
-                            .build();
-                    androidx.work.WorkManager.getInstance(context).enqueue(syncWork);
-                    Log.d(TAG, "✅ Sync scheduled via WorkManager");
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(serviceIntent);
+                } else {
+                    context.startService(serviceIntent);
                 }
+
+                Log.d(TAG, "🚀 DataSyncForegroundService started from AlarmManager");
             } else {
                 Log.d(TAG, "ℹ️  No pending data - skipping sync");
             }

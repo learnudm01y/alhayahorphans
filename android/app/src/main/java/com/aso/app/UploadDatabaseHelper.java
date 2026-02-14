@@ -17,7 +17,7 @@ import java.util.List;
 public class UploadDatabaseHelper extends SQLiteOpenHelper {
     private static final String TAG = "UploadDatabaseHelper";
     private static final String DATABASE_NAME = "upload_queue.db";
-    private static final int DATABASE_VERSION = 5;  // Version 5: Added person_name_history table
+    private static final int DATABASE_VERSION = 6;  // Version 6: Added auth_token column
 
     // Table name
     private static final String TABLE_UPLOAD_QUEUE = "upload_queue";
@@ -31,6 +31,7 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
     private static final String COLUMN_FILE_TYPE = "file_type";
     private static final String COLUMN_PHOTO_ID = "photo_id";
     private static final String COLUMN_API_URL = "api_url";
+    private static final String COLUMN_AUTH_TOKEN = "auth_token";  // ✨ NEW: Token for upload
     private static final String COLUMN_STATUS = "status";
     private static final String COLUMN_RETRY_COUNT = "retry_count";
     private static final String COLUMN_ERROR_MESSAGE = "error_message";
@@ -50,6 +51,7 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
     public static final String STATUS_FAILED = "failed";
 
     private static UploadDatabaseHelper instance;
+    private Context context;
 
     public static synchronized UploadDatabaseHelper getInstance(Context context) {
         if (instance == null) {
@@ -60,6 +62,7 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
 
     private UploadDatabaseHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
+        this.context = context;
     }
 
     @Override
@@ -71,6 +74,7 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
                 + COLUMN_FILE_TYPE + " TEXT, "
                 + COLUMN_PHOTO_ID + " INTEGER NOT NULL, "
                 + COLUMN_API_URL + " TEXT NOT NULL, "
+                + COLUMN_AUTH_TOKEN + " TEXT, "
                 + COLUMN_STATUS + " TEXT DEFAULT '" + STATUS_PENDING + "', "
                 + COLUMN_RETRY_COUNT + " INTEGER DEFAULT 0, "
                 + COLUMN_ERROR_MESSAGE + " TEXT, "
@@ -138,12 +142,17 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
             db.execSQL(CREATE_NAME_HISTORY);
             Log.d(TAG, "Database upgraded to version 5: Added person_name_history table");
         }
+        if (oldVersion < 6) {
+            // إضافة عمود auth_token في الإصدار 6
+            db.execSQL("ALTER TABLE " + TABLE_UPLOAD_QUEUE + " ADD COLUMN " + COLUMN_AUTH_TOKEN + " TEXT");
+            Log.d(TAG, "Database upgraded to version 6: Added auth_token column");
+        }
     }
 
     /**
      * إضافة ملف جديد إلى قائمة الانتظار
      */
-    public long addFileToQueue(String filePath, String fileName, String fileType, int photoId, String apiUrl, String associationName, String personName) {
+    public long addFileToQueue(String filePath, String fileName, String fileType, int photoId, String apiUrl, String authToken, String associationName, String personName) {
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues values = new ContentValues();
 
@@ -154,6 +163,7 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
         values.put(COLUMN_FILE_TYPE, fileType);
         values.put(COLUMN_PHOTO_ID, photoId);
         values.put(COLUMN_API_URL, apiUrl);
+        values.put(COLUMN_AUTH_TOKEN, authToken);
         values.put(COLUMN_STATUS, STATUS_PENDING);
         values.put(COLUMN_RETRY_COUNT, 0);
         values.put(COLUMN_CREATED_AT, currentTime);
@@ -163,20 +173,6 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
 
         long id = db.insert(TABLE_UPLOAD_QUEUE, null, values);
         Log.d(TAG, "Added new file to queue: " + fileName + " (ID: " + id + ", Association: " + associationName + ", Person: " + personName + ")");
-
-        // ✨ حفظ الاسم الحالي في person_name_history عند إضافة ملف لأول مرة
-        // هذا يضمن أننا نملك سجل للاسم الأصلي عند التعديل لاحقاً
-        if (photoId > 0 && personName != null && !personName.equals("unknown")) {
-            String folderPath = "Documents/sponsorships_alhayahorphans/" +
-                (associationName != null ? associationName : "General") + "/" + personName;
-
-            // حفظ فقط إذا لم يكن موجوداً من قبل (لا نريد استبدال السجل القديم)
-            String[] existingHistory = getPreviousPersonName(photoId);
-            if (existingHistory == null) {
-                savePersonNameHistory(photoId, associationName, personName, folderPath);
-                Log.d(TAG, "✅ Saved initial name history for sponsorship " + photoId + ": " + personName);
-            }
-        }
 
         return id;
     }
@@ -267,6 +263,93 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
 
         Log.d(TAG, "تم زيادة عداد إعادة المحاولة للملف: " + id);
     }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 🔄 Circuit Breaker Logic - Exponential Backoff
+    // ═══════════════════════════════════════════════════════════════════
+
+    private static final int MAX_RETRY_ATTEMPTS = 3;
+    private static final long BASE_RETRY_DELAY_MS = 60_000; // 1 minute
+    private static final long MAX_RETRY_DELAY_MS = 3_600_000; // 60 minutes
+
+    /**
+     * التحقق من أهلية الملف لإعادة المحاولة
+     * @param item الملف المطلوب فحصه
+     * @return true إذا كان يجب إعادة المحاولة، false إذا وصل للحد الأقصى
+     */
+    public boolean shouldRetry(UploadItem item) {
+        // فحص عدد المحاولات
+        if (item.retryCount >= MAX_RETRY_ATTEMPTS) {
+            Log.w(TAG, "❌ Circuit Breaker: File ID=" + item.id + " reached max retries (" + MAX_RETRY_ATTEMPTS + ")");
+            return false;
+        }
+
+        // فحص الشبكة
+        if (!isNetworkAvailable()) {
+            Log.w(TAG, "⚠️ Circuit Breaker: No network available - skipping retry");
+            return false;
+        }
+
+        // ✨ NEW: السماح بالمحاولة الأولى فوراً (بدون انتظار)
+        if (item.retryCount == 0) {
+            Log.d(TAG, "🚀 Circuit Breaker: File ID=" + item.id + " first attempt - no delay");
+            return true;
+        }
+
+        // فحص وقت الانتظار (exponential backoff) فقط للإعادات
+        long timeSinceLastAttempt = System.currentTimeMillis() - item.updatedAt;
+        long requiredDelay = calculateRetryDelay(item.retryCount);
+
+        if (timeSinceLastAttempt < requiredDelay) {
+            long remainingWait = (requiredDelay - timeSinceLastAttempt) / 1000; // seconds
+            Log.w(TAG, "⏳ Circuit Breaker: File ID=" + item.id + " must wait " + remainingWait + "s before retry");
+            return false;
+        }
+
+        Log.d(TAG, "✅ Circuit Breaker: File ID=" + item.id + " eligible for retry (" + (item.retryCount + 1) + "/" + MAX_RETRY_ATTEMPTS + ")");
+        return true;
+    }
+
+    /**
+     * حساب وقت الانتظار قبل إعادة المحاولة (Exponential Backoff)
+     * @param retryCount عدد المحاولات السابقة
+     * @return وقت الانتظار بالميلي ثانية
+     */
+    public long calculateRetryDelay(int retryCount) {
+        // Exponential backoff: 1m, 2m, 4m, 8m, 16m, ... max 60m
+        long delay = BASE_RETRY_DELAY_MS * (1L << retryCount); // 2^retryCount
+        return Math.min(delay, MAX_RETRY_DELAY_MS);
+    }
+
+    /**
+     * التحقق من توفر الشبكة
+     * @return true إذا كانت الشبكة متاحة
+     */
+    private boolean isNetworkAvailable() {
+        try {
+            android.net.ConnectivityManager cm =
+                (android.net.ConnectivityManager) context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE);
+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                android.net.Network network = cm.getActiveNetwork();
+                if (network == null) return false;
+
+                android.net.NetworkCapabilities capabilities = cm.getNetworkCapabilities(network);
+                return capabilities != null &&
+                       capabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET);
+            } else {
+                android.net.NetworkInfo networkInfo = cm.getActiveNetworkInfo();
+                return networkInfo != null && networkInfo.isConnected();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "❌ Error checking network: " + e.getMessage());
+            return false; // Assume no network on error
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // End Circuit Breaker Logic
+    // ═══════════════════════════════════════════════════════════════════
 
     /**
      * حذف الملفات المكتملة
@@ -386,8 +469,10 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
         item.updatedAt = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_UPDATED_AT));
 
         // Load new fields (with null check for database migration)
+        int authTokenIdx = cursor.getColumnIndex(COLUMN_AUTH_TOKEN);
         int associationIdx = cursor.getColumnIndex(COLUMN_ASSOCIATION_NAME);
         int personIdx = cursor.getColumnIndex(COLUMN_PERSON_NAME);
+        item.authToken = (authTokenIdx >= 0) ? cursor.getString(authTokenIdx) : "";
         item.associationName = (associationIdx >= 0) ? cursor.getString(associationIdx) : "General";
         item.personName = (personIdx >= 0) ? cursor.getString(personIdx) : "unknown";
 
@@ -459,6 +544,7 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
         public String fileType;
         public int photoId;
         public String apiUrl;
+        public String authToken;
         public String status;
         public int retryCount;
         public String errorMessage;
@@ -619,49 +705,6 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
         }
         cursor.close();
         return result; // [0]=old_assoc, [1]=old_person, [2]=current_assoc, [3]=current_person
-    }
-
-    /**
-     * ✨ NEW: الحصول على المسار الفعلي للمجلد من قاعدة البيانات
-     * هذا هو "المفتاح الفريد" للمجلد الفيزيائي - نستخدمه لإعادة تسمية المجلد بشكل صحيح
-     */
-    public String getFolderPath(int sponsorshipId) {
-        SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = db.query(
-            TABLE_PERSON_NAME_HISTORY,
-            new String[]{"folder_path"},
-            "sponsorship_id = ?",
-            new String[]{String.valueOf(sponsorshipId)},
-            null, null, null
-        );
-
-        String folderPath = null;
-        if (cursor.moveToFirst()) {
-            folderPath = cursor.getString(0);
-        }
-        cursor.close();
-
-        Log.d(TAG, "🔑 getFolderPath for sponsorshipId=" + sponsorshipId + ": " + folderPath);
-        return folderPath;
-    }
-
-    /**
-     * ✨ NEW: تحديث المسار الفعلي للمجلد بعد إعادة التسمية
-     */
-    public void updateFolderPath(int sponsorshipId, String newFolderPath) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        ContentValues values = new ContentValues();
-        values.put("folder_path", newFolderPath);
-        values.put("updated_at", System.currentTimeMillis());
-
-        int rows = db.update(
-            TABLE_PERSON_NAME_HISTORY,
-            values,
-            "sponsorship_id = ?",
-            new String[]{String.valueOf(sponsorshipId)}
-        );
-
-        Log.d(TAG, "✅ updateFolderPath for sponsorshipId=" + sponsorshipId + " to: " + newFolderPath + " (" + rows + " rows)");
     }
 
     /**

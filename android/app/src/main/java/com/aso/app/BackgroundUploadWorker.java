@@ -43,7 +43,9 @@ public class BackgroundUploadWorker extends Worker {
     public Result doWork() {
         Log.d(TAG, "");
         Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        Log.d(TAG, "🚀🚀🚀 بدء BackgroundUploadWorker 🚀🚀🚀");
+        Log.d(TAG, "🚀🚀🚀 بدء BackgroundUploadWorker (DEPRECATED) 🚀🚀🚀");
+        Log.e(TAG, "⚠️⚠️⚠️ WARNING: This worker does NOT support content:// URIs!");
+        Log.e(TAG, "⚠️⚠️⚠️ Should use FileSyncWorker instead for Native Camera!");
         Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         Log.d(TAG, "⏰ الوقت: " + System.currentTimeMillis());
         Log.d(TAG, "🔧 Worker ID: " + getId());
@@ -196,90 +198,263 @@ public class BackgroundUploadWorker extends Worker {
     }
 
     /**
-     * رفع الملف إلى السيرفر
+     * رفع الملف إلى السيرفر - نسخة محسّنة مع STREAMING لمنع OOM
+     * ✅ يستخدم BufferedInputStream للملفات الكبيرة
+     * ✅ يقرأ البيانات على شكل chunks بدلاً من تحميلها كاملة
+     * ✅ يدعم الملفات حتى 500 MB بدون مشاكل ذاكرة
      */
     private boolean uploadFile(UploadDatabaseHelper.UploadItem item) {
         HttpURLConnection connection = null;
+        java.io.InputStream inputStream = null;
+        OutputStream outputStream = null;
 
         try {
-            byte[] fileBytes = null;
+            long fileSize = 0;
+            String boundary = BOUNDARY + System.currentTimeMillis();
 
-            // التحقق من نوع البيانات - Base64 أو ملف فيزيائي
+            // 🔍 تحديد نوع المصدر وحجم الملف
             if (item.filePath.startsWith("data:")) {
-                // Base64 - استخراج البيانات
+                // ⚠️ Base64 - للملفات الصغيرة فقط (< 10 MB)
                 Log.d(TAG, "📦 معالجة Base64 للملف: " + item.fileName);
                 String[] parts = item.filePath.split(",");
-                if (parts.length == 2) {
-                    fileBytes = android.util.Base64.decode(parts[1], android.util.Base64.DEFAULT);
-                } else {
+                if (parts.length != 2) {
                     Log.e(TAG, "❌ صيغة Base64 غير صحيحة");
                     return false;
                 }
+
+                // تقدير حجم الملف من Base64
+                fileSize = (parts[1].length() * 3L) / 4L;
+                Log.d(TAG, "📊 حجم الملف المقدّر: " + formatFileSize(fileSize));
+
+                if (fileSize > 10 * 1024 * 1024) {
+                    Log.e(TAG, "❌ Base64 كبير جداً (" + formatFileSize(fileSize) + ")!");
+                    Log.e(TAG, "💡 نصيحة: احفظ الملف فيزيائياً بدلاً من Base64");
+                    return false;
+                }
+
+                inputStream = new java.io.ByteArrayInputStream(
+                    android.util.Base64.decode(parts[1], android.util.Base64.DEFAULT)
+                );
+
+            } else if (item.filePath.startsWith("content://")) {
+                // ✅ content:// URI - استخدام ContentResolver
+                Log.d(TAG, "📱 معالجة content:// URI: " + item.filePath);
+                android.net.Uri uri = android.net.Uri.parse(item.filePath);
+
+                // Get file size
+                android.database.Cursor cursor = context.getContentResolver().query(uri, null, null, null, null);
+                if (cursor != null && cursor.moveToFirst()) {
+                    int sizeIndex = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE);
+                    if (sizeIndex != -1) {
+                        fileSize = cursor.getLong(sizeIndex);
+                    }
+                    cursor.close();
+                }
+
+                Log.d(TAG, "📊 حجم الملف: " + formatFileSize(fileSize));
+
+                // Open stream through ContentResolver
+                inputStream = new java.io.BufferedInputStream(
+                    context.getContentResolver().openInputStream(uri),
+                    CHUNK_SIZE
+                );
+
+                if (inputStream == null) {
+                    Log.e(TAG, "❌ فشل فتح content:// URI");
+                    return false;
+                }
+
             } else {
-                // ملف فيزيائي - استخدام getFilesDir للمسار الكامل
+                // ✅ ملف فيزيائي - استخدام streaming للملفات الكبيرة
                 File file = new File(context.getFilesDir(), item.filePath);
                 if (!file.exists()) {
                     Log.e(TAG, "❌ الملف غير موجود: " + file.getAbsolutePath());
                     return false;
                 }
 
-                Log.d(TAG, "✅ تم العثور على الملف: " + file.getAbsolutePath());
-                FileInputStream fis = new FileInputStream(file);
-                fileBytes = new byte[(int) file.length()];
-                fis.read(fileBytes);
-                fis.close();
-                Log.d(TAG, "✅ تم قراءة " + fileBytes.length + " bytes من الملف");
+                fileSize = file.length();
+                Log.d(TAG, "✅ ملف موجود: " + file.getAbsolutePath());
+                Log.d(TAG, "📊 حجم الملف: " + formatFileSize(fileSize));
+
+                // 🚀 استخدام BufferedInputStream للملفات الكبيرة (أفضل للذاكرة)
+                inputStream = new java.io.BufferedInputStream(
+                    new FileInputStream(file),
+                    CHUNK_SIZE // استخدام CHUNK_SIZE من الفصل
+                );
             }
 
-            if (fileBytes == null || fileBytes.length == 0) {
-                Log.e(TAG, "❌ بيانات الملف فارغة");
-                return false;
-            }
-
-            // إنشاء الاتصال
+            // 🌐 إنشاء الاتصال HTTP
+            Log.d(TAG, "🌐 إنشاء اتصال HTTP: " + item.apiUrl);
             URL url = new URL(item.apiUrl);
             connection = (HttpURLConnection) url.openConnection();
             connection.setDoOutput(true);
+            connection.setDoInput(true);
             connection.setRequestMethod("POST");
-            connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + BOUNDARY);
+            connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
             connection.setRequestProperty("Accept", "application/json");
-            connection.setConnectTimeout(30000); // 30 ثانية
-            connection.setReadTimeout(60000); // 60 ثانية
 
-            // كتابة البيانات
-            OutputStream outputStream = connection.getOutputStream();
+            // ⏱️ تمديد المهلة للملفات الكبيرة
+            connection.setConnectTimeout(60000);  // دقيقة واحدة للاتصال
+            connection.setReadTimeout(300000);    // 5 دقائق للقراءة (للملفات الكبيرة)
 
-            // بداية النموذج
-            writeFormField(outputStream, "sponsorship_id", String.valueOf(item.photoId));
+            // 🚀 تفعيل chunked streaming mode لمنع OOM
+            connection.setChunkedStreamingMode(CHUNK_SIZE);
 
-            // كتابة الملف من البايتات
-            writeFileFieldFromBytes(outputStream, "file", item.fileName, fileBytes, item.fileType);
+            Log.d(TAG, "✅ الاتصال جاهز - بدء الرفع باستخدام streaming...");
 
-            // نهاية النموذج
-            outputStream.write(("--" + BOUNDARY + "--\r\n").getBytes());
+            // 📤 كتابة البيانات باستخدام streaming
+            outputStream = new java.io.BufferedOutputStream(
+                connection.getOutputStream(),
+                CHUNK_SIZE
+            );
+
+            // حقل sponsorship_id
+            writeFormFieldOptimized(outputStream, boundary, "sponsorship_id", String.valueOf(item.photoId));
+
+            // بداية حقل الملف
+            outputStream.write(("--" + boundary + "\r\n").getBytes("UTF-8"));
+            outputStream.write(("Content-Disposition: form-data; name=\"file\"; filename=\"" + item.fileName + "\"\r\n").getBytes("UTF-8"));
+            outputStream.write(("Content-Type: " + (item.fileType != null ? item.fileType : "application/octet-stream") + "\r\n\r\n").getBytes("UTF-8"));
+
+            // 🚀 نسخ الملف باستخدام streaming (chunks)
+            byte[] buffer = new byte[CHUNK_SIZE];
+            int bytesRead;
+            long totalBytesRead = 0;
+            int progressPercent = 0;
+            long lastLogTime = System.currentTimeMillis();
+
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, bytesRead);
+                totalBytesRead += bytesRead;
+
+                // عرض التقدم كل 10% أو كل 5 ثواني
+                int newProgress = (int) ((totalBytesRead * 100) / fileSize);
+                long currentTime = System.currentTimeMillis();
+
+                if (newProgress >= progressPercent + 10 || currentTime - lastLogTime >= 5000) {
+                    progressPercent = newProgress;
+                    lastLogTime = currentTime;
+                    Log.d(TAG, "📤 تقدم رفع " + item.fileName + ": " + progressPercent + "% (" +
+                          formatFileSize(totalBytesRead) + " / " + formatFileSize(fileSize) + ")");
+
+                    // تحديث الإشعار بالتقدم
+                    updateNotificationWithProgress(item.fileName, progressPercent,
+                                                   dbHelper.getPendingFilesCount());
+                }
+
+                // التحقق من الإيقاف
+                if (isStopped()) {
+                    Log.w(TAG, "⚠️ تم إيقاف Worker أثناء الرفع");
+                    return false;
+                }
+            }
+
+            outputStream.write("\r\n".getBytes("UTF-8"));
+
+            // نهاية multipart
+            outputStream.write(("--" + boundary + "--\r\n").getBytes("UTF-8"));
             outputStream.flush();
-            outputStream.close();
+
+            Log.d(TAG, "✅ تم رفع " + formatFileSize(totalBytesRead) + " بنجاح");
 
             // قراءة الاستجابة
             int responseCode = connection.getResponseCode();
-            Log.d(TAG, "رمز الاستجابة: " + responseCode + " للملف: " + item.fileName);
+            Log.d(TAG, "📡 رمز الاستجابة: " + responseCode + " للملف: " + item.fileName);
 
+            // قراءة رسالة الاستجابة للتأكيد
             if (responseCode >= 200 && responseCode < 300) {
+                try {
+                    java.io.BufferedReader reader = new java.io.BufferedReader(
+                        new java.io.InputStreamReader(connection.getInputStream())
+                    );
+                    String line;
+                    StringBuilder response = new StringBuilder();
+                    while ((line = reader.readLine()) != null) {
+                        response.append(line);
+                    }
+                    reader.close();
+                    Log.d(TAG, "✅ استجابة السيرفر: " + response.toString());
+                } catch (Exception e) {
+                    Log.w(TAG, "⚠️ خطأ في قراءة الاستجابة: " + e.getMessage());
+                }
                 return true;
             } else {
                 String errorMsg = "فشل الرفع - رمز: " + responseCode;
+                Log.e(TAG, errorMsg);
                 dbHelper.updateFileStatus(item.id, item.status, errorMsg);
                 return false;
             }
 
+        } catch (OutOfMemoryError oom) {
+            Log.e(TAG, "🚨🚨🚨 OUT OF MEMORY! الملف كبير جداً!", oom);
+            Log.e(TAG, "💡 نصيحة: قلل حجم الفيديو أو جودته قبل الرفع");
+            dbHelper.updateFileStatus(item.id, item.status, "Out of Memory - ملف كبير جداً");
+            return false;
+
         } catch (IOException e) {
-            Log.e(TAG, "خطأ في رفع الملف " + item.fileName + ": " + e.getMessage(), e);
+            Log.e(TAG, "❌ خطأ في رفع الملف " + item.fileName + ": " + e.getMessage(), e);
             dbHelper.updateFileStatus(item.id, item.status, e.getMessage());
             return false;
+
+        } catch (Exception e) {
+            Log.e(TAG, "❌ خطأ غير متوقع: " + e.getMessage(), e);
+            dbHelper.updateFileStatus(item.id, item.status, e.getMessage());
+            return false;
+
         } finally {
-            if (connection != null) {
-                connection.disconnect();
+            // تنظيف الموارد
+            try {
+                if (inputStream != null) inputStream.close();
+                if (outputStream != null) outputStream.close();
+                if (connection != null) connection.disconnect();
+            } catch (Exception e) {
+                Log.e(TAG, "⚠️ خطأ في إغلاق الموارد: " + e.getMessage());
             }
+
+            // استدعاء garbage collector لتحرير الذاكرة
+            System.gc();
+        }
+    }
+
+    /**
+     * كتابة حقل نموذج محسّن
+     */
+    private void writeFormFieldOptimized(OutputStream out, String boundary, String name, String value)
+            throws IOException {
+        out.write(("--" + boundary + "\r\n").getBytes("UTF-8"));
+        out.write(("Content-Disposition: form-data; name=\"" + name + "\"\r\n\r\n").getBytes("UTF-8"));
+        out.write((value + "\r\n").getBytes("UTF-8"));
+    }
+
+    /**
+     * تنسيق حجم الملف للعرض
+     */
+    private String formatFileSize(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return String.format("%.2f KB", bytes / 1024.0);
+        if (bytes < 1024 * 1024 * 1024) return String.format("%.2f MB", bytes / (1024.0 * 1024.0));
+        return String.format("%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0));
+    }
+
+    /**
+     * تحديث الإشعار مع نسبة التقدم
+     */
+    private void updateNotificationWithProgress(String currentFile, int progress, int remainingCount) {
+        try {
+            android.app.NotificationManager notificationManager =
+                (android.app.NotificationManager) context.getSystemService(android.content.Context.NOTIFICATION_SERVICE);
+
+            String channelId = "upload_service_channel";
+            android.app.Notification notification = new NotificationCompat.Builder(context, channelId)
+                .setContentTitle("جاري رفع: " + currentFile)
+                .setContentText(progress + "% - متبقي: " + remainingCount + " ملف")
+                .setSmallIcon(android.R.drawable.stat_sys_upload)
+                .setProgress(100, progress, false)
+                .build();
+
+            notificationManager.notify(1, notification);
+        } catch (Exception e) {
+            Log.e(TAG, "خطأ في تحديث الإشعار: " + e.getMessage());
         }
     }
 

@@ -16,12 +16,17 @@ android {
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        // ✅ تفعيل MultiDex لدعم المكتبات الكبيرة
+        multiDexEnabled true
+
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+
     buildTypes {
         release {
             minifyEnabled true
@@ -54,6 +59,9 @@ dependencies {
 
     // WorkManager for background upload tasks
     implementation "androidx.work:work-runtime:2.8.1"
+
+    // OkHttp for efficient file uploads (NO Base64!)
+    implementation "com.squareup.okhttp3:okhttp:4.12.0"
 }
 
 apply from: 'capacitor.build.gradle'

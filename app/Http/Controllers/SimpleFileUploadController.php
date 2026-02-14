@@ -21,7 +21,7 @@ class SimpleFileUploadController extends Controller
 
         try {
             $request->validate([
-                'files.*' => 'required|file|max:51200', // 50MB max
+                'files.*' => 'required|file|max:512000', // 500MB max للفيديوهات
                 'record_number' => 'required|string|max:20',
                 'person_id' => 'nullable|string|max:20',
             ]);
