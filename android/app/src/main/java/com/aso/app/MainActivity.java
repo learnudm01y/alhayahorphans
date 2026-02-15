@@ -16,7 +16,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         // 🔥 FIRST LOG - قبل كل شيء للتأكد من التحميل
         android.util.Log.e(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        android.util.Log.e(TAG, "🔥🔥🔥 MainActivity.onCreate() - APK v22:53 🔥🔥🔥");
+        android.util.Log.e(TAG, "🔥🔥🔥 MainActivity.onCreate() - APK v22:56 🔥🔥🔥");
         android.util.Log.e(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
         // ✨ CRITICAL: تسجيل Plugins قبل super.onCreate() في Capacitor 6.x

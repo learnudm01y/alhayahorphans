@@ -28,7 +28,7 @@ public class AutoUploadApplication extends Application {
         android.util.Log.e(TAG, "");
         android.util.Log.e(TAG, "╔═══════════════════════════════════════════════════════════════╗");
         android.util.Log.e(TAG, "║                                                               ║");
-        android.util.Log.e(TAG, "║   🚨🚨🚨   v22:52 - FINAL FIX   🚨🚨🚨                         ║");
+        android.util.Log.e(TAG, "║   🚨🚨🚨   v22:56 - FILE SIZE FIX   🚨🚨🚨                   ║");
         android.util.Log.e(TAG, "║                                                               ║");
         android.util.Log.e(TAG, "║   🔥 DATA PERSISTENCE FIX + WORKER CLEANUP! 🔥                ║");
         android.util.Log.e(TAG, "║                                                               ║");
@@ -208,13 +208,14 @@ public class AutoUploadApplication extends Application {
 
         android.util.Log.e(TAG, "");
         android.util.Log.e(TAG, "╔════════════════════════════════════════════════════════════════╗");
-        android.util.Log.e(TAG, "║  ✅ v22:53 APPLICATION READY - FileSyncWorker ONLY Mode       ║");
+        android.util.Log.e(TAG, "║  ✅ v22:56 APPLICATION READY - File Size Calculation Fixed  ║");
         android.util.Log.e(TAG, "║  📁 Files: FileSyncWorker (manual + periodic 15min)           ║");
         android.util.Log.e(TAG, "║  📊 Data: DataSyncWorker (periodic 15min)                     ║");
         android.util.Log.e(TAG, "║  🌐 NetworkMonitor: Auto-triggers on internet connect        ║");
         android.util.Log.e(TAG, "║  ❌ NO cancelAllWork() - Workers persist properly             ║");
         android.util.Log.e(TAG, "║  ❌ NO BackgroundUploadWorker/UploadTaskScheduler (deleted)   ║");
         android.util.Log.e(TAG, "║  🎯 Single Upload Orchestrator: FileSyncWorker ONLY           ║");
+        android.util.Log.e(TAG, "║  🌐 Default API: https://alhayahorphans.org/api/mobile/...    ║");
         android.util.Log.e(TAG, "╚════════════════════════════════════════════════════════════════╝");
         android.util.Log.e(TAG, "");
     }

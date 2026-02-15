@@ -23,11 +23,10 @@ public class UploadBootReceiver extends BroadcastReceiver {
                 // إعادة تعيين الملفات التي كانت قيد الرفع
                 dbHelper.resetUploadingFiles();
 
-                // جدولة مهمة الرفع
-                UploadTaskScheduler scheduler = UploadTaskScheduler.getInstance(context);
-                scheduler.scheduleUploadTask();
-
-                Log.d(TAG, "✅ تمت إعادة جدولة مهام الرفع - النظام يعمل");
+                // جدولة FileSyncWorker (بدلاً من UploadTaskScheduler القديم)
+                Log.d(TAG, "🚀 Calling FileSyncWorker.scheduleImmediateSync()...");
+                FileSyncWorker.scheduleImmediateSync(context);
+                Log.d(TAG, "✅ FileSyncWorker scheduled - سيبدأ بمعالجة الملفات المعلقة");
 
             } catch (Exception e) {
                 Log.e(TAG, "❌ خطأ في إعادة جدولة المهام: " + e.getMessage(), e);

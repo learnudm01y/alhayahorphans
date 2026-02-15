@@ -67,14 +67,21 @@ public class CameraActivity extends AppCompatActivity {
         personName = intent.getStringExtra("personName");
         associationName = intent.getStringExtra("associationName");
 
+        // ✅ FIX: استخدام API URL افتراضي إذا لم يتم تمريره
+        if (apiUrl == null || apiUrl.isEmpty()) {
+            apiUrl = "https://alhayahorphans.org/api/mobile/upload-file";
+            Log.w(TAG, "⚠️ apiUrl not provided - using default: " + apiUrl);
+        }
+
         Log.e(TAG, "📊 Parameters:");
         Log.e(TAG, "   sponsorshipId: " + sponsorshipId);
+        Log.e(TAG, "   apiUrl: " + apiUrl + (apiUrl.equals("https://alhayahorphans.org/api/mobile/upload-file") ? " (DEFAULT)" : ""));
         Log.e(TAG, "   personName: " + personName);
         Log.e(TAG, "   associationName: " + associationName);
 
-        if (sponsorshipId == -1 || apiUrl == null) {
-            Log.e(TAG, "❌ معاملات ناقصة!");
-            Toast.makeText(this, "خطأ: معاملات ناقصة", Toast.LENGTH_SHORT).show();
+        if (sponsorshipId == -1) {
+            Log.e(TAG, "❌ معاملة ناقصة: sponsorshipId!");
+            Toast.makeText(this, "خطأ: sponsorshipId مطلوب", Toast.LENGTH_SHORT).show();
             finish();
             return;
         }
@@ -175,9 +182,67 @@ public class CameraActivity extends AppCompatActivity {
                 Log.e(TAG, "╚════════════════════════════════════════════════════════════════╝");
                 Log.e(TAG, "📹 Video URI: " + videoUri.toString());
 
+                // ✅ CRITICAL DIAGNOSTIC: Check file size IMMEDIATELY after recording
+                Log.e(TAG, "🔍🔍🔍 DIAGNOSTIC: Checking file size immediately after recording...");
+                try {
+                    android.database.Cursor cursor = getContentResolver().query(videoUri, null, null, null, null);
+                    if (cursor != null && cursor.moveToFirst()) {
+                        int sizeIndex = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE);
+                        int nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+
+                        if (sizeIndex != -1) {
+                            long fileSize = cursor.getLong(sizeIndex);
+                            String displayName = nameIndex != -1 ? cursor.getString(nameIndex) : "unknown";
+                            Log.e(TAG, "📊 MediaStore SIZE (from cursor): " + fileSize + " bytes (" + (fileSize / 1024.0 / 1024.0) + " MB)");
+                            Log.e(TAG, "📝 Display name: " + displayName);
+
+                            if (fileSize == 0) {
+                                Log.w(TAG, "⚠️⚠️⚠️ WARNING: File size is 0! MediaStore may not have finished writing!");
+                                Log.w(TAG, "   This will cause upload to fail with 'expected 0 bytes but received X'");
+                            }
+                        } else {
+                            Log.w(TAG, "⚠️ SIZE column not found in cursor");
+                        }
+                        cursor.close();
+                    } else {
+                        Log.w(TAG, "⚠️ Cannot query file metadata from URI");
+                    }
+
+                    // Also try to open InputStream to verify file is readable
+                    try (java.io.InputStream testStream = getContentResolver().openInputStream(videoUri)) {
+                        if (testStream != null) {
+                            long actualBytes = 0;
+                            byte[] buffer = new byte[8192];
+                            int read;
+                            while ((read = testStream.read(buffer)) != -1) {
+                                actualBytes += read;
+                            }
+                            Log.e(TAG, "✅ ACTUAL file size (by reading stream): " + actualBytes + " bytes (" + (actualBytes / 1024.0 / 1024.0) + " MB)");
+
+                            if (actualBytes == 0) {
+                                Log.e(TAG, "❌❌❌ CRITICAL ERROR: File is empty! Cannot upload!");
+                            }
+                        } else {
+                            Log.e(TAG, "❌ Cannot open InputStream from URI");
+                        }
+                    } catch (Exception streamEx) {
+                        Log.e(TAG, "❌ Error reading file: " + streamEx.getMessage());
+                        streamEx.printStackTrace();
+                    }
+                } catch (Exception diagEx) {
+                    Log.e(TAG, "❌ Diagnostic error: " + diagEx.getMessage());
+                    diagEx.printStackTrace();
+                }
+
                 // الحصول على المسار الفعلي للملف
                 String filePath = videoUri.toString();
                 String fileName = "video_" + sponsorshipId + "_" + System.currentTimeMillis() + ".mp4";
+
+                Log.e(TAG, "📋 Preparing to save to database:");
+                Log.e(TAG, "   filePath: " + filePath);
+                Log.e(TAG, "   fileName: " + fileName);
+                Log.e(TAG, "   sponsorshipId: " + sponsorshipId);
+                Log.e(TAG, "   apiUrl: " + apiUrl);
 
                 // حفظ في قاعدة البيانات وجدولة الرفع
                 saveAndQueueUpload(filePath, fileName);

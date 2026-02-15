@@ -4253,10 +4253,21 @@ class SponsorshipSyncController extends Controller
         }
 
         try {
+            // ✅ Log incoming request for debugging
+            Log::info('📥 uploadFile() - Request received', [
+                'is_multipart' => $isMultipart,
+                'record_number' => $request->input('record_number'),
+                'person_id' => $request->input('person_id'),
+                'sponsorship_id_from_request' => $request->sponsorship_id ?? 'N/A',
+                'extracted_sponsorship_id' => $sponsorshipId ?? 'N/A',
+                'file_name' => $fileName ?? 'N/A',
+            ]);
+
+            // ✅ FIX: Use $sponsorshipId variable (extracted above) instead of $request->sponsorship_id
             // جلب بيانات الكفالة للحصول على اسم الجمعية واسم المكفول
             $sponsorship = DB::table('sponsorships')
                 ->leftJoin('sponsors', 'sponsorships.sponsor_id', '=', 'sponsors.id')
-                ->where('sponsorships.id', $request->sponsorship_id)
+                ->where('sponsorships.id', $sponsorshipId) // ✅ FIXED: was $request->sponsorship_id
                 ->select([
                     'sponsorships.identity_number',
                     'sponsorships.orphan_name',
@@ -4264,7 +4275,18 @@ class SponsorshipSyncController extends Controller
                 ])
                 ->first();
 
+            Log::info('🔍 Database query for sponsorship', [
+                'query_sponsorship_id' => $sponsorshipId,
+                'found' => $sponsorship !== null,
+                'orphan_name' => $sponsorship->orphan_name ?? 'N/A',
+                'sponsor_name' => $sponsorship->sponsor_name ?? 'N/A',
+            ]);
+
             if (!$sponsorship) {
+                Log::error('❌ Sponsorship not found in database', [
+                    'sponsorship_id' => $sponsorshipId,
+                    'is_multipart' => $isMultipart,
+                ]);
                 return response()->json([
                     'success' => false,
                     'message' => 'الكفالة غير موجودة'
@@ -4289,19 +4311,46 @@ class SponsorshipSyncController extends Controller
 
             // حفظ الملف محلياً أولاً
             $localPath = storage_path('app/mobile_uploads/' . $this->sanitizeFolderName($organizationName) . '/' . $this->sanitizeFolderName($orphanName));
+
+            Log::info('💾 Saving file locally', [
+                'local_path' => $localPath,
+                'file_name' => $fileName,
+                'file_size_bytes' => strlen($fileData),
+                'file_size_mb' => round(strlen($fileData) / 1024 / 1024, 2),
+            ]);
+
             if (!file_exists($localPath)) {
                 mkdir($localPath, 0755, true);
+                Log::info('✅ Created directory: ' . $localPath);
             }
 
             $fullPath = $localPath . '/' . $fileName;
             file_put_contents($fullPath, $fileData);
 
+            Log::info('✅ File saved locally', [
+                'full_path' => $fullPath,
+                'file_exists' => file_exists($fullPath),
+                'actual_file_size' => file_exists($fullPath) ? filesize($fullPath) : 'N/A',
+            ]);
+
             // حساب hash للملف
             $fileHash = hash_file('sha256', $fullPath);
             $fileSize = strlen($fileData);
 
+            Log::info('🔐 File hash calculated', [
+                'hash' => $fileHash,
+                'size' => $fileSize,
+            ]);
+
             // المسار في Google Drive
             $googleDrivePath = "temp/{$this->sanitizeFolderName($organizationName)}/{$this->sanitizeFolderName($orphanName)}/{$fileName}";
+
+            Log::info('☁️ Preparing Google Drive upload', [
+                'google_drive_path' => $googleDrivePath,
+                'entity_type' => 'sponsorship',
+                'entity_id' => $sponsorshipId,
+                'attachment_type' => str_contains($fileType, 'video') ? 'video' : 'photo',
+            ]);
 
             // تسجيل في قاعدة البيانات
             $uploadId = DB::table('google_drive_uploads')->insertGetId([
@@ -4322,6 +4371,11 @@ class SponsorshipSyncController extends Controller
                 'synced_to_server' => false,
                 'created_at' => now(),
                 'updated_at' => now()
+            ]);
+
+            Log::info('✅ Upload record created in database', [
+                'upload_id' => $uploadId,
+                'status' => 'pending',
             ]);
 
             // محاولة الرفع باستخدام Rclone (الطريقة الرئيسية على الخادم)
@@ -4408,6 +4462,12 @@ class SponsorshipSyncController extends Controller
             }
 
             // الملف محفوظ محلياً في انتظار الرفع
+            Log::info('📁 File saved locally, pending Google Drive upload', [
+                'upload_id' => $uploadId,
+                'local_path' => $fullPath,
+                'google_drive_path' => $googleDrivePath,
+            ]);
+
             return response()->json([
                 'success' => true,
                 'message' => 'تم حفظ الملف محلياً وفي انتظار الرفع إلى Google Drive',
@@ -4416,7 +4476,12 @@ class SponsorshipSyncController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('File upload failed', ['error' => $e->getMessage()]);
+            Log::error('❌ File upload failed - Exception caught', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'file_name' => $fileName ?? 'N/A',
+                'sponsorship_id' => $sponsorshipId ?? 'N/A',
+            ]);
             return response()->json([
                 'success' => false,
                 'message' => 'فشل رفع الملف: ' . $e->getMessage()

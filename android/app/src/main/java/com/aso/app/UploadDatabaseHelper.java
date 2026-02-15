@@ -153,6 +153,20 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
      * إضافة ملف جديد إلى قائمة الانتظار
      */
     public long addFileToQueue(String filePath, String fileName, String fileType, int photoId, String apiUrl, String authToken, String associationName, String personName) {
+        Log.e(TAG, "");
+        Log.e(TAG, "╔════════════════════════════════════════════════════════════════╗");
+        Log.e(TAG, "║  💾 addFileToQueue() - Saving to SQLite Database             ║");
+        Log.e(TAG, "╚════════════════════════════════════════════════════════════════╝");
+        Log.e(TAG, "📋 Input Parameters:");
+        Log.e(TAG, "   filePath: " + filePath);
+        Log.e(TAG, "   fileName: " + fileName);
+        Log.e(TAG, "   fileType: " + fileType);
+        Log.e(TAG, "   photoId: " + photoId);
+        Log.e(TAG, "   apiUrl: " + apiUrl);
+        Log.e(TAG, "   authToken: " + (authToken != null && !authToken.isEmpty() ? "[present, length=" + authToken.length() + "]" : "[empty]"));
+        Log.e(TAG, "   associationName: " + associationName);
+        Log.e(TAG, "   personName: " + personName);
+
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues values = new ContentValues();
 
@@ -171,8 +185,20 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
         values.put(COLUMN_ASSOCIATION_NAME, associationName != null ? associationName : "General");
         values.put(COLUMN_PERSON_NAME, personName != null ? personName : "unknown");
 
+        Log.e(TAG, "💾 Inserting into SQLite...");
         long id = db.insert(TABLE_UPLOAD_QUEUE, null, values);
-        Log.d(TAG, "Added new file to queue: " + fileName + " (ID: " + id + ", Association: " + associationName + ", Person: " + personName + ")");
+
+        if (id > 0) {
+            Log.e(TAG, "✅✅✅ File saved to database successfully!");
+            Log.e(TAG, "   Database ID: " + id);
+            Log.e(TAG, "   Status: " + STATUS_PENDING);
+            Log.e(TAG, "   Retry count: 0");
+            Log.e(TAG, "   Created at: " + new java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.US).format(new java.util.Date(currentTime)));
+        } else {
+            Log.e(TAG, "❌❌❌ FAILED to save file to database!");
+            Log.e(TAG, "   Return ID: " + id);
+        }
+        Log.e(TAG, "");
 
         return id;
     }

@@ -153,14 +153,19 @@ public class UploadServicePlugin extends Plugin {
             android.util.Log.e(TAG, "   ├─ personName: '" + personName + "'");
             android.util.Log.e(TAG, "   └─ filePath: " + filePath);
 
-            if (filePath == null || fileName == null || photoId == null || apiUrl == null) {
+            // ✅ Validate required parameters (null AND empty checks!)
+            if (filePath == null || filePath.isEmpty() ||
+                fileName == null || fileName.isEmpty() ||
+                photoId == null ||
+                apiUrl == null || apiUrl.isEmpty()) {
+
                 android.util.Log.e(TAG, "❌❌❌ VALIDATION FAILED - Missing required parameters!");
-                android.util.Log.e(TAG, "   filePath null? " + (filePath == null));
-                android.util.Log.e(TAG, "   fileName null? " + (fileName == null));
+                android.util.Log.e(TAG, "   filePath null/empty? " + (filePath == null || filePath.isEmpty()));
+                android.util.Log.e(TAG, "   fileName null/empty? " + (fileName == null || fileName.isEmpty()));
                 android.util.Log.e(TAG, "   photoId null? " + (photoId == null));
-                android.util.Log.e(TAG, "   apiUrl null? " + (apiUrl == null));
-                showNotification("خطأ في الرفع", "معاملات ناقصة", false);
-                call.reject("معاملات ناقصة");
+                android.util.Log.e(TAG, "   apiUrl null/empty? " + (apiUrl == null || apiUrl.isEmpty()));
+                showNotification("خطأ في الرفع", "معاملات ناقصة - apiUrl فارغ!", false);
+                call.reject("معاملات ناقصة - تحقق من baseUrl في JavaScript");
                 return;
             }
 

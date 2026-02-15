@@ -321,21 +321,72 @@ public class FileSyncWorker extends Worker {
                 Log.e(TAG, "📱 Using ContentResolver for content:// URI");
                 android.net.Uri uri = android.net.Uri.parse(item.filePath);
 
-                // Get file size
-                android.database.Cursor cursor = context.getContentResolver().query(uri, null, null, null, null);
-                if (cursor != null && cursor.moveToFirst()) {
-                    int sizeIndex = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE);
-                    if (sizeIndex != -1) {
-                        fileSize = cursor.getLong(sizeIndex);
-                    }
-                    cursor.close();
-                }
+                // ✅ FIX: Calculate ACTUAL file size by reading stream
+                // MediaStore may return 0 immediately after recording!
+                Log.e(TAG, "");
+                Log.e(TAG, "🔍🔍🔍 STEP 1: Calculating actual file size by reading stream...");
+                Log.e(TAG, "   URI: " + uri.toString());
 
-                Log.e(TAG, "📊 File size: " + (fileSize / 1024.0 / 1024.0) + " MB");
+                long startTime = System.currentTimeMillis();
+                try (java.io.InputStream sizeStream = context.getContentResolver().openInputStream(uri)) {
+                    if (sizeStream == null) {
+                        Log.e(TAG, "❌❌❌ CRITICAL: Cannot open stream to calculate size!");
+                        Log.e(TAG, "   This means the file doesn't exist or we lack permission");
+                        return false;
+                    }
+
+                    Log.e(TAG, "✅ Stream opened successfully, reading file...");
+                    long actualSize = 0;
+                    byte[] sizeBuffer = new byte[8192];
+                    int sizeRead;
+                    int chunks = 0;
+
+                    while ((sizeRead = sizeStream.read(sizeBuffer)) != -1) {
+                        actualSize += sizeRead;
+                        chunks++;
+
+                        // Log every 1MB
+                        if (actualSize % (1024 * 1024) == 0) {
+                            Log.d(TAG, "   Read " + (actualSize / 1024.0 / 1024.0) + " MB so far...");
+                        }
+                    }
+
+                    long calcTime = System.currentTimeMillis() - startTime;
+                    fileSize = actualSize;
+
+                    Log.e(TAG, "");
+                    Log.e(TAG, "✅✅✅ File size calculation COMPLETE:");
+                    Log.e(TAG, "   Size: " + fileSize + " bytes");
+                    Log.e(TAG, "   Size (MB): " + (fileSize / 1024.0 / 1024.0));
+                    Log.e(TAG, "   Chunks read: " + chunks);
+                    Log.e(TAG, "   Time taken: " + calcTime + " ms");
+                    Log.e(TAG, "");
+
+                    if (fileSize == 0) {
+                        Log.e(TAG, "❌❌❌ CRITICAL ERROR: File is EMPTY (0 bytes)!");
+                        Log.e(TAG, "   Cannot upload empty file!");
+                        Log.e(TAG, "   This will cause 'expected 0 bytes but received X' error");
+                        return false;
+                    }
+
+                    if (fileSize < 1024) {
+                        Log.w(TAG, "⚠️⚠️⚠️ WARNING: File is very small (" + fileSize + " bytes)");
+                        Log.w(TAG, "   This might indicate an incomplete recording");
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "❌ Error calculating file size: " + e.getMessage());
+                    return false;
+                }
 
                 // Make final copy for use in anonymous inner class
                 final long finalFileSize = fileSize;
                 final android.net.Uri finalUri = uri;
+
+                Log.e(TAG, "");
+                Log.e(TAG, "🔍🔍🔍 STEP 2: Creating OkHttp RequestBody with calculated size...");
+                Log.e(TAG, "   contentLength() will return: " + finalFileSize + " bytes");
+                Log.e(TAG, "   This is what OkHttp will send as Content-Length header");
+                Log.e(TAG, "");
 
                 // Create streaming RequestBody (NO memory loading!)
                 fileBody = new okhttp3.RequestBody() {
@@ -346,32 +397,60 @@ public class FileSyncWorker extends Worker {
 
                     @Override
                     public long contentLength() {
+                        Log.e(TAG, "📏 contentLength() called - returning: " + finalFileSize);
                         return finalFileSize;
                     }
 
                     @Override
                     public void writeTo(okio.BufferedSink sink) throws java.io.IOException {
+                        Log.e(TAG, "");
+                        Log.e(TAG, "🔍🔍🔍 STEP 3: writeTo() called - Starting to stream file to server...");
+                        Log.e(TAG, "   Opening second stream for upload...");
+
+                        long writeStartTime = System.currentTimeMillis();
+
                         try (java.io.InputStream inputStream = context.getContentResolver().openInputStream(finalUri)) {
                             if (inputStream == null) {
+                                Log.e(TAG, "❌❌❌ CRITICAL: Cannot open InputStream in writeTo()!");
                                 throw new java.io.IOException("Failed to open InputStream from URI");
                             }
+
+                            Log.e(TAG, "✅ Stream opened in writeTo(), beginning upload...");
 
                             // Stream file in chunks (8KB buffer)
                             byte[] buffer = new byte[8192];
                             int bytesRead;
                             long totalBytesRead = 0;
+                            int writeChunks = 0;
 
                             while ((bytesRead = inputStream.read(buffer)) != -1) {
                                 sink.write(buffer, 0, bytesRead);
                                 totalBytesRead += bytesRead;
+                                writeChunks++;
 
-                                // Log progress every 5MB
-                                if (totalBytesRead % (5 * 1024 * 1024) == 0) {
-                                    Log.d(TAG, "📤 Streamed: " + (totalBytesRead / 1024.0 / 1024.0) + " MB");
+                                // Log progress every 1MB
+                                if (totalBytesRead % (1024 * 1024) == 0) {
+                                    Log.d(TAG, "   Uploaded " + (totalBytesRead / 1024.0 / 1024.0) + " MB so far...");
                                 }
                             }
 
-                            Log.e(TAG, "✅ File streamed from content:// URI (" + totalBytesRead + " bytes)");
+                            long writeTime = System.currentTimeMillis() - writeStartTime;
+
+                            Log.e(TAG, "");
+                            Log.e(TAG, "✅✅✅ writeTo() COMPLETE:");
+                            Log.e(TAG, "   Total bytes written: " + totalBytesRead);
+                            Log.e(TAG, "   Expected (contentLength): " + finalFileSize);
+                            Log.e(TAG, "   Match: " + (totalBytesRead == finalFileSize ? "YES ✅" : "NO ❌ MISMATCH!"));
+                            Log.e(TAG, "   Chunks written: " + writeChunks);
+                            Log.e(TAG, "   Upload time: " + writeTime + " ms");
+                            Log.e(TAG, "");
+
+                            if (totalBytesRead != finalFileSize) {
+                                Log.e(TAG, "❌❌❌ CRITICAL ERROR: Size MISMATCH!");
+                                Log.e(TAG, "   This will cause 'expected X bytes but received Y' error!");
+                                Log.e(TAG, "   Expected: " + finalFileSize);
+                                Log.e(TAG, "   Actual: " + totalBytesRead);
+                            }
                         }
                     }
                 };
@@ -435,10 +514,29 @@ public class FileSyncWorker extends Worker {
             okhttp3.Request request = requestBuilder.build();
 
             // Execute request
+            Log.e(TAG, "");
+            Log.e(TAG, "🔍🔍🔍 STEP 4: Executing OkHttp request...");
+            Log.e(TAG, "   URL: " + item.apiUrl);
+            Log.e(TAG, "   Method: POST");
+            Log.e(TAG, "   Content-Type: multipart/form-data");
+            Log.e(TAG, "   Authorization: " + (!authToken.isEmpty() ? "Bearer [present]" : "[MISSING]"));
+            Log.e(TAG, "   File parameter: files[]");
+            Log.e(TAG, "   File name: " + item.fileName);
+            Log.e(TAG, "   Additional params: record_number=" + item.photoId + ", person_id=" + item.photoId);
+            Log.e(TAG, "");
+            Log.e(TAG, "⏳ Waiting for server response...");
+
+            long requestStartTime = System.currentTimeMillis();
             okhttp3.Response response = client.newCall(request).execute();
+            long requestTime = System.currentTimeMillis() - requestStartTime;
 
             boolean success = response.isSuccessful();
-            Log.e(TAG, "📡 Response code: " + response.code() + " " + response.message());
+            Log.e(TAG, "");
+            Log.e(TAG, "📡 SERVER RESPONSE RECEIVED:");
+            Log.e(TAG, "   Response code: " + response.code() + " " + response.message());
+            Log.e(TAG, "   Success: " + (success ? "YES ✅" : "NO ❌"));
+            Log.e(TAG, "   Response time: " + requestTime + " ms");
+            Log.e(TAG, "");
 
             if (success) {
                 Log.e(TAG, "✅ Server accepted the file");
