@@ -181,7 +181,7 @@ class Data extends Model
 
     public function displacementStatus()
     {
-        return $this->belongsTo(GeneralCategory::class, 'data_displacement_status');
+        return $this->belongsTo(DisplacementStatus::class, 'data_displacement_status');
     }
 
     public function city()
@@ -216,7 +216,8 @@ class Data extends Model
 
     public function userInserted()
     {
-        return $this->belongsTo(User::class, 'data_user_insert_data');
+        // العلاقة مع المستخدم بناءً على الاسم (لأن data_user_insert_data يحتوي على الاسم وليس ID)
+        return $this->belongsTo(User::class, 'data_user_insert_data', 'name');
     }
     public function attachments()
     {
@@ -261,5 +262,17 @@ class Data extends Model
     public function sponsorshipsAsOrphan()
     {
         return $this->hasMany(Sponsorship::class, 'identity_number', 'data_id_number');
+    }
+
+    /**
+     * تحويل قيمة الجنس الرقمية إلى نص
+     */
+    public function getGenderTextAttribute()
+    {
+        return match($this->data_gender) {
+            1 => 'ذكر',
+            2 => 'أنثى',
+            default => '-'
+        };
     }
 }

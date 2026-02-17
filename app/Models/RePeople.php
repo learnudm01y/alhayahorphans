@@ -82,4 +82,16 @@ class RePeople extends Model
     {
         return $this->hasMany(Sponsorship::class, 'identity_number', 'person_id');
     }
+
+    /**
+     * تحويل قيمة الجنس الرقمية إلى نص
+     */
+    public function getGenderTextAttribute()
+    {
+        return match($this->person_gender) {
+            1 => 'ذكر',
+            2 => 'أنثى',
+            default => '-'
+        };
+    }
 }

@@ -760,13 +760,8 @@ class SearchService
         // تحضير الاسم الكامل
         $fullName = trim("{$record->data_first_name} {$record->data_father_name} {$record->data_grand_father_name} {$record->data_family_name}");
 
-        // تحويل الجنس من رقم إلى نص
-        $gender = '-';
-        if ($record->data_gender == 1) {
-            $gender = 'ذكر';
-        } elseif ($record->data_gender == 2) {
-            $gender = 'أنثى';
-        }
+        // تحويل الجنس من رقم إلى نص باستخدام الدالة المساعدة
+        $gender = $record->gender_text;
 
         // حساب العمر إذا كان تاريخ الميلاد متوفراً
         $age = null;
@@ -855,8 +850,8 @@ class SearchService
             'health_status_id' => $record->data_health_status ?? null,
 
             'maritalStatus' => $record->maritalStatus,
-            'marital_status' => optional($record->maritalStatus)->description,
-            'marital_status_name' => optional($record->maritalStatus)->description,
+            'marital_status' => optional($record->maritalStatus)->CI_PERSONAL_CD,
+            'marital_status_name' => optional($record->maritalStatus)->CI_PERSONAL_CD,
             'marital_status_id' => $record->data_marital_status ?? null,
 
             'academicQualification' => $record->academicQualification,
@@ -906,13 +901,8 @@ class SearchService
      */
     private function formatFamilyMember($record): array
     {
-        // تحويل الجنس: 1 = ذكر، 2 = أنثى
-        $gender = '-';
-        if ($record->person_gender == 1) {
-            $gender = 'ذكر';
-        } elseif ($record->person_gender == 2) {
-            $gender = 'أنثى';
-        }
+        // تحويل الجنس باستخدام الدالة المساعدة
+        $gender = $record->gender_text;
 
         // تحضير الاسم الكامل
         $fullName = trim("{$record->first_name} {$record->second_name} {$record->third_name} {$record->last_name}");

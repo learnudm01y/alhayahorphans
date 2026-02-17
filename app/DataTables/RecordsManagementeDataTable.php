@@ -77,7 +77,7 @@ class RecordsManagementeDataTable extends DataTable
                 return optional($row->healthStatus)->description; // الحالة الصحية من العلاقة
             })
             ->addColumn('marital_status_name', function($row) {
-                return optional($row->maritalStatus)->description; // الحالة الاجتماعية من العلاقة
+                return optional($row->maritalStatus)->CI_PERSONAL_CD; // الحالة الاجتماعية من العلاقة
             })
             ->addColumn('academic_qualification_name', function($row) {
                 return optional($row->academicQualification)->description; // المؤهل العلمي من العلاقة

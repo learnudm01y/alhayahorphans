@@ -171,13 +171,13 @@ class RecordsExportService
                     $sheet->setCellValue($col++ . $rowNum, $row->data_father_name);
                     $sheet->setCellValue($col++ . $rowNum, $row->data_grand_father_name);
                     $sheet->setCellValue($col++ . $rowNum, $row->data_family_name);
-                    $sheet->setCellValue($col++ . $rowNum, $row->categoryOfRelation?->description ?? '-');
+                    $sheet->setCellValue($col++ . $rowNum, $row->categoryOfRelation?->attribute ?? '-');
                     $sheet->setCellValue($col++ . $rowNum, $row->data_birth_date);
-                    $sheet->setCellValue($col++ . $rowNum, $row->data_gender);
+                    $sheet->setCellValue($col++ . $rowNum, $row->gender_text);
                     $sheet->setCellValue($col++ . $rowNum, $row->data_phone_number);
                     $sheet->setCellValue($col++ . $rowNum, $row->data_alt_phone_number);
                     $sheet->setCellValue($col++ . $rowNum, $row->data_number_of_individuals);
-                    $sheet->setCellValue($col++ . $rowNum, $row->maritalStatus?->description ?? '-');
+                    $sheet->setCellValue($col++ . $rowNum, $row->maritalStatus?->CI_PERSONAL_CD ?? '-');
                     $sheet->setCellValue($col++ . $rowNum, $row->academicQualification?->description ?? '-');
                     $sheet->setCellValue($col++ . $rowNum, $row->displacementStatus?->description ?? '-');
                     $sheet->setCellValue($col++ . $rowNum, $row->data_address_before_displacement);
@@ -189,7 +189,7 @@ class RecordsExportService
                     $sheet->setCellValue($col++ . $rowNum, $row->employmentStatusBreadwinner?->description ?? '-');
                     $sheet->setCellValue($col++ . $rowNum, $row->housingStatus?->description ?? '-');
                     $sheet->setCellValue($col++ . $rowNum, $row->currentHousingType?->description ?? '-');
-                    $sheet->setCellValue($col++ . $rowNum, $row->userInserted?->name ?? '-');
+                    $sheet->setCellValue($col++ . $rowNum, $row->data_user_insert_data ?? $row->userInserted?->name ?? '-');
                     $sheet->setCellValue($col++ . $rowNum, $row->requestStatus?->description ?? '-');
 
                     // ✅ البيانات البنكية
@@ -459,7 +459,7 @@ class RecordsExportService
                     $sheet3->setCellValue($col++ . $rowNum, $row->person_id);
                     $sheet3->setCellValue($col++ . $rowNum, $row->person_birth_date);
                     $sheet3->setCellValue($col++ . $rowNum, $row->person_age);
-                    $sheet3->setCellValue($col++ . $rowNum, $row->person_gender);
+                    $sheet3->setCellValue($col++ . $rowNum, $row->gender_text);
                     $sheet3->setCellValue($col++ . $rowNum, $row->healthStatus?->description ?? '-');
                     $sheet3->setCellValue($col++ . $rowNum, $row->guaranteeType?->description ?? '-');
                     $sheet3->setCellValue($col++ . $rowNum, $row->created_at);
