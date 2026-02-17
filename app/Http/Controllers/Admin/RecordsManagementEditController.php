@@ -1536,6 +1536,16 @@ class RecordsManagementEditController extends Controller
         // إعداد بيانات التصميم المخصص
         $customDesign = null;
         if ($reportDesign) {
+            Log::info('Loading report design', [
+                'sponsor_id' => $sponsorId,
+                'design_id' => $reportDesign->id,
+                'background_type' => $reportDesign->background_type,
+                'has_single_image' => !empty($reportDesign->single_image),
+                'has_header_image' => !empty($reportDesign->header_image),
+                'has_main_image' => !empty($reportDesign->main_image),
+                'has_footer_image' => !empty($reportDesign->footer_image),
+            ]);
+
             $customDesign = [
                 'background_type' => $reportDesign->background_type,
                 'theme_colors' => $reportDesign->theme_colors ?? [
@@ -1548,6 +1558,22 @@ class RecordsManagementEditController extends Controller
                 'main_image' => $reportDesign->main_image_base64,
                 'footer_image' => $reportDesign->footer_image_base64,
             ];
+
+            Log::info('Custom design prepared', [
+                'has_single_image_base64' => !empty($customDesign['single_image']),
+                'has_header_image_base64' => !empty($customDesign['header_image']),
+                'has_main_image_base64' => !empty($customDesign['main_image']),
+                'has_footer_image_base64' => !empty($customDesign['footer_image']),
+                'single_image_length' => $customDesign['single_image'] ? strlen($customDesign['single_image']) : 0,
+                'header_image_length' => $customDesign['header_image'] ? strlen($customDesign['header_image']) : 0,
+                'main_image_length' => $customDesign['main_image'] ? strlen($customDesign['main_image']) : 0,
+                'footer_image_length' => $customDesign['footer_image'] ? strlen($customDesign['footer_image']) : 0,
+                'header_starts_with' => $customDesign['header_image'] ? substr($customDesign['header_image'], 0, 30) : 'null',
+                'main_starts_with' => $customDesign['main_image'] ? substr($customDesign['main_image'], 0, 30) : 'null',
+                'footer_starts_with' => $customDesign['footer_image'] ? substr($customDesign['footer_image'], 0, 30) : 'null',
+            ]);
+        } else {
+            Log::warning('No report design found for sponsor', ['sponsor_id' => $sponsorId]);
         }
 
         // توليد PDF

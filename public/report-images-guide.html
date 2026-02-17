@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>قالب مرجعي - مواصفات صور التقرير</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 30px;
+            direction: rtl;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            color: #667eea;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-align: center;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            font-size: 1.1em;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .highlight-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 40px;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+
+        .highlight-box h2 {
+            font-size: 1.8em;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .specs-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .spec-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .spec-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+
+        .spec-card h3 {
+            color: #667eea;
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            text-align: center;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .dimension {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .dimension-label {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+
+        .dimension-value {
+            color: #764ba2;
+            font-size: 1.8em;
+            font-weight: bold;
+            font-family: 'Courier New', monospace;
+        }
+
+        .dimension-unit {
+            color: #999;
+            font-size: 0.8em;
+        }
+
+        .ratio {
+            text-align: center;
+            color: #667eea;
+            font-size: 1.2em;
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 30px 0;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        th, td {
+            padding: 15px;
+            text-align: center;
+            font-size: 1.1em;
+        }
+
+        th {
+            font-size: 1.2em;
+            font-weight: 600;
+        }
+
+        tbody tr {
+            background: white;
+        }
+
+        tbody tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+
+        tbody tr:hover {
+            background: rgba(102, 126, 234, 0.1);
+            transition: background 0.3s ease;
+        }
+
+        .visual-guide {
+            margin: 40px 0;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 15px;
+        }
+
+        .visual-guide h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .page-mockup {
+            width: 300px;
+            height: 424px;
+            margin: 20px auto;
+            background: white;
+            border: 3px solid #333;
+            border-radius: 5px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .mockup-header {
+            width: 100%;
+            height: 15%;
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        .mockup-main {
+            width: 100%;
+            height: 70%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        .mockup-footer {
+            width: 100%;
+            height: 15%;
+            background: linear-gradient(135deg, #56ab2f 0%, #a8e063 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        .tips {
+            background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+            padding: 25px;
+            border-radius: 15px;
+            margin: 30px 0;
+            box-shadow: 0 10px 30px rgba(253, 203, 110, 0.3);
+        }
+
+        .tips h3 {
+            color: #d63031;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        .tips ul {
+            list-style: none;
+            padding-right: 0;
+        }
+
+        .tips li {
+            padding: 10px 0 10px 30px;
+            position: relative;
+            line-height: 1.6;
+        }
+
+        .tips li:before {
+            content: "✓";
+            position: absolute;
+            right: 0;
+            color: #00b894;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+            margin: 5px;
+        }
+
+        .badge-recommended {
+            background: #00b894;
+            color: white;
+        }
+
+        .badge-medium {
+            background: #fdcb6e;
+            color: #2d3436;
+        }
+
+        .badge-minimum {
+            background: #ff7675;
+            color: white;
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+
+            .container {
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📐 مواصفات صور تقرير الأيتام</h1>
+        <p class="subtitle">دليل شامل للأبعاد المثالية لصور التقرير (Header - Main - Footer)</p>
+
+        <div class="highlight-box">
+            <h2>⭐ الأبعاد الموصى بها للطباعة عالية الجودة (300 DPI)</h2>
+            <p style="text-align: center; font-size: 1.1em; margin-top: 15px;">
+                استخدم هذه الأبعاد للحصول على أفضل جودة عند الطباعة
+            </p>
+        </div>
+
+        <div class="specs-grid">
+            <!-- Header Specs -->
+            <div class="spec-card">
+                <h3>🔝 صورة الرأس (Header)</h3>
+                <div class="dimension">
+                    <div class="dimension-label">العرض (Width)</div>
+                    <div class="dimension-value">2480 <span class="dimension-unit">بكسل</span></div>
+                </div>
+                <div class="dimension">
+                    <div class="dimension-label">الارتفاع (Height)</div>
+                    <div class="dimension-value">526 <span class="dimension-unit">بكسل</span></div>
+                </div>
+                <div class="ratio">نسبة الأبعاد: ~4.7:1</div>
+            </div>
+
+            <!-- Main Specs -->
+            <div class="spec-card">
+                <h3>🎯 الصورة الرئيسية (Main)</h3>
+                <div class="dimension">
+                    <div class="dimension-label">العرض (Width)</div>
+                    <div class="dimension-value">2480 <span class="dimension-unit">بكسل</span></div>
+                </div>
+                <div class="dimension">
+                    <div class="dimension-label">الارتفاع (Height)</div>
+                    <div class="dimension-value">2456 <span class="dimension-unit">بكسل</span></div>
+                </div>
+                <div class="ratio">نسبة الأبعاد: ~1:1</div>
+            </div>
+
+            <!-- Footer Specs -->
+            <div class="spec-card">
+                <h3>⬇️ صورة التذييل (Footer)</h3>
+                <div class="dimension">
+                    <div class="dimension-label">العرض (Width)</div>
+                    <div class="dimension-value">2480 <span class="dimension-unit">بكسل</span></div>
+                </div>
+                <div class="dimension">
+                    <div class="dimension-label">الارتفاع (Height)</div>
+                    <div class="dimension-value">526 <span class="dimension-unit">بكسل</span></div>
+                </div>
+                <div class="ratio">نسبة الأبعاد: ~4.7:1</div>
+            </div>
+        </div>
+
+        <div class="visual-guide">
+            <h2>📄 دليل مرئي - توزيع الصور على الصفحة</h2>
+            <div class="page-mockup">
+                <div class="mockup-header">
+                    صورة الرأس<br>
+                    <small style="font-size: 0.7em; font-weight: normal;">15% من الصفحة</small>
+                </div>
+                <div class="mockup-main">
+                    الصورة الرئيسية<br>
+                    <small style="font-size: 0.7em; font-weight: normal;">70% من الصفحة</small>
+                </div>
+                <div class="mockup-footer">
+                    صورة التذييل<br>
+                    <small style="font-size: 0.7em; font-weight: normal;">15% من الصفحة</small>
+                </div>
+            </div>
+            <p style="text-align: center; color: #666; margin-top: 20px;">
+                🔍 هذا مثال مصغر لتوزيع الصور - الصورة الرئيسية تحتل معظم المساحة
+            </p>
+        </div>
+
+        <h2 style="color: #667eea; margin: 40px 0 20px; text-align: center; font-size: 2em;">
+            📊 جدول مقارنة الدقات
+        </h2>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>الدقة (DPI)</th>
+                    <th>الاستخدام</th>
+                    <th>Header</th>
+                    <th>Main</th>
+                    <th>Footer</th>
+                    <th>التوصية</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>300 DPI</strong></td>
+                    <td>طباعة عالية الجودة</td>
+                    <td>2480 × 526</td>
+                    <td>2480 × 2456</td>
+                    <td>2480 × 526</td>
+                    <td><span class="badge badge-recommended">موصى به ⭐</span></td>
+                </tr>
+                <tr>
+                    <td><strong>150 DPI</strong></td>
+                    <td>جودة متوسطة</td>
+                    <td>1240 × 263</td>
+                    <td>1240 × 1228</td>
+                    <td>1240 × 263</td>
+                    <td><span class="badge badge-medium">مقبول 👌</span></td>
+                </tr>
+                <tr>
+                    <td><strong>72 DPI</strong></td>
+                    <td>عرض على الشاشة فقط</td>
+                    <td>595 × 126</td>
+                    <td>595 × 589</td>
+                    <td>595 × 126</td>
+                    <td><span class="badge badge-minimum">غير موصى به ⚠️</span></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="tips">
+            <h3>💡 نصائح مهمة لتصميم الصور</h3>
+            <ul>
+                <li>استخدم دقة <strong>300 DPI</strong> للحصول على أفضل جودة طباعة</li>
+                <li>احفظ الصور بصيغة <strong>PNG</strong> للشفافية أو <strong>JPG بجودة 90%</strong></li>
+                <li>اترك هامش <strong>50 بكسل</strong> من كل جانب كمساحة آمنة</li>
+                <li>حجم الملف الأقصى: <strong>5 MB</strong> لكل صورة</li>
+                <li>استخدم نفس نظام الألوان في الصور الثلاثة للتناسق</li>
+                <li>ضع الشعارات والنصوص المهمة في <strong>المنتصف</strong></li>
+                <li>تجنب تكبير صور صغيرة - استخدم الأبعاد الصحيحة من البداية</li>
+                <li>اختبر التصميم على شاشة كبيرة قبل الرفع</li>
+            </ul>
+        </div>
+
+        <div style="background: #e8f5e9; padding: 25px; border-radius: 15px; margin-top: 30px; border-right: 5px solid #4caf50;">
+            <h3 style="color: #2e7d32; margin-bottom: 15px;">✅ خطوات سريعة</h3>
+            <ol style="line-height: 2; color: #1b5e20; font-size: 1.05em;">
+                <li>افتح برنامج التصميم (Photoshop/Canva/GIMP)</li>
+                <li>أنشئ مستند جديد بالأبعاد المذكورة أعلاه</li>
+                <li>اضبط الدقة على <strong>300 DPI</strong></li>
+                <li>صمم الخلفية مع ترك مساحة للمحتوى</li>
+                <li>احفظ الملف بصيغة PNG أو JPG عالي الجودة</li>
+                <li>ارفع الصورة في النظام</li>
+                <li>اختبر التقرير قبل الطباعة النهائية</li>
+            </ol>
+        </div>
+
+        <div style="margin-top: 40px; padding: 20px; background: #f5f5f5; border-radius: 10px; text-align: center;">
+            <p style="color: #666; font-size: 0.95em;">
+                📅 آخر تحديث: 17 فبراير 2026 |
+                📄 نوع الورقة: A4 Portrait |
+                ⚙️ نظام: Laravel PDF Generator
+            </p>
+        </div>
+    </div>
+</body>
+</html>

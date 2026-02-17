@@ -1500,7 +1500,7 @@
                                 <img src="/storage/${design.single_image}"
                                      class="img-thumbnail"
                                      style="max-height: 150px;"
-                                     onerror="this.style.display='none'; this.nextElementSibling.innerHTML='<i class=\'bi bi-exclamation-triangle text-warning\'></i> الصورة غير موجودة'">
+                                     onerror="this.style.display='none'; this.nextElementSibling.innerHTML='<i class=&quot;bi bi-exclamation-triangle text-warning&quot;></i> الصورة غير موجودة'">
                                 <p class="text-muted mt-1">الصورة الحالية</p>
                             `);
                         }
@@ -1510,7 +1510,7 @@
                                 <img src="/storage/${design.header_image}"
                                      class="img-thumbnail"
                                      style="max-height: 150px;"
-                                     onerror="this.style.display='none'; this.nextElementSibling.innerHTML='<i class=\'bi bi-exclamation-triangle text-warning\'></i> الصورة غير موجودة'">
+                                     onerror="this.style.display='none'; this.nextElementSibling.innerHTML='<i class=&quot;bi bi-exclamation-triangle text-warning&quot;></i> الصورة غير موجودة'">
                                 <p class="text-muted mt-1">الصورة الحالية</p>
                             `);
                         }
@@ -1520,7 +1520,7 @@
                                 <img src="/storage/${design.main_image}"
                                      class="img-thumbnail"
                                      style="max-height: 150px;"
-                                     onerror="this.style.display='none'; this.nextElementSibling.innerHTML='<i class=\'bi bi-exclamation-triangle text-warning\'></i> الصورة غير موجودة'">
+                                     onerror="this.style.display='none'; this.nextElementSibling.innerHTML='<i class=&quot;bi bi-exclamation-triangle text-warning&quot;></i> الصورة غير موجودة'">
                                 <p class="text-muted mt-1">الصورة الحالية</p>
                             `);
                         }
@@ -1530,7 +1530,7 @@
                                 <img src="/storage/${design.footer_image}"
                                      class="img-thumbnail"
                                      style="max-height: 150px;"
-                                     onerror="this.style.display='none'; this.nextElementSibling.innerHTML='<i class=\'bi bi-exclamation-triangle text-warning\'></i> الصورة غير موجودة'">
+                                     onerror="this.style.display='none'; this.nextElementSibling.innerHTML='<i class=&quot;bi bi-exclamation-triangle text-warning&quot;></i> الصورة غير موجودة'">
                                 <p class="text-muted mt-1">الصورة الحالية</p>
                             `);
                         }

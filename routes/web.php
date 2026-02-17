@@ -509,3 +509,33 @@ Route::get('/test-save-button', function() { return view('test-save-button'); })
 Route::get('/test-new-documents-system', function() { return view('test-new-documents-system'); });
 
 Route::get('/direct-documents-page', function() { return view('direct-documents-page'); });
+
+Route::get('/test-images', function() { return view('test-images'); });
+
+// Route لعرض ملفات storage بدون الحاجة لـ symlink
+Route::get('/storage/{path}', function ($path) {
+    \Log::info('🔍 Storage route called', [
+        'path' => $path,
+        'full_path' => storage_path('app/public/' . $path)
+    ]);
+
+    $filePath = storage_path('app/public/' . $path);
+
+    if (!file_exists($filePath)) {
+        \Log::error('❌ File not found', [
+            'path' => $path,
+            'full_path' => $filePath,
+            'exists' => file_exists($filePath)
+        ]);
+        abort(404);
+    }
+
+    \Log::info('✓ File found, serving it', ['path' => $filePath]);
+
+    $mimeType = mime_content_type($filePath);
+    return response()->file($filePath, [
+        'Content-Type' => $mimeType,
+        'Cache-Control' => 'public, max-age=31536000'
+    ]);
+})->where('path', '.*');
+

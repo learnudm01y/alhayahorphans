@@ -2591,31 +2591,9 @@ class SponsorshipController extends Controller
                     // التحقق من وجود رقم هوية المعيل
                     $guardianIdentity = $personData['guardian_identity'] ?? '';
 
-                    // 🆕 إذا كان فرد عائلة بدون رقم هوية معيل - نُضيفه للقائمة للتنبيه فقط
-                    // لكن سيتم إدخاله في جدول الكفالات بدون ربط
-                    if (empty($guardianIdentity) && !$found) {
-                        // ⚠️ إضافته لقائمة أفراد العائلة بدون معيل - للتنبيه فقط (سيتم إدخاله)
-                        $familyMembersWithoutGuardian[] = [
-                            'row' => $personData['row'],
-                            'identity' => $identity,
-                            'name' => $personData['name'] ?? '',
-                            'guardian_identity' => '',
-                            'guardian_name' => $personData['guardian_name'] ?? '',
-                            'reason' => 'سيتم الإدخال في سجل الكفالات بدون ربط',
-                            'will_be_inserted' => true, // ✅ سيتم إدخاله في الكفالات
-                            'without_link' => true // ⚠️ بدون ربط بملف
-                        ];
-
-                        Log::info('ℹ️ فرد عائلة بدون رقم هوية معيل - سيتم إدخاله في الكفالات بدون ربط', [
-                            'row' => $personData['row'],
-                            'identity' => $identity,
-                            'name' => $personData['name'] ?? ''
-                        ]);
-
-                        continue; // تخطي البحث في السجل المدني فقط (لا حاجة للبحث بدون معيل)
-                    }
-
                     // 🆕 إذا لم يُعثر عليه في re_people وله معيل، نبحث في السجل المدني
+                    // ملاحظة: تم حذف الكتلة المكررة التي كانت تضيف أفراد العائلة بدون معيل هنا
+                    // لأن هناك فحص شامل في نهاية الدالة يقوم بنفس المهمة بدقة أكبر
                     if (!$found && !empty($identity)) {
                         $civilRegistryData = $this->searchCivilRegistryForGuardian($identity);
                         if ($civilRegistryData) {

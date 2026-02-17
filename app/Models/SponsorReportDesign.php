@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 
 class SponsorReportDesign extends Model
 {
@@ -73,19 +73,41 @@ class SponsorReportDesign extends Model
     }
 
     /**
-     * الحصول على صورة base64 للصورة الواحدة
+     * الحصول على صور base64 للصورة الواحدة
      */
     public function getSingleImageBase64Attribute()
     {
-        if (!$this->single_image || !$this->single_image_path || !file_exists($this->single_image_path)) {
+        if (!$this->single_image) {
+            return null;
+        }
+
+        $imagePath = storage_path('app/public/' . $this->single_image);
+
+        if (!file_exists($imagePath)) {
+            Log::warning('Single image file not found', [
+                'path' => $imagePath,
+                'sponsor_id' => $this->sponsor_id
+            ]);
             return null;
         }
 
         try {
-            $imageData = file_get_contents($this->single_image_path);
-            $mimeType = mime_content_type($this->single_image_path);
-            return 'data:' . $mimeType . ';base64,' . base64_encode($imageData);
+            $imageData = file_get_contents($imagePath);
+            $mimeType = mime_content_type($imagePath);
+            $base64 = 'data:' . $mimeType . ';base64,' . base64_encode($imageData);
+
+            Log::info('Single image loaded successfully', [
+                'sponsor_id' => $this->sponsor_id,
+                'path' => $imagePath,
+                'size' => strlen($base64)
+            ]);
+
+            return $base64;
         } catch (\Exception $e) {
+            Log::error('Error loading single image', [
+                'path' => $imagePath,
+                'error' => $e->getMessage()
+            ]);
             return null;
         }
     }
@@ -95,15 +117,37 @@ class SponsorReportDesign extends Model
      */
     public function getHeaderImageBase64Attribute()
     {
-        if (!$this->header_image || !$this->header_image_path || !file_exists($this->header_image_path)) {
+        if (!$this->header_image) {
+            return null;
+        }
+
+        $imagePath = storage_path('app/public/' . $this->header_image);
+
+        if (!file_exists($imagePath)) {
+            Log::warning('Header image file not found', [
+                'path' => $imagePath,
+                'sponsor_id' => $this->sponsor_id
+            ]);
             return null;
         }
 
         try {
-            $imageData = file_get_contents($this->header_image_path);
-            $mimeType = mime_content_type($this->header_image_path);
-            return 'data:' . $mimeType . ';base64,' . base64_encode($imageData);
+            $imageData = file_get_contents($imagePath);
+            $mimeType = mime_content_type($imagePath);
+            $base64 = 'data:' . $mimeType . ';base64,' . base64_encode($imageData);
+
+            Log::info('Header image loaded successfully', [
+                'sponsor_id' => $this->sponsor_id,
+                'path' => $imagePath,
+                'size' => strlen($base64)
+            ]);
+
+            return $base64;
         } catch (\Exception $e) {
+            Log::error('Error loading header image', [
+                'path' => $imagePath,
+                'error' => $e->getMessage()
+            ]);
             return null;
         }
     }
@@ -113,15 +157,37 @@ class SponsorReportDesign extends Model
      */
     public function getMainImageBase64Attribute()
     {
-        if (!$this->main_image || !$this->main_image_path || !file_exists($this->main_image_path)) {
+        if (!$this->main_image) {
+            return null;
+        }
+
+        $imagePath = storage_path('app/public/' . $this->main_image);
+
+        if (!file_exists($imagePath)) {
+            Log::warning('Main image file not found', [
+                'path' => $imagePath,
+                'sponsor_id' => $this->sponsor_id
+            ]);
             return null;
         }
 
         try {
-            $imageData = file_get_contents($this->main_image_path);
-            $mimeType = mime_content_type($this->main_image_path);
-            return 'data:' . $mimeType . ';base64,' . base64_encode($imageData);
+            $imageData = file_get_contents($imagePath);
+            $mimeType = mime_content_type($imagePath);
+            $base64 = 'data:' . $mimeType . ';base64,' . base64_encode($imageData);
+
+            Log::info('Main image loaded successfully', [
+                'sponsor_id' => $this->sponsor_id,
+                'path' => $imagePath,
+                'size' => strlen($base64)
+            ]);
+
+            return $base64;
         } catch (\Exception $e) {
+            Log::error('Error loading main image', [
+                'path' => $imagePath,
+                'error' => $e->getMessage()
+            ]);
             return null;
         }
     }
@@ -131,15 +197,37 @@ class SponsorReportDesign extends Model
      */
     public function getFooterImageBase64Attribute()
     {
-        if (!$this->footer_image || !$this->footer_image_path || !file_exists($this->footer_image_path)) {
+        if (!$this->footer_image) {
+            return null;
+        }
+
+        $imagePath = storage_path('app/public/' . $this->footer_image);
+
+        if (!file_exists($imagePath)) {
+            Log::warning('Footer image file not found', [
+                'path' => $imagePath,
+                'sponsor_id' => $this->sponsor_id
+            ]);
             return null;
         }
 
         try {
-            $imageData = file_get_contents($this->footer_image_path);
-            $mimeType = mime_content_type($this->footer_image_path);
-            return 'data:' . $mimeType . ';base64,' . base64_encode($imageData);
+            $imageData = file_get_contents($imagePath);
+            $mimeType = mime_content_type($imagePath);
+            $base64 = 'data:' . $mimeType . ';base64,' . base64_encode($imageData);
+
+            Log::info('Footer image loaded successfully', [
+                'sponsor_id' => $this->sponsor_id,
+                'path' => $imagePath,
+                'size' => strlen($base64)
+            ]);
+
+            return $base64;
         } catch (\Exception $e) {
+            Log::error('Error loading footer image', [
+                'path' => $imagePath,
+                'error' => $e->getMessage()
+            ]);
             return null;
         }
     }

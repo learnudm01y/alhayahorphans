@@ -43,67 +43,15 @@
             min-height: 340mm !important;
             height: auto;
             background-color: white;
-
-            @if($backgroundType === 'single')
-            background-image: url('{{ $singleBg }}');
-            background-size: 100% 100% !important;
-            background-position: center top;
-            background-repeat: no-repeat;
-            @endif
-
             position: relative;
             padding: 30px 30px 40px 30px;
             box-sizing: border-box;
-        }
-
-        @if($backgroundType === 'triple')
-        .page-header-bg {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 15%;
-            @if(!empty($customDesign['header_image']))
-            background-image: url('{{ $customDesign['header_image'] }}');
-            background-size: 100% 100%;
-            background-repeat: no-repeat;
-            @endif
-            z-index: 0;
-        }
-
-        .page-main-bg {
-            position: absolute;
-            top: 15%;
-            left: 0;
-            right: 0;
-            height: 70%;
-            @if(!empty($customDesign['main_image']))
-            background-image: url('{{ $customDesign['main_image'] }}');
-            background-size: 100% 100%;
-            background-repeat: no-repeat;
-            @endif
-            z-index: 0;
-        }
-
-        .page-footer-bg {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 15%;
-            @if(!empty($customDesign['footer_image']))
-            background-image: url('{{ $customDesign['footer_image'] }}');
-            background-size: 100% 100%;
-            background-repeat: no-repeat;
-            @endif
-            z-index: 0;
         }
 
         .page-container > * {
             position: relative;
             z-index: 1;
         }
-        @endif
 
         /* Colors - Using dynamic colors */
         /* Primary: {{ $primaryColor }} */
@@ -409,11 +357,26 @@ td {
 
 <body>
     <div class="page-container">
+        @if($backgroundType === 'single' && !empty($singleBg))
+        <!-- خلفية واحدة -->
+        <img src="{{ $singleBg }}"
+             style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0;">
+        @endif
+
         @if($backgroundType === 'triple')
         <!-- خلفيات ثلاثية -->
-        <div class="page-header-bg"></div>
-        <div class="page-main-bg"></div>
-        <div class="page-footer-bg"></div>
+        @if(!empty($customDesign['header_image']))
+        <img src="{{ $customDesign['header_image'] }}"
+             style="position: absolute; top: 0; left: 0; right: 0; width: 100%; height: 15%; object-fit: cover; z-index: 0;">
+        @endif
+        @if(!empty($customDesign['main_image']))
+        <img src="{{ $customDesign['main_image'] }}"
+             style="position: absolute; top: 15%; left: 0; right: 0; width: 100%; height: 70%; object-fit: cover; z-index: 0;">
+        @endif
+        @if(!empty($customDesign['footer_image']))
+        <img src="{{ $customDesign['footer_image'] }}"
+             style="position: absolute; bottom: 0; left: 0; right: 0; width: 100%; height: 15%; object-fit: cover; z-index: 0;">
+        @endif
         @endif
 
         <!-- Header -->

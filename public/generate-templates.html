@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>إنشاء قوالب صور التقرير</title>
+</head>
+<body>
+    <h1>قوالب صور التقرير</h1>
+    <p>استخدم هذه الصفحة لإنشاء قوالب placeholder بالأبعاد الصحيحة</p>
+
+    <h2>1. صورة الرأس (Header) - 2480 × 526</h2>
+    <canvas id="headerCanvas" width="2480" height="526"></canvas>
+    <br>
+    <button onclick="downloadCanvas('headerCanvas', 'header_template_2480x526.png')">تحميل قالب الرأس</button>
+
+    <h2>2. الصورة الرئيسية (Main) - 2480 × 2456</h2>
+    <canvas id="mainCanvas" width="2480" height="2456"></canvas>
+    <br>
+    <button onclick="downloadCanvas('mainCanvas', 'main_template_2480x2456.png')">تحميل القالب الرئيسي</button>
+
+    <h2>3. صورة التذييل (Footer) - 2480 × 526</h2>
+    <canvas id="footerCanvas" width="2480" height="526"></canvas>
+    <br>
+    <button onclick="downloadCanvas('footerCanvas', 'footer_template_2480x526.png')">تحميل قالب التذييل</button>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            direction: rtl;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        h1 {
+            color: #667eea;
+        }
+
+        h2 {
+            color: #764ba2;
+            margin-top: 30px;
+        }
+
+        canvas {
+            border: 2px solid #333;
+            display: block;
+            margin: 10px 0;
+            max-width: 100%;
+            height: auto;
+            background: white;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+
+        button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+    </style>
+
+    <script>
+        // Draw Header Template
+        function drawHeaderTemplate() {
+            const canvas = document.getElementById('headerCanvas');
+            const ctx = canvas.getContext('2d');
+
+            // Background gradient
+            const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+            gradient.addColorStop(0, '#667eea');
+            gradient.addColorStop(1, '#764ba2');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Safe area border
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(50, 50, canvas.width - 100, canvas.height - 100);
+
+            // Text
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 80px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('صورة الرأس (Header)', canvas.width / 2, 200);
+
+            ctx.font = '50px Arial';
+            ctx.fillText('2480 × 526 بكسل', canvas.width / 2, 300);
+
+            ctx.font = '40px Arial';
+            ctx.fillText('15% من الصفحة', canvas.width / 2, 380);
+        }
+
+        // Draw Main Template
+        function drawMainTemplate() {
+            const canvas = document.getElementById('mainCanvas');
+            const ctx = canvas.getContext('2d');
+
+            // Background gradient
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#667eea');
+            gradient.addColorStop(1, '#764ba2');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Safe area border
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(50, 50, canvas.width - 100, canvas.height - 100);
+
+            // Content area
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.setLineDash([20, 20]);
+            ctx.lineWidth = 3;
+            ctx.strokeRect(200, 200, canvas.width - 400, canvas.height - 400);
+            ctx.setLineDash([]);
+
+            // Text
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 100px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('الصورة الرئيسية (Main)', canvas.width / 2, 800);
+
+            ctx.font = '70px Arial';
+            ctx.fillText('2480 × 2456 بكسل', canvas.width / 2, 950);
+
+            ctx.font = '60px Arial';
+            ctx.fillText('70% من الصفحة', canvas.width / 2, 1080);
+
+            ctx.font = '50px Arial';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.fillText('منطقة المحتوى (اترك هذه المنطقة فارغة)', canvas.width / 2, 1500);
+        }
+
+        // Draw Footer Template
+        function drawFooterTemplate() {
+            const canvas = document.getElementById('footerCanvas');
+            const ctx = canvas.getContext('2d');
+
+            // Background gradient
+            const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+            gradient.addColorStop(0, '#764ba2');
+            gradient.addColorStop(1, '#667eea');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Safe area border
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(50, 50, canvas.width - 100, canvas.height - 100);
+
+            // Text
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 80px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('صورة التذييل (Footer)', canvas.width / 2, 200);
+
+            ctx.font = '50px Arial';
+            ctx.fillText('2480 × 526 بكسل', canvas.width / 2, 300);
+
+            ctx.font = '40px Arial';
+            ctx.fillText('15% من الصفحة', canvas.width / 2, 380);
+        }
+
+        // Download function
+        function downloadCanvas(canvasId, filename) {
+            const canvas = document.getElementById(canvasId);
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        // Initialize on load
+        window.onload = function() {
+            drawHeaderTemplate();
+            drawMainTemplate();
+            drawFooterTemplate();
+        };
+    </script>
+</body>
+</html>
