@@ -210,6 +210,10 @@ public class NetworkMonitor {
 
     /**
      * Network Callback - استجابة لتغيرات حالة الشبكة
+     *
+     * ⚠️ FIX: Prevent duplicate triggers causing infinite loop
+     * - onAvailable() fires ONCE when network connects
+     * - onCapabilitiesChanged() fires REPEATEDLY (don't use for upload trigger)
      */
     private class NetworkCallback extends ConnectivityManager.NetworkCallback {
 
@@ -222,9 +226,12 @@ public class NetworkMonitor {
 
             Log.d(TAG, "📡 onAvailable() - شبكة متاحة");
 
-            // إذا كنا غير متصلين من قبل، نرفع الملفات
+            // ✅ ONLY trigger upload on transition from offline→online
             if (wasOffline) {
+                Log.d(TAG, "🔥 Transition: offline → online - triggering upload");
                 handleNetworkAvailable();
+            } else {
+                Log.d(TAG, "ℹ️ Already online - skipping trigger");
             }
         }
 
@@ -244,15 +251,14 @@ public class NetworkMonitor {
             boolean hasInternet = networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
                                 networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
 
-            boolean wasOffline = !isNetworkAvailable;
-            isNetworkAvailable = hasInternet;
+            // ❌ REMOVED: Don't trigger upload here - this fires repeatedly every few seconds
+            // Only update state tracking
+            if (hasInternet != isNetworkAvailable) {
+                Log.d(TAG, "📡 onCapabilitiesChanged() - حالة الإنترنت تغيرت: " + hasInternet);
+                isNetworkAvailable = hasInternet;
 
-            if (hasInternet && wasOffline) {
-                Log.d(TAG, "📡 onCapabilitiesChanged() - الإنترنت متاح الآن");
-                handleNetworkAvailable();
-            } else if (!hasInternet && !wasOffline) {
-                Log.d(TAG, "📡 onCapabilitiesChanged() - الإنترنت غير متاح");
-                handleNetworkLost();
+                // ❌ FIX: Don't call handleNetworkAvailable() here - causes infinite loop!
+                // onAvailable() already handles upload trigger
             }
         }
 

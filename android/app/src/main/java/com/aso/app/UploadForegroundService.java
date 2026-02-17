@@ -60,11 +60,19 @@ public class UploadForegroundService extends Service {
         if (isNetworkAvailable()) {
             Notification notification = createNotification("جاري التحضير...", 0, 0);
             try {
-                startForeground(NOTIFICATION_ID, notification);
+                // ✅ CRITICAL FIX: Android 14+ requires foregroundServiceType
+                if (Build.VERSION.SDK_INT >= 34) { // Android 14 (API 34)
+                    android.util.Log.e(TAG, "📱 Android 14+ - using FOREGROUND_SERVICE_TYPE_DATA_SYNC");
+                    startForeground(NOTIFICATION_ID, notification,
+                        android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+                } else {
+                    startForeground(NOTIFICATION_ID, notification);
+                }
                 isInForeground = true;
                 android.util.Log.e(TAG, "🛡️ Foreground Service started with notification (online)");
             } catch (Exception e) {
                 android.util.Log.e(TAG, "❌ فشل startForeground: " + e.getMessage(), e);
+                e.printStackTrace();
                 stopSelf();
                 return START_NOT_STICKY;
             }
@@ -73,13 +81,21 @@ public class UploadForegroundService extends Service {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 Notification notification = createNotification("Waiting for internet...", 0, 0);
                 try {
-                    startForeground(NOTIFICATION_ID, notification);
+                    // ✅ CRITICAL FIX: Android 14+ requires foregroundServiceType
+                    if (Build.VERSION.SDK_INT >= 34) { // Android 14 (API 34)
+                        android.util.Log.e(TAG, "📱 Android 14+ offline - using FOREGROUND_SERVICE_TYPE_DATA_SYNC");
+                        startForeground(NOTIFICATION_ID, notification,
+                            android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+                    } else {
+                        startForeground(NOTIFICATION_ID, notification);
+                    }
                     // إخفاء فوراً
                     stopForeground(true);
                     isInForeground = false;
                     android.util.Log.e(TAG, "🛡️ Service started in background mode (offline - notification hidden)");
                 } catch (Exception e) {
                     android.util.Log.e(TAG, "❌ فشل startForeground: " + e.getMessage(), e);
+                    e.printStackTrace();
                     stopSelf();
                     return START_NOT_STICKY;
                 }
@@ -160,7 +176,14 @@ public class UploadForegroundService extends Service {
                     Log.d(TAG, "Showing notification - starting upload");
                     int totalPending = dbHelper.getPendingFilesCount();
                     Notification notification = createNotification("Uploading files...", currentSessionSuccessCount, totalPending + currentSessionSuccessCount);
-                    startForeground(NOTIFICATION_ID, notification);
+                    // ✅ CRITICAL FIX: Android 14+ requires foregroundServiceType
+                    if (Build.VERSION.SDK_INT >= 34) { // Android 14 (API 34)
+                        Log.d(TAG, "📱 Android 14+ - using FOREGROUND_SERVICE_TYPE_DATA_SYNC");
+                        startForeground(NOTIFICATION_ID, notification,
+                            android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+                    } else {
+                        startForeground(NOTIFICATION_ID, notification);
+                    }
                     isInForeground = true;
                 } else if (!isNetworkAvailable()) {
                     Log.d(TAG, "Offline - hiding notification, keeping background sync active");

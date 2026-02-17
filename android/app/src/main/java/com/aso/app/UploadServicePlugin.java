@@ -36,9 +36,15 @@ public class UploadServicePlugin extends Plugin {
     private static final String CHANNEL_NAME = "رفع الملفات";
     private static int notificationId = 1000;
 
+    // ✨ NEW: Static reference to plugin instance for broadcasting events
+    private static UploadServicePlugin instance;
+
     @Override
     public void load() {
         super.load();
+
+        // Store instance for static access
+        instance = this;
 
         android.util.Log.e(TAG, "");
         android.util.Log.e(TAG, "╔════════════════════════════════════════════════════════════════╗");
@@ -49,6 +55,27 @@ public class UploadServicePlugin extends Plugin {
         android.util.Log.e(TAG, "");
 
         createNotificationChannel();
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // ✨ NEW: Static method to notify JavaScript of upload status changes
+    // Called by FileSyncWorker after upload success/failure
+    // ═══════════════════════════════════════════════════════════════════
+    public static void notifyUploadStatusChanged(long fileId, String status, String error) {
+        if (instance != null) {
+            android.util.Log.e(TAG, "📡 Broadcasting upload status to JavaScript: fileId=" + fileId + ", status=" + status);
+
+            JSObject data = new JSObject();
+            data.put("fileId", fileId);
+            data.put("status", status);
+            if (error != null) {
+                data.put("error", error);
+            }
+
+            instance.notifyListeners("uploadStatusChanged", data);
+        } else {
+            android.util.Log.w(TAG, "⚠️ Cannot notify JavaScript - plugin instance not available");
+        }
     }
 
     private void createNotificationChannel() {
@@ -110,19 +137,8 @@ public class UploadServicePlugin extends Plugin {
 
     @PluginMethod
     public void addFileToQueue(PluginCall call) {
-        android.util.Log.e(TAG, "");
-        android.util.Log.e(TAG, "╔════════════════════════════════════════════════════════════════╗");
-        android.util.Log.e(TAG, "║  🔥🔥🔥 addFileToQueue() CALLED FROM JAVASCRIPT 🔥🔥🔥         ║");
-        android.util.Log.e(TAG, "╚════════════════════════════════════════════════════════════════╝");
-        android.util.Log.e(TAG, "⏱️  Timestamp: " + System.currentTimeMillis());
-        android.util.Log.e(TAG, "🧵 Thread: " + Thread.currentThread().getName());
-
         try {
-            // ═══════════════════════════════════════════════════════════════════
-            // Step 1: Extract parameters from JavaScript
-            // ═══════════════════════════════════════════════════════════════════
-            android.util.Log.e(TAG, "📥 [Step 1/5] Extracting parameters from JavaScript call...");
-
+            // Extract parameters
             String filePath = call.getString("filePath");
             String fileName = call.getString("fileName");
             String fileType = call.getString("fileType", "application/octet-stream");
@@ -133,7 +149,7 @@ public class UploadServicePlugin extends Plugin {
             String associationName = call.getString("associationName");
             String personName = call.getString("personName");
 
-            // Default values if not provided
+            // Default values
             if (associationName == null || associationName.isEmpty()) {
                 associationName = "General";
             }
@@ -141,86 +157,48 @@ public class UploadServicePlugin extends Plugin {
                 personName = "unknown";
             }
 
-            // ═══════════════════════════════════════════════════════════════════
-            // Step 2: Validate parameters
-            // ═══════════════════════════════════════════════════════════════════
-            android.util.Log.e(TAG, "✅ [Step 2/5] Parameter validation...");
-            android.util.Log.e(TAG, "   ├─ fileName: " + fileName);
-            android.util.Log.e(TAG, "   ├─ photoId: " + photoId);
-            android.util.Log.e(TAG, "   ├─ fileType: " + fileType);
-            android.util.Log.e(TAG, "   ├─ apiUrl: " + apiUrl);
-            android.util.Log.e(TAG, "   ├─ associationName: '" + associationName + "'");
-            android.util.Log.e(TAG, "   ├─ personName: '" + personName + "'");
-            android.util.Log.e(TAG, "   └─ filePath: " + filePath);
-
-            // ✅ Validate required parameters (null AND empty checks!)
+            // Validate parameters
             if (filePath == null || filePath.isEmpty() ||
                 fileName == null || fileName.isEmpty() ||
                 photoId == null ||
                 apiUrl == null || apiUrl.isEmpty()) {
 
-                android.util.Log.e(TAG, "❌❌❌ VALIDATION FAILED - Missing required parameters!");
-                android.util.Log.e(TAG, "   filePath null/empty? " + (filePath == null || filePath.isEmpty()));
-                android.util.Log.e(TAG, "   fileName null/empty? " + (fileName == null || fileName.isEmpty()));
-                android.util.Log.e(TAG, "   photoId null? " + (photoId == null));
-                android.util.Log.e(TAG, "   apiUrl null/empty? " + (apiUrl == null || apiUrl.isEmpty()));
-                showNotification("خطأ في الرفع", "معاملات ناقصة - apiUrl فارغ!", false);
-                call.reject("معاملات ناقصة - تحقق من baseUrl في JavaScript");
+                showNotification("خطأ في الرفع", "معاملات ناقصة", false);
+                call.reject("معاملات ناقصة");
                 return;
             }
 
-            // ═══════════════════════════════════════════════════════════════════
-            // Step 3: Validate and verify file exists
-            //
-            // Expected format: file:///path/to/file or /path/to/file
-            // NO BASE64 - we work with file:// URIs only!
-            // ═══════════════════════════════════════════════════════════════════
-            android.util.Log.e(TAG, "✅ [Step 3/5] File validation...");
-            android.util.Log.e(TAG, "   ℹ️ NO BASE64 Policy - direct file:// URIs only");
-
+            // Validate file path
             String actualFilePath;
             if (filePath.startsWith("file://")) {
-                actualFilePath = filePath.substring(7); // Remove file://
+                actualFilePath = filePath.substring(7);
             } else if (filePath.startsWith("/")) {
                 actualFilePath = filePath;
             } else {
-                android.util.Log.e(TAG, "❌ Invalid file path format: " + filePath);
-                android.util.Log.e(TAG, "   Expected: file:///path/to/file or /path/to/file");
                 call.reject("مسار ملف غير صحيح");
                 return;
             }
 
-            android.util.Log.e(TAG, "   📍 Actual path: " + actualFilePath);
-
             java.io.File sourceFile = new java.io.File(actualFilePath);
             if (!sourceFile.exists()) {
-                android.util.Log.e(TAG, "❌ File not found: " + sourceFile.getAbsolutePath());
                 call.reject("الملف غير موجود");
                 return;
             }
 
             long fileSize = sourceFile.length();
-            android.util.Log.e(TAG, "   ✅ File exists: " + formatFileSize(fileSize));
-            android.util.Log.e(TAG, "   ✅ Location: " + sourceFile.getAbsolutePath());
 
-            // ═══════════════════════════════════════════════════════════════════
-            // Step 4: Save auth token to SharedPreferences (if provided)
-            // ═══════════════════════════════════════════════════════════════════
+            // ✅ NO COPY! File already saved in Documents by CameraActivity
+            // This dramatically improves save speed (from 7s to instant!)
+
+            // Save auth token
             if (authToken != null && !authToken.isEmpty()) {
                 getContext().getSharedPreferences("capacitor", android.content.Context.MODE_PRIVATE)
                         .edit()
                         .putString("auth_token", authToken)
                         .apply();
-                android.util.Log.e(TAG, "🔑 [Step 4/5] Auth token saved");
-            } else {
-                android.util.Log.e(TAG, "⚠️  [Step 4/5] No auth token provided - upload may fail with 401");
             }
 
-            // ═══════════════════════════════════════════════════════════════════
-            // Step 5: Save to SQLite database (NO upload happens here!)
-            // ═══════════════════════════════════════════════════════════════════
-            android.util.Log.e(TAG, "💾 [Step 5/5] Saving to SQLite upload queue...");
-
+            // Save to database
             UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(getContext());
             long fileId = dbHelper.addFileToQueue(
                 actualFilePath,
@@ -294,6 +272,72 @@ public class UploadServicePlugin extends Plugin {
             android.util.Log.e(TAG, "❌ Exception: " + e.getMessage(), e);
             showNotification("خطأ في الرفع", e.getMessage(), false);
             call.reject("خطأ: " + e.getMessage());
+        }
+    }
+
+    /**
+     * ✨ NEW: Get upload statistics (pending, completed, failed files count)
+     * Called from JavaScript to update UI
+     */
+    @PluginMethod
+    public void getUploadStats(PluginCall call) {
+        try {
+            UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(getContext());
+
+            int pending = dbHelper.getFilesByStatus(UploadDatabaseHelper.STATUS_PENDING).size();
+            int uploading = dbHelper.getFilesByStatus(UploadDatabaseHelper.STATUS_UPLOADING).size();
+            int completed = dbHelper.getFilesByStatus(UploadDatabaseHelper.STATUS_COMPLETED).size();
+            int failed = dbHelper.getFilesByStatus(UploadDatabaseHelper.STATUS_FAILED).size();
+
+            JSObject result = new JSObject();
+            result.put("pending", pending);
+            result.put("uploading", uploading);
+            result.put("completed", completed);
+            result.put("failed", failed);
+            result.put("total", pending + uploading + completed + failed);
+
+            call.resolve(result);
+
+        } catch (Exception e) {
+            Log.e(TAG, "❌ Error getting upload stats: " + e.getMessage());
+            call.reject("Error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * ✨ NEW: Get list of files by status
+     */
+    @PluginMethod
+    public void getFilesByStatus(PluginCall call) {
+        try {
+            String status = call.getString("status", UploadDatabaseHelper.STATUS_PENDING);
+            UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(getContext());
+
+            List<UploadDatabaseHelper.UploadItem> items = dbHelper.getFilesByStatus(status);
+
+            com.getcapacitor.JSArray filesArray = new com.getcapacitor.JSArray();
+            for (UploadDatabaseHelper.UploadItem item : items) {
+                JSObject fileObj = new JSObject();
+                fileObj.put("id", item.id);
+                fileObj.put("fileName", item.fileName);
+                fileObj.put("fileType", item.fileType);
+                fileObj.put("photoId", item.photoId);
+                fileObj.put("status", item.status);
+                fileObj.put("retryCount", item.retryCount);
+                fileObj.put("errorMessage", item.errorMessage);
+                fileObj.put("createdAt", item.createdAt);
+                filesArray.put(fileObj);
+            }
+
+            JSObject result = new JSObject();
+            result.put("files", filesArray);
+            result.put("count", items.size());
+
+            call.resolve(result);
+
+        } catch (Exception e) {
+            Log.e(TAG, "❌ Error getting files: " + e.getMessage());
+            call.reject("Error: " + e.getMessage());
         }
     }
 

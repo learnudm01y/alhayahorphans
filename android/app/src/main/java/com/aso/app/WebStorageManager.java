@@ -72,8 +72,21 @@ public class WebStorageManager {
         try {
             WebStorage webStorage = WebStorage.getInstance();
 
+            // ⚠️ إضافة timeout لمنع الـ deadlock
+            final boolean[] callbackReceived = {false};
+
+            Handler timeoutHandler = new Handler(Looper.getMainLooper());
+            timeoutHandler.postDelayed(() -> {
+                if (!callbackReceived[0]) {
+                    Log.w(TAG, "⚠️ checkAndCleanupStorage callback timeout - skipping cleanup");
+                }
+            }, 5000); // 5 second timeout
+
             // الحصول على جميع origins
             webStorage.getOrigins(valueCallback -> {
+                callbackReceived[0] = true;
+                timeoutHandler.removeCallbacksAndMessages(null); // إلغاء الـ timeout
+
                 if (valueCallback == null) {
                     Log.d(TAG, "📊 No WebStorage data");
                     return;
@@ -158,7 +171,20 @@ public class WebStorageManager {
         try {
             WebStorage webStorage = WebStorage.getInstance();
 
+            // ⚠️ إضافة timeout لمنع الـ deadlock
+            final boolean[] callbackReceived = {false};
+
+            Handler timeoutHandler = new Handler(Looper.getMainLooper());
+            timeoutHandler.postDelayed(() -> {
+                if (!callbackReceived[0]) {
+                    Log.w(TAG, "⚠️ WebStorage callback timeout - WebView may not be ready yet");
+                }
+            }, 3000); // 3 second timeout
+
             webStorage.getOrigins(valueCallback -> {
+                callbackReceived[0] = true;
+                timeoutHandler.removeCallbacksAndMessages(null); // إلغاء الـ timeout
+
                 if (valueCallback == null) {
                     Log.d(TAG, "📊 No WebStorage data");
                     return;

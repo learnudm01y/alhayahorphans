@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔐 اختبار نظام الصلاحيات</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            direction: rtl;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .info-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .info-box h3 {
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .info-box ul {
+            list-style: none;
+            padding-right: 0;
+        }
+
+        .info-box li {
+            margin: 8px 0;
+            padding-right: 25px;
+            position: relative;
+        }
+
+        .info-box li:before {
+            content: '✅';
+            position: absolute;
+            right: 0;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 18px;
+            border: none;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #4caf50, #45a049);
+            color: white;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.6);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #2196f3, #1976d2);
+            color: white;
+            box-shadow: 0 4px 15px rgba(33, 150, 243, 0.4);
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(33, 150, 243, 0.6);
+        }
+
+        .status-box {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .status-box.show {
+            display: block;
+        }
+
+        .status-box h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .permission-status {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .permission-name {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .permission-badge {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .permission-badge.granted {
+            background: #4caf50;
+            color: white;
+        }
+
+        .permission-badge.denied {
+            background: #f44336;
+            color: white;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .note {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            color: #856404;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .note strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 نظام الصلاحيات المتسلسل</h1>
+        <p class="subtitle">اختبار طلب الصلاحيات بشكل متسلسل</p>
+
+        <div class="info-box">
+            <h3>📋 الصلاحيات المطلوبة:</h3>
+            <ul>
+                <li>الإشعارات - لإظهار حالة الرفع</li>
+                <li>الكاميرا - لتصوير الفيديوهات</li>
+                <li>الصوت - لتسجيل الصوت مع الفيديو</li>
+                <li>التخزين - للوصول للملفات</li>
+                <li>تحسين البطارية - لرفع الملفات في الخلفية</li>
+            </ul>
+        </div>
+
+        <button class="btn btn-primary" id="btn-request-all">
+            🔐 طلب جميع الصلاحيات
+        </button>
+
+        <button class="btn btn-secondary" id="btn-check-status">
+            🔍 فحص حالة الصلاحيات
+        </button>
+
+        <div class="status-box" id="status-box">
+            <h3>📊 حالة الصلاحيات:</h3>
+            <div id="status-content"></div>
+        </div>
+
+        <div class="note">
+            <strong>ℹ️ ملاحظة:</strong>
+            سيتم عرض كل صلاحية على حدة مع شرح لماذا نحتاجها.
+            يجب الموافقة على جميع الصلاحيات لضمان عمل التطبيق بشكل صحيح،
+            خاصة رفع الملفات في الخلفية.
+        </div>
+    </div>
+
+    <!-- تحميل Capacitor (في التطبيق الحقيقي) -->
+    <script>
+        // محاكاة Capacitor في حالة المتصفح
+        if (typeof Capacitor === 'undefined') {
+            console.warn('⚠️ Capacitor not loaded - تشغيل في وضع المتصفح');
+
+            // محاكاة بسيطة للتطوير فقط
+            window.Capacitor = {
+                isNativePlatform: () => false
+            };
+
+            window.PermissionsManager = {
+                checkAllPermissions: async () => {
+                    return {
+                        notifications: false,
+                        camera: false,
+                        audio: false,
+                        storage: false,
+                        batteryOptimization: false,
+                        allGranted: false,
+                        grantedCount: 0,
+                        totalCount: 5
+                    };
+                },
+                requestPermission: async ({ permission }) => {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    return {
+                        granted: Math.random() > 0.3, // عشوائي للاختبار
+                        permission: permission
+                    };
+                }
+            };
+        }
+    </script>
+
+    <!-- تحميل نظام الصلاحيات -->
+    <script src="/js/permissions-manager.js"></script>
+
+    <script>
+        // ربط الأزرار
+        document.getElementById('btn-request-all').onclick = async () => {
+            console.log('🔐 Starting permissions request...');
+
+            await PermissionsManager.requestAllPermissions((result) => {
+                console.log('✅ Permissions request completed:', result);
+                showStatus();
+            });
+        };
+
+        document.getElementById('btn-check-status').onclick = async () => {
+            console.log('🔍 Checking permissions status...');
+            showStatus();
+        };
+
+        async function showStatus() {
+            const statusBox = document.getElementById('status-box');
+            const statusContent = document.getElementById('status-content');
+
+            statusContent.innerHTML = '<div class="loading"><div class="spinner"></div><div>جاري الفحص...</div></div>';
+            statusBox.classList.add('show');
+
+            try {
+                const status = await PermissionsManager.checkPermissions();
+
+                const permissions = [
+                    { id: 'notifications', name: '🔔 الإشعارات', granted: status.notifications },
+                    { id: 'camera', name: '📷 الكاميرا', granted: status.camera },
+                    { id: 'audio', name: '🎤 الصوت', granted: status.audio },
+                    { id: 'storage', name: '💾 التخزين', granted: status.storage },
+                    { id: 'batteryOptimization', name: '🔋 تحسين البطارية', granted: status.batteryOptimization }
+                ];
+
+                let html = '';
+                permissions.forEach(perm => {
+                    html += `
+                        <div class="permission-status">
+                            <div class="permission-name">${perm.name}</div>
+                            <div class="permission-badge ${perm.granted ? 'granted' : 'denied'}">
+                                ${perm.granted ? '✅ ممنوحة' : '❌ مرفوضة'}
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `
+                    <div class="permission-status" style="margin-top: 15px; background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
+                        <div class="permission-name" style="color: white;">📊 الإجمالي</div>
+                        <div class="permission-badge" style="background: white; color: #667eea;">
+                            ${status.grantedCount || 0} / ${status.totalCount || 5}
+                        </div>
+                    </div>
+                `;
+
+                statusContent.innerHTML = html;
+
+            } catch (error) {
+                console.error('❌ Error checking status:', error);
+                statusContent.innerHTML = `
+                    <div style="text-align: center; color: #f44336; padding: 20px;">
+                        ❌ خطأ في فحص الصلاحيات<br>
+                        <small>${error.message}</small>
+                    </div>
+                `;
+            }
+        }
+
+        console.log('✅ Permissions Test Page loaded');
+    </script>
+</body>
+</html>

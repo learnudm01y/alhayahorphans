@@ -3,9 +3,6 @@
   "appName": "Sponsorships",
   "webDir": "mobile-app/dist",
   "bundledWebRuntime": false,
-  "server": {
-    "androidScheme": "https"
-  },
   "plugins": {
     "SplashScreen": {
       "launchShowDuration": 0,

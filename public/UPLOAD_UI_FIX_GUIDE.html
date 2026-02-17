@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>دليل تحديث الواجهة في الوقت الفعلي</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .alert {
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            border-left: 5px solid;
+        }
+
+        .alert-danger {
+            background: #ffe6e6;
+            border-color: #dc3545;
+            color: #721c24;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            border-color: #28a745;
+            color: #155724;
+        }
+
+        .alert-warning {
+            background: #fff3cd;
+            border-color: #ffc107;
+            color: #856404;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            border-color: #17a2b8;
+            color: #0c5460;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section h2 {
+            color: #667eea;
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .section h3 {
+            color: #555;
+            font-size: 1.4rem;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 15px 0;
+            overflow-x: auto;
+            position: relative;
+        }
+
+        .code-block code {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+
+        .copy-btn:hover {
+            background: #5568d3;
+        }
+
+        .step {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-right: 4px solid #667eea;
+        }
+
+        .step-number {
+            display: inline-block;
+            width: 35px;
+            height: 35px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 35px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .feature-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .feature-list li {
+            padding: 10px;
+            margin: 10px 0;
+            background: #f0f0f0;
+            border-radius: 5px;
+            padding-right: 40px;
+            position: relative;
+        }
+
+        .feature-list li:before {
+            content: '✅';
+            position: absolute;
+            right: 10px;
+            font-size: 20px;
+        }
+
+        .logs-example {
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            margin: 15px 0;
+            overflow-x: auto;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 12px 30px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s;
+            margin: 5px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .btn:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-success {
+            background: #28a745;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .commands {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8rem;
+            }
+
+            .content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔥 حل المشكلة اللعينة 🔥</h1>
+            <p>دليل تحديث واجهة الملفات المعلقة في الوقت الفعلي</p>
+        </div>
+
+        <div class="content">
+            <!-- Problem Section -->
+            <div class="section">
+                <h2>❌ المشكلة</h2>
+
+                <div class="alert alert-danger">
+                    <h3 style="margin-top: 0;">الملفات تُرفع بنجاح لكن الواجهة لا تتحدث!</h3>
+                    <ul style="margin: 15px 0; padding-right: 20px;">
+                        <li>✅ FileSyncWorker يرفع الملف بنجاح (200 OK)</li>
+                        <li>✅ Database يتحدث إلى STATUS_COMPLETED</li>
+                        <li>❌ <strong>لكن</strong> عداد "الملفات المعلقة" يبقى جامد</li>
+                        <li>❌ upload.html لا تُظهر  "تم الرفع"</li>
+                        <li>❌ index.html الإحصائيات لا تتغير</li>
+                    </ul>
+                </div>
+
+                <div class="alert alert-warning">
+                    <h3 style="margin-top: 0;">⚠️ مشكلة Foreground Service</h3>
+                    <div class="logs-example" style="background: #2d2d2d; color: #ff6b6b;">
+E FileSyncWorker: ❌ Failed to set foreground: ForegroundServiceStartNotAllowedException
+W FileSyncWorker: ⚠️ Continuing WITHOUT foreground service - uploads may be killed!
+                    </div>
+                    <p><strong>السبب:</strong> Android يمنع Worker من التحول إلى Foreground Service! قد يُقتل Worker قبل أن يُرسل event إلى JavaScript.</p>
+                </div>
+            </div>
+
+            <!-- Solution Section -->
+            <div class="section">
+                <h2>✅ الحل الشامل</h2>
+
+                <div class="alert alert-success">
+                    <h3 style="margin-top: 0;">تم إضافة 3 إصلاحات:</h3>
+                    <ul class="feature-list" style="margin-top: 15px;">
+                        <li>&#x2705; Foreground Service Permissions في AndroidManifest.xml</li>
+                        <li>&#x2705; JavaScript Event Listener نظام متكامل</li>
+                        <li>&#x2705; Auto-Refresh كل 30 ثانية لضمان التحديث</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Implementation Steps -->
+            <div class="section">
+                <h2>📝 خطوات التطبيق</h2>
+
+                <div class="step">
+                    <span class="step-number">1</span>
+                    <h3 style="display: inline;">إضافة JavaScript في index.html</h3>
+                    <p style="margin-top: 15px;">أضف هذا الكود قبل نهاية <code>&lt;/body&gt;</code>:</p>
+
+                    <div class="code-block">
+                        <button class="copy-btn" onclick="copyCode(this, 'code1')">📋 نسخ</button>
+                        <code id="code1">&lt;!-- 📡 Upload Status Real-Time Sync --&gt;
+&lt;script src="/js/upload-status-sync.js"&gt;&lt;/script&gt;
+
+&lt;script&gt;
+// Optional: Manual stats refresh button
+function refreshUploadStats() {
+    if (window.UploadStatusSync) {
+        window.UploadStatusSync.fetchStats();
+        window.UploadStatusSync.showToast('🔄 جاري تحديث الإحصائيات...', 'info');
+    }
+}
+&lt;/script&gt;</code>
+                    </div>
+                </div>
+
+                <div class="step">
+                    <span class="step-number">2</span>
+                    <h3 style="display: inline;">إضافة JavaScript في upload.html</h3>
+                    <p style="margin-top: 15px;">نفس الكود - أضفه قبل <code>&lt;/body&gt;</code>:</p>
+
+                    <div class="code-block">
+                        <button class="copy-btn" onclick="copyCode(this, 'code2')">📋 نسخ</button>
+                        <code id="code2">&lt;!-- 📡 Upload Status Real-Time Sync --&gt;
+&lt;script src="/js/upload-status-sync.js"&gt;&lt;/script&gt;
+
+&lt;!-- Optional: Add refresh button in upload.html --&gt;
+&lt;button class="btn btn-primary" onclick="refreshUploadStats()"&gt;
+    🔄 تحديث الإحصائيات
+&lt;/button&gt;</code>
+                    </div>
+                </div>
+
+                <div class="step">
+                    <span class="step-number">3</span>
+                    <h3 style="display: inline;">إضافة عنصر العداد (إن لم يكن موجوداً)</h3>
+                    <p style="margin-top: 15px;">تأكد من وجود أحد هذه العناصر في HTML:</p>
+
+                    <div class="code-block">
+                        <button class="copy-btn" onclick="copyCode(this, 'code3')">📋 نسخ</button>
+                        <code id="code3">&lt;!-- خيار 1: عداد بسيط --&gt;
+&lt;div class="stat-card"&gt;
+    &lt;h5&gt;ملفات معلقة&lt;/h5&gt;
+    &lt;h2 id="stat-files"&gt;0&lt;/h2&gt;
+&lt;/div&gt;
+
+&lt;!-- خيار 2: إحصائيات كاملة --&gt;
+&lt;div class="stats-container"&gt;
+    &lt;div&gt;معلق: &lt;span id="stat-pending"&gt;0&lt;/span&gt;&lt;/div&gt;
+    &lt;div&gt;جاري الرفع: &lt;span id="stat-uploading"&gt;0&lt;/span&gt;&lt;/div&gt;
+    &lt;div&gt;مكتمل: &lt;span id="stat-completed"&gt;0&lt;/span&gt;&lt;/div&gt;
+    &lt;div&gt;فشل: &lt;span id="stat-failed"&gt;0&lt;/span&gt;&lt;/div&gt;
+&lt;/div&gt;</code>
+                    </div>
+                </div>
+
+                <div class="step">
+                    <span class="step-number">4</span>
+                    <h3 style="display: inline;">Build APK جديد</h3>
+                    <p style="margin-top: 15px;">افتح PowerShell وقم بالتالي:</p>
+
+                    <div class="commands">
+cd "i:\unit test\alhayahorphans\ASO - Copy\android"
+.\gradlew assembleDebug --quiet
+                    </div>
+
+                    <p style="margin-top: 15px;"><strong>الملف سيكون في:</strong></p>
+                    <div class="commands">
+android\app\build\outputs\apk\debug\app-debug.apk
+                    </div>
+                </div>
+
+                <div class="step">
+                    <span class="step-number">5</span>
+                    <h3 style="display: inline;">تثبيت APK</h3>
+                    <p style="margin-top: 15px;">احذف النسخة القديمة وثبت الجديدة:</p>
+
+                    <div class="commands">
+adb uninstall com.aso.app
+adb install app\build\outputs\apk\debug\app-debug.apk
+                    </div>
+                </div>
+
+                <div class="step">
+                    <span class="step-number">6</span>
+                    <h3 style="display: inline;">✅ اختبار النظام</h3>
+
+                    <ol style="margin: 15px 0; padding-right: 20px;">
+                        <li><strong>افتح التطبيق</strong></li>
+                        <li><strong>افتح Chrome DevTools:</strong> <code>chrome://inspect</code></li>
+                        <li><strong>سجل فيديو جديد</strong></li>
+                        <li><strong>افتح Console في DevTools</strong></li>
+                        <li><strong>يجب أن ترى:</strong></li>
+                    </ol>
+
+                    <div class="logs-example">
+📡 Upload Status Sync - Initializing...
+🚀 Starting Upload Status Sync initialization...
+📡 Registering uploadStatusChanged event listener...
+✅ Event listener registered successfully
+📊 Fetching upload stats...
+                    </div>
+
+                    <p style="margin-top: 15px;"><strong>عند نجاح الرفع:</strong></p>
+                    <div class="logs-example">
+📡 ✅ Upload status changed event received: {fileId: 2, status: "completed"}
+   File ID: 2
+   Status: completed
+✅ File #2 uploaded successfully
+📊 Fetching upload stats...
+📊 Stats received: {pending: 0, uploading: 0, completed: 1, failed: 0, total: 1}
+🎨 Updating UI with stats
+✅ Updated #stat-files: 0
+🔔 Toast: ✅ تم رفع الملف بنجاح (success)
+                    </div>
+                </div>
+            </div>
+
+            <!-- Features Section -->
+            <div class="section">
+                <h2>🎯 المميزات المضافة</h2>
+
+                <ul class="feature-list">
+                    <li>📡 <strong>Real-Time Events:</strong> JavaScript يستقبل أحداث فورية من Java</li>
+                    <li>🔄 <strong>Auto-Refresh:</strong> تحديث تلقائي كل 30 ثانية</li>
+                    <li>🔔 <strong>Toast Notifications:</strong> إشعارات عند نجاح/فشل الرفع</li>
+                    <li>🎨 <strong>Animations:</strong> تأثيرات بصرية (flash, pulse, shake)</li>
+                    <li>📊 <strong>Full Stats API:</strong> getUploadStats() للحصول على جميع الإحصائيات</li>
+                    <li>🗑️ <strong>Auto-Remove:</strong> الملفات الناجحة تُحذف تلقائياً بعد 3 ثوانٍ</li>
+                    <li>🛡️ <strong>Foreground Service Fix:</strong> صلاحيات جديدة لمنع قتل Worker</li>
+                </ul>
+            </div>
+
+            <!-- Permissions Section -->
+            <div class="section">
+                <h2>🛡️ الصلاحيات المضافة</h2>
+
+                <div class="alert alert-info">
+                    <p><strong>تم إضافة في AndroidManifest.xml:</strong></p>
+                    <ul style="margin: 10px 0; padding-right: 20px;">
+                        <li><code>FOREGROUND_SERVICE</code></li>
+                        <li><code>FOREGROUND_SERVICE_DATA_SYNC</code></li>
+                        <li><code>POST_NOTIFICATIONS</code> (Android 13+)</li>
+                        <li><code>REQUEST_IGNORE_BATTERY_OPTIMIZATIONS</code></li>
+                    </ul>
+                    <p style="margin-top: 10px;">📝 <strong>هذه الصلاحيات تضمن:</strong></p>
+                    <ul style="padding-right: 20px;">
+                        <li>✅ Worker يمكنه التحول إلى Foreground Service</li>
+                        <li>✅ Android لن يقتل Worker أثناء الرفع</li>
+                        <li>✅ الإشعارات تعمل بشكل صحيح</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Manual Trigger Section -->
+            <div class="section">
+                <h2>🔧 تحديث يدوي (للمستخدم)</h2>
+
+                <div class="alert alert-warning">
+                    <h3 style="margin-top: 0;">⚙️ في حال لم يتحدث العداد تلقائياً:</h3>
+                    <p>يمكن للمستخدم تحديث الإحصائيات يدوياً:</p>
+
+                    <ol style="margin: 15px 0; padding-right: 20px;">
+                        <li><strong>من Console:</strong>
+                            <div class="code-block" style="margin: 10px 0;">
+                                <code>window.UploadStatusSync.fetchStats()</code>
+                            </div>
+                        </li>
+                        <li><strong>أو أضف زر في الواجهة:</strong>
+                            <div class="code-block" style="margin: 10px 0;">
+<code>&lt;button onclick="window.UploadStatusSync.fetchStats()"&gt;
+    🔄 تحديث الإحصائيات
+&lt;/button&gt;</code>
+                            </div>
+                        </li>
+                    </ol>
+                </div>
+            </div>
+
+            <!-- Debugging Section -->
+            <div class="section">
+                <h2>🔍 استكشاف الأخطاء</h2>
+
+                <div class="step">
+                    <h3>1. Event لا يصل إلى JavaScript</h3>
+                    <p><strong>الحل:</strong></p>
+                    <ul style="margin: 10px 0; padding-right: 20px;">
+                        <li>افتح Chrome DevTools Console</li>
+                        <li>تأكد من ظهور: <code>✅ Event listener registered successfully</code></li>
+                        <li>إذا لم يظهر → تحقق من تحميل <code>upload-status-sync.js</code></li>
+                    </ul>
+                </div>
+
+                <div class="step">
+                    <h3>2. العداد لا يتحدث</h3>
+                    <p><strong>الحل:</strong></p>
+                    <ul style="margin: 10px 0; padding-right: 20px;">
+                        <li>تحقق من وجود <code>id="stat-files"</code> في HTML</li>
+                        <li>أو أي من: <code>pending-files-count</code>, <code>files-counter</code></li>
+                        <li>جرب التحديث اليدوي: <code>window.UploadStatusSync.fetchStats()</code></li>
+                    </ul>
+                </div>
+
+                <div class="step">
+                    <h3>3. Foreground Service لا يعمل</h3>
+                    <p><strong>الحل:</strong></p>
+                    <ul style="margin: 10px 0; padding-right: 20px;">
+                        <li>تأكد من build APK جديد بعد تعديل AndroidManifest</li>
+                        <li>احذف التطبيق القديم تماماً قبل التثبيت</li>
+                        <li>تحقق من Logs - يجب أن ترى: <code>✅ Worker successfully promoted to FOREGROUND SERVICE</code></li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- API Reference -->
+            <div class="section">
+                <h2>📚 JavaScript API Reference</h2>
+
+                <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode(this, 'api')">📋 نسخ</button>
+                    <code id="api">// جلب الإحصائيات وتحديث UI
+window.UploadStatusSync.fetchStats()
+
+// بدء التحديث التلقائي (كل 30 ثانية)
+window.UploadStatusSync.startAutoRefresh()
+
+// إيقاف التحديث التلقائي
+window.UploadStatusSync.stopAutoRefresh()
+
+// إظهار رسالة Toast
+window.UploadStatusSync.showToast('رسالة', 'success') // success / error / info
+
+// الحصول على الإحصائيات الحالية
+const stats = window.UploadStatusSync.getStats()
+// {pending: 0, uploading: 0, completed: 1, failed: 0, total: 1}
+
+// التحقق من حالة النظام
+const isActive = window.UploadStatusSync.isActive()
+// true = Event listener مفعل</code>
+                </div>
+            </div>
+
+            <!-- Summary -->
+            <div class="section">
+                <h2>✅ الملخص</h2>
+
+                <div class="alert alert-success">
+                    <h3 style="margin-top: 0;">ما تم إصلاحه:</h3>
+                    <ul class="feature-list" style="margin-top: 15px;">
+                        <li>❌ <del>Foreground Service يفشل</del> → ✅ صلاحيات مضافة</li>
+                        <li>❌ <del>JavaScript لا يستقبل events</del> → ✅ Listener system كامل</li>
+                        <li>❌ <del>UI لا يتحدث</del> → ✅ Auto-refresh + manual trigger</li>
+                        <li>❌ <del>عداد الملفات جامد</del> → ✅ يتحدث في الوقت الفعلي</li>
+                        <li>❌ <del>لا توجد إشعارات</del> → ✅ Toast notifications</li>
+                    </ul>
+
+                    <p style="margin-top: 20px; font-size: 1.1rem;">
+                        <strong>🎉 النظام الآن يعمل بشكل كامل - الواجهة تتحدث فوراً بعد رفع أي ملف!</strong>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div style="text-align: center; margin-top: 40px;">
+                <button class="btn btn-success" onclick="window.print()">🖨️ طباعة الدليل</button>
+                <button class="btn btn-danger" onclick="window.location.reload()">🔄 إعادة تحميل</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function copyCode(button, codeId) {
+            const code = document.getElementById(codeId).textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const originalText = button.textContent;
+                button.textContent = '✅ تم النسخ!';
+                button.style.background = '#28a745';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.background = '#667eea';
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>

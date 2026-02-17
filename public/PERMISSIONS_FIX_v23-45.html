@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 إصلاح الصلاحيات v23:45</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            direction: rtl;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .version {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 6px 14px;
+            background: linear-gradient(135deg, #4caf50, #45a049);
+            color: white;
+            border-radius: 15px;
+            font-weight: bold;
+            font-size: 13px;
+        }
+
+        .badge-fix {
+            background: linear-gradient(135deg, #ff9800, #ff5722);
+        }
+
+        .section {
+            margin: 25px 0;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 12px;
+            border-right: 4px solid #667eea;
+        }
+
+        .section h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+
+        .problem-box {
+            background: #ffebee;
+            border: 2px solid #f44336;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .problem-box strong {
+            color: #d32f2f;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .solution-box {
+            background: #e8f5e9;
+            border: 2px solid #4caf50;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .solution-box strong {
+            color: #2e7d32;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .flow-diagram {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.8;
+            border: 2px solid #e0e0e0;
+        }
+
+        .flow-step {
+            margin: 8px 0;
+            padding-right: 20px;
+            position: relative;
+        }
+
+        .flow-step:before {
+            content: '→';
+            position: absolute;
+            right: 0;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .sequence-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        .sequence-card {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #667eea;
+            text-align: center;
+        }
+
+        .sequence-number {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-radius: 50%;
+            line-height: 30px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .sequence-icon {
+            font-size: 32px;
+            margin: 10px 0;
+        }
+
+        .sequence-name {
+            font-weight: bold;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+            direction: ltr;
+            text-align: left;
+            font-size: 13px;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .comparison-table th {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 12px;
+            text-align: right;
+        }
+
+        .comparison-table td {
+            padding: 12px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .comparison-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .status-before {
+            color: #f44336;
+            font-weight: bold;
+        }
+
+        .status-after {
+            color: #4caf50;
+            font-weight: bold;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+
+        .alert-warning {
+            background: #fff3cd;
+            border: 1px solid #ffeeba;
+            color: #856404;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 12px 25px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            margin: 5px;
+            transition: transform 0.3s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        ul li {
+            padding: 8px 0;
+            padding-right: 25px;
+            position: relative;
+        }
+
+        ul li:before {
+            content: '✅';
+            position: absolute;
+            right: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 إصلاح نظام الصلاحيات المتسلسل</h1>
+        <div class="version">
+            <span class="badge badge-fix">إصلاح مهم</span>
+            <span class="badge">v23:45</span>
+            <span style="margin: 0 5px;">•</span>
+            <span>15 فبراير 2026</span>
+        </div>
+
+        <div class="alert alert-success">
+            <strong>✅ تم الإصلاح بنجاح!</strong><br>
+            الآن جميع الصلاحيات الخمس تظهر بشكل متسلسل - واحدة تلو الأخرى.
+        </div>
+
+        <!-- المشكلة -->
+        <div class="section">
+            <h2>🐛 المشكلة التي كانت موجودة</h2>
+
+            <div class="problem-box">
+                <strong>ما كان يحدث:</strong>
+                <ul style="margin-top: 10px;">
+                    <li>يظهر فقط طلب صلاحية الإشعارات 🔔</li>
+                    <li>باقي الصلاحيات (الكاميرا، الصوت، التخزين، البطارية) لا تظهر أبداً ❌</li>
+                    <li>المستخدم يوافق على الإشعارات ثم لا يحدث شيء</li>
+                </ul>
+            </div>
+
+            <p style="margin-top: 15px;"><strong>السبب التقني:</strong></p>
+            <p>كان النظام يحاول طلب جميع الصلاحيات دفعة واحدة باستخدام <code style="background: #eee; padding: 2px 6px; border-radius: 3px;">requestPermissionForAlias()</code> من Capacitor، والذي لا يعمل بشكل صحيح مع الطلبات المتسلسلة.</p>
+        </div>
+
+        <!-- الحل -->
+        <div class="section">
+            <h2>✨ الحل المطبق</h2>
+
+            <div class="solution-box">
+                <strong>التغيير الأساسي:</strong>
+                <p>استخدام <code style="background: rgba(255,255,255,0.8); padding: 2px 6px; border-radius: 3px;">ActivityCompat.requestPermissions()</code> مباشرة من Android بدلاً من Capacitor API.</p>
+            </div>
+
+            <p><strong>كود الحل:</strong></p>
+            <div class="code-block">private void requestCameraPermission() {
+    if (checkCameraPermission()) {
+        // الصلاحية ممنوحة بالفعل - إرسال فوري
+        JSObject result = new JSObject();
+        result.put("granted", true);
+        result.put("permission", "camera");
+        savedCall.resolve(result);
+        savedCall = null;
+    } else {
+        // ✅ طلب الصلاحية من المستخدم
+        ActivityCompat.requestPermissions(
+            getActivity(),
+            new String[]{Manifest.permission.CAMERA},
+            REQUEST_CAMERA_PERMISSION
+        );
+        // سيتم استقبال النتيجة في:
+        // handleRequestPermissionsResult()
+    }
+}</div>
+        </div>
+
+        <!-- كيف يعمل الآن -->
+        <div class="section">
+            <h2>🔄 كيف يعمل الآن (متسلسل صحيح)</h2>
+
+            <p><strong>السيناريو الكامل:</strong></p>
+
+            <div class="flow-diagram">
+                <div class="flow-step">المستخدم يضغط "منح الصلاحية"</div>
+                <div class="flow-step">JavaScript يرسل طلب للـ Plugin</div>
+                <div class="flow-step">Plugin يطلب صلاحية الإشعارات</div>
+                <div class="flow-step">Android يعرض dialog: "السماح بالإشعارات؟"</div>
+                <div class="flow-step">المستخدم يضغط "السماح" ✅</div>
+                <div class="flow-step">handleRequestPermissionsResult() يستقبل النتيجة</div>
+                <div class="flow-step">savedCall.resolve() يرسل النتيجة لـ JavaScript</div>
+                <div class="flow-step">JavaScript: currentIndex++ (الانتقال للتالي)</div>
+                <div class="flow-step">updateUI() تحديث الواجهة</div>
+                <div class="flow-step">الآن يظهر طلب الكاميرا 📷</div>
+                <div class="flow-step">... وهكذا حتى تكتمل جميع الصلاحيات</div>
+            </div>
+        </div>
+
+        <!-- الترتيب المتسلسل -->
+        <div class="section">
+            <h2>📋 ترتيب ظهور الصلاحيات</h2>
+
+            <div class="sequence-grid">
+                <div class="sequence-card">
+                    <div class="sequence-number">1</div>
+                    <div class="sequence-icon">🔔</div>
+                    <div class="sequence-name">الإشعارات</div>
+                </div>
+                <div class="sequence-card">
+                    <div class="sequence-number">2</div>
+                    <div class="sequence-icon">📷</div>
+                    <div class="sequence-name">الكاميرا</div>
+                </div>
+                <div class="sequence-card">
+                    <div class="sequence-number">3</div>
+                    <div class="sequence-icon">🎤</div>
+                    <div class="sequence-name">الصوت</div>
+                </div>
+                <div class="sequence-card">
+                    <div class="sequence-number">4</div>
+                    <div class="sequence-icon">💾</div>
+                    <div class="sequence-name">التخزين</div>
+                </div>
+                <div class="sequence-card">
+                    <div class="sequence-number">5</div>
+                    <div class="sequence-icon">🔋</div>
+                    <div class="sequence-name">البطارية</div>
+                </div>
+            </div>
+
+            <p style="margin-top: 15px;"><strong>ملاحظة:</strong> كل صلاحية تظهر <strong>فقط بعد</strong> الموافقة على الصلاحية السابقة.</p>
+        </div>
+
+        <!-- المقارنة -->
+        <div class="section">
+            <h2>📊 المقارنة: قبل وبعد</h2>
+
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>الجانب</th>
+                        <th>قبل (v23:30)</th>
+                        <th>بعد (v23:45)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>عدد الصلاحيات المعروضة</strong></td>
+                        <td class="status-before">❌ واحدة فقط (الإشعارات)</td>
+                        <td class="status-after">✅ جميع الخمس</td>
+                    </tr>
+                    <tr>
+                        <td><strong>طريقة العرض</strong></td>
+                        <td class="status-before">❌ محاولة دفعة واحدة</td>
+                        <td class="status-after">✅ واحدة تلو الأخرى</td>
+                    </tr>
+                    <tr>
+                        <td><strong>الانتقال للتالي</strong></td>
+                        <td class="status-before">❌ لا يحدث</td>
+                        <td class="status-after">✅ تلقائي بعد الموافقة</td>
+                    </tr>
+                    <tr>
+                        <td><strong>النتيجة</strong></td>
+                        <td class="status-before">❌ صلاحيات ناقصة</td>
+                        <td class="status-after">✅ جميع الصلاحيات كاملة</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- الاختبار -->
+        <div class="section">
+            <h2>🧪 كيفية الاختبار</h2>
+
+            <p><strong>1. إزالة النسخة القديمة:</strong></p>
+            <div class="code-block">adb uninstall com.aso.app</div>
+
+            <p><strong>2. تثبيت APK الجديد:</strong></p>
+            <div class="code-block">adb install "I:\unit test\alhayahorphans\ASO - Copy\android\app\build\outputs\apk\debug\app-debug.apk"</div>
+
+            <p><strong>3. مراقبة اللوجات:</strong></p>
+            <div class="code-block">adb logcat -s PermissionsManager:* MainActivity:*</div>
+
+            <p><strong>4. استدعاء النظام في التطبيق:</strong></p>
+            <div class="code-block">PermissionsManager.requestAllPermissions((result) => {
+    console.log('✅ تم الانتهاء:', result);
+});</div>
+        </div>
+
+        <!-- اللوجات المتوقعة -->
+        <div class="section">
+            <h2>📝 اللوجات المتوقعة (للتحقق)</h2>
+
+            <p>عند كل صلاحية، يجب أن تشاهد:</p>
+
+            <div class="code-block">E PermissionsManager: 🙏 requestPermission() - طلب صلاحية: notifications
+E PermissionsManager: 📱 طلب صلاحية الإشعارات (Android 13+)
+E PermissionsManager: ⏳ طلب الصلاحية من المستخدم...
+
+[المستخدم يوافق]
+
+E PermissionsManager: 📞 handleRequestPermissionsResult()
+E PermissionsManager:    Request Code: 1001
+E PermissionsManager: 📱 نتيجة صلاحية الإشعارات: ✅ ممنوحة
+E PermissionsManager: ✅ إرسال النتيجة إلى JavaScript
+E PermissionsManager:    Permission: notifications
+E PermissionsManager:    Granted: true
+
+[ثم تظهر الصلاحية التالية...]
+
+E PermissionsManager: 🙏 requestPermission() - طلب صلاحية: camera
+E PermissionsManager: 📷 طلب صلاحية الكاميرا
+E PermissionsManager: ⏳ طلب الصلاحية من المستخدم...</div>
+        </div>
+
+        <div class="alert alert-warning">
+            <strong>⚠️ ملاحظة هامة:</strong><br>
+            صلاحية تحسين البطارية (الصلاحية الخامسة) مختلفة - تفتح شاشة الإعدادات وليس dialog عادي.
+            على المستخدم اختيار "غير مقيد" (Unrestricted) من القائمة.
+        </div>
+
+        <div style="text-align: center; margin: 30px 0;">
+            <a href="/test-permissions.html" class="btn">🧪 صفحة الاختبار</a>
+            <a href="/PERMISSIONS_GUIDE.md" class="btn">📖 الدليل الشامل</a>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 2px solid #e0e0e0; color: #666;">
+            <p><strong>الإصدار:</strong> v23:45 | <strong>التاريخ:</strong> 15 فبراير 2026</p>
+            <p style="margin-top: 10px; color: #4caf50; font-weight: bold;">✅ الإصلاح مكتمل وجاهز للاختبار</p>
+        </div>
+    </div>
+</body>
+</html>

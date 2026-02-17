@@ -24,7 +24,10 @@ public class AutoUploadApplication extends Application {
 
     @Override
     public void onCreate() {
-        // 🚨 ABSOLUTE FIRST LOG - before everything
+        // ⚠️ StrictMode DISABLED for Android 15 compatibility (causes performance overhead)
+        // If needed, enable only during debugging
+
+        // �🚨 ABSOLUTE FIRST LOG - before everything
         android.util.Log.e(TAG, "");
         android.util.Log.e(TAG, "╔═══════════════════════════════════════════════════════════════╗");
         android.util.Log.e(TAG, "║                                                               ║");

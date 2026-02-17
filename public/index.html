@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام الرعاية</title>
+
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f7fa;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-item {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .stat-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+
+        .stat-value {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .stat-label {
+            color: #718096;
+            font-size: 1rem;
+        }
+
+        .files-section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            color: #2d3748;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .files-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .file-item:hover {
+            background: #edf2f7;
+            transform: translateX(-5px);
+        }
+
+        .file-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .file-icon .material-icons {
+            color: white;
+            font-size: 28px;
+        }
+
+        .file-info {
+            flex: 1;
+        }
+
+        .file-name {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 5px;
+            font-size: 1.1rem;
+        }
+
+        .file-meta {
+            color: #718096;
+            font-size: 0.9rem;
+        }
+
+        .file-status {
+            padding: 8px 20px;
+            border-radius: 25px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            white-space: nowrap;
+            transition: all 0.3s ease;
+        }
+
+        .file-status.pending {
+            background: #FFA726;
+            color: white;
+        }
+
+        .file-status.uploading {
+            background: #42A5F5;
+            color: white;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .file-status.completed {
+            background: #66BB6A;
+            color: white;
+        }
+
+        .file-status.failed {
+            background: #EF5350;
+            color: white;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #718096;
+        }
+
+        .empty-state .material-icons {
+            font-size: 80px;
+            color: #cbd5e0;
+            margin-bottom: 20px;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        @keyframes stats-flash-green {
+            0%, 100% {
+                background-color: transparent;
+                transform: scale(1);
+            }
+            50% {
+                background-color: #66BB6A;
+                color: white;
+                transform: scale(1.15);
+            }
+        }
+
+        .stats-flash {
+            animation: stats-flash-green 0.4s ease-in-out;
+        }
+
+        /* Loading indicator */
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #718096;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e2e8f0;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🏠 نظام الرعاية</h1>
+            <p>إدارة ملفات المكفولين</p>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-container">
+            <div class="stat-item">
+                <div class="stat-value" id="stat-files">0</div>
+                <div class="stat-label">ملفات معلقة</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="stat-uploading">0</div>
+                <div class="stat-label">جاري الرفع</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="stat-completed">0</div>
+                <div class="stat-label">تم الرفع</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="stat-failed">0</div>
+                <div class="stat-label">فشل</div>
+            </div>
+        </div>
+
+        <!-- Files List -->
+        <div class="files-section">
+            <h2 class="section-title">📂 الملفات</h2>
+            <div class="files-list" id="filesList">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>جاري التحميل...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ✅ CRITICAL: تحميل السكريبتات الضرورية بالترتيب الصحيح -->
+    <script src="/js/file-storage-indexeddb.js"></script>
+    <script src="/js/upload-status-sync.js"></script>
+    <script src="/js/auto-stats-updater.js"></script>
+    <script src="/js/upload-realtime-poller.js"></script>
+
+    <script>
+        // ══════════════════════════════════════════════════════════════
+        // 🚀 Initialization
+        // ══════════════════════════════════════════════════════════════
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            console.log('📱 App loaded - initializing...');
+
+            // Wait for FileStorageDB to be ready
+            if (typeof FileStorageDB === 'undefined') {
+                console.error('❌ FileStorageDB not loaded!');
+                document.getElementById('filesList').innerHTML = `
+                    <div class="empty-state">
+                        <span class="material-icons">error</span>
+                        <p>خطأ: FileStorageDB غير متوفر</p>
+                    </div>
+                `;
+                return;
+            }
+
+            console.log('✅ FileStorageDB ready');
+
+            // Load initial files
+            await loadFiles();
+
+            // تحديث كل 3 ثوانٍ
+            setInterval(loadFiles, 3000);
+        });
+
+        async function loadFiles() {
+            try {
+                const files = await FileStorageDB.getAllFiles();
+                const filesList = document.getElementById('filesList');
+
+                if (files.length === 0) {
+                    filesList.innerHTML = `
+                        <div class="empty-state">
+                            <span class="material-icons">inbox</span>
+                            <p>لا توجد ملفات حالياً</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Sort by date (newest first)
+                files.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+                filesList.innerHTML = files.map(file => {
+                    const icon = file.type && file.type.startsWith('image') ? 'image' : 'videocam';
+                    const association = file.metadata?.association || file.association || 'N/A';
+                    const person = file.metadata?.person || file.person || 'N/A';
+
+                    let statusText = 'معلق';
+                    switch(file.status) {
+                        case 'completed': statusText = 'تم الرفع'; break;
+                        case 'uploading': statusText = 'جاري الرفع'; break;
+                        case 'failed': statusText = 'فشل'; break;
+                    }
+
+                    return `
+                        <div class="file-item" data-file-id="${file.id}">
+                            <div class="file-icon">
+                                <span class="material-icons" data-icon="${icon}" aria-label="${icon}">${icon}</span>
+                            </div>
+                            <div class="file-info">
+                                <div class="file-name">${file.fileName}</div>
+                                <div class="file-meta">${association} / ${person}</div>
+                            </div>
+                            <span class="file-status ${file.status}">${statusText}</span>
+                        </div>
+                    `;
+                }).join('');
+
+                console.log(`✅ Displayed ${files.length} files`);
+
+            } catch (error) {
+                console.error('❌ Error loading files:', error);
+            }
+        }
+
+        // ══════════════════════════════════════════════════════════════
+        // 📡 Event Listeners
+        // ══════════════════════════════════════════════════════════════
+
+        window.addEventListener('uploadStatusChanged', (event) => {
+            console.log('📡 uploadStatusChanged event:', event.detail);
+            loadFiles(); // Reload files
+        });
+
+        window.addEventListener('uploadStatsUpdated', (event) => {
+            console.log('📊 uploadStatsUpdated event:', event.detail);
+        });
+
+        window.addEventListener('fileStatusUpdated', (event) => {
+            console.log('📄 fileStatusUpdated event:', event.detail);
+        });
+    </script>
+</body>
+</html>

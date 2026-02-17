@@ -16,12 +16,12 @@ import androidx.work.WorkerParameters;
 
 /**
  * ✨ CRITICAL: NetworkConnectedWorker - يُطلق فوراً عند عودة الإنترنت
- * 
+ *
  * لماذا هذا الحل؟
  * - CONNECTIVITY_ACTION deprecated منذ Android 7.0 ولا يعمل مع التطبيقات المغلقة
  * - WorkManager مع NetworkConstraint يعمل حتى عند إغلاق التطبيق
  * - Android system يُطلق Worker تلقائياً عند اتصال الإنترنت
- * 
+ *
  * كيف يعمل؟
  * 1. يُجدول Worker مع constraint: NetworkType.CONNECTED
  * 2. عند عودة الإنترنت، Android يُطلق Worker تلقائياً
@@ -48,13 +48,24 @@ public class NetworkConnectedWorker extends Worker {
             Context context = getApplicationContext();
             DataSyncDatabaseHelper dbHelper = DataSyncDatabaseHelper.getInstance(context);
 
-            // ✨ إعادة تعيين جميع البيانات الفاشلة
-            int resetCount = dbHelper.resetFailedData();
-            if (resetCount > 0) {
-                Log.d(TAG, "🔄 Reset " + resetCount + " failed items to pending");
+            // ✅ CRITICAL FIX: أيضاً تشغيل FileSyncWorker للملفات المعلقة!
+            Log.d(TAG, "📁 Checking for pending FILE uploads...");
+            com.aso.app.UploadDatabaseHelper uploadDbHelper = com.aso.app.UploadDatabaseHelper.getInstance(context);
+            int pendingFiles = uploadDbHelper.getPendingFilesCount();
+            if (pendingFiles > 0) {
+                Log.d(TAG, "✅ Found " + pendingFiles + " pending files - triggering FileSyncWorker");
+                com.aso.app.FileSyncWorker.scheduleImmediateSync(context);
+            } else {
+                Log.d(TAG, "ℹ️  No pending files");
             }
 
-            // فحص عدد البيانات المنتظرة
+            // ✨ إعادة تعيين جميع البيانات الفاشلة (DATA SYNC)
+            int resetCount = dbHelper.resetFailedData();
+            if (resetCount > 0) {
+                Log.d(TAG, "🔄 Reset " + resetCount + " failed data items to pending");
+            }
+
+            // فحص عدد البيانات المنتظرة (DATA SYNC)
             int pendingCount = dbHelper.getPendingDataCount();
             Log.d(TAG, "📊 Total pending data count: " + pendingCount);
 
@@ -86,10 +97,10 @@ public class NetworkConnectedWorker extends Worker {
 
         } catch (Exception e) {
             Log.e(TAG, "❌ NetworkConnectedWorker failed", e);
-            
+
             // إعادة جدولة Worker حتى في حالة الفشل
             scheduleNextWork(getApplicationContext());
-            
+
             return Result.failure();
         }
     }

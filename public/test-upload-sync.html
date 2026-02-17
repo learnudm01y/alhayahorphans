@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار التزامن - Upload Sync Test</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 30px;
+            font-size: 2rem;
+        }
+
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .stat-item {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .stat-item:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .files-list {
+            background: #f7f9fc;
+            border-radius: 15px;
+            padding: 20px;
+        }
+
+        .file-item {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+        }
+
+        .file-item:hover {
+            transform: translateX(-5px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .file-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .file-icon .material-icons {
+            color: white;
+            font-size: 28px;
+        }
+
+        .file-info {
+            flex: 1;
+        }
+
+        .file-name {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+
+        .file-meta {
+            font-size: 0.85rem;
+            color: #718096;
+        }
+
+        .file-status {
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .file-status.pending {
+            background: #FFA726;
+            color: white;
+        }
+
+        .file-status.uploading {
+            background: #42A5F5;
+            color: white;
+        }
+
+        .file-status.completed {
+            background: #66BB6A;
+            color: white;
+        }
+
+        .file-status.failed {
+            background: #EF5350;
+            color: white;
+        }
+
+        .controls {
+            margin-top: 30px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .log {
+            background: #1a202c;
+            color: #68d391;
+            padding: 15px;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-left: 3px solid #68d391;
+            padding-left: 10px;
+        }
+
+        @keyframes stats-flash {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+
+        .stats-flash {
+            animation: stats-flash 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 اختبار التزامن المباشر</h1>
+
+        <!-- Stats -->
+        <div class="stats-container">
+            <div class="stat-item">
+                <div class="stat-value" id="stat-files">0</div>
+                <div class="stat-label">ملفات معلقة</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="stat-uploading">0</div>
+                <div class="stat-label">جاري الرفع</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="stat-completed">0</div>
+                <div class="stat-label">تم الرفع</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="stat-failed">0</div>
+                <div class="stat-label">فشل</div>
+            </div>
+        </div>
+
+        <!-- Files List -->
+        <div class="files-list" id="filesList">
+            <p style="text-align: center; color: #718096;">لا توجد ملفات</p>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <button onclick="loadFiles()">🔄 تحديث القائمة</button>
+            <button onclick="pollNow()">⚡ فحص فوري</button>
+            <button onclick="clearLog()">🗑️ مسح السجل</button>
+            <button onclick="testNotification()">🔔 اختبار الإشعار</button>
+        </div>
+
+        <!-- Log -->
+        <div class="log" id="log"></div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/js/file-storage-indexeddb.js"></script>
+    <script src="/js/upload-status-sync.js"></script>
+    <script src="/js/auto-stats-updater.js"></script>
+    <script src="/js/upload-realtime-poller.js"></script>
+
+    <script>
+        // ════════════════════════════════════════════════════════════════
+        // 📝 Logging Function
+        // ════════════════════════════════════════════════════════════════
+
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString('ar-EG');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = `[${timestamp}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+            log('✅ تم مسح السجل');
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        // 📊 Load Files from IndexedDB
+        // ════════════════════════════════════════════════════════════════
+
+        async function loadFiles() {
+            try {
+                log('🔄 جاري تحميل الملفات من IndexedDB...');
+
+                if (typeof FileStorageDB === 'undefined') {
+                    log('❌ FileStorageDB غير متوفر!');
+                    return;
+                }
+
+                const files = await FileStorageDB.getAllFiles();
+                log(`📊 تم جلب ${files.length} ملف`);
+
+                const filesList = document.getElementById('filesList');
+
+                if (files.length === 0) {
+                    filesList.innerHTML = '<p style="text-align: center; color: #718096;">لا توجد ملفات</p>';
+                    return;
+                }
+
+                filesList.innerHTML = files.map(file => `
+                    <div class="file-item" data-file-id="${file.id}">
+                        <div class="file-icon">
+                            <span class="material-icons">${file.type.startsWith('image') ? 'image' : 'videocam'}</span>
+                        </div>
+                        <div class="file-info">
+                            <div class="file-name">${file.fileName}</div>
+                            <div class="file-meta">${file.metadata?.association || 'N/A'} / ${file.metadata?.person || 'N/A'}</div>
+                        </div>
+                        <span class="file-status ${file.status}">${getStatusText(file.status)}</span>
+                    </div>
+                `).join('');
+
+                log(`✅ تم عرض ${files.length} ملف`);
+
+            } catch (error) {
+                log('❌ خطأ في تحميل الملفات: ' + error.message);
+                console.error(error);
+            }
+        }
+
+        function getStatusText(status) {
+            switch(status) {
+                case 'pending': return 'معلق';
+                case 'uploading': return 'جاري الرفع';
+                case 'completed': return 'تم الرفع';
+                case 'failed': return 'فشل';
+                default: return status;
+            }
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        // 📡 Event Listeners
+        // ════════════════════════════════════════════════════════════════
+
+        window.addEventListener('uploadStatusChanged', (event) => {
+            log(`📡 uploadStatusChanged: File #${event.detail.fileId} → ${event.detail.status}`);
+            loadFiles(); // Reload file list
+        });
+
+        window.addEventListener('uploadStatsUpdated', (event) => {
+            log(`📊 uploadStatsUpdated: pending=${event.detail.pending}, completed=${event.detail.completed}`);
+        });
+
+        window.addEventListener('fileStatusUpdated', (event) => {
+            log(`📄 fileStatusUpdated: File #${event.detail.fileId} → ${event.detail.status}`);
+        });
+
+        // ════════════════════════════════════════════════════════════════
+        // 🔧 Helper Functions
+        // ════════════════════════════════════════════════════════════════
+
+        function pollNow() {
+            log('⚡ فحص فوري...');
+            if (typeof UploadRealtimePoller !== 'undefined') {
+                UploadRealtimePoller.pollNow();
+            } else {
+                log('⚠️ UploadRealtimePoller غير متوفر');
+            }
+        }
+
+        function testNotification() {
+            log('🔔 اختبار إشعار...');
+            window.dispatchEvent(new CustomEvent('uploadStatusChanged', {
+                detail: { fileId: 999, status: 'completed', stats: { pending: 0 } }
+            }));
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        // 🚀 Initialize
+        // ════════════════════════════════════════════════════════════════
+
+        document.addEventListener('DOMContentLoaded', () => {
+            log('🚀 الصفحة جاهزة');
+            log('📦 FileStorageDB: ' + (typeof FileStorageDB !== 'undefined' ? '✅' : '❌'));
+            log('📡 UploadService: ' + (typeof UploadService !== 'undefined' ? '✅' : '❌'));
+            log('🔄 UploadRealtimePoller: ' + (typeof UploadRealtimePoller !== 'undefined' ? '✅' : '❌'));
+
+            loadFiles();
+        });
+    </script>
+</body>
+</html>

@@ -15,6 +15,7 @@ import androidx.work.WorkerParameters;
 import java.io.File;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 🎯 Single Sync Orchestrator - The ONLY place where file uploads happen
@@ -37,91 +38,46 @@ public class FileSyncWorker extends Worker {
     private static final String TAG = "FileSyncWorker";
     private static final String WORK_NAME = "file_sync_orchestrator";
 
+    // ✅ Prevents concurrent schedule calls AND calls during doWork
+    private static final AtomicBoolean isScheduling = new AtomicBoolean(false);
+    private static final AtomicBoolean isWorking = new AtomicBoolean(false);
+
     private UploadDatabaseHelper dbHelper;
     private Context context;
 
     public FileSyncWorker(@NonNull Context context, @NonNull WorkerParameters params) {
         super(context, params);
-        Log.e(TAG, "");
-        Log.e(TAG, "🏭🏭🏭 FileSyncWorker CONSTRUCTOR called 🏭🏭🏭");
-        Log.e(TAG, "   Worker ID: " + getId());
-        Log.e(TAG, "   Run Attempt: " + getRunAttemptCount());
-
-        try {
-            this.context = context;
-            Log.e(TAG, "   ✅ Context assigned");
-
-            this.dbHelper = UploadDatabaseHelper.getInstance(context);
-            Log.e(TAG, "   ✅ UploadDatabaseHelper obtained");
-
-            Log.e(TAG, "✅✅✅ FileSyncWorker CONSTRUCTOR completed successfully!");
-        } catch (Exception e) {
-            Log.e(TAG, "❌❌❌ CONSTRUCTOR FAILED: " + e.getClass().getSimpleName());
-            Log.e(TAG, "   Error: " + e.getMessage());
-            e.printStackTrace();
-            throw e; // Re-throw to fail worker
-        }
-        Log.e(TAG, "");
+        this.context = context;
+        this.dbHelper = UploadDatabaseHelper.getInstance(context);
     }
 
     @NonNull
     @Override
     public Result doWork() {
-        Log.e(TAG, "");
-        Log.e(TAG, "╔════════════════════════════════════════════════════════════════╗");
-        Log.e(TAG, "║  🔄 FileSyncWorker.doWork() STARTED - Single Orchestrator     ║");
-        Log.e(TAG, "╚════════════════════════════════════════════════════════════════╝");
-        Log.e(TAG, "👷 Thread: " + Thread.currentThread().getName());
-        Log.e(TAG, "🆔 Worker ID: " + getId());
-        Log.e(TAG, "🔄 Run Attempt: " + getRunAttemptCount());
-
-        // ✅ Check network AGAIN inside doWork()
-        boolean networkNow = isNetworkAvailable();
-        Log.e(TAG, "🌐 Network available in doWork(): " + (networkNow ? "YES ✅" : "NO ❌"));
-
-        if (!networkNow) {
-            Log.e(TAG, "❌❌❌ NO NETWORK in doWork() - upload will FAIL!");
-            Log.e(TAG, "⚠️ Returning Result.retry() - will try again when network available");
-            return Result.retry();
-        }
-
-        Log.e(TAG, "");
-
-        // ═══════════════════════════════════════════════════════════════════
-        // CRITICAL: Set as Foreground Service
-        // This prevents Android from killing the worker during large uploads!
-        // ═══════════════════════════════════════════════════════════════════
-        try {
-            Log.e(TAG, "🚀 Attempting to promote worker to FOREGROUND SERVICE...");
-            com.google.common.util.concurrent.ListenableFuture<Void> foregroundFuture = setForegroundAsync(createForegroundInfo());
-            // Wait for foreground promotion to complete (important!)
-            foregroundFuture.get(5, java.util.concurrent.TimeUnit.SECONDS);
-            Log.e(TAG, "✅✅✅ Worker successfully promoted to FOREGROUND SERVICE!");
-            Log.e(TAG, "   Android WON'T kill this upload - notification visible to user");
-        } catch (java.util.concurrent.TimeoutException e) {
-            Log.w(TAG, "⚠️ Foreground promotion timeout (5s) - continuing anyway");
-            Log.w(TAG, "   Worker may be killed by Android for long uploads!");
-        } catch (Exception e) {
-            Log.e(TAG, "❌ Failed to set foreground: " + e.getClass().getSimpleName() + ": " + e.getMessage());
-            e.printStackTrace();
-            Log.w(TAG, "⚠️ Continuing WITHOUT foreground service - uploads may be killed!");
+        // ✅ CRITICAL: Set isWorking flag to prevent schedule calls during upload
+        if (!isWorking.compareAndSet(false, true)) {
+            Log.w(TAG, "Worker already running - skipping");
+            return Result.success();
         }
 
         try {
+            if (!isNetworkAvailable()) {
+                return Result.retry();
+            }
+
+            Log.e(TAG, "ℹ️ Running as background WorkManager task (Android 15 compatible)");
+            Log.e(TAG, "ℹ️ For large files, consider using WiFi or keeping app in foreground");
+
             // ═══════════════════════════════════════════════════════════════════
             // Get all pending files from database
             // ═══════════════════════════════════════════════════════════════════
             List<UploadDatabaseHelper.UploadItem> pendingItems = dbHelper.getFilesByStatus(UploadDatabaseHelper.STATUS_PENDING);
 
             if (pendingItems == null || pendingItems.isEmpty()) {
-                Log.e(TAG, "ℹ️ No pending uploads - worker completed");
-                Log.e(TAG, "");
                 return Result.success();
             }
 
-            Log.e(TAG, "📊 Found " + pendingItems.size() + " pending uploads");
-            Log.e(TAG, "🎯 Processing serially (one at a time)");
-            Log.e(TAG, "");
+            Log.d(TAG, "Found " + pendingItems.size() + " pending uploads");
 
             int successCount = 0;
             int failureCount = 0;
@@ -133,25 +89,20 @@ public class FileSyncWorker extends Worker {
             for (int i = 0; i < pendingItems.size(); i++) {
                 UploadDatabaseHelper.UploadItem item = pendingItems.get(i);
 
-                Log.e(TAG, "┌─────────────────────────────────────────────────────┐");
-                Log.e(TAG, "│ Processing item " + (i + 1) + "/" + pendingItems.size());
-                Log.e(TAG, "│ 📁 File: " + item.fileName);
-                Log.e(TAG, "│ 🆔 ID: " + item.id);
-                Log.e(TAG, "│ 🔄 Retry count: " + item.retryCount);
-                Log.e(TAG, "└─────────────────────────────────────────────────────┘");
+                Log.d(TAG, "Processing " + (i + 1) + "/" + pendingItems.size() + ": " + item.fileName);
 
                 // ═══════════════════════════════════════════════════════════════════
                 // Circuit Breaker Check
                 // ═══════════════════════════════════════════════════════════════════
                 if (!dbHelper.shouldRetry(item)) {
-                    Log.w(TAG, "⚠️ Circuit breaker - skipping this item");
+                    Log.w(TAG, "Circuit breaker - skipping item " + item.id);
                     skippedCount++;
                     continue;
                 }
 
                 // ═══════════════════════════════════════════════════════════════════
                 // Verify file exists (support both file:// and content:// URIs)
-                // ═══════════════════════════════════════════════════════════════════════
+                // ═══════════════════════════════════════════════════════════════════
                 long fileSize = 0;
                 boolean fileExists = false;
 
@@ -208,31 +159,92 @@ public class FileSyncWorker extends Worker {
                 if (success) {
                     Log.e(TAG, "✅ Upload successful!");
                     successCount++;
+
+                    // ✅✅✅ CRITICAL: Update status to COMPLETED
+                    Log.e(TAG, "✅✅✅ UPDATING STATUS TO COMPLETED");
+                    Log.e(TAG, "   File ID: " + item.id);
+                    Log.e(TAG, "   File Name: " + item.fileName);
+                    Log.e(TAG, "   Status: COMPLETED");
+
                     dbHelper.updateFileStatus(item.id, UploadDatabaseHelper.STATUS_COMPLETED, null);
+
+                    Log.e(TAG, "✅✅✅ STATUS UPDATE EXECUTED - Verifying...");
+                    // Verify the update worked
+                    UploadDatabaseHelper.UploadItem updatedItem = dbHelper.getFileById(item.id);
+                    if (updatedItem != null) {
+                        Log.e(TAG, "   Current status in DB: " + updatedItem.status);
+                        if ("completed".equals(updatedItem.status)) {
+                            Log.e(TAG, "   ✅✅✅ VERIFIED: Status is COMPLETED in database!");
+                        } else {
+                            Log.e(TAG, "   ❌❌❌ ERROR: Status was NOT updated! Still: " + updatedItem.status);
+                        }
+                    } else {
+                        Log.e(TAG, "   ❌❌❌ ERROR: Could not retrieve file from database!");
+                    }
+
+                    // ✨ Notify JavaScript about successful upload
+                    try {
+                        UploadStatusBridge.notifyUploadComplete(item.id, UploadDatabaseHelper.STATUS_COMPLETED, null);
+                    } catch (Exception e) {
+                        PendingStatusUpdateHelper.addPendingUpdate(
+                            context,
+                            item.id,
+                            UploadDatabaseHelper.STATUS_COMPLETED,
+                            null
+                        );
+                    }
+
+                    try {
+                        UploadServicePlugin.notifyUploadStatusChanged(item.id, UploadDatabaseHelper.STATUS_COMPLETED, null);
+                    } catch (Exception ignored) {
+                    }
 
                     // Delete the local file after successful upload (only for regular files)
                     if (!item.filePath.startsWith("content://")) {
                         File localFile = new File(item.filePath);
-                        if (localFile.exists() && localFile.delete()) {
-                            Log.d(TAG, "🗑️ File deleted from storage");
+                        if (localFile.exists()) {
+                            localFile.delete();
                         }
                     }
 
                 } else {
-                    Log.e(TAG, "❌ Upload failed");
                     failureCount++;
-
-                    // Increment retry count and check circuit breaker
                     dbHelper.incrementRetryCount(item.id);
 
                     // If max retries exceeded, mark as failed permanently
                     if (item.retryCount >= 2) { // 0, 1, 2 = 3 attempts
+                        String errorMsg = "Exceeded max retry attempts (3)";
                         dbHelper.updateFileStatus(
                             item.id,
                             UploadDatabaseHelper.STATUS_FAILED,
-                            "Exceeded max retry attempts (3)"
+                            errorMsg
                         );
                         Log.e(TAG, "🚫 Circuit breaker activated - marked as failed");
+
+                        // ✨ Notify JavaScript about permanent failure
+                        try {
+                            // 🌉 Try direct bridge first
+                            UploadStatusBridge.notifyUploadComplete(item.id, UploadDatabaseHelper.STATUS_FAILED, errorMsg);
+                            Log.e(TAG, "🌉 JavaScript notified via DIRECT bridge (failure)");
+                        } catch (Exception e) {
+                            Log.w(TAG, "⚠️ Direct bridge failed: " + e.getMessage());
+
+                            // ✅ FALLBACK: Save pending update
+                            PendingStatusUpdateHelper.addPendingUpdate(
+                                context,
+                                item.id,
+                                UploadDatabaseHelper.STATUS_FAILED,
+                                errorMsg
+                            );
+                            Log.e(TAG, "💾 Failure update saved as PENDING");
+                        }
+
+                        try {
+                            // Legacy notification (keep for compatibility)
+                            UploadServicePlugin.notifyUploadStatusChanged(item.id, UploadDatabaseHelper.STATUS_FAILED, errorMsg);
+                            Log.e(TAG, "📡 JavaScript notified via legacy Capacitor event");
+                        } catch (Exception ignored) {
+                        }
                     } else {
                         Log.e(TAG, "🔄 Will retry later (attempt " + (item.retryCount + 2) + "/3)");
                         // Status remains PENDING for future retry
@@ -250,41 +262,23 @@ public class FileSyncWorker extends Worker {
             // ═══════════════════════════════════════════════════════════════════
             // Summary
             // ═══════════════════════════════════════════════════════════════════
-            Log.e(TAG, "");
-            Log.e(TAG, "╔════════════════════════════════════════════════════════════════╗");
-            Log.e(TAG, "║  📊 Sync Session Complete                                    ║");
-            Log.e(TAG, "╚════════════════════════════════════════════════════════════════╝");
-            Log.e(TAG, "✅ Success: " + successCount);
-            Log.e(TAG, "❌ Failures: " + failureCount);
-            Log.e(TAG, "⏭️  Skipped: " + skippedCount);
-            Log.e(TAG, "📈 Total processed: " + pendingItems.size());
-            Log.e(TAG, "");
+            Log.d(TAG, "Upload session: Success=" + successCount + ", Failed=" + failureCount + ", Skipped=" + skippedCount);
 
             // Show completion notification
             if (successCount > 0) {
                 showUploadNotification(
                     "✅ Upload Complete",
-                    successCount + " file(s) uploaded successfully",
+                    successCount + " file(s) uploaded",
                     100
                 );
-                // Auto-dismiss after 3 seconds
                 new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                     cancelUploadNotification();
-                }, 3000);
-            } else if (failureCount > 0) {
-                showUploadNotification(
-                    "⚠️ Upload Issues",
-                    failureCount + " file(s) failed to upload",
-                    0
-                );
+                }, 2000);
             }
 
-            // ═══════════════════════════════════════════════════════════════════
-            // Reschedule if there are still pending or failed files
-            // ═══════════════════════════════════════════════════════════════════
+            // Reschedule if there are still pending files
             int remainingPending = dbHelper.getPendingFilesCount();
             if (remainingPending > 0) {
-                Log.e(TAG, "📌 " + remainingPending + " files still pending - scheduling retry with backoff");
                 scheduleRetrySync(calculateBackoffMinutes(failureCount));
             }
 
@@ -297,6 +291,9 @@ public class FileSyncWorker extends Worker {
             // Reschedule for retry
             scheduleRetrySync(5); // 5 minutes backoff
             return Result.retry();
+        } finally {
+            // ✅ CRITICAL: Release isWorking flag to allow future schedules
+            isWorking.set(false);
         }
     }
 
@@ -466,6 +463,31 @@ public class FileSyncWorker extends Worker {
                 }
 
                 fileSize = file.length();
+
+                // ✅ CRITICAL: Wait if file is still being written (size 0)
+                if (fileSize == 0) {
+                    Log.e(TAG, "⚠️ File size is 0! Waiting for file to be written...");
+                    for (int i = 0; i < 10; i++) {
+                        try {
+                            Thread.sleep(200); // Wait 200ms
+                            fileSize = file.length();
+                            if (fileSize > 0) {
+                                Log.e(TAG, "✅ File written after " + ((i + 1) * 200) + "ms. Size: " + (fileSize / 1024.0 / 1024.0) + " MB");
+                                break;
+                            }
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                    }
+
+                    if (fileSize == 0) {
+                        Log.e(TAG, "❌❌❌ File is still 0 bytes after waiting 2 seconds!");
+                        Log.e(TAG, "   This indicates the file was not saved correctly.");
+                        return false;
+                    }
+                }
+
                 Log.e(TAG, "📊 File size: " + (fileSize / 1024 / 1024) + " MB");
 
                 fileBody = okhttp3.RequestBody.create(
@@ -617,56 +639,41 @@ public class FileSyncWorker extends Worker {
     // ═══════════════════════════════════════════════════════════════════
 
     public static void scheduleImmediateSync(Context context) {
-        Log.e(TAG, "📤 [1/6] scheduleImmediateSync() CALLED");
+        // ✅ CRITICAL: Don't schedule if worker is currently working!
+        if (isWorking.get()) {
+            return; // Silent skip - worker already processing
+        }
 
-        // ✅ NEW: Check network availability BEFORE scheduling
-        android.net.ConnectivityManager cm =
-            (android.net.ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-        boolean networkAvailable = false;
-        if (cm != null) {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                android.net.Network activeNetwork = cm.getActiveNetwork();
-                if (activeNetwork != null) {
-                    android.net.NetworkCapabilities caps = cm.getNetworkCapabilities(activeNetwork);
-                    networkAvailable = caps != null &&
-                        caps.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET);
-                }
-            } else {
-                android.net.NetworkInfo activeNetworkInfo = cm.getActiveNetworkInfo();
-                networkAvailable = activeNetworkInfo != null && activeNetworkInfo.isConnected();
+        // ✅ Deduplication Lock
+        if (!isScheduling.compareAndSet(false, true)) {
+            return; // Already scheduling
+        }
+
+        try {
+            UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(context);
+            if (dbHelper.getPendingFilesCount() == 0) {
+                return; // No files
             }
+
+            Constraints constraints = new Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build();
+
+            OneTimeWorkRequest uploadWork = new OneTimeWorkRequest.Builder(FileSyncWorker.class)
+                .setConstraints(constraints)
+                .addTag("file_upload_sync")
+                .build();
+
+            WorkManager.getInstance(context)
+                .enqueueUniqueWork(
+                    WORK_NAME,
+                    ExistingWorkPolicy.KEEP,
+                    uploadWork
+                );
+
+        } finally {
+            isScheduling.set(false);
         }
-        Log.e(TAG, "📤 [2/6] Network available NOW: " + networkAvailable);
-
-        if (!networkAvailable) {
-            Log.e(TAG, "❌❌❌ NO NETWORK FOUND!");
-            Log.e(TAG, "⚠️⚠️⚠️ Worker will be QUEUED but NOT START until network available!");
-            Log.e(TAG, "⚠️⚠️⚠️ Turn on WiFi or Mobile Data to start upload!");
-        }
-
-        // ❌ TEMPORARILY REMOVE network constraint for testing!
-        // Constraints constraints = new Constraints.Builder()
-        //     .setRequiredNetworkType(NetworkType.CONNECTED)
-        //     .build();
-        Log.e(TAG, "📤 [3/6] Constraints: NONE (network constraint REMOVED for testing)");
-
-        OneTimeWorkRequest uploadWork = new OneTimeWorkRequest.Builder(FileSyncWorker.class)
-            // .setConstraints(constraints) // ❌ REMOVED!
-            .addTag("file_upload_sync")
-            .build();
-        Log.e(TAG, "📤 [4/6] Work request created");
-
-        // ExistingWorkPolicy.REPLACE - ALWAYS use new worker (discard old)
-        WorkManager.getInstance(context)
-            .enqueueUniqueWork(
-                WORK_NAME,
-                ExistingWorkPolicy.REPLACE,
-                uploadWork
-            );
-
-        Log.e(TAG, "📤 [5/6] Work enqueued with WorkManager");
-        Log.e(TAG, "📤 [6/6] Work name: " + WORK_NAME + " | Policy: REPLACE");
-        Log.e(TAG, "✅✅✅ scheduleImmediateSync() COMPLETE - Worker should start NOW!");
     }
 
     private void scheduleRetrySync(long delayMinutes) {
@@ -738,7 +745,18 @@ public class FileSyncWorker extends Worker {
 
         Log.e(TAG, "✅ Foreground notification created - Worker won't be killed!");
 
-        return new androidx.work.ForegroundInfo(NOTIFICATION_ID, notification);
+        // ✅ CRITICAL FIX: Android 14+ requires foregroundServiceType
+        if (android.os.Build.VERSION.SDK_INT >= 34) { // Android 14 (API 34)
+            Log.e(TAG, "📱 Android 14+ detected - adding FOREGROUND_SERVICE_TYPE_DATA_SYNC");
+            return new androidx.work.ForegroundInfo(
+                NOTIFICATION_ID,
+                notification,
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            );
+        } else {
+            Log.e(TAG, "📱 Android < 14 - standard ForegroundInfo");
+            return new androidx.work.ForegroundInfo(NOTIFICATION_ID, notification);
+        }
     }
 
     private boolean isNetworkAvailable() {

@@ -15,19 +15,15 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import androidx.work.Data;
-import androidx.work.ExistingWorkPolicy;
-import androidx.work.OneTimeWorkRequest;
-import androidx.work.WorkManager;
 
 import java.io.File;
 
 /**
  * ═══════════════════════════════════════════════════════════════════
- * 📹 CameraActivity - Native Android Camera for Video Recording
+ * 📸 PhotoActivity - Native Android Camera for Photo Capture
  *
- * بدلاً من استخدام WebView + JavaScript + Base64:
- * - يفتح الكاميرا مباشرة (Intent.ACTION_VIDEO_CAPTURE)
+ * نفس نهج CameraActivity (الذي يعمل بشكل ممتاز):
+ * - يفتح الكاميرا مباشرة (Intent.ACTION_IMAGE_CAPTURE)
  * - يحصل على file:// URI مباشرة (بدون Base64!)
  * - يحفظ في SQLite (metadata only)
  * - يرفع عبر FileSyncWorker (streaming!)
@@ -35,15 +31,16 @@ import java.io.File;
  * ✅ لا Base64 أبداً!
  * ✅ لا Capacitor bridge!
  * ✅ لا JavaScript memory issues!
+ * ✅ لا Activity recreation problems!
  * ═══════════════════════════════════════════════════════════════════
  */
-public class CameraActivity extends AppCompatActivity {
+public class PhotoActivity extends AppCompatActivity {
 
-    private static final String TAG = "CameraActivity";
-    private static final int REQUEST_VIDEO_CAPTURE = 1001;
-    private static final int REQUEST_CAMERA_PERMISSION = 1002;
+    private static final String TAG = "PhotoActivity";
+    private static final int REQUEST_IMAGE_CAPTURE = 2001;
+    private static final int REQUEST_CAMERA_PERMISSION = 2002;
 
-    private Uri videoUri;
+    private Uri photoUri;
     private int sponsorshipId;
     private String apiUrl;
     private String authToken;
@@ -55,6 +52,11 @@ public class CameraActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        Log.e(TAG, "");
+        Log.e(TAG, "╔════════════════════════════════════════════════════════════════╗");
+        Log.e(TAG, "║  📸 PhotoActivity.onCreate() - Native Photo Capture          ║");
+        Log.e(TAG, "╚════════════════════════════════════════════════════════════════╝");
+
         // Get parameters from Intent
         Intent intent = getIntent();
         sponsorshipId = intent.getIntExtra("sponsorshipId", -1);
@@ -63,12 +65,20 @@ public class CameraActivity extends AppCompatActivity {
         personName = intent.getStringExtra("personName");
         associationName = intent.getStringExtra("associationName");
 
+        Log.e(TAG, "📋 Parameters:");
+        Log.e(TAG, "   sponsorshipId: " + sponsorshipId);
+        Log.e(TAG, "   personName: " + personName);
+        Log.e(TAG, "   associationName: " + associationName);
+        Log.e(TAG, "   apiUrl: " + (apiUrl != null ? apiUrl : "not provided"));
+
         // Use default API URL if not provided
         if (apiUrl == null || apiUrl.isEmpty()) {
             apiUrl = "https://alhayahorphans.org/api/mobile/upload-file";
+            Log.e(TAG, "   Using default API URL: " + apiUrl);
         }
 
         if (sponsorshipId == -1) {
+            Log.e(TAG, "❌ sponsorshipId مطلوب!");
             Toast.makeText(this, "خطأ: sponsorshipId مطلوب", Toast.LENGTH_SHORT).show();
             finish();
             return;
@@ -116,31 +126,30 @@ public class CameraActivity extends AppCompatActivity {
     }
 
     private void openCamera() {
-        Log.e(TAG, "📹 فتح الكاميرا للتصوير...");
+        Log.e(TAG, "📸 فتح الكاميرا للتصوير...");
 
         try {
             // إنشاء Intent للتصوير
-            Intent takeVideoIntent = new Intent(MediaStore.ACTION_VIDEO_CAPTURE);
+            Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
 
-            if (takeVideoIntent.resolveActivity(getPackageManager()) != null) {
+            if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
 
-                // إنشاء ملف للفيديو
+                // إنشاء ملف للصورة
                 ContentValues values = new ContentValues();
-                values.put(MediaStore.Video.Media.TITLE, "video_" + sponsorshipId + "_" + System.currentTimeMillis());
-                values.put(MediaStore.Video.Media.DESCRIPTION, "Video for sponsorship " + sponsorshipId);
-                values.put(MediaStore.Video.Media.MIME_TYPE, "video/mp4");
+                values.put(MediaStore.Images.Media.TITLE, "photo_" + sponsorshipId + "_" + System.currentTimeMillis());
+                values.put(MediaStore.Images.Media.DESCRIPTION, "Photo for sponsorship " + sponsorshipId);
+                values.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
 
-                videoUri = getContentResolver().insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values);
+                photoUri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
 
-                if (videoUri != null) {
-                    takeVideoIntent.putExtra(MediaStore.EXTRA_OUTPUT, videoUri);
-                    takeVideoIntent.putExtra(MediaStore.EXTRA_VIDEO_QUALITY, 1); // High quality
+                if (photoUri != null) {
+                    takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoUri);
 
-                    Log.e(TAG, "✅ Video URI created: " + videoUri.toString());
-                    startActivityForResult(takeVideoIntent, REQUEST_VIDEO_CAPTURE);
+                    Log.e(TAG, "✅ Photo URI created: " + photoUri.toString());
+                    startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
                 } else {
-                    Log.e(TAG, "❌ فشل إنشاء URI للفيديو");
-                    Toast.makeText(this, "خطأ في إنشاء ملف الفيديو", Toast.LENGTH_SHORT).show();
+                    Log.e(TAG, "❌ فشل إنشاء URI للصورة");
+                    Toast.makeText(this, "خطأ في إنشاء ملف الصورة", Toast.LENGTH_SHORT).show();
                     finish();
                 }
 
@@ -162,18 +171,18 @@ public class CameraActivity extends AppCompatActivity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
 
-        if (requestCode == REQUEST_VIDEO_CAPTURE) {
-            if (resultCode == RESULT_OK && videoUri != null) {
+        if (requestCode == REQUEST_IMAGE_CAPTURE) {
+            if (resultCode == RESULT_OK && photoUri != null) {
                 Log.e(TAG, "");
                 Log.e(TAG, "╔════════════════════════════════════════════════════════════════╗");
                 Log.e(TAG, "║  ✅ تم التصوير بنجاح!                                        ║");
                 Log.e(TAG, "╚════════════════════════════════════════════════════════════════╝");
-                Log.e(TAG, "📹 Video URI: " + videoUri.toString());
+                Log.e(TAG, "📸 Photo URI: " + photoUri.toString());
 
                 // ✅ FAST CHECK: Only query metadata (NO full file read!)
                 Log.e(TAG, "🔍 Quick file metadata check...");
                 try {
-                    android.database.Cursor cursor = getContentResolver().query(videoUri,
+                    android.database.Cursor cursor = getContentResolver().query(photoUri,
                         new String[]{android.provider.OpenableColumns.SIZE, android.provider.OpenableColumns.DISPLAY_NAME},
                         null, null, null);
                     if (cursor != null && cursor.moveToFirst()) {
@@ -192,8 +201,8 @@ public class CameraActivity extends AppCompatActivity {
                 }
 
                 // الحصول على المسار الفعلي للملف
-                String filePath = videoUri.toString();
-                String fileName = "video_" + sponsorshipId + "_" + System.currentTimeMillis() + ".mp4";
+                String filePath = photoUri.toString();
+                String fileName = "photo_" + sponsorshipId + "_" + System.currentTimeMillis() + ".jpg";
 
                 Log.e(TAG, "📋 Preparing to save to database:");
                 Log.e(TAG, "   filePath: " + filePath);
@@ -203,19 +212,19 @@ public class CameraActivity extends AppCompatActivity {
 
                 // ✅ DIRECT save to PUBLIC Documents folder (FAST!)
                 Log.e(TAG, "💾 Starting DIRECT save to Documents...");
-                saveToExternalDocumentsFolder(videoUri, fileName);
-                Log.e(TAG, "ℹ️ Video also stored in MediaStore (accessible in gallery)");
+                saveToExternalDocumentsFolder(photoUri, fileName);
+                Log.e(TAG, "ℹ️ Photo also stored in MediaStore (accessible in gallery)");
 
                 // حفظ في قاعدة البيانات وجدولة الرفع (FAST - no blocking!)
                 saveAndQueueUpload(filePath, fileName);
 
-                Toast.makeText(this, "✅ تم حفظ الفيديو وجاري الرفع", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "✅ تم حفظ الصورة وجاري الرفع", Toast.LENGTH_LONG).show();
 
                 // إرجاع معلومات الملف لـ JavaScript (لتحديث الإحصائيات!)
                 Intent resultIntent = new Intent();
                 resultIntent.putExtra("sponsorshipId", sponsorshipId);
                 resultIntent.putExtra("fileName", fileName);
-                resultIntent.putExtra("fileType", "video");
+                resultIntent.putExtra("fileType", "photo");
                 resultIntent.putExtra("fileId", realFileId);  // ✅ CRITICAL: Return real file ID!
                 resultIntent.putExtra("success", true);
 
@@ -246,7 +255,7 @@ public class CameraActivity extends AppCompatActivity {
             long fileId = dbHelper.addFileToQueue(
                 filePath,
                 fileName,
-                "video/mp4",
+                "image/jpeg",
                 sponsorshipId,
                 apiUrl,
                 authToken != null ? authToken : "",
@@ -262,11 +271,9 @@ public class CameraActivity extends AppCompatActivity {
 
             // ✅ جدولة FileSyncWorker باستخدام scheduleImmediateSync() - الطريقة الصحيحة!
             Log.e(TAG, "📤 جدولة الرفع الفوري عبر FileSyncWorker.scheduleImmediateSync()...");
-            Log.e(TAG, "🔍🔍🔍 DIAGNOSTIC: About to call FileSyncWorker.scheduleImmediateSync()...");
             try {
-                Log.e(TAG, "🚀🚀🚀 CALLING FileSyncWorker.scheduleImmediateSync() NOW!");
                 FileSyncWorker.scheduleImmediateSync(this);
-                Log.e(TAG, "✅✅✅ FileSyncWorker.scheduleImmediateSync() RETURNED - تم جدولة FileSyncWorker!");
+                Log.e(TAG, "✅ تم جدولة FileSyncWorker!");
                 Log.e(TAG, "   📋 Work name: file_sync_orchestrator (unified)");
                 Log.e(TAG, "   🔧 Policy: KEEP (no duplicates)");
                 Log.e(TAG, "   🎯 File ID " + fileId + " will be uploaded automatically");
@@ -308,19 +315,15 @@ public class CameraActivity extends AppCompatActivity {
             }
 
             Log.e(TAG, "✅ Documents dir: " + documentsDir.getAbsolutePath());
-            Log.e(TAG, "   Exists: " + documentsDir.exists());
-            Log.e(TAG, "   Writable: " + documentsDir.canWrite());
 
-            // 2. إنشاء المجلد: Documents/Alhayah/
+            // إنشاء المجلد: Documents/Alhayah/
             java.io.File mainDir = new java.io.File(documentsDir, "Alhayah");
             if (!mainDir.exists()) {
                 boolean created = mainDir.mkdirs();
-                Log.e(TAG, "   Alhayah dir created: " + created + " (" + mainDir.getAbsolutePath() + ")");
-            } else {
-                Log.d(TAG, "   Alhayah dir exists");
+                Log.e(TAG, "   Alhayah dir created: " + created);
             }
 
-            // 3. إنشاء مجلد الجمعية
+            // إنشاء مجلد الجمعية
             String safeAssociationName = (associationName != null && !associationName.isEmpty())
                 ? associationName.replaceAll("[^a-zA-Z0-9_\\-\\u0600-\\u06FF\\s]", "_")
                 : "General";
@@ -329,11 +332,9 @@ public class CameraActivity extends AppCompatActivity {
             if (!associationDir.exists()) {
                 boolean created = associationDir.mkdirs();
                 Log.e(TAG, "   Association dir created: " + created + " (" + safeAssociationName + ")");
-            } else {
-                Log.d(TAG, "   Association dir exists: " + safeAssociationName);
             }
 
-            // 4. إنشاء مجلد الشخص
+            // إنشاء مجلد الشخص
             String safePersonName = (personName != null && !personName.isEmpty())
                 ? personName.replaceAll("[^a-zA-Z0-9_\\-\\u0600-\\u06FF\\s]", "_")
                 : "Unknown_" + sponsorshipId;
@@ -342,17 +343,15 @@ public class CameraActivity extends AppCompatActivity {
             if (!personDir.exists()) {
                 boolean created = personDir.mkdirs();
                 Log.e(TAG, "   Person dir created: " + created + " (" + safePersonName + ")");
-            } else {
-                Log.d(TAG, "   Person dir exists: " + safePersonName);
             }
 
-            // 5. إنشاء الملف النهائي
+            // إنشاء الملف النهائي
             java.io.File destinationFile = new java.io.File(personDir, fileName);
 
             Log.e(TAG, "✅ Final path: " + destinationFile.getAbsolutePath());
             Log.e(TAG, "🔄 Starting file copy...");
 
-            // 6. نسخ الملف (سريع!)
+            // نسخ الملف (سريع!)
             long startCopy = System.currentTimeMillis();
             long bytesWritten = 0;
 
@@ -393,7 +392,7 @@ public class CameraActivity extends AppCompatActivity {
                 Log.e(TAG, "✅ Saved folder path to database");
 
             } catch (Exception copyEx) {
-                Log.e(TAG, "❌❌❌ Error during file copy: " + copyEx.getMessage());
+                Log.e(TAG, "❌ Error during file copy: " + copyEx.getMessage());
                 copyEx.printStackTrace();
 
                 // حذف الملف الناقص إن وجد
@@ -404,7 +403,7 @@ public class CameraActivity extends AppCompatActivity {
             }
 
         } catch (Exception e) {
-            Log.e(TAG, "❌❌❌ Error saving to external documents: " + e.getMessage());
+            Log.e(TAG, "❌ Error saving to external documents: " + e.getMessage());
             e.printStackTrace();
         }
 

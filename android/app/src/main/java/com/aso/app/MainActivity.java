@@ -8,6 +8,7 @@ import org.alhayah.sponsorships.JavaScriptBridge;
 import com.aso.app.UploadServicePlugin;
 import com.aso.app.GoogleDriveUploadPlugin;
 import com.aso.app.IndexedDBBridge;
+import com.aso.app.PermissionsManagerPlugin;  // ✨ NEW: إدارة الصلاحيات المتسلسلة
 
 public class MainActivity extends BridgeActivity {
     private static final String TAG = "MainActivity";
@@ -16,7 +17,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         // 🔥 FIRST LOG - قبل كل شيء للتأكد من التحميل
         android.util.Log.e(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        android.util.Log.e(TAG, "🔥🔥🔥 MainActivity.onCreate() - APK v22:56 🔥🔥🔥");
+        android.util.Log.e(TAG, "🔥🔥🔥 MainActivity.onCreate() - APK v23:45 🔥🔥🔥");
         android.util.Log.e(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
         // ✨ CRITICAL: تسجيل Plugins قبل super.onCreate() في Capacitor 6.x
@@ -24,11 +25,32 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(GoogleDriveUploadPlugin.class);
         registerPlugin(IndexedDBBridge.class);
         registerPlugin(SponsorshipFolderManager.class);  // ✨ NEW: إدارة مجلدات المكفولين
-        registerPlugin(NativeCameraPlugin.class);  // ✨ NEW: Native Camera بدون Base64!
+        registerPlugin(NativeCameraPlugin.class);  // ✨ NEW: Native VIDEO بدون Base64!
+        registerPlugin(NativePhotoPlugin.class);  // 📸 NEW: Native PHOTO بسرعة فائقة!
         registerPlugin(org.alhayah.sponsorships.BackgroundSyncPlugin.class);
+        registerPlugin(PermissionsManagerPlugin.class);  // ✨ NEW: إدارة الصلاحيات المتسلسلة
         android.util.Log.e(TAG, "✅ Plugins registered BEFORE super.onCreate()");
 
         super.onCreate(savedInstanceState);
+
+        // 🌉 تسجيل UploadStatusBridge للتواصل المباشر مع JavaScript
+        UploadStatusBridge.registerActivity(this);
+        android.util.Log.e(TAG, "✅ UploadStatusBridge registered - Real-time sync enabled");
+
+        // ✅ CRITICAL: معالجة التحديثات المؤجلة من FileSyncWorker
+        // إذا كانت ملفات رُفعت بنجاح بينما التطبيق كان مغلقاً،
+        // سيتم الآن تحديث IndexedDB تلقائياً
+        android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+        mainHandler.postDelayed(() -> {
+            android.util.Log.e(TAG, "🔄 Checking for pending status updates...");
+            int pendingCount = PendingStatusUpdateHelper.getPendingUpdatesCount(this);
+            if (pendingCount > 0) {
+                android.util.Log.e(TAG, "✅ Found " + pendingCount + " pending updates - processing now");
+                PendingStatusUpdateHelper.processPendingUpdates(this);
+            } else {
+                android.util.Log.e(TAG, "ℹ️  No pending updates");
+            }
+        }, 2000); // تأخير 2 ثانية للتأكد من جاهزية WebView
 
         // ⚡ Static block in AutoUploadApplication already applied Chromium fixes
         android.util.Log.e(TAG, "✅ Chromium flags applied by AutoUploadApplication static block");
@@ -92,6 +114,42 @@ public class MainActivity extends BridgeActivity {
             android.util.Log.e(TAG, "✅ Database: ENABLED");
             android.util.Log.e(TAG, "🚫 Hardware Acceleration: DISABLED (stability fix)");
             android.util.Log.e(TAG, "✅ JavaScript: ENABLED");
+
+            // 🔍 WebChromeClient للكشف عن أخطاء JavaScript
+            webView.setWebChromeClient(new android.webkit.WebChromeClient() {
+                @Override
+                public boolean onConsoleMessage(android.webkit.ConsoleMessage cm) {
+                    String level = cm.messageLevel().name();
+                    String msg = cm.message();
+                    String src = cm.sourceId();
+                    int line = cm.lineNumber();
+
+                    String logTag = TAG + "_JS_" + level;
+                    String fullMsg = String.format("[%s:%d] %s", src, line, msg);
+
+                    switch (cm.messageLevel()) {
+                        case ERROR:
+                            android.util.Log.e(logTag, "🔴 " + fullMsg);
+                            break;
+                        case WARNING:
+                            android.util.Log.w(logTag, "⚠️ " + fullMsg);
+                            break;
+                        default:
+                            android.util.Log.i(logTag, "ℹ️ " + fullMsg);
+                            break;
+                    }
+                    return true;
+                }
+
+                @Override
+                public void onProgressChanged(WebView view, int newProgress) {
+                    super.onProgressChanged(view, newProgress);
+                    if (newProgress == 100) {
+                        android.util.Log.e(TAG, "✅ WebView page load COMPLETED (100%)");
+                    }
+                }
+            });
+            android.util.Log.e(TAG, "✅ WebChromeClient registered - JS errors will be logged");
         } catch (Exception e) {
             android.util.Log.e(TAG, "⚠️ WebView optimization failed: " + e.getMessage());
         }
@@ -183,7 +241,15 @@ public class MainActivity extends BridgeActivity {
         android.util.Log.e(TAG, "💾💾💾 STARTING WEBSTORAGE MANAGER 💾💾💾");
         try {
             WebStorageManager storageManager = WebStorageManager.getInstance(this);
-            storageManager.logStorageInfo();
+            // ⚠️ تأخير logStorageInfo() لأن WebView قد لا يكون جاهزاً بعد
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                try {
+                    storageManager.logStorageInfo();
+                    android.util.Log.e(TAG, "✅ WebStorage info logged (delayed)");
+                } catch (Exception e) {
+                    android.util.Log.e(TAG, "⚠️ WebStorage info failed (non-critical): " + e.getMessage());
+                }
+            }, 2000); // تأخير 2 ثانية لضمان جاهزية WebView
             android.util.Log.e(TAG, "✅ WebStorageManager initialized successfully");
         } catch (Exception e) {
             android.util.Log.e(TAG, "❌ WebStorageManager failed: " + e.getMessage(), e);
@@ -199,5 +265,34 @@ public class MainActivity extends BridgeActivity {
         } catch (Exception e) {
             android.util.Log.e(TAG, "❌ CameraMemoryManager failed: " + e.getMessage(), e);
         }
+
+        android.util.Log.e(TAG, "");
+        android.util.Log.e(TAG, "╔════════════════════════════════════════════════════════════════╗");
+        android.util.Log.e(TAG, "║  ✅✅✅ MainActivity.onCreate() COMPLETED SUCCESSFULLY        ║");
+        android.util.Log.e(TAG, "╚════════════════════════════════════════════════════════════════╝");
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        android.util.Log.e(TAG, "🔄 MainActivity.onResume() - App is now VISIBLE");
+    }
+
+    @Override
+    public void onPause() {
+        android.util.Log.e(TAG, "⏸️ MainActivity.onPause() - App is PAUSED");
+        super.onPause();
+    }
+
+    @Override
+    public void onStop() {
+        android.util.Log.e(TAG, "⏹️ MainActivity.onStop() - App is STOPPED");
+        super.onStop();
+    }
+
+    @Override
+    public void onDestroy() {
+        android.util.Log.e(TAG, "💀 MainActivity.onDestroy() - App is DESTROYED");
+        super.onDestroy();
     }
 }

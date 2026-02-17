@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مثال تكامل - نظام رفع الملفات</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        body {
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .page-header {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+        }
+        .upload-section {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="page-header">
+            <h1><i class="fas fa-cloud-upload-alt"></i> نظام رفع الملفات</h1>
+            <p class="mb-0">مثال كامل على التكامل مع IndexedDB</p>
+        </div>
+
+        <!-- Upload Section -->
+        <div class="upload-section">
+            <h3>رفع ملف جديد</h3>
+            <div class="mb-3">
+                <input type="file" class="form-control" id="fileInput" multiple>
+            </div>
+            <button class="btn btn-primary" onclick="uploadSelectedFiles()">
+                <i class="fas fa-upload"></i> رفع الملفات
+            </button>
+        </div>
+
+        <!-- Stats Section -->
+        <div class="upload-section">
+            <h3>الإحصائيات</h3>
+            <div class="row text-center">
+                <div class="col">
+                    <h2 id="stat-total">0</h2>
+                    <small>الإجمالي</small>
+                </div>
+                <div class="col">
+                    <h2 id="stat-pending">0</h2>
+                    <small>في الانتظار</small>
+                </div>
+                <div class="col">
+                    <h2 id="stat-uploading">0</h2>
+                    <small>جاري الرفع</small>
+                </div>
+                <div class="col">
+                    <h2 id="stat-completed">0</h2>
+                    <small>مكتمل</small>
+                </div>
+                <div class="col">
+                    <h2 id="stat-failed">0</h2>
+                    <small>فشل</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Files Container -->
+        <div class="upload-section">
+            <h3>الملفات المحفوظة</h3>
+            <div id="files-container"></div>
+        </div>
+
+        <!-- Actions -->
+        <div class="upload-section">
+            <h3>إجراءات</h3>
+            <button class="btn btn-info" onclick="reloadFromIndexedDB()">
+                <i class="fas fa-sync"></i> إعادة التحميل من IndexedDB
+            </button>
+            <button class="btn btn-success" onclick="simulateSuccess()">
+                <i class="fas fa-check"></i> محاكاة نجاح الرفع
+            </button>
+            <button class="btn btn-warning" onclick="showAllFiles()">
+                <i class="fas fa-list"></i> عرض جميع الملفات
+            </button>
+            <button class="btn btn-danger" onclick="clearOldFiles()">
+                <i class="fas fa-trash"></i> مسح الملفات القديمة
+            </button>
+        </div>
+
+        <!-- Logs -->
+        <div class="upload-section">
+            <h3>السجلات</h3>
+            <pre id="logs" style="max-height: 300px; overflow-y: auto; background: #2d2d2d; color: #f8f8f2; padding: 15px; border-radius: 8px;"></pre>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- Scripts - الترتيب مهم! -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+
+    <!-- 1️⃣ IndexedDB Manager -->
+    <script src="/js/file-storage-indexeddb.js"></script>
+
+    <!-- 2️⃣ Upload Status Sync (Legacy) -->
+    <script src="/js/upload-status-sync.js"></script>
+
+    <!-- ✅ NEW: Auto-Sync Service للتحديثات التلقائية -->
+    <script src="/js/upload-status-auto-sync.js"></script>
+
+    <!-- 3️⃣ Page Logic -->
+    <script>
+        // ═══════════════════════════════════════════════════════════
+        // Logging System
+        // ═══════════════════════════════════════════════════════════
+
+        const logsElement = document.getElementById('logs');
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString('ar-EG');
+            const icon = type === 'success' ? '✅' :
+                        type === 'error' ? '❌' :
+                        type === 'warning' ? '⚠️' :
+                        'ℹ️';
+
+            const logLine = `[${timestamp}] ${icon} ${message}\n`;
+            logsElement.textContent += logLine;
+            logsElement.scrollTop = logsElement.scrollHeight;
+
+            console.log(message);
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // Upload Files
+        // ═══════════════════════════════════════════════════════════
+
+        async function uploadSelectedFiles() {
+            const fileInput = document.getElementById('fileInput');
+            const files = fileInput.files;
+
+            if (files.length === 0) {
+                alert('اختر ملفاً أولاً');
+                return;
+            }
+
+            log(`🚀 بدء رفع ${files.length} ملف...`);
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                await uploadSingleFile(file);
+            }
+
+            fileInput.value = '';
+            await updateStats();
+        }
+
+        async function uploadSingleFile(file) {
+            const fileId = Date.now() + Math.random();
+
+            try {
+                // 1️⃣ حفظ في IndexedDB بحالة "uploading"
+                await FileStorageDB.saveFile({
+                    fileId: fileId,
+                    fileName: file.name,
+                    fileSize: file.size,
+                    status: 'uploading',
+                    createdAt: new Date().toISOString()
+                });
+
+                log(`📤 رفع: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`, 'info');
+
+                // 2️⃣ محاكاة الرفع (في التطبيق الحقيقي: الرفع للسيرفر)
+                await simulateUpload(fileId, file);
+
+                // 3️⃣ تحديث الحالة إلى "completed"
+                await FileStorageDB.updateFileStatus(fileId, 'completed', {
+                    uploadedAt: new Date().toISOString()
+                });
+
+                log(`✅ تم رفع: ${file.name}`, 'success');
+
+                // 4️⃣ إعادة تحميل العرض
+                await reloadFromIndexedDB();
+
+            } catch (error) {
+                log(`❌ فشل رفع: ${file.name} - ${error.message}`, 'error');
+
+                // تحديث الحالة إلى "failed"
+                await FileStorageDB.updateFileStatus(fileId, 'failed', {
+                    error: error.message
+                });
+            }
+        }
+
+        function simulateUpload(fileId, file) {
+            return new Promise((resolve) => {
+                // محاكاة تأخير الشبكة
+                setTimeout(() => {
+                    resolve();
+                }, 1000 + Math.random() * 2000);
+            });
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // Stats Management
+        // ═══════════════════════════════════════════════════════════
+
+        async function updateStats() {
+            const stats = await FileStorageDB.getStats();
+
+            document.getElementById('stat-total').textContent = stats.total;
+            document.getElementById('stat-pending').textContent = stats.pending;
+            document.getElementById('stat-uploading').textContent = stats.uploading;
+            document.getElementById('stat-completed').textContent = stats.completed;
+            document.getElementById('stat-failed').textContent = stats.failed;
+
+            log(`📊 الإحصائيات: ${stats.total} إجمالي (${stats.completed} مكتمل)`, 'info');
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // Actions
+        // ═══════════════════════════════════════════════════════════
+
+        async function reloadFromIndexedDB() {
+            log('🔄 إعادة التحميل من IndexedDB...', 'info');
+            await UploadStatusSync.loadFilesFromIndexedDB();
+            await updateStats();
+            log('✅ تم التحميل بنجاح', 'success');
+        }
+
+        async function simulateSuccess() {
+            const pendingFiles = await FileStorageDB.getFilesByStatus('pending');
+
+            if (pendingFiles.length === 0) {
+                alert('لا توجد ملفات في الانتظار');
+                return;
+            }
+
+            const file = pendingFiles[0];
+            await FileStorageDB.updateFileStatus(file.fileId, 'completed');
+            await reloadFromIndexedDB();
+
+            log(`✅ تم تحديث ${file.fileName} إلى مكتمل`, 'success');
+        }
+
+        async function showAllFiles() {
+            const files = await FileStorageDB.getAllFiles();
+
+            log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'info');
+            log(`📋 جميع الملفات (${files.length}):\n`, 'info');
+
+            files.forEach((file, index) => {
+                log(`${index + 1}. ${file.fileName} - ${file.status} (ID: ${file.fileId})`, 'info');
+            });
+
+            log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'info');
+        }
+
+        async function clearOldFiles() {
+            if (!confirm('هل تريد حذف الملفات المكتملة الأقدم من 7 أيام؟')) {
+                return;
+            }
+
+            const count = await FileStorageDB.clearCompletedFiles(7);
+            await reloadFromIndexedDB();
+
+            log(`🗑️ تم حذف ${count} ملف قديم`, 'warning');
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // Initial Load
+        // ═══════════════════════════════════════════════════════════
+
+        (async function init() {
+            log('🚀 تهيئة الصفحة...', 'info');
+
+            // انتظر تحميل IndexedDB
+            await FileStorageDB.initDB();
+            log('✅ IndexedDB جاهز', 'success');
+
+            // حمّل الملفات
+            await reloadFromIndexedDB();
+
+            log('✅ الصفحة جاهزة', 'success');
+        })();
+    </script>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</body>
+</html>

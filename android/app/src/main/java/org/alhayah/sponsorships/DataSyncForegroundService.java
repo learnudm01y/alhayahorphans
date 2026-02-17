@@ -100,10 +100,19 @@ public class DataSyncForegroundService extends Service {
     private void startForegroundWithNotification() {
         Notification notification = createNotification("جاري التحضير...", 0, 0);
         try {
-            startForeground(NOTIFICATION_ID, notification);
+            // ✅ CRITICAL FIX: Android 14+ requires foregroundServiceType
+            if (Build.VERSION.SDK_INT >= 34) { // Android 14 (API 34 - UPSIDE_DOWN_CAKE)
+                Log.e(TAG, "📱 Android 14+ detected - using FOREGROUND_SERVICE_TYPE_DATA_SYNC");
+                startForeground(NOTIFICATION_ID, notification,
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+            } else {
+                Log.e(TAG, "📱 Android < 14 - standard startForeground");
+                startForeground(NOTIFICATION_ID, notification);
+            }
             Log.e(TAG, "🛡️ Foreground Service started with notification");
         } catch (Exception e) {
             Log.e(TAG, "❌ فشل startForeground: " + e.getMessage(), e);
+            e.printStackTrace();
             stopSelf();
         }
     }

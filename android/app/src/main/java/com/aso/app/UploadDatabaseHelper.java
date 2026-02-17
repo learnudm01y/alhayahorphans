@@ -204,6 +204,31 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
     }
 
     /**
+     * الحصول على ملف بواسطة ID
+     */
+    public UploadItem getFileById(long id) {
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        Cursor cursor = db.query(
+            TABLE_UPLOAD_QUEUE,
+            null,
+            COLUMN_ID + " = ?",
+            new String[]{String.valueOf(id)},
+            null,
+            null,
+            null
+        );
+
+        UploadItem item = null;
+        if (cursor.moveToFirst()) {
+            item = cursorToUploadItem(cursor);
+        }
+
+        cursor.close();
+        return item;
+    }
+
+    /**
      * الحصول على جميع الملفات في حالة معينة
      */
     public List<UploadItem> getFilesByStatus(String status) {
@@ -263,6 +288,11 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
      * تحديث حالة الملف
      */
     public void updateFileStatus(long id, String status, String errorMessage) {
+        Log.e(TAG, "✅✅✅ updateFileStatus() CALLED");
+        Log.e(TAG, "   File ID: " + id);
+        Log.e(TAG, "   New Status: " + status);
+        Log.e(TAG, "   Error Message: " + errorMessage);
+
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues values = new ContentValues();
 
@@ -273,8 +303,17 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
             values.put(COLUMN_ERROR_MESSAGE, errorMessage);
         }
 
-        db.update(TABLE_UPLOAD_QUEUE, values, COLUMN_ID + " = ?", new String[]{String.valueOf(id)});
-        Log.d(TAG, "تم تحديث حالة الملف " + id + " إلى: " + status);
+        int rowsAffected = db.update(TABLE_UPLOAD_QUEUE, values, COLUMN_ID + " = ?", new String[]{String.valueOf(id)});
+        Log.e(TAG, "✅✅✅ updateFileStatus() UPDATE EXECUTED");
+        Log.e(TAG, "   Rows affected: " + rowsAffected);
+
+        if (rowsAffected == 0) {
+            Log.e(TAG, "   ❌❌❌ WARNING: No rows were updated! File ID " + id + " might not exist!");
+        } else if (rowsAffected > 1) {
+            Log.e(TAG, "   ⚠️ WARNING: Multiple rows updated ("+rowsAffected+")! This should not happen!");
+        } else {
+            Log.e(TAG, "   ✅ SUCCESS: 1 row updated correctly");
+        }
     }
 
     /**
