@@ -95,7 +95,7 @@ class ManageTheUserRequestDataTable extends DataTable
     {
         // جلب السجلات التي data_user_insert_data = null أو تساوي n_user
         $n_user = 'N_user'; // ثابت مؤقتاً لعرض جميع الأسطر التي تحمل هذه القيمة
-        return $model->newQuery()
+        $query = $model->newQuery()
             ->where(function($q) use ($n_user) {
                 $q->whereNull('data_user_insert_data');
                 if ($n_user) {
@@ -105,6 +105,13 @@ class ManageTheUserRequestDataTable extends DataTable
             ->whereHas('requestStatus', function($q) {
                 $q->where('description', '!=', 'مقبول');
             });
+
+        // فلترة حسب الحالة إذا تم تحديدها
+        if (request()->has('status_id') && request('status_id') != '') {
+            $query->where('data_request_status', request('status_id'));
+        }
+
+        return $query;
     }
 
     /**

@@ -6,6 +6,29 @@
             <div class="card-header bg-primary text-white d-flex align-items-center justify-content-between" style="border-top-right-radius: .5rem; border-top-left-radius: .5rem;">
                 <h5 class="mb-0 text-white"><i class="fas fa-users-cog me-2 text-white"></i> إدارة طلبات المستخدمين</h5>
             </div>
+
+            <!-- قسم الفلاتر -->
+            <div class="card-body bg-white border-bottom p-3">
+                <div class="row align-items-end">
+                    <div class="col-md-4">
+                        <label for="status-filter" class="form-label fw-bold">
+                            <i class="fas fa-filter text-primary"></i> فلترة حسب الحالة
+                        </label>
+                        <select id="status-filter" class="form-select form-select-lg">
+                            <option value="">الكل</option>
+                            @foreach(\App\Models\RequestStatus::all() as $status)
+                                <option value="{{ $status->id }}">{{ $status->description }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <button type="button" id="reset-filter" class="btn btn-secondary">
+                            <i class="fas fa-redo"></i> إعادة تعيين
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <div class="card-body bg-light p-4">
                 {!! $dataTable->table([
                     'class' => 'table table-bordered table-hover table-striped align-middle mb-0 text-right',
@@ -79,6 +102,23 @@
             "closeButton": true,
             "progressBar": true
         };
+
+        // الفلترة حسب الحالة
+        $(document).ready(function() {
+            var table = $('#managetheuserrequest-table').DataTable();
+
+            $('#status-filter').on('change', function() {
+                var statusId = $(this).val();
+
+                // إعادة تحميل الجدول مع معامل الفلتر
+                table.ajax.url('{{ route('admin.manage.user.requests.index') }}?status_id=' + statusId).load();
+            });
+
+            $('#reset-filter').on('click', function() {
+                $('#status-filter').val('').trigger('change');
+            });
+        });
+
         $(document).on('change', '.change-status', function() {
             var id = $(this).data('id');
             var status_id = $(this).val();
@@ -115,7 +155,14 @@
                             });
                         }
                         if(response.status === 'مقبول') {
-                            row.fadeOut(400, function() { $(this).remove(); });
+                            row.fadeOut(400, function() {
+                                $(this).remove();
+                                // إعادة تحميل الجدول بالفلتر الحالي
+                                var currentFilter = $('#status-filter').val();
+                                if(currentFilter) {
+                                    table.ajax.url('{{ route('admin.manage.user.requests.index') }}?status_id=' + currentFilter).load();
+                                }
+                            });
                         }
                     } else {
                         toastr.error('حدث خطأ أثناء تغيير الحالة');
