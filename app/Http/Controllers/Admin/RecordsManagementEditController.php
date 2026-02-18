@@ -164,24 +164,72 @@ class RecordsManagementEditController extends Controller
                 ];
             });
 
-        // معلومات الأم على قيد الحياة من جدول re_people
-        // نبحث عن أنثى (person_gender = 2) وليست في جدول dead_people
+        // معلومات الأم الحية من جدول portal_general_registration_field_values
         $liveMother = null;
         $motherPortalFields = collect([]);
+
+        // التحقق من حالة الأم
+        $motherStatus = \App\Models\PortalGeneralRegistrationFieldValue::where('file_id_number', $data->file_id_number)
+            ->where('field_key', 'field_mother_status')
+            ->value('field_value');
 
         // التحقق من عدم وجود الأم في جدول المتوفين
         $deadMother = $data->deadPepole ? $data->deadPepole->mother_id : null;
 
-        if (!$deadMother) {
-            // البحث عن الأم في re_people (أنثى وعمر مناسب لتكون أم)
-            $liveMother = \App\Models\RePeople::where('registration_id', $data->file_id_number)
-                ->where('person_gender', 2) // 2 = أنثى
-                ->orderBy('person_age', 'desc') // الأكبر سناً غالباً هي الأم
-                ->first();
+        // إذا لم تكن الأم متوفية، جلب بياناتها من portal_general_registration_field_values
+        if (!$deadMother && ($motherStatus === 'حية' || $motherStatus === 'على قيد الحياة')) {
+            // جلب حقول الأم الحية من portal_general_registration_field_values
+            $livingMotherFields = \App\Models\PortalGeneralRegistrationFieldValue::where('file_id_number', $data->file_id_number)
+                ->whereIn('field_key', [
+                    'field_living_mother_id',
+                    'field_living_mother_first_name',
+                    'field_living_mother_second_name',
+                    'field_living_mother_third_name',
+                    'field_living_mother_last_name',
+                    'field_living_mother_birth_date',
+                    'field_living_mother_health_status',
+                    'field_living_mother_phone'
+                ])
+                ->get()
+                ->keyBy('field_key');
 
-            // جلب البيانات الإضافية للأم من portal_general_registration_field_values
-            if ($liveMother && $liveMother->person_id) {
-                $motherPortalFields = \App\Models\PortalGeneralRegistrationFieldValue::where('identity_number', $liveMother->person_id)
+            // إذا وُجدت بيانات للأم الحية
+            if ($livingMotherFields->isNotEmpty()) {
+                $liveMother = (object)[
+                    'person_id' => $livingMotherFields->get('field_living_mother_id')?->field_value,
+                    'first_name' => $livingMotherFields->get('field_living_mother_first_name')?->field_value,
+                    'second_name' => $livingMotherFields->get('field_living_mother_second_name')?->field_value,
+                    'third_name' => $livingMotherFields->get('field_living_mother_third_name')?->field_value,
+                    'last_name' => $livingMotherFields->get('field_living_mother_last_name')?->field_value,
+                    'person_birth_date' => $livingMotherFields->get('field_living_mother_birth_date')?->field_value,
+                    'person_age' => null, // يمكن حسابه من تاريخ الميلاد إذا لزم
+                    'person_gender' => 2, // أنثى
+                    'healthStatus' => null, // يمكن ربطه إذا كان field_value يحتوي على ID
+                ];
+
+                // حساب العمر إذا كان تاريخ الميلاد متوفراً
+                if ($liveMother->person_birth_date) {
+                    try {
+                        $birthDate = new \DateTime($liveMother->person_birth_date);
+                        $today = new \DateTime();
+                        $liveMother->person_age = $today->diff($birthDate)->y;
+                    } catch (\Exception $e) {
+                        $liveMother->person_age = null;
+                    }
+                }
+
+                // جلب جميع البيانات الإضافية للأم من portal (بخلاف الحقول الأساسية)
+                $motherPortalFields = \App\Models\PortalGeneralRegistrationFieldValue::where('file_id_number', $data->file_id_number)
+                    ->where('field_key', 'LIKE', '%mother%')
+                    ->whereNotIn('field_key', [
+                        'field_living_mother_id',
+                        'field_living_mother_first_name',
+                        'field_living_mother_second_name',
+                        'field_living_mother_third_name',
+                        'field_living_mother_last_name',
+                        'field_living_mother_birth_date',
+                        'field_mother_status'
+                    ])
                     ->get()
                     ->map(function($field) {
                         return [
@@ -326,6 +374,16 @@ class RecordsManagementEditController extends Controller
             'field_living_mother_third_name' => 'اسم الجد للأم',
             'field_living_mother_last_name' => 'اسم العائلة للأم',
             'field_living_mother_id' => 'رقم هوية الأم',
+            'field_living_mother_birth_date' => 'تاريخ ميلاد الأم',
+            'field_living_mother_health_status' => 'الحالة الصحية للأم',
+            'field_living_mother_phone' => 'رقم هاتف الأم',
+            'field_living_mother_age' => 'عمر الأم',
+            'field_living_mother_education' => 'تعليم الأم',
+            'field_living_mother_work' => 'عمل الأم',
+            'field_mother_first_name' => 'الاسم الأول للأم المتوفية',
+            'field_mother_id' => 'رقم هوية الأم المتوفية',
+            'field_mother_death_date' => 'تاريخ وفاة الأم',
+            'field_mother_death_reason' => 'سبب وفاة الأم',
 
             // معلومات إدارية
             'field_important_events' => 'الأحداث المهمة',
