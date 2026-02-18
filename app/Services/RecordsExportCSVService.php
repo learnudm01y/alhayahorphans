@@ -92,7 +92,7 @@ class RecordsExportCSVService
     private function createDataSheet($spreadsheet)
     {
         $sheet = $spreadsheet->createSheet();
-        $sheet->setTitle('المعيلين');
+        $sheet->setTitle('Data');
 
         // Headers الأساسية فقط (بدون البيانات البنكية أو الحقول الديناميكية)
         $headers = [
@@ -182,7 +182,7 @@ class RecordsExportCSVService
     private function createDeadPeopleSheet($spreadsheet)
     {
         $sheet = $spreadsheet->createSheet();
-        $sheet->setTitle('المتوفين');
+        $sheet->setTitle('DeadPepole');
 
         $headers = [
             'ID', 'رقم الملف', 'اسم الأب الأول', 'اسم الأب الثاني', 'اسم الأب الثالث',
@@ -251,7 +251,7 @@ class RecordsExportCSVService
     private function createRePeopleSheet($spreadsheet)
     {
         $sheet = $spreadsheet->createSheet();
-        $sheet->setTitle('أفراد الأسرة');
+        $sheet->setTitle('RePeople');
 
         $headers = [
             'ID', 'رقم التسجيل', 'حالة الكفالة', 'الاسم الأول', 'الاسم الثاني',
@@ -315,7 +315,7 @@ class RecordsExportCSVService
     private function createAttachmentsSheet($spreadsheet)
     {
         $sheet = $spreadsheet->createSheet();
-        $sheet->setTitle('المرفقات');
+        $sheet->setTitle('Attachment');
 
         $headers = [
             'ID',
@@ -374,7 +374,7 @@ class RecordsExportCSVService
     private function createGuardianBankAccountsSheet($spreadsheet)
     {
         $sheet = $spreadsheet->createSheet();
-        $sheet->setTitle('الحسابات البنكية');
+        $sheet->setTitle('BankAccounts');
 
         $headers = [
             'ID',
@@ -444,7 +444,7 @@ class RecordsExportCSVService
     private function createPortalFieldValuesSheet($spreadsheet)
     {
         $sheet = $spreadsheet->createSheet();
-        $sheet->setTitle('حقول Portal الديناميكية');
+        $sheet->setTitle('Portal_feiled');
 
         $headers = [
             'ID',
