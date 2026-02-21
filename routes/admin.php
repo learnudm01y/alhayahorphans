@@ -158,6 +158,7 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     // ملاحظة: يجب وضع جميع الـ Routes المخصصة قبل Route::resource
     Route::get('sponsors/fields-management', [SponsorController::class, 'fieldsManagement'])->name('sponsors.fields-management');
     Route::get('sponsors/fields-management/data', [SponsorController::class, 'getSponsorsForFieldsManagement'])->name('sponsors.fields-management.data');
+    Route::post('sponsors/export-forms', [SponsorController::class, 'exportForms'])->name('sponsors.export-forms');
     Route::get('sponsors/{sponsor}/fields', [SponsorController::class, 'getSponsorFields'])->name('sponsors.get-fields');
     Route::post('sponsors/{sponsor}/fields', [SponsorController::class, 'saveSponsorFields'])->name('sponsors.save-fields');
     Route::get('sponsors/{sponsor}/documents', [SponsorController::class, 'getDocumentSettings'])->name('sponsors.get-documents');

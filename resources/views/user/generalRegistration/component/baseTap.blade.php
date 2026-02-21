@@ -1,7 +1,7 @@
 <div class="tab-pane fade show active" id="basic" role="tabpanel" aria-labelledby="basic-tab">
     <div class="row g-3">
         <div class="col-md-4">
-            <label class="form-label">القسم <span class="text-danger">*</span></label>
+            <label class="form-label">القسم الوصي (المعيل) <span class="text-danger">*</span></label>
             <select name="data_section_id" class="form-select" readonly disabled>
                 @php
                     $activeSection = $generalSection->firstWhere('status', 1);
@@ -15,32 +15,32 @@
             <input type="hidden" name="data_section_id" value="{{ $activeSection->id ?? '' }}">
         </div>
         <div class="col-md-4">
-            <label class="form-label">رقم الهوية <span class="text-danger">*</span></label>
+            <label class="form-label">رقم الهوية الوصي (المعيل) <span class="text-danger">*</span></label>
             <input type="text" name="data_id_number" id="data_id_number" class="form-control" inputmode="numeric" minlength="9" maxlength="10" pattern="[0-9]{9,10}" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
         </div>
 
         <div class="col-12">
             <div class="row g-3">
                 <div class="col-md-3">
-                    <label class="form-label">الاسم الأول <span class="text-danger">*</span></label>
+                    <label class="form-label">الاسم الأول الوصي (المعيل) <span class="text-danger">*</span></label>
                     <input type="text" name="data_first_name" class="form-control" maxlength="30">
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">اسم الأب <span class="text-danger">*</span></label>
+                    <label class="form-label">اسم الأب الوصي (المعيل) <span class="text-danger">*</span></label>
                     <input type="text" name="data_father_name" class="form-control" maxlength="30">
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">اسم الجد<span class="text-danger">*</span></label>
+                    <label class="form-label">اسم الجد الوصي (المعيل) <span class="text-danger">*</span></label>
                     <input type="text" name="data_grand_father_name" class="form-control" maxlength="30">
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">اسم العائلة<span class="text-danger">*</span></label>
+                    <label class="form-label">اسم العائلة الوصي (المعيل) <span class="text-danger">*</span></label>
                     <input type="text" name="data_family_name" class="form-control" maxlength="30">
                 </div>
             </div>
         </div>
         <div class="col-md-4">
-            <label class="form-label">صلة القرابة <span class="text-danger">*</span></label>
+            <label class="form-label">صلة القرابة الوصي (المعيل) <span class="text-danger">*</span></label>
             <select name="data_relationship" class="form-select">
                 <option value="">اختر صلة القرابة</option>
                 @foreach ($category_of_relationship->where('attribute', '!=', 'Unknown') as $category)
@@ -49,11 +49,11 @@
             </select>
         </div>
         <div class="col-md-4">
-            <label class="form-label">تاريخ الميلاد<span class="text-danger">*</span></label>
+            <label class="form-label">تاريخ الميلاد الوصي (المعيل) <span class="text-danger">*</span></label>
             <input type="date" name="data_birth_date" class="form-control">
         </div>
         <div class="col-md-4">
-            <label class="form-label">الجنس <span class="text-danger">*</span></label>
+            <label class="form-label">الجنس الوصي (المعيل) <span class="text-danger">*</span></label>
             <select name="data_gender" class="form-select">
                 <option value="">اختر الجنس</option>
                 <option value="1">ذكر</option>
@@ -61,25 +61,25 @@
             </select>
         </div>
         <div class="col-md-4">
-            <label class="form-label">رقم الهاتف<span class="text-danger">*</span></label>
+            <label class="form-label">رقم الهاتف الوصي (المعيل) <span class="text-danger">*</span></label>
             <input type="number" name="data_phone_number" class="form-control" maxlength="10"
                 oninput="if(this.value.length>10)this.value=this.value.slice(0,10);"
                 placeholder="مثال: 0599905588">
             <small class="text-muted">أدخل رقم الجوال بهذا الشكل: 0599905588</small>
         </div>
         <div class="col-md-4">
-            <label class="form-label">رقم هاتف بديل <span class="text-primary">(اختياري)</span></label>
+            <label class="form-label">رقم هاتف بديل الوصي (المعيل) <span class="text-primary">(اختياري)</span></label>
             <input type="number" name="data_alt_phone_number" class="form-control" maxlength="10"
                 oninput="if(this.value.length>10)this.value=this.value.slice(0,10);"
                 placeholder="مثال: 0599905588">
             <small class="text-muted">أدخل رقم الجوال بهذا الشكل: 0599905588</small>
         </div>
         <div class="col-md-4">
-            <label class="form-label">عدد افراد الاسرة</label>
+            <label class="form-label">عدد افراد الاسرة الوصي (المعيل)</label>
             <input type="number" name="data_number_of_individuals" class="form-control" min="0" max="9999" maxlength="4" oninput="if(this.value.length>4)this.value=this.value.slice(0,4);" required>
         </div>
         <div class="col-md-4">
-            <label class="form-label">الحالة الاجتماعية<span class="text-danger">*</span></label>
+            <label class="form-label">الحالة الاجتماعية الوصي (المعيل) <span class="text-danger">*</span></label>
             <select name="data_marital_status" class="form-select">
                 <option value="">اختر الحالة</option>
                 @foreach ($ci_personal_cd as $status)
@@ -89,7 +89,7 @@
             </select>
         </div>
         <div class="col-md-4">
-            <label class="form-label">المؤهل العلمي <span class="text-primary">(اختياري)</span></label>
+            <label class="form-label">المؤهل العلمي الوصي (المعيل) <span class="text-primary">(اختياري)</span></label>
             <select name="data_academic_qualification" class="form-select">
                 <option value="">اختر المؤهل</option>
                 @foreach ($academic_qualification->where('description', '!=', 'Unknown') as $qualification)
@@ -100,7 +100,7 @@
             </select>
         </div>
         <div class="col-md-4">
-            <label class="form-label">حالة النزوح <span class="text-danger">*</span></label>
+            <label class="form-label">حالة النزوح الوصي (المعيل) <span class="text-danger">*</span></label>
             <select name="data_displacement_status" class="form-select">
                 <option value="">اختر الحالة</option>
                 @foreach ($displacement_status->where('description', '!=', 'Unknown') as $displacement_status_item)
@@ -112,15 +112,15 @@
         <div class="col-12">
             <div class="row g-3">
                 <div class="col-md-3">
-                    <label class="form-label">العنوان قبل النزوح <span class="text-primary">(اختياري)</span></label>
+                    <label class="form-label">العنوان قبل النزوح الوصي (المعيل) <span class="text-primary">(اختياري)</span></label>
                     <input type="text" name="data_address_before_displacement" class="form-control" maxlength="30">
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">العنوان الحالي <span class="text-danger">*</span></label>
+                    <label class="form-label">العنوان الحالي الوصي (المعيل) <span class="text-danger">*</span></label>
                     <input type="text" name="data_current_address" class="form-control" maxlength="30">
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">المدينة <span class="text-danger">*</span></label>
+                    <label class="form-label">المدينة الوصي (المعيل) <span class="text-danger">*</span></label>
                     <select name="data_city" class="form-select">
                         <option value="">اختر المدينة</option>
                         @foreach ($city->where('city', '!=', 'Unknown') as $city_item)
@@ -130,7 +130,7 @@
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">المحافظة <span class="text-danger">*</span></label>
+                    <label class="form-label">المحافظة الوصي (المعيل) <span class="text-danger">*</span></label>
                     <select name="data_province" class="form-select">
                         <option value="">اختر المحافظة</option>
                         @foreach ($province->where('description', '!=', 'Unknown') as $province_item)
@@ -144,7 +144,7 @@
         <div class="col-12">
             <div class="row g-3">
                 <div class="col-md-4">
-                    <label class="form-label">الحالة الصحية <span class="text-danger">*</span></label>
+                    <label class="form-label">الحالة الصحية الوصي (المعيل) <span class="text-danger">*</span></label>
                     <select name="data_health_status" class="form-select">
                         <option value="">اختر الحالة</option>
                         @foreach ($health_status->where('description', '!=', 'Unknown') as $health_status_item)
@@ -154,7 +154,7 @@
                     </select>
                 </div>
                 <div class="col-md-8">
-                    <label class="form-label">وصف الإحتياجات <span class="text-primary">(اختياري)</span></label>
+                    <label class="form-label">وصف الإحتياجات الوصي (المعيل) <span class="text-primary">(اختياري)</span></label>
                     <textarea name="data_description_needs" class="form-control"></textarea>
                 </div>
             </div>
@@ -162,20 +162,20 @@
         <div class="col-12">
             <div class="row g-3">
                 <div class="col-md-3">
-                    <label class="form-label">عدد الذكور <span class="text-primary">(اختياري)</span></label>
+                    <label class="form-label">عدد الذكور الوصي (المعيل) <span class="text-primary">(اختياري)</span></label>
                     <input type="number" name="data_number_mail" class="form-control" min="0" max="9999" maxlength="4" oninput="if(this.value.length>4)this.value=this.value.slice(0,4);">
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">عدد الإناث <span class="text-primary">(اختياري)</span></label>
+                    <label class="form-label">عدد الإناث الوصي (المعيل) <span class="text-primary">(اختياري)</span></label>
                     <input type="number" name="data_number_female" class="form-control" min="0" max="9999" maxlength="4" oninput="if(this.value.length>4)this.value=this.value.slice(0,4);">
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">عدد الأفراد المصابين بأمراض مزمنة <span class="text-primary">(اختياري)</span></label>
+                    <label class="form-label">عدد الأفراد المصابين بأمراض مزمنة الوصي (المعيل) <span class="text-primary">(اختياري)</span></label>
                     <input type="number" name="data_number_of_individuals_with_chronic_diseases"
                         class="form-control" min="0" max="9999" maxlength="4" oninput="if(this.value.length>4)this.value=this.value.slice(0,4);">
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">عدد ذوي الاحتياجات الخاصة <span class="text-primary">(اختياري)</span></label>
+                    <label class="form-label">عدد ذوي الاحتياجات الخاصة الوصي (المعيل) <span class="text-primary">(اختياري)</span></label>
                     <input type="number" name="data_number_of_people_with_special_needs" class="form-control"
                         min="0" max="9999" maxlength="4" oninput="if(this.value.length>4)this.value=this.value.slice(0,4);">
                 </div>
@@ -192,7 +192,7 @@
             </select>
         </div>
         <div class="col-md-4">
-            <label class="form-label">حالة السكن <span class="text-danger">*</span></label>
+            <label class="form-label">حالة السكن الوصي (المعيل) <span class="text-danger">*</span></label>
             <select name="data_housing_status" class="form-select">
                 <option value="">اختر الحالة</option>
                 @foreach ($HousingStatus->where('description', '!=', 'Unknown') as $HousingStatusItem)
@@ -202,7 +202,7 @@
             </select>
         </div>
         <div class="col-md-4">
-            <label class="form-label">نوع السكن الحالي <span class="text-danger">*</span></label>
+            <label class="form-label">نوع السكن الحالي الوصي (المعيل) <span class="text-danger">*</span></label>
             <select name="data_current_housing_type" class="form-select">
                 <option value="">اختر الحالة</option>
                 @foreach ($TypeOfAccommodation->where('description', '!=', 'Unknown') as $TypeOfAccommodationItem)

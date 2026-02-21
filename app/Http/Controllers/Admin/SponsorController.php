@@ -733,4 +733,88 @@ class SponsorController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * تصدير استمارات التحديث بشكل جماعي
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function exportForms(Request $request)
+    {
+        try {
+            // التحقق من صحة البيانات
+            $validated = $request->validate([
+                'sponsor_id' => 'required|exists:sponsors,id',
+                'sponsorship_status_id' => 'nullable|exists:sponsorship_statuses,id'
+            ]);
+
+            $sponsorId = $validated['sponsor_id'];
+            $sponsorshipStatusId = $validated['sponsorship_status_id'] ?? null;
+
+            // الحصول على معلومات الجمعية
+            $sponsor = \App\Models\Sponsor::findOrFail($sponsorId);
+
+            // حساب عدد الكفالات - دعم النظامين (Many-to-Many و Direct sponsor_id)
+            // بعض الجمعيات تستخدم sponsorship_sponsor والبعض يستخدم sponsor_id مباشرة
+            $query = \App\Models\Sponsorship::where(function ($q) use ($sponsorId) {
+                // البحث في sponsor_id المباشر
+                $q->where('sponsor_id', $sponsorId)
+                  // أو البحث في جدول Many-to-Many
+                  ->orWhereHas('sponsors', function ($q2) use ($sponsorId) {
+                      $q2->where('sponsors.id', $sponsorId);
+                  });
+            });
+
+            if ($sponsorshipStatusId) {
+                $query->where('sponsorship_status_id', $sponsorshipStatusId);
+            }
+
+            $count = $query->count();
+
+            if ($count === 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لا توجد كفالات مطابقة للمعايير المحددة'
+                ], 404);
+            }
+
+            // إرسال Job للمعالجة في الخلفية
+            \App\Jobs\BulkExportSponsorshipForms::dispatch($sponsorId, $sponsorshipStatusId);
+
+            Log::info('Bulk export forms job dispatched', [
+                'sponsor_id' => $sponsorId,
+                'sponsor_name' => $sponsor->sponsor_name,
+                'sponsorship_status_id' => $sponsorshipStatusId,
+                'estimated_count' => $count
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم بدء عملية التصدير بنجاح',
+                'sponsor_name' => $sponsor->sponsor_name,
+                'count' => $count,
+                'status_filter' => $sponsorshipStatusId ? \App\Models\SponsorshipStatus::find($sponsorshipStatusId)->description : 'جميع الحالات'
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'البيانات المدخلة غير صحيحة',
+                'errors' => $e->errors()
+            ], 422);
+
+        } catch (\Exception $e) {
+            Log::error('Error exporting forms', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء بدء عملية التصدير: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }
+

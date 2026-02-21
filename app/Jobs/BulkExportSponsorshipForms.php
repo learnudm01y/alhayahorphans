@@ -1,0 +1,217 @@
+<?php
+
+namespace App\Jobs;
+
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
+use App\Models\Sponsorship;
+use App\Models\Sponsor;
+
+/**
+ * Job لتصدير استمارات التحديث بشكل جماعي
+ *
+ * يقوم بمعالجة الاستمارات على دفعات (batches) لتجنب استنزاف الذاكرة
+ * ورفعها إلى Google Drive باستخدام Rclone
+ */
+class BulkExportSponsorshipForms implements ShouldQueue
+{
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    protected $sponsorId;
+    protected $sponsorshipStatusId;
+    protected $batchSize = 10; // معالجة 10 استمارات في كل دفعة
+    protected $offset = 0; // رقم البداية للمعالجة
+    protected $processInSingleJob = true; // معالجة كل الملفات في job واحد
+
+    /**
+     * The number of times the job may be attempted.
+     */
+    public $tries = 1; // محاولة واحدة فقط لتجنب التكرار
+
+    /**
+     * The number of seconds to wait before retrying the job.
+     */
+    public $backoff = 120;
+
+    /**
+     * The maximum number of seconds the job should run.
+     */
+    public $timeout = 7200; // ساعتين للسماح بمعالجة عدد كبير من الملفات
+
+    /**
+     * Create a new job instance.
+     *
+     * @param int $sponsorId معرف الجمعية
+     * @param int|null $sponsorshipStatusId معرف حالة الكفالة (اختياري)
+     */
+    public function __construct(int $sponsorId, ?int $sponsorshipStatusId = null)
+    {
+        $this->sponsorId = $sponsorId;
+        $this->sponsorshipStatusId = $sponsorshipStatusId;
+    }
+
+    /**
+     * Execute the job.
+     */
+    public function handle(): void
+    {
+        // إنشاء مفتاح قفل فريد لهذه العملية
+        $lockKey = "export_forms_{$this->sponsorId}_{$this->sponsorshipStatusId}";
+
+        // محاولة الحصول على القفل (timeout: 7200 ثانية = 2 ساعة)
+        $lock = Cache::lock($lockKey, 7200);
+
+        if (!$lock->get()) {
+            Log::warning('BulkExportSponsorshipForms: Another export is already running', [
+                'sponsor_id' => $this->sponsorId,
+                'sponsorship_status_id' => $this->sponsorshipStatusId,
+                'lock_key' => $lockKey
+            ]);
+            return; // عملية أخرى قيد التنفيذ، نتجاهل هذه المحاولة
+        }
+
+        try {
+            Log::info('BulkExportSponsorshipForms: Starting bulk export', [
+                'sponsor_id' => $this->sponsorId,
+                'sponsorship_status_id' => $this->sponsorshipStatusId,
+                'lock_key' => $lockKey
+            ]);
+
+            // التحقق من وجود الجمعية
+            $sponsor = Sponsor::find($this->sponsorId);
+
+            if (!$sponsor) {
+                Log::error('BulkExportSponsorshipForms: Sponsor not found', [
+                    'sponsor_id' => $this->sponsorId
+                ]);
+                return;
+            }
+
+            // التحقق من تفعيل Google Drive للجمعية
+            if (!$sponsor->google_drive_enabled) {
+                Log::warning('BulkExportSponsorshipForms: Google Drive not enabled for sponsor', [
+                    'sponsor_id' => $this->sponsorId,
+                    'sponsor_name' => $sponsor->sponsor_name
+                ]);
+                // نستمر في المعالجة ولكن لن يتم الرفع إلى Google Drive
+            }
+
+            // بناء استعلام الكفالات - دعم النظامين (Many-to-Many و Direct sponsor_id)
+            // بعض الجمعيات تستخدم sponsorship_sponsor والبعض يستخدم sponsor_id مباشرة
+            $query = Sponsorship::where(function ($q) {
+                // البحث في sponsor_id المباشر
+                $q->where('sponsor_id', $this->sponsorId)
+                  // أو البحث في جدول Many-to-Many
+                  ->orWhereHas('sponsors', function ($q2) {
+                      $q2->where('sponsors.id', $this->sponsorId);
+                  });
+            });
+
+            // فلترة حسب حالة الكفالة إذا تم تحديدها
+            if ($this->sponsorshipStatusId) {
+                $query->where('sponsorship_status_id', $this->sponsorshipStatusId);
+            }
+
+            // حساب إجمالي عدد الكفالات
+            $totalCount = $query->count();
+
+            Log::info('BulkExportSponsorshipForms: Total sponsorships to process', [
+                'count' => $totalCount,
+                'sponsor_id' => $this->sponsorId,
+                'status_filter' => $this->sponsorshipStatusId
+            ]);
+
+            if ($totalCount === 0) {
+                Log::info('BulkExportSponsorshipForms: No sponsorships found to export');
+                return;
+            }
+
+            // معالجة الكفالات على دفعات (بدون dispatch منفصل لكل ملف)
+            $processedCount = 0;
+            $successCount = 0;
+            $failedCount = 0;
+
+            // معالجة جميع الملفات في نفس الـ job (بدلاً من إنشاء jobs منفصلة)
+            $query->chunk($this->batchSize, function ($sponsorships) use (&$processedCount, &$successCount, &$failedCount, $totalCount) {
+                foreach ($sponsorships as $sponsorship) {
+                    try {
+                        $processedCount++;
+
+                        Log::info('BulkExportSponsorshipForms: Processing sponsorship', [
+                            'sponsorship_id' => $sponsorship->id,
+                            'sponsor_id' => $this->sponsorId,
+                            'progress' => "{$processedCount}/{$totalCount}"
+                        ]);
+
+                        // معالجة الاستمارة مباشرة في نفس الـ job (بدون dispatch)
+                        $pdfJob = new \App\Jobs\GenerateOrphanReportPdf($sponsorship->id, $this->sponsorId);
+                        $pdfJob->handle();
+
+                        $successCount++;
+
+                        Log::info('BulkExportSponsorshipForms: Sponsorship processed successfully', [
+                            'sponsorship_id' => $sponsorship->id,
+                            'success_count' => $successCount
+                        ]);
+
+                    } catch (\Exception $e) {
+                        $failedCount++;
+
+                        Log::error('BulkExportSponsorshipForms: Failed to process sponsorship', [
+                            'sponsorship_id' => $sponsorship->id,
+                            'error' => $e->getMessage(),
+                            'trace' => $e->getTraceAsString(),
+                            'failed_count' => $failedCount
+                        ]);
+                        // نستمر في معالجة باقي الملفات حتى لو فشل أحدها
+                    }
+                }
+
+                // إضافة تأخير صغير بين الدفعات لتجنب الضغط على النظام
+                usleep(200000); // 0.2 ثانية
+            });
+
+            Log::info('BulkExportSponsorshipForms: Bulk export completed', [
+                'sponsor_id' => $this->sponsorId,
+                'total' => $totalCount,
+                'processed' => $processedCount,
+                'success' => $successCount,
+                'failed' => $failedCount
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('BulkExportSponsorshipForms: Critical error during bulk export', [
+                'sponsor_id' => $this->sponsorId,
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            throw $e; // Re-throw to mark job as failed
+        } finally {
+            // تحرير القفل في جميع الأحوال
+            $lock->release();
+            Log::info('BulkExportSponsorshipForms: Lock released', [
+                'lock_key' => $lockKey
+            ]);
+        }
+    }
+
+    /**
+     * Handle a job failure.
+     */
+    public function failed(\Throwable $exception): void
+    {
+        Log::error('BulkExportSponsorshipForms: Job failed after all retries', [
+            'sponsor_id' => $this->sponsorId,
+            'sponsorship_status_id' => $this->sponsorshipStatusId,
+            'error' => $exception->getMessage()
+        ]);
+
+        // يمكن إضافة إشعار للمسؤول هنا
+    }
+}

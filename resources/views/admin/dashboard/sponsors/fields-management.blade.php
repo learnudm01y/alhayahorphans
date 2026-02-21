@@ -15,8 +15,15 @@
                     </h2>
                 </div>
                 <div class="card-toolbar">
-                    <div class="d-flex align-items-center position-relative my-1">
-                        <i class="ki-duotone ki-magnifier fs-3 position-absolute ms-5">
+                    <div class="d-flex align-items-center gap-3 position-relative my-1">
+                        <!--begin:: زر تصدير الاستمارات -->
+                        <button type="button" class="btn btn-primary" id="export_forms_btn" data-bs-toggle="modal" data-bs-target="#exportFormsModal">
+                            <i class="fas fa-file-export me-2"></i>
+                            تصدير الاستمارات
+                        </button>
+                        <!--end:: زر تصدير الاستمارات -->
+
+                        <i class="ki-duotone ki-magnifier fs-3 position-absolute ms-5" style="left: 15px;">
                             <span class="path1"></span>
                             <span class="path2"></span>
                         </i>
@@ -230,6 +237,76 @@
 </div>
 <!--end::Modal-->
 
+<!--begin::Modal لتصدير الاستمارات-->
+<div class="modal fade" id="exportFormsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary">
+                <h2 class="fw-bold text-white">
+                    <i class="fas fa-file-export me-2"></i>
+                    تصدير استمارات التحديث
+                </h2>
+                <div class="btn btn-icon btn-sm btn-active-icon-light" data-bs-dismiss="modal">
+                    <i class="ki-duotone ki-cross fs-1 text-white">
+                        <span class="path1"></span>
+                        <span class="path2"></span>
+                    </i>
+                </div>
+            </div>
+
+            <div class="modal-body">
+                <div class="alert alert-info mb-5">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>ملاحظة:</strong> سيتم تصدير جميع استمارات التحديث الخاصة بالجمعية المحددة ورفعها إلى Google Drive باستخدام Rclone.
+                </div>
+
+                <form id="exportFormsForm">
+                    <!--begin::اختيار الجمعية-->
+                    <div class="mb-5">
+                        <label class="form-label required">اختر الجمعية</label>
+                        <select name="sponsor_id" id="export_sponsor_id" class="form-select" required>
+                            <option value="">-- اختر الجمعية --</option>
+                            @foreach(\App\Models\Sponsor::orderBy('sponsor_name')->get() as $sponsor)
+                                <option value="{{ $sponsor->id }}">{{ $sponsor->sponsor_name }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <!--end::اختيار الجمعية-->
+
+                    <!--begin::اختيار حالة الكفالة (اختياري)-->
+                    <div class="mb-5">
+                        <label class="form-label">حالة الكفالة (اختياري)</label>
+                        <select name="sponsorship_status_id" id="export_sponsorship_status_id" class="form-select">
+                            <option value="">-- جميع الحالات --</option>
+                            @foreach(\App\Models\SponsorshipStatus::orderBy('description')->get() as $status)
+                                <option value="{{ $status->id }}">{{ $status->description }}</option>
+                            @endforeach
+                        </select>
+                        <div class="form-text">اترك فارغاً لتصدير جميع الاستمارات بغض النظر عن حالة الكفالة</div>
+                    </div>
+                    <!--end::اختيار حالة الكفالة-->
+
+                    <!--begin::معلومات إضافية-->
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>تنبيه:</strong> عملية التصدير قد تستغرق بعض الوقت حسب عدد الاستمارات. سيتم معالجة الطلب في الخلفية وستتلقى إشعاراً عند الانتهاء.
+                    </div>
+                    <!--end::معلومات إضافية-->
+                </form>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">إلغاء</button>
+                <button type="button" class="btn btn-primary" id="start_export_btn">
+                    <i class="fas fa-play me-2"></i>
+                    بدء التصدير
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<!--end::Modal-->
+
 @endsection
 
 @push('styles')
@@ -425,6 +502,130 @@
 <script>
 $(document).ready(function() {
     console.log('✅ صفحة إدارة حقول الجمعيات جاهزة');
+
+    // تنظيف كامل للـ backdrop بعد إغلاق المودال
+    function cleanupModalBackdrop() {
+        setTimeout(function() {
+            $('.modal-backdrop').remove();
+            $('body').removeClass('modal-open');
+            $('body').css('overflow', '');
+            $('body').css('padding-right', '');
+            console.log('✅ تم تنظيف الـ backdrop');
+        }, 300);
+    }
+
+    // عند اكتمال إغلاق المودال - تنظيف كامل
+    $('#exportFormsModal').on('hidden.bs.modal', function() {
+        console.log('🔴 إغلاق المودال - التنظيف النهائي');
+        cleanupModalBackdrop();
+    });
+
+    // عند فتح المودال - التأكد من وجود backdrop واحد فقط
+    $('#exportFormsModal').on('shown.bs.modal', function() {
+        console.log('🔵 المودال مفتوح');
+        // إزالة أي backdrops زائدة (الاحتفاظ بواحد فقط)
+        const backdrops = $('.modal-backdrop');
+        if (backdrops.length > 1) {
+            backdrops.slice(1).remove();
+            console.log('🧹 تم حذف backdrops زائدة');
+        }
+    });
+
+    // معالجة زر بدء التصدير
+    $('#start_export_btn').on('click', function() {
+        const sponsorId = $('#export_sponsor_id').val();
+        const sponsorshipStatusId = $('#export_sponsorship_status_id').val();
+
+        if (!sponsorId) {
+            Swal.fire({
+                icon: 'error',
+                title: 'خطأ',
+                text: 'يرجى اختيار الجمعية أولاً',
+                confirmButtonText: 'حسناً'
+            });
+            return;
+        }
+
+        // تأكيد التصدير
+        Swal.fire({
+            title: 'تأكيد التصدير',
+            html: `
+                <p>هل أنت متأكد من رغبتك في تصدير الاستمارات؟</p>
+                <p class="text-muted">سيتم معالجة الطلب في الخلفية.</p>
+            `,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، ابدأ التصدير',
+            cancelButtonText: 'إلغاء',
+            confirmButtonColor: '#009ef7',
+            cancelButtonColor: '#f1416c'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                startExportProcess(sponsorId, sponsorshipStatusId);
+            }
+        });
+    });
+
+    /**
+     * بدء عملية التصدير
+     */
+    function startExportProcess(sponsorId, sponsorshipStatusId) {
+        const $btn = $('#start_export_btn');
+        const originalText = $btn.html();
+
+        // تعطيل الزر وإظهار مؤشر التحميل
+        $btn.prop('disabled', true)
+            .html('<span class="spinner-border spinner-border-sm me-2"></span>جاري بدء التصدير...');
+
+        // إرسال طلب التصدير
+        $.ajax({
+            url: '{{ route("admin.sponsors.export-forms") }}',
+            method: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}',
+                sponsor_id: sponsorId,
+                sponsorship_status_id: sponsorshipStatusId
+            },
+            success: function(response) {
+                $btn.prop('disabled', false).html(originalText);
+
+                // إغلاق المودال
+                const $modal = $('#exportFormsModal');
+                $modal.modal('hide');
+
+                // إعادة تعيين النموذج
+                $('#exportFormsForm')[0].reset();
+
+                // إظهار رسالة النجاح
+                Swal.fire({
+                    icon: 'success',
+                    title: 'تم بدء التصدير',
+                    html: `
+                        <p>${response.message}</p>
+                        <p class="text-muted">عدد الاستمارات: ${response.count || 0}</p>
+                        <p class="text-muted">سيتم معالجتها في الخلفية ورفعها إلى Google Drive</p>
+                    `,
+                    confirmButtonText: 'حسناً'
+                });
+            },
+            error: function(xhr) {
+                $btn.prop('disabled', false).html(originalText);
+
+                let errorMessage = 'حدث خطأ أثناء بدء عملية التصدير';
+
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                }
+
+                Swal.fire({
+                    icon: 'error',
+                    title: 'خطأ',
+                    text: errorMessage,
+                    confirmButtonText: 'حسناً'
+                });
+            }
+        });
+    }
 });
 </script>
 @endpush

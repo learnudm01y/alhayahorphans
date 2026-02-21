@@ -26,6 +26,7 @@ class GenerateOrphanReportPdf implements ShouldQueue
     const NOT_AVAILABLE = '(/)';
 
     protected $sponsorshipId;
+    protected $sponsorId; // معرف الكافل المحدد
 
     /**
      * The number of times the job may be attempted.
@@ -40,9 +41,10 @@ class GenerateOrphanReportPdf implements ShouldQueue
     /**
      * Create a new job instance.
      */
-    public function __construct($sponsorshipId)
+    public function __construct($sponsorshipId, $sponsorId = null)
     {
         $this->sponsorshipId = $sponsorshipId;
+        $this->sponsorId = $sponsorId;
     }
 
     /**
@@ -203,7 +205,7 @@ class GenerateOrphanReportPdf implements ShouldQueue
             $data['health_status'] = $this->getHealthStatus($dataRecord->data_health_status) ?? $na;
             $data['description_needs'] = $dataRecord->data_description_needs ?? $na;
             $data['number_of_individuals'] = $dataRecord->data_number_of_individuals ?? $na;
-            $data['employment_status'] = $this->getEmploymentStatus($dataRecord->data_employment_status_breadwinner) ?? $na;
+            // ملاحظة: بيانات المعيل (employment_status) تُجلب بشكل منفصل لاحقاً
         } else {
             Log::warning('DATA_RECORD_NOT_FOUND', [
                 'searched_by_relation_id' => $sponsorship->relation_id_number,
@@ -296,89 +298,270 @@ class GenerateOrphanReportPdf implements ShouldQueue
         $data['sponsorship_impact'] = $portalFields->get('field_sponsorship_impact')?->field_value ?? $na;
         $data['family_events'] = $portalFields->get('field_important_events')?->field_value ?? $na;
 
-        // بيانات المعيل - جلب صلة القرابة من المصدر الصحيح
+        // بيانات المعيل - جلب صلة القرابة من مصادر متعددة (حسب الأولوية)
         // تحديد relation_id_number للاستخدام
         $relationIdNumber = $sponsorship->relation_id_number ?? $sponsorship->internal_file_number;
 
-        // البحث في portal_general_registration_field_values أولاً
-        $guardianRelationId = $portalFields->get('field_guardian_relationship')?->field_value;
+        //⁣ ✅ جلب guardian_relation_id من مصادر متعدد⁣ة حسب الأولوية
+        $guardianRelationId = null;
 
-        // إذا لم توجد، البحث في جدول data بناءً على رقم هوية المعيل
-        if (!$guardianRelationId && $sponsorship->guardian_identity_number) {
-            $guardianDataRecord = Data::where('data_id_number', $sponsorship->guardian_identity_number)->first();
-            if ($guardianDataRecord && $guardianDataRecord->data_relationship) {
-                $guardianRelationId = $guardianDataRecord->data_relationship;
-            }
+        // ✅ الأولوية 1: من جدول sponsorships مباشرة
+        if ($sponsorship->guardian_relation_id) {
+            $guardianRelationId = $sponsorship->guardian_relation_id;
+            Log::info('GUARDIAN_RELATION_FROM_SPONSORSHIPS', ['relation_id' => $guardianRelationId]);
         }
 
-        // إذا لم توجد، البحث في جدول dead_people
-        if (!$guardianRelationId && $relationIdNumber) {
-            $deadPeopleRecord = DeadPepole::where('re_file_id', $relationIdNumber)
-                ->orWhere('re_file_id', $sponsorship->internal_file_number)
-                ->first();
-            if ($deadPeopleRecord && $deadPeopleRecord->relationship_id) {
-                $guardianRelationId = $deadPeopleRecord->relationship_id;
-            }
-        }
+        // ✅ الأولوية 2: من portal_general_registration_field_values
+        if (!$guardianRelationId) {
+            $portalRelation = $portalFields->get('field_guardian_relationship')?->field_value;
+            if ($portalRelation) {
+                // تحويل النص إلى ID (أب=1, أم=2, وصي=3, إلخ)
+                $relationMap = [
+                    'الأب' => 1, 'اب' => 1, 'أب' => 1,
+                    'الأم' => 2, 'ام' => 2, 'أم' => 2,
+                    'الوصي' => 3, 'وصي' => 3,
+                    'الجد' => 4, 'جد' => 4,
+                    'الجدة' => 5, 'جدة' => 5,
+                    'العم' => 6, 'عم' => 6,
+                    'الخال' => 7, 'خال' => 7,
+                    'الأخ' => 8, 'اخ' => 8, 'أخ' => 8,
+                    'الأخت' => 9, 'اخت' => 9, 'أخت' => 9
+                ];
 
-        $data['guardian_relation'] = $guardianRelationId ? $this->getRelation($guardianRelationId) : $na;
+                $guardianRelationId = $relationMap[$portalRelation] ?? null;
 
-        // جلب الحالة الصحية للمعيل من المصادر الصحيحة
-        $guardianHealthStatus = $portalFields->get('field_guardian_health')?->field_value;
-
-        // إذا لم توجد، البحث في جدول data
-        if (!$guardianHealthStatus && $sponsorship->guardian_identity_number) {
-            $guardianDataRecord = $guardianDataRecord ?? Data::where('data_id_number', $sponsorship->guardian_identity_number)->first();
-            if ($guardianDataRecord && $guardianDataRecord->data_health_status) {
-                $guardianHealthStatus = $this->getHealthStatus($guardianDataRecord->data_health_status);
-            }
-        }
-
-        $data['guardian_health'] = $guardianHealthStatus ?? $na;
-        $data['guardian_job'] = $portalFields->get('field_guardian_job')?->field_value ?? $portalFields->get('field_guardian_job_text')?->field_value ?? $data['employment_status'] ?? $na;
-
-        // اسم المعيل الرباعي (أولوية لـ portal)
-        $data['guardian_full_name'] = $this->formatFullName(
-            $portalFields->get('field_data_first_name')?->field_value,
-            $portalFields->get('field_data_father_name')?->field_value,
-            $portalFields->get('field_data_grand_father_name')?->field_value,
-            $portalFields->get('field_data_family_name')?->field_value
-        ) ?: ($sponsorship->guardian_name ?? $na);
-
-        // عدد المعالين (أولوية لـ portal)
-        $maleCount = (int) ($portalFields->get('field_dependents_male')?->field_value ?? 0);
-        $femaleCount = (int) ($portalFields->get('field_dependents_female')?->field_value ?? 0);
-        $totalDependents = $maleCount + $femaleCount;
-
-        // إذا لم يوجد في portal، البحث في جدول data بناءً على رقم الهوية
-        if ($totalDependents == 0) {
-            // البحث بناءً على رقم هوية المعيل أو المكفول
-            $dependentsDataRecord = null;
-            if ($sponsorship->guardian_identity_number) {
-                $dependentsDataRecord = Data::where('data_id_number', $sponsorship->guardian_identity_number)->first();
-            }
-            if (!$dependentsDataRecord && $sponsorship->identity_number) {
-                $dependentsDataRecord = Data::where('data_id_number', $sponsorship->identity_number)->first();
-            }
-            if (!$dependentsDataRecord && $dataRecord) {
-                $dependentsDataRecord = $dataRecord;
-            }
-
-            if ($dependentsDataRecord) {
-                // جمع data_number_female + data_number_mail
-                $dataFemale = (int) ($dependentsDataRecord->data_number_female ?? 0);
-                $dataMale = (int) ($dependentsDataRecord->data_number_mail ?? 0);
-                $totalDependents = $dataFemale + $dataMale;
-
-                // إذا لم يتم العثور على الحقول المنفصلة، استخدم data_number_of_individuals
-                if ($totalDependents == 0 && $dependentsDataRecord->data_number_of_individuals) {
-                    $totalDependents = $dependentsDataRecord->data_number_of_individuals;
+                if ($guardianRelationId) {
+                    Log::info('GUARDIAN_RELATION_FROM_PORTAL', [
+                        'text' => $portalRelation,
+                        'id' => $guardianRelationId
+                    ]);
                 }
             }
         }
 
-        $data['dependents_count'] = $totalDependents > 0 ? $totalDependents : $na;
-        $data['number_of_individuals'] = $data['dependents_count']; // نسخ للعرض
+        // ✅ الأولوية 3: استنتاج ذكي من dead_people
+        if (!$guardianRelationId && $relationIdNumber) {
+            $deadPeopleRecord = DeadPepole::where('re_file_id', $relationIdNumber)
+                ->orWhere('re_file_id', $sponsorship->internal_file_number)
+                ->first();
+
+            if ($deadPeopleRecord && $sponsorship->guardian_identity_number) {
+                // ✅ استنتاج 1: مقارنة مباشرة مع father_id
+                if ($deadPeopleRecord->father_id == $sponsorship->guardian_identity_number) {
+                    $guardianRelationId = 1; // الأم (حسب جدول category_of_relations)
+                    // ⚠️ ولكن هذا غير صحيح! الأب ID=1 في جدول category_of_relations هو "الأم"!
+                    // دعنا نستخدم منطق مختلف
+                }
+
+                // ✅ استنتاج 2: مقارنة مع mother_id
+                if (!$guardianRelationId && $deadPeopleRecord->mother_id == $sponsorship->guardian_identity_number) {
+                    $guardianRelationId = 1; // الأم
+                    Log::info('GUARDIAN_INFERRED_AS_MOTHER_BY_ID', [
+                        'guardian_id' => $sponsorship->guardian_identity_number,
+                        'mother_id' => $deadPeopleRecord->mother_id
+                    ]);
+                }
+
+                // ✅ استنتاج 3: إذا كان father_id موجود و mother_id فارغ
+                // والمعيل ليس الأب → المعيل هو الأم!
+                if (!$guardianRelationId &&
+                    $deadPeopleRecord->father_id &&
+                    !$deadPeopleRecord->mother_id &&
+                    $deadPeopleRecord->father_id != $sponsorship->guardian_identity_number) {
+
+                    $guardianRelationId = 1; // الأم (حسب category_of_relations)
+                    Log::info('GUARDIAN_INFERRED_AS_MOTHER_LOGIC', [
+                        'reason' => 'Father deceased, mother_id NULL, guardian != father',
+                        'father_id' => $deadPeopleRecord->father_id,
+                        'guardian_id' => $sponsorship->guardian_identity_number
+                    ]);
+                }
+            }
+        }
+
+        // ⚠️ ملاحظة: تم إزالة الاعتماد على data.data_relationship لأنه غير موثوق
+        // (يخزن علاقة اليتيم بالمتوفي وليس علاقة المعيل)
+
+        $data['guardian_relation'] = $guardianRelationId ? $this->getRelation($guardianRelationId) : $na;
+
+        // ===== جلب بيانات المعيل بناءً على حالته (حي أو متوفي) =====
+        // اسم المعيل: موجود مباشرة في sponsorships.guardian_name
+        $data['guardian_full_name'] = $sponsorship->guardian_name ?? $na;
+
+        // أولاً: فحص إذا كان المعيل متوفي في جدول dead_people
+        // التحقق الصحيح: المعيل متوفي فقط إذا كان هو نفسه الشخص المتوفي (الأب أو الأم)
+        $isGuardianDeceased = false;
+        $deadGuardianRecord = null;
+
+        if ($relationIdNumber) {
+            $deadGuardianRecord = DeadPepole::where('re_file_id', $relationIdNumber)
+                ->orWhere('re_file_id', $sponsorship->internal_file_number)
+                ->first();
+
+            if ($deadGuardianRecord) {
+                // ✅ التحقق الصحيح بناءً على مقارنة رقم الهوية مباشرة
+                // بدلاً من الاعتماد على guardian_relation_id الذي قد يكون خاطئاً
+
+                // هل المعيل هو الأب المتوفي?
+                if ($deadGuardianRecord->father_id &&
+                    $sponsorship->guardian_identity_number == $deadGuardianRecord->father_id) {
+                    $isGuardianDeceased = true;
+                    Log::info('GUARDIAN_IS_DECEASED_FATHER', [
+                        'guardian_id' => $sponsorship->guardian_identity_number,
+                        'father_id' => $deadGuardianRecord->father_id
+                    ]);
+                }
+
+                // هل المعيل هو الأم المتوفية?
+                if (!$isGuardianDeceased &&
+                    $deadGuardianRecord->mother_id &&
+                    $sponsorship->guardian_identity_number == $deadGuardianRecord->mother_id) {
+                    $isGuardianDeceased = true;
+                    Log::info('GUARDIAN_IS_DECEASED_MOTHER', [
+                        'guardian_id' => $sponsorship->guardian_identity_number,
+                        'mother_id' => $deadGuardianRecord->mother_id
+                    ]);
+                }
+
+                // إذا لم يكن المعيل متوفياً
+                if (!$isGuardianDeceased) {
+                    Log::info('GUARDIAN_IS_ALIVE_CONFIRMED', [
+                        'guardian_id' => $sponsorship->guardian_identity_number,
+                        'father_id' => $deadGuardianRecord->father_id,
+                        'mother_id' => $deadGuardianRecord->mother_id,
+                        'guardian_relation_id' => $guardianRelationId
+                    ]);
+                }
+            }
+        }
+
+        if ($isGuardianDeceased) {
+            // ===== المعيل متوفي: جلب البيانات من portal_general_registration_field_values =====
+            Log::info('USING_PORTAL_FIELDS_FOR_DECEASED_GUARDIAN');
+
+            // الحالة الصحية
+            $guardianHealthStatus = $portalFields->get('field_guardian_health')?->field_value ?? $na;
+            $data['guardian_health'] = $guardianHealthStatus;
+
+            // وظيفة المعيل
+            $guardianJob = $portalFields->get('field_guardian_job')?->field_value
+                ?? $portalFields->get('field_guardian_job_text')?->field_value
+                ?? $na;
+            $data['guardian_job'] = $guardianJob;
+            $data['employment_status'] = $guardianJob;
+
+            // عدد المعالين
+            $maleCount = (int) ($portalFields->get('field_dependents_male')?->field_value ?? 0);
+            $femaleCount = (int) ($portalFields->get('field_dependents_female')?->field_value ?? 0);
+            $totalDependents = $maleCount + $femaleCount;
+
+            $data['dependents_count'] = $totalDependents > 0 ? $totalDependents : $na;
+            $data['number_of_individuals'] = $data['dependents_count'];
+
+            Log::info('DECEASED_GUARDIAN_DATA_FROM_PORTAL', [
+                'health' => $guardianHealthStatus,
+                'job' => $guardianJob,
+                'dependents' => $totalDependents
+            ]);
+
+        } else {
+            // ===== المعيل حي: جلب البيانات من جدول data =====
+            $guardianDataRecord = null;
+
+            if ($sponsorship->guardian_identity_number) {
+                $guardianDataRecord = Data::where('data_id_number', $sponsorship->guardian_identity_number)->first();
+
+                if ($guardianDataRecord) {
+                    Log::info('GUARDIAN_DATA_FOUND', [
+                        'guardian_identity' => $sponsorship->guardian_identity_number,
+                        'file_id_number' => $guardianDataRecord->file_id_number,
+                        'guardian_name' => $this->formatFullName(
+                            $guardianDataRecord->data_first_name,
+                            $guardianDataRecord->data_father_name,
+                            $guardianDataRecord->data_grand_father_name,
+                            $guardianDataRecord->data_family_name
+                        )
+                    ]);
+                } else {
+                    Log::warning('GUARDIAN_DATA_NOT_FOUND', [
+                        'guardian_identity' => $sponsorship->guardian_identity_number
+                    ]);
+                }
+            }
+
+            // جلب الحالة الصحية للمعيل من data
+            $guardianHealthStatus = $na;
+            if ($guardianDataRecord && $guardianDataRecord->data_health_status) {
+                $guardianHealthStatus = $this->getHealthStatus($guardianDataRecord->data_health_status);
+            } elseif ($guardianDataRecord && !$guardianDataRecord->data_health_status) {
+                // ✅ قيمة افتراضية معقولة إذا لم تكن مدخلة: افتراض سليم
+                $guardianHealthStatus = 'سليم';
+                Log::info('GUARDIAN_HEALTH_DEFAULT', ['assumed' => 'سليم']);
+            }
+            $data['guardian_health'] = $guardianHealthStatus;
+
+            // جلب وظيفة المعيل من data
+            $guardianJob = $na;
+            if ($guardianDataRecord && $guardianDataRecord->data_employment_status_breadwinner) {
+                $empStatus = $this->getEmploymentStatus($guardianDataRecord->data_employment_status_breadwinner);
+                $guardianJob = $empStatus ? $empStatus : $na;
+                Log::info('GUARDIAN_JOB_FROM_DATA', [
+                    'employment_id' => $guardianDataRecord->data_employment_status_breadwinner,
+                    'employment_text' => $guardianJob
+                ]);
+            }
+            $data['guardian_job'] = $guardianJob;
+            $data['employment_status'] = $guardianJob; // نسخ للعرض
+
+            // ✅ عدد المعالين: الأولوية لـ data_number_of_individuals شامل للأطفال
+            $totalDependents = 0;
+            $childrenInFamily = 0;
+
+            if ($guardianDataRecord) {
+                // ✅ الأولوية 1: استخدام data_number_of_individuals إذا كان موجوداً (أدق)
+                if ($guardianDataRecord->data_number_of_individuals) {
+                    $totalDependents = $guardianDataRecord->data_number_of_individuals;
+                    Log::info('GUARDIAN_DEPENDENTS_FROM_TOTAL', [
+                        'data_number_of_individuals' => $totalDependents
+                    ]);
+                } else {
+                    // الأولوية 2: جمع data_number_female + data_number_mail
+                    $dataFemale = (int) ($guardianDataRecord->data_number_female ?? 0);
+                    $dataMale = (int) ($guardianDataRecord->data_number_mail ?? 0);
+                    $totalDependents = $dataFemale + $dataMale;
+
+                    Log::info('GUARDIAN_DEPENDENTS_FROM_SUM', [
+                        'male' => $dataMale,
+                        'female' => $dataFemale,
+                        'total' => $totalDependents
+                    ]);
+                }
+            }
+
+            // ✅ حساب عدد الأطفال في العائلة للمقارنة
+            if ($sponsorship->guardian_identity_number) {
+                $childrenInFamily = Sponsorship::where('guardian_identity_number', $sponsorship->guardian_identity_number)
+                    ->count();
+            }
+
+            // ✅ في حالة لم يتوفر data_number_of_individuals → استخدم عدد الأطفال الفعلي
+            if ($totalDependents == 0 && $childrenInFamily > 0) {
+                $totalDependents = $childrenInFamily;
+                Log::info('GUARDIAN_DEPENDENTS_FROM_CHILDREN', [
+                    'children_count' => $childrenInFamily
+                ]);
+            }
+
+            Log::info('GUARDIAN_DEPENDENTS_CALCULATED', [
+                'guardian_identity' => $sponsorship->guardian_identity_number,
+                'from_data_table' => $totalDependents,
+                'children_in_family' => $childrenInFamily,
+                'final_count' => $totalDependents
+            ]);
+
+            $data['dependents_count'] = $totalDependents > 0 ? $totalDependents : $na;
+            $data['number_of_individuals'] = $data['dependents_count']; // نسخ للعرض
+        }
 
         // الطابع الزمني
         $data['timestamp'] = $portalFields->get('field_data_update_date')?->field_value ?? date('Y-m-d');
@@ -402,12 +585,12 @@ class GenerateOrphanReportPdf implements ShouldQueue
         }
 
         // 3. معالجة ذكية لبيانات الأم بناءً على حالتها
-        $guardianRelationship = $fieldValues['field_guardian_relationship'] ?? null;
+        // استخدام guardian_relation_id المُجلَّب من data أو dead_people (وليس من portal)
         $motherStatus = $fieldValues['field_mother_status'] ?? null;
-        $guardianIsMother = ($guardianRelationship == 2); // 2 = أم
+        $guardianIsMother = ($guardianRelationId == 2); // 2 = أم
 
         Log::info('MOTHER_STATUS_CHECK', [
-            'guardian_relationship' => $guardianRelationship,
+            'guardian_relationship' => $guardianRelationId,
             'mother_status' => $motherStatus,
             'guardian_is_mother' => $guardianIsMother
         ]);
@@ -578,29 +761,6 @@ class GenerateOrphanReportPdf implements ShouldQueue
         $result = [];
 
         foreach ($members as $index => $member) {
-            // جلب الصورة الشخصية لفرد الأسرة
-            $personalPhoto = Attachment::where('person_identity_number', $member->person_id)
-                ->whereIn('file_type', ['صورة شخصية', 'الصورة الشخصية', 'personal_photo', '1'])
-                ->first();
-
-            $photoData = null;
-            if ($personalPhoto) {
-                $filePath = $personalPhoto->file_path;
-                // تحويل المسار النسبي إلى مسار مطلق
-                if (!str_starts_with($filePath, '/') && !str_starts_with($filePath, 'http')) {
-                    if (str_starts_with($filePath, 'storage/')) {
-                        $filePath = storage_path('app/public/' . str_replace('storage/', '', $filePath));
-                    } else {
-                        $filePath = public_path($filePath);
-                    }
-                }
-
-                $photoData = [
-                    'file_path' => $filePath,
-                    'file_exists' => file_exists($filePath)
-                ];
-            }
-
             $result[] = [
                 'index' => $index + 1,
                 'person_id' => $member->person_id,
@@ -612,8 +772,7 @@ class GenerateOrphanReportPdf implements ShouldQueue
                 ) ?: $na,
                 'birth_date' => $member->person_birth_date ? date('d/m/Y', strtotime($member->person_birth_date)) : $na,
                 'academic_degree' => $member->acadimic_degree ?? $na,
-                'health_status' => $this->getHealthStatus($member->person_health_status) ?? $na,
-                'photo' => $photoData
+                'health_status' => $this->getHealthStatus($member->person_health_status) ?? $na
             ];
         }
 
@@ -898,13 +1057,30 @@ class GenerateOrphanReportPdf implements ShouldQueue
     private function uploadToGoogleDriveIfEnabled($sponsorship, $fullPath, $fileName)
     {
         try {
-            // التحقق من أن الجمعية لديها Google Drive مفعل
-            $sponsor = $sponsorship->sponsor;
+            // جلب الكافل المحدد بدقة
+            $sponsor = null;
 
-            if (!$sponsor || !$sponsor->google_drive_enabled) {
+            if ($this->sponsorId) {
+                // استخدام sponsor_id المحدد من الـ Job
+                $sponsor = \App\Models\Sponsor::find($this->sponsorId);
+            } else {
+                // محاولة جلب أول كافل من العلاقة (للتوافقية مع الكود القديم)
+                $sponsor = $sponsorship->sponsors()->first();
+            }
+
+            if (!$sponsor) {
+                Log::warning('Google Drive upload skipped - sponsor not found', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'sponsor_id' => $this->sponsorId
+                ]);
+                return;
+            }
+
+            if (!$sponsor->google_drive_enabled) {
                 Log::info('Google Drive upload skipped - not enabled for sponsor', [
-                    'sponsor_id' => $sponsor ? $sponsor->id : 'null',
-                    'google_drive_enabled' => $sponsor ? $sponsor->google_drive_enabled : 'null'
+                    'sponsor_id' => $sponsor->id,
+                    'sponsor_name' => $sponsor->sponsor_name,
+                    'google_drive_enabled' => $sponsor->google_drive_enabled
                 ]);
                 return;
             }

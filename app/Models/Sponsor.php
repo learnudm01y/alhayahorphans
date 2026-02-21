@@ -54,11 +54,26 @@ class Sponsor extends Model
     /**
      * علاقة Many-to-Many مع جدول الكفالات (sponsorships)
      * المؤسسة يمكن أن تكون لديها عدة كفالات
+     * العلاقة تستخدم جدول sponsorship_sponsor
      */
     public function sponsorships()
     {
         return $this->belongsToMany(Sponsorship::class, 'sponsorship_sponsor')
             ->withTimestamps();
+    }
+
+    /**
+     * الحصول على كفالات الجمعية من النظامين (Many-to-Many و Direct sponsor_id)
+     * يدعم النظامين لأن بعض الجمعيات تستخدم sponsor_id والبعض يستخدم sponsorship_sponsor
+     */
+    public function getAllSponsorships()
+    {
+        return Sponsorship::where(function ($q) {
+            $q->where('sponsor_id', $this->id)
+              ->orWhereHas('sponsors', function ($q2) {
+                  $q2->where('sponsors.id', $this->id);
+              });
+        });
     }
 
     /**
