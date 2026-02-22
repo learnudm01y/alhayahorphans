@@ -1129,13 +1129,9 @@ class GenerateOrphanReportPdf implements ShouldQueue
             'orphan_health_status' => 'field_health_status',
             'orphan_needs' => 'field_orphan_needs',
             'creativity_aspects' => 'field_creativity_aspects',
-            'guardian_name' => 'field_data_first_name',
-            'guardian_full_name' => 'field_data_first_name',
             'guardian_identity_number' => 'field_re_guardian_id',
-            'guardian_relation' => 'field_data_relationship',
             'guardian_health' => 'field_guardian_health',
             'guardian_job' => 'field_guardian_job',
-            'dependents_count' => 'field_dependents_male',
             'sponsorship_impact' => 'field_sponsorship_impact',
             'family_events' => 'field_important_events',
             'timestamp' => 'field_data_update_date',
@@ -1153,6 +1149,9 @@ class GenerateOrphanReportPdf implements ShouldQueue
                 || ((int) ($settings->field_data_grand_father_name ?? 0) === 1)
                 || ((int) ($settings->field_data_family_name ?? 0) === 1)
                 || ((int) ($settings->field_re_guardian_name ?? 0) === 1);
+            if (array_key_exists('guardian_name', $data) && !$guardianNameEnabled) {
+                $data['guardian_name'] = null;
+            }
             if (array_key_exists('guardian_full_name', $data) && !$guardianNameEnabled) {
                 $data['guardian_full_name'] = null;
             }
