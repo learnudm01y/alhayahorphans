@@ -100,6 +100,9 @@ class ShowGeneralRegisrationController extends Controller
 
         if ($sponsorId) {
             $fieldSettings = SponsorFieldSetting::where('sponsor_id', $sponsorId)->first();
+            $settingsTable = (new SponsorFieldSetting())->getTable();
+            $hasDataRelationshipColumn = Schema::hasColumn($settingsTable, 'field_data_relationship');
+            $hasLegacyRelationshipColumn = Schema::hasColumn($settingsTable, 'field_relationship');
 
             if ($fieldSettings) {
                 // جلب الحقول المفعلة فقط (القيمة = 1)
@@ -108,7 +111,16 @@ class ShowGeneralRegisrationController extends Controller
                         continue;
                     }
 
-                    if (isset($fieldSettings->{$fieldKey}) && $fieldSettings->{$fieldKey} == 1) {
+                    $isEnabled = isset($fieldSettings->{$fieldKey}) && $fieldSettings->{$fieldKey} == 1;
+                    if ($fieldKey === 'field_data_relationship') {
+                        if ($hasDataRelationshipColumn) {
+                            $isEnabled = (int) ($fieldSettings->field_data_relationship ?? 0) === 1;
+                        } elseif ($hasLegacyRelationshipColumn) {
+                            $isEnabled = (int) ($fieldSettings->field_relationship ?? 0) === 1;
+                        }
+                    }
+
+                    if ($isEnabled) {
                         $enabledFields[$fieldKey] = $fieldInfo;
                     }
                 }

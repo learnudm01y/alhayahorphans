@@ -12,6 +12,7 @@ use App\Models\AssociationEmployee;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class SponsorController extends Controller
 {
@@ -357,10 +358,25 @@ class SponsorController extends Controller
             // تحميل ملف الـ config
             $fieldsConfig = config('sponsor_fields.fields');
             $sectionFields = config('sponsor_fields.section_fields', []);
+            $settingsTable = (new \App\Models\SponsorFieldSetting())->getTable();
+            $hasDataRelationshipColumn = Schema::hasColumn($settingsTable, 'field_data_relationship');
+            $hasLegacyRelationshipColumn = Schema::hasColumn($settingsTable, 'field_relationship');
 
             // بناء مصفوفة الحقول مع حالتها
             $fields = [];
             foreach ($fieldsConfig as $key => $fieldInfo) {
+                $isActive = in_array($fieldInfo['db_column'], $legacyUnmanagedColumns, true)
+                    ? false
+                    : (bool) ($fieldSettings->{$key} ?? false);
+
+                if ($fieldInfo['db_column'] === 'field_data_relationship') {
+                    if ($hasDataRelationshipColumn) {
+                        $isActive = (bool) ($fieldSettings->field_data_relationship ?? false);
+                    } elseif ($hasLegacyRelationshipColumn) {
+                        $isActive = (bool) ($fieldSettings->field_relationship ?? false);
+                    }
+                }
+
                 $fields[] = [
                     'id' => $fieldInfo['id'],
                     'name' => $fieldInfo['display_name'],
@@ -369,9 +385,7 @@ class SponsorController extends Controller
                     'category_id' => $fieldInfo['category_id'],
                     'order' => $fieldInfo['order'],
                     'required' => $fieldInfo['required'],
-                    'active' => in_array($fieldInfo['db_column'], $legacyUnmanagedColumns, true)
-                        ? false
-                        : (bool) ($fieldSettings->{$key} ?? false),
+                    'active' => $isActive,
                 ];
             }
 
@@ -441,6 +455,9 @@ class SponsorController extends Controller
             $sectionFields = config('sponsor_fields.section_fields', []);
             $allDbColumns = array_column($fieldsConfig, 'db_column');
             $sectionDbColumns = array_column($sectionFields, 'db_column');
+            $settingsTable = (new \App\Models\SponsorFieldSetting())->getTable();
+            $hasDataRelationshipColumn = Schema::hasColumn($settingsTable, 'field_data_relationship');
+            $hasLegacyRelationshipColumn = Schema::hasColumn($settingsTable, 'field_relationship');
             $legacyUnmanagedColumns = [
                 'field_re_guardian_name',
                 'field_re_guardian_phone',
@@ -462,7 +479,16 @@ class SponsorController extends Controller
             $allColumns = array_merge($allDbColumns, $sectionDbColumns);
             foreach ($validated['fields'] as $dbColumn) {
                 if (in_array($dbColumn, $allColumns)) {
-                    $fieldSettings->{$dbColumn} = 1;
+                    if ($dbColumn === 'field_data_relationship') {
+                        if ($hasDataRelationshipColumn) {
+                            $fieldSettings->field_data_relationship = 1;
+                        }
+                        if ($hasLegacyRelationshipColumn) {
+                            $fieldSettings->field_relationship = 1;
+                        }
+                    } else {
+                        $fieldSettings->{$dbColumn} = 1;
+                    }
                 }
             }
 

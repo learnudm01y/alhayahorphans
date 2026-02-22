@@ -10,6 +10,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Schema;
 use App\Models\Data;
 use App\Models\Sponsorship;
 use App\Models\RePeople;
@@ -1046,6 +1047,9 @@ class GenerateOrphanReportPdf implements ShouldQueue
 
     private function buildVisibleFieldMap(?SponsorFieldSetting $settings): array
     {
+        $settingsTable = (new SponsorFieldSetting())->getTable();
+        $hasDataRelationshipColumn = Schema::hasColumn($settingsTable, 'field_data_relationship');
+
         $legacyDisabled = [
             'field_re_guardian_name' => false,
             'field_re_guardian_phone' => false,
@@ -1080,7 +1084,9 @@ class GenerateOrphanReportPdf implements ShouldQueue
             'field_data_father_name' => (bool) ($settings->field_data_father_name ?? false),
             'field_data_grand_father_name' => (bool) ($settings->field_data_grand_father_name ?? false),
             'field_data_family_name' => (bool) ($settings->field_data_family_name ?? false),
-            'field_data_relationship' => (bool) ($settings->field_data_relationship ?? false),
+            'field_data_relationship' => $hasDataRelationshipColumn
+                ? (bool) ($settings->field_data_relationship ?? false)
+                : (bool) ($settings->field_relationship ?? false),
             'field_dependents_female' => (bool) ($settings->field_dependents_female ?? false),
             'field_dependents_male' => (bool) ($settings->field_dependents_male ?? false),
             'field_mother_name' => false,
