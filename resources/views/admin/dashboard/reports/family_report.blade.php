@@ -902,6 +902,33 @@ table.compact-live-mother-table thead th:nth-child(6) {
                 </table>
             </div>
 
+            @php
+                $fatherFullName = trim(implode(' ', array_filter([
+                    optional($deadPeople)->father_first_name,
+                    optional($deadPeople)->father_second_name,
+                    optional($deadPeople)->father_third_name,
+                    optional($deadPeople)->father_last_name,
+                ])));
+
+                $motherFullName = trim(implode(' ', array_filter([
+                    optional($deadPeople)->mother_first_name,
+                    optional($deadPeople)->mother_second_name,
+                    optional($deadPeople)->mother_third_name,
+                    optional($deadPeople)->mother_last_name,
+                ])));
+
+                $hasFatherDeceasedData = !empty($fatherFullName)
+                    || !empty(optional($deadPeople)->father_id)
+                    || !empty(optional($deadPeople)->father_death_date)
+                    || !empty(optional($deadPeople)->fatherDeathReason?->description);
+
+                $hasMotherDeceasedData = !empty($motherFullName)
+                    || !empty(optional($deadPeople)->mother_id)
+                    || !empty(optional($deadPeople)->mother_death_date)
+                    || !empty(optional($deadPeople)->motherDeathReason?->description);
+            @endphp
+
+            @if($hasFatherDeceasedData || $hasMotherDeceasedData)
             <div class="siblings-block">
                 <table class="styled-table full-width compact-deceased-table">
                     <thead>
@@ -914,17 +941,10 @@ table.compact-live-mother-table thead th:nth-child(6) {
                         </tr>
                     </thead>
                     <tbody>
+                        @if($hasFatherDeceasedData)
                         <tr>
                             <td class="value marker-value">(الأب المتوفي)</td>
                             <td class="value name-value">
-                                @php
-                                    $fatherFullName = trim(implode(' ', array_filter([
-                                        optional($deadPeople)->father_first_name,
-                                        optional($deadPeople)->father_second_name,
-                                        optional($deadPeople)->father_third_name,
-                                        optional($deadPeople)->father_last_name,
-                                    ])));
-                                @endphp
                                 {{ $fatherFullName ?: 'غير متوفر' }}
                             </td>
                             <td class="value">{{ optional($deadPeople)->father_id ?? 'غير متوفر' }}</td>
@@ -933,17 +953,12 @@ table.compact-live-mother-table thead th:nth-child(6) {
                             </td>
                             <td class="value">{{ $deadPeople?->fatherDeathReason?->description ?? 'غير متوفر' }}</td>
                         </tr>
+                        @endif
+
+                        @if($hasMotherDeceasedData)
                         <tr>
                             <td class="value marker-value">(الأم المتوفية)</td>
                             <td class="value name-value">
-                                @php
-                                    $motherFullName = trim(implode(' ', array_filter([
-                                        optional($deadPeople)->mother_first_name,
-                                        optional($deadPeople)->mother_second_name,
-                                        optional($deadPeople)->mother_third_name,
-                                        optional($deadPeople)->mother_last_name,
-                                    ])));
-                                @endphp
                                 {{ $motherFullName ?: 'غير متوفر' }}
                             </td>
                             <td class="value">{{ optional($deadPeople)->mother_id ?? 'غير متوفر' }}</td>
@@ -952,9 +967,11 @@ table.compact-live-mother-table thead th:nth-child(6) {
                             </td>
                             <td class="value">{{ $deadPeople?->motherDeathReason?->description ?? 'غير متوفر' }}</td>
                         </tr>
+                        @endif
                     </tbody>
                 </table>
             </div>
+            @endif
 
             @if(!empty($liveMother) && (!empty($liveMother->person_id) || !empty($liveMother->first_name) || !empty($liveMother->second_name) || !empty($liveMother->third_name) || !empty($liveMother->last_name)))
             <div class="siblings-block">
