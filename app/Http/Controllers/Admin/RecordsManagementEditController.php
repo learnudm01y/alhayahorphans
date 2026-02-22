@@ -1658,6 +1658,19 @@ class RecordsManagementEditController extends Controller
 
             if (class_exists($browsershotClass)) {
                 try {
+                    $browserHome = storage_path('app/chromium-home');
+                    $puppeteerCache = storage_path('app/puppeteer-cache');
+
+                    if (!is_dir($browserHome)) {
+                        @mkdir($browserHome, 0775, true);
+                    }
+                    if (!is_dir($puppeteerCache)) {
+                        @mkdir($puppeteerCache, 0775, true);
+                    }
+
+                    putenv('HOME=' . $browserHome);
+                    putenv('PUPPETEER_CACHE_DIR=' . $puppeteerCache);
+
                     $html = view('admin.dashboard.reports.family_report', $viewData)->render();
                     $browsershot = $browsershotClass::html($html)
                         ->format('A4')
@@ -1665,12 +1678,50 @@ class RecordsManagementEditController extends Controller
                         ->showBackground()
                         ->emulateMedia('print');
 
+                    if (is_executable('/usr/bin/node')) {
+                        $browsershot->setNodeBinary('/usr/bin/node');
+                    }
+
+                    if (is_executable('/usr/bin/npm')) {
+                        $browsershot->setNpmBinary('/usr/bin/npm');
+                    }
+
                     if (config('app.env') === 'production' || env('BROWSERSHOT_NO_SANDBOX', false)) {
                         $browsershot->noSandbox();
                     }
 
-                    if ($chromePath = env('BROWSERSHOT_CHROME_PATH')) {
-                        $browsershot->setChromePath($chromePath);
+                    $configuredChromePath = (string) env('BROWSERSHOT_CHROME_PATH', '');
+                    $configuredPuppeteerPath = (string) env('PUPPETEER_EXECUTABLE_PATH', '');
+
+                    $chromeCandidates = array_filter([
+                        $configuredChromePath,
+                        $configuredPuppeteerPath,
+                        '/usr/bin/google-chrome-stable',
+                        '/usr/bin/chromium-browser',
+                        '/usr/bin/chromium',
+                    ]);
+
+                    $resolvedChromePath = null;
+                    foreach ($chromeCandidates as $candidate) {
+                        if (str_contains($candidate, '/snap/bin/chromium')) {
+                            continue;
+                        }
+
+                        if (is_executable($candidate)) {
+                            $resolvedChromePath = $candidate;
+                            break;
+                        }
+                    }
+
+                    if ($resolvedChromePath) {
+                        $browsershot->setChromePath($resolvedChromePath);
+                    } else {
+                        Log::warning('No non-snap chromium executable resolved for Browsershot; using Puppeteer default', [
+                            'configured_chrome_path' => $configuredChromePath,
+                            'configured_puppeteer_path' => $configuredPuppeteerPath,
+                            'file_id' => $id,
+                            'member_id' => $memberId,
+                        ]);
                     }
 
                     $pdfContent = $browsershot->pdf();
