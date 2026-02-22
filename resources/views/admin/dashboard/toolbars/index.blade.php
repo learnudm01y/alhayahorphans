@@ -181,14 +181,14 @@
                             <!--begin::Title-->
                             <h1
                                 class="page-heading d-flex text-dark fw-bold fs-3 flex-column justify-content-center my-0">
-                                Extended</h1>
+                                لوحة التحكم المركزية</h1>
                             <!--end::Title-->
                             <!--begin::Breadcrumb-->
                             <ul class="breadcrumb breadcrumb-separatorless fw-semibold fs-7 my-0 pt-1">
                                 <!--begin::Item-->
-                                <li class="breadcrumb-item text-muted">
-                                    <a href="{{ route('admin.dashboard') }}" class="text-muted text-hover-primary">Home</a>
-                                </li>
+                                {{-- <li class="breadcrumb-item text-muted">
+                                    <a href="{{ route('admin.dashboard') }}" class="text-muted text-hover-primary">الصفحة الرئيسية</a>
+                                </li> --}}
                                 <!--end::Item-->
                                 <!--begin::Item-->
                                 <li class="breadcrumb-item">
@@ -196,7 +196,7 @@
                                 </li>
                                 <!--end::Item-->
                                 <!--begin::Item-->
-                                <li class="breadcrumb-item text-muted">Toolbars</li>
+                                {{-- <li class="breadcrumb-item text-muted">Toolbars</li> --}}
                                 <!--end::Item-->
                             </ul>
                             <!--end::Breadcrumb-->
@@ -501,12 +501,12 @@
                             <div id="kt_app_toolbar_container"
                                 class="app-container container-fluid d-flex flex-stack flex-wrap flex-md-nowrap">
                                 <!--begin::Toolbar start-->
-                                {{-- <div class="d-flex align-items-center flex-shrink-0 me-5">
+                                <div class="d-flex align-items-center flex-shrink-0 me-5">
                                     <!--begin::Label-->
-                                    <span class="fs-7 fw-bold text-gray-700 pe-4 d-none d-md-block">Team:</span>
+                                    {{-- <span class="fs-7 fw-bold text-gray-700 pe-4 d-none d-md-block">Team:</span> --}}
                                     <!--end::Label-->
                                     <!--begin::Users-->
-                                    <div class="symbol-group symbol-hover flex-shrink-0 me-2">
+                                    {{-- <div class="symbol-group symbol-hover flex-shrink-0 me-2">
                                         <!--begin::User-->
                                         <div class="symbol symbol-circle symbol-35px">
                                             <div class="symbol-label fw-bold bg-warning text-inverse-warning">A</div>
@@ -542,10 +542,10 @@
                                             <img src="assets/media/avatars/300-20.jpg" alt="" />
                                         </div>
                                         <!--end::User-->
-                                    </div>
+                                    </div> --}}
                                     <!--end::Users-->
                                     <!--begin::Button-->
-                                    <div data-bs-toggle="tooltip" data-bs-placement="top" data-bs-trigger="hover"
+                                    {{-- <div data-bs-toggle="tooltip" data-bs-placement="top" data-bs-trigger="hover"
                                         title="Invite a team member">
                                         <a href="#" class="btn btn-sm btn-icon" data-bs-toggle="modal"
                                             data-bs-target="#kt_modal_invite_friends">
@@ -555,9 +555,9 @@
                                                 <span class="path3"></span>
                                             </i>
                                         </a>
-                                    </div>
+                                    </div> --}}
                                     <!--end::Button-->
-                                </div> --}}
+                                </div>
                                 <!--end::Toolbar start-->
                                 <!--begin::Toolbar end-->
                                 <div class="d-flex align-items-center overflow-visible">
