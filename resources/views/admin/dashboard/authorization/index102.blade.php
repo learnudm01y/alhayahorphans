@@ -117,10 +117,12 @@
                 <h2 class="fw-bold fs-3 text-primary">إدارة المستخدمين</h2>
             </div>
             <div class="card-toolbar">
+                @can('إنشاء مستخدم')
                 <a href="{{ route('users.create') }}" class="btn btn-primary">
                     <i class="ki-duotone ki-plus fs-2"></i>
                     إضافة مستخدم جديد
                 </a>
+                @endcan
             </div>
         </div>
 

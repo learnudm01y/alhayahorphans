@@ -27,7 +27,8 @@ class RecordsManagementeDataTable extends DataTable
                 $editUrl = route('admin.records.management.edit', $row->id);
                 $showUrl = route('admin.records.management.show', $row->id);
                 $deleteUrl = route('admin.records.management.delete', $row->id);
-                return '
+
+                $actions = '
                 <div class="dropdown">
                   <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                     الإجراءات
@@ -37,17 +38,28 @@ class RecordsManagementeDataTable extends DataTable
                       <a class="dropdown-item" style="color:#222;" href="'.$showUrl.'">
                         <i class="bi bi-eye text-info"></i> عرض
                       </a>
-                    </li>
+                    </li>';
+
+                if (auth()->user()->can('تعديل سجل')) {
+                    $actions .= '
                     <li>
                       <a class="dropdown-item" style="color:#222;" href="'.$editUrl.'">
                         <i class="bi bi-pencil-square text-primary"></i> تعديل
                       </a>
-                    </li>
+                    </li>';
+                }
+
+                if (auth()->user()->can('إضافة كفالة')) {
+                    $actions .= '
                     <li>
                       <a class="dropdown-item sponsorship-btn" style="color:#222; cursor: pointer;" data-record-id="'.$row->id.'" data-record-name="'.$row->data_first_name.' '.$row->data_father_name.' '.$row->data_grand_father_name.' '.$row->data_family_name.'" data-file-id="'.$row->file_id_number.'">
                         <i class="bi bi-heart-fill text-success"></i> تنفيذ كفالة
                       </a>
-                    </li>
+                    </li>';
+                }
+
+                if (auth()->user()->can('حذف سجل')) {
+                    $actions .= '
                     <li><hr class="dropdown-divider"></li>
                     <li>
                       <form action="'.$deleteUrl.'" method="POST" style="display:inline;" onsubmit="return confirm(\'هل أنت متأكد من حذف السجل؟\');">
@@ -56,10 +68,14 @@ class RecordsManagementeDataTable extends DataTable
                           <i class="bi bi-trash text-danger"></i> حذف
                         </button>
                       </form>
-                    </li>
+                    </li>';
+                }
+
+                $actions .= '
                   </ul>
                 </div>
                 ';
+                return $actions;
             })
             ->addColumn('full_name', function($row) {
                 return "{$row->data_first_name} {$row->data_father_name} {$row->data_grand_father_name} {$row->data_family_name}";

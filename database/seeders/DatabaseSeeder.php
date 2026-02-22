@@ -24,6 +24,7 @@ class DatabaseSeeder extends Seeder
         // ]);
         $this->call(UserSeeder::class);
         $this->call(SeedersPermissionTableSeeder::class);
+        $this->call(CreateAdminUserSeeder::class); // منح admin جميع الصلاحيات
         $this->call(CountriesSeeder::class);
         $this->call(CiBirthSeeder::class);
         $this->call(CitiesSeeder::class);

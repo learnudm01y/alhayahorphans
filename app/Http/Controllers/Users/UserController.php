@@ -15,6 +15,14 @@ use Yajra\DataTables\Contracts\DataTable;
 
 class UserController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('permission:عرض قسم إدارة الصلاحيات|المستخدمين', ['only' => ['index101', 'index102', 'show']]);
+        $this->middleware('permission:إنشاء مستخدم', ['only' => ['create', 'store']]);
+        $this->middleware('permission:تعديل مستخدم', ['only' => ['edit', 'update']]);
+        $this->middleware('permission:حذف مستخدم', ['only' => ['destroy']]);
+    }
+
     /**
      * Display a listing of the resource.
      *

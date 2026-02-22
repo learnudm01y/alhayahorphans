@@ -45,9 +45,15 @@ use App\Http\Controllers\CivilRegistrySearchController;
 use App\Http\Controllers\Admin\CivilRegistryController;
 Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     // إدارة طلبات المستخدمين (عرض وتغيير حالة الطلب)
-    Route::get('manage-user-requests', [ManageTheUserRequestController::class, 'index'])->name('manage.user.requests.index');
-    Route::post('manage-user-requests/change-status', [ManageTheUserRequestController::class, 'changeStatus'])->name('manage.user.requests.changeStatus');
-    Route::get('dashboard', [AdminController::class, 'index'])->name('dashboard');
+    Route::get('manage-user-requests', [ManageTheUserRequestController::class, 'index'])
+        ->middleware('permission:عرض قسم إدارة التسجيلات|إدارة طلبات المستخدمين')
+        ->name('manage.user.requests.index');
+    Route::post('manage-user-requests/change-status', [ManageTheUserRequestController::class, 'changeStatus'])
+        ->middleware('permission:عرض قسم إدارة التسجيلات|إدارة طلبات المستخدمين')
+        ->name('manage.user.requests.changeStatus');
+    Route::get('dashboard', [AdminController::class, 'index'])
+        ->middleware('permission:الوصول للصفحة الرئيسية|عرض قسم إدارة التسجيلات|عرض قسم إدارة التصنيفات|عرض قسم إدارة الجمعيات|عرض قسم الكفالات|عرض قسم إدارة الصلاحيات|عرض قسم إدارة السجل المدني|عرض قسم إدارة الملفات|عرض قسم أدوات النظام')
+        ->name('dashboard');
     // profile management
     Route::get('profile', [AdminController::class, 'profile'])->name('index.profile');
     Route::get('settings', [AdminController::class, 'settings'])->name('settings');
@@ -59,7 +65,9 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::post('/admin/update-password', [AdminController::class, 'updatePassword'])->name('updatePassword');
     Route::post('/update-avatar', [AdminController::class, 'updateAvatar'])->name('updateAvatar');
     // civilian management
-    Route::get('civilian', [PersonsController::class, 'index'])->name('index.civilian');
+    Route::get('civilian', [PersonsController::class, 'index'])
+        ->middleware('permission:عرض قسم إدارة السجل المدني|عرض السجل المدني القديم')
+        ->name('index.civilian');
     Route::resource('persons', PersonsController::class);
     Route::post('/persons/sort', [PersonsController::class, 'sort'])->name('admin.persons.sort');
     Route::post('/persons', [PersonsController::class, 'store'])->name('persons.store');
@@ -95,10 +103,16 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     });
 
     // user role management
-    Route::get('admin/user-role-management', [UserController::class, 'index101'])->name('role.management101');
-    Route::get('user/user-role-management', [UserController::class, 'index102'])->name('role.management102');
+    Route::get('admin/user-role-management', [UserController::class, 'index101'])
+        ->middleware('permission:عرض قسم إدارة الصلاحيات|المستخدمين')
+        ->name('role.management101');
+    Route::get('user/user-role-management', [UserController::class, 'index102'])
+        ->middleware('permission:عرض قسم إدارة الصلاحيات|المستخدمين')
+        ->name('role.management102');
     // records management
-    Route::get('records-management', [RecordsManagementController::class, 'index'])->name('records.management');
+    Route::get('records-management', [RecordsManagementController::class, 'index'])
+        ->middleware('permission:عرض قسم إدارة التسجيلات|عرض البيانات المدخلة')
+        ->name('records.management');
 
     // 🏆 التصدير الاحترافي - Streaming (الموصى به) ⚡
     Route::get('records-management/export-streaming', [\App\Http\Controllers\Admin\RecordsManagementController::class, 'exportAllStreaming'])->name('records.management.exportStreaming');
@@ -109,7 +123,9 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     // Export all records as CSV files (أخف على الذاكرة)
     Route::get('records-management/export-all-csv', [\App\Http\Controllers\Admin\RecordsManagementController::class, 'exportAllCSV'])->name('records.management.exportAllCSV');
 
-    Route::get('records-management/create', [RecordsManagementController::class, 'create'])->name('records.management.create');
+    Route::get('records-management/create', [RecordsManagementController::class, 'create'])
+        ->middleware('permission:عرض قسم إدارة التسجيلات|إدخال بيانات التسجيلات')
+        ->name('records.management.create');
     Route::post('records-management/store', [RecordsManagementController::class, 'store'])->name('records.management.store');
     Route::post('records-management/upload', [RecordsManagementController::class, 'upload'])->name('documents.upload');
     Route::get('records-management/{id}/edit', [RecordsManagementEditController::class, 'edit'])->name('records.management.edit');
@@ -146,17 +162,21 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     // Route::delete('records-management/family-member/delete/{id}', [RecordsManagementEditController::class, 'deleteFamilyMember'])->name('records.management.family_member.delete');
 
     // category management
-    Route::get('category-management/academicdegree', [AcademicDegreeController::class, 'academicdegree'])->name('category.management.academicdegree');
+    Route::get('category-management/academicdegree', [AcademicDegreeController::class, 'academicdegree'])
+        ->middleware('permission:عرض قسم إدارة التصنيفات|إدارة الدرجة العلمية')
+        ->name('category.management.academicdegree');
     Route::post('category-management/academicdegree/store', [AcademicDegreeController::class, 'createAcademicDegree'])->name('store.category.management.academicdegree');
     Route::put('/admin/category/academicdegree/{id}', [AcademicDegreeController::class, 'academicDegreeUpdate'])
         ->name('update.category.management.academicdegree');
     Route::delete('/admin/category/academicdegree/{id}', [AcademicDegreeController::class, 'academicDegreeDestroy'])
         ->name('delete.category.management.academicdegree');
     // Aid Status Management
-    Route::resource('aid_status', AidStatusController::class);
+    Route::resource('aid_status', AidStatusController::class)->middleware('permission:عرض قسم إدارة التصنيفات|إدارة حالة المساعدة');
     // Sponsors Management (إدارة الجمعيات)
     // ملاحظة: يجب وضع جميع الـ Routes المخصصة قبل Route::resource
-    Route::get('sponsors/fields-management', [SponsorController::class, 'fieldsManagement'])->name('sponsors.fields-management');
+    Route::get('sponsors/fields-management', [SponsorController::class, 'fieldsManagement'])
+        ->middleware('permission:عرض قسم إدارة الجمعيات|تحديث بيانات الجمعيات')
+        ->name('sponsors.fields-management');
     Route::get('sponsors/fields-management/data', [SponsorController::class, 'getSponsorsForFieldsManagement'])->name('sponsors.fields-management.data');
     Route::post('sponsors/export-forms', [SponsorController::class, 'exportForms'])->name('sponsors.export-forms');
     Route::get('sponsors/{sponsor}/fields', [SponsorController::class, 'getSponsorFields'])->name('sponsors.get-fields');
@@ -176,11 +196,15 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
 
     Route::get('sponsors/test-form', [SponsorController::class, 'testForm'])->name('sponsors.test');
     Route::get('sponsors/test-final', [SponsorController::class, 'testFinal'])->name('sponsors.test.final');
-    Route::resource('sponsors', SponsorController::class);
+    Route::resource('sponsors', SponsorController::class)->middleware('permission:عرض قسم إدارة الجمعيات|إدارة الجمعيات');
 
     // Sponsorships Management (إدارة الكفالات)
-    Route::get('sponsorships/sponsored', [SponsorshipController::class, 'sponsored'])->name('sponsorships.sponsored');
-    Route::get('sponsorships/unsponsored', [SponsorshipController::class, 'unsponsored'])->name('sponsorships.unsponsored');
+    Route::get('sponsorships/sponsored', [SponsorshipController::class, 'sponsored'])
+        ->middleware('permission:عرض قسم الكفالات|عرض المكفولين')
+        ->name('sponsorships.sponsored');
+    Route::get('sponsorships/unsponsored', [SponsorshipController::class, 'unsponsored'])
+        ->middleware('permission:عرض قسم الكفالات|عرض غير المكفولين')
+        ->name('sponsorships.unsponsored');
     Route::get('sponsorships/export', [SponsorshipController::class, 'export'])->name('sponsorships.export');
     Route::post('sponsorships/import', [SponsorshipController::class, 'import'])->name('sponsorships.import');
     Route::post('sponsorships/create-missing-persons', [SponsorshipController::class, 'createMissingPersons'])->name('sponsorships.createMissingPersons');
@@ -190,53 +214,55 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::resource('sponsorships', SponsorshipController::class);
 
     // Bank Name Management
-    Route::resource('bank_name', BankNameController::class);
+    Route::resource('bank_name', BankNameController::class)->middleware('permission:عرض قسم إدارة التصنيفات|إدارة أسماء البنوك');
     // Category Of Relation Management
-    Route::resource('CategoryOfRelation_name', CategoryOfRelationController::class);
+    Route::resource('CategoryOfRelation_name', CategoryOfRelationController::class)->middleware('permission:عرض قسم إدارة التصنيفات|إدارة صلة القرابة');
     // city name Management
-    Route::resource('city_name', CityController::class);
+    Route::resource('city_name', CityController::class)->middleware('permission:عرض قسم إدارة التصنيفات|إدارة أسماء المدن');
     // currency type  Management
-    Route::resource('CurrencyType_name', CurrencyTypeController::class);
+    Route::resource('CurrencyType_name', CurrencyTypeController::class)->middleware('permission:عرض قسم إدارة التصنيفات|إدارة العملات');
     // Death Reason description Management
-    Route::resource('DeathReason_name', DeathReasonController::class);
+    Route::resource('DeathReason_name', DeathReasonController::class)->middleware('permission:عرض قسم إدارة التصنيفات|إدارة أسباب الوفاة');
     // Displacement status Management
-    Route::resource('DisplacementStatus_name', DisplacementStatusController::class);
+    Route::resource('DisplacementStatus_name', DisplacementStatusController::class)->middleware('permission:عرض قسم إدارة التصنيفات|إدارة حالة النزوح');
     //  DocumentType Name Management
-    Route::resource('DocumentType_name', DocumentTypeCotroller::class);
+    Route::resource('DocumentType_name', DocumentTypeCotroller::class)->middleware('permission:عرض قسم إدارة التصنيفات|إدارة أنواع الوثائق');
     //  Employment status Management
-    Route::resource('Employment_name', EmploymentCotroller::class);
+    Route::resource('Employment_name', EmploymentCotroller::class)->middleware('permission:عرض قسم إدارة التصنيفات|إدارة الحالة الوظيفية');
     // General Category Toggle Status (AJAX)
     Route::post('general-category/toggle-status', [GeneralCategoryCotroller::class, 'toggleStatus'])->name('general-category.toggle-status');
 
     //   General Category Management
-    Route::resource('GeneralCategory_name', GeneralCategoryCotroller::class);
+    Route::resource('GeneralCategory_name', GeneralCategoryCotroller::class)->middleware('permission:عرض قسم إدارة التصنيفات|إدارة الأقسام الرئيسية');
     //   Health  Status Management
-    Route::resource('HealthStatus_name', HealthStatusCotroller::class);
+    Route::resource('HealthStatus_name', HealthStatusCotroller::class)->middleware('permission:عرض قسم إدارة التصنيفات|إدارة الحالة الصحية');
     //   Orphan Needs Management
-    Route::resource('orphan_needs', OrphanNeedController::class);
+    Route::resource('orphan_needs', OrphanNeedController::class)->middleware('permission:عرض قسم إدارة التصنيفات|إدارة احتياجات المكفول');
     //   Creativity Aspects Management
-    Route::resource('creativity_aspects', CreativityAspectController::class);
+    Route::resource('creativity_aspects', CreativityAspectController::class)->middleware('permission:عرض قسم إدارة التصنيفات|إدارة جوانب الإبداع');
     //   Housing Status Management
-    Route::resource('HousingStatus_name', HousingStatusController::class);
+    Route::resource('HousingStatus_name', HousingStatusController::class)->middleware('permission:عرض قسم إدارة التصنيفات|إدارة حالة المنزل');
     //   Marital Status Management
-    Route::resource('MaritalStatus_name', MaritalStatusController::class);
+    Route::resource('MaritalStatus_name', MaritalStatusController::class)->middleware('permission:عرض قسم إدارة التصنيفات|إدارة الحالة الاجتماعية');
     //   Province Name  Management
-    Route::resource('Province_name', ProvinceController::class);
+    Route::resource('Province_name', ProvinceController::class)->middleware('permission:عرض قسم إدارة التصنيفات|إدارة المحافظات');
     //   Request Status   Management
-    Route::resource('RequestStatus_name', RequestStatusController::class);
+    Route::resource('RequestStatus_name', RequestStatusController::class)->middleware('permission:عرض قسم إدارة التصنيفات|إدارة حالة الطلب');
     //   Sponsorship Status Management
-    Route::resource('SponsorshipStatus_name', SponsorshipStatusController::class);
+    Route::resource('SponsorshipStatus_name', SponsorshipStatusController::class)->middleware('permission:عرض قسم إدارة التصنيفات|إدارة حالة الكفالة');
     //   Type Of Accommodation Management
-    Route::resource('TypeOfAccommodation_name', TypeOfAccommodationController::class);
+    Route::resource('TypeOfAccommodation_name', TypeOfAccommodationController::class)->middleware('permission:عرض قسم إدارة التصنيفات|إدارة نوع السكن');
     //   Type Of Guarantee Management
-    Route::resource('TypeOfGuarantee_name', TypeOfGuaranteeController::class);
+    Route::resource('TypeOfGuarantee_name', TypeOfGuaranteeController::class)->middleware('permission:عرض قسم إدارة التصنيفات|إدارة نوع الكفالة');
     Route::get('records-management/{id}/show', [RecordsManagementEditController::class, 'show'])->name('records.management.show');
     Route::post('records-management/get-additional-info', [RecordsManagementEditController::class, 'getAdditionalInfo'])->name('records.management.getAdditionalInfo');
     Route::get('records-management/{id}/export-family-report', [RecordsManagementEditController::class, 'exportFamilyReport'])->name('records.management.export-family-report');
      // AJAX: جلب سجلات موظف مع pagination
     Route::get('ajax/admin-records/{admin}', [RecordsManagementEditController::class, 'ajaxAdminRecords'])->name('ajax.admin-records');
      // AJAX: جلب سجلات موظف مع pagination
-    Route::get('manage-folders', [FolderManagementController::class, 'index'])->name('manage.folders.index');
+    Route::get('manage-folders', [FolderManagementController::class, 'index'])
+        ->middleware('permission:عرض قسم إدارة الملفات|إدارة المجلدات')
+        ->name('manage.folders.index');
     Route::get('folders/contents', [FolderManagementController::class, 'getFolderContents'])->name('folders.contents');
     Route::get('folders/search', [FolderManagementController::class, 'search'])->name('folders.search');
     Route::get('folders/download-zip', [FolderManagementController::class, 'downloadFolderAsZip'])->name('folders.download.zip');
@@ -249,7 +275,7 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     // File Manager Route
     Route::get('file-manager', function () {
         return view('file-management.advanced-interface');
-    })->name('file.manager');
+    })->middleware('permission:عرض قسم إدارة الملفات|الوصول لبوابة الملفات')->name('file.manager');
 
     // File Management Routes
     Route::prefix('file')->group(function () {
@@ -278,7 +304,9 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
 
         // Excel Gateway Routes
         Route::get('excel-gateway', [UnifiedFileManagementController::class, 'showExcelGateway'])->name('file.excel.gateway');
-        Route::get('excel-gateway/sidebar', [AdminController::class, 'showExcelGatewaySidebar'])->name('file.excel.gateway.sidebar');
+        Route::get('excel-gateway/sidebar', [AdminController::class, 'showExcelGatewaySidebar'])
+            ->middleware('permission:عرض قسم إدارة الملفات|رفع ملفات اكسل')
+            ->name('file.excel.gateway.sidebar');
         Route::post('excel-upload', [UnifiedFileManagementController::class, 'processExcelUpload'])
             ->middleware('large.upload')
             ->name('file.excel.upload');
@@ -338,7 +366,9 @@ Route::prefix('test/api/file')->group(function () {
 Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     // Duplicate Files Management with Pagination - إدارة الملفات المكررة مع التقسيم للصفحات
     Route::prefix('duplicate-files')->group(function () {
-        Route::get('/', [UnifiedFileManagementController::class, 'duplicateFilesIndex'])->name('duplicate.files.index');
+        Route::get('/', [UnifiedFileManagementController::class, 'duplicateFilesIndex'])
+            ->middleware('permission:عرض قسم إدارة الملفات|إدارة الملفات المكررة')
+            ->name('duplicate.files.index');
         Route::get('test', function () {
             return view('admin.duplicate-files.test');
         })->name('duplicate.files.test');
@@ -377,7 +407,7 @@ Route::prefix('admin')->group(function () {
     Route::get('speedtest', [SpeedTestController::class, 'index'])->name('admin.speedtest.index');
     Route::get('speedtest/standalone', function() {
         return view('admin.speedtest.standalone');
-    })->name('admin.speedtest.standalone');
+    })->middleware('permission:عرض قسم أدوات النظام|اختبار سرعة الإنترنت')->name('admin.speedtest.standalone');
     Route::match(['get', 'post'], 'speedtest/api', [SpeedTestController::class, 'api'])->name('admin.speedtest.api');
     Route::get('speedtest/stats', [SpeedTestController::class, 'stats'])->name('admin.speedtest.stats');
 
@@ -442,7 +472,9 @@ Route::prefix('admin')->group(function () {
     })->name('admin.speedtest.test.api');
 
     // OpenSpeedTest Routes
-    Route::get('openspeedtest', [SpeedTestController::class, 'openSpeedTest'])->name('admin.openspeedtest.index');
+    Route::get('openspeedtest', [SpeedTestController::class, 'openSpeedTest'])
+        ->middleware('permission:عرض قسم أدوات النظام|OpenSpeedTest')
+        ->name('admin.openspeedtest.index');
     Route::get('openspeedtest/download', [SpeedTestController::class, 'download'])->name('admin.openspeedtest.download');
     Route::post('openspeedtest/upload', [SpeedTestController::class, 'upload'])->name('admin.openspeedtest.upload');
     Route::get('openspeedtest/getip', [SpeedTestController::class, 'getIP'])->name('admin.openspeedtest.getip');
@@ -541,8 +573,12 @@ Route::prefix('admin')->group(function () {
     // Civil Registry CRUD Routes - مسارات إدارة السجل المدني
     // Civil Registry CRUD Routes - مسارات إدارة السجل المدني
     Route::prefix('civil-registry')->group(function () {
-        Route::get('/', [CivilRegistryController::class, 'index'])->name('civil-registry.index');
-        Route::get('/create', [CivilRegistryController::class, 'create'])->name('civil-registry.create');
+        Route::get('/', [CivilRegistryController::class, 'index'])
+            ->middleware('permission:عرض قسم إدارة السجل المدني|السجل المدني الجديد')
+            ->name('civil-registry.index');
+        Route::get('/create', [CivilRegistryController::class, 'create'])
+            ->middleware('permission:عرض قسم إدارة السجل المدني|إضافة مواطن')
+            ->name('civil-registry.create');
         Route::post('/', [CivilRegistryController::class, 'store'])->name('civil-registry.store');
         Route::get('/{id}', [CivilRegistryController::class, 'show'])->name('civil-registry.show');
         Route::get('/{id}/edit', [CivilRegistryController::class, 'edit'])->name('civil-registry.edit');

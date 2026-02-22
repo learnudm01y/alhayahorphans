@@ -1,3 +1,4 @@
+@can('عرض تفاصيل الدور')
 <a href="{{ route('users.show', $user->id) }}"
    class="btn btn-light-info btn-sm me-1"
    data-bs-toggle="tooltip"
@@ -10,6 +11,8 @@
     </i>
     <span class="ms-1">عرض</span>
 </a>
+@endcan
+@can('تعديل مستخدم')
 <a href="{{ route('users.edit', $user->id) }}"
    class="btn btn-light-warning btn-sm me-1"
    data-bs-toggle="tooltip"
@@ -22,6 +25,8 @@
     </i>
     <span class="ms-1">تعديل</span>
 </a>
+@endcan
+@can('حذف مستخدم')
 {!! Form::open(['method' => 'DELETE','route' => ['users.destroy', $user->id],'style'=>'display:inline', 'id' => 'delete-form-'.$user->id]) !!}
 <button type="button"
         class="btn btn-light-danger btn-sm delete-btn"
@@ -37,3 +42,4 @@
     <span class="ms-1">حذف</span>
 </button>
 {!! Form::close() !!}
+@endcan

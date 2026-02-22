@@ -11,6 +11,15 @@ use Illuminate\Support\Facades\DB;
 
 class RoleController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('permission:عرض قسم إدارة الصلاحيات|صلاحيات المستخدمين', ['only' => ['index']]);
+        $this->middleware('permission:عرض تفاصيل الدور', ['only' => ['show']]);
+        $this->middleware('permission:إنشاء صلاحيات المستخدمين', ['only' => ['create', 'store']]);
+        $this->middleware('permission:تعديل صلاحية مستخدم', ['only' => ['edit', 'update']]);
+        $this->middleware('permission:حذف صلاحية مستخدم', ['only' => ['destroy']]);
+    }
+
     /**
      * Display a listing of the resource.
      *
