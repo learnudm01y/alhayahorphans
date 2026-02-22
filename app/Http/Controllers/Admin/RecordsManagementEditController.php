@@ -1455,6 +1455,11 @@ class RecordsManagementEditController extends Controller
      */
     public function exportFamilyReport($id, Request $request)
     {
+        $engine = strtolower((string) $request->query('engine', 'snappy'));
+        if (!in_array($engine, ['snappy', 'chromium'], true)) {
+            $engine = 'snappy';
+        }
+
         // جلب معرف الفرد المحدد
         $memberId = $request->query('member_id');
 
@@ -1634,8 +1639,7 @@ class RecordsManagementEditController extends Controller
             Log::warning('No report design found for sponsor', ['sponsor_id' => $sponsorId]);
         }
 
-        // توليد PDF
-        $pdf = PDF::loadView('admin.dashboard.reports.family_report', [
+        $viewData = [
             'guardian' => $data,
             'selectedMember' => $selectedMember,
             'familyMembers' => $familyMembers,
@@ -1645,17 +1649,69 @@ class RecordsManagementEditController extends Controller
             'computedDependents' => $computedDependents,
             'backgroundBase64' => $backgroundBase64,
             'customDesign' => $customDesign
-        ]);
+        ];
+
+        $fileName = 'family_report_' . $selectedMember->person_id . '.pdf';
+
+        if ($engine === 'chromium') {
+            $browsershotClass = 'Spatie\\Browsershot\\Browsershot';
+
+            if (class_exists($browsershotClass)) {
+                try {
+                    $html = view('admin.dashboard.reports.family_report', $viewData)->render();
+                    $browsershot = $browsershotClass::html($html)
+                        ->format('A4')
+                        ->margins(0, 0, 0, 0)
+                        ->showBackground()
+                        ->emulateMedia('print');
+
+                    if (config('app.env') === 'production' || env('BROWSERSHOT_NO_SANDBOX', false)) {
+                        $browsershot->noSandbox();
+                    }
+
+                    if ($chromePath = env('BROWSERSHOT_CHROME_PATH')) {
+                        $browsershot->setChromePath($chromePath);
+                    }
+
+                    $pdfContent = $browsershot->pdf();
+
+                    return response($pdfContent, 200, [
+                        'Content-Type' => 'application/pdf',
+                        'Content-Disposition' => 'inline; filename="' . $fileName . '"',
+                    ]);
+                } catch (\Throwable $e) {
+                    Log::error('Chromium PDF export failed, fallback to Snappy', [
+                        'message' => $e->getMessage(),
+                        'line' => $e->getLine(),
+                        'file_id' => $id,
+                        'member_id' => $memberId,
+                    ]);
+                }
+            } else {
+                Log::warning('Browsershot class is not installed, fallback to Snappy', [
+                    'file_id' => $id,
+                    'member_id' => $memberId,
+                ]);
+            }
+        }
+
+        // توليد PDF بمحرك Snappy (الافتراضي / fallback)
+        $pdf = PDF::loadView('admin.dashboard.reports.family_report', $viewData);
 
         // تحسين إعدادات PDF
         $pdf->setPaper('A4', 'portrait');
         $pdf->setOption('enable-local-file-access', true);
         $pdf->setOption('encoding', 'UTF-8');
+        $pdf->setOption('background', true);
+        $pdf->setOption('images', true);
+        $pdf->setOption('print-media-type', true);
+        $pdf->setOption('disable-smart-shrinking', true);
+        $pdf->setOption('zoom', 1);
         $pdf->setOption('margin-top', 0);
         $pdf->setOption('margin-bottom', 0);
         $pdf->setOption('margin-left', 0);
         $pdf->setOption('margin-right', 0);
 
-        return $pdf->stream('family_report_' . $selectedMember->person_id . '.pdf');
+        return $pdf->stream($fileName);
     }
 }

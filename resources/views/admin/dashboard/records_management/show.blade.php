@@ -620,6 +620,16 @@
                                         </div>
                                     @endif
 
+                                    <div class="form-group mb-2">
+                                        <label for="engine_select_{{ $member->id }}" class="form-label text-end d-block" style="font-size: 0.85rem;">
+                                            <i class="bi bi-cpu"></i> اختر محرك التصدير
+                                        </label>
+                                        <select id="engine_select_{{ $member->id }}" class="form-select form-select-sm export-engine-selector" style="font-size: 0.85rem;">
+                                            <option value="snappy" selected>Snappy (المحرك الحالي)</option>
+                                            <option value="chromium">Browsershot / Chromium</option>
+                                        </select>
+                                    </div>
+
                                     <div class="d-flex gap-2 justify-content-center">
                                         <button type="button" class="btn btn-sm btn-info view-more-btn"
                                                 data-type="family_member"
@@ -1047,30 +1057,57 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // معالج لتحديث رابط التصدير عند اختيار جمعية
 document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.sponsor-selector').forEach(function(select) {
-        select.addEventListener('change', function() {
-            const memberId = this.id.replace('sponsor_select_', '');
-            const exportBtn = document.querySelector(`.export-report-btn[data-member-id="${memberId}"]`);
+    function updateExportUrl(memberId) {
+        const exportBtn = document.querySelector(`.export-report-btn[data-member-id="${memberId}"]`);
+        if (!exportBtn) {
+            return;
+        }
 
-            if (exportBtn) {
-                // الحصول على الرابط الأساسي (مع member_id)
-                let baseUrl = exportBtn.getAttribute('href').split('?')[0];
+        const originalUrl = new URL(exportBtn.getAttribute('data-original-url') || exportBtn.href, window.location.origin);
+        const baseUrl = originalUrl.origin + originalUrl.pathname;
+        const memberIdParam = originalUrl.searchParams.get('member_id');
 
-                // الحصول على member_id من الرابط الأصلي
-                const originalUrl = new URL(exportBtn.getAttribute('data-original-url') || exportBtn.href, window.location.origin);
-                const memberIdParam = originalUrl.searchParams.get('member_id');
+        const sponsorSelect = document.getElementById(`sponsor_select_${memberId}`);
+        const engineSelect = document.getElementById(`engine_select_${memberId}`);
 
-                // بناء الرابط الجديد
-                if (this.value) {
-                    const newUrl = `${baseUrl}?member_id=${memberIdParam}&sponsor_id=${this.value}`;
-                    exportBtn.href = newUrl;
-                } else {
-                    // إذا لم يتم اختيار جمعية، نعود للرابط الأساسي
-                    const newUrl = `${baseUrl}?member_id=${memberIdParam}`;
-                    exportBtn.href = newUrl;
-                }
-            }
-        });
+        const params = new URLSearchParams();
+        if (memberIdParam) {
+            params.set('member_id', memberIdParam);
+        }
+
+        if (sponsorSelect && sponsorSelect.value) {
+            params.set('sponsor_id', sponsorSelect.value);
+        }
+
+        if (engineSelect && engineSelect.value) {
+            params.set('engine', engineSelect.value);
+        }
+
+        exportBtn.href = `${baseUrl}?${params.toString()}`;
+    }
+
+    document.querySelectorAll('.export-report-btn').forEach(function(btn) {
+        const memberId = btn.getAttribute('data-member-id');
+        if (!memberId) {
+            return;
+        }
+
+        const sponsorSelect = document.getElementById(`sponsor_select_${memberId}`);
+        const engineSelect = document.getElementById(`engine_select_${memberId}`);
+
+        if (sponsorSelect) {
+            sponsorSelect.addEventListener('change', function() {
+                updateExportUrl(memberId);
+            });
+        }
+
+        if (engineSelect) {
+            engineSelect.addEventListener('change', function() {
+                updateExportUrl(memberId);
+            });
+        }
+
+        updateExportUrl(memberId);
     });
 });
 </script>

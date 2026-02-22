@@ -36,21 +36,145 @@
             direction: rtl;
             box-sizing: border-box;
             font-size: 13px;
+            margin: 0;
+            position: relative;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
         }
 
         .page-container {
             width: 100%;
-            min-height: 340mm !important;
+            min-height: 100vh;
             height: auto;
-            background-color: white;
+            background-color: transparent;
             position: relative;
             padding: 30px 30px 40px 30px;
             box-sizing: border-box;
+            margin: 0;
+            overflow: visible;
         }
 
         .page-container > * {
             position: relative;
             z-index: 1;
+        }
+
+        .fixed-bg-layer {
+            position: fixed;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-repeat: no-repeat;
+            background-position: center center;
+            background-size: 100% 100%;
+            z-index: 0;
+        }
+
+        .fixed-bg-part {
+            position: fixed;
+            right: 0;
+            left: 0;
+            width: 100%;
+            z-index: 0;
+            background-repeat: no-repeat;
+            background-position: center center;
+            background-size: 100% 100%;
+        }
+
+        .fixed-bg-header {
+            top: 0;
+            height: 15%;
+        }
+
+        .fixed-bg-main {
+            top: 15%;
+            height: 70%;
+        }
+
+        .fixed-bg-footer {
+            bottom: 0;
+            height: 15%;
+        }
+
+        .keep-together {
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+
+        .document-page {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            flex-direction: column;
+            padding: 30px 30px 30px 30px;
+            page-break-before: always;
+        }
+
+        .document-title {
+            text-align: center;
+            margin-bottom: 12px;
+            font-size: 26px;
+            font-weight: bold;
+        }
+
+        .document-name {
+            text-align: center;
+            margin-bottom: 16px;
+            font-size: 22px;
+        }
+
+        .document-heading-line {
+            width: 100%;
+            text-align: center;
+            margin-top: 6px;
+            margin-bottom: 18px;
+            font-weight: bold;
+            direction: rtl;
+            unicode-bidi: plaintext;
+        }
+
+        .document-heading-line .document-title {
+            display: inline;
+            margin: 0;
+        }
+
+        .document-heading-line .document-separator {
+            display: inline;
+            margin: 0 10px;
+            font-size: 24px;
+            color: #666;
+            font-weight: 700;
+        }
+
+        .document-heading-line .document-name {
+            display: inline;
+            margin: 0;
+        }
+
+        .document-image-wrap {
+            width: 100%;
+            height: 220mm;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            text-align: center;
+        }
+
+        .document-image {
+            max-width: 95%;
+            max-height: 215mm;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            display: block;
+            margin: 0 auto;
+            border: 4px solid;
+            box-shadow: 0 6px 25px rgba(0,0,0,0.2);
+            border-radius: 4px;
         }
 
         /* Colors - Using dynamic colors */
@@ -226,6 +350,37 @@ td {
             margin: 0 auto;
         }
 
+        .orphan-photo-cell {
+            width: 133px !important;
+            min-width: 133px !important;
+            max-width: 133px !important;
+            padding: 3px;
+        }
+
+        .orphan-photo-cell img {
+            width: 129px;
+            height: 207px;
+            object-fit: cover;
+            object-position: center center;
+            display: block;
+            margin: 0 auto;
+            border: 1px solid #111;
+            image-rendering: -webkit-optimize-contrast;
+        }
+
+        .orphan-photo-placeholder {
+            width: 129px;
+            height: 207px;
+            background: #f0f0f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: #999;
+            border: 1px solid #111;
+            box-sizing: border-box;
+        }
+
 /* Specific Height Balancing - Removed to maintain uniform padding */
 
 /* Siblings Table Styling */
@@ -275,7 +430,7 @@ td {
             width: 16.66%;
             border: 1px solid #000;
             background: white;
-            padding: 4px; /* Reduced padding */
+            padding: 3px;
             text-align: center;
             vertical-align: top;
         }
@@ -287,12 +442,15 @@ td {
         }
 
         .photo-item img {
-            width: 70%; /* Constrain width to make portrait */
-            max-width: 90px; /* Maximum width */
-            height: 130px; /* Taller than wide - portrait orientation */
-            object-fit: cover;
+            width: 100%;
+            max-width: none;
+            height: 145px;
+            object-fit: contain;
+            object-position: center center;
             display: block;
-            margin: 0 auto 3px auto;
+            margin: 0 auto 4px auto;
+            background: #fff;
+            border: 1px solid #111;
         }
 
         .photo-item .caption {
@@ -356,29 +514,23 @@ td {
 </head>
 
 <body>
-    <div class="page-container">
-        @if($backgroundType === 'single' && !empty($singleBg))
-        <!-- خلفية واحدة -->
-        <img src="{{ $singleBg }}"
-             style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 0;">
-        @endif
+    @if($backgroundType === 'single' && !empty($singleBg))
+    <div class="fixed-bg-layer" style="background-image: url('{{ $singleBg }}');"></div>
+    @endif
 
-        @if($backgroundType === 'triple')
-        <!-- خلفيات ثلاثية -->
+    @if($backgroundType === 'triple')
         @if(!empty($customDesign['header_image']))
-        <img src="{{ $customDesign['header_image'] }}"
-             style="position: absolute; top: 0; left: 0; right: 0; width: 100%; height: 15%; object-fit: cover; z-index: 0;">
+        <div class="fixed-bg-part fixed-bg-header" style="background-image: url('{{ $customDesign['header_image'] }}');"></div>
         @endif
         @if(!empty($customDesign['main_image']))
-        <img src="{{ $customDesign['main_image'] }}"
-             style="position: absolute; top: 15%; left: 0; right: 0; width: 100%; height: 70%; object-fit: cover; z-index: 0;">
+        <div class="fixed-bg-part fixed-bg-main" style="background-image: url('{{ $customDesign['main_image'] }}');"></div>
         @endif
         @if(!empty($customDesign['footer_image']))
-        <img src="{{ $customDesign['footer_image'] }}"
-             style="position: absolute; bottom: 0; left: 0; right: 0; width: 100%; height: 15%; object-fit: cover; z-index: 0;">
+        <div class="fixed-bg-part fixed-bg-footer" style="background-image: url('{{ $customDesign['footer_image'] }}');"></div>
         @endif
-        @endif
+    @endif
 
+    <div class="page-container">
         <!-- Header -->
         <header class="header">
             <div class="logo-container">
@@ -408,7 +560,7 @@ td {
                                         <tr>
                                             <td class="label">رقم الهوية</td>
                                             <td class="value">{{ $selectedMember->person_id }}</td>
-                                            <td class="photo-cell" rowspan="6">
+                                            <td class="photo-cell orphan-photo-cell" rowspan="6">
                                                 @php
                                                     // البحث عن الصورة الشخصية للمكفول المحدد
                                                     $orphanPhoto = null;
@@ -465,7 +617,7 @@ td {
                                                 @if($orphanPhotoPath)
                                                     <img src="{{ $orphanPhotoPath }}" alt="صورة اليتيم">
                                                 @else
-                                                    <div style="width:120px; height:160px; background:#f0f0f0; display:flex; align-items:center; justify-content:center; font-size:10px; color:#999;">لا توجد صورة</div>
+                                                    <div class="orphan-photo-placeholder">لا توجد صورة</div>
                                                 @endif
                                             </td>
                                         </tr>
@@ -737,7 +889,7 @@ td {
     <!-- صفحات منفصلة للوثائق الأخرى (غير الصور الشخصية) -->
     @if(isset($otherDocuments) && $otherDocuments->count() > 0)
         @foreach($otherDocuments as $document)
-            <div class="page-container" style="page-break-before: always; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 30px;">
+              <div class="page-container document-page">
                 @php
                     // الحصول على نوع الوثيقة
                     $docTypeName = 'وثيقة';
@@ -793,17 +945,17 @@ td {
                 @endphp
 
                 <!-- عنوان الوثيقة واسم الشخص فوق الصورة -->
-                <h2 style="text-align: center; color: {{ $primaryColor }}; margin-bottom: 15px; font-size: 26px; font-weight: bold;">
-                    {{ $docTypeName }}
-                </h2>
-                <h3 style="text-align: center; color: {{ $accentColor }}; margin-bottom: 25px; font-size: 22px;">
-                    {{ $personName }}
-                </h3>
+                <div class="document-heading-line">
+                    <span class="document-title" style="color: {{ $primaryColor }};">{{ $docTypeName }}</span>
+                    <span class="document-separator">/</span>
+                    <span class="document-name" style="color: {{ $accentColor }};">{{ $personName }}</span>
+                </div>
 
                 @if($base64Image)
-                    <div style="text-align: center; width: 100%; flex-grow: 1; display: flex; align-items: center; justify-content: center;">
+                    <div class="document-image-wrap keep-together">
                         <img src="{{ $base64Image }}"
-                             style="max-width: 95%; max-height: 80vh; width: auto; height: auto; object-fit: contain; border: 4px solid {{ $primaryColor }}; box-shadow: 0 6px 25px rgba(0,0,0,0.2); border-radius: 4px;"
+                             class="document-image keep-together"
+                             style="border-color: {{ $primaryColor }};"
                              alt="{{ $docTypeName }}">
                     </div>
                 @elseif($fileExists && !$isImage)
