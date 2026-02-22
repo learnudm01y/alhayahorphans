@@ -41,11 +41,11 @@ class RcloneGoogleDriveService
 
     public function __construct()
     {
-        // قراءة الإعدادات من .env أو استخدام القيم الافتراضية
-        $this->rclonePath = env('RCLONE_PATH', '/usr/bin/rclone');
-        $this->remoteName = env('RCLONE_REMOTE_NAME', 'alhayah');
-        $this->rootFolder = env('RCLONE_ROOT_FOLDER', 'temp');
-        $this->configPath = env('RCLONE_CONFIG', null);
+        // قراءة الإعدادات من config (تعمل بشكل صحيح مع config:cache)
+        $this->rclonePath = config('services.rclone.path', env('RCLONE_PATH', '/usr/bin/rclone'));
+        $this->remoteName = config('services.rclone.remote_name', env('RCLONE_REMOTE_NAME', 'alhayahorphans'));
+        $this->rootFolder = config('services.rclone.root_folder', env('RCLONE_ROOT_FOLDER', 'temp'));
+        $this->configPath = config('services.rclone.config', env('RCLONE_CONFIG', null));
 
         // التحقق من وجود Rclone
         if (!file_exists($this->rclonePath)) {

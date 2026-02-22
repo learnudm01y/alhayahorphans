@@ -4311,14 +4311,14 @@ class SponsorshipSyncController extends Controller
 
             // حفظ الملف محلياً أولاً
             $localPath = storage_path('app/mobile_uploads/' . $this->sanitizeFolderName($organizationName) . '/' . $this->sanitizeFolderName($orphanName));
-            
+
             Log::info('💾 Saving file locally', [
                 'local_path' => $localPath,
                 'file_name' => $fileName,
                 'file_size_bytes' => strlen($fileData),
                 'file_size_mb' => round(strlen($fileData) / 1024 / 1024, 2),
             ]);
-            
+
             if (!file_exists($localPath)) {
                 mkdir($localPath, 0755, true);
                 Log::info('✅ Created directory: ' . $localPath);
@@ -4326,7 +4326,7 @@ class SponsorshipSyncController extends Controller
 
             $fullPath = $localPath . '/' . $fileName;
             file_put_contents($fullPath, $fileData);
-            
+
             Log::info('✅ File saved locally', [
                 'full_path' => $fullPath,
                 'file_exists' => file_exists($fullPath),
@@ -4379,7 +4379,7 @@ class SponsorshipSyncController extends Controller
             ]);
 
             // محاولة الرفع باستخدام Rclone (الطريقة الرئيسية على الخادم)
-            $useRclone = env('USE_RCLONE_FOR_UPLOADS', false);
+            $useRclone = config('services.rclone.enabled', env('USE_RCLONE_FOR_UPLOADS', false));
 
             if ($useRclone) {
                 try {

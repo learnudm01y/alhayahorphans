@@ -1315,8 +1315,8 @@ class GenerateOrphanReportPdf implements ShouldQueue
             }
 
             // التحقق من وجود إعدادات Rclone
-            $rclonePath = env('RCLONE_PATH');
-            $rcloneRemote = env('RCLONE_REMOTE_NAME');
+            $rclonePath = config('services.rclone.path', env('RCLONE_PATH'));
+            $rcloneRemote = config('services.rclone.remote_name', env('RCLONE_REMOTE_NAME'));
 
             if (!$rclonePath || !$rcloneRemote) {
                 Log::warning('Google Drive upload skipped - Rclone configuration missing', [

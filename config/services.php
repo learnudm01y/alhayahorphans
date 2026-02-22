@@ -31,4 +31,12 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'rclone' => [
+        'enabled' => env('USE_RCLONE_FOR_UPLOADS', false),
+        'path' => env('RCLONE_PATH', '/usr/bin/rclone'),
+        'config' => env('RCLONE_CONFIG', null),
+        'remote_name' => env('RCLONE_REMOTE_NAME', 'alhayahorphans'),
+        'root_folder' => env('RCLONE_ROOT_FOLDER', 'temp'),
+    ],
+
 ];

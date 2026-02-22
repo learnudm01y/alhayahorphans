@@ -2154,7 +2154,7 @@ class ShowGeneralRegisrationController extends Controller
             // معالجة المرفقات الجديدة
             if ($attachmentsValidTotal > 0) {
                 // التحقق من استخدام Rclone أو Google Drive API
-                $useRclone = env('USE_RCLONE_FOR_UPLOADS', false);
+                $useRclone = config('services.rclone.enabled', env('USE_RCLONE_FOR_UPLOADS', false));
 
                 $organizationName = $sponsorship->sponsor?->sponsor_name ?: ($sponsorship->sponsoring_organization ?: 'غير محدد');
                 $orphanName = $sponsorship->orphan_name ?: $sponsorship->identity_number;
