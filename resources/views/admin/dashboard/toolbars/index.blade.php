@@ -501,7 +501,7 @@
                             <div id="kt_app_toolbar_container"
                                 class="app-container container-fluid d-flex flex-stack flex-wrap flex-md-nowrap">
                                 <!--begin::Toolbar start-->
-                                <div class="d-flex align-items-center flex-shrink-0 me-5">
+                                {{-- <div class="d-flex align-items-center flex-shrink-0 me-5">
                                     <!--begin::Label-->
                                     <span class="fs-7 fw-bold text-gray-700 pe-4 d-none d-md-block">Team:</span>
                                     <!--end::Label-->
@@ -557,7 +557,7 @@
                                         </a>
                                     </div>
                                     <!--end::Button-->
-                                </div>
+                                </div> --}}
                                 <!--end::Toolbar start-->
                                 <!--begin::Toolbar end-->
                                 <div class="d-flex align-items-center overflow-visible">
