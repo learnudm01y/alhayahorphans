@@ -336,6 +336,13 @@ class SponsorController extends Controller
     {
         try {
             $sponsor = Sponsor::findOrFail($sponsorId);
+            $legacyUnmanagedColumns = [
+                'field_re_guardian_name',
+                'field_re_guardian_phone',
+                'field_re_guardian_id',
+                'field_family_members_count',
+                'field_mother_name',
+            ];
 
             // جلب أو إنشاء إعدادات الحقول للجمعية
             $fieldSettings = $sponsor->fieldSettings;
@@ -362,7 +369,9 @@ class SponsorController extends Controller
                     'category_id' => $fieldInfo['category_id'],
                     'order' => $fieldInfo['order'],
                     'required' => $fieldInfo['required'],
-                    'active' => (bool) $fieldSettings->{$key},
+                    'active' => in_array($fieldInfo['db_column'], $legacyUnmanagedColumns, true)
+                        ? false
+                        : (bool) ($fieldSettings->{$key} ?? false),
                 ];
             }
 
@@ -432,6 +441,13 @@ class SponsorController extends Controller
             $sectionFields = config('sponsor_fields.section_fields', []);
             $allDbColumns = array_column($fieldsConfig, 'db_column');
             $sectionDbColumns = array_column($sectionFields, 'db_column');
+            $legacyUnmanagedColumns = [
+                'field_re_guardian_name',
+                'field_re_guardian_phone',
+                'field_re_guardian_id',
+                'field_family_members_count',
+                'field_mother_name',
+            ];
 
             // تعيين جميع الحقول إلى 0 (غير مفعل)
             foreach ($allDbColumns as $column) {
@@ -447,6 +463,13 @@ class SponsorController extends Controller
             foreach ($validated['fields'] as $dbColumn) {
                 if (in_array($dbColumn, $allColumns)) {
                     $fieldSettings->{$dbColumn} = 1;
+                }
+            }
+
+            // إيقاف الحقول غير المُدارة بشكل صارم
+            foreach ($legacyUnmanagedColumns as $legacyColumn) {
+                if (in_array($legacyColumn, $allColumns, true)) {
+                    $fieldSettings->{$legacyColumn} = 0;
                 }
             }
 

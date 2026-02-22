@@ -16,6 +16,7 @@ use App\Models\RePeople;
 use App\Models\DeadPepole;
 use App\Models\PortalGeneralRegistrationFieldValue;
 use App\Models\Attachment;
+use App\Models\SponsorFieldSetting;
 use Barryvdh\Snappy\Facades\SnappyPdf as PDF;
 
 class GenerateOrphanReportPdf implements ShouldQueue
@@ -291,10 +292,15 @@ class GenerateOrphanReportPdf implements ShouldQueue
         $data['orphan_health_status'] = $orphanHealthStatus ?? $na;
         $data['health_status'] = $data['orphan_health_status']; // نسخ للعرض
 
-        // الاحتياجات والإبداع (من portal فقط)
-        $data['orphan_needs'] = $portalFields->get('field_orphan_needs')?->field_value ?? $na;
+        // الاحتياجات والإبداع
+        // نستخدم fallback ذكي حتى لا تختفي الحقول عند تفعيلها بسبب قيم افتراضية غير قابلة للعرض
+        $portalOrphanNeeds = $this->normalizeValue($portalFields->get('field_orphan_needs')?->field_value ?? null);
+        $dataRecordOrphanNeeds = $this->normalizeValue($data['description_needs'] ?? null);
+        $data['orphan_needs'] = $portalOrphanNeeds ?? $dataRecordOrphanNeeds ?? 'Unknown';
         $data['description_needs'] = $data['orphan_needs']; // نسخ للعرض
-        $data['creativity_aspects'] = $portalFields->get('field_creativity_aspects')?->field_value ?? $na;
+
+        $portalCreativityAspects = $this->normalizeValue($portalFields->get('field_creativity_aspects')?->field_value ?? null);
+        $data['creativity_aspects'] = $portalCreativityAspects ?? 'Unknown';
 
         // تأثير الكفالة والأحداث (من portal فقط)
         $data['sponsorship_impact'] = $portalFields->get('field_sponsorship_impact')?->field_value ?? $na;
@@ -765,6 +771,11 @@ class GenerateOrphanReportPdf implements ShouldQueue
         // باقي الوثائق (بدون الصور الشخصية)
         $data['attachments'] = $otherAttachments;
 
+        // تطبيق إعدادات الحقول وتنظيف القيم الفارغة/الافتراضية
+        $fieldSettings = $this->getSponsorFieldSettings($sponsorship);
+        $data = $this->applyFieldSettingsAndSanitize($data, $fieldSettings);
+        $data['visible_fields'] = $this->buildVisibleFieldMap($fieldSettings);
+
         Log::info('COLLECT_REPORT_DATA_COMPLETE', [
             'data_fields_filled' => array_filter($data, function($v) { return $v !== self::NOT_AVAILABLE; }),
             'family_members_count' => count($data['family_members']),
@@ -1022,6 +1033,186 @@ class GenerateOrphanReportPdf implements ShouldQueue
         ]);
 
         return $attachments;
+    }
+
+    private function getSponsorFieldSettings($sponsorship): ?SponsorFieldSetting
+    {
+        if (empty($sponsorship->sponsor_id)) {
+            return null;
+        }
+
+        return SponsorFieldSetting::where('sponsor_id', $sponsorship->sponsor_id)->first();
+    }
+
+    private function buildVisibleFieldMap(?SponsorFieldSetting $settings): array
+    {
+        $legacyDisabled = [
+            'field_re_guardian_name' => false,
+            'field_re_guardian_phone' => false,
+            'field_re_guardian_id' => false,
+            'field_family_members_count' => false,
+            'field_mother_name' => false,
+        ];
+
+        if (!$settings) {
+            return $legacyDisabled;
+        }
+
+        return array_merge([
+            'field_external_file_number' => (bool) $settings->field_external_file_number,
+            'field_sponsor_name' => (bool) $settings->field_sponsor_name,
+            'field_phone' => (bool) $settings->field_phone,
+            'field_housing_status' => (bool) $settings->field_housing_status,
+            'field_housing_type' => (bool) $settings->field_housing_type,
+            'field_data_city' => (bool) $settings->field_data_city,
+            'field_school_address' => (bool) $settings->field_school_address,
+            'field_grade' => (bool) $settings->field_grade,
+            'field_student_level' => (bool) $settings->field_student_level,
+            'field_weakness_reason' => (bool) $settings->field_weakness_reason,
+            'field_psychological_state' => (bool) $settings->field_psychological_state,
+            'field_behavioral_state' => (bool) $settings->field_behavioral_state,
+            'field_religious_commitment' => (bool) $settings->field_religious_commitment,
+            'field_quran_memorization' => (bool) $settings->field_quran_memorization,
+            'field_health_status' => (bool) $settings->field_health_status,
+            'field_orphan_needs' => (bool) $settings->field_orphan_needs,
+            'field_creativity_aspects' => (bool) $settings->field_creativity_aspects,
+            'field_data_first_name' => (bool) ($settings->field_data_first_name ?? false),
+            'field_data_father_name' => (bool) ($settings->field_data_father_name ?? false),
+            'field_data_grand_father_name' => (bool) ($settings->field_data_grand_father_name ?? false),
+            'field_data_family_name' => (bool) ($settings->field_data_family_name ?? false),
+            'field_data_relationship' => (bool) ($settings->field_data_relationship ?? false),
+            'field_dependents_female' => (bool) ($settings->field_dependents_female ?? false),
+            'field_dependents_male' => (bool) ($settings->field_dependents_male ?? false),
+            'field_mother_name' => false,
+            'field_mother_first_name' => (bool) ($settings->field_mother_first_name ?? false),
+            'field_living_mother_first_name' => (bool) ($settings->field_living_mother_first_name ?? false),
+            'field_mother_status' => (bool) ($settings->field_mother_status ?? false),
+            'field_mother_id' => (bool) $settings->field_mother_id,
+            'field_living_mother_id' => (bool) ($settings->field_living_mother_id ?? false),
+            'field_relationship' => (bool) $settings->field_relationship,
+            'field_guardian_health' => (bool) $settings->field_guardian_health,
+            'field_guardian_job' => (bool) $settings->field_guardian_job,
+            'field_family_members_count' => false,
+            'field_sponsorship_impact' => (bool) $settings->field_sponsorship_impact,
+            'field_important_events' => (bool) $settings->field_important_events,
+            'field_data_update_date' => (bool) $settings->field_data_update_date,
+            'field_family_members_section' => (bool) $settings->field_family_members_section,
+            'field_attachments_section' => (bool) $settings->field_attachments_section,
+        ], $legacyDisabled);
+    }
+
+    private function applyFieldSettingsAndSanitize(array $data, ?SponsorFieldSetting $settings): array
+    {
+        foreach ($data as $key => $value) {
+            if (is_array($value)) {
+                continue;
+            }
+
+            $data[$key] = $this->normalizeValue($value);
+        }
+
+        $fieldMap = [
+            'file_number' => 'field_external_file_number',
+            'orphan_name' => 'field_sponsor_name',
+            'phone_number' => 'field_phone',
+            'housing_status' => 'field_housing_status',
+            'housing_type' => 'field_housing_type',
+            'city' => 'field_data_city',
+            'school_address' => 'field_school_address',
+            'academic_stage' => 'field_grade',
+            'student_level' => 'field_student_level',
+            'weakness_reason' => 'field_weakness_reason',
+            'psychological_status' => 'field_psychological_state',
+            'behavioral_status' => 'field_behavioral_state',
+            'religious_commitment' => 'field_religious_commitment',
+            'quran_memorization' => 'field_quran_memorization',
+            'orphan_health_status' => 'field_health_status',
+            'orphan_needs' => 'field_orphan_needs',
+            'creativity_aspects' => 'field_creativity_aspects',
+            'guardian_name' => 'field_data_first_name',
+            'guardian_full_name' => 'field_data_first_name',
+            'guardian_identity_number' => 'field_re_guardian_id',
+            'guardian_relation' => 'field_data_relationship',
+            'guardian_health' => 'field_guardian_health',
+            'guardian_job' => 'field_guardian_job',
+            'dependents_count' => 'field_dependents_male',
+            'sponsorship_impact' => 'field_sponsorship_impact',
+            'family_events' => 'field_important_events',
+            'timestamp' => 'field_data_update_date',
+        ];
+
+        if ($settings) {
+            foreach ($fieldMap as $dataKey => $settingKey) {
+                if (array_key_exists($dataKey, $data) && isset($settings->{$settingKey}) && (int)$settings->{$settingKey} !== 1) {
+                    $data[$dataKey] = null;
+                }
+            }
+
+            $guardianNameEnabled = ((int) ($settings->field_data_first_name ?? 0) === 1)
+                || ((int) ($settings->field_data_father_name ?? 0) === 1)
+                || ((int) ($settings->field_data_grand_father_name ?? 0) === 1)
+                || ((int) ($settings->field_data_family_name ?? 0) === 1)
+                || ((int) ($settings->field_re_guardian_name ?? 0) === 1);
+            if (array_key_exists('guardian_full_name', $data) && !$guardianNameEnabled) {
+                $data['guardian_full_name'] = null;
+            }
+
+            $guardianRelationEnabled = ((int) ($settings->field_data_relationship ?? 0) === 1)
+                || ((int) ($settings->field_relationship ?? 0) === 1);
+            if (array_key_exists('guardian_relation', $data) && !$guardianRelationEnabled) {
+                $data['guardian_relation'] = null;
+            }
+
+            $dependentsEnabled = ((int) ($settings->field_dependents_female ?? 0) === 1)
+                || ((int) ($settings->field_dependents_male ?? 0) === 1)
+                || ((int) ($settings->field_family_members_count ?? 0) === 1);
+            if (array_key_exists('dependents_count', $data) && !$dependentsEnabled) {
+                $data['dependents_count'] = null;
+            }
+
+            $motherNameEnabled = ((int) ($settings->field_mother_first_name ?? 0) === 1)
+                || ((int) ($settings->field_living_mother_first_name ?? 0) === 1);
+            if (array_key_exists('mother_name', $data) && !$motherNameEnabled) {
+                $data['mother_name'] = null;
+            }
+
+            $motherIdEnabled = ((int) ($settings->field_mother_id ?? 0) === 1)
+                || ((int) ($settings->field_living_mother_id ?? 0) === 1);
+            if (array_key_exists('mother_id', $data) && !$motherIdEnabled) {
+                $data['mother_id'] = null;
+            }
+
+            $motherStatusEnabled = ((int) ($settings->field_mother_status ?? 0) === 1);
+            if (array_key_exists('mother_alive', $data) && !$motherStatusEnabled) {
+                $data['mother_alive'] = null;
+            }
+
+            if (isset($settings->field_family_members_section) && (int)$settings->field_family_members_section !== 1) {
+                $data['family_members'] = [];
+            }
+        }
+
+        return $data;
+    }
+
+    private function normalizeValue($value)
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            $invalidValues = ['(/)', '/|\\', '/', '\\', '-', 'غير متوفر', 'null', 'NULL', 'N/A'];
+
+            if ($trimmed === '' || in_array($trimmed, $invalidValues, true)) {
+                return null;
+            }
+
+            return $trimmed;
+        }
+
+        return $value;
     }
 
     /**

@@ -90,6 +90,13 @@ class ShowGeneralRegisrationController extends Controller
         $fieldSettings = null;
         $enabledFields = [];
         $fieldsConfig = config('sponsor_fields.fields', []);
+        $legacyUnmanagedFields = [
+            'field_re_guardian_name',
+            'field_re_guardian_phone',
+            'field_re_guardian_id',
+            'field_family_members_count',
+            'field_mother_name',
+        ];
 
         if ($sponsorId) {
             $fieldSettings = SponsorFieldSetting::where('sponsor_id', $sponsorId)->first();
@@ -97,13 +104,22 @@ class ShowGeneralRegisrationController extends Controller
             if ($fieldSettings) {
                 // جلب الحقول المفعلة فقط (القيمة = 1)
                 foreach ($fieldsConfig as $fieldKey => $fieldInfo) {
+                    if (in_array($fieldKey, $legacyUnmanagedFields, true)) {
+                        continue;
+                    }
+
                     if (isset($fieldSettings->{$fieldKey}) && $fieldSettings->{$fieldKey} == 1) {
                         $enabledFields[$fieldKey] = $fieldInfo;
                     }
                 }
             } else {
                 // إذا لم توجد إعدادات، نعرض كل الحقول
-                $enabledFields = $fieldsConfig;
+                foreach ($fieldsConfig as $fieldKey => $fieldInfo) {
+                    if (in_array($fieldKey, $legacyUnmanagedFields, true)) {
+                        continue;
+                    }
+                    $enabledFields[$fieldKey] = $fieldInfo;
+                }
             }
         }
 
