@@ -24,6 +24,7 @@ class BulkExportSponsorshipForms implements ShouldQueue
 
     protected $sponsorId;
     protected $sponsorshipStatusId;
+    protected $updatedOnly;
     protected $batchSize = 10; // معالجة 10 استمارات في كل دفعة
     protected $offset = 0; // رقم البداية للمعالجة
     protected $processInSingleJob = true; // معالجة كل الملفات في job واحد
@@ -49,10 +50,11 @@ class BulkExportSponsorshipForms implements ShouldQueue
      * @param int $sponsorId معرف الجمعية
      * @param int|null $sponsorshipStatusId معرف حالة الكفالة (اختياري)
      */
-    public function __construct(int $sponsorId, ?int $sponsorshipStatusId = null)
+    public function __construct(int $sponsorId, ?int $sponsorshipStatusId = null, bool $updatedOnly = false)
     {
         $this->sponsorId = $sponsorId;
         $this->sponsorshipStatusId = $sponsorshipStatusId;
+        $this->updatedOnly = $updatedOnly;
     }
 
     /**
@@ -61,7 +63,7 @@ class BulkExportSponsorshipForms implements ShouldQueue
     public function handle(): void
     {
         // إنشاء مفتاح قفل فريد لهذه العملية
-        $lockKey = "export_forms_{$this->sponsorId}_{$this->sponsorshipStatusId}";
+        $lockKey = "export_forms_{$this->sponsorId}_{$this->sponsorshipStatusId}_" . ($this->updatedOnly ? 'updated' : 'all');
 
         // محاولة الحصول على القفل (timeout: 7200 ثانية = 2 ساعة)
         $lock = Cache::lock($lockKey, 7200);
@@ -111,13 +113,28 @@ class BulkExportSponsorshipForms implements ShouldQueue
                 $query->where('sponsorship_status_id', $this->sponsorshipStatusId);
             }
 
+            if ($this->updatedOnly) {
+                $query->where(function ($q) {
+                    $q->whereExists(function ($sub) {
+                        $sub->select('id')
+                            ->from('portal_general_registration_field_values as pgv')
+                            ->whereColumn('pgv.sponsorship_id', 'sponsorships.id');
+                    })->orWhereExists(function ($sub) {
+                        $sub->select('id')
+                            ->from('portal_general_registration_field_values as pgv')
+                            ->whereColumn('pgv.identity_number', 'sponsorships.identity_number');
+                    });
+                });
+            }
+
             // حساب إجمالي عدد الكفالات
             $totalCount = $query->count();
 
             Log::info('BulkExportSponsorshipForms: Total sponsorships to process', [
                 'count' => $totalCount,
                 'sponsor_id' => $this->sponsorId,
-                'status_filter' => $this->sponsorshipStatusId
+                'status_filter' => $this->sponsorshipStatusId,
+                'updated_only' => $this->updatedOnly
             ]);
 
             if ($totalCount === 0) {
@@ -175,7 +192,8 @@ class BulkExportSponsorshipForms implements ShouldQueue
                 'total' => $totalCount,
                 'processed' => $processedCount,
                 'success' => $successCount,
-                'failed' => $failedCount
+                'failed' => $failedCount,
+                'updated_only' => $this->updatedOnly
             ]);
 
         } catch (\Exception $e) {
@@ -203,6 +221,7 @@ class BulkExportSponsorshipForms implements ShouldQueue
         Log::error('BulkExportSponsorshipForms: Job failed after all retries', [
             'sponsor_id' => $this->sponsorId,
             'sponsorship_status_id' => $this->sponsorshipStatusId,
+            'updated_only' => $this->updatedOnly,
             'error' => $exception->getMessage()
         ]);
 

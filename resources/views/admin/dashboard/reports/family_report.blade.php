@@ -48,7 +48,7 @@
             height: auto;
             background-color: transparent;
             position: relative;
-            padding: 30px 30px 40px 30px;
+            padding: 22px 30px 36px 30px;
             box-sizing: border-box;
             margin: 0;
             overflow: visible;
@@ -186,13 +186,13 @@
         /* Header */
         .header {
             text-align: center;
-            margin-bottom: 15px;
-            padding-bottom: 5px;
+            margin-bottom: 8px;
+            padding-bottom: 2px;
         }
 
 /* Logo Section */
 .logo-container {
-    margin-bottom: 30px;
+    margin-bottom: 6px;
 }
 
 .logo-text h1 {
@@ -217,11 +217,11 @@
 /* Form Title */
 .form-title {
     color: {{ $accentColor }};
-    font-size: 28px; /* Reduced */
+    font-size: 22px;
     font-weight: 700;
     text-align: center;
-    border-bottom: 3px solid {{ $accentColor }};
-    padding-bottom: 4px;
+    border-bottom: 2px solid {{ $accentColor }};
+    padding-bottom: 2px;
     display: inline-block;
     margin: 0 auto;
 }
@@ -330,6 +330,107 @@ td {
     padding: 6px 6px; /* Reduced */
     font-size: 14px; /* Reduced */
     white-space: nowrap;
+}
+
+table.compact-deceased-table {
+    table-layout: fixed;
+}
+
+table.compact-deceased-table td,
+table.compact-deceased-table th {
+    font-size: 11px;
+    padding: 4px 5px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+table.compact-deceased-table th {
+    background-color: {{ $secondaryColor }};
+    color: #fff;
+    font-weight: 700;
+}
+
+table.compact-deceased-table .value {
+    background-color: #fff;
+    color: #333;
+    font-weight: 700;
+}
+
+table.compact-deceased-table .marker-value {
+    font-size: 11px;
+    width: 12%;
+}
+
+table.compact-deceased-table .name-value {
+    width: 44%;
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+table.compact-deceased-table thead th:first-child {
+    width: 12%;
+}
+
+table.compact-deceased-table thead th:nth-child(2) {
+    width: 44%;
+}
+
+table.compact-deceased-table thead th:nth-child(3),
+table.compact-deceased-table thead th:nth-child(4),
+table.compact-deceased-table thead th:nth-child(5) {
+    width: 14%;
+}
+
+table.compact-live-mother-table {
+    table-layout: fixed;
+}
+
+table.compact-live-mother-table td,
+table.compact-live-mother-table th {
+    font-size: 11px;
+    padding: 4px 5px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+table.compact-live-mother-table th {
+    background-color: {{ $secondaryColor }};
+    color: #fff;
+    font-weight: 700;
+}
+
+table.compact-live-mother-table .value {
+    background-color: #fff;
+    color: #333;
+    font-weight: 700;
+}
+
+table.compact-live-mother-table .marker-value {
+    width: 12%;
+}
+
+table.compact-live-mother-table .name-value {
+    width: 34%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+table.compact-live-mother-table thead th:first-child {
+    width: 12%;
+}
+
+table.compact-live-mother-table thead th:nth-child(2) {
+    width: 34%;
+}
+
+table.compact-live-mother-table thead th:nth-child(3),
+table.compact-live-mother-table thead th:nth-child(4),
+table.compact-live-mother-table thead th:nth-child(5),
+table.compact-live-mother-table thead th:nth-child(6) {
+    width: 13.5%;
 }
 
         /* Photo Cell */
@@ -645,7 +746,6 @@ td {
                                             <td class="label">المتوفى</td>
                                             <td class="value" colspan="2">
                                                 @php
-                                                    $deadPeople = \App\Models\DeadPepole::where('re_file_id', $guardian->file_id_number)->first();
                                                     $deceased = 'غير متوفر';
                                                     if ($deadPeople) {
                                                         if ($deadPeople->father_death_date) $deceased = 'الأب';
@@ -801,6 +901,100 @@ td {
                     </tbody>
                 </table>
             </div>
+
+            <div class="siblings-block">
+                <table class="styled-table full-width compact-deceased-table">
+                    <thead>
+                        <tr>
+                            <th>البيان</th>
+                            <th>الاسم</th>
+                            <th>رقم الهوية</th>
+                            <th>تاريخ الوفاة</th>
+                            <th>سبب الوفاة</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="value marker-value">(الأب المتوفي)</td>
+                            <td class="value name-value">
+                                @php
+                                    $fatherFullName = trim(implode(' ', array_filter([
+                                        optional($deadPeople)->father_first_name,
+                                        optional($deadPeople)->father_second_name,
+                                        optional($deadPeople)->father_third_name,
+                                        optional($deadPeople)->father_last_name,
+                                    ])));
+                                @endphp
+                                {{ $fatherFullName ?: 'غير متوفر' }}
+                            </td>
+                            <td class="value">{{ optional($deadPeople)->father_id ?? 'غير متوفر' }}</td>
+                            <td class="value">
+                                {{ !empty($deadPeople?->father_death_date) ? \Carbon\Carbon::parse($deadPeople->father_death_date)->format('d/m/Y') : 'غير متوفر' }}
+                            </td>
+                            <td class="value">{{ $deadPeople?->fatherDeathReason?->description ?? 'غير متوفر' }}</td>
+                        </tr>
+                        <tr>
+                            <td class="value marker-value">(الأم المتوفية)</td>
+                            <td class="value name-value">
+                                @php
+                                    $motherFullName = trim(implode(' ', array_filter([
+                                        optional($deadPeople)->mother_first_name,
+                                        optional($deadPeople)->mother_second_name,
+                                        optional($deadPeople)->mother_third_name,
+                                        optional($deadPeople)->mother_last_name,
+                                    ])));
+                                @endphp
+                                {{ $motherFullName ?: 'غير متوفر' }}
+                            </td>
+                            <td class="value">{{ optional($deadPeople)->mother_id ?? 'غير متوفر' }}</td>
+                            <td class="value">
+                                {{ !empty($deadPeople?->mother_death_date) ? \Carbon\Carbon::parse($deadPeople->mother_death_date)->format('d/m/Y') : 'غير متوفر' }}
+                            </td>
+                            <td class="value">{{ $deadPeople?->motherDeathReason?->description ?? 'غير متوفر' }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            @if(!empty($liveMother) && (!empty($liveMother->person_id) || !empty($liveMother->first_name) || !empty($liveMother->second_name) || !empty($liveMother->third_name) || !empty($liveMother->last_name)))
+            <div class="siblings-block">
+                <table class="styled-table full-width compact-live-mother-table">
+                    <thead>
+                        <tr>
+                            <th>البيان</th>
+                            <th>الاسم</th>
+                            <th>رقم الهوية</th>
+                            <th>تاريخ الميلاد</th>
+                            <th>الجوال</th>
+                            <th>الحالة الصحية</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="value marker-value">(الأم الحية)</td>
+                            <td class="value name-value">
+                                @php
+                                    $liveMotherFullName = trim(implode(' ', array_filter([
+                                        $liveMother->first_name ?? null,
+                                        $liveMother->second_name ?? null,
+                                        $liveMother->third_name ?? null,
+                                        $liveMother->last_name ?? null,
+                                    ])));
+                                @endphp
+                                {{ $liveMotherFullName ?: 'غير متوفر' }}
+                            </td>
+                            <td class="value">{{ $liveMother->person_id ?? 'غير متوفر' }}</td>
+                            <td class="value">
+                                {{ !empty($liveMother->person_birth_date) ? \Carbon\Carbon::parse($liveMother->person_birth_date)->format('d/m/Y') : 'غير متوفر' }}
+                            </td>
+                            <td class="value">{{ $liveMother->phone ?? 'غير متوفر' }}</td>
+                            <td class="value">{{ $liveMother->health_status ?? 'غير متوفر' }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            @endif
+
             <!-- Photos Grid -->
             <div class="photos-grid">
                 <table>
@@ -889,7 +1083,6 @@ td {
     <!-- صفحات منفصلة للوثائق الأخرى (غير الصور الشخصية) -->
     @if(isset($otherDocuments) && $otherDocuments->count() > 0)
         @foreach($otherDocuments as $document)
-              <div class="page-container document-page">
                 @php
                     // الحصول على نوع الوثيقة
                     $docTypeName = 'وثيقة';
@@ -911,6 +1104,25 @@ td {
                             $foundMember = $familyMembers->firstWhere('person_id', $personIdentity);
                             if ($foundMember) {
                                 $personName = $foundMember->first_name . ' ' . $foundMember->family_name;
+                            }
+                        }
+
+                        // البحث في بيانات الأب/الأم المتوفيين
+                        if ($personName === 'غير معروف' && isset($deadPeople)) {
+                            if (!empty($deadPeople->father_id) && (string)$deadPeople->father_id === (string)$personIdentity) {
+                                $personName = trim(implode(' ', array_filter([
+                                    $deadPeople->father_first_name,
+                                    $deadPeople->father_second_name,
+                                    $deadPeople->father_third_name,
+                                    $deadPeople->father_last_name,
+                                ]))) ?: 'الأب المتوفي';
+                            } elseif (!empty($deadPeople->mother_id) && (string)$deadPeople->mother_id === (string)$personIdentity) {
+                                $personName = trim(implode(' ', array_filter([
+                                    $deadPeople->mother_first_name,
+                                    $deadPeople->mother_second_name,
+                                    $deadPeople->mother_third_name,
+                                    $deadPeople->mother_last_name,
+                                ]))) ?: 'الأم المتوفية';
                             }
                         }
                     }
@@ -944,6 +1156,12 @@ td {
                     }
                 @endphp
 
+                @if(empty($base64Image))
+                    @continue
+                @endif
+
+              <div class="page-container document-page">
+
                 <!-- عنوان الوثيقة واسم الشخص فوق الصورة -->
                 <div class="document-heading-line">
                     <span class="document-title" style="color: {{ $primaryColor }};">{{ $docTypeName }}</span>
@@ -951,24 +1169,12 @@ td {
                     <span class="document-name" style="color: {{ $accentColor }};">{{ $personName }}</span>
                 </div>
 
-                @if($base64Image)
-                    <div class="document-image-wrap keep-together">
-                        <img src="{{ $base64Image }}"
-                             class="document-image keep-together"
-                             style="border-color: {{ $primaryColor }};"
-                             alt="{{ $docTypeName }}">
-                    </div>
-                @elseif($fileExists && !$isImage)
-                    <div style="text-align: center; padding: 100px; background: #f5f5f5; border: 2px dashed #ccc; border-radius: 10px;">
-                        <div style="font-size: 80px; color: {{ $primaryColor }}; margin-bottom: 20px;">📄</div>
-                        <p style="font-size: 18px; color: #333; margin-bottom: 10px;">ملف {{ strtoupper(pathinfo($document->stored_file_name, PATHINFO_EXTENSION)) }}</p>
-                    </div>
-                @else
-                    <div style="text-align: center; padding: 100px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 10px;">
-                        <div style="font-size: 80px; color: #dc3545; margin-bottom: 20px;">⚠️</div>
-                        <p style="font-size: 18px; color: #856404;">الملف غير موجود</p>
-                    </div>
-                @endif
+                <div class="document-image-wrap keep-together">
+                    <img src="{{ $base64Image }}"
+                         class="document-image keep-together"
+                         style="border-color: {{ $primaryColor }};"
+                         alt="{{ $docTypeName }}">
+                </div>
             </div>
         @endforeach
     @endif

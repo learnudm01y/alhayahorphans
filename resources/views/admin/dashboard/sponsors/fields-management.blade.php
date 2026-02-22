@@ -286,6 +286,18 @@
                     </div>
                     <!--end::اختيار حالة الكفالة-->
 
+                    <!--begin::تصدير البيانات المحدثة فقط-->
+                    <div class="mb-5">
+                        <div class="form-check form-switch form-check-custom form-check-solid">
+                            <input class="form-check-input" type="checkbox" id="export_updated_only" name="updated_only" value="1">
+                            <label class="form-check-label fw-semibold" for="export_updated_only">
+                                تصدير البيانات التي تم تحديثها فقط
+                            </label>
+                        </div>
+                        <div class="form-text">عند التفعيل: سيتم تصدير الحالات التي لها بيانات في جدول تحديث بيانات المكفولين فقط</div>
+                    </div>
+                    <!--end::تصدير البيانات المحدثة فقط-->
+
                     <!--begin::معلومات إضافية-->
                     <div class="alert alert-warning">
                         <i class="fas fa-exclamation-triangle me-2"></i>
@@ -535,6 +547,7 @@ $(document).ready(function() {
     $('#start_export_btn').on('click', function() {
         const sponsorId = $('#export_sponsor_id').val();
         const sponsorshipStatusId = $('#export_sponsorship_status_id').val();
+        const updatedOnly = $('#export_updated_only').is(':checked') ? 1 : 0;
 
         if (!sponsorId) {
             Swal.fire({
@@ -561,7 +574,7 @@ $(document).ready(function() {
             cancelButtonColor: '#f1416c'
         }).then((result) => {
             if (result.isConfirmed) {
-                startExportProcess(sponsorId, sponsorshipStatusId);
+                startExportProcess(sponsorId, sponsorshipStatusId, updatedOnly);
             }
         });
     });
@@ -569,7 +582,7 @@ $(document).ready(function() {
     /**
      * بدء عملية التصدير
      */
-    function startExportProcess(sponsorId, sponsorshipStatusId) {
+    function startExportProcess(sponsorId, sponsorshipStatusId, updatedOnly) {
         const $btn = $('#start_export_btn');
         const originalText = $btn.html();
 
@@ -584,7 +597,8 @@ $(document).ready(function() {
             data: {
                 _token: '{{ csrf_token() }}',
                 sponsor_id: sponsorId,
-                sponsorship_status_id: sponsorshipStatusId
+                sponsorship_status_id: sponsorshipStatusId,
+                updated_only: updatedOnly
             },
             success: function(response) {
                 $btn.prop('disabled', false).html(originalText);

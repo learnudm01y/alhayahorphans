@@ -746,11 +746,13 @@ class SponsorController extends Controller
             // التحقق من صحة البيانات
             $validated = $request->validate([
                 'sponsor_id' => 'required|exists:sponsors,id',
-                'sponsorship_status_id' => 'nullable|exists:sponsorship_statuses,id'
+                'sponsorship_status_id' => 'nullable|exists:sponsorship_statuses,id',
+                'updated_only' => 'nullable|boolean'
             ]);
 
             $sponsorId = $validated['sponsor_id'];
             $sponsorshipStatusId = $validated['sponsorship_status_id'] ?? null;
+            $updatedOnly = (bool)($validated['updated_only'] ?? false);
 
             // الحصول على معلومات الجمعية
             $sponsor = \App\Models\Sponsor::findOrFail($sponsorId);
@@ -764,6 +766,20 @@ class SponsorController extends Controller
                 $query->where('sponsorship_status_id', $sponsorshipStatusId);
             }
 
+            if ($updatedOnly) {
+                $query->where(function ($q) {
+                    $q->whereExists(function ($sub) {
+                        $sub->select('id')
+                            ->from('portal_general_registration_field_values as pgv')
+                            ->whereColumn('pgv.sponsorship_id', 'sponsorships.id');
+                    })->orWhereExists(function ($sub) {
+                        $sub->select('id')
+                            ->from('portal_general_registration_field_values as pgv')
+                            ->whereColumn('pgv.identity_number', 'sponsorships.identity_number');
+                    });
+                });
+            }
+
             $count = $query->count();
 
             if ($count === 0) {
@@ -774,12 +790,13 @@ class SponsorController extends Controller
             }
 
             // إرسال Job للمعالجة في الخلفية
-            \App\Jobs\BulkExportSponsorshipForms::dispatch($sponsorId, $sponsorshipStatusId);
+            \App\Jobs\BulkExportSponsorshipForms::dispatch($sponsorId, $sponsorshipStatusId, $updatedOnly);
 
             Log::info('Bulk export forms job dispatched', [
                 'sponsor_id' => $sponsorId,
                 'sponsor_name' => $sponsor->sponsor_name,
                 'sponsorship_status_id' => $sponsorshipStatusId,
+                'updated_only' => $updatedOnly,
                 'estimated_count' => $count
             ]);
 
@@ -788,6 +805,7 @@ class SponsorController extends Controller
                 'message' => 'تم بدء عملية التصدير بنجاح',
                 'sponsor_name' => $sponsor->sponsor_name,
                 'count' => $count,
+                'updated_only' => $updatedOnly,
                 'status_filter' => $sponsorshipStatusId ? \App\Models\SponsorshipStatus::find($sponsorshipStatusId)->description : 'جميع الحالات'
             ]);
 

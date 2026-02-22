@@ -1518,6 +1518,47 @@ class RecordsManagementEditController extends Controller
         $guardianHasSponsorship = \App\Models\Sponsorship::where('identity_number', $data->data_id_number)->exists();
         $data->is_sponsored = $guardianHasSponsorship;
 
+        // جلب بيانات المتوفين (الأب/الأم) مع أسباب الوفاة
+        $deadPeople = \App\Models\DeadPepole::with(['fatherDeathReason', 'motherDeathReason'])
+            ->where('re_file_id', $data->file_id_number)
+            ->first();
+
+        // جلب بيانات الأم الحية من portal_general_registration_field_values (عند توفرها فقط)
+        $liveMother = null;
+        $motherStatus = \App\Models\PortalGeneralRegistrationFieldValue::where('file_id_number', $data->file_id_number)
+            ->where('field_key', 'field_mother_status')
+            ->value('field_value');
+
+        $deadMotherId = $deadPeople?->mother_id;
+        if (!$deadMotherId && in_array(trim((string) $motherStatus), ['حية', 'على قيد الحياة'], true)) {
+            $livingMotherFields = \App\Models\PortalGeneralRegistrationFieldValue::where('file_id_number', $data->file_id_number)
+                ->whereIn('field_key', [
+                    'field_living_mother_id',
+                    'field_living_mother_first_name',
+                    'field_living_mother_second_name',
+                    'field_living_mother_third_name',
+                    'field_living_mother_last_name',
+                    'field_living_mother_birth_date',
+                    'field_living_mother_health_status',
+                    'field_living_mother_phone',
+                ])
+                ->get()
+                ->keyBy('field_key');
+
+            if ($livingMotherFields->isNotEmpty()) {
+                $liveMother = (object) [
+                    'person_id' => $livingMotherFields->get('field_living_mother_id')?->field_value,
+                    'first_name' => $livingMotherFields->get('field_living_mother_first_name')?->field_value,
+                    'second_name' => $livingMotherFields->get('field_living_mother_second_name')?->field_value,
+                    'third_name' => $livingMotherFields->get('field_living_mother_third_name')?->field_value,
+                    'last_name' => $livingMotherFields->get('field_living_mother_last_name')?->field_value,
+                    'person_birth_date' => $livingMotherFields->get('field_living_mother_birth_date')?->field_value,
+                    'phone' => $livingMotherFields->get('field_living_mother_phone')?->field_value,
+                    'health_status' => $livingMotherFields->get('field_living_mother_health_status')?->field_value,
+                ];
+            }
+        }
+
         // جلب جميع صور الملف من المرفقات
         $allAttachments = collect();
 
@@ -1530,6 +1571,19 @@ class RecordsManagementEditController extends Controller
         foreach ($familyMembers as $member) {
             if ($member->attachments) {
                 $allAttachments = $allAttachments->merge($member->attachments);
+            }
+        }
+
+        // إضافة مرفقات الأب/الأم المتوفيين إن وجدت
+        if ($deadPeople) {
+            $deceasedIdentityNumbers = collect([
+                $deadPeople->father_id,
+                $deadPeople->mother_id,
+            ])->filter()->unique()->values();
+
+            if ($deceasedIdentityNumbers->isNotEmpty()) {
+                $deceasedAttachments = \App\Models\Attachment::whereIn('person_identity_number', $deceasedIdentityNumbers)->get();
+                $allAttachments = $allAttachments->merge($deceasedAttachments);
             }
         }
 
@@ -1643,6 +1697,8 @@ class RecordsManagementEditController extends Controller
             'guardian' => $data,
             'selectedMember' => $selectedMember,
             'familyMembers' => $familyMembers,
+            'deadPeople' => $deadPeople,
+            'liveMother' => $liveMother,
             'documentImages' => $documentImages,
             'personalPhotos' => $personalPhotos,
             'otherDocuments' => $otherDocuments,
