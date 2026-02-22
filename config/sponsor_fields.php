@@ -334,15 +334,6 @@ return [
         ],
 
         // معلومات المعيل
-        'field_guardian_relationship' => [
-            'id' => 37,
-            'db_column' => 'field_guardian_relationship',
-            'display_name' => 'صلة القرابة',
-            'category' => 'معلومات المعيل التفصيلية',
-            'category_id' => 13,
-            'order' => 9,
-            'required' => false,
-        ],
         'field_guardian_health' => [
             'id' => 38,
             'db_column' => 'field_guardian_health',

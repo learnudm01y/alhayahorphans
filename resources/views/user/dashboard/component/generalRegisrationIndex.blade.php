@@ -1500,7 +1500,8 @@
 
             if (!motherStatusSelect) return;
 
-            const isMotherGuardian = guardianRelationship && guardianRelationship.value == '2';
+            // ✅ FIX: التحقق من أن المعيل هو الأم (ID = 1)
+            const isMotherGuardian = guardianRelationship && guardianRelationship.value == '1';
             const motherStatus = motherStatusSelect.value;
 
             console.log('تحديث ظهور حقول الأم:', { isMotherGuardian, motherStatus });
@@ -1645,7 +1646,8 @@
 
             if (motherStatusSelect) {
                 // التهيئة الأولية
-                if (guardianRelationship && guardianRelationship.value == '2' && !motherStatusSelect.value) {
+                // ✅ FIX: إذا كان المعيل هو الأم (ID = 1)، تعيين حالة الأم إلى "حية" تلقائياً
+                if (guardianRelationship && guardianRelationship.value == '1' && !motherStatusSelect.value) {
                     motherStatusSelect.value = 'حية';
                     motherStatusSelect.disabled = true;
                 }
@@ -1661,7 +1663,8 @@
                 // مراقبة تغيير صلة القرابة
                 if (guardianRelationship) {
                     guardianRelationship.addEventListener('change', function() {
-                        if (this.value == '2') {
+                        // ✅ FIX: إذا كان المعيل هو الأم (ID = 1)
+                        if (this.value == '1') {
                             // المعيل هو الأم
                             motherStatusSelect.value = 'حية';
                             motherStatusSelect.disabled = true;

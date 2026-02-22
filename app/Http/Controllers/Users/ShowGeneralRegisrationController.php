@@ -868,9 +868,7 @@ class ShowGeneralRegisrationController extends Controller
         }
 
         // إضافة قيم صلة القرابة للحقول
-        $values['field_guardian_relationship'] = $guardianRelationship;
-        $values['field_guardian_relationship_text'] = $guardianRelationshipText;
-        $values['field_data_relationship'] = $guardianRelationship; // نفس القيمة لحقل المعيل التفصيلي
+        $values['field_data_relationship'] = $guardianRelationship;
         $values['show_mother_death_fields'] = $showMotherDeathFields;
 
         // 🆕 معالجة ذكية لمعلومات الأم (حية أو متوفية)
@@ -1217,7 +1215,6 @@ class ShowGeneralRegisrationController extends Controller
                 'field_data_family_name',
                 'field_data_birth_date',
                 'field_data_phone_number',
-                'field_guardian_relationship',
                 'field_guardian_health',
                 'field_guardian_job', // data_employment_status_breadwinner
                 'field_dependents_female', // data_number_female
@@ -1365,8 +1362,8 @@ class ShowGeneralRegisrationController extends Controller
                     continue;
                 }
 
-                // 🆕 معالجة field_guardian_relationship -> data_relationship
-                if ($fieldKey === 'field_guardian_relationship' && $fieldValue !== null && $fieldValue !== '' && $sponsorship->relationData) {
+                // 🆕 معالجة field_data_relationship -> data_relationship
+                if ($fieldKey === 'field_data_relationship' && $fieldValue !== null && $fieldValue !== '' && $sponsorship->relationData) {
                     // يمكن أن يكون ID أو نص
                     if (is_numeric($fieldValue)) {
                         $sponsorship->relationData->data_relationship = (int) $fieldValue;
@@ -1376,7 +1373,7 @@ class ShowGeneralRegisrationController extends Controller
                             $sponsorship->relationData->data_relationship = (int) $relationId;
                         } else {
                             Log::warning('LOOKUP_ID_NOT_FOUND', [
-                                'field' => 'field_guardian_relationship',
+                                'field' => 'field_data_relationship',
                                 'value' => (string) $fieldValue,
                                 'sponsorship_id' => $sponsorship->id,
                             ]);

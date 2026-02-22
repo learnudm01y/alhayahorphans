@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('sponsor_field_settings', function (Blueprint $table) {
-            $table->tinyInteger('field_data_relationship')->default(0)->after('field_data_neighborhood')->comment('صلة قرابة المعيل');
+            $table->tinyInteger('field_data_relationship')->default(1)->after('field_data_neighborhood')->comment('صلة قرابة المعيل');
         });
     }
 

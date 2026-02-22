@@ -215,13 +215,15 @@ class GenerateOrphanReportPdf implements ShouldQueue
         }
 
         // 2. جلب البيانات من portal_general_registration_field_values
+        // استخدام sponsorship_id فقط لتجنب التكرارات من كفالات أخرى
         $portalFields = PortalGeneralRegistrationFieldValue::where('sponsorship_id', $sponsorship->id)
-            ->orWhere('file_id_number', $sponsorship->internal_file_number)
-            ->orWhere('identity_number', $sponsorship->identity_number)
             ->get()
             ->keyBy('field_key');
 
-        Log::info('PORTAL_FIELDS_FOUND', ['count' => $portalFields->count()]);
+        Log::info('PORTAL_FIELDS_FOUND', [
+            'count' => $portalFields->count(),
+            'sponsorship_id' => $sponsorship->id
+        ]);
 
         // استخراج البيانات من Portal Fields (أولوية عالية)
         $data['phone_number'] = $portalFields->get('field_data_phone_number')?->field_value ?? $data['phone_number'] ?? $na;
@@ -305,8 +307,8 @@ class GenerateOrphanReportPdf implements ShouldQueue
         //⁣ ✅ جلب guardian_relation_id من مصادر متعدد⁣ة حسب الأولوية
         $guardianRelationId = null;
 
-        // ✅ الأولوية 1: من جدول sponsorships مباشرة
-        if ($sponsorship->guardian_relation_id) {
+        // ✅ الأولوية 1: من جدول sponsorships مباشرة (إذا كان العمود موجوداً)
+        if (isset($sponsorship->guardian_relation_id) && $sponsorship->guardian_relation_id) {
             $guardianRelationId = $sponsorship->guardian_relation_id;
             Log::info('GUARDIAN_RELATION_FROM_SPONSORSHIPS', ['relation_id' => $guardianRelationId]);
         }
@@ -379,8 +381,21 @@ class GenerateOrphanReportPdf implements ShouldQueue
             }
         }
 
-        // ⚠️ ملاحظة: تم إزالة الاعتماد على data.data_relationship لأنه غير موثوق
-        // (يخزن علاقة اليتيم بالمتوفي وليس علاقة المعيل)
+        // ✅ الأولوية 4: من جدول data (data_relationship للمعيل)
+        if (!$guardianRelationId && $sponsorship->guardian_identity_number) {
+            $guardianDataRecord = Data::where('data_id_number', $sponsorship->guardian_identity_number)->first();
+
+            if ($guardianDataRecord && $guardianDataRecord->data_relationship) {
+                $guardianRelationId = $guardianDataRecord->data_relationship;
+                Log::info('GUARDIAN_RELATION_FROM_DATA', [
+                    'data_relationship' => $guardianRelationId,
+                    'guardian_id' => $sponsorship->guardian_identity_number
+                ]);
+            }
+        }
+
+        // ⚠️ ملاحظة: سابقاً تم إزالة الاعتماد على data.data_relationship
+        // ولكن تم إعادة إضافته كأولوية أخيرة (fallback) لأنه قد يكون مفيداً في بعض الحالات
 
         $data['guardian_relation'] = $guardianRelationId ? $this->getRelation($guardianRelationId) : $na;
 
@@ -513,27 +528,49 @@ class GenerateOrphanReportPdf implements ShouldQueue
             $data['guardian_job'] = $guardianJob;
             $data['employment_status'] = $guardianJob; // نسخ للعرض
 
-            // ✅ عدد المعالين: الأولوية لـ data_number_of_individuals شامل للأطفال
+            // ✅ عدد المعالين: منطق ذكي للتعامل مع عدم اتساق البيانات
+            // التحليل الإحصائي أظهر:
+            // - 71.1%: individuals == female+male (صحيح)
+            // - 26.2%: individuals == female+male+1 (يشمل المعيل خطأً)
+            // الحل: إذا كان الفرق = 1 بالضبط، استخدم sum (أدق)
             $totalDependents = 0;
             $childrenInFamily = 0;
 
             if ($guardianDataRecord) {
-                // ✅ الأولوية 1: استخدام data_number_of_individuals إذا كان موجوداً (أدق)
-                if ($guardianDataRecord->data_number_of_individuals) {
-                    $totalDependents = $guardianDataRecord->data_number_of_individuals;
-                    Log::info('GUARDIAN_DEPENDENTS_FROM_TOTAL', [
-                        'data_number_of_individuals' => $totalDependents
-                    ]);
-                } else {
-                    // الأولوية 2: جمع data_number_female + data_number_mail
-                    $dataFemale = (int) ($guardianDataRecord->data_number_female ?? 0);
-                    $dataMale = (int) ($guardianDataRecord->data_number_mail ?? 0);
-                    $totalDependents = $dataFemale + $dataMale;
+                $dataFemale = (int) ($guardianDataRecord->data_number_female ?? 0);
+                $dataMale = (int) ($guardianDataRecord->data_number_mail ?? 0);
+                $sumChildren = $dataFemale + $dataMale;
+                $individuals = (int) ($guardianDataRecord->data_number_of_individuals ?? 0);
 
-                    Log::info('GUARDIAN_DEPENDENTS_FROM_SUM', [
-                        'male' => $dataMale,
-                        'female' => $dataFemale,
-                        'total' => $totalDependents
+                $diff = $individuals - $sumChildren;
+
+                // منطق ذكي: إذا الفرق = 1 بالضبط → individuals يشمل المعيل خطأً
+                if ($diff == 1 && $sumChildren > 0) {
+                    // استخدم sum لأن individuals يشمل المعيل
+                    $totalDependents = $sumChildren;
+                    Log::info('GUARDIAN_DEPENDENTS_SMART_SUM', [
+                        'individuals' => $individuals,
+                        'sum' => $sumChildren,
+                        'diff' => $diff,
+                        'chosen' => 'sum',
+                        'reason' => 'individuals includes guardian (diff=1)'
+                    ]);
+                } elseif ($individuals > 0) {
+                    // استخدم individuals (الأدق في هذه الحالة)
+                    $totalDependents = $individuals;
+                    Log::info('GUARDIAN_DEPENDENTS_SMART_INDIVIDUALS', [
+                        'individuals' => $individuals,
+                        'sum' => $sumChildren,
+                        'diff' => $diff,
+                        'chosen' => 'individuals',
+                        'reason' => 'diff != 1, individuals is more accurate'
+                    ]);
+                } elseif ($sumChildren > 0) {
+                    // fallback: استخدم sum إذا individuals فارغ
+                    $totalDependents = $sumChildren;
+                    Log::info('GUARDIAN_DEPENDENTS_FALLBACK_SUM', [
+                        'sum' => $sumChildren,
+                        'reason' => 'individuals is 0, using sum as fallback'
                     ]);
                 }
             }
@@ -1057,15 +1094,16 @@ class GenerateOrphanReportPdf implements ShouldQueue
     private function uploadToGoogleDriveIfEnabled($sponsorship, $fullPath, $fileName)
     {
         try {
-            // جلب الكافل المحدد بدقة
+            // ✅ FIX: جلب الكافل من sponsor_id الأساسي دائماً
             $sponsor = null;
 
             if ($this->sponsorId) {
                 // استخدام sponsor_id المحدد من الـ Job
                 $sponsor = \App\Models\Sponsor::find($this->sponsorId);
             } else {
-                // محاولة جلب أول كافل من العلاقة (للتوافقية مع الكود القديم)
-                $sponsor = $sponsorship->sponsors()->first();
+                // ✅ استخدام الجمعية من sponsor_id الأساسي
+                // السبب: sponsors() يقرأ من sponsorship_sponsor وكان يحتوي على بيانات خاطئة
+                $sponsor = $sponsorship->sponsor;
             }
 
             if (!$sponsor) {

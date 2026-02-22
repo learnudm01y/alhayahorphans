@@ -101,16 +101,10 @@ class BulkExportSponsorshipForms implements ShouldQueue
                 // نستمر في المعالجة ولكن لن يتم الرفع إلى Google Drive
             }
 
-            // بناء استعلام الكفالات - دعم النظامين (Many-to-Many و Direct sponsor_id)
-            // بعض الجمعيات تستخدم sponsorship_sponsor والبعض يستخدم sponsor_id مباشرة
-            $query = Sponsorship::where(function ($q) {
-                // البحث في sponsor_id المباشر
-                $q->where('sponsor_id', $this->sponsorId)
-                  // أو البحث في جدول Many-to-Many
-                  ->orWhereHas('sponsors', function ($q2) {
-                      $q2->where('sponsors.id', $this->sponsorId);
-                  });
-            });
+            // ✅ FIX: بناء استعلام الكفالات من sponsor_id الأساسي فقط
+            // السبب: جدول sponsorship_sponsor كان يحتوي على بيانات خاطئة
+            // الحل: استخدام sponsor_id المباشر (الصحيح دائماً)
+            $query = Sponsorship::where('sponsor_id', $this->sponsorId);
 
             // فلترة حسب حالة الكفالة إذا تم تحديدها
             if ($this->sponsorshipStatusId) {

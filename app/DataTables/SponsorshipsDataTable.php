@@ -17,14 +17,10 @@ class SponsorshipsDataTable extends DataTable
         return (new EloquentDataTable($query))
             ->addIndexColumn()
             ->addColumn('sponsor_name', function ($row) {
-                // عرض جميع المؤسسات الكافلة كل واحدة في سطر منفصل
-                if ($row->sponsors && $row->sponsors->count() > 0) {
-                    $names = $row->sponsors->pluck('sponsor_name')->map(function($name) {
-                        return '<div style="white-space: nowrap !important; display: block !important; margin-bottom: 3px !important;">' . $name . '</div>';
-                    })->toArray();
-                    return '<div style="display: flex !important; flex-direction: column !important; gap: 3px !important;">' . implode('', $names) . '</div>';
-                }
-                // fallback للعلاقة القديمة
+                // ✅ FIX: عرض الجمعية من sponsor_id الأساسي (بدلاً من many-to-many)
+                // السبب: جدول sponsorship_sponsor يحتوي على بيانات خاطئة (403 كفالة تعرض جمعية خاطئة)
+                // الحل: استخدام العلاقة الأساسية sponsor() بدلاً من sponsors()
+
                 return $row->sponsor ? $row->sponsor->sponsor_name : ($row->sponsoring_organization ?: '-');
             })
             ->addColumn('sponsoring_organization', function ($row) {

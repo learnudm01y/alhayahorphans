@@ -392,7 +392,6 @@ class SponsorFieldsManager {
      */
     shouldHideField(field) {
         const hiddenFields = [
-            'field_data_relationship',      // صلة قرابة المعيل (مكرر)
             'field_re_guardian_name',       // اسم الوصي (مكرر)
             'field_re_guardian_phone',      // هاتف الوصي (مكرر)
             'field_re_guardian_id',         // رقم هوية الوصي (مكرر)
@@ -740,7 +739,6 @@ class SponsorFieldsManager {
 
         // قائمة الحقول المخفية
         const hiddenFields = [
-            'field_data_relationship',
             'field_re_guardian_name',
             'field_re_guardian_phone',
             'field_re_guardian_id',

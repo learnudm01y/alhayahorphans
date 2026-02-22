@@ -755,16 +755,10 @@ class SponsorController extends Controller
             // الحصول على معلومات الجمعية
             $sponsor = \App\Models\Sponsor::findOrFail($sponsorId);
 
-            // حساب عدد الكفالات - دعم النظامين (Many-to-Many و Direct sponsor_id)
-            // بعض الجمعيات تستخدم sponsorship_sponsor والبعض يستخدم sponsor_id مباشرة
-            $query = \App\Models\Sponsorship::where(function ($q) use ($sponsorId) {
-                // البحث في sponsor_id المباشر
-                $q->where('sponsor_id', $sponsorId)
-                  // أو البحث في جدول Many-to-Many
-                  ->orWhereHas('sponsors', function ($q2) use ($sponsorId) {
-                      $q2->where('sponsors.id', $sponsorId);
-                  });
-            });
+            // ✅ FIX: حساب عدد الكفالات من sponsor_id الأساسي فقط
+            // السبب: جدول sponsorship_sponsor كان يحتوي على بيانات خاطئة
+            // الحل: استخدام sponsor_id المباشر (الصحيح دائماً)
+            $query = \App\Models\Sponsorship::where('sponsor_id', $sponsorId);
 
             if ($sponsorshipStatusId) {
                 $query->where('sponsorship_status_id', $sponsorshipStatusId);
