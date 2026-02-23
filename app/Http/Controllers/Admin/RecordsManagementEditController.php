@@ -156,17 +156,22 @@ class RecordsManagementEditController extends Controller
 
         // جلب البيانات الإضافية للمعيل من portal_general_registration_field_values
         $guardianPortalFields = \App\Models\PortalGeneralRegistrationFieldValue::where('identity_number', $data->data_id_number)
+            ->whereNotNull('field_value')
+            ->where('field_value', '!=', '')
             ->get()
             ->map(function($field) {
                 return [
-                    'key' => $this->translateFieldKey($field->field_key),
-                    'value' => $field->field_value
+                    'record_id'    => $field->id,
+                    'key'          => $this->translateFieldKey($field->field_key),
+                    'original_key' => $field->field_key,
+                    'value'        => $field->field_value,
                 ];
             });
 
         // معلومات الأم الحية من جدول portal_general_registration_field_values
         $liveMother = null;
         $motherPortalFields = collect([]);
+        $livingMotherFields  = collect([]);  // مهيأة دائماً حتى لا تسبب خطأ في الـ view
 
         // التحقق من حالة الأم
         $motherStatus = \App\Models\PortalGeneralRegistrationFieldValue::where('file_id_number', $data->file_id_number)
@@ -230,22 +235,62 @@ class RecordsManagementEditController extends Controller
                         'field_living_mother_birth_date',
                         'field_mother_status'
                     ])
+                    ->whereNotNull('field_value')
+                    ->where('field_value', '!=', '')
                     ->get()
                     ->map(function($field) {
                         return [
-                            'key' => $this->translateFieldKey($field->field_key),
-                            'value' => $field->field_value
+                            'record_id'    => $field->id,
+                            'key'          => $this->translateFieldKey($field->field_key),
+                            'original_key' => $field->field_key,
+                            'value'        => $field->field_value,
                         ];
                     });
             }
         }
 
-        return view('admin.dashboard.records_management.show', compact('data', 'guardianSponsorships', 'guardianPortalFields', 'liveMother', 'motherPortalFields'));
+        return view('admin.dashboard.records_management.show', compact('data', 'guardianSponsorships', 'guardianPortalFields', 'liveMother', 'motherPortalFields', 'livingMotherFields'));
     }
 
     /**
      * جلب البيانات الإضافية ومعلومات الكفالة عبر AJAX
      */
+    /**
+     * AJAX: تحديث قيمة حقل في portal_general_registration_field_values
+     */
+    public function updatePortalFieldValue(Request $request)
+    {
+        try {
+            $recordId    = $request->input('record_id');
+            $newValue    = $request->input('new_value');
+
+            if (!$recordId) {
+                return response()->json(['success' => false, 'message' => 'معرّف السجل مطلوب'], 400);
+            }
+
+            $field = \App\Models\PortalGeneralRegistrationFieldValue::findOrFail($recordId);
+            $field->field_value     = $newValue;
+            $field->updated_by_user_id = auth()->id();
+            $field->save();
+
+            Log::info('✏️ تم تحديث قيمة الحقل', [
+                'record_id'  => $recordId,
+                'field_key'  => $field->field_key,
+                'new_value'  => $newValue,
+                'updated_by' => auth()->id(),
+            ]);
+
+            return response()->json([
+                'success'  => true,
+                'message'  => 'تم التحديث بنجاح',
+                'new_value' => $newValue,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('❌ خطأ في تحديث الحقل: ' . $e->getMessage());
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
     public function getAdditionalInfo(Request $request)
     {
         $type = $request->input('type'); // 'family_member' فقط
@@ -262,8 +307,12 @@ class RecordsManagementEditController extends Controller
             $portalFields = \App\Models\PortalGeneralRegistrationFieldValue::where('identity_number', $personId)->get();
             foreach ($portalFields as $field) {
                 $response['portal_fields'][] = [
-                    'key' => $this->translateFieldKey($field->field_key),
-                    'value' => $field->field_value
+                    'key'          => $this->translateFieldKey($field->field_key),
+                    'original_key' => $field->field_key,
+                    'record_id'    => $field->id,
+                    'value'        => $field->field_value,
+                    'lookup_by'    => 'identity_number',
+                    'lookup_value' => $personId,
                 ];
             }
 
@@ -282,117 +331,177 @@ class RecordsManagementEditController extends Controller
 
     /**
      * تحويل مفاتيح الحقول من الإنجليزية إلى العربية
+     * الجدول يخزن المفاتيح بصيغة field_xxx لذلك التوحيد هنا هو المفتاح كاملاً
      */
     private function translateFieldKey($key)
     {
         $translations = [
-            // معلومات السكن
-            'housing_status' => 'الحالة السكنية',
-            'housing_type' => 'نوع السكن',
-            'current_housing_type' => 'نوع السكن الحالي',
-            'field_house_demolition' => 'حالة هدم المنزل',
-            'field_house_repair_need' => 'حاجة المنزل للترميم',
+            // ======= معلومات السكن =======
+            'field_housing_status'         => 'الحالة السكنية',
+            'field_housing_type'           => 'نوع السكن',
+            'field_housing_address_detail' => 'تفاصيل عنوان السكن',
+            'field_house_demolition'       => 'حالة هدم المنزل',
+            'field_house_repair_need'      => 'حاجة المنزل للترميم',
+            // بدون بادئة (للتوافق مع أي بيانات قديمة)
+            'housing_status'               => 'الحالة السكنية',
+            'housing_type'                 => 'نوع السكن',
+            'housing_address_detail'       => 'تفاصيل عنوان السكن',
+            'current_housing_type'         => 'نوع السكن الحالي',
 
-            // معلومات النزوح
-            'displacement_status' => 'حالة النزوح',
-            'previous_address' => 'العنوان قبل النزوح',
-            'address_before_displacement' => 'العنوان قبل النزوح',
-            'current_address' => 'العنوان الحالي',
+            // ======= معلومات المعيل (data_xxx) =======
+            'field_data_first_name'        => 'الاسم الأول للمعيل',
+            'field_data_father_name'       => 'اسم أب المعيل',
+            'field_data_grand_father_name' => 'اسم جد المعيل',
+            'field_data_family_name'       => 'لقب المعيل',
+            'field_data_id_number'         => 'رقم هوية المعيل',
+            'field_data_birth_date'        => 'تاريخ ميلاد المعيل',
+            'field_data_phone_number'      => 'رقم هاتف المعيل',
+            'field_data_alt_phone_number'  => 'رقم الهاتف البديل للمعيل',
+            'field_data_relationship'      => 'صلة القرابة',
+            'field_data_city'              => 'المدينة',
+            'field_data_update_date'       => 'تاريخ تحديث البيانات',
 
-            // معلومات الاتصال
-            'phone_number' => 'رقم الهاتف',
-            'alt_phone_number' => 'رقم هاتف بديل',
-            'alternative_phone' => 'رقم هاتف بديل',
+            // ======= بيانات الهوية / الاتصال =======
+            'field_identity_number'        => 'رقم الهوية',
+            'field_person_birth_date'      => 'تاريخ الميلاد',
+            'field_guardian_relationship'  => 'صلة المعيل بالأيتام',
+            'field_guardian_job'           => 'مهنة المعيل',
+            'field_guardian_job_text'      => 'وظيفة المعيل (نص)',
+            'field_guardian_health'        => 'الحالة الصحية للمعيل',
+            'field_guardian_phone_number'  => 'رقم هاتف المعيل',
+            'field_guardian_detailed_address' => 'العنوان التفصيلي للمعيل',
+            'guardian_detailed_address'    => 'العنوان التفصيلي',
+            'guardian_phone'               => 'هاتف المعيل',
+            'guardian_phone2'              => 'هاتف المعيل البديل',
 
-            // معلومات العمل والدخل
-            'employment_status' => 'حالة العمل',
-            'employment_status_breadwinner' => 'حالة عمل العائل',
-            'monthly_income' => 'الدخل الشهري',
-            'income' => 'الدخل',
-            'field_guardian_job_text' => 'وظيفة المعيل',
+            // ======= المعيل البديل =======
+            'field_re_guardian_name'       => 'اسم المعيل البديل',
+            'field_re_guardian_id'         => 'رقم هوية المعيل البديل',
+            'field_re_guardian_phone'      => 'هاتف المعيل البديل',
 
-            // معلومات العائلة
-            'number_of_males' => 'عدد الذكور',
-            'number_of_females' => 'عدد الإناث',
-            'number_of_individuals' => 'عدد أفراد الأسرة',
-            'chronic_diseases_count' => 'عدد المصابين بأمراض مزمنة',
-            'number_of_individuals_with_chronic_diseases' => 'عدد المصابين بأمراض مزمنة',
-            'special_needs_count' => 'عدد ذوي الاحتياجات الخاصة',
-            'number_of_people_with_special_needs' => 'عدد ذوي الاحتياجات الخاصة',
-            'field_family_sick_member' => 'وجود فرد مريض في الأسرة',
-            'field_family_disease_cost' => 'تكلفة علاج الأسرة',
+            // ======= المعالون =======
+            'field_dependents_male'        => 'عدد المعالين ذكور',
+            'field_dependents_female'      => 'عدد المعالين إناث',
+            'field_family_members_count'   => 'عدد أفراد الأسرة',
+            'field_family_sick_member'     => 'وجود فرد مريض في الأسرة',
+            'field_family_disease_cost'    => 'تكلفة علاج الأسرة',
+            // بدون بادئة
+            'number_of_males'              => 'عدد الذكور',
+            'number_of_females'            => 'عدد الإناث',
+            'number_of_individuals'        => 'عدد أفراد الأسرة',
+            'chronic_diseases_count'       => 'عدد المصابين بأمراض مزمنة',
+            'special_needs_count'          => 'عدد ذوي الاحتياجات الخاصة',
 
-            // معلومات عامة
-            'city' => 'المدينة',
-            'province' => 'المحافظة',
-            'description_needs' => 'وصف الاحتياج',
-            'needs_description' => 'وصف الاحتياج',
-            'marital_status' => 'الحالة الاجتماعية',
-            'academic_qualification' => 'المؤهل العلمي',
-            'health_status' => 'الحالة الصحية',
-            'birth_date' => 'تاريخ الميلاد',
-            'gender' => 'الجنس',
-            'age' => 'العمر',
+            // ======= الحسابات البنكية =======
+            'field_guardian_bank_name'         => 'اسم البنك',
+            'field_guardian_account_owner_name'=> 'اسم صاحب الحساب البنكي',
+            'field_guardian_id_owner'          => 'رقم هوية صاحب الحساب',
+            'field_guardian_iban_shekel'        => 'رقم الآيبان بالشيكل',
+            'field_guardian_iban_usd'           => 'رقم الآيبان بالدولار',
 
-            // معلومات الكفالة
-            'guardian_name' => 'اسم المعيل',
-            'guardian_relationship' => 'صلة القرابة مع المعيل',
-            'sponsorship_type' => 'نوع الكفالة',
-            'sponsorship_status' => 'حالة الكفالة',
-            'sponsor_name' => 'اسم الكفيل',
-            'field_sponsorship_impact' => 'أثر الكفالة',
+            // ======= الأب =======
+            'field_father_id'              => 'رقم هوية الأب',
+            'field_father_death_date'      => 'تاريخ وفاة الأب',
+            'field_father_death_reason'    => 'سبب وفاة الأب',
 
-            // معلومات المدرسة والدراسة
-            'field_school_name' => 'اسم المدرسة',
-            'field_school_address' => 'عنوان المدرسة',
-            'field_grade' => 'المرحلة الدراسية',
-            'field_student_level' => 'مستوى الطالب',
-            'field_weakness_reason' => 'سبب الضعف الدراسي',
-            'field_tent_school' => 'مدرسة خيمة',
-
-            // معلومات المكفول
-            'field_orphan_ambition' => 'طموح المكفول',
-            'field_psychological_state' => 'الحالة النفسية',
-            'field_behavioral_state' => 'الحالة السلوكية',
-            'field_orphan_behavior' => 'سلوك المكفول',
-            'field_religious_commitment' => 'الالتزام الديني',
-            'field_commitment' => 'الالتزام',
-            'field_quran_memorization' => 'حفظ القرآن',
-            'field_prayer_commitment' => 'الالتزام بالصلاة',
-            'field_orphan_needs' => 'احتياجات المكفول',
-            'field_creativity_aspects' => 'جوانب الإبداع',
-
-            // معلومات الصحة
-            'field_receives_treatment' => 'يتلقى علاج',
-            'field_orphan_health' => 'الحالة الصحية للمكفول',
-            'field_treatment_cost' => 'تكلفة العلاج',
-
-            // معلومات الأم
-            'field_mother_status' => 'حالة الأم',
-            'field_living_mother_first_name' => 'الاسم الأول للأم',
-            'field_living_mother_second_name' => 'اسم الأب للأم',
-            'field_living_mother_third_name' => 'اسم الجد للأم',
-            'field_living_mother_last_name' => 'اسم العائلة للأم',
-            'field_living_mother_id' => 'رقم هوية الأم',
-            'field_living_mother_birth_date' => 'تاريخ ميلاد الأم',
+            // ======= الأم =======
+            'field_mother_status'          => 'حالة الأم',
+            'field_mother_id'              => 'رقم هوية الأم المتوفية',
+            'field_mother_death_date'      => 'تاريخ وفاة الأم',
+            'field_mother_death_reason'    => 'سبب وفاة الأم',
+            'field_mother_first_name'      => 'الاسم الأول للأم المتوفية',
+            // الأم الحية
+            'field_living_mother_first_name'    => 'الاسم الأول للأم',
+            'field_living_mother_second_name'   => 'اسم الأب للأم',
+            'field_living_mother_third_name'    => 'اسم الجد للأم',
+            'field_living_mother_last_name'     => 'اسم العائلة للأم',
+            'field_living_mother_id'            => 'رقم هوية الأم',
+            'field_living_mother_birth_date'    => 'تاريخ ميلاد الأم',
             'field_living_mother_health_status' => 'الحالة الصحية للأم',
-            'field_living_mother_phone' => 'رقم هاتف الأم',
-            'field_living_mother_age' => 'عمر الأم',
-            'field_living_mother_education' => 'تعليم الأم',
-            'field_living_mother_work' => 'عمل الأم',
-            'field_mother_first_name' => 'الاسم الأول للأم المتوفية',
-            'field_mother_id' => 'رقم هوية الأم المتوفية',
-            'field_mother_death_date' => 'تاريخ وفاة الأم',
-            'field_mother_death_reason' => 'سبب وفاة الأم',
+            'field_living_mother_phone'         => 'رقم هاتف الأم',
+            'field_living_mother_age'           => 'عمر الأم',
+            'field_living_mother_education'     => 'مستوى تعليم الأم',
+            'field_living_mother_work'          => 'عمل الأم',
 
-            // معلومات إدارية
-            'field_important_events' => 'الأحداث المهمة',
-            'field_supervisor_notes' => 'ملاحظات المشرف',
-            'field_data_update_date' => 'تاريخ تحديث البيانات',
-            'field_supervisor_name' => 'اسم المشرف',
+            // ======= الصحة =======
+            'field_health_status'          => 'الحالة الصحية',
+            'field_orphan_health'          => 'الحالة الصحية للمكفول',
+            'field_receives_treatment'     => 'يتلقى علاجاً',
+            'field_treatment_cost'         => 'تكلفة العلاج',
+            'health_status'                => 'الحالة الصحية',
+
+            // ======= المدرسة والدراسة =======
+            'field_school_name'            => 'اسم المدرسة',
+            'field_school_address'         => 'عنوان المدرسة',
+            'field_grade'                  => 'المرحلة الدراسية',
+            'field_student_level'          => 'مستوى الطالب',
+            'field_weakness_reason'        => 'سبب الضعف الدراسي',
+            'field_tent_school'            => 'مدرسة خيمة',
+
+            // ======= المكفول =======
+            'field_orphan_ambition'        => 'طموح المكفول',
+            'field_orphan_behavior'        => 'سلوك المكفول',
+            'field_orphan_needs'           => 'احتياجات المكفول',
+            'field_psychological_state'    => 'الحالة النفسية',
+            'field_behavioral_state'       => 'الحالة السلوكية',
+            'field_religious_commitment'   => 'الالتزام الديني',
+            'field_commitment'             => 'الالتزام',
+            'field_quran_memorization'     => 'حفظ القرآن',
+            'field_prayer_commitment'      => 'الالتزام بالصلاة',
+            'field_creativity_aspects'     => 'جوانب الإبداع والمواهب',
+
+            // ======= الكفالة =======
+            'field_sponsorship_impact'     => 'أثر الكفالة',
+            'sponsorship_type'             => 'نوع الكفالة',
+            'sponsorship_status'           => 'حالة الكفالة',
+            'sponsor_name'                 => 'اسم الكفيل',
+            'guardian_name'                => 'اسم المعيل',
+            'guardian_relationship'        => 'صلة القرابة مع المعيل',
+
+            // ======= إدارية =======
+            'field_important_events'       => 'الأحداث المهمة',
+            'field_supervisor_notes'       => 'ملاحظات المشرف',
+            'field_supervisor_name'        => 'اسم المشرف',
+            'field_data_update_date'       => 'تاريخ تحديث البيانات',
+
+            // ======= عامة (بدون بادئة) =======
+            'city'                         => 'المدينة',
+            'province'                     => 'المحافظة',
+            'description_needs'            => 'وصف الاحتياج',
+            'needs_description'            => 'وصف الاحتياج',
+            'marital_status'               => 'الحالة الاجتماعية',
+            'academic_qualification'       => 'المؤهل العلمي',
+            'birth_date'                   => 'تاريخ الميلاد',
+            'gender'                       => 'الجنس',
+            'age'                          => 'العمر',
+            'phone_number'                 => 'رقم الهاتف',
+            'alt_phone_number'             => 'رقم هاتف بديل',
+            'displacement_status'          => 'حالة النزوح',
+            'previous_address'             => 'العنوان قبل النزوح',
+            'current_address'              => 'العنوان الحالي',
+            'employment_status'            => 'حالة العمل',
+            'monthly_income'               => 'الدخل الشهري',
+            'income'                       => 'الدخل',
         ];
 
-        return $translations[$key] ?? $key;
+        // 1) مطابقة تامة
+        if (isset($translations[$key])) {
+            return $translations[$key];
+        }
+
+        // 2) إذا لم تُجَد مطابقة، جرّب بعد إزالة بادئة field_ الواحدة
+        $stripped = preg_replace('/^field_/', '', $key);
+        if ($stripped !== $key && isset($translations[$stripped])) {
+            return $translations[$stripped];
+        }
+
+        // 3) إذا المفتاح عربي أصلاً أعده كما هو
+        if (preg_match('/\p{Arabic}/u', $key)) {
+            return $key;
+        }
+
+        // 4) تنسيق أخير: أزل field_ واستبدل _ بمسافة
+        return ucwords(str_replace('_', ' ', $stripped));
     }
 
     /**
@@ -1213,6 +1322,12 @@ class RecordsManagementEditController extends Controller
             // حذف بيانات المتوفين
             $deletedDeadCount = \App\Models\DeadPepole::where('re_file_id', $record->file_id_number)->delete();
             Log::info("⚰️ Deleted deceased records", ['count' => $deletedDeadCount]);
+
+            // حذف بيانات portal_general_registration_field_values
+            $deletedPortalFieldValues = DB::table('portal_general_registration_field_values')
+                ->where('file_id_number', $record->file_id_number)
+                ->delete();
+            Log::info("🌐 Deleted portal field values", ['count' => $deletedPortalFieldValues, 'file_id' => $record->file_id_number]);
 
             // حذف السجل الرئيسي
             $record->delete();

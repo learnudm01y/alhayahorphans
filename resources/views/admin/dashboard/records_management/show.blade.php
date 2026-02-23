@@ -307,12 +307,21 @@
         {{-- البيانات الإضافية للمعيل من portal_general_registration_field_values --}}
         @if(isset($guardianPortalFields) && $guardianPortalFields->count() > 0)
         <div class="mt-3 w-100">
-            <div class="info-label mb-2" style="font-size: 1.05rem; font-weight: bold; color: #2c3e50;">معلومات إضافية للمعيل:</div>
+            <div class="info-label mb-2" style="font-size: 1.05rem; font-weight: bold; color: #2c3e50;">
+                معلومات إضافية للمعيل: <small style="font-size:0.75rem; color:#007bff;">(انقر على القيمة لتعديلها)</small>
+            </div>
             <div class="row">
                 @foreach($guardianPortalFields as $field)
                     <div class="col-md-4 col-6 mb-2">
                         <div class="info-label">{{ $field['key'] }}</div>
-                        <div class="info-value">{{ $field['value'] ?? '-' }}</div>
+                        <div class="info-value portal-editable-field"
+                             data-field-key="{{ $field['original_key'] }}"
+                             style="font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:5px;"
+                             onclick="editServerField({{ $field['record_id'] }}, this)"
+                             title="انقر للتعديل">
+                            <span class="field-display-value">{{ $field['value'] ?? '-' }}</span>
+                            <i class="fas fa-pencil-alt" style="font-size:0.7rem; color:#007bff; opacity:0.55; flex-shrink:0;"></i>
+                        </div>
                     </div>
                 @endforeach
             </div>
@@ -324,33 +333,48 @@
         <div class="mt-4 w-100">
             <div class="card" style="border-right: 4px solid #17a2b8; background: #f8f9fa;">
                 <div class="card-body" style="direction: rtl;">
-                    <h6 class="mb-3" style="font-weight: bold; color: #17a2b8;">معلومات الأم</h6>
+                    <h6 class="mb-3" style="font-weight: bold; color: #17a2b8;">
+                        معلومات الأم <small style="font-size:0.75rem; color:#17a2b8;">(انقر على القيمة لتعديلها)</small>
+                    </h6>
                     <div class="row">
-                        <div class="col-md-4 col-6 mb-2">
-                            <div class="info-label">الاسم الكامل</div>
-                            <div class="info-value">{{ $liveMother->first_name }} {{ $liveMother->second_name }} {{ $liveMother->third_name }} {{ $liveMother->last_name }}</div>
-                        </div>
-                        <div class="col-md-4 col-6 mb-2">
-                            <div class="info-label">رقم الهوية</div>
-                            <div class="info-value">{{ $liveMother->person_id ?? '-' }}</div>
-                        </div>
+                        @php
+                            $motherFieldMap = [
+                                'field_living_mother_first_name'  => 'الاسم الأول',
+                                'field_living_mother_second_name' => 'اسم الأب',
+                                'field_living_mother_third_name'  => 'اسم الجد',
+                                'field_living_mother_last_name'   => 'اسم العائلة',
+                                'field_living_mother_id'          => 'رقم الهوية',
+                                'field_living_mother_birth_date'  => 'تاريخ الميلاد',
+                                'field_living_mother_health_status' => 'الحالة الصحية',
+                                'field_living_mother_phone'       => 'رقم الهاتف',
+                            ];
+                        @endphp
+                        @foreach($motherFieldMap as $fKey => $fLabel)
+                            @if(isset($livingMotherFields[$fKey]))
+                                @php $mf = $livingMotherFields[$fKey]; @endphp
+                                <div class="col-md-4 col-6 mb-2">
+                                    <div class="info-label">{{ $fLabel }}</div>
+                                    <div class="info-value portal-editable-field"
+                                         data-field-key="{{ $fKey }}"
+                                         style="font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:5px;"
+                                         onclick="editServerField({{ $mf->id }}, this)"
+                                         title="انقر للتعديل">
+                                        <span class="field-display-value">{{ $mf->field_value ?? '-' }}</span>
+                                        <i class="fas fa-pencil-alt" style="font-size:0.7rem; color:#17a2b8; opacity:0.55; flex-shrink:0;"></i>
+                                    </div>
+                                </div>
+                            @endif
+                        @endforeach
+                        {{-- العمر (محسوب لا يُعدَّل مباشرة) --}}
+                        @if($liveMother->person_age)
                         <div class="col-md-4 col-6 mb-2">
                             <div class="info-label">العمر</div>
-                            <div class="info-value">{{ $liveMother->person_age ?? '-' }}</div>
+                            <div class="info-value">{{ $liveMother->person_age }}</div>
                         </div>
-                        <div class="col-md-4 col-6 mb-2">
-                            <div class="info-label">تاريخ الميلاد</div>
-                            <div class="info-value">{{ $liveMother->person_birth_date ?? '-' }}</div>
-                        </div>
-                        <div class="col-md-4 col-6 mb-2">
-                            <div class="info-label">الحالة الصحية</div>
-                            <div class="info-value">{{ optional($liveMother->healthStatus)->description ?? '-' }}</div>
-                        </div>
+                        @endif
                         <div class="col-md-4 col-6 mb-2">
                             <div class="info-label">الجنس</div>
-                            <div class="info-value">
-                                @if($liveMother->person_gender == 1) ذكر @elseif($liveMother->person_gender == 2) أنثى @else - @endif
-                            </div>
+                            <div class="info-value">أنثى</div>
                         </div>
                     </div>
 
@@ -362,7 +386,14 @@
                             @foreach($motherPortalFields as $field)
                                 <div class="col-md-4 col-6 mb-2">
                                     <div class="info-label">{{ $field['key'] }}</div>
-                                    <div class="info-value">{{ $field['value'] ?? '-' }}</div>
+                                    <div class="info-value portal-editable-field"
+                                         data-field-key="{{ $field['original_key'] }}"
+                                         style="font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:5px;"
+                                         onclick="editServerField({{ $field['record_id'] }}, this)"
+                                         title="انقر للتعديل">
+                                        <span class="field-display-value">{{ $field['value'] ?? '-' }}</span>
+                                        <i class="fas fa-pencil-alt" style="font-size:0.7rem; color:#17a2b8; opacity:0.55; flex-shrink:0;"></i>
+                                    </div>
                                 </div>
                             @endforeach
                         </div>
@@ -812,7 +843,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 Swal.close();
-                showAdditionalInfoModal(data, personName, type);
+                window.showAdditionalInfoModal(data, personName, type);
             })
             .catch(error => {
                 Swal.fire({
@@ -824,18 +855,230 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    function showAdditionalInfoModal(data, personName, type) {
+    // =====================================================================
+    // تعديل مباشر في المكان (Inline Edit) - بدون فتح أي مودال جديد
+    // يعمل داخل مودال SweetAlert وخارجه على حدٍّ سواء
+    // =====================================================================
+    const _UPDATE_URL  = '{{ route("admin.records.management.updatePortalField") }}';
+    const _CSRF        = '{{ csrf_token() }}';
+
+    // إشعار خفيف لا يغلق مودال SweetAlert المفتوح
+    function _showToast(message, type) {
+        const colors = { success: '#28a745', error: '#dc3545', warning: '#ffc107' };
+        const t = document.createElement('div');
+        t.textContent = message;
+        t.style.cssText =
+            'position:fixed; top:18px; left:50%; transform:translateX(-50%);' +
+            'background:' + (colors[type] || '#333') + '; color:#fff; padding:10px 22px;' +
+            'border-radius:8px; font-size:0.95rem; z-index:999999;' +
+            'box-shadow:0 4px 14px rgba(0,0,0,0.25); direction:rtl; white-space:nowrap;' +
+            'animation:_fadeInOut 1.8s ease forwards;';
+        if (!document.getElementById('_toastStyle')) {
+            const s = document.createElement('style');
+            s.id = '_toastStyle';
+            s.textContent = '@keyframes _fadeInOut{0%{opacity:0;top:8px}15%{opacity:1;top:18px}75%{opacity:1;top:18px}100%{opacity:0;top:8px}}';
+            document.head.appendChild(s);
+        }
+        document.body.appendChild(t);
+        setTimeout(() => t.remove(), 1900);
+    }
+
+    // خيارات الحقول التي تحتوي على قيم محددة مسبقاً (Enum / Lookup)
+    // المصفوفة: القيمة = النص (نفس الشيء يُرسَل للخادم)
+    // الكائن  : id → نص (في حقول العلاقات يُرسَل النص لا الـ id)
+    const FIELD_OPTIONS = {
+        'field_housing_status':        ['ممتاز','جيد','سيء'],
+        'field_housing_type':          ['ملك','ايجار','عند الاقارب','خيمة','مستضاف'],
+        'field_data_city':             ['غزة','شمال غزة','جباليا','جباليا البلد','بيت حانون','بيت لاهيا','الشاطئ','دير البلح','ديرالبلح','البريج','المغازي','النصيرات','الزهراء','الزوايدة','القرارة','خان يونس','خان يونس- البلد','خانيونس البيوك','خانيونس الشرقية','رفح','رفح البلد','رفح البيوك','رفح الشرقية','رفح الغربية','الوسطى','وادي غزة','بني سهيله','تل السلطان','مصبح','وادي السلقه','شوكة الصوفي','عبسان الجديدة','عبسان الكبيرة','قاع القرين','خربة العدس','خزاعة','جحر الديك'],
+        'field_grade':                 ['ثانوي','اعدادي','ابتدائي','بستان','خريج','غير متعلم'],
+        'field_student_level':         ['ممتاز','جيد جدًا','جيد','متوسط','ضعيف'],
+        'field_weakness_reason':       ['لا يوجد','ظروف نفسية','ظروف مادية','انقطاع عن الدراسة','صعوبات تعلم','مرض'],
+        'field_health_status':         ['سليم','مريض','مريض مزمن','معاق'],
+        'field_guardian_health':       ['سليم','مريض','مريض مزمن','معاق'],
+        'field_living_mother_health_status': ['سليم','مريض','مريض مزمن','معاق'],
+        'field_orphan_needs':          ['احتياجات تعليمية','احتياجات غذائية','احتياجات سكن','احتياجات ملبس','احتياجات طارئة','احتياجات تقنية'],
+        'field_creativity_aspects':    ['الرياضة والأنشطة الحركية','الأشغال اليدوية والحِرَف','الرسم والتلوين','التمثيل والمسرح','مساعدة الآخرين','التفكير وحل الألغاز','الإلقاء والتعبير','تعلم مهارات حياتية','استخدام الحاسوب','العمل الجماعي والتعاون'],
+        'field_psychological_state':   ['مستقرة','قلق','اكتئاب','صدمة نفسية','بحاجة متابعة'],
+        'field_behavioral_state':      ['جيدة','طبيعية','انطوائية','فرط حركة','عدوانية'],
+        'field_orphan_behavior':       ['ملتزم','متوسط','غير منضبط'],
+        'field_religious_commitment':  ['ملتزم','متوسط','ضعيف'],
+        'field_quran_memorization':    ['لا يحفظ','جزء','2-5 أجزاء','أكثر من 5 أجزاء'],
+        'field_prayer_commitment':     ['دائمًا','أحيانًا','نادرًا'],
+        'field_sponsorship_impact':    ['إيجابي جدًا','إيجابي','متوسط','ضعيف'],
+        'field_mother_status':         ['حية','متوفية'],
+        'field_tent_school':           ['نعم','لا'],
+        'field_receives_treatment':    ['نعم','لا'],
+        'field_family_sick_member':    ['نعم','لا'],
+        'field_guardian_job':          ['لا يعمل','عامل','موظف حكومي','موظف مؤسسات أهلية'],
+        'field_guardian_relationship': ['الأم','جد/جدة جهة الأب','جد/جدة جهة الأم','الأخ/ت','عم/عمة','خال/خالة','ابن عم','زوجة الاب','زوج العمة','أخرى'],
+        'field_data_relationship':     ['الأم','جد/جدة جهة الأب','جد/جدة جهة الأم','الأخ/ت','عم/عمة','خال/خالة','ابن عم','زوجة الاب','زوج العمة','أخرى'],
+    };
+
+    function _doInlineEdit(recordId, containerEl) {
+        // تجنُّب فتح تعديلين في نفس الوقت على نفس الحقل
+        if (containerEl.classList.contains('editing')) return;
+        containerEl.classList.add('editing');
+
+        const spanEl      = containerEl.querySelector('.field-display-value');
+        const pencilEl    = containerEl.querySelector('.fa-pencil-alt');
+        const currentText = spanEl ? spanEl.textContent.trim() : '';
+        const inputVal    = currentText === '-' ? '' : currentText;
+
+        // تحديد مفتاح الحقل لمعرفة إن كان له قيم محددة مسبقاً
+        const fieldKey = containerEl.dataset.fieldKey || '';
+        const options  = FIELD_OPTIONS[fieldKey];
+
+        // إخفاء العرض الحالي
+        if (spanEl)   spanEl.style.display   = 'none';
+        if (pencilEl) pencilEl.style.display = 'none';
+        containerEl.style.cursor = 'default';
+        containerEl.onclick      = null;
+
+        // ——— بناء عناصر التعديل ———
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = 'width:100%; display:flex; flex-direction:column; gap:4px;';
+
+        let inputEl;
+        if (options && options.length > 0) {
+            // بناء <select> للحقول ذات القيم المحددة مسبقاً
+            inputEl = document.createElement('select');
+            inputEl.style.cssText =
+                'width:100%; padding:4px 8px; font-size:0.9rem; border:1.5px solid #007bff;' +
+                'border-radius:4px; direction:rtl; outline:none; box-sizing:border-box; background:#fff;';
+
+            // خيار فارغ
+            const emptyOpt = document.createElement('option');
+            emptyOpt.value = '';
+            emptyOpt.textContent = '-- اختر --';
+            inputEl.appendChild(emptyOpt);
+
+            for (const val of options) {
+                const opt = document.createElement('option');
+                opt.value = val;
+                opt.textContent = val;
+                if (val === inputVal) opt.selected = true;
+                inputEl.appendChild(opt);
+            }
+        } else {
+            // بناء <textarea> للحقول النصية الحرة
+            inputEl = document.createElement('textarea');
+            inputEl.value = inputVal;
+            inputEl.rows  = 2;
+            inputEl.style.cssText =
+                'width:100%; padding:4px 8px; font-size:0.9rem; border:1.5px solid #007bff;' +
+                'border-radius:4px; direction:rtl; resize:vertical; outline:none; box-sizing:border-box;';
+        }
+
+        const btnRow = document.createElement('div');
+        btnRow.style.cssText = 'display:flex; gap:4px; justify-content:flex-end;';
+
+        const saveBtn = document.createElement('button');
+        saveBtn.type  = 'button';
+        saveBtn.innerHTML = '<i class="fas fa-check" style="color:#fff;"></i>';
+        saveBtn.title = 'حفظ (Ctrl+Enter)';
+        saveBtn.style.cssText =
+            'background:#28a745; color:#fff; border:none; border-radius:5px;' +
+            'padding:5px 14px; cursor:pointer; font-size:1rem; line-height:1;';
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type  = 'button';
+        cancelBtn.innerHTML = '<i class="fas fa-times" style="color:#fff;"></i>';
+        cancelBtn.title = 'إلغاء (Esc)';
+        cancelBtn.style.cssText =
+            'background:#dc3545; color:#fff; border:none; border-radius:5px;' +
+            'padding:5px 14px; cursor:pointer; font-size:1rem; line-height:1;';
+
+        btnRow.append(saveBtn, cancelBtn);
+        wrapper.append(inputEl, btnRow);
+        containerEl.appendChild(wrapper);
+        inputEl.focus();
+
+        // ——— استعادة العرض الأصلي ———
+        function restore() {
+            if (!containerEl.contains(wrapper)) return;
+            containerEl.removeChild(wrapper);
+            if (spanEl)   spanEl.style.display   = '';
+            if (pencilEl) pencilEl.style.display = '';
+            containerEl.style.cursor = 'pointer';
+            containerEl.onclick = function(){ _doInlineEdit(recordId, containerEl); };
+            containerEl.classList.remove('editing');
+        }
+
+        cancelBtn.addEventListener('click', function(e) { e.stopPropagation(); restore(); });
+
+        // ——— حفظ ———
+        function doSave() {
+            const newValue = inputEl.value;
+            saveBtn.disabled = cancelBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin" style="color:#fff;"></i>';
+
+            fetch(_UPDATE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': _CSRF },
+                body: JSON.stringify({ record_id: recordId, new_value: newValue })
+            })
+            .then(r => r.json())
+            .then(json => {
+                if (json.success) {
+                    if (spanEl) spanEl.textContent = newValue.trim() || '-';
+                    // تحديث بيانات السياق إن وُجدت (للمودال)
+                    const ctx = window._portalModalCtx;
+                    if (ctx && ctx.data && ctx.data.portal_fields) {
+                        const f = ctx.data.portal_fields.find(f => f.record_id == recordId);
+                        if (f) f.value = newValue;
+                    }
+                    restore();
+                    _showToast('تم الحفظ بنجاح ✓', 'success');
+                } else {
+                    saveBtn.disabled = cancelBtn.disabled = false;
+                    saveBtn.innerHTML = '<i class="fas fa-check" style="color:#fff;"></i>';
+                    _showToast(json.message || 'حدث خطأ', 'error');
+                }
+            })
+            .catch(() => {
+                saveBtn.disabled = cancelBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="fas fa-check" style="color:#fff;"></i>';
+                _showToast('خطأ في الاتصال بالخادم', 'error');
+            });
+        }
+
+        saveBtn.addEventListener('click', function(e) { e.stopPropagation(); doSave(); });
+        inputEl.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape')                { e.preventDefault(); restore(); }
+            if (e.key === 'Enter' && e.ctrlKey)    { e.preventDefault(); doSave(); }
+        });
+    }
+
+    // واجهتان عامتان (onclick في HTML يستدعيهما)
+    window.editPortalField = function(recordId, el) { _doInlineEdit(recordId, el); };
+    window.editServerField = function(recordId, el) { _doInlineEdit(recordId, el); };
+
+    // سياق المودال الأصلي
+    window._portalModalCtx = { data: null, personName: null, type: null };
+
+    window.showAdditionalInfoModal = function(data, personName, type) {
+        // حفظ السياق
+        window._portalModalCtx = { data, personName, type };
+
         let htmlContent = '<div style="direction: rtl; text-align: right; max-height: 75vh; overflow-y: auto; padding: 10px;">';
 
         // عرض البيانات الإضافية
         if (data.portal_fields && data.portal_fields.length > 0) {
-            htmlContent += '<h5 class="mb-3" style="color: #495057; border-bottom: 2px solid #007bff; padding-bottom: 8px;">البيانات الإضافية</h5>';
+            htmlContent += '<h5 class="mb-3" style="color: #495057; border-bottom: 2px solid #007bff; padding-bottom: 8px;">البيانات الإضافية <small style="font-size:0.75rem; color:#007bff;">(انقر على القيمة لتعديلها)</small></h5>';
             htmlContent += '<div class="row mb-4">';
             data.portal_fields.forEach(field => {
+                const displayVal = field.value || '-';
                 htmlContent += `
                     <div class="col-md-4 col-sm-6 col-12 mb-2">
                         <div class="info-label" style="color: #888; font-size: 0.95rem;">${field.key}</div>
-                        <div class="info-value" style="font-weight: bold; color: #222;">${field.value || '-'}</div>
+                        <div class="info-value portal-editable-field"
+                             data-field-key="${field.original_key}"
+                             style="font-weight: bold; color: #222; cursor: pointer; display: flex; align-items: center; gap: 5px;"
+                             onclick="editPortalField(${field.record_id}, this)"
+                             title="انقر للتعديل">
+                            <span class="field-display-value">${displayVal}</span>
+                            <i class="fas fa-pencil-alt" style="font-size:0.7rem; color:#007bff; opacity:0.55; flex-shrink:0;"></i>
+                        </div>
                     </div>
                 `;
             });
