@@ -6,6 +6,7 @@
 @include('admin.dashboard.records_management.editSectionJavascript.autoComplete')
 @include('admin.dashboard.records_management.editSectionJavascript.viewFinalInformation')
 @include('admin.dashboard.records_management.editSectionJavascript.uploadDocument')
+@include('admin.dashboard.records_management.editSectionJavascript.civilRegistryAutofill')
 
 {{-- 🏦 JavaScript للحسابات البنكية والـ Validation --}}
 <script>
@@ -26,6 +27,26 @@ $(document).ready(function() {
                 <i class="fas fa-university me-2"></i>حساب بنكي رقم ${index + 1}
             </h6>
             <div class="row g-4">
+                <div class="col-12">
+                    <label class="form-label fw-semibold">رقم هوية صاحب الحساب</label>
+                    <div class="input-group" style="max-width:320px;">
+                        <input type="text" name="bank_accounts[${index}][person_owner_identity_number]"
+                               class="form-control form-control-solid bank-owner-id-input" maxlength="9" inputmode="numeric" pattern="[0-9]*"
+                               placeholder="أدخل رقم الهوية للجلب التلقائي"
+                               value="${bankData.person_owner_identity_number || ''}"
+                               oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+                        <span class="bank-civil-lookup-status input-group-text" style="display: none;">
+                            <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+                        </span>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold">اسم صاحب الحساب</label>
+                    <input type="text" name="bank_accounts[${index}][re_guardian_name]"
+                           class="form-control form-control-solid bank-owner-name-input" maxlength="100"
+                           placeholder="أدخل اسم صاحب الحساب"
+                           value="${bankData.re_guardian_name || ''}">
+                </div>
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">اسم البنك</label>
                     <select name="bank_accounts[${index}][bank_name]" class="form-select form-select-solid">
@@ -36,21 +57,6 @@ $(document).ready(function() {
                             </option>
                         `).join('')}
                     </select>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label fw-semibold">اسم صاحب الحساب</label>
-                    <input type="text" name="bank_accounts[${index}][re_guardian_name]"
-                           class="form-control form-control-solid" maxlength="100"
-                           placeholder="أدخل اسم صاحب الحساب"
-                           value="${bankData.re_guardian_name || ''}">
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label fw-semibold">رقم هوية صاحب الحساب</label>
-                    <input type="text" name="bank_accounts[${index}][person_owner_identity_number]"
-                           class="form-control form-control-solid" maxlength="20"
-                           placeholder="أدخل رقم الهوية"
-                           value="${bankData.person_owner_identity_number || ''}"
-                           oninput="this.value = this.value.replace(/[^0-9]/g, '');">
                 </div>
                 <div class="col-md-6">
                     <label class="form-label fw-semibold">رقم هاتف صاحب الحساب</label>
@@ -147,6 +153,11 @@ $(document).ready(function() {
         });
         updateRemoveEditBankButtons();
 
+        // ربط السجل المدني للحسابات الموجودة
+        document.querySelectorAll('.bank-owner-id-input').forEach(function(input) {
+            setupBankOwnerCivilLookup(input);
+        });
+
         if (editBankAccountCount >= maxEditBankAccounts) {
             $('#addEditBankAccountBtn').prop('disabled', true);
         }
@@ -160,10 +171,30 @@ $(document).ready(function() {
             editBankAccountCount++;
             updateRemoveEditBankButtons();
 
-            // التمرير للحساب الجديد
-            $('html, body').animate({
-                scrollTop: $('.bank-account-form:last').offset().top - 100
-            }, 500);
+            // ربط السجل المدني للحساب البنكي الجديد - بعد تأخير صغير
+            setTimeout(function() {
+                const newForm = $('#editBankAccountsContainer .bank-account-form:last')[0];
+                console.log('🔧 Setting up bank owner lookup (edit):', {
+                    newForm: newForm,
+                    editBankAccountCount: editBankAccountCount - 1
+                });
+                if (newForm) {
+                    const idInput = newForm.querySelector('.bank-owner-id-input');
+                    console.log('📝 ID Input found:', idInput);
+                    if (idInput) {
+                        setupBankOwnerCivilLookup(idInput);
+                    } else {
+                        console.error('❌ Could not find ID input in new edit form');
+                    }
+
+                    // التمرير للحساب الجديد
+                    $('html, body').animate({
+                        scrollTop: $(newForm).offset().top - 100
+                    }, 500);
+                } else {
+                    console.error('❌ Could not find new form element');
+                }
+            }, 100);
 
             if (editBankAccountCount >= maxEditBankAccounts) {
                 $(this).prop('disabled', true);
@@ -176,6 +207,103 @@ $(document).ready(function() {
             });
         }
     });
+
+    // دالة ربط السجل المدني لصاحب الحساب البنكي
+    function setupBankOwnerCivilLookup(idInput) {
+        if (!idInput || idInput.dataset.bankCivilLookupAttached === 'true') return;
+
+        const form = idInput.closest('.bank-account-form');
+        const nameInput = form.querySelector('.bank-owner-name-input');
+        const statusSpinner = form.querySelector('.bank-civil-lookup-status');
+
+        console.log('🏦 Bank Civil Lookup Setup (Edit):', {
+            idInput: idInput ? 'found' : 'NOT FOUND',
+            nameInput: nameInput ? 'found' : 'NOT FOUND',
+            statusSpinner: statusSpinner ? 'found' : 'NOT FOUND'
+        });
+
+        let debounceTimer;
+
+        function doLookup() {
+            const idValue = idInput.value.trim();
+
+            console.log('🔍 Attempting lookup for:', idValue);
+
+            if (idValue.length < 9) {
+                if (statusSpinner) statusSpinner.style.display = 'none';
+                return;
+            }
+
+            if (statusSpinner) statusSpinner.style.display = 'inline-block';
+
+            fetch(`/api/civil-registry/search-by-id?search_text=${idValue}`)
+                .then(response => {
+                    console.log('📡 API Response status:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('📊 API Data received:', data);
+
+                    if (statusSpinner) statusSpinner.style.display = 'none';
+
+                    // الـ API يرجع {success: true, data: [...], ...}
+                    const records = data.data || data;
+
+                    if (records && records.length > 0) {
+                        const person = records[0];
+                        const fullName = [
+                            person.CI_FIRST_ARB || person.first_name,
+                            person.CI_FATHER_ARB || person.second_name,
+                            person.CI_GFATHE_ARB || person.third_name,
+                            person.CI_FAMILY_ARB || person.last_name
+                        ].filter(Boolean).join(' ');
+
+                        console.log('✅ Full name constructed:', fullName);
+                        console.log('📝 Name input element:', nameInput);
+
+                        if (nameInput && fullName) {
+                            nameInput.value = fullName;
+                            console.log('✅ Name filled successfully!');
+                        } else {
+                            console.error('❌ Failed to fill name:', {
+                                nameInput: nameInput,
+                                fullName: fullName
+                            });
+                        }
+                    } else {
+                        console.warn('⚠️ No data found for ID:', idValue);
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ خطأ في جلب بيانات السجل المدني:', error);
+                    if (statusSpinner) statusSpinner.style.display = 'none';
+                });
+        }
+
+        idInput.addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(doLookup, 500);
+        });
+
+        // إضافة change و blur للتأكد من التفعيل
+        idInput.addEventListener('change', function() {
+            doLookup();
+        });
+
+        idInput.addEventListener('blur', function() {
+            if (idInput.value.trim().length >= 9) {
+                doLookup();
+            }
+        });
+
+        // تفعيل البحث التلقائي إذا كان الحقل ممتلئ مسبقاً
+        if (idInput.value.trim().length >= 9) {
+            console.log('🚀 Auto-triggering lookup for pre-filled value');
+            doLookup();
+        }
+
+        idInput.dataset.bankCivilLookupAttached = 'true';
+    }
 
     // ============================================
     // نظام Validation الشامل

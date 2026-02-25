@@ -40,7 +40,7 @@ class NormalizedSearchService
     public function searchCivilRegistry(string $searchTerm, int $limit = 50)
     {
         // إذا كان رقم هوية، البحث المباشر (أسرع)
-        if (is_numeric($searchTerm) && strlen($searchTerm) >= 9) {
+        if (is_numeric($searchTerm) && strlen($searchTerm) >= 8) {
             return $this->searchByIdNumberOptimized($searchTerm, $limit);
         }
 

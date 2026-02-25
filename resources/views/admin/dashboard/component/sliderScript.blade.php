@@ -39,8 +39,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Update navigation buttons visibility
         if (catPrevBtn && catNextBtn) {
-            catPrevBtn.style.display = (catCurrent < maxIndex) ? 'flex' : 'none';
-            catNextBtn.style.display = (catCurrent > 0) ? 'flex' : 'none';
+            catPrevBtn.style.display = (catCurrent > 0) ? 'flex' : 'none';
+            catNextBtn.style.display = (catCurrent < maxIndex) ? 'flex' : 'none';
         }
 
         // Update pagination dots
@@ -62,17 +62,15 @@ document.addEventListener('DOMContentLoaded', function() {
     if (catCards.length > 0) {
         catCards.forEach(card => card.classList.add('slider-card'));
 
-        // Start from the rightmost position (RTL)
-        catCurrent = Math.max(0, catCards.length - catVisibleCount());
+        // Start from the first position (index 0)
+        catCurrent = 0;
         updateCatSlider();
 
         // Navigation buttons
         if (catPrevBtn) {
             catPrevBtn.addEventListener('click', function() {
-                const visible = catVisibleCount();
-                const maxIndex = Math.max(0, catCards.length - visible);
-                if (catCurrent < maxIndex) {
-                    catCurrent++;
+                if (catCurrent > 0) {
+                    catCurrent--;
                     updateCatSlider();
                 }
             });
@@ -80,8 +78,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (catNextBtn) {
             catNextBtn.addEventListener('click', function() {
-                if (catCurrent > 0) {
-                    catCurrent--;
+                const visible = catVisibleCount();
+                const maxIndex = Math.max(0, catCards.length - visible);
+                if (catCurrent < maxIndex) {
+                    catCurrent++;
                     updateCatSlider();
                 }
             });
@@ -165,8 +165,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Update navigation buttons visibility
         if (adminPrevBtn && adminNextBtn) {
-            adminPrevBtn.style.display = (adminCurrent < maxIndex) ? 'flex' : 'none';
-            adminNextBtn.style.display = (adminCurrent > 0) ? 'flex' : 'none';
+            adminPrevBtn.style.display = (adminCurrent > 0) ? 'flex' : 'none';
+            adminNextBtn.style.display = (adminCurrent < maxIndex) ? 'flex' : 'none';
         }
 
         // Update pagination dots
@@ -188,17 +188,15 @@ document.addEventListener('DOMContentLoaded', function() {
     if (adminCards.length > 0) {
         adminCards.forEach(card => card.classList.add('slider-card'));
 
-        // Start from the rightmost position (RTL)
-        adminCurrent = Math.max(0, adminCards.length - adminVisibleCount());
+        // Start from the first position (index 0)
+        adminCurrent = 0;
         updateAdminSlider();
 
         // Navigation buttons
         if (adminPrevBtn) {
             adminPrevBtn.addEventListener('click', function() {
-                const visible = adminVisibleCount();
-                const maxIndex = Math.max(0, adminCards.length - visible);
-                if (adminCurrent < maxIndex) {
-                    adminCurrent++;
+                if (adminCurrent > 0) {
+                    adminCurrent--;
                     updateAdminSlider();
                 }
             });
@@ -206,8 +204,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (adminNextBtn) {
             adminNextBtn.addEventListener('click', function() {
-                if (adminCurrent > 0) {
-                    adminCurrent--;
+                const visible = adminVisibleCount();
+                const maxIndex = Math.max(0, adminCards.length - visible);
+                if (adminCurrent < maxIndex) {
+                    adminCurrent++;
                     updateAdminSlider();
                 }
             });

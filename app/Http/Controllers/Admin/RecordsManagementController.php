@@ -148,10 +148,10 @@ class RecordsManagementController extends Controller
                 'data_user_insert_data' => 'nullable|string',
                 // Family members (if any)
                 'family_members' => 'sometimes|array',
-                // Attachments
+                // Attachments (optional unless files are uploaded)
                 // 'person_identity_number' => 'required|string',
-                'file_type' => 'required|string',
-                'document_file.*' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
+                'file_type' => 'nullable|string',
+                'document_file.*' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
             ], [
                 'file_id_number.required' => 'رقم الملف الموحد مطلوب.',
                 'document_file.*.mimes' => 'يجب أن تكون صيغة الملف jpg أو jpeg أو png أو pdf.',
@@ -292,6 +292,27 @@ class RecordsManagementController extends Controller
                 }
             }
 
+            // حفظ المتوفين الإضافيين عند الإنشاء
+            if ($request->has('additional_deceased')) {
+                foreach ($request->input('additional_deceased', []) as $adDeceased) {
+                    $personId = $adDeceased['id_number'] ?? $adDeceased['person_id'] ?? null;
+                    if (empty($adDeceased['first_name']) && empty($adDeceased['last_name']) && empty($personId)) {
+                        continue;
+                    }
+                    \App\Models\AdditionalDeceased::create([
+                        're_file_id'   => $fileIdNumber,
+                        'person_id'    => $personId,
+                        'first_name'   => $adDeceased['first_name'] ?? null,
+                        'second_name'  => $adDeceased['second_name'] ?? null,
+                        'third_name'   => $adDeceased['third_name'] ?? null,
+                        'last_name'    => $adDeceased['last_name'] ?? null,
+                        'relationship' => $adDeceased['relationship'] ?? 'other',
+                        'death_date'   => $adDeceased['death_date'] ?? null,
+                        'death_reason' => $adDeceased['death_reason'] ?? null,
+                    ]);
+                }
+            }
+
 
             // 4. Store family members
             $familyMembers = $request->input('family_members');
@@ -311,6 +332,7 @@ class RecordsManagementController extends Controller
                         'person_gender' => $member['person_gender'] ?? null,
                         'person_health_status' => $member['person_health_status'] ?? null,
                         'person_type_of_guarantee' => $member['person_type_of_guarantee'] ?? null,
+                        'person_note' => $member['person_note'] ?? null,
                     ]);
                 }
             }

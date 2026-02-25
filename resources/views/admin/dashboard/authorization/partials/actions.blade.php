@@ -1,6 +1,7 @@
+<div class="d-flex flex-wrap gap-2">
 @can('عرض تفاصيل الدور')
 <a href="{{ route('users.show', $user->id) }}"
-   class="btn btn-light-info btn-sm me-1"
+   class="btn btn-light-info btn-sm"
    data-bs-toggle="tooltip"
    data-bs-placement="top"
    title="عرض تفاصيل المستخدم">
@@ -12,9 +13,19 @@
     <span class="ms-1">عرض</span>
 </a>
 @endcan
+<button type="button"
+        class="btn btn-light-primary btn-sm admin-activity-btn"
+        data-admin-id="{{ $user->id }}"
+        data-admin-name="{{ $user->name }}"
+        data-bs-toggle="modal"
+        data-bs-target="#adminActivityModal"
+        title="سجل نشاط الموظف">
+    <i class="bi bi-list-ul fs-2"></i>
+    <span class="ms-1">سجل نشاط الموظف</span>
+</button>
 @can('تعديل مستخدم')
 <a href="{{ route('users.edit', $user->id) }}"
-   class="btn btn-light-warning btn-sm me-1"
+   class="btn btn-light-warning btn-sm"
    data-bs-toggle="tooltip"
    data-bs-placement="top"
    title="تعديل بيانات المستخدم">
@@ -43,3 +54,4 @@
 </button>
 {!! Form::close() !!}
 @endcan
+</div>

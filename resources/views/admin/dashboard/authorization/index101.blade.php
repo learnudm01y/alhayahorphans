@@ -184,6 +184,28 @@
             </div>
         </div>
     </div>
+
+    <!-- مودال سجل نشاط الموظف -->
+    <div class="modal fade" id="adminActivityModal" tabindex="-1" aria-labelledby="adminActivityModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="adminActivityModalLabel">سجل نشاط الموظف</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="admin-activity-table-area" class="w-100 text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">جاري التحميل...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+                </div>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @push('scriptsCode')
@@ -255,6 +277,54 @@
                     }
                 });
             });
+
+            // سجل نشاط الموظف - جلب السجلات عند الضغط على الزر
+            $(document).on('click', '.admin-activity-btn', function() {
+                var adminId = $(this).data('admin-id');
+                var adminName = $(this).data('admin-name');
+                $('#adminActivityModalLabel').text('سجل نشاط الموظف: ' + adminName);
+                var area = document.getElementById('admin-activity-table-area');
+                area.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">جاري التحميل...</span></div>';
+
+                fetch('/admin/ajax/admin-records/' + adminId)
+                    .then(function(response) { return response.json(); })
+                    .then(function(data) {
+                        if (data.success) {
+                            area.innerHTML = data.html;
+                            bindActivityPagination(adminId);
+                        } else {
+                            area.innerHTML = '<div class="alert alert-warning">' + (data.message || 'لا توجد سجلات.') + '</div>';
+                        }
+                    })
+                    .catch(function() {
+                        area.innerHTML = '<div class="alert alert-danger">حدث خطأ أثناء جلب البيانات.</div>';
+                    });
+            });
+
+            function bindActivityPagination(adminId) {
+                var area = document.getElementById('admin-activity-table-area');
+                var pagers = area.querySelectorAll('.admin-records-pagination a.page-link[data-page]');
+                pagers.forEach(function(link) {
+                    link.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        var page = link.getAttribute('data-page');
+                        area.innerHTML = '<div class="spinner-border text-primary" role="status"><span class="visually-hidden">جاري التحميل...</span></div>';
+                        fetch('/admin/ajax/admin-records/' + adminId + '?page=' + page)
+                            .then(function(response) { return response.json(); })
+                            .then(function(data) {
+                                if (data.success) {
+                                    area.innerHTML = data.html;
+                                    bindActivityPagination(adminId);
+                                } else {
+                                    area.innerHTML = '<div class="alert alert-warning">' + (data.message || 'لا توجد سجلات.') + '</div>';
+                                }
+                            })
+                            .catch(function() {
+                                area.innerHTML = '<div class="alert alert-danger">حدث خطأ أثناء جلب البيانات.</div>';
+                            });
+                    });
+                });
+            }
         });
     </script>
 @endpush

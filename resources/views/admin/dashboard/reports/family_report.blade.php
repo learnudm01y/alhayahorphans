@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>استمارة أيتام</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         @php
             // تحديد الألوان الديناميكية
@@ -172,9 +173,9 @@
             object-fit: contain;
             display: block;
             margin: 0 auto;
-            border: 4px solid;
-            box-shadow: 0 6px 25px rgba(0,0,0,0.2);
-            border-radius: 4px;
+            border: none;
+            box-shadow: none;
+            border-radius: 0;
         }
 
         /* Colors - Using dynamic colors */
@@ -231,7 +232,7 @@
         /* Tables Layout */
         .top-tables-container {
             width: 100%;
-            margin-bottom: 20px;
+            margin-bottom: 5px;
         }
 
         .top-tables-container table.layout-table {
@@ -272,18 +273,19 @@ table.styled-table th {
 .main-header {
     background-color: {{ $primaryColor }};
     color: white;
-    padding: 8px; /* Reduced */
+    padding: 4px 6px;
     text-align: center;
-    font-size: 18px; /* Reduced */
+    font-size: 15px;
     font-weight: bold;
     border: 1px solid #000 !important;
+    line-height: 1.2;
 }
 
 .sub-header th {
     background-color: {{ $accentColor }};
     color: white;
-    padding: 6px 4px; /* Reduced */
-    font-size: 14px; /* Reduced */
+    padding: 3px 4px;
+    font-size: 12px;
     font-weight: bold;
     border: 1px solid #000 !important;
     white-space: nowrap;
@@ -295,11 +297,12 @@ table.styled-table th {
 }
 
 td {
-    padding: 6px 8px; /* Reduced */
+    padding: 1px 3px;
     border: 1px solid #000 !important;
-    font-size: 14px; /* Reduced */
+    font-size: 12px;
     vertical-align: middle;
     white-space: nowrap;
+    line-height: 1.1;
 }
 
 .label {
@@ -309,16 +312,10 @@ td {
     background-color: {{ $secondaryColor }};
     text-align: center;
     border: 1px solid #000 !important;
-    padding: 6px 6px; /* Reduced */
-    font-size: 14px; /* Reduced */
+    padding: 1px 3px;
+    font-size: 12px;
     white-space: nowrap;
-}
-
-/* Override for specific styling */
-.styled-table .label {
-    background-color: {{ $secondaryColor }};
-    color: white;
-    width: 35%;
+    line-height: 1.1;
 }
 
 .styled-table .value {
@@ -327,13 +324,10 @@ td {
     text-align: center;
     font-weight: bold;
     border: 1px solid #000 !important;
-    padding: 6px 6px; /* Reduced */
-    font-size: 14px; /* Reduced */
+    padding: 1px 3px;
+    font-size: 12px;
     white-space: nowrap;
-}
-
-table.compact-deceased-table {
-    table-layout: fixed;
+    line-height: 1.1;
 }
 
 table.compact-deceased-table td,
@@ -393,6 +387,7 @@ table.compact-live-mother-table th {
     padding: 4px 5px;
     text-align: center;
     white-space: nowrap;
+    font-family: 'Cairo', Tahoma, Arial, sans-serif !important;
 }
 
 table.compact-live-mother-table th {
@@ -452,33 +447,33 @@ table.compact-live-mother-table thead th:nth-child(6) {
         }
 
         .orphan-photo-cell {
-            width: 133px !important;
-            min-width: 133px !important;
-            max-width: 133px !important;
-            padding: 3px;
+            width: 140px !important;
+            min-width: 140px !important;
+            max-width: 140px !important;
+            padding: 0 !important;
         }
 
         .orphan-photo-cell img {
-            width: 129px;
-            height: 207px;
+            width: 100%;
+            height: 100%;
             object-fit: cover;
             object-position: center center;
             display: block;
-            margin: 0 auto;
-            border: 1px solid #111;
+            margin: 0;
+            border: none;
             image-rendering: -webkit-optimize-contrast;
         }
 
         .orphan-photo-placeholder {
-            width: 129px;
-            height: 207px;
+            width: 100%;
+            height: 100%;
             background: #f0f0f0;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 10px;
             color: #999;
-            border: 1px solid #111;
+            border: none;
             box-sizing: border-box;
         }
 
@@ -498,18 +493,18 @@ table.compact-live-mother-table thead th:nth-child(6) {
             background-color: {{ $accentColor }};
             color: white;
             border: 2px solid white;
-            padding: 6px 4px; /* Increased from 4px 3px */
-            font-size: 13px; /* Increased from 12px */
+            padding: 3px 4px;
+            font-size: 12px;
         }
 
         .siblings-block td {
             text-align: center;
             font-weight: 600;
             border: 1px solid #000 !important;
-            font-size: 13px; /* Increased from 12px */
-            padding: 6px 6px; /* Increased from 4px */
+            font-size: 12px;
+            padding: 3px 4px;
             white-space: nowrap;
-            line-height: 1.4;
+            line-height: 1.2;
         }
 
         /* Photos Grid */
@@ -529,7 +524,7 @@ table.compact-live-mother-table thead th:nth-child(6) {
 
         .photos-grid table td {
             width: 16.66%;
-            border: 1px solid #000;
+            border: none;
             background: white;
             padding: 3px;
             text-align: center;
@@ -551,7 +546,7 @@ table.compact-live-mother-table thead th:nth-child(6) {
             display: block;
             margin: 0 auto 4px auto;
             background: #fff;
-            border: 1px solid #111;
+            border: none;
         }
 
         .photo-item .caption {
@@ -918,17 +913,13 @@ table.compact-live-mother-table thead th:nth-child(6) {
                 ])));
 
                 $hasFatherDeceasedData = !empty($fatherFullName)
-                    || !empty(optional($deadPeople)->father_id)
-                    || !empty(optional($deadPeople)->father_death_date)
-                    || !empty(optional($deadPeople)->fatherDeathReason?->description);
+                    || (!empty(optional($deadPeople)->father_id) && (int)(optional($deadPeople)->father_id) > 0);
 
                 $hasMotherDeceasedData = !empty($motherFullName)
-                    || !empty(optional($deadPeople)->mother_id)
-                    || !empty(optional($deadPeople)->mother_death_date)
-                    || !empty(optional($deadPeople)->motherDeathReason?->description);
+                    || (!empty(optional($deadPeople)->mother_id) && (int)(optional($deadPeople)->mother_id) > 0);
             @endphp
 
-            @if($hasFatherDeceasedData || $hasMotherDeceasedData)
+            @if($hasFatherDeceasedData || $hasMotherDeceasedData || (!empty($additionalDeceased) && $additionalDeceased->count() > 0))
             <div class="siblings-block">
                 <table class="styled-table full-width compact-deceased-table">
                     <thead>
@@ -967,6 +958,22 @@ table.compact-live-mother-table thead th:nth-child(6) {
                             </td>
                             <td class="value">{{ $deadPeople?->motherDeathReason?->description ?? 'غير متوفر' }}</td>
                         </tr>
+                        @endif
+
+                        @if(!empty($additionalDeceased) && $additionalDeceased->count() > 0)
+                            @foreach($additionalDeceased as $ad)
+                            <tr>
+                                <td class="value marker-value">({{ $ad->relationship_text ?? $ad->relationship ?? 'متوفي إضافي' }})</td>
+                                <td class="value name-value">
+                                    {{ trim(($ad->first_name ?? '') . ' ' . ($ad->second_name ?? '') . ' ' . ($ad->third_name ?? '') . ' ' . ($ad->last_name ?? '')) ?: 'غير متوفر' }}
+                                </td>
+                                <td class="value">{{ $ad->person_id ?? '-' }}</td>
+                                <td class="value">
+                                    {{ !empty($ad->death_date) ? \Carbon\Carbon::parse($ad->death_date)->format('d/m/Y') : '-' }}
+                                </td>
+                                <td class="value">{{ $ad->death_reason ?? '-' }}</td>
+                            </tr>
+                            @endforeach
                         @endif
                     </tbody>
                 </table>
@@ -1011,6 +1018,8 @@ table.compact-live-mother-table thead th:nth-child(6) {
                 </table>
             </div>
             @endif
+
+            {{-- المتوفون الإضافيون تم دمجهم في الجدول أعلاه --}}
 
             <!-- Photos Grid -->
             <div class="photos-grid">

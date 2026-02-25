@@ -37,8 +37,12 @@
                     const genderOptions = getOptionsOnly(
                         'select[name^="family_members"][name$="[person_gender]"]');
                     const html = `
-                    <div class="family-member-form border rounded p-3 mb-3 position-relative">
-                        <div class="card-header d-flex justify-content-end align-items-center" style="background: #f8f9fa; border-bottom: 1px solid #eee; min-height: 48px;">
+                    <div class="family-member-form rounded p-3 mb-4 position-relative" style="border: 2px solid #343a40; border-radius: 8px;">
+                        <div class="card-header d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-bottom: 1px solid #eee; min-height: 48px;">
+                            <span class="fw-bold d-flex align-items-center" style="font-size: 1.1rem;">
+                                <i class="fas fa-user-circle fs-5 me-2 text-primary"></i>
+                                <span class="badge bg-success me-2" style="font-size: 1rem;">فرد الأسرة (1)</span>
+                            </span>
                             <button type="button" class="btn btn-light btn-sm delete-family-member-x custom-x-btn" title="حذف">
                                 <span aria-hidden="true" style="font-size:1.2rem;">&times;</span>
                             </button>
@@ -56,6 +60,12 @@
                                     ${sponsorshipStatuses.map(status => `<option value="${status.id}">${status.description}</option>`).join('')}
                                 </select>
                             </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold">رقم هوية اليتيم</label>
+                                <div class="input-group" style="max-width:320px;">
+                                    <input type="text" name="family_members[0][person_id]" class="form-control" inputmode="numeric" pattern="[0-9]*" maxlength="9" oninput="this.value = this.value.replace(/[^0-9]/g, '');" placeholder="أدخل رقم الهوية للجلب التلقائي">
+                                </div>
+                            </div>
                             <div class="col-md-3">
                                 <label class="form-label">الاسم الأول <span class="text-danger">*</span></label>
                                 <input type="text" name="family_members[0][first_name]" class="form-control">
@@ -71,10 +81,6 @@
                             <div class="col-md-3">
                                 <label class="form-label">اسم العائلة <span class="text-danger">*</span></label>
                                 <input type="text" name="family_members[0][last_name]" class="form-control">
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">رقم هوية اليتيم</label>
-                                <input type="text" name="family_members[0][person_id]" class="form-control" inputmode="numeric" pattern="[0-9]*" maxlength="9" oninput="this.value = this.value.replace(/[^0-9]/g, '');">>
                             </div>
                             <div class="col-md-4">
                                 <label class="form-label">تاريخ الميلاد <span class="text-danger">*</span></label>
@@ -106,6 +112,10 @@
                                     ${guaranteeTypes.map(type => `<option value="${type.id}">${type.description}</option>`).join('')}
                                 </select>
                             </div>
+                            <div class="col-12">
+                                <label class="form-label">ملاحظة</label>
+                                <textarea name="family_members[0][person_note]" class="form-control" rows="3" placeholder="أدخل ملاحظة..." style="resize:vertical;"></textarea>
+                            </div>
                         </div>
                     </div>
                     `;
@@ -118,6 +128,19 @@
                     // يوجد card: انسخ آخر card
                     newForm = forms[forms.length - 1].cloneNode(true);
                     newIndex = forms.length;
+
+                    // تحديث border للكارت المستنسخ
+                    newForm.style.border = '2px solid #343a40';
+                    newForm.style.borderRadius = '8px';
+
+                    // تحديث رقم الفرد في العنوان
+                    const cardHeaderSpan = newForm.querySelector('.card-header span.fw-bold');
+                    if (cardHeaderSpan) {
+                        cardHeaderSpan.innerHTML = `
+                            <i class="fas fa-user-circle fs-5 me-2 text-primary"></i>
+                            <span class="badge bg-success me-2" style="font-size: 1rem;">فرد الأسرة (${newIndex + 1})</span>
+                        `;
+                    }
                 }
                 // تحديث أسماء الحقول والمعرفات
                 newForm.querySelectorAll('[name]').forEach(function(input) {
@@ -126,11 +149,24 @@
                     if (input.type === 'text' || input.type === 'number' || input.type ===
                         'date') {
                         input.value = '';
+                    } else if (input.tagName.toLowerCase() === 'textarea') {
+                        input.value = '';
                     } else if (input.tagName.toLowerCase() === 'select') {
                         input.selectedIndex = 0;
                     }
                 });
+                // إزالة ربط السجل المدني القديم من النسخة المكررة كي يُعاد ربطها
+                newForm.querySelectorAll('[data-civil-lookup-attached]').forEach(function(el) {
+                    delete el.dataset.civilLookupAttached;
+                    var oldSpinner = el.closest && el.closest('.input-group') && el.closest('.input-group').querySelector('.civil-lookup-status');
+                    if (oldSpinner) oldSpinner.remove();
+                });
                 container.appendChild(newForm);
+                // ربط السجل المدني على person_id للفرد الجديد فوراً
+                var newPersonIdInput = newForm.querySelector('input[name$="[person_id]"]');
+                if (newPersonIdInput && window.setupFamilyMemberLookup) {
+                    window.setupFamilyMemberLookup(newPersonIdInput);
+                }
             });
             window.familyMemberBtnHandlerAdded = true;
         }

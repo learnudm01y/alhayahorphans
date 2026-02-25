@@ -12,6 +12,15 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
+        // مزامنة احتياطية شاملة لحالة الكفالة مرة واحدة يومياً (الـ Observer يعمل بشكل لحظي عند كل تغيير)
+        $schedule->job(new \App\Jobs\SyncSponsorshipStatusJob())
+                 ->dailyAt('03:00')
+                 ->withoutOverlapping(120)
+                 ->name('sync-sponsorship-status-daily')
+                 ->onFailure(function () {
+                     \Illuminate\Support\Facades\Log::error('SyncSponsorshipStatusJob: فشل التنفيذ اليومي');
+                 });
+
         // تنظيف الأكواد القديمة غير المستخدمة كل دقيقة
         $schedule->call(function () {
             if (function_exists('cleanupOldReservedCodes')) {

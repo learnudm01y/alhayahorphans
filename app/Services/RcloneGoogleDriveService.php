@@ -421,6 +421,51 @@ class RcloneGoogleDriveService
     }
 
     /**
+     * رفع مجلد كامل إلى Google Drive (رفع جماعي).
+     *
+     * يُنشئ المسار: {remoteName}:{rootFolder}/{organizationName}/{subFolder}/{operationName}/
+     *
+     * @param string $localFolderPath   المسار المحلي الكامل للمجلد
+     * @param string $organizationName  اسم الجمعية
+     * @param string $subFolder         مجلد فرعي داخل الجمعية (مثل "تقارير شاملة")
+     * @param string $operationName     اسم العملية (اسم المجلد النهائي)
+     * @return array ['success' => bool, 'remote_path' => string, 'message' => string]
+     */
+    public function uploadFolder(
+        string $localFolderPath,
+        string $organizationName,
+        string $subFolder,
+        string $operationName
+    ): array {
+        if (!is_dir($localFolderPath)) {
+            return ['success' => false, 'remote_path' => null, 'message' => 'المجلد المحلي غير موجود'];
+        }
+
+        $orgSafe       = $this->sanitizeName($organizationName);
+        $subSafe       = $this->sanitizeName($subFolder);
+        $opSafe        = $this->sanitizeName($operationName);
+        $remotePath    = "{$this->remoteName}:{$this->rootFolder}/{$orgSafe}/{$subSafe}/{$opSafe}";
+
+        $result = $this->executeRclone([
+            'copy',
+            $localFolderPath,
+            $remotePath,
+            '--progress',
+            '--no-update-modtime',
+        ]);
+
+        if ($result['success']) {
+            Log::info('RCLONE_FOLDER_UPLOADED', [
+                'local'  => $localFolderPath,
+                'remote' => $remotePath,
+            ]);
+            return ['success' => true, 'remote_path' => $remotePath, 'message' => 'تم رفع المجلد بنجاح'];
+        }
+
+        return ['success' => false, 'remote_path' => $remotePath, 'message' => $result['output'] ?? 'فشل الرفع'];
+    }
+
+    /**
      * التحقق من وجود ملف
      *
      * @param string $remotePath المسار الكامل للملف

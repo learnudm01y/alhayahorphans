@@ -103,6 +103,9 @@ class RecordsManagementEditController extends Controller
         $bank_name = BankName::all();
         $bankAccounts = GuardianBankAccount::where('guardian_registration', $data->file_id_number)->get();
 
+        // 🪦 جلب المتوفين الإضافيين
+        $additionalDeceased = \App\Models\AdditionalDeceased::where('re_file_id', $data->file_id_number)->get();
+
         return view('admin.dashboard.records_management.edit', compact(
             'data',
             'generalSection',
@@ -121,7 +124,8 @@ class RecordsManagementEditController extends Controller
             'guarantee_types',
             'death_reasons',
             'bank_name',
-            'bankAccounts'
+            'bankAccounts',
+            'additionalDeceased'
         ));
     }
 
@@ -249,7 +253,10 @@ class RecordsManagementEditController extends Controller
             }
         }
 
-        return view('admin.dashboard.records_management.show', compact('data', 'guardianSponsorships', 'guardianPortalFields', 'liveMother', 'motherPortalFields', 'livingMotherFields'));
+        // 🪦 جلب المتوفين الإضافيين
+        $additionalDeceased = \App\Models\AdditionalDeceased::where('re_file_id', $data->file_id_number)->get();
+
+        return view('admin.dashboard.records_management.show', compact('data', 'guardianSponsorships', 'guardianPortalFields', 'liveMother', 'motherPortalFields', 'livingMotherFields', 'additionalDeceased'));
     }
 
     /**
@@ -596,11 +603,11 @@ class RecordsManagementEditController extends Controller
                 'attachments_to_delete' => 'sometimes|array',
                 // هنا: استخدم integer فقط (بدون exists) أو استخدم exists:attachments,id إذا كنت متأكد أن القيم أرقام صحيحة
                 'attachments_to_delete.*' => 'integer|exists:attachments,id',
-                'attachmentsByPerson.*.person_identity_number' => 'required',
-                'attachmentsByPerson.*.file_id_number' => 'required',
+                'attachmentsByPerson.*.person_identity_number' => 'nullable',
+                'attachmentsByPerson.*.file_id_number' => 'nullable',
                 // لا تضف قاعدة file هنا نهائياً
-                'attachmentsByPerson.*.documents.*.file_type' => 'required|string',
-                'attachmentsByPerson.*.documents.*.stored_file_name' => 'required|string',
+                'attachmentsByPerson.*.documents.*.file_type' => 'nullable|string',
+                'attachmentsByPerson.*.documents.*.stored_file_name' => 'nullable|string',
                 // تأكد أن أفراد الأسرة لديهم file_id_number
                 'family_members.*.file_id' => 'required|string',
             ];
@@ -741,6 +748,7 @@ class RecordsManagementEditController extends Controller
                         'person_gender' => $member['person_gender'] ?? null,
                         'person_health_status' => $member['person_health_status'] ?? null,
                         'person_type_of_guarantee' => $member['person_type_of_guarantee'] ?? null,
+                        'person_note' => $member['person_note'] ?? null,
                     ]);
 
                     // إذا تغير رقم الهوية، عدل المرفقات المرتبطة
@@ -852,6 +860,50 @@ class RecordsManagementEditController extends Controller
                             ]);
                         }
                     }
+                }
+            }
+
+            // حفظ المتوفين الإضافيين (additional_deceased)
+            if ($request->input('additional_deceased_submitted') == '1') {
+                // حذف القديم وإعادة الإدراج
+                \App\Models\AdditionalDeceased::where('re_file_id', $fileIdNumber)->delete();
+                foreach ($request->input('additional_deceased', []) as $adDeceased) {
+                    $personId = $adDeceased['id_number'] ?? $adDeceased['person_id'] ?? null;
+                    // تخطي الصفوف الفارغة
+                    if (empty($adDeceased['first_name']) && empty($adDeceased['last_name']) && empty($personId)) {
+                        continue;
+                    }
+                    \App\Models\AdditionalDeceased::create([
+                        're_file_id'   => $fileIdNumber,
+                        'person_id'    => $personId,
+                        'first_name'   => $adDeceased['first_name'] ?? null,
+                        'second_name'  => $adDeceased['second_name'] ?? null,
+                        'third_name'   => $adDeceased['third_name'] ?? null,
+                        'last_name'    => $adDeceased['last_name'] ?? null,
+                        'relationship' => $adDeceased['relationship'] ?? 'other',
+                        'death_date'   => $adDeceased['death_date'] ?? null,
+                        'death_reason' => $adDeceased['death_reason'] ?? null,
+                    ]);
+                }
+            } elseif ($request->has('additional_deceased')) {
+                // fallback: إذا لم يوجد الحقل المخفي لكن يوجد المصفوفة
+                \App\Models\AdditionalDeceased::where('re_file_id', $fileIdNumber)->delete();
+                foreach ($request->input('additional_deceased', []) as $adDeceased) {
+                    $personId = $adDeceased['id_number'] ?? $adDeceased['person_id'] ?? null;
+                    if (empty($adDeceased['first_name']) && empty($adDeceased['last_name']) && empty($personId)) {
+                        continue;
+                    }
+                    \App\Models\AdditionalDeceased::create([
+                        're_file_id'   => $fileIdNumber,
+                        'person_id'    => $personId,
+                        'first_name'   => $adDeceased['first_name'] ?? null,
+                        'second_name'  => $adDeceased['second_name'] ?? null,
+                        'third_name'   => $adDeceased['third_name'] ?? null,
+                        'last_name'    => $adDeceased['last_name'] ?? null,
+                        'relationship' => $adDeceased['relationship'] ?? 'other',
+                        'death_date'   => $adDeceased['death_date'] ?? null,
+                        'death_reason' => $adDeceased['death_reason'] ?? null,
+                    ]);
                 }
             }
 
@@ -1570,9 +1622,9 @@ class RecordsManagementEditController extends Controller
      */
     public function exportFamilyReport($id, Request $request)
     {
-        $engine = strtolower((string) $request->query('engine', 'snappy'));
+        $engine = strtolower((string) $request->query('engine', 'chromium'));
         if (!in_array($engine, ['snappy', 'chromium'], true)) {
-            $engine = 'snappy';
+            $engine = 'chromium';
         }
 
         // جلب معرف الفرد المحدد
@@ -1819,7 +1871,8 @@ class RecordsManagementEditController extends Controller
             'otherDocuments' => $otherDocuments,
             'computedDependents' => $computedDependents,
             'backgroundBase64' => $backgroundBase64,
-            'customDesign' => $customDesign
+            'customDesign' => $customDesign,
+            'additionalDeceased' => \App\Models\AdditionalDeceased::where('re_file_id', $data->file_id_number)->get(),
         ];
 
         $fileName = 'family_report_' . $selectedMember->person_id . '.pdf';

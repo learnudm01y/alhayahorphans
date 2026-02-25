@@ -397,13 +397,15 @@
             // إظهار النموذج المستنسخ
             template.style.display = 'block';
 
-            // تحديث هيكل النموذج
-            template.className = 'family-member-form card border-0 shadow-sm mb-4';
+            // تحديث هيكل النموذج مع رقم الفرد
+            template.className = 'family-member-form card shadow-sm mb-4';
+            template.style.border = '2px solid #343a40';
+            template.style.borderRadius = '8px';
             template.innerHTML = `
                         <div class="card-header bg-gradient-primary text-dark py-3 d-flex justify-content-between align-items-center">
                             <h5 class="card-title mb-0 d-flex align-items-center">
-                                <i class="fas fa-user fs-4 me-2"></i>
-                                بيانات فرد الأسرة
+                                <i class="fas fa-user-circle fs-4 me-2 text-primary"></i>
+                                <span class="badge bg-success me-2" style="font-size: 1.1rem;">فرد الأسرة (${familyMemberCount})</span>
                             </h5>
                             <button type="button" class="btn btn-danger btn-sm delete-member">
                                 <i class="fas fa-times"></i>
@@ -417,7 +419,7 @@
                     `;
 
             // تحديث الأسماء والقيم
-            template.querySelectorAll('input, select').forEach(input => {
+            template.querySelectorAll('input, select, textarea').forEach(input => {
                 if (input.name) {
                     input.name = input.name.replace('[0]', `[${familyMemberCount}]`);
 
@@ -483,6 +485,18 @@
             };
 
             document.getElementById('familyMembersContainer').appendChild(template);
+
+            // ربط السجل المدني على person_id للفرد الجديد
+            const newPersonIdInput = template.querySelector('input[name$="[person_id]"]');
+            if (newPersonIdInput) {
+                delete newPersonIdInput.dataset.civilLookupAttached;
+                const oldSpinner = newPersonIdInput.closest('.input-group') && newPersonIdInput.closest('.input-group').querySelector('.civil-lookup-status');
+                if (oldSpinner) oldSpinner.remove();
+                if (window.setupFamilyMemberLookup) {
+                    window.setupFamilyMemberLookup(newPersonIdInput);
+                }
+            }
+
             familyMemberCount++;
         });
     </script>
@@ -494,6 +508,13 @@
         // حساب العمر تلقائياً عند تغيير تاريخ الميلاد
         document.addEventListener('input', function(e) {
             if (e.target.name.includes('[person_birth_date]')) {
+                calculateAge(e.target);
+            }
+        });
+
+        // استمع أيضاً لحدث change (عند الجلب من السجل المدني)
+        document.addEventListener('change', function(e) {
+            if (e.target.name && e.target.name.includes('[person_birth_date]')) {
                 calculateAge(e.target);
             }
         });
@@ -1642,25 +1663,30 @@
                             title="حذف الحساب" style="z-index: 10;"></button>
                     <h6 class="mb-3 text-primary"><i class="fas fa-university me-2"></i>حساب بنكي رقم ${index + 1}</h6>
                     <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">رقم هوية صاحب الحساب <span class="text-muted">(اختياري)</span></label>
+                            <div class="input-group" style="max-width:320px;">
+                                <input type="text" name="bank_accounts[${index}][person_owner_identity_number]"
+                                       class="form-control bank-owner-id-input" maxlength="9" inputmode="numeric" pattern="[0-9]*"
+                                       placeholder="أدخل رقم الهوية للجلب التلقائي"
+                                       oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+                                <span class="bank-civil-lookup-status input-group-text" style="display: none;">
+                                    <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">اسم صاحب الحساب <span class="text-muted">(اختياري)</span></label>
+                            <input type="text" name="bank_accounts[${index}][re_guardian_name]"
+                                   class="form-control bank-owner-name-input" maxlength="100"
+                                   placeholder="أدخل اسم صاحب الحساب">
+                        </div>
                         <div class="col-md-6">
                             <label class="form-label">اسم البنك <span class="text-muted">(اختياري)</span></label>
                             <select name="bank_accounts[${index}][bank_name]" class="form-select">
                                 <option value="">اختر البنك</option>
                                 ${bankNames.map(bank => `<option value="${bank.id}">${bank.description}</option>`).join('')}
                             </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">اسم صاحب الحساب <span class="text-muted">(اختياري)</span></label>
-                            <input type="text" name="bank_accounts[${index}][re_guardian_name]"
-                                   class="form-control" maxlength="100"
-                                   placeholder="أدخل اسم صاحب الحساب">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">رقم هوية صاحب الحساب <span class="text-muted">(اختياري)</span></label>
-                            <input type="text" name="bank_accounts[${index}][person_owner_identity_number]"
-                                   class="form-control" maxlength="20" inputmode="numeric" pattern="[0-9]*"
-                                   placeholder="أدخل رقم الهوية"
-                                   oninput="this.value = this.value.replace(/[^0-9]/g, '');">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">رقم هاتف صاحب الحساب <span class="text-muted">(اختياري)</span></label>
@@ -1743,6 +1769,27 @@
                     bankAccountCount++;
                     updateRemoveButtons();
 
+                    // ربط السجل المدني للحساب البنكي الجديد - بعد تأخير صغير للتأكد من الـ render
+                    setTimeout(() => {
+                        const newForm = bankAccountsContainer.lastElementChild;
+                        const idInput = newForm ? newForm.querySelector('.bank-owner-id-input') : null;
+                        console.log('🔧 Setting up bank owner lookup:', {
+                            newForm: newForm,
+                            idInput: idInput,
+                            bankAccountCount: bankAccountCount - 1
+                        });
+                        if (idInput) {
+                            setupBankOwnerCivilLookup(idInput);
+                        } else {
+                            console.error('❌ Could not find ID input in new form');
+                        }
+
+                        // التمرير للحساب الجديد
+                        if (newForm) {
+                            newForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                    }, 100);
+
                     if (bankAccountCount >= maxBankAccounts) {
                         addBankAccountBtn.disabled = true;
                         Swal.fire({
@@ -1753,10 +1800,6 @@
                             showConfirmButton: false
                         });
                     }
-
-                    // التمرير للحساب الجديد
-                    const newForm = bankAccountsContainer.lastElementChild;
-                    newForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 } else {
                     Swal.fire({
                         icon: 'warning',
@@ -1766,6 +1809,211 @@
                     });
                 }
             });
+
+            // دالة ربط السجل المدني لصاحب الحساب البنكي
+            function setupBankOwnerCivilLookup(idInput) {
+                if (!idInput || idInput.dataset.bankCivilLookupAttached === 'true') return;
+
+                const form = idInput.closest('.bank-account-form');
+                const nameInput = form.querySelector('.bank-owner-name-input');
+                const statusSpinner = form.querySelector('.bank-civil-lookup-status');
+
+                console.log('🏦 Bank Civil Lookup Setup:', {
+                    idInput: idInput ? 'found' : 'NOT FOUND',
+                    nameInput: nameInput ? 'found' : 'NOT FOUND',
+                    statusSpinner: statusSpinner ? 'found' : 'NOT FOUND'
+                });
+
+                let debounceTimer;
+
+                function doLookup() {
+                    const idValue = idInput.value.trim();
+
+                    console.log('🔍 Attempting lookup for:', idValue);
+
+                    if (idValue.length < 9) {
+                        if (statusSpinner) statusSpinner.style.display = 'none';
+                        return;
+                    }
+
+                    if (statusSpinner) statusSpinner.style.display = 'inline-block';
+
+                    fetch(`/api/civil-registry/search-by-id?search_text=${idValue}`)
+                        .then(response => {
+                            console.log('📡 API Response status:', response.status);
+                            return response.json();
+                        })
+                        .then(data => {
+                            console.log('📊 API Data received:', data);
+
+                            if (statusSpinner) statusSpinner.style.display = 'none';
+
+                            // الـ API يرجع {success: true, data: [...], ...}
+                            const records = data.data || data;
+
+                            if (records && records.length > 0) {
+                                const person = records[0];
+                                const fullName = [
+                                    person.CI_FIRST_ARB || person.first_name,
+                                    person.CI_FATHER_ARB || person.second_name,
+                                    person.CI_GFATHE_ARB || person.third_name,
+                                    person.CI_FAMILY_ARB || person.last_name
+                                ].filter(Boolean).join(' ');
+
+                                console.log('✅ Full name constructed:', fullName);
+                                console.log('📝 Name input element:', nameInput);
+
+                                if (nameInput && fullName) {
+                                    nameInput.value = fullName;
+                                    console.log('✅ Name filled successfully!');
+                                } else {
+                                    console.error('❌ Failed to fill name:', {
+                                        nameInput: nameInput,
+                                        fullName: fullName
+                                    });
+                                }
+                            } else {
+                                console.warn('⚠️ No data found for ID:', idValue);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('❌ خطأ في جلب بيانات السجل المدني:', error);
+                            if (statusSpinner) statusSpinner.style.display = 'none';
+                        });
+                }
+
+                idInput.addEventListener('input', function() {
+                    clearTimeout(debounceTimer);
+                    debounceTimer = setTimeout(doLookup, 500);
+                });
+
+                // إضافة change و blur للتأكد من التفعيل
+                idInput.addEventListener('change', function() {
+                    doLookup();
+                });
+
+                idInput.addEventListener('blur', function() {
+                    if (idInput.value.trim().length >= 9) {
+                        doLookup();
+                    }
+                });
+
+                // تفعيل البحث التلقائي إذا كان الحقل ممتلئ مسبقاً
+                if (idInput.value.trim().length >= 9) {
+                    console.log('🚀 Auto-triggering lookup for pre-filled value');
+                    doLookup();
+                }
+
+                idInput.dataset.bankCivilLookupAttached = 'true';
+            }
         });
     </script>
+@endpush
+@include('admin.dashboard.records_management.editSectionJavascript.civilRegistryAutofill')
+@push('scriptsCode')
+<script>
+(function () {
+    // إدارة المتوفين الإضافيين في نموذج الإنشاء
+    var createDeceasedCount = 0;
+    var createDeathReasonsData = @json($death_reasons->map(fn($dr) => ['id' => $dr->id, 'desc' => $dr->description]));
+
+    function buildCreateDeathReasonsOptions() {
+        var opts = '<option value="">اختر</option>';
+        createDeathReasonsData.forEach(function (dr) {
+            opts += '<option value="' + dr.id + '">' + dr.desc + '</option>';
+        });
+        return opts;
+    }
+
+    function buildCreateAdditionalDeceasedForm(index) {
+        return `
+        <div class="additional-deceased-form border rounded p-3 mb-3 position-relative"
+             data-index="${index}"
+             style="border: 2px dashed #dc3545 !important; background:#fff8f8;">
+            <button type="button"
+                class="btn btn-sm btn-outline-danger position-absolute top-0 end-0 m-2 remove-additional-deceased-create"
+                title="حذف"><i class="fas fa-times"></i></button>
+            <h6 class="text-danger fw-bold mb-3"><i class="fas fa-user-times me-2"></i>متوفي رقم ${index + 1}</h6>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">رقم الهوية</label>
+                    <div class="input-group">
+                        <input type="text" name="additional_deceased[${index}][id_number]"
+                               class="form-control additional-deceased-id-input" data-index="${index}"
+                               inputmode="numeric" maxlength="9"
+                               oninput="this.value=this.value.replace(/[^0-9]/g,'')"
+                               placeholder="رقم الهوية">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">صلة القرابة</label>
+                    <select name="additional_deceased[${index}][relationship]" class="form-select">
+                        <option value="">اختر</option>
+                        <option value="father">أب</option><option value="mother">أم</option>
+                        <option value="brother">أخ</option><option value="sister">أخت</option>
+                        <option value="grandfather">جد</option><option value="grandmother">جدة</option>
+                        <option value="uncle">عم</option><option value="aunt">عمة</option>
+                        <option value="other">أخرى</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">تاريخ الوفاة</label>
+                    <input type="date" name="additional_deceased[${index}][death_date]" class="form-control">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">الاسم الأول</label>
+                    <input type="text" name="additional_deceased[${index}][first_name]" class="form-control" placeholder="الاسم الأول">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">الاسم الثاني</label>
+                    <input type="text" name="additional_deceased[${index}][second_name]" class="form-control" placeholder="الاسم الثاني">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">الاسم الثالث</label>
+                    <input type="text" name="additional_deceased[${index}][third_name]" class="form-control" placeholder="الاسم الثالث">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">اسم العائلة</label>
+                    <input type="text" name="additional_deceased[${index}][last_name]" class="form-control" placeholder="اسم العائلة">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">سبب الوفاة</label>
+                    <select name="additional_deceased[${index}][death_reason]" class="form-select">
+                        ${buildCreateDeathReasonsOptions()}
+                    </select>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var addBtn = document.getElementById('addAdditionalDeceasedBtnCreate');
+        var container = document.getElementById('additionalDeceasedContainerCreate');
+        var noMsg = document.getElementById('noAdditionalDeceasedMsgCreate');
+
+        if (addBtn && container) {
+            addBtn.addEventListener('click', function () {
+                if (noMsg) noMsg.style.display = 'none';
+                container.insertAdjacentHTML('beforeend', buildCreateAdditionalDeceasedForm(createDeceasedCount));
+                var newForm = container.lastElementChild;
+                var idInput = newForm.querySelector('.additional-deceased-id-input');
+                if (idInput && window.setupAdditionalDeceasedLookup) {
+                    window.setupAdditionalDeceasedLookup(idInput, createDeceasedCount);
+                }
+                createDeceasedCount++;
+            });
+
+            container.addEventListener('click', function (e) {
+                var btn = e.target.closest('.remove-additional-deceased-create');
+                if (btn) {
+                    btn.closest('.additional-deceased-form').remove();
+                    if (container.querySelectorAll('.additional-deceased-form').length === 0 && noMsg) {
+                        noMsg.style.display = 'block';
+                    }
+                }
+            });
+        }
+    });
+})();
+</script>
 @endpush

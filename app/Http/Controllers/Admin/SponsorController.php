@@ -877,5 +877,114 @@ class SponsorController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * تصدير التقارير الشاملة (Family Reports) بشكل جماعي عبر Chromium.
+     * يُصدّر تقرير الأسرة لكل مكفول بتصميم الجمعية المحددة.
+     */
+    public function bulkExportFamilyReports(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'sponsor_id'            => 'required|exists:sponsors,id',
+                'sponsorship_status_id' => 'nullable|exists:sponsorship_statuses,id',
+            ]);
+
+            $sponsorId           = (int) $validated['sponsor_id'];
+            $sponsorshipStatusId = isset($validated['sponsorship_status_id']) ? (int) $validated['sponsorship_status_id'] : null;
+
+            $sponsor   = \App\Models\Sponsor::findOrFail($sponsorId);
+            $hasDesign = \App\Models\SponsorReportDesign::where('sponsor_id', $sponsorId)->exists();
+
+            $count = DB::table('re_people')
+                ->whereNotNull('sponsorship_status')
+                ->whereNotNull('person_id')
+                ->whereNotNull('registration_id')
+                ->when($sponsorshipStatusId, fn($q) => $q->where('sponsorship_status', $sponsorshipStatusId))
+                ->count();
+
+            if ($count === 0) {
+                return response()->json(['success' => false, 'message' => 'لا توجد بيانات مطابقة للمعايير المحددة'], 404);
+            }
+
+            \App\Jobs\BulkExportFamilyReportsJob::dispatch($sponsorId, $sponsorshipStatusId);
+
+            Log::info('BulkExportFamilyReports: Job dispatched', [
+                'sponsor_id'            => $sponsorId,
+                'sponsorship_status_id' => $sponsorshipStatusId,
+                'estimated_count'       => $count,
+            ]);
+
+            $statusLabel = $sponsorshipStatusId
+                ? optional(\App\Models\SponsorshipStatus::find($sponsorshipStatusId))->description ?? 'غير محددة'
+                : 'جميع الحالات';
+
+            return response()->json([
+                'success'        => true,
+                'message'        => 'تم بدء عملية التصدير بنجاح',
+                'design_sponsor' => $sponsor->sponsor_name,
+                'count'          => $count,
+                'status_filter'  => $statusLabel,
+                'has_design'     => $hasDesign,
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['success' => false, 'message' => 'البيانات المدخلة غير صحيحة', 'errors' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            Log::error('BulkExportFamilyReports: Error', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'حدث خطأ: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * تشغيل مزامنة حالة الكفالة بين الجداول الثلاثة في الخلفية.
+     * sponsorships.sponsorship_status_id → data.sponsorship_status
+     * sponsorships.sponsorship_status_id → re_people.sponsorship_status
+     * المزامنة تعتمد على رقم الهوية كحلقة ربط.
+     */
+    public function syncSponsorshipStatus(Request $request)
+    {
+        try {
+            // التحقق من أن المزامنة ليست قيد التشغيل بالفعل
+            $lockKey = 'sync_sponsorship_status_job';
+            if (\Illuminate\Support\Facades\Cache::has($lockKey)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'عملية المزامنة قيد التشغيل بالفعل، يرجى الانتظار.',
+                ], 409);
+            }
+
+            // حساب عدد الكفالات التي لها حالة
+            $count = \App\Models\Sponsorship::whereNotNull('sponsorship_status_id')
+                ->whereNotNull('identity_number')
+                ->count();
+
+            if ($count === 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لا توجد كفالات بحالات محددة للمزامنة.',
+                ], 404);
+            }
+
+            // تشغيل Job المزامنة في الخلفية
+            \App\Jobs\SyncSponsorshipStatusJob::dispatch();
+
+            Log::info('SyncSponsorshipStatus: Job dispatched', ['estimated_count' => $count]);
+
+            return response()->json([
+                'success'         => true,
+                'message'         => 'تم بدء عملية المزامنة بنجاح',
+                'estimated_count' => $count,
+                'note'            => 'سيتم تحديث حالة الكفالة في جداول data و re_people تلقائياً.',
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('SyncSponsorshipStatus: Error', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
 }
 

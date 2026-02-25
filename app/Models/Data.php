@@ -237,6 +237,12 @@ class Data extends Model
         return $this->hasOne(\App\Models\DeadPepole::class, 're_file_id', 'file_id_number');
     }
 
+    public function additionalDeceased()
+    {
+        // علاقة واحد لمتعدد مع جدول المتوفين الإضافيين عبر re_file_id <-> file_id_number
+        return $this->hasMany(\App\Models\AdditionalDeceased::class, 're_file_id', 'file_id_number');
+    }
+
     /**
      * علاقة مع جدول portal_general_registration_field_values
      * لجلب الحقول الإضافية المخزنة للملف أو لأفراد العائلة

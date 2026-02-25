@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Observers\SponsorshipObserver;
+use App\Models\Sponsorship;
 use App\Services\FileOrganizationService;
 use App\Services\CloudIntegrationService;
 use App\Services\ImageProcessingService;
@@ -48,6 +50,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // مزامنة لحظية لحالة الكفالة عند أي تغيير في جدول sponsorships
+        Sponsorship::observe(SponsorshipObserver::class);
+
         // تحميل إعدادات الملفات الكبيرة
         $this->loadLargeFileSettings();
     }

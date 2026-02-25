@@ -284,19 +284,16 @@
                                                 }
 
                                                 searchResults.innerHTML = `
-                                                    <div class="alert alert-info">
+                                                    <div class="alert alert-danger">
                                                         <h5><i class="fas fa-info-circle"></i> ${data.message}</h5>
                                                         <div class="mt-3">
-                                                            <strong>البيانات المتوفرة:</strong><br>
                                                             <p><strong>الاسم:</strong> ${data.data.full_name}</p>
                                                             <p><strong>رقم الهوية:</strong> ${data.data.id_number}</p>
-                                                            <p><strong>تاريخ الميلاد:</strong> ${birthDateDisplay}</p>
-                                                            <p><strong>الجنس:</strong> ${data.data.gender == 1 ? 'ذكر' : (data.data.gender == 2 ? 'أنثى' : 'غير محدد')}</p>
                                                             ${data.data.marital_status_name ? '<p><strong>الحالة الاجتماعية:</strong> ' + data.data.marital_status_name + '</p>' : ''}
                                                             ${data.data.city_name ? '<p><strong>المدينة:</strong> ' + data.data.city_name + '</p>' : ''}
                                                         </div>
                                                         <button type="button" class="btn btn-primary mt-3" id="fillFieldsBtn">
-                                                            <i class="fas fa-magic"></i> ملء الحقول تلقائياً والمتابعة
+                                                            <i class="fas fa-magic"></i> متابعة التسجيل
                                                         </button>
                                                     </div>
                                                 `;

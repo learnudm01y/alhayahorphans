@@ -645,8 +645,8 @@ class GeneralRegistrationController extends Controller
                 'search_time' => 0
             ];
 
-            // تحديد نوع البحث: رقم هوية (9 أرقام) أو اسم
-            $isIdNumber = is_numeric($searchTerm) && strlen($searchTerm) == 9;
+            // تحديد نوع البحث: رقم هوية (8-10 أرقام) أو اسم
+            $isIdNumber = is_numeric($searchTerm) && strlen($searchTerm) >= 8 && strlen($searchTerm) <= 10;
 
             if ($isIdNumber) {
                 // البحث برقم الهوية (9 أرقام) في الجداول: re_people, data, dead_people, persons (civil registry)
@@ -658,7 +658,7 @@ class GeneralRegistrationController extends Controller
                     $results['has_account'] = true;
                     $results['source'] = 're_people';
                     $results['data'] = $rePeopleResult;
-                    $results['message'] = 'تم العثور على سجل موجود مسبقاً في re_people.';
+                    $results['message'] = 'تم العثور على سجل موجود مسبقاً  .';
                     $results['search_time'] = round((microtime(true) - $startTime) * 1000, 2) . ' ms';
                     return response()->json($results);
                 }
@@ -724,7 +724,7 @@ class GeneralRegistrationController extends Controller
                     $results['has_account'] = true;
                     $results['source'] = 're_people';
                     $results['data'] = $rePeopleResult;
-                    $results['message'] = 'تم العثور على سجل موجود مسبقاً في re_people.';
+                    $results['message'] = 'تم العثور على سجل موجود مسبقاً  .';
                     $results['search_time'] = round((microtime(true) - $startTime) * 1000, 2) . ' ms';
                     return response()->json($results);
                 }
@@ -802,7 +802,7 @@ class GeneralRegistrationController extends Controller
                     ),
                     'type' => 'موجود في السجل المدني'
                 ];
-                $results['message'] = 'تم العثور على بيانات في السجل المدني. يمكنك المتابعة لإنشاء حساب جديد.';
+                $results['message'] = 'لا يوجد بيانات لهذه الأسرة. يمكنك المتابعة لإنشاء حساب جديد.';
                 $results['search_time'] = round((microtime(true) - $startTime) * 1000, 2) . ' ms';
                 return response()->json($results);
             }
@@ -1014,7 +1014,7 @@ class GeneralRegistrationController extends Controller
             if ($results->isEmpty()) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'لم يتم العثور على بيانات في السجل المدني'
+                    'message' => 'لم يلا يوجد بيانات لهذه الأسرة'
                 ]);
             }
 

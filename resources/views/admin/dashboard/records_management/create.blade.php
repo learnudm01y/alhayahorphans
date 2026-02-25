@@ -472,6 +472,17 @@
                                                                         @endforeach
                                                                     </select>
                                                                 </div>
+                                                                <div class="col-12">
+                                                                    <label class="form-label fw-semibold">رقم هوية اليتيم</label>
+                                                                    <div class="input-group" style="max-width:320px;">
+                                                                        <input type="text"
+                                                                            name="family_members[0][person_id]"
+                                                                            class="form-control" inputmode="numeric"
+                                                                            pattern="[0-9]*" maxlength="9"
+                                                                            oninput="this.value = this.value.replace(/[^0-9]/g, '');"
+                                                                            placeholder="أدخل رقم الهوية للجلب التلقائي">
+                                                                    </div>
+                                                                </div>
                                                                 <div class="col-md-3">
                                                                     <label class="form-label">الاسم الأول <span
                                                                             class="text-danger">*</span></label>
@@ -497,14 +508,6 @@
                                                                     <input type="text"
                                                                         name="family_members[0][last_name]"
                                                                         class="form-control">
-                                                                </div>
-                                                                <div class="col-md-4">
-                                                                    <label class="form-label">رقم هوية اليتيم</label>
-                                                                    <input type="text"
-                                                                        name="family_members[0][person_id]"
-                                                                        class="form-control" inputmode="numeric"
-                                                                        pattern="[0-9]*" maxlength="9"
-                                                                        oninput="this.value = this.value.replace(/[^0-9]/g, '');">
                                                                 </div>
                                                                 <div class="col-md-4">
                                                                     <label class="form-label">تاريخ الميلاد <span
@@ -552,6 +555,10 @@
                                                                         @endforeach
                                                                     </select>
                                                                 </div>
+                                                                <div class="col-12">
+                                                                    <label class="form-label">ملاحظة</label>
+                                                                    <textarea name="family_members[0][person_note]" class="form-control" rows="3" placeholder="أدخل ملاحظة..." style="resize:vertical;"></textarea>
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -579,6 +586,15 @@
                                                     <div class="row g-3">
                                                         <input type="hidden" name="re_file_id"
                                                             value="{{ $file_id_number ?? '' }}">
+                                                        <div class="col-12">
+                                                            <label class="form-label fw-semibold">رقم الهوية <span class="text-danger">*</span></label>
+                                                            <div class="input-group" style="max-width:320px;">
+                                                                <input type="text" name="father_id" class="form-control"
+                                                                    inputmode="numeric" pattern="[0-9]*" maxlength="9"
+                                                                    oninput="this.value = this.value.replace(/[^0-9]/g, '');"
+                                                                    placeholder="أدخل رقم الهوية للجلب التلقائي">
+                                                            </div>
+                                                        </div>
                                                         <div class="col-md-3">
                                                             <label class="form-label">الاسم الأول <span
                                                                     class="text-danger">*</span></label>
@@ -601,20 +617,13 @@
                                                             <input type="text" name="father_last_name"
                                                                 class="form-control">
                                                         </div>
-                                                        <div class="col-md-4">
-                                                            <label class="form-label">رقم الهوية <span
-                                                                    class="text-danger">*</span></label>
-                                                            <input type="text" name="father_id" class="form-control"
-                                                                inputmode="numeric" pattern="[0-9]*" maxlength="9"
-                                                                oninput="this.value = this.value.replace(/[^0-9]/g, '');">
-                                                        </div>
-                                                        <div class="col-md-4">
+                                                        <div class="col-md-6">
                                                             <label class="form-label">تاريخ الوفاة <span
                                                                     class="text-danger">*</span></label>
                                                             <input type="date" name="father_death_date"
                                                                 class="form-control">
                                                         </div>
-                                                        <div class="col-md-4">
+                                                        <div class="col-md-6">
                                                             <label class="form-label">سبب الوفاة <span
                                                                     class="text-danger">*</span></label>
                                                             <select name="father_death_reason" class="form-select">
@@ -650,6 +659,15 @@
                                                     <div class="row g-3">
                                                         <input type="hidden" name="re_file_id"
                                                             value="{{ $file_id_number ?? '' }}">
+                                                        <div class="col-12">
+                                                            <label class="form-label fw-semibold">رقم الهوية <span class="text-danger">*</span></label>
+                                                            <div class="input-group" style="max-width:320px;">
+                                                                <input type="text" name="mother_id" class="form-control"
+                                                                    inputmode="numeric" pattern="[0-9]*" maxlength="9"
+                                                                    oninput="this.value = this.value.replace(/[^0-9]/g, '');"
+                                                                    placeholder="أدخل رقم الهوية للجلب التلقائي">
+                                                            </div>
+                                                        </div>
                                                         <div class="col-md-3">
                                                             <label class="form-label">الاسم الأول <span
                                                                     class="text-danger">*</span></label>
@@ -672,20 +690,13 @@
                                                             <input type="text" name="mother_last_name"
                                                                 class="form-control">
                                                         </div>
-                                                        <div class="col-md-4">
-                                                            <label class="form-label">رقم الهوية <span
-                                                                    class="text-danger">*</span></label>
-                                                            <input type="text" name="mother_id" class="form-control"
-                                                                inputmode="numeric" pattern="[0-9]*" maxlength="9"
-                                                                oninput="this.value = this.value.replace(/[^0-9]/g, '');">
-                                                        </div>
-                                                        <div class="col-md-4">
+                                                        <div class="col-md-6">
                                                             <label class="form-label">تاريخ الوفاة <span
                                                                     class="text-danger">*</span></label>
                                                             <input type="date" name="mother_death_date"
                                                                 class="form-control">
                                                         </div>
-                                                        <div class="col-md-4">
+                                                        <div class="col-md-6">
                                                             <label class="form-label">سبب الوفاة <span
                                                                     class="text-danger">*</span></label>
                                                             <select name="mother_death_reason" class="form-select">
@@ -696,6 +707,27 @@
                                                                 @endforeach
                                                             </select>
                                                         </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {{-- قسم المتوفين الإضافيين في نموذج الإنشاء --}}
+                                    <div class="row mt-4 g-3">
+                                        <div class="col-12">
+                                            <div class="card border-0 shadow-sm">
+                                                <div class="card-header bg-gradient-danger text-dark py-3 d-flex justify-content-between align-items-center">
+                                                    <h5 class="card-title mb-0"><i class="fas fa-users-slash me-2"></i>متوفون إضافيون</h5>
+                                                    <button type="button" class="btn btn-success btn-sm" id="addAdditionalDeceasedBtnCreate">
+                                                        <i class="fas fa-plus me-1"></i>إضافة متوفي
+                                                    </button>
+                                                </div>
+                                                <div class="card-body bg-light">
+                                                    <div id="additionalDeceasedContainerCreate">
+                                                        <p class="text-muted text-center py-3" id="noAdditionalDeceasedMsgCreate">
+                                                            <i class="fas fa-info-circle me-1"></i>لا يوجد متوفون إضافيون. اضغط "إضافة متوفي" لإضافة واحد.
+                                                        </p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -872,4 +904,5 @@
 
     @include('admin.dashboard.records_management.style')
     @include('admin.dashboard.records_management.javascript_create')
+    @include('admin.dashboard.records_management.editSectionJavascript.civilRegistryAutofill')
 @endsection

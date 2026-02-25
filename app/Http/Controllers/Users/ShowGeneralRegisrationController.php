@@ -3000,7 +3000,7 @@ class ShowGeneralRegisrationController extends Controller
         $civilData = $this->searchCivilRegistry($identityNumber);
 
         if (!$civilData) {
-            return response()->json(['success' => false, 'message' => 'لم يتم العثور على بيانات في السجل المدني']);
+            return response()->json(['success' => false, 'message' => 'لم يلا يوجد بيانات لهذه الأسرة']);
         }
 
         return response()->json([
@@ -3024,7 +3024,7 @@ class ShowGeneralRegisrationController extends Controller
     {
         $identityNumber = $request->input('identity_number');
 
-        if (empty($identityNumber) || strlen($identityNumber) < 9) {
+        if (empty($identityNumber) || strlen($identityNumber) < 8) {
             return response()->json(['found' => false, 'message' => 'رقم الهوية غير صالح']);
         }
 

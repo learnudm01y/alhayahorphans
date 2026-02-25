@@ -58,7 +58,7 @@
         @php
     use App\Models\GeneralCategory;
     use App\Models\Data;
-    $categories = GeneralCategory::all();
+    $categories = GeneralCategory::latest()->take(10)->get();
     $today = now()->format('Y-m-d');
     $month = now()->format('Y-m');
     $year = now()->format('Y');
@@ -120,7 +120,7 @@
         </div>
     </div>
     @php
-    $admins = \App\Models\User::where('role', 'admin')->get(); // جلب جميع الموظفين admins دفعة واحدة
+    $admins = \App\Models\User::where('role', 'admin')->latest()->take(10)->get(); // جلب آخر 10 موظفين فقط
     $today = now()->format('Y-m-d');
     $month = now()->format('Y-m');
     $year = now()->format('Y');
@@ -197,7 +197,6 @@
         align-items: center;
         gap: 0.5rem;
         margin: 1rem 0;
-        flex-direction: row-reverse;
         padding: 0.5rem 0;
     }
     .slider-dot {
@@ -245,7 +244,7 @@
     /* Slider row container - CLEAN FLEX */
     .slider-row {
         display: flex;
-        flex-direction: row-reverse;
+        flex-direction: row;
         transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
         will-change: transform;
         touch-action: pan-y;

@@ -651,16 +651,6 @@
                                         </div>
                                     @endif
 
-                                    <div class="form-group mb-2">
-                                        <label for="engine_select_{{ $member->id }}" class="form-label text-end d-block" style="font-size: 0.85rem;">
-                                            <i class="bi bi-cpu"></i> اختر محرك التصدير
-                                        </label>
-                                        <select id="engine_select_{{ $member->id }}" class="form-select form-select-sm export-engine-selector" style="font-size: 0.85rem;">
-                                            <option value="snappy" selected>Snappy (المحرك الحالي)</option>
-                                            <option value="chromium">Browsershot / Chromium</option>
-                                        </select>
-                                    </div>
-
                                     <div class="d-flex gap-2 justify-content-center">
                                         <button type="button" class="btn btn-sm btn-info view-more-btn"
                                                 data-type="family_member"
@@ -796,6 +786,42 @@
                     </div>
                 @endif
             </div>
+
+            {{-- المتوفون الإضافيون في صفحة العرض --}}
+            @if(isset($additionalDeceased) && $additionalDeceased->count() > 0)
+                <div class="mt-3">
+                    <h6 class="text-danger fw-bold border-bottom pb-2 mb-3">
+                        <i class="fas fa-users-slash me-2"></i>متوفون إضافيون
+                    </h6>
+                    <div class="row">
+                        @foreach($additionalDeceased as $adDeceased)
+                            <div class="col-md-4 col-12 mb-3">
+                                <div class="card h-100 shadow-sm border border-danger-subtle">
+                                    <div class="card-body" style="direction: rtl;">
+                                        <div class="fw-bold mb-2">
+                                            {{ trim(($adDeceased->first_name ?? '') . ' ' . ($adDeceased->second_name ?? '') . ' ' . ($adDeceased->third_name ?? '') . ' ' . ($adDeceased->last_name ?? '')) ?: '-' }}
+                                        </div>
+                                        <div class="info-label mb-1">صلة القرابة:
+                                            <span class="info-value">{{ $adDeceased->relationship_text ?? $adDeceased->relationship ?? '-' }}</span>
+                                        </div>
+                                        @if($adDeceased->person_id)
+                                            <div class="info-label mb-1">رقم الهوية:
+                                                <span class="info-value">{{ $adDeceased->person_id }}</span>
+                                            </div>
+                                        @endif
+                                        @if($adDeceased->death_date)
+                                            <div class="info-label mb-1">تاريخ الوفاة:
+                                                <span class="info-value">{{ $adDeceased->death_date }}</span>
+                                            </div>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+
         @else
             <p class="text-muted">لا توجد بيانات متوفين.</p>
         @endif
@@ -1311,7 +1337,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const memberIdParam = originalUrl.searchParams.get('member_id');
 
         const sponsorSelect = document.getElementById(`sponsor_select_${memberId}`);
-        const engineSelect = document.getElementById(`engine_select_${memberId}`);
 
         const params = new URLSearchParams();
         if (memberIdParam) {
@@ -1322,9 +1347,8 @@ document.addEventListener('DOMContentLoaded', function() {
             params.set('sponsor_id', sponsorSelect.value);
         }
 
-        if (engineSelect && engineSelect.value) {
-            params.set('engine', engineSelect.value);
-        }
+        // Chromium هو المحرك الافتراضي دائماً
+        params.set('engine', 'chromium');
 
         exportBtn.href = `${baseUrl}?${params.toString()}`;
     }
@@ -1336,16 +1360,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         const sponsorSelect = document.getElementById(`sponsor_select_${memberId}`);
-        const engineSelect = document.getElementById(`engine_select_${memberId}`);
 
         if (sponsorSelect) {
             sponsorSelect.addEventListener('change', function() {
-                updateExportUrl(memberId);
-            });
-        }
-
-        if (engineSelect) {
-            engineSelect.addEventListener('change', function() {
                 updateExportUrl(memberId);
             });
         }

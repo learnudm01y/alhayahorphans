@@ -13,10 +13,13 @@
                 <div id="familyMembersContainer">
                     @if(isset($data) && $edit && $data->rePeople && count($data->rePeople))
                         @foreach($data->rePeople as $index => $member)
-                            <div class="family-member-form border rounded mb-3 position-relative">
-                                <div class="card">
-                                    <div class="card-header d-flex justify-content-between align-items-center" style="background: #f8f9fa;">
-                                        <span class="fw-bold">فرد رقم {{ $index + 1 }}</span>
+                            <div class="family-member-form rounded mb-4 position-relative" style="border: 2px solid #343a40; border-radius: 8px;">
+                                <div class="card" style="border: none;">
+                                    <div class="card-header d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);">
+                                        <span class="fw-bold d-flex align-items-center gap-2">
+                                            <span class="badge bg-success" style="font-size: 1rem;">فرد الأسرة ({{ $index + 1 }})</span>
+                                            <i class="fas fa-user-circle fs-5 text-primary"></i>
+                                        </span>
                                         <button type="button"
                                             class="btn btn-danger btn-sm delete-family-member"
                                             data-index="{{ $index }}"
@@ -41,6 +44,12 @@
                                                     @endforeach
                                                 </select>
                                             </div>
+                                            <div class="col-12">
+                                                <label class="form-label fw-semibold">رقم هوية اليتيم</label>
+                                                <div class="input-group" style="max-width:320px;">
+                                                    <input type="text" name="family_members[{{ $index }}][person_id]" class="form-control" inputmode="numeric" pattern="[0-9]*" maxlength="9" oninput="this.value = this.value.replace(/[^0-9]/g, '');" value="{{ $member->person_id }}" placeholder="أدخل رقم الهوية للجلب التلقائي">
+                                                </div>
+                                            </div>
                                             <div class="col-md-3">
                                                 <label class="form-label">الاسم الأول <span class="text-danger">*</span></label>
                                                 <input type="text" name="family_members[{{ $index }}][first_name]" class="form-control" value="{{ $member->first_name }}">
@@ -56,10 +65,6 @@
                                             <div class="col-md-3">
                                                 <label class="form-label">اسم العائلة <span class="text-danger">*</span></label>
                                                 <input type="text" name="family_members[{{ $index }}][last_name]" class="form-control" value="{{ $member->last_name }}">
-                                            </div>
-                                            <div class="col-md-4">
-                                                <label class="form-label">رقم هوية اليتيم</label>
-                                                <input type="text" name="family_members[{{ $index }}][person_id]" class="form-control" inputmode="numeric" pattern="[0-9]*" maxlength="9" oninput="this.value = this.value.replace(/[^0-9]/g, '');" value="{{ $member->person_id }}">
                                             </div>
                                             <div class="col-md-4">
                                                 <label class="form-label">تاريخ الميلاد <span class="text-danger">*</span></label>
@@ -94,6 +99,10 @@
                                                         <option value="{{ $type->id }}" {{ $member->person_type_of_guarantee == $type->id ? 'selected' : '' }}>{{ $type->description }}</option>
                                                     @endforeach
                                                 </select>
+                                            </div>
+                                            <div class="col-12">
+                                                <label class="form-label">ملاحظة</label>
+                                                <textarea name="family_members[{{ $index }}][person_note]" class="form-control" rows="3" placeholder="أدخل ملاحظة..." style="resize:vertical;">{{ $member->person_note ?? '' }}</textarea>
                                             </div>
                                             <div class="col-12">
                                                 <div class="documents-flex-container mb-2">
@@ -268,10 +277,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <style>
 .delete-family-member {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    z-index: 10;
     transition: opacity 0.4s;
 }
 .delete-family-member-x {

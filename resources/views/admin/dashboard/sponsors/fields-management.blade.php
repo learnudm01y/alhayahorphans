@@ -16,6 +16,13 @@
                 </div>
                 <div class="card-toolbar">
                     <div class="d-flex align-items-center gap-3 position-relative my-1">
+                        <!--begin:: زر تصدير التقارير الشاملة -->
+                        <button type="button" class="btn btn-success" id="bulk_family_reports_btn" data-bs-toggle="modal" data-bs-target="#bulkFamilyReportsModal">
+                            <i class="fas fa-file-pdf me-2"></i>
+                            تصدير التقارير الشاملة
+                        </button>
+                        <!--end:: زر تصدير التقارير الشاملة -->
+
                         <!--begin:: زر تصدير الاستمارات -->
                         <button type="button" class="btn btn-primary" id="export_forms_btn" data-bs-toggle="modal" data-bs-target="#exportFormsModal">
                             <i class="fas fa-file-export me-2"></i>
@@ -238,6 +245,62 @@
 <!--end::Modal-->
 
 <!--begin::Modal لتصدير الاستمارات-->
+<!--begin::Modal تصدير التقارير الشاملة-->
+<div class="modal fade" id="bulkFamilyReportsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success py-4">
+                <h2 class="fw-bold text-white fs-4 mb-0">
+                    <i class="fas fa-file-pdf me-2"></i>تصدير التقارير الشاملة
+                </h2>
+                <div class="btn btn-icon btn-sm btn-active-icon-light" data-bs-dismiss="modal">
+                    <i class="ki-duotone ki-cross fs-1 text-white"><span class="path1"></span><span class="path2"></span></i>
+                </div>
+            </div>
+
+            <div class="modal-body p-6">
+                <form id="bulkFamilyReportsForm">
+                    <div class="row g-4">
+                        <!--begin::الجمعية-->
+                        <div class="col-12">
+                            <label class="form-label fw-bold required">الجمعية <small class="text-muted fw-normal">(للتصميم و Google Drive فقط)</small></label>
+                            <select name="sponsor_id" id="bulk_sponsor_id" class="form-select" required>
+                                <option value="">-- اختر الجمعية --</option>
+                                @foreach(\App\Models\Sponsor::orderBy('sponsor_name')->get() as $sponsor)
+                                    <option value="{{ $sponsor->id }}">{{ $sponsor->sponsor_name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <!--end::الجمعية-->
+
+                        <!--begin::حالة الكفالة-->
+                        <div class="col-12">
+                            <label class="form-label fw-bold">حالة الكفالة</label>
+                            <select name="sponsorship_status_id" id="bulk_sponsorship_status_id" class="form-select">
+                                <option value="">-- جميع الحالات --</option>
+                                @foreach(\App\Models\SponsorshipStatus::orderBy('description')->get() as $status)
+                                    <option value="{{ $status->id }}">{{ $status->description }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <!--end::حالة الكفالة-->
+
+                    </div>
+                </form>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">إلغاء</button>
+                <button type="button" class="btn btn-success" id="start_bulk_family_reports_btn">
+                    <i class="fas fa-play me-2"></i>بدء التصدير
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!--end::Modal تصدير التقارير الشاملة-->
+
 <div class="modal fade" id="exportFormsModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -575,6 +638,70 @@ $(document).ready(function() {
         }).then((result) => {
             if (result.isConfirmed) {
                 startExportProcess(sponsorId, sponsorshipStatusId, updatedOnly);
+            }
+        });
+    });
+
+    // =====================================================
+    // تصدير التقارير الشاملة (Bulk Family Reports)
+    // =====================================================
+    $('#bulkFamilyReportsModal').on('hidden.bs.modal', function() {
+        cleanupModalBackdrop();
+    });
+
+    // ---- زر بدء التصدير الشامل ----
+    $('#start_bulk_family_reports_btn').on('click', function() {
+        const sponsorId = $('#bulk_sponsor_id').val();
+        const statusId  = $('#bulk_sponsorship_status_id').val();
+
+        if (!sponsorId) {
+            Swal.fire({ icon: 'warning', title: 'تنبيه', text: 'يرجى اختيار الجمعية أولاً', confirmButtonText: 'حسناً' });
+            return;
+        }
+
+        Swal.fire({
+            title: 'تأكيد التصدير',
+            html: `<p class="text-muted small">الرفع إلى Google Drive — قسم "تقارير شاملة"</p>`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'ابدأ التصدير',
+            cancelButtonText: 'إلغاء',
+            confirmButtonColor: '#50cd89',
+            cancelButtonColor: '#f1416c'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                const $btn = $('#start_bulk_family_reports_btn');
+                const originalHtml = $btn.html();
+                $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>جاري...');
+
+                $.ajax({
+                    url: '{{ route("admin.sponsors.bulk-export-family-reports") }}',
+                    method: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        sponsor_id: sponsorId,
+                        sponsorship_status_id: statusId || '',
+                    },
+                    success: function(response) {
+                        $btn.prop('disabled', false).html(originalHtml);
+                        $('#bulkFamilyReportsModal').modal('hide');
+                        $('#bulkFamilyReportsForm')[0].reset();
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'تم بدء التصدير',
+                            html: `<p>${response.message || 'سيتم معالجة التقارير في الخلفية.'}</p>
+                                   <p class="text-muted">العدد المقدَّر: <strong>${response.count || 0}</strong></p>`,
+                            confirmButtonText: 'حسناً'
+                        });
+                    },
+                    error: function(xhr) {
+                        $btn.prop('disabled', false).html(originalHtml);
+                        const msg = (xhr.responseJSON && xhr.responseJSON.message)
+                            ? xhr.responseJSON.message
+                            : 'حدث خطأ أثناء بدء التصدير';
+                        Swal.fire({ icon: 'error', title: 'خطأ', text: msg, confirmButtonText: 'حسناً' });
+                    }
+                });
             }
         });
     });
