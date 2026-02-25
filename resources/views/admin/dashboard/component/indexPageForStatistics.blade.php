@@ -56,69 +56,108 @@
         </div>
 
         @php
-    use App\Models\GeneralCategory;
-    use App\Models\Data;
-    $categories = GeneralCategory::latest()->take(10)->get();
-    $today = now()->format('Y-m-d');
-    $month = now()->format('Y-m');
-    $year = now()->format('Y');
+        use App\Models\GeneralCategory;
+        use App\Models\Data;
+        $categories = GeneralCategory::all();
+        $today = now()->format('Y-m-d');
+        $year  = now()->format('Y');
     @endphp
-    <div class="container my-4 category-stats-responsive">
-        <h4 class="mb-3">إحصائيات التصنيفات العامة</h4>
-        <div id="category-cards-slider-wrapper" class="slider-wrapper">
-            <button id="category-slider-prev-btn" class="slider-nav-btn" style="left:0.5rem;" aria-label="السابق">&#8592;</button>
-            <button id="category-slider-next-btn" class="slider-nav-btn" style="right:0.5rem;" aria-label="التالي">&#8594;</button>
-            <div class="row category-cards-row-responsive slider-row" id="category-cards-row">
-                @forelse($categories as $category)
-                    @php
-                        $countAll = Data::where('data_section_id', $category->id)->count();
-                        $countToday = Data::where('data_section_id', $category->id)
-                            ->whereDate('created_at', $today)->count();
-                        $countMonth = Data::where('data_section_id', $category->id)
-                            ->whereYear('created_at', now()->year)
-                            ->whereMonth('created_at', now()->month)->count();
-                        $countYear = Data::where('data_section_id', $category->id)
-                            ->whereYear('created_at', now()->year)->count();
-                    @endphp
-                    <div class="col-12 col-sm-10 col-md-6 col-lg-4 mb-4 category-carousel-card category-carousel-card-responsive">
-                        <div class="card shadow-sm h-100" style="min-width: 0;">
-                            <div class="card-body d-flex flex-column justify-content-between" style="min-width:0;">
-                                <div class="d-flex align-items-center mb-2 flex-wrap flex-md-nowrap text-center text-md-start">
-                                    <i class="fa fa-layer-group fa-2x text-info me-2 mb-2 mb-md-0"></i>
-                                    <div class="flex-fill" style="min-width:0;">
-                                        <h5 class="card-title mb-0 text-truncate">{{ $category->description }}</h5>
-                                    </div>
-                                </div>
-                                <ul class="list-group list-group-flush mb-3">
-                                    <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
-                                        <span>إجمالي السجلات</span>
-                                        <span class="badge bg-primary animated-counter-en" data-target="{{ $countAll }}">0</span>
-                                    </li>
-                                    <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
-                                        <span>اليوم</span>
-                                        <span class="badge bg-success animated-counter-en" data-target="{{ $countToday }}">0</span>
-                                    </li>
-                                    <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
-                                        <span>هذا الشهر</span>
-                                        <span class="badge bg-info animated-counter-en" data-target="{{ $countMonth }}">0</span>
-                                    </li>
-                                    <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
-                                        <span>هذه السنة</span>
-                                        <span class="badge bg-warning text-dark animated-counter-en" data-target="{{ $countYear }}">0</span>
-                                    </li>
-                                </ul>
+
+    {{-- ===== إحصائيات التصنيفات العامة ===== --}}
+    <div class="col-12 px-2 mt-2">
+        <h4 class="mb-3 px-2">إحصائيات التصنيفات العامة</h4>
+        <div class="cat-grid">
+            @forelse($categories as $category)
+                @php
+                    $cAll   = Data::where('data_section_id', $category->id)->count();
+                    $cToday = Data::where('data_section_id', $category->id)->whereDate('created_at', $today)->count();
+                    $cMonth = Data::where('data_section_id', $category->id)->whereYear('created_at', now()->year)->whereMonth('created_at', now()->month)->count();
+                    $cYear  = Data::where('data_section_id', $category->id)->whereYear('created_at', now()->year)->count();
+                @endphp
+                <div class="cat-grid-item">
+                    <div class="card shadow-sm h-100 cat-card">
+                        <div class="card-body d-flex flex-column">
+                            <div class="d-flex align-items-center mb-3">
+                                <i class="fa fa-layer-group fa-xl text-info me-2 flex-shrink-0"></i>
+                                <h6 class="card-title mb-0 fw-bold text-truncate">{{ $category->description }}</h6>
                             </div>
+                            <ul class="list-group list-group-flush flex-grow-1">
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                    <span class="text-muted small">إجمالي السجلات</span>
+                                    <span class="badge bg-primary rounded-pill cat-counter" data-target="{{ $cAll }}">0</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                    <span class="text-muted small">اليوم</span>
+                                    <span class="badge bg-success rounded-pill cat-counter" data-target="{{ $cToday }}">0</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                    <span class="text-muted small">هذا الشهر</span>
+                                    <span class="badge bg-info rounded-pill cat-counter" data-target="{{ $cMonth }}">0</span>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                    <span class="text-muted small">هذه السنة</span>
+                                    <span class="badge bg-warning text-dark rounded-pill cat-counter" data-target="{{ $cYear }}">0</span>
+                                </li>
+                            </ul>
                         </div>
                     </div>
-                @empty
-                    <div class="col-12">
-                        <div class="alert alert-info">لا يوجد تصنيفات عامة.</div>
-                    </div>
-                @endforelse
-            </div>
-            <div class="slider-dots" id="category-slider-dots"></div>
+                </div>
+            @empty
+                <div class="col-12"><div class="alert alert-info">لا يوجد تصنيفات عامة.</div></div>
+            @endforelse
         </div>
     </div>
+
+    <style>
+    /* ===== CSS Grid للتصنيفات - يتكيف تلقائياً بدون slider ===== */
+    .cat-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+        gap: 1rem;
+        padding: 0 0.5rem;
+        width: 100%;
+    }
+    .cat-grid-item {
+        min-width: 0;
+    }
+    .cat-card {
+        border-radius: 12px;
+        transition: box-shadow 0.2s, transform 0.2s;
+        border: 1px solid rgba(0,0,0,.07);
+    }
+    .cat-card:hover {
+        box-shadow: 0 6px 24px rgba(0,0,0,.10) !important;
+        transform: translateY(-2px);
+    }
+    .cat-card .list-group-item {
+        border-left: none;
+        border-right: none;
+    }
+    .cat-card .list-group-item:first-child { border-top: none; }
+    .cat-card .list-group-item:last-child  { border-bottom: none; }
+    @media (max-width: 575.98px) {
+        .cat-grid { grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+    }
+    </style>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        function animateCatCounter(el) {
+            var target = parseInt(el.getAttribute('data-target'), 10);
+            if (isNaN(target) || target === 0) { el.textContent = '0'; return; }
+            var duration = 1000, start = null;
+            function step(ts) {
+                if (!start) start = ts;
+                var p = Math.min((ts - start) / duration, 1);
+                el.textContent = Math.floor(p * target).toLocaleString('en-US');
+                if (p < 1) { requestAnimationFrame(step); }
+                else { el.textContent = target.toLocaleString('en-US'); }
+            }
+            requestAnimationFrame(step);
+        }
+        document.querySelectorAll('.cat-counter').forEach(animateCatCounter);
+    });
+    </script>
     @php
     $admins = \App\Models\User::where('role', 'admin')->latest()->take(10)->get(); // جلب آخر 10 موظفين فقط
     $today = now()->format('Y-m-d');
