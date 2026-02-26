@@ -26,14 +26,17 @@ class Kernel extends ConsoleKernel
             if (function_exists('cleanupOldReservedCodes')) {
                 cleanupOldReservedCodes(5);
             }
-        })->everyFiveMinutes()->withoutOverlapping();
+        })->everyFiveMinutes()
+          ->name('cleanup-old-reserved-codes')
+          ->withoutOverlapping();
 
         // مزامنة جدول reserved_codes مع جدول data كل 5 دقائق
         $schedule->call(function () {
             if (function_exists('syncReservedCodesWithData')) {
                 syncReservedCodesWithData();
             }
-        })->everyFiveMinutes();
+        })->everyFiveMinutes()
+          ->name('sync-reserved-codes-with-data');
 
         // مهمة اختبارية للتأكد من عمل الجدولة
         $schedule->call(function () {
