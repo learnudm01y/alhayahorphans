@@ -21,12 +21,12 @@ class Kernel extends ConsoleKernel
                      \Illuminate\Support\Facades\Log::error('SyncSponsorshipStatusJob: فشل التنفيذ اليومي');
                  });
 
-        // تنظيف الأكواد القديمة غير المستخدمة كل دقيقة
+        // تنظيف الأكواد القديمة غير المستخدمة كل 5 دقائق (تقليل التنافس مع طلبات الويب)
         $schedule->call(function () {
             if (function_exists('cleanupOldReservedCodes')) {
-                cleanupOldReservedCodes(1);
+                cleanupOldReservedCodes(5);
             }
-        })->everyMinute();
+        })->everyFiveMinutes()->withoutOverlapping();
 
         // مزامنة جدول reserved_codes مع جدول data كل 5 دقائق
         $schedule->call(function () {

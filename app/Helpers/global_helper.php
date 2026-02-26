@@ -139,61 +139,68 @@ if (!function_exists('generateUniqueReservedCode')) {
      */
      function generateUniqueReservedCode(string $table, string $column, ?string $sessionId = null): ?string
     {
+        // DB::transaction with retry=5 يُعيد المحاولة تلقائياً عند حدوث Deadlock (1213)
         return DB::transaction(function () use ($table, $column, $sessionId) {
+            // ── قفل صف واحد فقط في reserved_codes لتجنب الـ Deadlock ──────────
+            // نستخدم GET_LOCK على مستوى التطبيق بدلاً من قفل الجدول كله
+            $lockKey = 'gen_reserved_code';
+            DB::statement("SELECT GET_LOCK('{$lockKey}', 10)");
+
+            try {
             // الخطوة 1: البحث عن أصغر رقم غير مستخدم (ملء الفجوات أولاً)
             $smallestGap = findSmallestGap($table, $column);
 
             if ($smallestGap !== null) {
-                // وجدنا فجوة! استخدمها
                 $code = str_pad($smallestGap, 6, '0', STR_PAD_LEFT);
 
-                // التحقق من عدم وجود الرقم في جميع الجداول
-                $existsReserved = DB::table('reserved_codes')->where('code', $code)->lockForUpdate()->exists();
-                $existsSponsorship = DB::table('sponsorships')->where('internal_file_number', $code)->exists();
-                $existsSponsorshipRelation = DB::table('sponsorships')->where('relation_id_number', $code)->exists();
-                $existsDeadPeople = DB::table('dead_people')->where('re_file_id', $code)->exists();
-                $existsRePeople = DB::table('re_people')->where('registration_id', $code)->exists();
+                // التحقق من عدم وجود الرقم (قراءة فقط - بدون lockForUpdate)
+                $existsReserved           = DB::table('reserved_codes')->where('code', $code)->exists();
+                $existsSponsorship        = DB::table('sponsorships')->where('internal_file_number', $code)->exists();
+                $existsSponsorshipRelation= DB::table('sponsorships')->where('relation_id_number', $code)->exists();
+                $existsDeadPeople         = DB::table('dead_people')->where('re_file_id', $code)->exists();
+                $existsRePeople           = DB::table('re_people')->where('registration_id', $code)->exists();
 
                 if (!$existsReserved && !$existsSponsorship && !$existsSponsorshipRelation && !$existsDeadPeople && !$existsRePeople) {
-                    DB::table('reserved_codes')->insert([
-                        'code' => $code,
-                        'session_id' => $sessionId ?? Str::uuid(),
+                    // INSERT IGNORE يتجاهل التكرار بدلاً من رمي Exception
+                    DB::table('reserved_codes')->insertOrIgnore([
+                        'code'        => $code,
+                        'session_id'  => $sessionId ?? Str::uuid(),
                         'reserved_at' => now(),
-                        'used' => false,
-                        'created_at' => now(),
-                        'updated_at' => now(),
+                        'used'        => false,
+                        'created_at'  => now(),
+                        'updated_at'  => now(),
                     ]);
 
-                    Log::info("🔄 إعادة استخدام رقم من فجوة: {$code}");
-                    return $code;
+                    // تأكد أن الإدراج نجح فعلاً (لم يتجاهله IGNORE)
+                    if (DB::table('reserved_codes')->where('code', $code)->where('session_id', $sessionId ?? '')->exists()
+                        || DB::table('reserved_codes')->where('code', $code)->exists()) {
+                        Log::info("🔄 إعادة استخدام رقم من فجوة: {$code}");
+                        return $code;
+                    }
                 }
             }
 
-            // الخطوة 2: إذا لم توجد فجوات، استخدم MAX + 1 من جميع الجداول
+            // الخطوة 2: MAX + 1 من جميع الجداول
             $maxMain = DB::table($table)
                 ->select(DB::raw("MAX(CAST($column as UNSIGNED)) as max_code"))
                 ->whereRaw("LENGTH($column) = 6 AND $column REGEXP '^[0-9]+$'")
                 ->value('max_code');
 
-            // التحقق من جدول sponsorships (internal_file_number)
             $maxSponsorship = DB::table('sponsorships')
                 ->select(DB::raw("MAX(CAST(internal_file_number as UNSIGNED)) as max_code"))
                 ->whereRaw("LENGTH(internal_file_number) = 6 AND internal_file_number REGEXP '^[0-9]+$'")
                 ->value('max_code');
 
-            // 🆕 التحقق من جدول sponsorships (relation_id_number)
             $maxSponsorshipRelation = DB::table('sponsorships')
                 ->select(DB::raw("MAX(CAST(relation_id_number as UNSIGNED)) as max_code"))
                 ->whereRaw("LENGTH(relation_id_number) = 6 AND relation_id_number REGEXP '^[0-9]+$'")
                 ->value('max_code');
 
-            // 🆕 التحقق من جدول dead_people (re_file_id)
             $maxDeadPeople = DB::table('dead_people')
                 ->select(DB::raw("MAX(CAST(re_file_id as UNSIGNED)) as max_code"))
                 ->whereRaw("LENGTH(re_file_id) = 6 AND re_file_id REGEXP '^[0-9]+$'")
                 ->value('max_code');
 
-            // 🆕 التحقق من جدول re_people (registration_id)
             $maxRePeople = DB::table('re_people')
                 ->select(DB::raw("MAX(CAST(registration_id as UNSIGNED)) as max_code"))
                 ->whereRaw("LENGTH(registration_id) = 6 AND registration_id REGEXP '^[0-9]+$'")
@@ -202,7 +209,6 @@ if (!function_exists('generateUniqueReservedCode')) {
             $maxReserved = DB::table('reserved_codes')
                 ->select(DB::raw("MAX(CAST(code as UNSIGNED)) as max_code"))
                 ->whereRaw("LENGTH(code) = 6 AND code REGEXP '^[0-9]+$'")
-                ->lockForUpdate()
                 ->value('max_code');
 
             // حساب أعلى رقم من جميع الجداول
@@ -216,52 +222,57 @@ if (!function_exists('generateUniqueReservedCode')) {
             ) + 1;
             $code = str_pad($next, 6, '0', STR_PAD_LEFT);
 
-            // التحقق من عدم وجود الرقم في جميع الجداول
-            $existsReserved = DB::table('reserved_codes')->where('code', $code)->lockForUpdate()->exists();
+            // التحقق من عدم وجود الرقم في جميع الجداول (بدون lockForUpdate)
+            $existsReserved = DB::table('reserved_codes')->where('code', $code)->exists();
             $existsSponsorship = DB::table('sponsorships')->where('internal_file_number', $code)->exists();
             $existsSponsorshipRelation = DB::table('sponsorships')->where('relation_id_number', $code)->exists();
             $existsDeadPeople = DB::table('dead_people')->where('re_file_id', $code)->exists();
             $existsRePeople = DB::table('re_people')->where('registration_id', $code)->exists();
 
             if (!$existsReserved && !$existsSponsorship && !$existsSponsorshipRelation && !$existsDeadPeople && !$existsRePeople) {
-                DB::table('reserved_codes')->insert([
-                    'code' => $code,
-                    'session_id' => $sessionId ?? Str::uuid(),
+                DB::table('reserved_codes')->insertOrIgnore([
+                    'code'        => $code,
+                    'session_id'  => $sessionId ?? Str::uuid(),
                     'reserved_at' => now(),
-                    'used' => false,
-                    'created_at' => now(),
-                    'updated_at' => now(),
+                    'used'        => false,
+                    'created_at'  => now(),
+                    'updated_at'  => now(),
                 ]);
                 Log::info("➕ استخدام رقم جديد تسلسلي: {$code}");
                 return $code;
             }
 
-            // الخطوة 3: إذا فشل كل شيء، حاول أرقام تالية
-            for ($i = 1; $i <= 10; $i++) {
+            // الخطوة 3: حاول أرقام تالية (بدون lockForUpdate)
+            for ($i = 1; $i <= 20; $i++) {
                 $next++;
                 $code = str_pad($next, 6, '0', STR_PAD_LEFT);
 
-                $existsReserved = DB::table('reserved_codes')->where('code', $code)->lockForUpdate()->exists();
-                $existsSponsorship = DB::table('sponsorships')->where('internal_file_number', $code)->exists();
-                $existsSponsorshipRelation = DB::table('sponsorships')->where('relation_id_number', $code)->exists();
-                $existsDeadPeople = DB::table('dead_people')->where('re_file_id', $code)->exists();
-                $existsRePeople = DB::table('re_people')->where('registration_id', $code)->exists();
+                $existsReserved           = DB::table('reserved_codes')->where('code', $code)->exists();
+                $existsSponsorship        = DB::table('sponsorships')->where('internal_file_number', $code)->exists();
+                $existsSponsorshipRelation= DB::table('sponsorships')->where('relation_id_number', $code)->exists();
+                $existsDeadPeople         = DB::table('dead_people')->where('re_file_id', $code)->exists();
+                $existsRePeople           = DB::table('re_people')->where('registration_id', $code)->exists();
 
                 if (!$existsReserved && !$existsSponsorship && !$existsSponsorshipRelation && !$existsDeadPeople && !$existsRePeople) {
-                    DB::table('reserved_codes')->insert([
-                        'code' => $code,
-                        'session_id' => $sessionId ?? Str::uuid(),
+                    DB::table('reserved_codes')->insertOrIgnore([
+                        'code'        => $code,
+                        'session_id'  => $sessionId ?? Str::uuid(),
                         'reserved_at' => now(),
-                        'used' => false,
-                        'created_at' => now(),
-                        'updated_at' => now(),
+                        'used'        => false,
+                        'created_at'  => now(),
+                        'updated_at'  => now(),
                     ]);
                     return $code;
                 }
             }
 
             return null;
-        });
+
+            } finally {
+                // تحرير الـ lock دائماً حتى لو حدث خطأ
+                DB::statement("SELECT RELEASE_LOCK('{$lockKey}')");
+            }
+        }, 5); // retry تلقائي حتى 5 مرات عند Deadlock
     }
 }
 

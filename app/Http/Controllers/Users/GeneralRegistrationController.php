@@ -37,7 +37,16 @@ class GeneralRegistrationController extends Controller
     {
         $generalSection = GeneralCategory::all();
         // $file_id_number = generateFiveDigitCode(Data::class, 'file_id_number');
-        $file_id_number = generateUniqueReservedCode('data', 'file_id_number');
+        // حماية من Deadlock: إذا فشل توليد الرقم، نعرض الصفحة بكود مؤقت
+        try {
+            $file_id_number = generateUniqueReservedCode('data', 'file_id_number');
+        } catch (\Throwable $e) {
+            Log::warning('generateUniqueReservedCode failed, using temp fallback', [
+                'error' => $e->getMessage()
+            ]);
+            // Fallback: رقم مؤقت فريد لا يُحفظ في DB - المستخدم سيحصل على رقم حقيقي عند الحفظ
+            $file_id_number = 'TEMP-' . strtoupper(substr(uniqid(), -6));
+        }
         $category_of_relationship = CategoryOfRelation::all();
         $ci_personal_cd = CI_PERSONAL_CD::all(); // الحالة الاجتماعية
         $academic_qualification = AcademicDegree::all();
