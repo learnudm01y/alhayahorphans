@@ -412,7 +412,7 @@ Route::get('/person-name/{id_number}', function ($id_number) {
             return response()->json([
                 'success' => false,
                 'message' => 'لم يتم العثور على شخص بهذا الرقم'
-            ], 404);
+            ], 200);
         }
     } catch (Exception $e) {
         return response()->json([

@@ -531,6 +531,229 @@
         }
     </style>
     <script>
+                // =====================================================
+                // نظام IndexedDB لإدارة جلسات الرفع واستئناف الرفع
+                // =====================================================
+                class UploadSessionDB {
+                    constructor() {
+                        this.dbName = 'FileManagerUploadDB';
+                        this.dbVersion = 1;
+                        this.db = null;
+                    }
+
+                    async open() {
+                        if (this.db) return this.db;
+                        return new Promise((resolve, reject) => {
+                            const request = indexedDB.open(this.dbName, this.dbVersion);
+                            request.onupgradeneeded = (event) => {
+                                const db = event.target.result;
+                                // جدول جلسات الرفع
+                                if (!db.objectStoreNames.contains('upload_sessions')) {
+                                    const sessionStore = db.createObjectStore('upload_sessions', { keyPath: 'id' });
+                                    sessionStore.createIndex('status', 'status', { unique: false });
+                                    sessionStore.createIndex('created_at', 'created_at', { unique: false });
+                                }
+                                // جدول الملفات لكل جلسة (بيانات وصفية فقط - الملفات نفسها تبقى في الذاكرة)
+                                if (!db.objectStoreNames.contains('session_files')) {
+                                    const filesStore = db.createObjectStore('session_files', { keyPath: 'id', autoIncrement: true });
+                                    filesStore.createIndex('session_id', 'session_id', { unique: false });
+                                    filesStore.createIndex('status', 'status', { unique: false });
+                                    filesStore.createIndex('batch_index', 'batch_index', { unique: false });
+                                }
+                            };
+                            request.onsuccess = (event) => {
+                                this.db = event.target.result;
+                                resolve(this.db);
+                            };
+                            request.onerror = (event) => {
+                                console.error('❌ خطأ في فتح IndexedDB:', event.target.error);
+                                reject(event.target.error);
+                            };
+                        });
+                    }
+
+                    // إنشاء جلسة رفع جديدة
+                    async createSession(sessionData) {
+                        const db = await this.open();
+                        const session = {
+                            id: 'session_' + Date.now(),
+                            status: 'active', // active, paused, completed, failed
+                            created_at: new Date().toISOString(),
+                            updated_at: new Date().toISOString(),
+                            upload_type: sessionData.upload_type || 'folder',
+                            total_files: sessionData.total_files || 0,
+                            total_batches: sessionData.total_batches || 0,
+                            completed_batches: 0,
+                            last_completed_batch: -1,
+                            options: sessionData.options || {},
+                            stats: {
+                                successful: 0,
+                                duplicates: 0,
+                                errors: 0,
+                                skipped_large: 0
+                            }
+                        };
+
+                        return new Promise((resolve, reject) => {
+                            const tx = db.transaction('upload_sessions', 'readwrite');
+                            tx.objectStore('upload_sessions').put(session);
+                            tx.oncomplete = () => {
+                                console.log('✅ تم إنشاء جلسة رفع:', session.id);
+                                resolve(session);
+                            };
+                            tx.onerror = (e) => reject(e.target.error);
+                        });
+                    }
+
+                    // تحديث جلسة الرفع
+                    async updateSession(sessionId, updates) {
+                        const db = await this.open();
+                        const session = await this.getSession(sessionId);
+                        if (!session) return null;
+
+                        Object.assign(session, updates, { updated_at: new Date().toISOString() });
+
+                        return new Promise((resolve, reject) => {
+                            const tx = db.transaction('upload_sessions', 'readwrite');
+                            tx.objectStore('upload_sessions').put(session);
+                            tx.oncomplete = () => resolve(session);
+                            tx.onerror = (e) => reject(e.target.error);
+                        });
+                    }
+
+                    // جلب جلسة رفع
+                    async getSession(sessionId) {
+                        const db = await this.open();
+                        return new Promise((resolve, reject) => {
+                            const tx = db.transaction('upload_sessions', 'readonly');
+                            const request = tx.objectStore('upload_sessions').get(sessionId);
+                            request.onsuccess = () => resolve(request.result || null);
+                            request.onerror = (e) => reject(e.target.error);
+                        });
+                    }
+
+                    // جلب جلسات الرفع المعلقة (active أو paused)
+                    async getPendingSessions() {
+                        const db = await this.open();
+                        return new Promise((resolve, reject) => {
+                            const tx = db.transaction('upload_sessions', 'readonly');
+                            const store = tx.objectStore('upload_sessions');
+                            const request = store.getAll();
+                            request.onsuccess = () => {
+                                const sessions = (request.result || []).filter(
+                                    s => s.status === 'active' || s.status === 'paused'
+                                );
+                                resolve(sessions);
+                            };
+                            request.onerror = (e) => reject(e.target.error);
+                        });
+                    }
+
+                    // حفظ بيانات ملفات الدفعة
+                    async saveSessionFiles(sessionId, batchIndex, filesMetadata) {
+                        const db = await this.open();
+                        return new Promise((resolve, reject) => {
+                            const tx = db.transaction('session_files', 'readwrite');
+                            const store = tx.objectStore('session_files');
+                            filesMetadata.forEach(fileMeta => {
+                                store.put({
+                                    session_id: sessionId,
+                                    batch_index: batchIndex,
+                                    file_name: fileMeta.name,
+                                    file_path: fileMeta.path,
+                                    file_size: fileMeta.size,
+                                    file_type: fileMeta.type,
+                                    status: fileMeta.status || 'pending'
+                                });
+                            });
+                            tx.oncomplete = () => resolve();
+                            tx.onerror = (e) => reject(e.target.error);
+                        });
+                    }
+
+                    // تحديث حالة ملفات دفعة معينة
+                    async updateBatchFilesStatus(sessionId, batchIndex, newStatus) {
+                        const db = await this.open();
+                        return new Promise((resolve, reject) => {
+                            const tx = db.transaction('session_files', 'readwrite');
+                            const store = tx.objectStore('session_files');
+                            const idx = store.index('session_id');
+                            const cursorReq = idx.openCursor(IDBKeyRange.only(sessionId));
+                            cursorReq.onsuccess = (e) => {
+                                const cursor = e.target.result;
+                                if (cursor) {
+                                    const record = cursor.value;
+                                    if (record.batch_index === batchIndex) {
+                                        record.status = newStatus;
+                                        cursor.update(record);
+                                    }
+                                    cursor.continue();
+                                }
+                            };
+                            tx.oncomplete = () => resolve();
+                            tx.onerror = (e) => reject(e.target.error);
+                        });
+                    }
+
+                    // حذف جلسة مكتملة مع ملفاتها
+                    async deleteSession(sessionId) {
+                        const db = await this.open();
+                        return new Promise((resolve, reject) => {
+                            const tx = db.transaction(['upload_sessions', 'session_files'], 'readwrite');
+                            tx.objectStore('upload_sessions').delete(sessionId);
+                            // حذف ملفات الجلسة
+                            const filesStore = tx.objectStore('session_files');
+                            const idx = filesStore.index('session_id');
+                            const cursorReq = idx.openCursor(IDBKeyRange.only(sessionId));
+                            cursorReq.onsuccess = (e) => {
+                                const cursor = e.target.result;
+                                if (cursor) {
+                                    cursor.delete();
+                                    cursor.continue();
+                                }
+                            };
+                            tx.oncomplete = () => {
+                                console.log('🗑️ تم حذف جلسة الرفع:', sessionId);
+                                resolve();
+                            };
+                            tx.onerror = (e) => reject(e.target.error);
+                        });
+                    }
+
+                    // تنظيف الجلسات القديمة (أكثر من 7 أيام)
+                    async cleanOldSessions() {
+                        const db = await this.open();
+                        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+                        return new Promise((resolve, reject) => {
+                            const tx = db.transaction(['upload_sessions', 'session_files'], 'readwrite');
+                            const store = tx.objectStore('upload_sessions');
+                            const request = store.getAll();
+                            request.onsuccess = () => {
+                                const oldSessions = (request.result || []).filter(
+                                    s => s.created_at < sevenDaysAgo
+                                );
+                                oldSessions.forEach(s => {
+                                    store.delete(s.id);
+                                    const filesStore = tx.objectStore('session_files');
+                                    const idx = filesStore.index('session_id');
+                                    const cursorReq = idx.openCursor(IDBKeyRange.only(s.id));
+                                    cursorReq.onsuccess = (e) => {
+                                        const cursor = e.target.result;
+                                        if (cursor) { cursor.delete(); cursor.continue(); }
+                                    };
+                                });
+                            };
+                            tx.oncomplete = () => resolve();
+                            tx.onerror = (e) => reject(e.target.error);
+                        });
+                    }
+                }
+
+                // إنشاء نسخة عامة من IndexedDB Manager
+                const uploadDB = new UploadSessionDB();
+
+                // =====================================================
+
                 // إنشاء متغير عام للتطبيق
                 let app;
 
@@ -688,25 +911,486 @@
                         // حالة كشف الملفات المكررة (مفعل افتراضياً)
                         this.duplicateDetectionEnabled = true;
 
+                        // طابور طلبات API مع تحكم بالتزامن
+                        this._apiQueue = [];
+                        this._apiRunning = 0;
+                        this._apiMaxConcurrent = 2; // حد أقصى 2 طلب متزامن لمنع 429
+                        this._apiProcessing = false;
+
+                        // نظام Pagination للمجلدات
+                        this._pagination = {
+                            foldersPerPage: 10,     // عدد المجلدات في كل صفحة
+                            currentPage: 1,
+                            totalPages: 1,
+                            groupedFiles: new Map(), // Map<folderName, fileData[]>
+                            folderOrder: [],          // ترتيب المجلدات
+                            renderedFolders: new Set() // المجلدات المعروضة حالياً
+                        };
+
+                        // نظام إدارة جلسات الرفع (IndexedDB)
+                        this._uploadSession = {
+                            currentSessionId: null,
+                            isUploading: false,
+                            isPaused: false,
+                            pauseReason: null, // 'offline' | 'user' | null
+                            pendingResumeSessionId: null
+                        };
+
                         this.initializeEventListeners();
                         this.loadAnalytics();
                         this.checkForExistingDuplicates();
 
                         // تحديث الإحصائيات كل 30 ثانية
                         this.startAnalyticsRefresh();
+
+                        // تهيئة نظام كشف الاتصال واستئناف الرفع
+                        this._initConnectionMonitor();
+                        // تنظيف الجلسات القديمة والتحقق من جلسات معلقة
+                        this._initUploadResume();
+                    }
+
+                    /**
+                     * إضافة طلب API للطابور مع تحكم بالتزامن
+                     */
+                    queueApiCall(apiCallFn) {
+                        this._apiQueue.push(apiCallFn);
+                        if (!this._apiProcessing) {
+                            this._processApiQueue();
+                        }
+                    }
+
+                    async _processApiQueue() {
+                        if (this._apiProcessing) return;
+                        this._apiProcessing = true;
+
+                        while (this._apiQueue.length > 0) {
+                            // تشغيل دفعة محدودة
+                            const batch = [];
+                            while (batch.length < this._apiMaxConcurrent && this._apiQueue.length > 0) {
+                                batch.push(this._apiQueue.shift());
+                            }
+
+                            // تنفيذ الدفعة
+                            await Promise.allSettled(batch.map(async (apiCall) => {
+                                try {
+                                    await apiCall();
+                                } catch (e) {
+                                    console.warn('⚠️ خطأ في طلب API:', e.message);
+                                }
+                            }));
+
+                            // تأخير بين الدفعات لمنع 429
+                            if (this._apiQueue.length > 0) {
+                                await new Promise(resolve => setTimeout(resolve, 300));
+                            }
+                        }
+
+                        this._apiProcessing = false;
                     }
 
                     /**
                      * بدء تحديث الإحصائيات بشكل دوري
                      */
                     startAnalyticsRefresh() {
-                        // تحديث فوري
-                        this.loadAnalytics();
-
-                        // تحديث كل 30 ثانية
+                        // تحديث كل 30 ثانية فقط (بدون تحديث فوري مكرر)
                         setInterval(() => {
                             this.loadAnalytics();
                         }, 30000);
+                    }
+
+                    // =====================================================
+                    // نظام كشف الاتصال واستئناف الرفع التلقائي
+                    // =====================================================
+
+                    _initConnectionMonitor() {
+                        // مراقبة حالة الاتصال
+                        window.addEventListener('offline', () => {
+                            console.warn('🔴 انقطع الاتصال بالإنترنت!');
+                            this._showConnectionStatus(false);
+
+                            // إيقاف الرفع الجاري مؤقتاً
+                            if (this._uploadSession.isUploading && !this._uploadSession.isPaused) {
+                                this._uploadSession.isPaused = true;
+                                this._uploadSession.pauseReason = 'offline';
+                                console.log('⏸️ تم إيقاف الرفع مؤقتاً بسبب انقطاع الإنترنت');
+
+                                // حفظ حالة التوقف في IndexedDB
+                                if (this._uploadSession.currentSessionId) {
+                                    uploadDB.updateSession(this._uploadSession.currentSessionId, {
+                                        status: 'paused',
+                                        pause_reason: 'offline',
+                                        paused_at: new Date().toISOString()
+                                    });
+                                }
+                            }
+                        });
+
+                        window.addEventListener('online', () => {
+                            console.log('🟢 عاد الاتصال بالإنترنت!');
+                            this._showConnectionStatus(true);
+
+                            // استئناف الرفع تلقائياً إذا كان متوقفاً بسبب الإنترنت
+                            if (this._uploadSession.isPaused && this._uploadSession.pauseReason === 'offline') {
+                                console.log('▶️ استئناف الرفع تلقائياً بعد عودة الإنترنت...');
+                                // تأخير 2 ثانية للتأكد من استقرار الاتصال
+                                setTimeout(() => {
+                                    if (navigator.onLine) {
+                                        this._resumeUploadFromSession();
+                                    }
+                                }, 2000);
+                            }
+                        });
+                    }
+
+                    _showConnectionStatus(isOnline) {
+                        // إزالة الإشعار السابق
+                        const existing = document.getElementById('connection-status-bar');
+                        if (existing) existing.remove();
+
+                        const bar = document.createElement('div');
+                        bar.id = 'connection-status-bar';
+                        bar.style.cssText = `
+                            position: fixed; top: 0; left: 0; right: 0; z-index: 99999;
+                            padding: 10px 20px; text-align: center; font-weight: bold;
+                            transition: all 0.3s ease; direction: rtl;
+                        `;
+
+                        if (isOnline) {
+                            bar.style.background = 'linear-gradient(135deg, #28a745, #20c997)';
+                            bar.style.color = 'white';
+                            bar.innerHTML = '<i class="fas fa-wifi me-2"></i> عاد الاتصال بالإنترنت - جاري استئناف الرفع...';
+                            setTimeout(() => bar.remove(), 4000);
+                        } else {
+                            bar.style.background = 'linear-gradient(135deg, #dc3545, #fd7e14)';
+                            bar.style.color = 'white';
+                            bar.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i> انقطع الاتصال بالإنترنت! سيتم استئناف الرفع تلقائياً عند عودة الاتصال';
+                        }
+
+                        document.body.prepend(bar);
+                    }
+
+                    async _initUploadResume() {
+                        try {
+                            // تنظيف الجلسات القديمة
+                            await uploadDB.cleanOldSessions();
+
+                            // التحقق من وجود جلسات معلقة
+                            const pendingSessions = await uploadDB.getPendingSessions();
+                            if (pendingSessions.length > 0) {
+                                const lastSession = pendingSessions[pendingSessions.length - 1];
+                                console.log('📋 توجد جلسة رفع معلقة:', lastSession);
+                                this._showResumePrompt(lastSession);
+                            }
+                        } catch (e) {
+                            console.warn('⚠️ تعذر التحقق من جلسات الرفع المعلقة:', e.message);
+                        }
+                    }
+
+                    _showResumePrompt(session) {
+                        const completedPercent = session.total_batches > 0
+                            ? Math.round((session.completed_batches / session.total_batches) * 100)
+                            : 0;
+                        const remaining = session.total_batches - session.completed_batches;
+
+                        // إنشاء شريط إشعار الاستئناف
+                        const resumeBar = document.createElement('div');
+                        resumeBar.id = 'upload-resume-bar';
+                        resumeBar.className = 'alert alert-warning alert-dismissible fade show';
+                        resumeBar.style.cssText = `
+                            position: fixed; bottom: 20px; left: 20px; right: 20px;
+                            z-index: 9999; direction: rtl; border-radius: 12px;
+                            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+                        `;
+                        resumeBar.innerHTML = `
+                            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                <div>
+                                    <h6 class="mb-1"><i class="fas fa-pause-circle me-2"></i>توجد عملية رفع متوقفة</h6>
+                                    <small>
+                                        تم رفع <strong>${session.completed_batches}</strong> من <strong>${session.total_batches}</strong> دفعة
+                                        (${completedPercent}%) - متبقي <strong>${remaining}</strong> دفعة
+                                        | ملفات: ${session.total_files}
+                                        | ناجح: ${session.stats.successful} | مكرر: ${session.stats.duplicates} | أخطاء: ${session.stats.errors}
+                                    </small>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-success btn-sm" onclick="app.resumePendingUpload('${session.id}')">
+                                        <i class="fas fa-play me-1"></i> استئناف الرفع
+                                    </button>
+                                    <button class="btn btn-outline-secondary btn-sm" onclick="app.discardPendingUpload('${session.id}')">
+                                        <i class="fas fa-trash me-1"></i> تجاهل
+                                    </button>
+                                </div>
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        `;
+
+                        // إضافة بعد تحميل الصفحة
+                        const container = document.getElementById('filePreviewsContainer');
+                        if (container) {
+                            container.parentNode.insertBefore(resumeBar, container);
+                        } else {
+                            document.body.appendChild(resumeBar);
+                        }
+                    }
+
+                    async resumePendingUpload(sessionId) {
+                        const session = await uploadDB.getSession(sessionId);
+                        if (!session) {
+                            this.showAlert('لم يتم العثور على جلسة الرفع', 'warning');
+                            return;
+                        }
+
+                        // إزالة شريط الاستئناف
+                        const resumeBar = document.getElementById('upload-resume-bar');
+                        if (resumeBar) resumeBar.remove();
+
+                        // تحقق أن لدينا ملفات محلية
+                        if (!this.processedFiles || this.processedFiles.length === 0) {
+                            this.showAlert('يرجى إعادة اختيار المجلد لاستئناف الرفع. الملفات المحلية لم تعد متوفرة في المتصفح.', 'info');
+                            // حفظ معرّف الجلسة للاستئناف بعد اختيار المجلد
+                            this._uploadSession.pendingResumeSessionId = sessionId;
+                            return;
+                        }
+
+                        console.log(`▶️ استئناف الرفع من الدفعة ${session.last_completed_batch + 2}/${session.total_batches}...`);
+                        this._uploadSession.currentSessionId = sessionId;
+                        this._uploadSession.isPaused = false;
+                        this._uploadSession.pauseReason = null;
+
+                        await uploadDB.updateSession(sessionId, { status: 'active' });
+
+                        // استئناف الرفع
+                        await this._resumeUploadFromBatch(
+                            this.processedFiles,
+                            this.currentUploadType,
+                            session
+                        );
+                    }
+
+                    async discardPendingUpload(sessionId) {
+                        await uploadDB.deleteSession(sessionId);
+                        const resumeBar = document.getElementById('upload-resume-bar');
+                        if (resumeBar) resumeBar.remove();
+                        console.log('🗑️ تم تجاهل جلسة الرفع المعلقة');
+                    }
+
+                    async _resumeUploadFromSession() {
+                        console.log('🔄 محاولة استئناف الرفع...', {
+                            currentSessionId: this._uploadSession.currentSessionId,
+                            hasProcessedFiles: !!this.processedFiles,
+                            processedFilesCount: this.processedFiles?.length || 0
+                        });
+
+                        // البحث عن جلسة معلقة
+                        let sessionId = this._uploadSession.currentSessionId;
+                        let session = null;
+
+                        if (sessionId) {
+                            session = await uploadDB.getSession(sessionId);
+                        }
+
+                        // إذا لم نجد الجلسة بالمعرف الحالي، نبحث عن أي جلسة معلقة
+                        if (!session || (session.status !== 'paused' && session.status !== 'active')) {
+                            const pendingSessions = await uploadDB.getPendingSessions();
+                            if (pendingSessions.length > 0) {
+                                session = pendingSessions[pendingSessions.length - 1];
+                                sessionId = session.id;
+                                console.log('🔍 تم العثور على جلسة معلقة:', sessionId);
+                            }
+                        }
+
+                        if (!session) {
+                            console.warn('⚠️ لا توجد جلسة رفع للاستئناف');
+                            return;
+                        }
+
+                        // التحقق من وجود الملفات في الذاكرة
+                        if (!this.processedFiles || this.processedFiles.length === 0) {
+                            console.warn('⚠️ الملفات غير متوفرة في الذاكرة - يرجى إعادة اختيار المجلد');
+                            this._uploadSession.pendingResumeSessionId = session.id;
+                            this._showResumePrompt(session);
+                            return;
+                        }
+
+                        console.log(`▶️ استئناف الجلسة ${session.id} من الدفعة ${session.last_completed_batch + 2}/${session.total_batches}`);
+
+                        this._uploadSession.currentSessionId = session.id;
+                        this._uploadSession.isPaused = false;
+                        this._uploadSession.pauseReason = null;
+                        this._uploadSession.isUploading = true;
+
+                        await uploadDB.updateSession(session.id, { status: 'active' });
+
+                        await this._resumeUploadFromBatch(
+                            this.processedFiles,
+                            this.currentUploadType || 'folder',
+                            session
+                        );
+
+                        // بعد اكتمال الاستئناف، مسح الملفات إذا انتهى الرفع بنجاح
+                        if (!this._uploadSession.isPaused) {
+                            refreshAllFolderFiles();
+                            this.processedFiles = null;
+                            this.currentUploadType = null;
+
+                            setTimeout(() => {
+                                const progressSection = document.getElementById('uploadProgressSection');
+                                if (progressSection) {
+                                    progressSection.style.transition = 'opacity 0.5s ease';
+                                    progressSection.style.opacity = '0';
+                                    setTimeout(() => {
+                                        progressSection.style.display = 'none';
+                                        progressSection.style.opacity = '1';
+                                    }, 500);
+                                }
+                            }, 3000);
+                        }
+                    }
+
+                    async _resumeUploadFromBatch(files, uploadType, session) {
+                        const batches = this.createBatches(files, 10, 50 * 1024 * 1024);
+                        const startBatch = session.last_completed_batch + 1;
+
+                        if (startBatch >= batches.length) {
+                            console.log('✅ جميع الدفعات مكتملة بالفعل');
+                            await uploadDB.updateSession(session.id, { status: 'completed' });
+                            return;
+                        }
+
+                        const options = session.options || {};
+                        this._uploadSession.isUploading = true;
+
+                        // إعداد شريط التقدم
+                        this.setupUploadProgress();
+                        this.showRealTimeUploadProgress(batches.length);
+
+                        let totalSuccessful = session.stats.successful;
+                        let totalDuplicates = session.stats.duplicates;
+                        let totalErrors = session.stats.errors;
+                        let duplicateSessionId = null;
+
+                        console.log(`▶️ استئناف من الدفعة ${startBatch + 1}/${batches.length}`);
+                        this.updateRealTimeProgress(
+                            Math.round((startBatch / batches.length) * 100),
+                            `استئناف... مكتمل: ${totalSuccessful}, مكرر: ${totalDuplicates}, أخطاء: ${totalErrors}`
+                        );
+
+                        for (let i = startBatch; i < batches.length; i++) {
+                            // فحص إيقاف مؤقت
+                            if (this._uploadSession.isPaused) {
+                                console.log(`⏸️ تم إيقاف الرفع عند الدفعة ${i + 1}`);
+                                await uploadDB.updateSession(session.id, {
+                                    status: 'paused',
+                                    stats: { successful: totalSuccessful, duplicates: totalDuplicates, errors: totalErrors }
+                                });
+                                return;
+                            }
+
+                            // فحص الاتصال قبل كل دفعة
+                            if (!navigator.onLine) {
+                                console.warn('🔴 لا يوجد اتصال - إيقاف الرفع');
+                                this._uploadSession.isPaused = true;
+                                this._uploadSession.pauseReason = 'offline';
+                                await uploadDB.updateSession(session.id, {
+                                    status: 'paused',
+                                    pause_reason: 'offline',
+                                    stats: { successful: totalSuccessful, duplicates: totalDuplicates, errors: totalErrors }
+                                });
+                                return;
+                            }
+
+                            this.updateBatchProgress(i, batches.length, `معالجة الدفعة ${i + 1}/${batches.length}...`);
+
+                            try {
+                                const result = await this.uploadSingleBatch(batches[i], i, batches.length, options);
+
+                                if (result.success) {
+                                    totalSuccessful += result.statistics?.files_saved || 0;
+                                    const batchDuplicates = result.duplicate_results?.duplicates_found || result.statistics?.duplicates_detected || 0;
+                                    totalDuplicates += batchDuplicates;
+
+                                    if (result.session_id && !duplicateSessionId) {
+                                        duplicateSessionId = result.session_id;
+                                    }
+
+                                    this.updateProcessedFilesStatus(result.statistics?.files_saved || 0, 'completed');
+
+                                    // تحديث ملفات المجلدات المرفوضة إلى فشل
+                                    if (result.folder_analysis?.rejected_folders?.length > 0) {
+                                        const rejectedCount = this.markRejectedFolderFilesAsFailed(result.folder_analysis.rejected_folders);
+                                        totalErrors += rejectedCount;
+                                    }
+
+                                    if (batchDuplicates > 0 && result.duplicate_results?.duplicate_files) {
+                                        this.updateSpecificDuplicateFiles(result.duplicate_results.duplicate_files);
+                                    }
+                                } else {
+                                    totalErrors++;
+                                    this.updateProcessedFilesStatus(batches[i].length, 'failed');
+                                }
+                            } catch (error) {
+                                // إذا كان الخطأ بسبب الشبكة، أوقف وانتظر استئناف
+                                if (!navigator.onLine || error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                                    console.warn('🔴 خطأ شبكة أثناء الرفع - إيقاف مؤقت');
+                                    this._uploadSession.isPaused = true;
+                                    this._uploadSession.pauseReason = 'offline';
+                                    await uploadDB.updateSession(session.id, {
+                                        status: 'paused',
+                                        pause_reason: 'network_error',
+                                        stats: { successful: totalSuccessful, duplicates: totalDuplicates, errors: totalErrors }
+                                    });
+                                    this._showConnectionStatus(false);
+                                    return;
+                                }
+                                totalErrors++;
+                                this.updateProcessedFilesStatus(batches[i].length, 'failed');
+                            }
+
+                            // تحديث الجلسة بعد كل دفعة ناجحة
+                            await uploadDB.updateSession(session.id, {
+                                last_completed_batch: i,
+                                completed_batches: i + 1,
+                                stats: { successful: totalSuccessful, duplicates: totalDuplicates, errors: totalErrors }
+                            });
+
+                            const overallProgress = Math.round(((i + 1) / batches.length) * 100);
+                            this.updateRealTimeProgress(
+                                overallProgress,
+                                `مكتمل: ${totalSuccessful}, مكرر: ${totalDuplicates}, أخطاء: ${totalErrors}`
+                            );
+
+                            if (i < batches.length - 1) {
+                                await new Promise(resolve => setTimeout(resolve, 500));
+                            }
+                        }
+
+                        // اكتملت جميع الدفعات
+                        this._uploadSession.isUploading = false;
+                        await uploadDB.updateSession(session.id, { status: 'completed' });
+
+                        // تحديث الملفات المتبقية في حالة "قيد المعالجة"
+                        const remainingProcessing = Array.from(this.files.values()).filter(f => f.status === 'processing');
+                        if (remainingProcessing.length > 0) {
+                            remainingProcessing.forEach(fileData => {
+                                fileData.status = 'completed';
+                                this.updateFileStatus(fileData.id, 'completed');
+                            });
+                            totalSuccessful += remainingProcessing.length;
+                        }
+
+                        this.updateBatchProgress(batches.length, batches.length, 'تم الانتهاء!');
+                        this.updateRealTimeProgress(100, `النهاية: مكتمل ${totalSuccessful}, مكرر ${totalDuplicates}, أخطاء ${totalErrors}`);
+                        this.updateFileCounts();
+                        this.loadAnalytics();
+                        refreshAllFolderFiles();
+
+                        setTimeout(() => {
+                            this.hideBatchUploadProgress();
+                            this.hideRealTimeProgress();
+                        }, 3000);
+
+                        // تنظيف الجلسة المكتملة
+                        setTimeout(() => uploadDB.deleteSession(session.id), 10000);
                     }
 
                     // فحص وجود ملفات مكررة موجودة مسبقاً
@@ -1205,40 +1889,56 @@
 
                         console.log(`🔄 بدء معالجة ${type === 'folder' ? 'المجلد' : 'مجلد الصور'}...`);
 
+                        // تنظيف البيانات السابقة لضمان دقة العدّ
+                        this.files = new Map();
+                        const container = document.getElementById('filePreviewsContainer');
+                        if (container) {
+                            const existingFolders = container.querySelectorAll('.folder-section');
+                            existingFolders.forEach(el => el.remove());
+                            const oldPagination = container.querySelector('.pagination-controls');
+                            if (oldPagination) oldPagination.remove();
+                        }
+
                         // تحليل هيكل المجلدات لتحديد الملفات الصالحة
                         const folderAnalysis = this.analyzeFolderStructure(files);
 
-                        // فلترة الملفات للاحتفاظ فقط بالملفات في مجلدات الهوية الصحيحة
+                        // قبول جميع الملفات بدون فلترة - لضمان عدّ كل ملف
                         const validFiles = files.filter(file => {
-                            const pathParts = file.webkitRelativePath.split('/').filter(part => part.trim() !== '');
-
-                            // البحث عن مجلد هوية في المسار
-                            const hasIdentityFolder = pathParts.some(part => /^\d{8,10}$/.test(part));
-
-                            if (hasIdentityFolder) {
-                                return true;
+                            // تجاهل الملفات الخفية وملفات النظام فقط
+                            const fileName = file.name;
+                            if (fileName.startsWith('.') || fileName === 'Thumbs.db' || fileName === 'desktop.ini') {
+                                return false;
                             }
-
-                            // إذا لم نجد مجلد هوية، سجل تحذير
-                            console.log(`⚠️ تجاهل الملف: ${file.webkitRelativePath} - لا يوجد في مجلد هوية صحيح`);
-                            return false;
+                            return true;
                         });
 
-                        console.log(`📊 فلترة الملفات: ${files.length} إجمالي → ${validFiles.length} صالح`);
+                        console.log(`📊 الملفات: ${files.length} إجمالي → ${validFiles.length} صالح (بعد استبعاد ملفات النظام فقط)`);
 
                         if (validFiles.length === 0) {
-                            console.log(
-                                '⚠️ لا توجد ملفات صالحة للرفع. تأكد من وجود مجلدات بأسماء أرقام هوية صحيحة (8-10 أرقام).');
+                            console.log('⚠️ لا توجد ملفات للرفع.');
                             return;
                         }
 
-                        // معالجة الملفات الصالحة محلياً أولاً للمعاينة
+                        // تجميع الملفات حسب مجلدها المباشر (بدون عرضها بعد)
+                        this._pagination.groupedFiles = new Map();
+                        this._pagination.folderOrder = [];
+
                         validFiles.forEach(file => {
                             const fileId = this.generateFileId();
                             const pathParts = file.webkitRelativePath.split('/').filter(part => part.trim() !== '');
-
-                            // العثور على مجلد الهوية في المسار
+                            // البحث عن مجلد هوية (8-10 أرقام) في المسار
                             const identityFolder = pathParts.find(part => /^\d{8,10}$/.test(part));
+
+                            // تحديد اسم مجلد التجميع: مجلد الهوية أو المجلد الأب المباشر
+                            let groupFolder;
+                            if (identityFolder) {
+                                groupFolder = identityFolder;
+                            } else if (pathParts.length >= 2) {
+                                // استخدام المجلد الأب المباشر للملف
+                                groupFolder = pathParts[pathParts.length - 2];
+                            } else {
+                                groupFolder = 'ملفات منفصلة';
+                            }
 
                             const fileData = {
                                 id: fileId,
@@ -1258,20 +1958,36 @@
                                 }
                             };
 
+                            // تخزين جميع الملفات في files Map للإحصائيات الدقيقة
                             this.files.set(fileId, fileData);
-                            this.createFilePreview(fileData);
+
+                            // تجميع حسب المجلد
+                            if (!this._pagination.groupedFiles.has(groupFolder)) {
+                                this._pagination.groupedFiles.set(groupFolder, []);
+                                this._pagination.folderOrder.push(groupFolder);
+                            }
+                            this._pagination.groupedFiles.get(groupFolder).push(fileData);
                         });
 
+                        // حساب عدد الصفحات
+                        const totalFolders = this._pagination.folderOrder.length;
+                        this._pagination.totalPages = Math.ceil(totalFolders / this._pagination.foldersPerPage);
+                        this._pagination.currentPage = 1;
+                        this._pagination.renderedFolders = new Set();
+
+                        console.log(`📊 تجميع المجلدات: ${totalFolders} مجلد في ${this._pagination.totalPages} صفحة`);
+
+                        // تحديث الإحصائيات الإجمالية (لجميع الملفات)
                         this.updateFileCounts();
                         this.toggleExcelOptions();
 
-                        console.log(
-                            `✅ تمت معالجة ${validFiles.length} ملف صالح من ${type === 'folder' ? 'المجلد' : 'مجلد الصور'}`);
+                        console.log(`✅ تمت معالجة ${validFiles.length} ملف صالح من ${type === 'folder' ? 'المجلد' : 'مجلد الصور'}`);
                         console.log('📊 حالة النظام:', {
                             totalFiles: this.files.size,
+                            totalFolders: totalFolders,
+                            pagesCount: this._pagination.totalPages,
                             identityFolders: folderAnalysis.identityFolders,
-                            parentFolders: folderAnalysis.parentFolders,
-                            folderStructure: this.getFolderStructure()
+                            parentFolders: folderAnalysis.parentFolders
                         });
 
                         // إظهار زر الرفع
@@ -1286,8 +2002,178 @@
 
                         console.log(`✨ تم تحضير ${validFiles.length} ملف للرفع. اضغط على زر "بدء الرفع" لتنفيذ العملية.`);
 
-                        // إعداد شريط التقدم للمجلدات
+                        // إعداد شريط التقدم
                         this.setupUploadProgress();
+
+                        // عرض الصفحة الأولى من المجلدات فقط
+                        this.renderFolderPage(1);
+
+                        // استئناف تلقائي إذا كانت هناك جلسة معلقة تنتظر اختيار المجلد
+                        if (this._uploadSession.pendingResumeSessionId) {
+                            const pendingId = this._uploadSession.pendingResumeSessionId;
+                            console.log('▶️ تم اكتشاف جلسة معلقة - استئناف تلقائي...');
+                            setTimeout(() => this.resumePendingUpload(pendingId), 500);
+                        }
+                    }
+
+                    /**
+                     * عرض صفحة معينة من المجلدات
+                     */
+                    renderFolderPage(pageNumber) {
+                        const { foldersPerPage, folderOrder, groupedFiles, totalPages } = this._pagination;
+
+                        // التحقق من رقم الصفحة
+                        if (pageNumber < 1 || pageNumber > totalPages) return;
+                        this._pagination.currentPage = pageNumber;
+
+                        // مسح الطابور المعلق وإعادة تعيين حالة المعالجة
+                        this._apiQueue = [];
+                        this._apiProcessing = false;
+
+                        const container = document.getElementById('filePreviewsContainer');
+
+                        // إزالة المجلدات المعروضة (وليس عناصر التحكم)
+                        const existingFolders = container.querySelectorAll('.folder-section');
+                        existingFolders.forEach(el => el.remove());
+                        const emptyMessage = container.querySelector('.text-center.text-muted');
+                        if (emptyMessage) emptyMessage.remove();
+
+                        // إزالة شريط pagination القديم
+                        const oldPagination = container.querySelector('.pagination-controls');
+                        if (oldPagination) oldPagination.remove();
+
+                        // حساب نطاق المجلدات لهذه الصفحة
+                        const startIdx = (pageNumber - 1) * foldersPerPage;
+                        const endIdx = Math.min(startIdx + foldersPerPage, folderOrder.length);
+                        const pageFolders = folderOrder.slice(startIdx, endIdx);
+
+                        console.log(`📄 عرض الصفحة ${pageNumber}/${totalPages}: المجلدات ${startIdx + 1} إلى ${endIdx} من ${folderOrder.length}`);
+
+                        // عرض المجلدات لهذه الصفحة
+                        pageFolders.forEach(folderName => {
+                            const filesInFolder = groupedFiles.get(folderName);
+                            if (!filesInFolder || filesInFolder.length === 0) return;
+
+                            const folderId = this.sanitizeFolderId(folderName);
+
+                            // إنشاء قسم المجلد
+                            const folderSection = this.createFolderSection(folderName, folderId, filesInFolder[0]);
+                            container.appendChild(folderSection);
+
+                            // إضافة جميع ملفات هذا المجلد
+                            const filesGrid = folderSection.querySelector('.folder-files-grid');
+                            filesInFolder.forEach(fileData => {
+                                const fileElement = this.createFileElement(fileData);
+                                filesGrid.appendChild(fileElement);
+                            });
+
+                            // تحديث إحصائيات المجلد
+                            this.updateFolderStats(folderId);
+
+                            // استدعاء API لجلب اسم الشخص فقط (لا نستدعي loadFolderFiles لأن الملفات محلية ولم تُرفع بعد)
+                            const isIdentityFolder = /^\d{8,10}$/.test(folderName);
+                            if (isIdentityFolder) {
+                                this.queueApiCall(() => this.fetchPersonName(folderName, folderId));
+                            }
+
+                            this._pagination.renderedFolders.add(folderName);
+                        });
+
+                        // إضافة شريط الـ Pagination
+                        this.renderPaginationControls(container);
+
+                        // تحديث العدادات (تبقى دقيقة لأنها تعتمد على this.files)
+                        this.updateFileCounts();
+                    }
+
+                    /**
+                     * عرض أزرار التنقل بين الصفحات
+                     */
+                    renderPaginationControls(container) {
+                        const { currentPage, totalPages, folderOrder, foldersPerPage } = this._pagination;
+
+                        if (totalPages <= 1) return;
+
+                        const paginationDiv = document.createElement('div');
+                        paginationDiv.className = 'pagination-controls col-12 mt-4';
+
+                        // حساب نطاق الصفحات المعروضة
+                        const maxVisiblePages = 7;
+                        let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+                        let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+                        if (endPage - startPage < maxVisiblePages - 1) {
+                            startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                        }
+
+                        let paginationHtml = `
+                            <div class="card">
+                                <div class="card-body py-3">
+                                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3">
+                                        <div class="text-muted small">
+                                            <i class="fas fa-folder me-1"></i>
+                                            عرض المجلدات <strong>${((currentPage - 1) * foldersPerPage) + 1}</strong>
+                                            إلى <strong>${Math.min(currentPage * foldersPerPage, folderOrder.length)}</strong>
+                                            من <strong>${folderOrder.length}</strong> مجلد
+                                        </div>
+                                        <nav aria-label="تنقل بين صفحات المجلدات">
+                                            <ul class="pagination pagination-sm mb-0 flex-wrap justify-content-center">
+                                                <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                                                    <a class="page-link" href="#" onclick="app.renderFolderPage(1); return false;" title="الصفحة الأولى">
+                                                        <i class="fas fa-angle-double-right"></i>
+                                                    </a>
+                                                </li>
+                                                <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                                                    <a class="page-link" href="#" onclick="app.renderFolderPage(${currentPage - 1}); return false;" title="الصفحة السابقة">
+                                                        <i class="fas fa-angle-right"></i>
+                                                    </a>
+                                                </li>`;
+
+                        for (let i = startPage; i <= endPage; i++) {
+                            paginationHtml += `
+                                                <li class="page-item ${i === currentPage ? 'active' : ''}">
+                                                    <a class="page-link" href="#" onclick="app.renderFolderPage(${i}); return false;">${i}</a>
+                                                </li>`;
+                        }
+
+                        paginationHtml += `
+                                                <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                                                    <a class="page-link" href="#" onclick="app.renderFolderPage(${currentPage + 1}); return false;" title="الصفحة التالية">
+                                                        <i class="fas fa-angle-left"></i>
+                                                    </a>
+                                                </li>
+                                                <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                                                    <a class="page-link" href="#" onclick="app.renderFolderPage(${totalPages}); return false;" title="الصفحة الأخيرة">
+                                                        <i class="fas fa-angle-double-left"></i>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </nav>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <label class="small text-muted mb-0">مجلدات بالصفحة:</label>
+                                            <select class="form-select form-select-sm" style="width: auto;" onchange="app.changeFoldersPerPage(parseInt(this.value))">
+                                                <option value="5" ${foldersPerPage === 5 ? 'selected' : ''}>5</option>
+                                                <option value="10" ${foldersPerPage === 10 ? 'selected' : ''}>10</option>
+                                                <option value="20" ${foldersPerPage === 20 ? 'selected' : ''}>20</option>
+                                                <option value="50" ${foldersPerPage === 50 ? 'selected' : ''}>50</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+
+                        paginationDiv.innerHTML = paginationHtml;
+                        container.appendChild(paginationDiv);
+                    }
+
+                    /**
+                     * تغيير عدد المجلدات في كل صفحة
+                     */
+                    changeFoldersPerPage(count) {
+                        this._pagination.foldersPerPage = count;
+                        this._pagination.totalPages = Math.ceil(this._pagination.folderOrder.length / count);
+                        this._pagination.currentPage = 1;
+                        this.renderFolderPage(1);
                     }
 
                     getFolderStructure() {
@@ -1445,7 +2331,10 @@
                     }
 
                     generateFileId() {
-                        return 'file_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+                        // عداد تسلسلي يضمن عدم تكرار ID أبداً
+                        if (!this._fileIdCounter) this._fileIdCounter = 0;
+                        this._fileIdCounter++;
+                        return 'file_' + Date.now() + '_' + this._fileIdCounter;
                     }
 
                     detectFileType(file) {
@@ -1459,6 +2348,13 @@
                     }
 
                     createFilePreview(fileData) {
+                        // في وضع pagination، لا يتم عرض الملف إلا إذا كان مجلده معروض
+                        if (this._pagination.folderOrder.length > 0) {
+                            const folderName = this.getFolderDisplayName(fileData);
+                            if (!this._pagination.renderedFolders.has(folderName)) {
+                                return; // المجلد غير معروض في الصفحة الحالية
+                            }
+                        }
                         this.createOrUpdateFolderGrouping(fileData);
                     }
 
@@ -1480,10 +2376,12 @@
 
                         // البحث عن أو إنشاء قسم المجلد
                         let folderSection = document.getElementById(`folder-section-${folderId}`);
+                        let isNewSection = false;
 
                         if (!folderSection) {
                             folderSection = this.createFolderSection(folderName, folderId, fileData);
                             container.appendChild(folderSection);
+                            isNewSection = true;
                         }
 
                         // إضافة الملف إلى قسم المجلد
@@ -1493,6 +2391,14 @@
 
                         // تحديث إحصائيات المجلد
                         this.updateFolderStats(folderId);
+
+                        // تحميل البيانات من الخادم بعد إضافة القسم للـ DOM
+                        if (isNewSection) {
+                            const isIdentityFolder = /^\d{8,10}$/.test(folderName);
+                            if (isIdentityFolder) {
+                                this.queueApiCall(() => this.fetchPersonName(folderName, folderId));
+                            }
+                        }
                     }
 
                     /**
@@ -1602,21 +2508,23 @@
                             </div>
                         `;
 
-                        // جلب اسم الشخص إذا كان مجلد هوية
-                        if (isIdentityFolder) {
-                            this.fetchPersonName(folderName, folderId);
-                        }
-
-                        // تحميل ملفات المجلد
-                        loadFolderFiles(folderName, folderId);
-
                         return folderSection;
                     }
 
-                    // دالة محسنة لجلب وعرض معلومات الشخص
-                    async fetchPersonName(identityNumber, folderId) {
+                    // دالة محسنة لجلب وعرض معلومات الشخص مع إعادة المحاولة
+                    async fetchPersonName(identityNumber, folderId, retryCount = 0) {
+                        const maxRetries = 3;
                         try {
                             const response = await fetch(`/api/person-name/${identityNumber}`);
+
+                            // معالجة خطأ 429 - إعادة المحاولة بتأخير تصاعدي
+                            if (response.status === 429 && retryCount < maxRetries) {
+                                const delay = Math.pow(2, retryCount) * 2000;
+                                console.warn(`⏳ طلبات كثيرة (429) لجلب اسم ${identityNumber} - إعادة المحاولة بعد ${delay/1000} ثانية...`);
+                                await new Promise(resolve => setTimeout(resolve, delay));
+                                return this.fetchPersonName(identityNumber, folderId, retryCount + 1);
+                            }
+
                             const data = await response.json();
 
                             const nameElement = document.getElementById(`person-name-${folderId}`);
@@ -2411,7 +3319,7 @@
                             // فحص حجم الملفات وعددها للتبديل التلقائي للنظام المتعدد
                             const totalSize = files.reduce((sum, file) => sum + file.size, 0);
                             const totalSizeMB = totalSize / (1024 * 1024);
-                            const shouldUseBatchUpload = files.length > 20 || totalSizeMB > 6;
+                            const shouldUseBatchUpload = files.length > 20 || totalSizeMB > 50;
 
                             if (shouldUseBatchUpload) {
                                 console.log('🔄 التبديل للنظام المتعدد:', {
@@ -2478,7 +3386,7 @@
                                 }
 
                                 // تحديث الملفات المعروضة في المجلدات تلقائياً
-                                this.refreshAllFolderFiles();
+                                refreshAllFolderFiles();
 
                                 // عرض تحليل المجلدات
                                 if (result.folder_analysis && result.folder_analysis.validated_folders) {
@@ -2493,6 +3401,12 @@
                                 if (result.folder_analysis && result.folder_analysis.rejected_folders && result.folder_analysis
                                     .rejected_folders.length > 0) {
                                     console.log('❌ مجلدات مرفوضة:', result.folder_analysis.rejected_folders);
+                                    const rejectedCount = this.markRejectedFolderFilesAsFailed(result.folder_analysis.rejected_folders);
+                                    const rejectedList = result.folder_analysis.rejected_folders.join('، ');
+                                    this.showAlert(
+                                        `⚠️ لم يتم رفع ${rejectedCount} ملف بسبب عدم وجود معلومات الشخص في النظام.\nالمجلدات المرفوضة: ${rejectedList}`,
+                                        'warning'
+                                    );
                                 }
 
                                 // عرض تفاصيل كشف التكرار
@@ -2552,34 +3466,46 @@
                         if (this.processedFiles && this.processedFiles.length > 0) {
                             console.log('🚀 بدء رفع الملفات المعالجة من المجلد...');
 
-                            // لا نحتاج محاكاة - سنتزامن مع الخلفية مباشرة
-
                             try {
                                 const result = await this.uploadFolderFile(this.processedFiles, this.currentUploadType);
+
+                                // إذا تم إيقاف الرفع مؤقتاً (انقطاع إنترنت) - لا تمسح الملفات!
+                                if (result && result.paused) {
+                                    console.log('⏸️ الرفع متوقف مؤقتاً - الملفات محفوظة للاستئناف', {
+                                        totalSuccessful: result.totalSuccessful,
+                                        totalDuplicates: result.totalDuplicates,
+                                        totalErrors: result.totalErrors
+                                    });
+                                    // لا نمسح processedFiles ولا نخفي شريط التقدم
+                                    return;
+                                }
+
                                 console.log('✅ اكتملت عملية الرفع', result);
 
                                 // تحديث الملفات المعروضة في المجلدات تلقائياً
-                                this.refreshAllFolderFiles();
+                                refreshAllFolderFiles();
 
-                                // مسح الملفات المعالجة بعد الرفع
+                                // مسح الملفات المعالجة بعد الرفع الكامل فقط
                                 this.processedFiles = null;
                                 this.currentUploadType = null;
                             } catch (error) {
                                 console.error('❌ فشلت عملية الرفع:', error);
                             } finally {
-                                // إخفاء شريط التقدم بعد الانتهاء
-                                setTimeout(() => {
-                                    const progressSection = document.getElementById('uploadProgressSection');
-                                    if (progressSection) {
-                                        progressSection.style.transition = 'opacity 0.5s ease';
-                                        progressSection.style.opacity = '0';
+                                // إخفاء شريط التقدم فقط إذا لم يكن الرفع متوقفاً مؤقتاً
+                                if (!this._uploadSession.isPaused) {
+                                    setTimeout(() => {
+                                        const progressSection = document.getElementById('uploadProgressSection');
+                                        if (progressSection) {
+                                            progressSection.style.transition = 'opacity 0.5s ease';
+                                            progressSection.style.opacity = '0';
 
-                                        setTimeout(() => {
-                                            progressSection.style.display = 'none';
-                                            progressSection.style.opacity = '1';
-                                        }, 500);
-                                    }
-                                }, 1000);
+                                            setTimeout(() => {
+                                                progressSection.style.display = 'none';
+                                                progressSection.style.opacity = '1';
+                                            }, 500);
+                                        }
+                                    }, 1000);
+                                }
                             }
                             return;
                         }
@@ -2762,8 +3688,9 @@
                                 fileElement.style.animation = 'none';
                             }
                         } else if (status === 'failed') {
+                            const failReason = fileData?.failReason;
                             if (statusLabel) {
-                                statusLabel.innerText = 'فاشلة';
+                                statusLabel.innerText = failReason || 'فشل الرفع';
                                 statusLabel.className = 'badge bg-danger text-white small';
                                 statusLabel.style.background = 'linear-gradient(45deg, #dc3545, #c82333)';
                                 statusLabel.style.animation = 'none';
@@ -2928,9 +3855,19 @@
                         }, 100);
                     }
 
-
-
-
+                    updateAllFilesToFailed() {
+                        console.log('❌ تحديث حالة جميع الملفات إلى "فاشلة"...');
+                        this.files.forEach(fileData => {
+                            if (fileData.status !== 'completed' && fileData.status !== 'duplicate') {
+                                fileData.status = 'failed';
+                                this.updateFileStatus(fileData.id, 'failed');
+                            }
+                        });
+                        setTimeout(() => {
+                            this.updateFileCounts();
+                            this.updateOverallProgress();
+                        }, 100);
+                    }
 
                     // دالة جديدة لتحديث الملفات المكررة
                     updateFilesToDuplicate(fileIds) {
@@ -3530,7 +4467,7 @@
                         });
 
                         // إنشاء الدفعات
-                        const batches = this.createBatches(files, 10, 6 * 1024 * 1024); // 10 ملفات، 6MB max
+                        const batches = this.createBatches(files, 10, 50 * 1024 * 1024); // 10 ملفات، 50MB max
                         console.log(`📦 تم إنشاء ${batches.length} دفعة`);
 
                         // جمع الخيارات
@@ -3550,19 +4487,102 @@
                         }
 
                         try {
+                            // === إنشاء جلسة رفع في IndexedDB ===
+                            let session;
+                            let startBatch = 0;
+                            let totalSuccessful = 0;
+                            let totalDuplicates = 0;
+                            let totalErrors = 0;
+                            let allRejectedFolders = new Set();
+
+                            // التحقق من وجود جلسة استئناف معلقة
+                            if (this._uploadSession.pendingResumeSessionId) {
+                                session = await uploadDB.getSession(this._uploadSession.pendingResumeSessionId);
+                                if (session && session.status === 'paused') {
+                                    startBatch = session.last_completed_batch + 1;
+                                    totalSuccessful = session.stats.successful;
+                                    totalDuplicates = session.stats.duplicates;
+                                    totalErrors = session.stats.errors;
+                                    console.log(`▶️ استئناف جلسة معلقة من الدفعة ${startBatch + 1}/${batches.length}`);
+                                }
+                                this._uploadSession.pendingResumeSessionId = null;
+                            }
+
+                            if (!session) {
+                                session = await uploadDB.createSession({
+                                    upload_type: uploadType,
+                                    total_files: files.length,
+                                    total_batches: batches.length,
+                                    options: {
+                                        compress_images: options.compress_images,
+                                        auto_organize: options.auto_organize,
+                                        cloud_sync: options.cloud_sync,
+                                        enable_duplicate_detection: options.enable_duplicate_detection
+                                    }
+                                });
+
+                                // حفظ بيانات الملفات في IndexedDB لكل دفعة
+                                for (let bIdx = 0; bIdx < batches.length; bIdx++) {
+                                    const batchMeta = batches[bIdx].map(f => ({
+                                        name: f.name,
+                                        path: f.webkitRelativePath || f.name,
+                                        size: f.size,
+                                        type: f.type,
+                                        status: 'pending'
+                                    }));
+                                    await uploadDB.saveSessionFiles(session.id, bIdx, batchMeta);
+                                }
+                                console.log(`💾 تم حفظ بيانات ${files.length} ملف في IndexedDB`);
+                            }
+
+                            this._uploadSession.currentSessionId = session.id;
+                            this._uploadSession.isUploading = true;
+                            this._uploadSession.isPaused = false;
+
                             // تحديث حالة جميع الملفات إلى "قيد المعالجة"
                             this.updateAllFilesToProcessing();
 
                             // عرض شريط التقدم مع تتبع حقيقي
                             this.showRealTimeUploadProgress(batches.length);
 
-                            let totalSuccessful = 0;
-                            let totalDuplicates = 0;
-                            let totalErrors = 0;
-                            let processedBatches = 0;
-                            let duplicateSessionId = null; // لحفظ session ID للملفات المكررة
+                            let processedBatches = startBatch;
+                            let duplicateSessionId = null;
 
-                            for (let i = 0; i < batches.length; i++) {
+                            if (startBatch > 0) {
+                                this.updateRealTimeProgress(
+                                    Math.round((startBatch / batches.length) * 100),
+                                    `استئناف... مكتمل: ${totalSuccessful}, مكرر: ${totalDuplicates}, أخطاء: ${totalErrors}`
+                                );
+                            }
+
+                            for (let i = startBatch; i < batches.length; i++) {
+                                // === فحص إيقاف مؤقت (إنترنت أو مستخدم) ===
+                                if (this._uploadSession.isPaused) {
+                                    console.log(`⏸️ تم إيقاف الرفع عند الدفعة ${i + 1}/${batches.length}`);
+                                    await uploadDB.updateSession(session.id, {
+                                        status: 'paused',
+                                        pause_reason: this._uploadSession.pauseReason,
+                                        stats: { successful: totalSuccessful, duplicates: totalDuplicates, errors: totalErrors }
+                                    });
+                                    this._uploadSession.isUploading = false;
+                                    return { success: false, paused: true, totalSuccessful, totalDuplicates, totalErrors };
+                                }
+
+                                // === فحص الاتصال قبل كل دفعة ===
+                                if (!navigator.onLine) {
+                                    console.warn('🔴 لا يوجد اتصال - إيقاف الرفع');
+                                    this._uploadSession.isPaused = true;
+                                    this._uploadSession.pauseReason = 'offline';
+                                    await uploadDB.updateSession(session.id, {
+                                        status: 'paused',
+                                        pause_reason: 'offline',
+                                        stats: { successful: totalSuccessful, duplicates: totalDuplicates, errors: totalErrors }
+                                    });
+                                    this._showConnectionStatus(false);
+                                    this._uploadSession.isUploading = false;
+                                    return { success: false, paused: true, totalSuccessful, totalDuplicates, totalErrors };
+                                }
+
                                 this.updateBatchProgress(i, batches.length, `معالجة الدفعة ${i + 1}/${batches.length}...`);
 
                                 try {
@@ -3570,106 +4590,144 @@
 
                                     if (result.success) {
                                         totalSuccessful += result.statistics?.files_saved || 0;
-                                        // إصلاح: استخدام البيانات الصحيحة للملفات المكررة
                                         const batchDuplicates = result.duplicate_results?.duplicates_found || result.statistics?.duplicates_detected || 0;
                                         totalDuplicates += batchDuplicates;
 
-                                        // حفظ session ID للملفات المكررة من أول دفعة تحتوي على مكررات
                                         if (result.session_id && !duplicateSessionId) {
                                             duplicateSessionId = result.session_id;
                                         }
 
                                         console.log(`✅ تم رفع الدفعة ${i + 1} بنجاح - الملفات المحفوظة: ${result.statistics?.files_saved || 0}, مكررة: ${batchDuplicates}`);
 
-                                        // ⚠️ تحديث حالة الملفات المكررة في الواجهة
                                         if (batchDuplicates > 0) {
-                                            // إذا كان كشف التكرار معطلاً، قم بإخفاء الملفات المكررة
                                             if (!this.duplicateDetectionEnabled) {
-                                                console.log(`🚫 كشف التكرار معطّل - سيتم إخفاء ${batchDuplicates} ملف مكرر في الدفعة ${i + 1}`);
-
-                                                // إذا كانت هناك معلومات تفصيلية عن الملفات المكررة، استخدمها
                                                 if (result.duplicate_results && result.duplicate_results.duplicate_files) {
                                                     this.updateSpecificDuplicateFiles(result.duplicate_results.duplicate_files);
                                                 }
                                             } else {
-                                                // إذا كان كشف التكرار مفعلاً، عرض الملفات كمكررة
-                                                console.log(`⚠️ كشف التكرار مفعّل - سيتم عرض ${batchDuplicates} ملف كمكرر في الدفعة ${i + 1}`);
-
                                                 this.updateProcessedFilesStatus(batchDuplicates, 'duplicate');
-                                                console.log(`⛔ الملفات المكررة لن يتم رفعها - ستبقى معروضة للمستخدم`);
-
-                                                // إذا كانت هناك معلومات تفصيلية عن الملفات المكررة، استخدمها
                                                 if (result.duplicate_results && result.duplicate_results.duplicate_files) {
                                                     this.updateSpecificDuplicateFiles(result.duplicate_results.duplicate_files);
                                                 }
                                             }
                                         }
 
-                                        // تحديث تقدم الملفات المكتملة بناءً على النتائج الفعلية
                                         const updatedFiles = this.updateProcessedFilesStatus(result.statistics?.files_saved || 0, 'completed');
-                                        console.log(`📊 تم تحديث ${updatedFiles} ملف إلى "مكتمل" بناءً على نتائج الدفعة ${i + 1}`);
+
+                                        // تحديث ملفات المجلدات المرفوضة (لا يوجد شخص في النظام) إلى حالة فشل
+                                        if (result.folder_analysis?.rejected_folders?.length > 0) {
+                                            result.folder_analysis.rejected_folders.forEach(f => allRejectedFolders.add(f));
+                                            const rejectedCount = this.markRejectedFolderFilesAsFailed(result.folder_analysis.rejected_folders);
+                                            totalErrors += rejectedCount;
+                                        }
                                     } else {
                                         totalErrors++;
                                         console.error(`❌ فشل في رفع الدفعة ${i + 1}:`, result.message);
                                         this.updateProcessedFilesStatus(batches[i].length, 'failed');
                                     }
                                 } catch (error) {
+                                    // === خطأ شبكة: إيقاف مؤقت وحفظ الحالة ===
+                                    if (!navigator.onLine || error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                                        console.warn('🔴 خطأ شبكة أثناء الرفع - إيقاف مؤقت وحفظ التقدم');
+                                        this._uploadSession.isPaused = true;
+                                        this._uploadSession.pauseReason = 'offline';
+                                        await uploadDB.updateSession(session.id, {
+                                            status: 'paused',
+                                            pause_reason: 'network_error',
+                                            last_completed_batch: i - 1,
+                                            completed_batches: i,
+                                            stats: { successful: totalSuccessful, duplicates: totalDuplicates, errors: totalErrors }
+                                        });
+                                        this._showConnectionStatus(false);
+                                        this._uploadSession.isUploading = false;
+                                        return { success: false, paused: true, totalSuccessful, totalDuplicates, totalErrors };
+                                    }
                                     totalErrors++;
                                     console.error(`❌ خطأ في رفع الدفعة ${i + 1}:`, error);
                                     this.updateProcessedFilesStatus(batches[i].length, 'failed');
                                 }
 
-                                processedBatches++;
+                                processedBatches = i + 1;
 
-                                // تحديث شريط التقدم العام بناءً على التقدم الفعلي
+                                // === حفظ التقدم في IndexedDB بعد كل دفعة ===
+                                await uploadDB.updateSession(session.id, {
+                                    last_completed_batch: i,
+                                    completed_batches: processedBatches,
+                                    stats: { successful: totalSuccessful, duplicates: totalDuplicates, errors: totalErrors }
+                                });
+
+                                // تحديث حالة ملفات الدفعة في IndexedDB
+                                try {
+                                    await uploadDB.updateBatchFilesStatus(session.id, i, 'uploaded');
+                                } catch(e) { /* تجاهل */ }
+
                                 const overallProgress = Math.round((processedBatches / batches.length) * 100);
                                 this.updateRealTimeProgress(overallProgress, `مكتمل: ${totalSuccessful}, مكرر: ${totalDuplicates}, أخطاء: ${totalErrors}`);
 
-                                // انتظار قصير بين الدفعات
                                 if (i < batches.length - 1) {
                                     await new Promise(resolve => setTimeout(resolve, 500));
                                 }
                             }
 
+                            // === اكتملت جميع الدفعات ===
+                            this._uploadSession.isUploading = false;
+                            this._uploadSession.currentSessionId = null;
+                            await uploadDB.updateSession(session.id, { status: 'completed' });
+
+                            // تحديث الملفات المتبقية في حالة "قيد المعالجة"
+                            const remainingProcessing = Array.from(this.files.values()).filter(f => f.status === 'processing');
+                            if (remainingProcessing.length > 0) {
+                                remainingProcessing.forEach(fileData => {
+                                    // ملفات مجلدات بدون معلومات شخص تبقى فاشلة
+                                    if (fileData.identityFolder && fileData.failReason) {
+                                        // تم تحديثها مسبقاً
+                                    } else {
+                                        fileData.status = 'completed';
+                                        this.updateFileStatus(fileData.id, 'completed');
+                                        totalSuccessful++;
+                                    }
+                                });
+                                console.log(`📊 تحديث الملفات المتبقية من "قيد المعالجة"`);
+                            }
+
                             this.updateBatchProgress(batches.length, batches.length, 'تم الانتهاء!');
                             this.updateRealTimeProgress(100, `النهاية: مكتمل ${totalSuccessful}, مكرر ${totalDuplicates}, أخطاء ${totalErrors}`);
 
-                            // عرض SweetAlert للملفات المكررة إذا تم اكتشاف أي منها وكان كشف التكرار مفعلاً
                             if (totalDuplicates > 0 && duplicateSessionId && this.duplicateDetectionEnabled) {
-                                console.log('🔍 تم اكتشاف ملفات مكررة في الرفع المتعدد:', {
-                                    totalDuplicates,
-                                    sessionId: duplicateSessionId
-                                });
-
-                                // تحديث العدادات في الواجهة لتعكس النتائج الحقيقية
                                 this.updateFileCounts();
-
-                                // تحديث زر عرض الملفات المكررة
                                 this.updateDuplicateFilesButton({
                                     total_duplicates: totalDuplicates,
                                     session_id: duplicateSessionId
                                 });
-
-                                // عرض SweetAlert للملفات المكررة
                                 setTimeout(() => {
                                     this.showDuplicateFilesAlert({
                                         total_duplicates: totalDuplicates,
-                                        total_size: 0 // سيتم تحديدها من السيرفر
+                                        total_size: 0
                                     }, duplicateSessionId);
                                 }, 1000);
-                            } else if (totalDuplicates > 0 && !this.duplicateDetectionEnabled) {
-                                console.log('🚫 تم تجاهل وإخفاء الملفات المكررة لأن كشف التكرار معطّل');
                             }
 
-                            // تحديث الواجهة
                             this.updateFileCounts();
                             this.loadAnalytics();
 
-                            // إخفاء أشرطة التقدم
+                            // عرض تنبيه بالمجلدات المرفوضة (لا يوجد شخص في النظام)
+                            if (allRejectedFolders.size > 0) {
+                                const rejectedList = Array.from(allRejectedFolders).join('، ');
+                                const rejectedFilesCount = Array.from(this.files.values()).filter(f => f.failReason).length;
+                                this.showAlert(
+                                    `⚠️ لم يتم رفع ${rejectedFilesCount} ملف بسبب عدم وجود معلومات الشخص في النظام.\n` +
+                                    `المجلدات المرفوضة: ${rejectedList}`,
+                                    'warning'
+                                );
+                            }
+
                             setTimeout(() => {
                                 this.hideBatchUploadProgress();
                                 this.hideRealTimeProgress();
-                            }, 3000); // انتظار 3 ثوان لرؤية النتيجة النهائية
+                            }, 3000);
+
+                            // تنظيف الجلسة المكتملة
+                            setTimeout(() => uploadDB.deleteSession(session.id), 10000);
 
                             return {
                                 success: totalErrors === 0,
@@ -3681,7 +4739,7 @@
                         } catch (error) {
                             console.error('❌ خطأ في الرفع المتعدد:', error);
                             this.showAlert(`فشل في رفع المجلد: ${error.message}`, 'danger');
-                            // تحديث حالة الملفات إلى "فاشلة" في حالة الخطأ
+                            this._uploadSession.isUploading = false;
                             this.updateAllFilesToFailed();
                             this.hideBatchUploadProgress();
                             throw error;
@@ -3697,9 +4755,17 @@
                         let currentSize = 0;
 
                         for (let file of files) {
-                            // تخطي الملفات الكبيرة جداً
-                            if (file.size > 1.5 * 1024 * 1024) { // 1.5 ميجابايت
-                                console.warn(`⚠️ تم تخطي ملف كبير: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+                            // الملفات الكبيرة توضع في دفعة خاصة بها بدلاً من تخطيها
+                            if (file.size > maxSize) {
+                                // حفظ الدفعة الحالية أولاً
+                                if (currentBatch.length > 0) {
+                                    batches.push(currentBatch);
+                                    currentBatch = [];
+                                    currentSize = 0;
+                                }
+                                // إنشاء دفعة خاصة للملف الكبير
+                                batches.push([file]);
+                                console.log(`📦 ملف كبير في دفعة خاصة: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
                                 continue;
                             }
 
@@ -3886,6 +4952,36 @@
                     /**
                      * تحديث حالة الملفات المعالجة بناءً على النتائج الفعلية
                      */
+                    /**
+                     * تحديث ملفات المجلدات المرفوضة (لا توجد معلومات شخص) إلى حالة فشل
+                     */
+                    markRejectedFolderFilesAsFailed(rejectedFolders) {
+                        if (!rejectedFolders || !Array.isArray(rejectedFolders) || rejectedFolders.length === 0) {
+                            return 0;
+                        }
+
+                        const rejectedSet = new Set(rejectedFolders.map(String));
+                        let markedCount = 0;
+
+                        for (const [fileId, fileData] of this.files) {
+                            if (fileData.status === 'processing' && fileData.identityFolder && rejectedSet.has(String(fileData.identityFolder))) {
+                                fileData.status = 'failed';
+                                fileData.failReason = 'لا توجد معلومات كافية للشخص في النظام';
+                                this.files.set(fileId, fileData);
+                                this.updateFileStatus(fileId, 'failed');
+                                markedCount++;
+                            }
+                        }
+
+                        if (markedCount > 0) {
+                            console.log(`⚠️ تم تحديث ${markedCount} ملف من مجلدات مرفوضة (${rejectedFolders.join(', ')}) إلى حالة "فشل"`);
+                            this.updateFileCounts();
+                            this.updateOverallProgress();
+                        }
+
+                        return markedCount;
+                    }
+
                     updateProcessedFilesStatus(processedCount, status) {
                         let updatedCount = 0;
 
@@ -4301,8 +5397,9 @@
                  * File Gallery Functions - وظائف معرض الصور
                  */
 
-                // جلب وعرض ملفات المجلد
-                async function loadFolderFiles(folderName, folderId) {
+                // جلب وعرض ملفات المجلد مع إعادة المحاولة عند 429
+                async function loadFolderFiles(folderName, folderId, retryCount = 0) {
+                    const maxRetries = 3;
                     try {
                         console.log(`🔄 جلب ملفات المجلد: ${folderName} (ID: ${folderId})`);
 
@@ -4310,6 +5407,14 @@
                         showFileLoadingIndicator(folderId);
 
                         const response = await fetch(`/api/gallery/folder/${encodeURIComponent(folderName)}`);
+
+                        // معالجة خطأ 429 - إعادة المحاولة بتأخير تصاعدي
+                        if (response.status === 429 && retryCount < maxRetries) {
+                            const delay = Math.pow(2, retryCount) * 2000; // 2s, 4s, 8s
+                            console.warn(`⏳ طلبات كثيرة (429) للمجلد ${folderName} - إعادة المحاولة بعد ${delay/1000} ثانية...`);
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            return loadFolderFiles(folderName, folderId, retryCount + 1);
+                        }
 
                         if (!response.ok) {
                             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -4334,10 +5439,14 @@
 
                 // عرض مؤشر التحميل للملفات
                 function showFileLoadingIndicator(folderId) {
-                    const filesContainer = document.getElementById(`files-container-${folderId}`);
+                    let filesContainer = document.getElementById(`files-container-${folderId}`);
                     if (!filesContainer) {
                         createFilesContainer(folderId);
-                        return showFileLoadingIndicator(folderId);
+                        filesContainer = document.getElementById(`files-container-${folderId}`);
+                        if (!filesContainer) {
+                            console.warn(`⚠️ لم يتم العثور على folder-section-${folderId} - تخطي عرض مؤشر التحميل`);
+                            return;
+                        }
                     }
 
                     filesContainer.innerHTML = `
@@ -4352,11 +5461,15 @@
 
                 // عرض معرض الصور
                 function showFilesGallery(folderName, files, folderId) {
-                    const filesContainer = document.getElementById(`files-container-${folderId}`);
+                    let filesContainer = document.getElementById(`files-container-${folderId}`);
                     if (!filesContainer) {
                         // إنشاء منطقة عرض الملفات إذا لم تكن موجودة
                         createFilesContainer(folderId);
-                        return showFilesGallery(folderName, files, folderId);
+                        filesContainer = document.getElementById(`files-container-${folderId}`);
+                        if (!filesContainer) {
+                            console.warn(`⚠️ لم يتم العثور على folder-section-${folderId} - تخطي عرض معرض الصور`);
+                            return;
+                        }
                     }
 
                     let filesHtml = `
@@ -4478,10 +5591,14 @@
 
                 // عرض رسالة عدم وجود ملفات
                 function showNoFilesMessage(folderId) {
-                    const filesContainer = document.getElementById(`files-container-${folderId}`);
+                    let filesContainer = document.getElementById(`files-container-${folderId}`);
                     if (!filesContainer) {
                         createFilesContainer(folderId);
-                        return showNoFilesMessage(folderId);
+                        filesContainer = document.getElementById(`files-container-${folderId}`);
+                        if (!filesContainer) {
+                            console.warn(`⚠️ لم يتم العثور على folder-section-${folderId} - تخطي عرض رسالة عدم الملفات`);
+                            return;
+                        }
                     }
 
                     filesContainer.innerHTML = `
@@ -4494,10 +5611,14 @@
 
                 // عرض رسالة خطأ
                 function showErrorMessage(folderId, errorMessage) {
-                    const filesContainer = document.getElementById(`files-container-${folderId}`);
+                    let filesContainer = document.getElementById(`files-container-${folderId}`);
                     if (!filesContainer) {
                         createFilesContainer(folderId);
-                        return showErrorMessage(folderId, errorMessage);
+                        filesContainer = document.getElementById(`files-container-${folderId}`);
+                        if (!filesContainer) {
+                            console.warn(`⚠️ لم يتم العثور على folder-section-${folderId} - تخطي عرض رسالة الخطأ`);
+                            return;
+                        }
                     }
 
                     filesContainer.innerHTML = `

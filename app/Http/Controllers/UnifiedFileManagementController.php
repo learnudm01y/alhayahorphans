@@ -5126,9 +5126,9 @@ class UnifiedFileManagementController extends Controller
                 'duplicate_detection_enabled' => $request->input('enable_duplicate_detection', true)
             ]);
 
-            // التحقق من صحة البيانات مع حدود أقل للدفعات
+            // التحقق من صحة البيانات
             $request->validate([
-                'files.*' => 'required|file|max:2048', // 2MB لكل ملف
+                'files.*' => 'required|file|max:1024000', // 1GB لكل ملف
                 'paths.*' => 'nullable|string',
                 'batch_index' => 'required|integer|min:0',
                 'total_batches' => 'required|integer|min:1',
