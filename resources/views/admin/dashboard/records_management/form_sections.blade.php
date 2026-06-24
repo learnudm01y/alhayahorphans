@@ -194,7 +194,7 @@
 </style>
 <div class="card-body bg-light">
     <form action="{{ isset($edit) && $edit ? route('admin.records.management.update', $data->id) : route('admin.records.management.store') }}" method="POST"
-        enctype="multipart/form-data" autocomplete="off" id="main_form">
+        enctype="multipart/form-data" autocomplete="off" id="main_form" novalidate>
         @csrf
         @if(isset($edit) && $edit)
             @method('PUT')

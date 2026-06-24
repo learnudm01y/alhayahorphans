@@ -354,10 +354,10 @@ $(document).ready(function() {
             }
         });
 
-        // التحقق من صحة رقم الهوية (10 أرقام)
+        // التحقق من صحة رقم الهوية (9 أو 10 أرقام)
         const idNumber = $('input[name="data_id_number"]').val();
-        if (idNumber && idNumber.length !== 9) {
-            errors.push('رقم الهوية يجب أن يتكون من 9 أرقام');
+        if (idNumber && idNumber.length > 0 && (idNumber.length < 9 || idNumber.length > 10)) {
+            errors.push('رقم الهوية يجب أن يتكون من 9 أو 10 أرقام');
             $('input[name="data_id_number"]').addClass('is-invalid');
         }
 
@@ -375,6 +375,12 @@ $(document).ready(function() {
             });
             errorsContainer.removeClass('d-none');
 
+            // الانتقال إلى تبويب "البيانات الأساسية" لأن الأخطاء فيه
+            var basicTabBtn = document.querySelector('#basic-tab');
+            if (basicTabBtn) {
+                new bootstrap.Tab(basicTabBtn).show();
+            }
+
             // التمرير إلى منطقة الأخطاء
             $('html, body').animate({
                 scrollTop: errorsContainer.offset().top - 100
@@ -387,22 +393,8 @@ $(document).ready(function() {
         }
     }
 
-    // التحقق عند تقديم النموذج
-    $('#main_form').on('submit', function(e) {
-        if (!collectAndDisplayValidationErrors()) {
-            e.preventDefault();
-
-            Swal.fire({
-                icon: 'error',
-                title: 'خطأ في البيانات',
-                html: 'يرجى تصحيح الأخطاء المعروضة في النموذج قبل الحفظ.<br><strong>عدد الأخطاء: ' + $('#validation-errors-list li').length + '</strong>',
-                confirmButtonText: 'حسناً',
-                confirmButtonColor: '#d33'
-            });
-
-            return false;
-        }
-    });
+    // تعريض الدالة على window لاستخدامها من ملفات JavaScript الأخرى
+    window.collectAndDisplayValidationErrors = collectAndDisplayValidationErrors;
 
     // إزالة علامة الخطأ عند تعديل الحقل
     $('input[required], select[required], input.is-invalid, select.is-invalid').on('change input', function() {

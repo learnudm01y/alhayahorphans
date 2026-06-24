@@ -328,6 +328,7 @@ class FolderManagementController extends Controller
 
                 // تحويل بيانات attachments للبنية المطلوبة
                 foreach ($attachmentFiles as $file) {
+                    $ext = pathinfo($file->stored_file_name, PATHINFO_EXTENSION);
                     $fileObject = (object) [
                         'id' => $file->id,
                         'original_file_name' => $file->stored_file_name,
@@ -335,8 +336,9 @@ class FolderManagementController extends Controller
                         'file_path' => $file->file_path,
                         'file_size' => $file->file_size,
                         'file_type' => $file->file_type ?: 'image',
-                        'file_extension' => pathinfo($file->stored_file_name, PATHINFO_EXTENSION),
-                        'mime_type' => $this->getMimeTypeFromExtension(pathinfo($file->stored_file_name, PATHINFO_EXTENSION)),
+                        'file_extension' => $ext,
+                        // استخدام mime_type المخزون في قاعدة البيانات أولاً
+                        'mime_type' => ($file->mime_type ?? null) ?: $this->getMimeTypeFromExtension($ext),
                         'record_number' => $file->person_identity_number,
                         'updated_at' => $file->updated_at,
                         'created_at' => $file->created_at,
@@ -795,6 +797,51 @@ class FolderManagementController extends Controller
                 'pageName' => 'page'
             ]
         );
+    }
+
+    /**
+     * إرجاع قائمة المجلدات الفيزيائية فقط (بدون عرض)
+     * تُستخدم لإضافة المجلدات غير المسجلة في قاعدة البيانات
+     */
+    private function getPhysicalFoldersOnly(): \Illuminate\Support\Collection
+    {
+        try {
+            $uploadsPath = storage_path('app/public/uploads');
+
+            if (!is_dir($uploadsPath)) {
+                $uploadsPath = public_path('storage/uploads');
+            }
+
+            if (!is_dir($uploadsPath)) {
+                return collect();
+            }
+
+            $foldersData = collect();
+            $directories = array_filter(glob($uploadsPath . '/*'), 'is_dir');
+
+            foreach ($directories as $directory) {
+                $folderName = basename($directory);
+                $filesCount = count(array_filter(glob($directory . '/*'), 'is_file'));
+                $lastModified = filemtime($directory);
+
+                $foldersData->push((object) [
+                    'folder_name'    => $folderName,
+                    'files_count'    => $filesCount,
+                    'total_size'     => 0,
+                    'last_modified'  => date('Y-m-d H:i:s', $lastModified),
+                    'file_types'     => 'image',
+                    'mime_types'     => '',
+                    'source'         => 'physical',
+                    'folder_path'    => "uploads/{$folderName}",
+                ]);
+            }
+
+            return $foldersData;
+
+        } catch (\Exception $e) {
+            Log::warning('getPhysicalFoldersOnly failed: ' . $e->getMessage());
+            return collect();
+        }
     }
 
     /**

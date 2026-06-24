@@ -343,7 +343,7 @@
         }
 
         // إضافة الوثائق للنموذج عند الإرسال
-        document.querySelector('form').addEventListener('submit', function(e) {
+        (document.getElementById('main_form') || document.querySelector('form')).addEventListener('submit', function(e) {
             let index = 0;
             docs.forEach((doc, docId) => {
                 // ملف المرفق
@@ -745,7 +745,7 @@
             });
 
             // ✅ تأكد من إظهار القسم قبل الإرسال
-            const form = document.querySelector('form');
+            const form = (document.getElementById('main_form') || document.querySelector('form'));
             form.addEventListener('submit', function() {
                 if (motherInfoSection && motherInfoSection.style.display === 'none') {
                     motherInfoSection.style.display = 'block';
@@ -825,43 +825,53 @@
             });
 
             // التحقق من البيانات قبل الإرسال
-            document.querySelector('form').addEventListener('submit', function(e) {
+            (document.getElementById('main_form') || document.querySelector('form')).addEventListener('submit', function(e) {
                 const section = document.querySelector('select[name="data_section_id"]').value;
 
                 if (section === '1') { // قسم الأيتام
-                    // التحقق من بيانات الأب
-                    for (const [field, label] of Object.entries(fatherRequiredFields)) {
-                        const input = this.querySelector(`[name="${field}"]`);
-                        if (!input.value) {
-                            e.preventDefault();
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'حقل مطلوب',
-                                text: `الرجاء إدخال ${label}`
-                            });
-                            // تفعيل تبويب المتوفين
-                            bootstrap.Tab.getInstance(document.querySelector('#deceased-tab')).show();
-                            input.focus();
-                            return;
-                        }
-                    }
+                    // التحقق من بيانات الأب - فقط إذا أدخل المستخدم رقم هوية الأب
+                    const fatherIdInput = this.querySelector('[name="father_id"]');
+                    const fatherIdValue = fatherIdInput ? fatherIdInput.value.trim() : '';
 
-                    // التحقق من بيانات الأم إذا كانت مضافة
-                    const motherSection = document.getElementById('motherInfoSection');
-                    if (motherSection.style.display !== 'none') {
-                        for (const [field, label] of Object.entries(motherRequiredFields)) {
+                    if (fatherIdValue) {
+                        for (const [field, label] of Object.entries(fatherRequiredFields)) {
                             const input = this.querySelector(`[name="${field}"]`);
-                            if (!input.value) {
+                            if (!input || !input.value || !input.value.trim()) {
                                 e.preventDefault();
                                 Swal.fire({
                                     icon: 'error',
                                     title: 'حقل مطلوب',
                                     text: `الرجاء إدخال ${label}`
                                 });
-                                // تفعيل تبويب المتوفين
-                                bootstrap.Tab.getInstance(document.querySelector('#deceased-tab')).show();
-                                input.focus();
+                                const deceasedTabEl = document.querySelector('#deceased-tab');
+                                if (deceasedTabEl) bootstrap.Tab.getInstance(deceasedTabEl)?.show();
+                                if (input) input.focus();
                                 return;
+                            }
+                        }
+                    }
+
+                    // التحقق من بيانات الأم إذا كانت مضافة وأدخل المستخدم رقم هويتها
+                    const motherSection = document.getElementById('motherInfoSection');
+                    if (motherSection && motherSection.style.display !== 'none') {
+                        const motherIdInput = this.querySelector('[name="mother_id"]');
+                        const motherIdValue = motherIdInput ? motherIdInput.value.trim() : '';
+
+                        if (motherIdValue) {
+                            for (const [field, label] of Object.entries(motherRequiredFields)) {
+                                const input = this.querySelector(`[name="${field}"]`);
+                                if (!input || !input.value || !input.value.trim()) {
+                                    e.preventDefault();
+                                    Swal.fire({
+                                        icon: 'error',
+                                        title: 'حقل مطلوب',
+                                        text: `الرجاء إدخال ${label}`
+                                    });
+                                    const deceasedTabEl = document.querySelector('#deceased-tab');
+                                    if (deceasedTabEl) bootstrap.Tab.getInstance(deceasedTabEl)?.show();
+                                    if (input) input.focus();
+                                    return;
+                                }
                             }
                         }
                     }
@@ -1008,7 +1018,7 @@
             }
 
             // إرسال النموذج
-            const form = document.querySelector('form');
+            const form = (document.getElementById('main_form') || document.querySelector('form'));
             if (form) {
                 form.addEventListener('submit', function(e) {
                     try {
@@ -1076,7 +1086,7 @@
         });
 
         // On form submit, ensure hidden inputs are set to current select values
-        document.querySelector('form').addEventListener('submit', function(e) {
+        (document.getElementById('main_form') || document.querySelector('form')).addEventListener('submit', function(e) {
             var personSelector = document.getElementById('person_selector');
             var hiddenInput = document.getElementById('person_identity_number_hidden');
             var docTypeSelect = document.getElementById('document_type');

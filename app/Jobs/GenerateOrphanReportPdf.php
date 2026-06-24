@@ -108,6 +108,8 @@ class GenerateOrphanReportPdf implements ShouldQueue
                 ->setOption('javascript-delay', '1000')
                 ->setOption('enable-javascript', false)
                 ->setOption('print-media-type', true)
+                ->setOption('load-error-handling', 'ignore')
+                ->setOption('load-media-error-handling', 'ignore')
                 ->setOption('title', 'تقرير  - ' . ($reportData['orphan_name'] ?? 'غير معروف'))
                 ->output();
 

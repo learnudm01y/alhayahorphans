@@ -35,9 +35,15 @@ class ProfileSearchController extends Controller
             // استخدام الكاش للنتائج السريعة مع مدة أقصر
             $cacheKey = 'profile_search_v2_' . md5($query);
 
-            $results = Cache::remember($cacheKey, 60, function () use ($query) { // دقيقة واحدة فقط
-                return $this->performQuickSearch($query);
-            });
+            try {
+                $results = Cache::remember($cacheKey, 60, function () use ($query) { // دقيقة واحدة فقط
+                    return $this->performQuickSearch($query);
+                });
+            } catch (\Exception $cacheException) {
+                // إذا فشل الكاش (مجلد غير موجود أو صلاحيات)، ننفذ البحث مباشرة بدون كاش
+                \Illuminate\Support\Facades\Log::warning('تعذر استخدام الكاش، تنفيذ البحث مباشرة: ' . $cacheException->getMessage());
+                $results = $this->performQuickSearch($query);
+            }
 
             return response()->json([
                 'success' => true,

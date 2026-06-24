@@ -99,6 +99,7 @@ class GoogleDriveUpload extends Model
     const STATUS_COMPLETED = 'completed';
     const STATUS_FAILED = 'failed';
     const STATUS_CANCELLED = 'cancelled';
+    const STATUS_SKIPPED = 'skipped'; // سجل مكرر (1062) — لا تعيد المحاولة
 
     /**
      * Entity type constants

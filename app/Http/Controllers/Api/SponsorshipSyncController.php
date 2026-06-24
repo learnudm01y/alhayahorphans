@@ -4352,30 +4352,72 @@ class SponsorshipSyncController extends Controller
                 'attachment_type' => str_contains($fileType, 'video') ? 'video' : 'photo',
             ]);
 
-            // تسجيل في قاعدة البيانات
-            $uploadId = DB::table('google_drive_uploads')->insertGetId([
-                'local_file_path' => $fullPath,
-                'local_file_hash' => $fileHash,
-                'file_name' => $fileName,
-                'file_size_bytes' => $fileSize,
-                'mime_type' => $fileType,
-                'google_drive_path' => $googleDrivePath,
-                'upload_status' => 'pending',
-                'upload_progress' => 0,
-                'entity_type' => 'sponsorship',
-                'entity_id' => (string)$sponsorshipId,
-                'attachment_type' => str_contains($fileType, 'video') ? 'video' : 'photo',
-                'device_id' => $request->header('X-Device-ID', 'unknown'),
-                'uploaded_by' => $request->user()->id ?? 0,
-                'retry_count' => 0,
-                'synced_to_server' => false,
-                'created_at' => now(),
-                'updated_at' => now()
-            ]);
+            // تسجيل في قاعدة البيانات مع التحقق من وجود سجل مكرر (unique_file_per_entity)
+            $existingUpload = DB::table('google_drive_uploads')
+                ->where('local_file_hash', $fileHash)
+                ->where('entity_type', 'sponsorship')
+                ->where('entity_id', (string)$sponsorshipId)
+                ->first();
 
-            Log::info('✅ Upload record created in database', [
+            if ($existingUpload) {
+                // تحديث السجل الموجود بدلاً من إدراج سجل مكرر
+                $uploadId = $existingUpload->id;
+                DB::table('google_drive_uploads')
+                    ->where('id', $uploadId)
+                    ->update([
+                        'local_file_path' => $fullPath,
+                        'file_name' => $fileName,
+                        'file_size_bytes' => $fileSize,
+                        'mime_type' => $fileType,
+                        'google_drive_path' => $googleDrivePath,
+                        'upload_status' => $existingUpload->upload_status === 'completed' ? 'completed' : 'pending',
+                        'device_id' => $request->header('X-Device-ID', 'unknown'),
+                        'uploaded_by' => $request->user()->id ?? 0,
+                        'retry_count' => $existingUpload->retry_count + 1,
+                        'updated_at' => now()
+                    ]);
+
+                Log::info('♻️ Upload record already exists, updated instead of duplicate insert', [
+                    'upload_id' => $uploadId,
+                    'status' => $existingUpload->upload_status,
+                    'file_hash' => $fileHash,
+                ]);
+
+                // إذا كان الملف قد تم رفعه بالفعل، نعيد النتيجة مباشرة
+                if ($existingUpload->upload_status === 'completed') {
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'الملف موجود ومرفوع مسبقاً',
+                        'upload_id' => $uploadId,
+                        'file_id' => $existingUpload->google_drive_file_id,
+                        'status' => 'already_uploaded'
+                    ]);
+                }
+            } else {
+                $uploadId = DB::table('google_drive_uploads')->insertGetId([
+                    'local_file_path' => $fullPath,
+                    'local_file_hash' => $fileHash,
+                    'file_name' => $fileName,
+                    'file_size_bytes' => $fileSize,
+                    'mime_type' => $fileType,
+                    'google_drive_path' => $googleDrivePath,
+                    'upload_status' => 'pending',
+                    'upload_progress' => 0,
+                    'entity_type' => 'sponsorship',
+                    'entity_id' => (string)$sponsorshipId,
+                    'attachment_type' => str_contains($fileType, 'video') ? 'video' : 'photo',
+                    'device_id' => $request->header('X-Device-ID', 'unknown'),
+                    'uploaded_by' => $request->user()->id ?? 0,
+                    'retry_count' => 0,
+                    'synced_to_server' => false,
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]);
+            }
+
+            Log::info('✅ Upload record ready in database', [
                 'upload_id' => $uploadId,
-                'status' => 'pending',
+                'status' => $existingUpload ? 'updated' : 'created',
             ]);
 
             // محاولة الرفع باستخدام Rclone (الطريقة الرئيسية على الخادم)
@@ -4475,11 +4517,51 @@ class SponsorshipSyncController extends Controller
                 'status' => 'pending'
             ]);
 
+        } catch (\Illuminate\Database\QueryException $e) {
+            // خطأ 1062: Duplicate entry — السجل موجود مسبقاً بسبب unique_file_per_entity
+            // يجب وضع الحالة إلى 'skipped' لمنع الحلقة اللانهائية
+            if (isset($e->errorInfo[1]) && $e->errorInfo[1] === 1062) {
+                $affected = DB::table('google_drive_uploads')
+                    ->where('local_file_hash', $fileHash ?? '')
+                    ->where('entity_type', 'sponsorship')
+                    ->where('entity_id', (string)($sponsorshipId ?? ''))
+                    ->update([
+                        'upload_status' => 'skipped',
+                        'synced_to_server' => true,
+                        'error_message' => 'Duplicate entry (1062): سجل موجود مسبقاً — تم التخطي',
+                        'updated_at' => now(),
+                    ]);
+
+                Log::warning('⚠️ Google Drive upload skipped — duplicate entry (1062)', [
+                    'file_hash'      => $fileHash ?? 'N/A',
+                    'file_name'      => $fileName ?? 'N/A',
+                    'sponsorship_id' => $sponsorshipId ?? 'N/A',
+                    'rows_updated'   => $affected,
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'الملف موجود مسبقاً في قاعدة البيانات — تم التخطي',
+                    'status'  => 'skipped',
+                ]);
+            }
+
+            Log::error('❌ File upload failed - DB exception', [
+                'error'          => $e->getMessage(),
+                'trace'          => $e->getTraceAsString(),
+                'file_name'      => $fileName ?? 'N/A',
+                'sponsorship_id' => $sponsorshipId ?? 'N/A',
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'فشل رفع الملف: ' . $e->getMessage()
+            ], 500);
+
         } catch (\Exception $e) {
             Log::error('❌ File upload failed - Exception caught', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'file_name' => $fileName ?? 'N/A',
+                'error'          => $e->getMessage(),
+                'trace'          => $e->getTraceAsString(),
+                'file_name'      => $fileName ?? 'N/A',
                 'sponsorship_id' => $sponsorshipId ?? 'N/A',
             ]);
             return response()->json([

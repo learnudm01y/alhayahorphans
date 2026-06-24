@@ -257,7 +257,8 @@
                         fileInput.removeEventListener('blur', resetDialog);
                     };
                     fileInput.addEventListener('blur', resetDialog);
-                    fileInput.click();
+                    // تم تعطيل النقر التلقائي لمنع فتح النافذة مرتين
+                    // fileInput.click();
                 });
 
                 fileInput.addEventListener('click', function() {});
@@ -1002,7 +1003,8 @@
                     if (docTypeSelect.value) {
                         fileInput.style.display = '';
                         fileInput.value = '';
-                        fileInput.click();
+                        // تم تعطيل النقر التلقائي لمنع فتح النافذة مرتين
+                        // fileInput.click();
                     } else {
                         fileInput.style.display = 'none';
                     }
@@ -1136,19 +1138,17 @@
                                 console.error('❌ مرفق بدون نوع وثيقة (type):', doc);
                             }
                             if (doc && typeof doc === 'object' && doc.processedFile) {
-                                formData.append(`attachments[${attachIndex}][file]`, doc
-                                    .processedFile);
-                                formData.append(
-                                    `attachments[${attachIndex}][person_identity_number]`,
-                                    doc.personId);
-                                formData.append(`attachments[${attachIndex}][file_type]`,
-                                    docTypeVal);
-                                formData.append(
-                                    `attachments[${attachIndex}][stored_file_name]`, doc
-                                    .processedFile.name);
-                                formData.append(
-                                    `attachments[${attachIndex}][file_id_number]`, doc
-                                    .fileId || '');
+                                if (doc.tempPath) {
+                                    formData.append(`attachments[${attachIndex}][temp_path]`, doc.tempPath);
+                                    const originalName = (doc.originalFile && doc.originalFile.name) || (doc.processedFile && doc.processedFile.name) || 'file';
+                                    formData.append(`attachments[${attachIndex}][stored_file_name]`, originalName);
+                                } else {
+                                    formData.append(`attachments[${attachIndex}][file]`, doc.processedFile);
+                                    formData.append(`attachments[${attachIndex}][stored_file_name]`, doc.processedFile.name);
+                                }
+                                formData.append(`attachments[${attachIndex}][person_identity_number]`, doc.personId);
+                                formData.append(`attachments[${attachIndex}][file_type]`, docTypeVal);
+                                formData.append(`attachments[${attachIndex}][file_id_number]`, doc.fileId || '');
                                 attachmentsDebug.push({
                                     idx: attachIndex,
                                     name: doc.processedFile.name,

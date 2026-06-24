@@ -246,14 +246,15 @@
 
                 const fileIcon = getFileIcon(file);
 
-                // Build image/file URL with enhanced validation
-                let fileUrl = file.download_url || file.file_path || '';
+                // Build image/file URL — استخدام download_url الآمن المُولَّد من الخادم أولاً
+                let fileUrl = file.download_url || '';
 
-                // استخدام العرض الآمن للصور والملفات
-                if (fileUrl && !fileUrl.startsWith('http')) {
-                    // استخراج اسم الملف من المسار
-                    const filename = fileUrl.replace(/^\/?(storage\/)+/, '').split('/').pop();
-                    fileUrl = isImage ? `{{ route('admin.file.show', '') }}/${filename}` : fileUrl;
+                // إذا لم يكن هناك download_url، نبني مسار العرض الآمن من اسم الملف
+                if (!fileUrl) {
+                    const fallbackName = (file.stored_file_name || file.original_file_name || '').trim();
+                    if (fallbackName) {
+                        fileUrl = `{{ rtrim(route('admin.file.show', ['filename' => 'PLACEHOLDER']), 'PLACEHOLDER') }}${encodeURIComponent(fallbackName)}`;
+                    }
                 }
 
                 // Create preview HTML with enhanced design
@@ -263,13 +264,10 @@
                             class="w-100 h-100 image-preview"
                             style="object-fit: cover; transition: transform 0.3s ease;"
                             alt="${file.original_file_name || file.stored_file_name || file.file_name}"
-                            loading="lazy"
+                            loading="eager"
                             data-src="${fileUrl}"
-                            onload="console.log('✅ Image loaded successfully:', this.src); this.parentElement.style.border='2px solid #28a745'; this.parentElement.style.boxShadow='0 8px 30px rgba(40, 167, 69, 0.2)';"
-                            onerror="console.error('❌ Image failed to load:', this.src);
-                                    this.style.display='none';
-                                    this.parentElement.innerHTML='<div class=&quot;d-flex flex-column align-items-center justify-content-center h-100 text-muted&quot; style=&quot;background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);&quot;><i class=&quot;fas fa-image fs-3x text-danger&quot;></i><div class=&quot;mt-2 fw-bold&quot;>صورة غير متاحة</div><small class=&quot;text-muted&quot;>تعذر تحميل الصورة</small></div>';
-                                    this.parentElement.style.border='2px solid #dc3545'; this.parentElement.style.boxShadow='0 8px 30px rgba(220, 53, 69, 0.2)';">
+                            onload="this.parentElement.style.border='2px solid #28a745'; this.parentElement.style.boxShadow='0 8px 30px rgba(40,167,69,0.2)';"
+                            onerror="var p=this.parentElement; this.remove(); p.innerHTML='<div class=\'d-flex flex-column align-items-center justify-content-center h-100\' style=\'background:linear-gradient(135deg,#f8d7da,#f5c6cb);\'><i class=\'fas fa-image fa-3x text-danger\'></i><div class=\'mt-2 fw-bold text-danger\'>صورة غير متاحة</div></div>'; p.style.border='2px solid #dc3545';">
 
                         <!-- شارة نوع الملف -->
                         <div class="position-absolute top-0 end-0 m-2">
@@ -819,7 +817,7 @@
                 // معالجة رابط التحميل
                 let downloadUrl = file.download_url;
                 if (!downloadUrl && fileName) {
-                    downloadUrl = `{{ route('admin.file.show', '') }}/${fileName}`;
+                    downloadUrl = `{{ rtrim(route('admin.file.show', ['filename' => 'PLACEHOLDER']), 'PLACEHOLDER') }}${encodeURIComponent(fileName)}`;
                 }
 
                 console.log('🔍 Processing search result:', {

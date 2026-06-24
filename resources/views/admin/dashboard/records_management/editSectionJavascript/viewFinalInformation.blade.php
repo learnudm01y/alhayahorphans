@@ -80,11 +80,11 @@
                 const el = mainForm.querySelector(`[name="${name}"]`);
                 if (!el) return '';
                 if (el.type === 'checkbox' || el.type === 'radio') {
-                    if (el.checked) return el.value;
+                    if (el.checked) return el.value.trim();
                     // إذا مجموعة راديو، نبحث المجموعة
                     const group = mainForm.querySelectorAll(`[name="${name}"]`);
                     for (const g of group) {
-                        if (g.checked) return g.value;
+                        if (g.checked) return g.value.trim();
                     }
                     return '';
                 }

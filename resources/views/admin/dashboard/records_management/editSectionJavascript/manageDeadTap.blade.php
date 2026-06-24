@@ -162,7 +162,7 @@
         };
 
         // تأكد من إظهار القسم قبل الإرسال (لضمان إرسال بيانات الأم إذا كانت ظاهرة)
-        var form = document.querySelector('form');
+        var form = (document.getElementById('main_form') || document.querySelector('form'));
         if (form) {
             form.addEventListener('submit', function() {
                 if (motherInfoSection && (motherInfoSection.style.display === 'none' || motherInfoSection.style.maxHeight === '0px')) {
@@ -222,8 +222,8 @@
         // دالة للتحقق من رقم الهوية
         function validateIdNumber(input) {
             const idNumber = input.value;
-            if (idNumber.length !== 9) {
-                input.setCustomValidity('يجب أن يتكون رقم الهوية من 10 أرقام');
+            if (idNumber.length > 0 && (idNumber.length < 9 || idNumber.length > 10)) {
+                input.setCustomValidity('يجب أن يتكون رقم الهوية من 9 أو 10 أرقام');
                 return false;
             }
             input.setCustomValidity('');
@@ -240,14 +240,14 @@
         });
 
         // التحقق من البيانات قبل الإرسال
-        document.querySelector('form').addEventListener('submit', function(e) {
+        (document.getElementById('main_form') || document.querySelector('form')).addEventListener('submit', function(e) {
             const section = document.querySelector('select[name="data_section_id"]').value;
 
             if (section === '1') { // قسم الأيتام
                 // التحقق من بيانات الأب
                 for (const [field, label] of Object.entries(fatherRequiredFields)) {
                     const input = this.querySelector(`[name="${field}"]`);
-                    if (!input.value) {
+                    if (!input || (!input.value || !input.value.trim())) {
                         e.preventDefault();
                         Swal.fire({
                             icon: 'error',
@@ -263,10 +263,10 @@
 
                 // التحقق من بيانات الأم إذا كانت مضافة
                 const motherSection = document.getElementById('motherInfoSection');
-                if (motherSection.style.display !== 'none') {
+                if (motherSection && motherSection.style.display !== 'none') {
                     for (const [field, label] of Object.entries(motherRequiredFields)) {
                         const input = this.querySelector(`[name="${field}"]`);
-                        if (!input.value) {
+                        if (!input || (!input.value || !input.value.trim())) {
                             e.preventDefault();
                             Swal.fire({
                                 icon: 'error',

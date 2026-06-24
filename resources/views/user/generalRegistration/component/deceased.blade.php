@@ -453,7 +453,8 @@
                       docSelect.addEventListener('change', function() {
                           if (this.value && !this.disabled) {
                               console.log(`📂 [setupAdditionalDeceasedFileUpload] فتح متصفح الملفات للمتوفي #${index}, نوع الوثيقة:`, this.value);
-                              fileInput.click();
+                              // تم إيقاف الفتح التلقائي هنا لمنع تكرار فتح النافذة
+                              // fileInput.click();
                           }
                       });
 

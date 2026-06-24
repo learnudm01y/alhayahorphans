@@ -118,7 +118,7 @@
                             method: 'POST',
                             body: formData,
                             headers: {
-                                'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
                             }
                         })
                         .then(async response => {

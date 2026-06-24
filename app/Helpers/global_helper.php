@@ -673,10 +673,21 @@ if (!function_exists('markCodeAsUsed')) {
                 ]);
                 return true;
             } else {
-                Log::warning("⚠️ [markCodeAsUsed] الكود غير موجود في reserved_codes", [
-                    'code' => $code
+                // إذا الكود غير موجود، نقوم بإنشائه تلقائياً ثم تحديثه كمستخدم
+                DB::table('reserved_codes')->insert([
+                    'code' => $code,
+                    'session_id' => session_id() ?: 'auto_created',
+                    'reserved_at' => now(),
+                    'used' => true,
+                    'created_at' => now(),
+                    'updated_at' => now()
                 ]);
-                return false;
+
+                Log::info("✅ [markCodeAsUsed] الكود غير موجود - تم إنشاؤه وتعليمه كمستخدم تلقائياً", [
+                    'code' => $code,
+                    'user_id' => $userId
+                ]);
+                return true;
             }
         } catch (\Exception $e) {
             Log::error("❌ [markCodeAsUsed] فشل تحديث الكود", [

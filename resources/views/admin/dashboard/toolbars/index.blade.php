@@ -264,7 +264,7 @@
                                     data-kt-menu-trigger="{default: 'click', lg: 'hover'}"
                                     data-kt-menu-attach="parent" data-kt-menu-placement="bottom-end">
                                     {{-- <img src="{{ Auth::user()->avatar }}" class="rounded-3" alt="user-avatar" /> --}}
-                                    <img alt="Logo" src="{{ asset(Auth::user()->avatar) }}?v={{ time() }}"
+                                    <img alt="Logo" src="{{ asset(Auth::user()->avatar ?? 'assets/media/avatars/300-1.jpg') }}?v={{ time() }}"
                                         class="user-avatar" />
                                 </div>
                                 <!--begin::User account menu-->
@@ -277,7 +277,7 @@
                                             <div class="symbol symbol-50px me-5">
                                                 {{-- <img alt="Logo" src="{{ Auth::user()->avatar }}" class="user-avatar" /> --}}
                                                 <img alt="Logo"
-                                                    src="{{ asset(Auth::user()->avatar) }}?v={{ time() }}"
+                                                    src="{{ asset(Auth::user()->avatar ?? 'assets/media/avatars/300-1.jpg') }}?v={{ time() }}"
                                                     class="user-avatar" />
                                             </div>
                                             <!--end::Avatar-->

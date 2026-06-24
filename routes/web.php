@@ -17,6 +17,7 @@ use App\Http\Controllers\SpeedTestController;
 use App\Http\Controllers\ScoutSearchController;
 use App\Http\Controllers\CivilRegistrySearchController;
 use Barryvdh\Snappy\Facades\SnappyPdf as PDF;
+use Illuminate\Support\Facades\Log;
 
 // ======================================
 // مسار اختبار Laravel Snappy PDF
@@ -138,6 +139,7 @@ Route::prefix('public-api/duplicate-files')->group(function () {
 // المسار الرئيسي - صفحة التسجيل العام
 Route::get('/',[GeneralRegistrationController::class,'index'])->name('generalRegistration.index');
 Route::post('users/generalRegistration/store',[GeneralRegistrationController::class,'store'])->name('store.generalRegistration');
+Route::post('users/generalRegistration/upload-chunk',[GeneralRegistrationController::class,'uploadChunk'])->name('upload.chunk.generalRegistration');
 
 // مسار صفحة تسجيل الدخول
 Route::get('/login', function () {
@@ -514,26 +516,38 @@ Route::get('/test-images', function() { return view('test-images'); });
 
 // Route لعرض ملفات storage بدون الحاجة لـ symlink
 Route::get('/storage/{path}', function ($path) {
-    \Log::info('🔍 Storage route called', [
-        'path' => $path,
-        'full_path' => storage_path('app/public/' . $path)
-    ]);
+    // 1. منع directory traversal (النص العادي والمُشفَّر)
+    if (str_contains($path, '..') || str_contains(urldecode($path), '..')) {
+        Log::warning('🚫 Blocked directory traversal attempt', ['path' => $path, 'ip' => request()->ip()]);
+        abort(403);
+    }
+
+    // 2. حماية من الوصول إلى ملفات حساسة
+    $blockedPatterns = ['.env', '.git', 'logs/', 'log/', '.htaccess', 'config/', 'vendor/', 'framework/'];
+    foreach ($blockedPatterns as $pattern) {
+        if (str_contains(strtolower($path), strtolower($pattern))) {
+            Log::warning('🚫 Blocked access to sensitive path', ['path' => $path, 'ip' => request()->ip()]);
+            abort(403);
+        }
+    }
 
     $filePath = storage_path('app/public/' . $path);
 
-    if (!file_exists($filePath)) {
-        \Log::error('❌ File not found', [
-            'path' => $path,
-            'full_path' => $filePath,
-            'exists' => file_exists($filePath)
-        ]);
+    // 3. التحقق أن المسار الحقيقي داخل مجلد storage (يمنع URL-encoded traversal)
+    $storagBase = realpath(storage_path('app/public'));
+    $realFile   = realpath($filePath);
+
+    if ($realFile === false || $storagBase === false || !str_starts_with($realFile, $storagBase . DIRECTORY_SEPARATOR)) {
+        Log::warning('🚫 Blocked path escape attempt', ['path' => $path, 'ip' => request()->ip()]);
+        abort(403);
+    }
+
+    if (!file_exists($realFile)) {
         abort(404);
     }
 
-    \Log::info('✓ File found, serving it', ['path' => $filePath]);
-
-    $mimeType = mime_content_type($filePath);
-    return response()->file($filePath, [
+    $mimeType = mime_content_type($realFile);
+    return response()->file($realFile, [
         'Content-Type' => $mimeType,
         'Cache-Control' => 'public, max-age=31536000'
     ]);

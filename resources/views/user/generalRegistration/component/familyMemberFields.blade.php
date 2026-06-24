@@ -94,7 +94,7 @@
     </div>
     <label class="form-label fw-bold">رفع الملفات <span class="text-danger">*</span></label>
     <div class="upload-zone" data-upload-zone="family_{{ $idx }}">
-        <select class="form-select mainDocumentTypeSelect" id="mainDocumentTypeSelect_{{ $idx }}">
+        <select class="form-select mainDocumentTypeSelect document-type-select" id="mainDocumentTypeSelect_{{ $idx }}">
             <option value="">اختر نوع الوثيقة</option>
             @foreach ($documentTypes->where('family_enabled', 1)->where('description', '!=', 'Unknown') as $documentType)
                 <option value="{{ $documentType->pref }}" {{ $documentType->family_required ? 'data-required=true' : '' }}>
@@ -103,7 +103,7 @@
             @endforeach
         </select>
         <input type="file"
-               class="mainDocumentFileInput"
+               class="mainDocumentFileInput document-file-input"
                id="mainDocumentFileInput_{{ $idx }}"
                style="display:none !important; visibility:hidden !important; width:0; height:0; pointer-events:none; opacity:0; position:absolute; left:-9999px;">
         <div class="mainDocumentPreview mt-2" id="mainDocumentPreview_{{ $idx }}"></div>

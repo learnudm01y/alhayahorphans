@@ -317,7 +317,7 @@
             }
 
             // إرسال النموذج
-            const form = document.querySelector('form');
+            const form = document.getElementById('main_form') || document.querySelector('form');
             if (form) {
                 form.addEventListener('submit', function(e) {
                     try {

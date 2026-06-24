@@ -123,7 +123,7 @@
         // ============================
         // إرسال النموذج بالطريقة العادية
         // ============================
-        const form = document.querySelector('form');
+        const form = (document.getElementById('main_form') || document.querySelector('form'));
         if (form) {
             form.addEventListener('submit', function () {
                 ErrorTracker.log('info', 'form_submit', 'تم إرسال النموذج بالطريقة التقليدية');

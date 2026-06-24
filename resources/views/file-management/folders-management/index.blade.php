@@ -146,7 +146,7 @@
                         <span>
                             {{ request('type', 'images') === 'images' ? ' مجلدات الصور والوثائق' : ' ملفات Excel' }}
                             @if(isset($scanned_from_disk) && $scanned_from_disk)
-                               
+
                             @endif
                         </span>
                         </div>
@@ -308,7 +308,7 @@
                 // تحديث المسار ليستخدم العرض الآمن
                 if (imageSrc && !imageSrc.includes('admin/file/show/')) {
                     const filename = imageSrc.split('/').pop();
-                    imageSrc = `{{ route('admin.file.show', '') }}/${filename}`;
+                    imageSrc = `{{ rtrim(route('admin.file.show', ['filename' => 'PLACEHOLDER']), 'PLACEHOLDER') }}${encodeURIComponent(filename)}`;
                 }
 
                 modalImage.src = imageSrc;

@@ -578,7 +578,7 @@ class RecordsManagementEditController extends Controller
                 'data_family_name' => 'nullable|string|max:255',
                 'data_relationship' => 'nullable|string|max:255',
                 'data_birth_date' => 'nullable|date',
-                'data_gender' => 'nullable|string|max:10',
+                'data_gender' => 'required|in:1,2',
                 'data_phone_number' => 'nullable|string|max:20',
                 'data_alt_phone_number' => 'nullable|string|max:20',
                 'data_number_of_individuals' => 'nullable|integer',
@@ -586,7 +586,7 @@ class RecordsManagementEditController extends Controller
                 'data_academic_qualification' => 'nullable|integer',
                 'data_displacement_status' => 'nullable|integer',
                 'data_address_before_displacement' => 'nullable|string',
-                'data_current_address' => 'nullable|string',
+                'data_current_address' => 'required|string|max:500',
                 'data_city' => 'nullable|integer',
                 'data_province' => 'nullable|integer',
                 'data_health_status' => 'nullable|integer',
@@ -601,17 +601,18 @@ class RecordsManagementEditController extends Controller
                 'data_user_insert_data' => 'nullable|string',
                 'data_request_status' => 'nullable|integer',
                 'attachments_to_delete' => 'sometimes|array',
-                // هنا: استخدم integer فقط (بدون exists) أو استخدم exists:attachments,id إذا كنت متأكد أن القيم أرقام صحيحة
                 'attachments_to_delete.*' => 'integer|exists:attachments,id',
                 'attachmentsByPerson.*.person_identity_number' => 'nullable',
                 'attachmentsByPerson.*.file_id_number' => 'nullable',
-                // لا تضف قاعدة file هنا نهائياً
                 'attachmentsByPerson.*.documents.*.file_type' => 'nullable|string',
                 'attachmentsByPerson.*.documents.*.stored_file_name' => 'nullable|string',
-                // تأكد أن أفراد الأسرة لديهم file_id_number
                 'family_members.*.file_id' => 'required|string',
             ];
             $validationMessages = [
+                'data_gender.required' => 'الجنس مطلوب.',
+                'data_gender.in' => 'قيمة الجنس غير صحيحة.',
+                'data_current_address.required' => 'العنوان الحالي مطلوب.',
+                'data_first_name.required' => 'الاسم الأول مطلوب.',
                 'attachmentsByPerson.*.documents.*.file.required' => 'ملف الوثيقة مطلوب.',
                 'attachmentsByPerson.*.documents.*.file.mimes' => 'صيغة الملف غير مدعومة.',
                 'attachmentsByPerson.*.documents.*.file.max' => 'حجم الملف لا يتجاوز 5 ميغابايت.',

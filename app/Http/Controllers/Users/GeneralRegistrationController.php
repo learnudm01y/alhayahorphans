@@ -495,7 +495,9 @@ class GeneralRegistrationController extends Controller
             foreach ($attachmentsData as $index => $data) {
                 // استقبال الملف بشكل صحيح
                 $file = $request->hasFile("attachments.$index.file") ? $request->file("attachments.$index.file") : null;
-                if (!$file) {
+                $tempPath = $data['temp_path'] ?? null;
+
+                if (!$file && !$tempPath) {
                     Log::error('🔴 لم يتم استقبال الملف من الواجهة', [
                         'index' => $index,
                         'data' => $data,
@@ -508,8 +510,12 @@ class GeneralRegistrationController extends Controller
                     ]);
                     continue;
                 }
-                Log::info('📸 اسم الملف المستلم: ' . $file->getClientOriginalName() . ' | الحجم: ' . $file->getSize());
-                Log::info('🟠 معالجة مرفق فرد أسرة', ['index' => $index, 'data' => $data, 'file' => $file]);
+                if ($file) {
+                    Log::info('📸 اسم الملف المستلم: ' . $file->getClientOriginalName() . ' | الحجم: ' . $file->getSize());
+                } else if ($tempPath) {
+                    Log::info('📸 مسار الملف المؤقت المستلم: ' . $tempPath);
+                }
+                Log::info('🟠 معالجة مرفق فرد أسرة', ['index' => $index, 'data' => $data, 'file' => $file, 'tempPath' => $tempPath]);
                 $personType = $data['person_identity_number'] ?? null;
                 $fileType = $data['file_type'] ?? null;
                 $fileIdNumberAttach = isset($data['file_id_number']) && $data['file_id_number'] && $data['file_id_number'] !== 'undefined' && preg_match('/^\d+$/', $data['file_id_number'])
@@ -528,8 +534,8 @@ class GeneralRegistrationController extends Controller
                     Log::warning('🚫 تجاهل صورة أصلية غير مقصوصة', ['index' => $index, 'file' => $file->getClientOriginalName(), 'data' => $data]);
                     continue;
                 }
-                if (!$file || !$storedFileName) {
-                    Log::error('🔴 تجاهل مرفق بسبب نقص البيانات', ['index' => $index, 'file' => $file, 'storedFileName' => $storedFileName, 'data' => $data]);
+                if ((!$file && !$tempPath) || !$storedFileName) {
+                    Log::error('🔴 تجاهل مرفق بسبب نقص البيانات', ['index' => $index, 'file' => $file, 'tempPath' => $tempPath, 'storedFileName' => $storedFileName, 'data' => $data]);
                     continue;
                 }
                 $realPersonId = null;
@@ -555,25 +561,62 @@ class GeneralRegistrationController extends Controller
                 } else {
                     $realPersonId = is_numeric($personType) ? $personType : null;
                 }
-                if ($file && $realPersonId && $fileType && $fileIdNumberAttach && $storedFileName && preg_match('/^\d+$/', $realPersonId)) {
-                    $extension = $file->getClientOriginalExtension();
+                if (($file || $tempPath) && $realPersonId && $fileType && $fileIdNumberAttach && $storedFileName && preg_match('/^\d+$/', $realPersonId)) {
+                    $extension = '';
+                    $fileSize = 0;
+                    if ($file) {
+                        $extension = $file->getClientOriginalExtension();
+                        $fileSize = $file->getSize();
+                    } else {
+                        // استخراج الامتداد من اسم الملف الأصلي المخزن
+                        $extension = pathinfo($storedFileName, PATHINFO_EXTENSION);
+                        if (empty($extension)) {
+                            $extension = 'jpg'; // افتراضي
+                        }
+                    }
+
                     // اسم الملف: نوع الوثيقة _ رقم الملف الخاص بالشخص _ رقم هوية الشخص
                     $newFileName = "{$fileType}_{$fileIdNumberAttach}_{$realPersonId}.{$extension}";
                     $folder = 'uploads/' . $fileIdNumberAttach;
                     if ($folder === 'public' || $folder === 'public/') {
                         throw new \Exception('خطأ في مسار التخزين: يجب تحديد مجلد فرعي داخل uploads');
                     }
-                    $path = $file->storeAs($folder, $newFileName, 'public');
+
+                    $path = '';
+                    if ($file) {
+                        $path = $file->storeAs($folder, $newFileName, 'public');
+                    } else {
+                        $finalPath = $folder . '/' . $newFileName;
+                        if (\Storage::disk('public')->exists($tempPath)) {
+                            \Storage::disk('public')->move($tempPath, $finalPath);
+                            $path = $finalPath;
+                            $fileSize = \Storage::disk('public')->size($finalPath);
+                            
+                            // Delete the temporary directory if it's empty after move
+                            $tempDir = dirname($tempPath);
+                            if (\Storage::disk('public')->exists($tempDir)) {
+                                $remainingFiles = \Storage::disk('public')->allFiles($tempDir);
+                                if (empty($remainingFiles)) {
+                                    \Storage::disk('public')->deleteDirectory($tempDir);
+                                    Log::info('🗑️ تم حذف المجلد المؤقت الفارغ', ['dir' => $tempDir]);
+                                }
+                            }
+                        } else {
+                            Log::error('الملف المؤقت غير موجود', ['tempPath' => $tempPath]);
+                            continue;
+                        }
+                    }
+
                     Attachment::create([
                         'person_identity_number' => $realPersonId,
                         'stored_file_name' => $newFileName,
                         'file_path' => 'storage/' . $path,
                         'file_type' => $fileType,
-                        'file_size' => $file->getSize(),
+                        'file_size' => $fileSize,
                     ]);
-                    Log::info('🟢 تم تخزين مرفق بنجاح', ['index' => $index, 'file' => $file, 'data' => $data, 'newFileName' => $newFileName]);
+                    Log::info('🟢 تم تخزين مرفق بنجاح', ['index' => $index, 'file' => $file, 'tempPath' => $tempPath, 'data' => $data, 'newFileName' => $newFileName]);
                 } else {
-                    Log::error('🔴 تجاهل مرفق بسبب شرط تحقق نهائي', ['index' => $index, 'file' => $file, 'data' => $data]);
+                    Log::error('🔴 تجاهل مرفق بسبب شرط تحقق نهائي', ['index' => $index, 'file' => $file, 'tempPath' => $tempPath, 'data' => $data]);
                 }
             }
 
@@ -581,13 +624,19 @@ class GeneralRegistrationController extends Controller
             // إضافة مستخدم جديد عند التسجيل العام
             // توليد كلمة مرور عشوائية من 8 أحرف
             $randomPassword = substr(str_shuffle('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'), 0, 8);
-            $user = \App\Models\User::create([
-                'name' => $request->input('data_first_name'),
-                'phone' => $request->input('data_phone_number'),
-                'email' => $request->input('data_id_number'), // تخزين رقم الهوية مباشرة في عمود البريد الإلكتروني
-                'password' => bcrypt($randomPassword),
-                'role' => 'user',
-            ]);
+            // فحص وجود المستخدم قبل محاولة الإنشاء (يمنع Duplicate entry error)
+            if (!\App\Models\User::where('email', $request->input('data_id_number'))->exists()) {
+                $user = \App\Models\User::create([
+                    'name' => $request->input('data_first_name'),
+                    'phone' => $request->input('data_phone_number'),
+                    'email' => $request->input('data_id_number'), // تخزين رقم الهوية مباشرة في عمود البريد الإلكتروني
+                    'password' => bcrypt($randomPassword),
+                    'role' => 'user',
+                ]);
+                Log::info('ℹ️ تم إنشاء حساب مستخدم جديد', ['identity' => $request->input('data_id_number')]);
+            } else {
+                Log::info('ℹ️ المستخدم مسجل مسبقاً، تخطي إنشاء حساب جديد', ['identity' => $request->input('data_id_number')]);
+            }
 
             DB::commit();
 
@@ -609,6 +658,49 @@ class GeneralRegistrationController extends Controller
                 ->with('error', 'حدث خطأ أثناء حفظ السجل: ' . $e->getMessage());
         }
     }
+    // إضافة دالة الرفع المجزأ
+    public function uploadChunk(Request $request)
+    {
+        try {
+            $chunk = $request->file('chunk');
+            $fileName = $request->input('file_name');
+            $fileId = $request->input('file_id_number');
+            $chunkIndex = $request->input('chunk_index');
+            $totalChunks = $request->input('total_chunks');
+
+            if (!$chunk || !$fileName || !$fileId) {
+                return response()->json(['success' => false, 'error' => 'بيانات مفقودة للرفع المجزأ'], 400);
+            }
+
+            // تحديد مسار التخزين المؤقت
+            $tempDir = storage_path('app/public/temp_uploads/' . $fileId);
+            if (!file_exists($tempDir)) {
+                mkdir($tempDir, 0777, true);
+            }
+
+            // تنظيف اسم الملف لتجنب أي مشاكل أمنية
+            $safeFileName = preg_replace('/[^a-zA-Z0-9_.-]/', '_', $fileName);
+            $tempPath = $tempDir . '/' . $safeFileName;
+
+            // إلحاق الجزء بالملف المؤقت (FILE_APPEND)
+            file_put_contents($tempPath, file_get_contents($chunk->getRealPath()), FILE_APPEND);
+
+            // إذا كان هذا هو الجزء الأخير
+            if ($chunkIndex == $totalChunks - 1) {
+                return response()->json([
+                    'success' => true,
+                    'complete' => true,
+                    'path' => 'temp_uploads/' . $fileId . '/' . $safeFileName
+                ]);
+            }
+
+            return response()->json(['success' => true, 'complete' => false]);
+        } catch (\Exception $e) {
+            Log::error('خطأ في الرفع المجزأ: ' . $e->getMessage());
+            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+        }
+    }
+
     // فحص وجود رقم الهوية في الجداول المختلفة
     public function check(Request $request)
     {

@@ -123,7 +123,11 @@
                 console.log('window.allDocs عند عرض المراجعة:', window.allDocs);
 
                 // اجمع البيانات من الحقول
-                const getVal = name => document.querySelector(`[name="${name}"]`)?.value || '';
+                function getVal(name) {
+                  const el = document.querySelector(`[name="${name}"]`);
+                  return el && el.value && el.value.trim() ? el.value.trim() : '<span class="text-danger">غير مدخل</span>';
+                }
+                
                 const getSelText = name => {
                     const sel = document.querySelector(`[name="${name}"]`);
                     return sel && sel.selectedIndex > 0 ? sel.options[sel.selectedIndex].text : '';

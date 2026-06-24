@@ -108,6 +108,56 @@
     </style>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // دالة رفع الملف بنظام الأجزاء (Chunks) مع إعادة المحاولة
+            window.uploadFileInChunks = async function(file, fileIdNumber, onProgress) {
+                const chunkSize = 1024 * 1024; // 1 ميغابايت
+                const totalChunks = Math.ceil(file.size / chunkSize);
+                const safeName = file.name ? file.name.replace(/[^a-zA-Z0-9.-]/g, '_') : 'file';
+                const fileName = Date.now() + '_' + safeName;
+                const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+
+                for (let i = 0; i < totalChunks; i++) {
+                    const start = i * chunkSize;
+                    const end = Math.min(start + chunkSize, file.size);
+                    const chunk = file.slice(start, end);
+
+                    const chunkFormData = new FormData();
+                    chunkFormData.append('chunk', chunk);
+                    chunkFormData.append('file_name', fileName);
+                    chunkFormData.append('file_id_number', fileIdNumber);
+                    chunkFormData.append('chunk_index', i);
+                    chunkFormData.append('total_chunks', totalChunks);
+
+                    let retries = 3;
+                    while (retries > 0) {
+                        try {
+                            const response = await fetch('{{ route("upload.chunk.generalRegistration") }}', {
+                                method: 'POST',
+                                body: chunkFormData,
+                                headers: {
+                                    'X-CSRF-TOKEN': csrfToken
+                                }
+                            });
+                            if (!response.ok) throw new Error('فشل الرفع، رمز الخطأ: ' + response.status);
+                            const result = await response.json();
+                            if (result.complete) {
+                                if (onProgress) onProgress(100);
+                                return result.path || ('temp_uploads/' + fileIdNumber + '/' + fileName); // المسار المؤقت للملف المكتمل
+                            } else {
+                                if (onProgress) onProgress(Math.round(((i + 1) / totalChunks) * 100));
+                            }
+                            break; // تم الرفع بنجاح، انتقل للجزء التالي
+                        } catch (e) {
+                            retries--;
+                            console.error('حدث خطأ أثناء رفع الجزء ' + i + ' من الملف ' + fileName + '، محاولات متبقية: ' + retries, e);
+                            if (retries === 0) throw e;
+                            await new Promise(r => setTimeout(r, 2000)); // انتظر ثانيتين قبل المحاولة مجدداً
+                        }
+                    }
+                }
+                return 'temp_uploads/' + fileIdNumber + '/' + fileName;
+            };
+
             // فحص تشخيصي لحالة أداة القص
             console.log('[documentUpload] فحص حالة أداة القص...');
             console.log('[documentUpload] window.showCropperModal:', typeof window.showCropperModal);
@@ -353,6 +403,38 @@
                                     // إذا لم يكن هناك ملف صالح، لا تغيّر processedFile أبداً
                                     console.error('[updateAttachmentTaskStatus] محاولة تعيين processedFile غير صالحة عند الاكتمال. سيتم تجاهلها ولن يتم تغيير الملف الحالي.', {id, status, processedFile, task});
                                 }
+
+                                // ------ الرفع التلقائي في الخلفية ------
+                                if (task.processedFile && (task.processedFile instanceof File || task.processedFile instanceof Blob)) {
+                                    task.uploadStatus = 'uploading';
+                                    task.uploadProgress = 0;
+                                    
+                                    // جلب رقم الهوية (fileIdNumber)
+                                    let currentFileId = 'temp';
+                                    const idInput = document.querySelector('input[name="file_id_number"]');
+                                    if (idInput && idInput.value) {
+                                        currentFileId = idInput.value;
+                                    }
+
+                                    // تأخير بسيط لإعطاء الواجهة فرصة للتحديث قبل الرفع
+                                    setTimeout(() => {
+                                        if (typeof window.uploadFileInChunks === 'function') {
+                                            window.uploadFileInChunks(task.processedFile, currentFileId, (progress) => {
+                                                task.uploadProgress = progress;
+                                                window.renderAttachmentTasksUI(personKey); // تحديث شريط التقدم
+                                            }).then(tempPath => {
+                                                task.uploadStatus = 'done';
+                                                task.tempPath = tempPath;
+                                                window.renderAttachmentTasksUI(personKey); // تحديث واجهة الانتهاء
+                                            }).catch(err => {
+                                                task.uploadStatus = 'error';
+                                                task.errorMessage = 'فشل الرفع: ' + err.message;
+                                                window.renderAttachmentTasksUI(personKey);
+                                            });
+                                        }
+                                    }, 500);
+                                }
+                                // ---------------------------------------
                             } else {
                                 // في الحالات الأخرى (processing/pending/failed) لا تفرض أي حماية على processedFile
                                 if (processedFile instanceof File || processedFile instanceof Blob) {
@@ -1021,7 +1103,16 @@
                             statusDiv.innerHTML = '<span class="status-badge processing">⚙️ جاري القص...</span>';
                             break;
                         case 'completed':
-                            statusDiv.innerHTML = '<span class="status-badge completed">✅ تم بنجاح</span>';
+                            if (task.uploadStatus === 'uploading') {
+                                statusDiv.innerHTML = `<span class="status-badge processing" style="font-size: 0.75rem;">⏳ جاري الرفع (${task.uploadProgress || 0}%)</span>
+                                <div class="progress mt-1 mx-auto" style="height: 5px; width: 80%;">
+                                  <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" style="width: ${task.uploadProgress || 0}%"></div>
+                                </div>`;
+                            } else if (task.uploadStatus === 'error') {
+                                statusDiv.innerHTML = `<span class="status-badge failed">❌ فشل الرفع</span><br><span class="text-danger small" style="font-size: 0.65rem;">${task.errorMessage || 'خطأ في الشبكة'}</span>`;
+                            } else {
+                                statusDiv.innerHTML = '<span class="status-badge completed">✅ تم الرفع بنجاح</span>';
+                            }
                             // إضافة تأثير نجاح للبطاقة
                             card.classList.add('attachment-card');
                             setTimeout(() => {
@@ -1306,6 +1397,11 @@
                 // لا تعيد تعيين select إلا بعد رفع الملفات فعليًا (يمكنك التعليق على السطر التالي إذا أردت إبقاء الاختيار)
                 // docTypeSelect.value = '';
                 docTypeSelect.addEventListener('change', function() {
+                    // فتح حوار اختيار الملف فور اختيار نوع الوثيقة
+                    if (this.value && !this.disabled) {
+                        newFileInput.click();
+                    }
+
                     if (!allDocs.has(personKey)) return;
                     // تحديث نوع الوثيقة فقط للمهام التي لم تكتمل بعد (pending/processing)
                     allDocs.get(personKey).forEach(task => {
@@ -1584,7 +1680,7 @@
                         // نسخ الملفات ومراجع البيانات المهمة
                         originalFile: task.originalFile,
                         processedFile: task.processedFile,
-                        isProcessed: task.isProcessed
+                        isProcessed: task.isProcessed, uploadStatus: task.uploadStatus, tempPath: task.tempPath, errorMessage: task.errorMessage, uploadProgress: task.uploadProgress, timestamp: task.timestamp
                     }));
 
                     currentState[key] = deepCopy;

@@ -24,7 +24,7 @@
                     <div class="col-12">
                         <label class="form-label fw-semibold">رقم الهوية <span class="text-danger">*</span></label>
                         <div class="input-group" style="max-width:320px;">
-                            <input type="text" name="father_id" class="form-control" inputmode="numeric" pattern="[0-9]*" maxlength="9"
+                            <input type="text" name="father_id" class="form-control" inputmode="numeric" pattern="[0-9]*" maxlength="10"
                                    oninput="this.value = this.value.replace(/[^0-9]/g, '');"
                                    value="{{ old('father_id', $dead ? $dead->father_id : '') }}"
                                    placeholder="أدخل رقم الهوية للجلب التلقائي">
@@ -95,7 +95,7 @@
                         <div class="col-12">
                             <label class="form-label fw-semibold">رقم الهوية <span class="text-danger">*</span></label>
                             <div class="input-group" style="max-width:320px;">
-                                <input type="text" name="mother_id" class="form-control" inputmode="numeric" pattern="[0-9]*" maxlength="9"
+                                <input type="text" name="mother_id" class="form-control" inputmode="numeric" pattern="[0-9]*" maxlength="10"
                                        oninput="this.value = this.value.replace(/[^0-9]/g, '');"
                                        value="{{ old('mother_id', $dead ? $dead->mother_id : '') }}"
                                        placeholder="أدخل رقم الهوية للجلب التلقائي">

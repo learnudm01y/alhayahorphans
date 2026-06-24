@@ -426,6 +426,23 @@
         if (mainForm) {
             mainForm.addEventListener('submit', function(event) {
                 event.preventDefault();
+
+                // ── التحقق من صحة البيانات قبل الإرسال ──
+                // collectAndDisplayValidationErrors مُعرَّفة في javascript.blade.php
+                if (typeof window.collectAndDisplayValidationErrors === 'function') {
+                    if (!window.collectAndDisplayValidationErrors()) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'خطأ في البيانات',
+                            html: 'يرجى تصحيح الأخطاء المعروضة في النموذج قبل الحفظ.<br><strong>عدد الأخطاء: ' +
+                                document.querySelectorAll('#validation-errors-list li').length + '</strong>',
+                            confirmButtonText: 'حسناً',
+                            confirmButtonColor: '#d33'
+                        });
+                        return;
+                    }
+                }
+
                 (async function() {
                     clearValidationErrors();
 
@@ -505,6 +522,17 @@
                             if (response.status === 422) {
                                 const data = await response.json();
                                 displayValidationErrors(data.errors || {});
+
+                                // عرض رسالة خطأ واضحة للمستخدم
+                                const errMessages = Object.values(data.errors || {}).flat();
+                                Swal.fire({
+                                    icon: 'error',
+                                    title: 'لا يمكن الحفظ',
+                                    html: 'يرجى تصحيح الأخطاء التالية:<br><ul style="text-align:right">' +
+                                        errMessages.map(m => `<li>${m}</li>`).join('') + '</ul>',
+                                    confirmButtonText: 'حسناً',
+                                    confirmButtonColor: '#d33'
+                                });
                                 return;
                             }
                             let errText = '';
