@@ -13,11 +13,8 @@
         android:largeHeap="true"
         android:hardwareAccelerated="true"
         android:usesCleartextTraffic="true"
-        android:vmSafeMode="true"
-        android:requestLegacyExternalStorage="true"
-        android:preserveLegacyExternalStorage="true">
+        android:requestLegacyExternalStorage="true">
 
-        <!-- ☢️☢️☢️ NUCLEAR OPTION: ContentProvider runs BEFORE everything! ☢️☢️☢️ -->
         <provider
             android:name="com.aso.app.ChromiumInitProvider"
             android:authorities="${applicationId}.chromium_init"
@@ -25,7 +22,6 @@
             android:exported="false"
             android:initOrder="100" />
 
-        <!-- 🛡️ CHROMIUM CRASH FIXES - Disable problematic features -->
         <meta-data
             android:name="android.webkit.WebView.MetricsOptOut"
             android:value="true" />
@@ -47,10 +43,8 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-
         </activity>
 
-        <!-- ✨ NEW: CameraActivity - Native Video Recording بدون Base64! -->
         <activity
             android:name="com.aso.app.CameraActivity"
             android:label="تصوير فيديو"
@@ -58,7 +52,6 @@
             android:exported="false"
             android:screenOrientation="portrait" />
 
-        <!-- 📸 NEW: PhotoActivity - Native Photo Capture بدون Base64! -->
         <activity
             android:name="com.aso.app.PhotoActivity"
             android:label="التقاط صورة"
@@ -73,21 +66,9 @@
             android:grantUriPermissions="true">
             <meta-data
                 android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/file_paths"></meta-data>
+                android:resource="@xml/file_paths" />
         </provider>
 
-        <!-- Boot Receiver - استئناف نظام رفع الملفات بعد إعادة تشغيل الجهاز -->
-        <receiver
-            android:name="com.aso.app.UploadBootReceiver"
-            android:enabled="true"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-            </intent-filter>
-        </receiver>
-
-        <!-- Boot Receiver - استئناف نظام مزامنة البيانات بعد إعادة تشغيل الجهاز (معزول) -->
         <receiver
             android:name="org.alhayah.sponsorships.DataSyncBootReceiver"
             android:enabled="true"
@@ -98,42 +79,43 @@
             </intent-filter>
         </receiver>
 
-        <!-- ✨ CRITICAL: AlarmManager Receiver - مزامنة دورية قوية كل 10 ثوانٍ -->
         <receiver
             android:name="org.alhayah.sponsorships.DataSyncAlarmReceiver"
             android:enabled="true"
             android:exported="false" />
 
-        <!-- ✨ NEW: AlarmManager Receiver لرفع الملفات - فحص كل 10 ثوانٍ -->
-        <receiver
-            android:name="com.aso.app.UploadAlarmReceiver"
-            android:enabled="true"
-            android:exported="false" />
-
-        <!-- Upload Foreground Service - رفع الملفات المستمر حتى عند إغلاق التطبيق -->
-        <service
-            android:name="com.aso.app.UploadForegroundService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
-        <!-- Data Sync Foreground Service - مزامنة البيانات المستمرة (معزول) -->
         <service
             android:name="org.alhayah.sponsorships.DataSyncForegroundService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+            
+        <service
+            android:name="com.aso.app.RealtimeSyncService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <service
+            android:name="org.alhayah.sponsorships.DownloadForegroundService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <receiver
+            android:name="com.aso.app.RealtimeSyncBootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
     </application>
 
-    <!-- Permissions -->
-
-    <!-- Internet & Network -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
-
-    <!-- Background & Foreground Services -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
@@ -143,14 +125,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
-
-    <!-- Foreground Service & Notifications -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-
-    <!-- Storage -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="32"
         tools:ignore="ScopedStorage" />
@@ -159,14 +134,9 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
-
-    <!-- Camera & Microphone -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-
-    <!-- Features -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
-
 </manifest>

@@ -5,8 +5,8 @@
  */
 
 const ApiService = {
-    // Base URL - يتم تغييره حسب البيئة
-    baseUrl: 'https://alhayahorphans.org/api',
+    // Base URL - يتم تغييره حسب البيئة عبر config.js
+    baseUrl: (typeof window.APP_CONFIG !== 'undefined') ? window.APP_CONFIG.API_URL : 'http://127.0.0.1:8000/api',
 
     // Authentication token
     token: null,
@@ -42,9 +42,14 @@ const ApiService = {
      * Get stored base URL
      */
     getBaseUrl() {
+        if (typeof window.APP_CONFIG !== 'undefined') {
+            this.baseUrl = window.APP_CONFIG.API_URL;
+            return this.baseUrl;
+        }
+        
         const stored = localStorage.getItem('api_base_url');
         if (stored) {
-            this.baseUrl = stored;
+            // this.baseUrl = stored; // Ignore stored to prevent getting stuck
         }
         return this.baseUrl;
     },

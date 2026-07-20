@@ -169,7 +169,7 @@ async function saveLocalChangeWithSync(sponsorshipId, updates) {
         await DataSyncManager.queueDataForSync(
             'sponsorship',
             sponsorshipData,
-            '/api/mobile/sponsorships/sync'
+            '/api/mobile/sync/upload'
         );
 
         console.log('✅ Sponsorship queued for server sync');
@@ -204,7 +204,7 @@ async function uploadPhotoWithSync(sponsorshipId, photoFile) {
                 photo_id: photoId,
                 uploaded_at: new Date().toISOString()
             },
-            '/api/mobile/photos/sync-metadata'
+            '/api/mobile/sync/photos/metadata'
         );
 
         console.log('✅ Photo metadata queued for sync');

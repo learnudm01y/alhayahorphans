@@ -1,0 +1,1 @@
+<?php $req2 = Request::create('/api/mobile/sync/full', 'GET', ['page' => 2, 'per_page' => 100]); $c = app()->make('App\Http\Controllers\Api\SponsorshipSyncController'); $res2 = $c->getFullSync($req2)->getData()->data; echo gettype($res2) . ' '; echo is_array($res2) ? 'is_array' : 'not_array'; 

@@ -365,38 +365,91 @@
             });
         });
 
+        let folderHistory = [];
+
+        function navigateFolder(folderId, folderName) {
+            folderHistory.push({ id: folderId, name: folderName });
+            listFiles(folderId);
+        }
+
+        function goBack() {
+            if (folderHistory.length > 1) {
+                folderHistory.pop(); // remove current
+                const prev = folderHistory[folderHistory.length - 1];
+                listFiles(prev.id);
+            } else if (folderHistory.length === 1) {
+                folderHistory.pop();
+                listFiles(null);
+            }
+        }
+
         // سرد الملفات
-        function listFiles() {
+        function listFiles(folderId = null) {
             const pageSize = $('#pageSize').val() || 20;
             showLoading('listResult');
             $.ajax({
                 url: '{{ route("google.drive.test.list") }}',
                 method: 'GET',
-                data: { page_size: pageSize },
+                data: { page_size: pageSize, folder_id: folderId },
                 success: function(response) {
                     if (response.success && response.data.files) {
+                        let breadcrumbsHtml = '';
+                        if (folderHistory.length > 0) {
+                            breadcrumbsHtml = `
+                            <div class="mb-3 p-2 bg-light rounded d-flex align-items-center">
+                                <button class="btn btn-sm btn-secondary ms-2" onclick="goBack()"><i class="fas fa-arrow-right"></i> رجوع</button>
+                                <span class="fw-bold">المسار: Root / ${folderHistory.map(f => f.name).join(' / ')}</span>
+                            </div>`;
+                        } else {
+                            breadcrumbsHtml = `
+                            <div class="mb-3 p-2 bg-light rounded">
+                                <span class="fw-bold">المسار: Root</span>
+                            </div>`;
+                        }
+
                         $('#listResult').html(
                             `<div class="result-box success-box">
                                 <h5 class="text-success"><i class="fas fa-check-circle"></i> تم جلب ${response.data.files.length} ملف</h5>
+                                ${breadcrumbsHtml}
                                 <div class="files-list mt-3">
-                                    ${response.data.files.map(file => `
+                                    ${response.data.files.map(file => {
+                                        let icon = '<i class="fas fa-file"></i>';
+                                        let action = '';
+                                        
+                                        if (file.mimeType === 'application/vnd.google-apps.folder') {
+                                            icon = '<i class="fas fa-folder text-warning" style="font-size:1.5em"></i>';
+                                            action = `<button class="btn btn-sm btn-primary ms-2" onclick="navigateFolder('${file.id}', '${file.name}')">فتح المجلد</button>`;
+                                        } else if (file.thumbnailLink) {
+                                            icon = `<img src="${file.thumbnailLink}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 5px;" alt="preview" />`;
+                                            if (file.webViewLink) {
+                                                action = `<a href="${file.webViewLink}" target="_blank" class="btn btn-sm btn-info text-white ms-2"><i class="fas fa-eye"></i> عرض</a>`;
+                                            }
+                                        } else {
+                                            if (file.webViewLink) {
+                                                action = `<a href="${file.webViewLink}" target="_blank" class="btn btn-sm btn-info text-white ms-2"><i class="fas fa-eye"></i> عرض</a>`;
+                                            }
+                                        }
+                                        
+                                        return `
                                         <div class="file-item">
                                             <div class="row align-items-center">
-                                                <div class="col-md-6">
-                                                    <i class="fas fa-file"></i>
-                                                    <strong>${file.name}</strong>
+                                                <div class="col-md-5 d-flex align-items-center">
+                                                    <span class="ms-3">${icon}</span>
+                                                    <strong class="text-truncate" style="max-width: 80%;">${file.name}</strong>
                                                 </div>
-                                                <div class="col-md-4">
-                                                    <span class="badge bg-info badge-custom">${file.id}</span>
+                                                <div class="col-md-3">
+                                                    <span class="badge bg-info badge-custom text-truncate" style="max-width: 100%;" title="${file.id}">${file.id}</span>
                                                 </div>
-                                                <div class="col-md-2 text-end">
+                                                <div class="col-md-4 text-start">
+                                                    ${action}
                                                     <button class="btn btn-sm btn-danger" onclick="quickDelete('${file.id}', '${file.name}')">
                                                         <i class="fas fa-trash"></i>
                                                     </button>
                                                 </div>
                                             </div>
                                         </div>
-                                    `).join('')}
+                                        `;
+                                    }).join('')}
                                 </div>
                             </div>`
                         );

@@ -61,7 +61,8 @@ public class FileSyncWorker extends Worker {
         }
 
         try {
-            if (!isNetworkAvailable()) {
+            if (!InternetUtils.isInternetActuallyAvailable(context)) {
+                Log.w(TAG, "No actual internet access - aborting upload sync");
                 return Result.retry();
             }
 
@@ -105,6 +106,10 @@ public class FileSyncWorker extends Worker {
                 // ═══════════════════════════════════════════════════════════════════
                 long fileSize = 0;
                 boolean fileExists = false;
+
+                if (item.filePath.startsWith("file://")) {
+                    item.filePath = item.filePath.substring(7);
+                }
 
                 if (item.filePath.startsWith("content://")) {
                     // content:// URI - use ContentResolver
@@ -160,13 +165,13 @@ public class FileSyncWorker extends Worker {
                     Log.e(TAG, "✅ Upload successful!");
                     successCount++;
 
-                    // ✅✅✅ CRITICAL: Update status to COMPLETED
-                    Log.e(TAG, "✅✅✅ UPDATING STATUS TO COMPLETED");
+                    // ✅✅✅ CRITICAL: Update status to PROCESSING_SERVER
+                    Log.e(TAG, "✅✅✅ UPDATING STATUS TO PROCESSING_SERVER");
                     Log.e(TAG, "   File ID: " + item.id);
                     Log.e(TAG, "   File Name: " + item.fileName);
-                    Log.e(TAG, "   Status: COMPLETED");
-
-                    dbHelper.updateFileStatus(item.id, UploadDatabaseHelper.STATUS_COMPLETED, null);
+                    
+                    dbHelper.updateFileStatus(item.id, UploadDatabaseHelper.STATUS_PROCESSING_SERVER, null);
+                    Log.d(TAG, "✅ File uploaded successfully to server, awaiting Drive processing! " + item.fileName);
 
                     Log.e(TAG, "✅✅✅ STATUS UPDATE EXECUTED - Verifying...");
                     // Verify the update worked
@@ -199,16 +204,18 @@ public class FileSyncWorker extends Worker {
                     } catch (Exception ignored) {
                     }
 
-                    // Delete the local file after successful upload (only for regular files)
-                    if (!item.filePath.startsWith("content://")) {
-                        File localFile = new File(item.filePath);
-                        if (localFile.exists()) {
-                            localFile.delete();
-                        }
-                    }
+                    // (File deletion logic removed as requested by user to keep files)
 
                 } else {
                     failureCount++;
+
+                    // ✨ NEW: If failure was due to internet dropping mid-upload, DO NOT increment retry count!
+                    if (!InternetUtils.isInternetActuallyAvailable(context)) {
+                        Log.e(TAG, "🚫 Internet disconnected during upload! Pausing without penalizing retries.");
+                        dbHelper.updateFileStatus(item.id, UploadDatabaseHelper.STATUS_PENDING, "Network disconnected");
+                        break; // Stop processing further files
+                    }
+
                     dbHelper.incrementRetryCount(item.id);
 
                     // If max retries exceeded, mark as failed permanently
@@ -278,7 +285,15 @@ public class FileSyncWorker extends Worker {
 
             // Reschedule if there are still pending files
             int remainingPending = dbHelper.getPendingFilesCount();
-            if (remainingPending > 0) {
+            // If we have network-related failures, we should use WorkManager's built-in retry
+            // instead of scheduling a new worker, but for partial success we can just let it finish.
+            if (failureCount > 0 && successCount == 0) {
+                Log.e(TAG, "🔄 All uploads failed, utilizing WorkManager Result.retry()");
+                return Result.retry();
+            }
+
+            if (failureCount > 0) {
+                // Partial success, schedule a new sync later
                 scheduleRetrySync(calculateBackoffMinutes(failureCount));
             }
 
@@ -288,8 +303,7 @@ public class FileSyncWorker extends Worker {
             Log.e(TAG, "❌ Worker failed with exception: " + e.getMessage(), e);
             e.printStackTrace();
 
-            // Reschedule for retry
-            scheduleRetrySync(5); // 5 minutes backoff
+            // Return retry to leverage WorkManager exponential backoff instead of manually creating new workers
             return Result.retry();
         } finally {
             // ✅ CRITICAL: Release isWorking flag to allow future schedules
@@ -312,6 +326,10 @@ public class FileSyncWorker extends Worker {
             // Support both file:// and content:// URIs
             okhttp3.RequestBody fileBody;
             long fileSize = 0;
+
+            if (item.filePath.startsWith("file://")) {
+                item.filePath = item.filePath.substring(7);
+            }
 
             if (item.filePath.startsWith("content://")) {
                 // content:// URI - use ContentResolver with STREAMING (no memory load!)
@@ -521,9 +539,18 @@ public class FileSyncWorker extends Worker {
                     .getString("auth_token", "");
             }
 
+            // ✅ CRITICAL FIX: Ignore wrong URLs from old DB queue and force the correct endpoint
+            String finalApiUrl = item.apiUrl;
+            if (finalApiUrl != null && finalApiUrl.contains("/sponsorships/") && finalApiUrl.endsWith("/files")) {
+                int index = finalApiUrl.indexOf("/mobile/sponsorships/");
+                if (index != -1) {
+                    finalApiUrl = finalApiUrl.substring(0, index) + "/mobile/upload-file";
+                }
+            }
+
             // Build request
             okhttp3.Request.Builder requestBuilder = new okhttp3.Request.Builder()
-                .url(item.apiUrl)
+                .url(finalApiUrl)
                 .post(requestBody);
 
             if (!authToken.isEmpty()) {
@@ -538,7 +565,7 @@ public class FileSyncWorker extends Worker {
             // Execute request
             Log.e(TAG, "");
             Log.e(TAG, "🔍🔍🔍 STEP 4: Executing OkHttp request...");
-            Log.e(TAG, "   URL: " + item.apiUrl);
+            Log.e(TAG, "   URL: " + finalApiUrl + " (Original: " + item.apiUrl + ")");
             Log.e(TAG, "   Method: POST");
             Log.e(TAG, "   Content-Type: multipart/form-data");
             Log.e(TAG, "   Authorization: " + (!authToken.isEmpty() ? "Bearer [present]" : "[MISSING]"));
@@ -574,6 +601,9 @@ public class FileSyncWorker extends Worker {
             response.close();
             return success;
 
+        } catch (java.net.SocketTimeoutException | java.net.ConnectException | java.net.UnknownHostException | javax.net.ssl.SSLException netEx) {
+            Log.e(TAG, "❌ Network error during OkHttp upload: " + netEx.getMessage(), netEx);
+            return false; // Return false to trigger retry later
         } catch (Exception e) {
             Log.e(TAG, "❌ OkHttp upload failed: " + e.getMessage(), e);
             return false;
@@ -661,6 +691,11 @@ public class FileSyncWorker extends Worker {
 
             OneTimeWorkRequest uploadWork = new OneTimeWorkRequest.Builder(FileSyncWorker.class)
                 .setConstraints(constraints)
+                .setBackoffCriteria(
+                    androidx.work.BackoffPolicy.EXPONENTIAL,
+                    10,
+                    java.util.concurrent.TimeUnit.SECONDS
+                )
                 .addTag("file_upload_sync")
                 .build();
 
@@ -759,27 +794,4 @@ public class FileSyncWorker extends Worker {
         }
     }
 
-    private boolean isNetworkAvailable() {
-        try {
-            android.net.ConnectivityManager cm =
-                (android.net.ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-
-            if (cm == null) return false;
-
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                android.net.Network network = cm.getActiveNetwork();
-                if (network == null) return false;
-
-                android.net.NetworkCapabilities capabilities = cm.getNetworkCapabilities(network);
-                return capabilities != null &&
-                       capabilities.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET);
-            } else {
-                android.net.NetworkInfo networkInfo = cm.getActiveNetworkInfo();
-                return networkInfo != null && networkInfo.isConnected();
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "Failed to check network: " + e.getMessage());
-            return false;
-        }
-    }
 }

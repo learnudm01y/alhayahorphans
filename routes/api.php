@@ -15,6 +15,7 @@ use App\Services\ExactMatchSearchService;
 use App\Services\SmartExactSearchService;
 use App\Services\SimpleExactSearchService;
 use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\Api\ChunkedUploadController;
 
 /*
 |--------------------------------------------------------------------------
@@ -30,6 +31,9 @@ use Illuminate\Support\Facades\Log;
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
+
+// TEST ROUTE WITHOUT AUTH
+Route::post('/chunked-upload-test', [\App\Http\Controllers\Api\ChunkedUploadController::class, 'handleChunk']);
 
 // Ultra Fast Search API - بدون middleware للحصول على أقصى سرعة
 Route::get('/search/ultra-fast', function (Request $request) {
@@ -816,8 +820,16 @@ Route::prefix('sync')->middleware(['auth:sanctum'])->group(function () {
 // Google Drive Upload API Routes - Direct Upload Tracking
 // ====================================================================
 Route::prefix('uploads')->middleware(['auth:sanctum'])->group(function () {
+    // Chunk uploads (Mobile app)
+    Route::post('/chunk', [ChunkedUploadController::class, 'handleChunk']);
+
     // Duplicate checking
     Route::post('/check-duplicate', [GoogleDriveUploadController::class, 'checkDuplicate']);
+    Route::post('/drive-status', [GoogleDriveUploadController::class, 'driveStatus']);
+
+    // Offline Inbox for File Statuses
+    Route::get('/offline-inbox', [GoogleDriveUploadController::class, 'offlineInbox']);
+    Route::post('/offline-inbox/ack', [GoogleDriveUploadController::class, 'ackOfflineInbox']);
 
     // Upload notifications
     Route::post('/notify-completed', [GoogleDriveUploadController::class, 'notifyCompleted']);
@@ -852,6 +864,9 @@ use App\Http\Controllers\Api\SponsorshipSyncController;
 Route::prefix('mobile')->group(function () {
     // Login endpoint
     Route::post('/login', [SponsorshipSyncController::class, 'login']);
+    
+    // Refresh token endpoint
+    Route::post('/refresh-token', [SponsorshipSyncController::class, 'refreshToken']);
 
     // Health check
     Route::get('/health', function () {
@@ -885,9 +900,29 @@ Route::prefix('mobile')->middleware(['auth:sanctum'])->group(function () {
     Route::get('/sync/sponsorships', [SponsorshipSyncController::class, 'getSponsorships']);
     Route::get('/sync/sponsorship/{id}', [SponsorshipSyncController::class, 'getSponsorshipDetails']);
     Route::post('/sync/upload', [SponsorshipSyncController::class, 'uploadSyncData']);
+    Route::post('/sync/photos/metadata', [SponsorshipSyncController::class, 'syncPhotoMetadata']);
     Route::get('/sync/stats', [SponsorshipSyncController::class, 'getSyncStats']);
 
-    // File upload
+    // Action Queue
+    Route::get('/server-actions', [\App\Http\Controllers\Api\ServerActionController::class, 'pullActions']);
+    Route::post('/server-actions/ack', [\App\Http\Controllers\Api\ServerActionController::class, 'ackActions']);
+
+    // File upload (Legacy)
     Route::post('/upload-file', [SponsorshipSyncController::class, 'uploadFile']);
+
+    // File upload (Chunked V3)
+    Route::post('/upload-chunk', [ChunkedUploadController::class, 'handleChunk']);
+    Route::get('/upload-status/{upload_id}', [ChunkedUploadController::class, 'uploadStatus']);
+    Route::post('/retry-rclone-upload', [ChunkedUploadController::class, 'retryRcloneUpload']);
+
+    Route::post('/sync/bulk-upload', [SponsorshipSyncController::class, 'bulkUpsert']);
+    
+    // Action Layer
+    Route::post('/sync/actions', [App\Http\Controllers\Api\ActionSyncController::class, 'syncAction']);
+    Route::post('/sponsorships/sync-updates', [App\Http\Controllers\Api\ActionSyncController::class, 'syncAction']);
+    
+    // Server-to-Client Sync Queue
+    Route::get('/sync/pending-actions', [App\Http\Controllers\Api\ActionSyncController::class, 'getPendingActions']);
+    Route::post('/sync/ack-action', [App\Http\Controllers\Api\ActionSyncController::class, 'ackAction']);
 });
 

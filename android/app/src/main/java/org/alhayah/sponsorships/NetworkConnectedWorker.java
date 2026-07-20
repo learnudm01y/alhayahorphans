@@ -46,61 +46,29 @@ public class NetworkConnectedWorker extends Worker {
 
         try {
             Context context = getApplicationContext();
+
+            // ✨ CRITICAL ARCHITECTURE FIX 1: Real Ping Check
+            // لا نثق بـ Android، يجب أن نتأكد من وجود إنترنت حقيقي قبل عمل أي شيء!
+            if (!com.aso.app.InternetUtils.isInternetActuallyAvailable(context)) {
+                Log.e(TAG, "❌ False alarm! Network is connected but no ACTUAL internet access (Ping failed). Aborting sync.");
+                return Result.retry();
+            }
+
             DataSyncDatabaseHelper dbHelper = DataSyncDatabaseHelper.getInstance(context);
 
-            // ✅ CRITICAL FIX: أيضاً تشغيل FileSyncWorker للملفات المعلقة!
-            Log.d(TAG, "📁 Checking for pending FILE uploads...");
-            com.aso.app.UploadDatabaseHelper uploadDbHelper = com.aso.app.UploadDatabaseHelper.getInstance(context);
-            int pendingFiles = uploadDbHelper.getPendingFilesCount();
-            if (pendingFiles > 0) {
-                Log.d(TAG, "✅ Found " + pendingFiles + " pending files - triggering FileSyncWorker");
-                com.aso.app.FileSyncWorker.scheduleImmediateSync(context);
-            } else {
-                Log.d(TAG, "ℹ️  No pending files");
-            }
-
-            // ✨ إعادة تعيين جميع البيانات الفاشلة (DATA SYNC)
-            int resetCount = dbHelper.resetFailedData();
-            if (resetCount > 0) {
-                Log.d(TAG, "🔄 Reset " + resetCount + " failed data items to pending");
-            }
-
-            // فحص عدد البيانات المنتظرة (DATA SYNC)
-            int pendingCount = dbHelper.getPendingDataCount();
-            Log.d(TAG, "📊 Total pending data count: " + pendingCount);
-
-            if (pendingCount > 0) {
-                Log.d(TAG, "✅ Found " + pendingCount + " pending items - starting DataSyncForegroundService");
-
-                // بدء الخدمة
-                Intent serviceIntent = new Intent(context, DataSyncForegroundService.class);
-
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    context.startForegroundService(serviceIntent);
-                } else {
-                    context.startService(serviceIntent);
-                }
-
-                Log.d(TAG, "🚀 DataSyncForegroundService started from CLOSED app (WorkManager)");
-            } else {
-                Log.d(TAG, "ℹ️  No pending data - skipping sync");
-            }
-
-            // ✅ إعادة جدولة Worker للمرة القادمة
-            scheduleNextWork(context);
+            // ✨ CRITICAL ARCHITECTURE FIX: Trigger Unified Master Sync Chain
+            // This runs: DataSyncQueueWorker -> DriveStatusWorker -> SponsorshipSyncWorker -> PrepareUploadsWorker -> ChunkedUploadWorker
+            Log.d(TAG, "📦 Scheduling Unified Master Sync Chain on network reconnect");
+            com.aso.app.SyncOrchestrator.scheduleMasterSyncOnReconnect(context);
 
             Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            Log.d(TAG, "✅ NetworkConnectedWorker completed successfully");
+            Log.d(TAG, "✅ NetworkConnectedWorker unified sync scheduled successfully");
             Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
             return Result.success();
 
         } catch (Exception e) {
             Log.e(TAG, "❌ NetworkConnectedWorker failed", e);
-
-            // إعادة جدولة Worker حتى في حالة الفشل
-            scheduleNextWork(getApplicationContext());
-
             return Result.failure();
         }
     }
@@ -117,10 +85,15 @@ public class NetworkConnectedWorker extends Worker {
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build();
 
-        OneTimeWorkRequest workRequest = new OneTimeWorkRequest.Builder(NetworkConnectedWorker.class)
+        OneTimeWorkRequest.Builder workRequestBuilder = new OneTimeWorkRequest.Builder(NetworkConnectedWorker.class)
                 .setConstraints(constraints)
-                .addTag("network_connected_sync")
-                .build();
+                .addTag("network_connected_sync");
+                
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            workRequestBuilder.setExpedited(androidx.work.OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST);
+        }
+
+        OneTimeWorkRequest workRequest = workRequestBuilder.build();
 
         // استبدال أي work سابق
         WorkManager.getInstance(context).enqueueUniqueWork(
@@ -132,27 +105,5 @@ public class NetworkConnectedWorker extends Worker {
         Log.d(TAG, "✅ NetworkConnectedWorker scheduled");
         Log.d(TAG, "⏳ Will trigger IMMEDIATELY when internet connects");
         Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    }
-
-    /**
-     * ✨ إعادة جدولة Worker بعد التنفيذ (self-scheduling)
-     */
-    private static void scheduleNextWork(Context context) {
-        Constraints constraints = new Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.CONNECTED)
-                .build();
-
-        OneTimeWorkRequest workRequest = new OneTimeWorkRequest.Builder(NetworkConnectedWorker.class)
-                .setConstraints(constraints)
-                .addTag("network_connected_sync")
-                .build();
-
-        WorkManager.getInstance(context).enqueueUniqueWork(
-                WORK_NAME,
-                ExistingWorkPolicy.REPLACE,
-                workRequest
-        );
-
-        Log.d(TAG, "🔄 NetworkConnectedWorker re-scheduled for next internet connection");
     }
 }

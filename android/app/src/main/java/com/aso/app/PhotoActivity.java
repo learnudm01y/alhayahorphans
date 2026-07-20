@@ -73,7 +73,7 @@ public class PhotoActivity extends AppCompatActivity {
 
         // Use default API URL if not provided
         if (apiUrl == null || apiUrl.isEmpty()) {
-            apiUrl = "https://alhayahorphans.org/api/mobile/upload-file";
+            apiUrl = ApiConfig.UPLOAD_FILE_URL;
             Log.e(TAG, "   Using default API URL: " + apiUrl);
         }
 
@@ -212,7 +212,10 @@ public class PhotoActivity extends AppCompatActivity {
 
                 // ✅ DIRECT save to PUBLIC Documents folder (FAST!)
                 Log.e(TAG, "💾 Starting DIRECT save to Documents...");
-                saveToExternalDocumentsFolder(photoUri, fileName);
+                String localFilePath = saveToExternalDocumentsFolder(photoUri, fileName);
+                if (localFilePath != null) {
+                    filePath = localFilePath;
+                }
                 Log.e(TAG, "ℹ️ Photo also stored in MediaStore (accessible in gallery)");
 
                 // حفظ في قاعدة البيانات وجدولة الرفع (FAST - no blocking!)
@@ -272,8 +275,8 @@ public class PhotoActivity extends AppCompatActivity {
             // ✅ جدولة FileSyncWorker باستخدام scheduleImmediateSync() - الطريقة الصحيحة!
             Log.e(TAG, "📤 جدولة الرفع الفوري عبر FileSyncWorker.scheduleImmediateSync()...");
             try {
-                FileSyncWorker.scheduleImmediateSync(this);
-                Log.e(TAG, "✅ تم جدولة FileSyncWorker!");
+                com.aso.app.UploadTaskScheduler.getInstance(this).startImmediateUpload();
+                Log.e(TAG, "✅ تم جدولة UploadTaskScheduler!");
                 Log.e(TAG, "   📋 Work name: file_sync_orchestrator (unified)");
                 Log.e(TAG, "   🔧 Policy: KEEP (no duplicates)");
                 Log.e(TAG, "   🎯 File ID " + fileId + " will be uploaded automatically");
@@ -290,123 +293,102 @@ public class PhotoActivity extends AppCompatActivity {
     }
 
     /**
-     * ✨ حفظ مباشر في PUBLIC Documents folder
-     *
-     * المسار: /storage/emulated/0/Documents/Alhayah/[Association]/[Person]/[fileName]
-     *
-     * ✅ حفظ مباشر بدون نسخ مزدوج
-     * ✅ سريع جداً
-     * ✅ الملف يبقى بعد حذف التطبيق
+     * ✨ حفظ في مجلد Documents العام (Public Storage) ليكون متاحاً للمستخدم
      */
-    private void saveToExternalDocumentsFolder(android.net.Uri sourceUri, String fileName) {
+    private String saveToExternalDocumentsFolder(android.net.Uri sourceUri, String fileName) {
         Log.e(TAG, "💾 saveToExternalDocumentsFolder() START");
         Log.e(TAG, "   sourceUri: " + sourceUri.toString());
         Log.e(TAG, "   fileName: " + fileName);
 
+        String safeAssociationName = (associationName != null && !associationName.isEmpty())
+            ? associationName.replaceAll("[^a-zA-Z0-9_\\-\\u0600-\\u06FF\\s]", "_")
+            : "General";
+        String safePersonName = (personName != null && !personName.isEmpty())
+            ? personName.replaceAll("[^a-zA-Z0-9_\\-\\u0600-\\u06FF\\s]", "_")
+            : "Unknown_" + sponsorshipId;
+
+        // هيكلية المسار: /Documents/sponsorships_alhayahorphans/[Association]/[Person]/
+        String relativeFolderPath = android.os.Environment.DIRECTORY_DOCUMENTS + "/sponsorships_alhayahorphans/" + safeAssociationName + "/" + safePersonName;
+        String absoluteFolderPath = android.os.Environment.getExternalStorageDirectory().getAbsolutePath() + 
+                                    "/Documents/sponsorships_alhayahorphans/" + safeAssociationName + "/" + safePersonName;
+        String absoluteFilePath = absoluteFolderPath + "/" + fileName;
+
+        boolean success = false;
+
         try {
-            // ✅ استخدام PUBLIC Documents directory
-            java.io.File documentsDir = android.os.Environment.getExternalStoragePublicDirectory(
-                android.os.Environment.DIRECTORY_DOCUMENTS
-            );
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // ANDROID 10+ (Q): استخدام MediaStore للحفظ في مجلد Documents العام
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+                values.put(MediaStore.MediaColumns.RELATIVE_PATH, relativeFolderPath);
+                values.put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg");
 
-            if (documentsDir == null) {
-                Log.e(TAG, "❌ Cannot access Documents directory - documentsDir is null");
-                return;
-            }
+                // نستخدم مجموعة Downloads لأنها تدعم حفظ أي نوع ملف داخل Documents/
+                Uri collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+                Uri itemUri = getContentResolver().insert(collection, values);
 
-            Log.e(TAG, "✅ Documents dir: " + documentsDir.getAbsolutePath());
+                if (itemUri != null) {
+                    try (java.io.InputStream is = getContentResolver().openInputStream(sourceUri);
+                         java.io.OutputStream os = getContentResolver().openOutputStream(itemUri)) {
+                        if (is != null && os != null) {
+                            byte[] buffer = new byte[16384];
+                            int read;
+                            while ((read = is.read(buffer)) != -1) {
+                                os.write(buffer, 0, read);
+                            }
+                            success = true;
+                            Log.e(TAG, "✅ Photo successfully saved to public Documents folder via MediaStore");
+                        }
+                    }
+                    if (!success) {
+                        getContentResolver().delete(itemUri, null, null);
+                    }
+                }
+            } else {
+                // ANDROID 9 وما قبل: استخدام File API التقليدي
+                File documentsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOCUMENTS);
+                File mainDir = new File(documentsDir, "sponsorships_alhayahorphans");
+                File associationDir = new File(mainDir, safeAssociationName);
+                File personDir = new File(associationDir, safePersonName);
 
-            // إنشاء المجلد: Documents/Alhayah/
-            java.io.File mainDir = new java.io.File(documentsDir, "Alhayah");
-            if (!mainDir.exists()) {
-                boolean created = mainDir.mkdirs();
-                Log.e(TAG, "   Alhayah dir created: " + created);
-            }
-
-            // إنشاء مجلد الجمعية
-            String safeAssociationName = (associationName != null && !associationName.isEmpty())
-                ? associationName.replaceAll("[^a-zA-Z0-9_\\-\\u0600-\\u06FF\\s]", "_")
-                : "General";
-
-            java.io.File associationDir = new java.io.File(mainDir, safeAssociationName);
-            if (!associationDir.exists()) {
-                boolean created = associationDir.mkdirs();
-                Log.e(TAG, "   Association dir created: " + created + " (" + safeAssociationName + ")");
-            }
-
-            // إنشاء مجلد الشخص
-            String safePersonName = (personName != null && !personName.isEmpty())
-                ? personName.replaceAll("[^a-zA-Z0-9_\\-\\u0600-\\u06FF\\s]", "_")
-                : "Unknown_" + sponsorshipId;
-
-            java.io.File personDir = new java.io.File(associationDir, safePersonName);
-            if (!personDir.exists()) {
-                boolean created = personDir.mkdirs();
-                Log.e(TAG, "   Person dir created: " + created + " (" + safePersonName + ")");
-            }
-
-            // إنشاء الملف النهائي
-            java.io.File destinationFile = new java.io.File(personDir, fileName);
-
-            Log.e(TAG, "✅ Final path: " + destinationFile.getAbsolutePath());
-            Log.e(TAG, "🔄 Starting file copy...");
-
-            // نسخ الملف (سريع!)
-            long startCopy = System.currentTimeMillis();
-            long bytesWritten = 0;
-
-            try (java.io.InputStream inputStream = getContentResolver().openInputStream(sourceUri);
-                 java.io.FileOutputStream outputStream = new java.io.FileOutputStream(destinationFile)) {
-
-                if (inputStream == null) {
-                    Log.e(TAG, "❌ Cannot open input stream from URI");
-                    return;
+                if (!personDir.exists()) {
+                    personDir.mkdirs();
                 }
 
-                byte[] buffer = new byte[16384]; // 16KB buffer for faster copy
-                int bytesRead;
+                File destFile = new File(personDir, fileName);
 
-                while ((bytesRead = inputStream.read(buffer)) != -1) {
-                    outputStream.write(buffer, 0, bytesRead);
-                    bytesWritten += bytesRead;
+                try (java.io.InputStream is = getContentResolver().openInputStream(sourceUri);
+                     java.io.OutputStream os = new java.io.FileOutputStream(destFile)) {
+                    if (is != null) {
+                        byte[] buffer = new byte[16384];
+                        int read;
+                        while ((read = is.read(buffer)) != -1) {
+                            os.write(buffer, 0, read);
+                        }
+                        success = true;
+                        Log.e(TAG, "✅ Photo successfully saved to public Documents folder: " + destFile.getAbsolutePath());
+                    }
                 }
+            }
 
-                outputStream.flush();
-
-                long copyTime = System.currentTimeMillis() - startCopy;
-                Log.e(TAG, "✅✅✅ File saved successfully!");
-                Log.e(TAG, "   Size: " + (bytesWritten / 1024.0 / 1024.0) + " MB");
-                Log.e(TAG, "   Time: " + copyTime + " ms");
-                Log.e(TAG, "   Path: " + destinationFile.getAbsolutePath());
-                Log.e(TAG, "   File exists: " + destinationFile.exists());
-                Log.e(TAG, "   File size: " + destinationFile.length() + " bytes");
-
-                // حفظ مسار الملف الخارجي في قاعدة البيانات
+            if (success) {
+                // حفظ تاريخ المجلد الجديد في قاعدة البيانات
                 UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(this);
                 dbHelper.savePersonNameHistory(
                     sponsorshipId,
                     associationName != null ? associationName : "",
                     personName != null ? personName : "",
-                    personDir.getAbsolutePath()
+                    absoluteFolderPath
                 );
-                Log.e(TAG, "✅ Saved folder path to database");
-
-            } catch (Exception copyEx) {
-                Log.e(TAG, "❌ Error during file copy: " + copyEx.getMessage());
-                copyEx.printStackTrace();
-
-                // حذف الملف الناقص إن وجد
-                if (destinationFile.exists()) {
-                    destinationFile.delete();
-                    Log.e(TAG, "🗑️ Deleted incomplete file");
-                }
+                return absoluteFilePath;
+            } else {
+                return null;
             }
 
         } catch (Exception e) {
-            Log.e(TAG, "❌ Error saving to external documents: " + e.getMessage());
+            Log.e(TAG, "❌ Failed to save photo to public Documents folder: " + e.getMessage());
             e.printStackTrace();
+            return null;
         }
-
-        Log.e(TAG, "💾 saveToExternalDocumentsFolder() END");
     }
 }

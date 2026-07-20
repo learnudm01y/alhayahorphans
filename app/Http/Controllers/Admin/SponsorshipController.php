@@ -1012,6 +1012,13 @@ class SponsorshipController extends Controller
             $guardianBirthDate = $validatedData['guardian_birth_date'] ?? null;
             $guardianIdentityNumber = $validatedData['guardian_identity_number'] ?? null;
 
+            // 🆕 حفظ بيانات المكفول للاستخدام لاحقاً (لتحديثها في الجداول المرتبطة)
+            $orphanFirstName = $validatedData['orphan_first_name'] ?? '';
+            $orphanFatherName = $validatedData['orphan_father_name'] ?? '';
+            $orphanGrandFatherName = $validatedData['orphan_grandfather_name'] ?? '';
+            $orphanFamilyName = $validatedData['orphan_family_name'] ?? '';
+            $sponsoredBirthDate = $validatedData['sponsored_birth_date'] ?? null;
+
             // إزالة الحقول الفردية لأنها غير موجودة في جدول sponsorships
             unset($validatedData['orphan_first_name']);
             unset($validatedData['orphan_father_name']);
@@ -1023,19 +1030,27 @@ class SponsorshipController extends Controller
             unset($validatedData['guardian_family_name']);
             unset($validatedData['guardian_birth_date']);
 
-            // إزالة sponsor_ids من البيانات لأنه سيتم معالجته بشكل منفصل
-            $sponsorIds = $validatedData['sponsor_ids'] ?? [];
-            unset($validatedData['sponsor_ids']);
+            // Check if the request explicitly wants to update the sponsor/association
+            $hasSponsorsInRequest = $request->has('sponsor_ids') || $request->has('sponsor_id');
+            $sponsorIds = [];
 
-            // ✅ تحديث sponsor_id في الحقل المباشر (أول جمعية في القائمة)
-            if (!empty($sponsorIds)) {
-                $validatedData['sponsor_id'] = is_array($sponsorIds) ? $sponsorIds[0] : $sponsorIds;
-            } elseif (isset($validatedData['sponsor_id'])) {
-                // في حالة إرسال sponsor_id مباشرة (من المودال)
-                // نبقيه كما هو
+            if ($hasSponsorsInRequest) {
+                $sponsorIds = $validatedData['sponsor_ids'] ?? [];
+                unset($validatedData['sponsor_ids']);
+
+                if (!empty($sponsorIds)) {
+                    $validatedData['sponsor_id'] = is_array($sponsorIds) ? $sponsorIds[0] : $sponsorIds;
+                } elseif (isset($validatedData['sponsor_id'])) {
+                    // If sponsor_id is sent directly, use it
+                    $sponsorIds = [$validatedData['sponsor_id']];
+                } else {
+                    // If explicitly cleared
+                    $validatedData['sponsor_id'] = null;
+                }
             } else {
-                // إذا تم حذف جميع الجمعيات، نحذف sponsor_id أيضاً
-                $validatedData['sponsor_id'] = null;
+                // Keep existing sponsor_id untouched
+                unset($validatedData['sponsor_ids']);
+                unset($validatedData['sponsor_id']);
             }
 
             $sponsorship->update($validatedData);
@@ -1043,11 +1058,61 @@ class SponsorshipController extends Controller
             // ✍️ إضافة المستخدم الحالي إلى قائمة المعدلين
             $sponsorship->addUpdater(auth()->id());
 
-            // تحديث المؤسسات الكافلة
-            if (!empty($sponsorIds)) {
-                $sponsorship->sponsors()->sync($sponsorIds);
-            } else {
-                $sponsorship->sponsors()->detach();
+            // Only sync/detach sponsors if they were sent in the request
+            if ($hasSponsorsInRequest) {
+                if (!empty($sponsorIds)) {
+                    $sponsorship->sponsors()->sync($sponsorIds);
+                } else {
+                    $sponsorship->sponsors()->detach();
+                }
+            }
+
+            // ============================================
+            // 🆕 تحديث الجداول المرتبطة بناءً على نوع المكفول
+            // ============================================
+            $personType = $sponsorship->person_type;
+            $sponsoredIdentity = $sponsorship->identity_number;
+
+            if ($sponsoredIdentity) {
+                if (in_array($personType, ['orphan', 'family_member'])) {
+                    // Update re_people
+                    DB::table('re_people')
+                        ->where('person_id', $sponsoredIdentity)
+                        ->update([
+                            'first_name' => $orphanFirstName ?: DB::raw('first_name'),
+                            'second_name' => $orphanFatherName ?: DB::raw('second_name'),
+                            'third_name' => $orphanGrandFatherName ?: DB::raw('third_name'),
+                            'last_name' => $orphanFamilyName ?: DB::raw('last_name'),
+                            'person_birth_date' => $sponsoredBirthDate ?: DB::raw('person_birth_date'),
+                            'updated_at' => now(),
+                        ]);
+                    Log::info('✅ تم تحديث بيانات المكفول في جدول re_people (Admin Edit)', ['identity' => $sponsoredIdentity]);
+                } elseif (in_array($personType, ['deceased_father', 'deceased_mother'])) {
+                    // Update dead_people
+                    DB::table('dead_people')
+                        ->where('dead_id_number', $sponsoredIdentity)
+                        ->update([
+                            'dead_first_name' => $orphanFirstName ?: DB::raw('dead_first_name'),
+                            'dead_second_name' => $orphanFatherName ?: DB::raw('dead_second_name'),
+                            'dead_third_name' => $orphanGrandFatherName ?: DB::raw('dead_third_name'),
+                            'dead_last_name' => $orphanFamilyName ?: DB::raw('dead_last_name'),
+                            'updated_at' => now(),
+                        ]);
+                    Log::info('✅ تم تحديث بيانات المكفول في جدول dead_people (Admin Edit)', ['identity' => $sponsoredIdentity]);
+                } elseif ($personType === 'breadwinner') {
+                    // Update data
+                    DB::table('data')
+                        ->where('data_id_number', $sponsoredIdentity)
+                        ->update([
+                            'data_first_name' => $orphanFirstName ?: DB::raw('data_first_name'),
+                            'data_father_name' => $orphanFatherName ?: DB::raw('data_father_name'),
+                            'data_grand_father_name' => $orphanGrandFatherName ?: DB::raw('data_grand_father_name'),
+                            'data_family_name' => $orphanFamilyName ?: DB::raw('data_family_name'),
+                            'data_birth_date' => $sponsoredBirthDate ?: DB::raw('data_birth_date'),
+                            'updated_at' => now(),
+                        ]);
+                    Log::info('✅ تم تحديث بيانات المكفول في جدول data (Admin Edit)', ['identity' => $sponsoredIdentity]);
+                }
             }
 
             // ============================================
@@ -1290,6 +1355,34 @@ class SponsorshipController extends Controller
             if (!empty($duplicateErrors)) {
                 $additionalInfo['bank_duplicates'] = $duplicateErrors;
                 $message .= '. تم تجاهل ' . count($duplicateErrors) . ' حساب بنكي مكرر';
+            }
+
+            // 📢 تسجيل التحديث في طابور المزامنة للهواتف (طبقة الـ Action)
+            try {
+                \App\Models\ServerSyncAction::create([
+                    'action_type' => 'sponsorship_update',
+                    'entity_id' => $id,
+                    'payload' => json_encode(['sponsorship_id' => $id]),
+                    'status' => 'pending'
+                ]);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('❌ فشل في إنشاء ServerSyncAction', ['error' => $e->getMessage()]);
+            }
+
+            // 📢 بث حدث التحديث المباشر للموبايل (السيرفر المحلي الخاص)
+            try {
+                $payloadData = \App\Http\Controllers\Api\SponsorshipSyncController::getSingleEnrichedSponsorship($id);
+                if ($payloadData) {
+                    $payloadData['event'] = 'SponsorshipUpdated';
+                } else {
+                    $payloadData = [
+                        'event' => 'SponsorshipUpdated',
+                        'id' => $id
+                    ];
+                }
+                \Illuminate\Support\Facades\Http::post('http://127.0.0.1:6001/broadcast', $payloadData);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('❌ فشل في بث الحدث WebSocket المحلي', ['error' => $e->getMessage()]);
             }
 
             return response()->json([
@@ -1631,6 +1724,22 @@ class SponsorshipController extends Controller
                 'new_status' => $newStatus,
                 'user_id' => auth()->id()
             ]);
+
+            // 📢 بث حدث التحديث المباشر للموبايل (السيرفر المحلي الخاص)
+            try {
+                $payloadData = \App\Http\Controllers\Api\SponsorshipSyncController::getSingleEnrichedSponsorship($id);
+                if ($payloadData) {
+                    $payloadData['event'] = 'SponsorshipUpdated';
+                } else {
+                    $payloadData = [
+                        'event' => 'SponsorshipUpdated',
+                        'id' => $id
+                    ];
+                }
+                \Illuminate\Support\Facades\Http::post('http://127.0.0.1:6001/broadcast', $payloadData);
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('❌ فشل في بث الحدث WebSocket المحلي', ['error' => $e->getMessage()]);
+            }
 
             return response()->json([
                 'success' => true,

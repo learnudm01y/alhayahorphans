@@ -3,7 +3,13 @@
   "appName": "Sponsorships",
   "webDir": "mobile-app/dist",
   "bundledWebRuntime": false,
+  "server": {
+    "cleartext": true
+  },
   "plugins": {
+    "CapacitorHttp": {
+      "enabled": false
+    },
     "SplashScreen": {
       "launchShowDuration": 0,
       "launchAutoHide": true,

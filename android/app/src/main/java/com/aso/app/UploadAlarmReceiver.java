@@ -35,17 +35,9 @@ public class UploadAlarmReceiver extends BroadcastReceiver {
             Log.d(TAG, "📊 Total pending files: " + pendingCount);
 
             if (pendingCount > 0) {
-                Log.d(TAG, "✅ Found " + pendingCount + " files - starting UploadForegroundService");
-
-                Intent serviceIntent = new Intent(context, UploadForegroundService.class);
-
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    context.startForegroundService(serviceIntent);
-                } else {
-                    context.startService(serviceIntent);
-                }
-
-                Log.d(TAG, "🚀 UploadForegroundService started from AlarmManager");
+                Log.d(TAG, "✅ Found " + pendingCount + " files - scheduling upload via WorkManager");
+                SyncOrchestrator.scheduleUpload(context);
+                Log.d(TAG, "🚀 Upload scheduled via SyncOrchestrator from AlarmManager");
             } else {
                 Log.d(TAG, "ℹ️  No pending files - skipping upload");
             }

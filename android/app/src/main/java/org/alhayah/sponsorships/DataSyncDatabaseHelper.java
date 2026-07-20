@@ -232,6 +232,37 @@ public class DataSyncDatabaseHelper extends SQLiteOpenHelper {
     }
 
     /**
+     * الحصول على معرفات (IDs) الكيانات التي لها تعديلات قيد الانتظار (لمنع استبدالها)
+     */
+    public java.util.Set<Integer> getPendingEntityIds() {
+        java.util.Set<Integer> pendingIds = new java.util.HashSet<>();
+        SQLiteDatabase db = getReadableDatabase();
+        
+        Cursor cursor = db.rawQuery(
+            "SELECT " + COL_DATA_JSON + " FROM " + TABLE_SYNC_QUEUE +
+            " WHERE " + COL_STATUS + " = ? OR " + COL_STATUS + " = ?",
+            new String[]{STATUS_PENDING, STATUS_FAILED}
+        );
+
+        while (cursor.moveToNext()) {
+            try {
+                String jsonStr = cursor.getString(0);
+                org.json.JSONObject obj = new org.json.JSONObject(jsonStr);
+                if (obj.has("entity_id")) {
+                    pendingIds.add(obj.getInt("entity_id"));
+                } else if (obj.has("id")) {
+                    pendingIds.add(obj.getInt("id"));
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error parsing entity ID from pending action", e);
+            }
+        }
+        cursor.close();
+        
+        return pendingIds;
+    }
+
+    /**
      * حذف البيانات المُرفعة بنجاح
      */
     public int clearCompletedData() {

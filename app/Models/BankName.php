@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class BankName extends Model
 {
-    use HasFactory;
+    use HasFactory, \App\Traits\SyncsLookupToMobile;
     protected $fillable = ['description'];
     protected $table = 'bank_names';
 

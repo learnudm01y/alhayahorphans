@@ -133,8 +133,8 @@ class GoogleDriveService
                 throw new Exception('الملف غير موجود: ' . $filePath);
             }
 
-            $fileContent = file_get_contents($filePath);
             $mimeType = mime_content_type($filePath);
+            $fileSize = filesize($filePath);
 
             // إعداد metadata
             $metadata = [
@@ -145,32 +145,54 @@ class GoogleDriveService
                 $metadata['parents'] = [$folderId];
             }
 
-            // رفع الملف (مع دعم Shared Drives)
-            // اطلب webViewLink مباشرة لتجنب نداء إضافي بعد الرفع
-            $url = $this->uploadUrl . '/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,webViewLink';
+            // Step 1: Initiate Resumable Upload Session
+            $initUrl = $this->uploadUrl . '/files?uploadType=resumable&supportsAllDrives=true';
+            
+            $initResponse = Http::withOptions(['verify' => false])
+                ->withHeaders([
+                    'Authorization' => 'Bearer ' . $this->accessToken,
+                    'Content-Type' => 'application/json; charset=UTF-8',
+                    'X-Upload-Content-Type' => $mimeType,
+                    'X-Upload-Content-Length' => $fileSize
+                ])->post($initUrl, $metadata);
 
-            $response = Http::withOptions([
-                'verify' => false,
-            ])->withHeaders([
-                'Authorization' => 'Bearer ' . $this->accessToken,
-                'Content-Type' => 'multipart/related; boundary=foo_bar_baz'
-            ])->withBody(
-                "--foo_bar_baz\r\n" .
-                "Content-Type: application/json; charset=UTF-8\r\n\r\n" .
-                json_encode($metadata) . "\r\n" .
-                "--foo_bar_baz\r\n" .
-                "Content-Type: $mimeType\r\n\r\n" .
-                $fileContent . "\r\n" .
-                "--foo_bar_baz--",
-                'multipart/related; boundary=foo_bar_baz'
-            )->post($url);
+            if (!$initResponse->successful() || !$initResponse->header('Location')) {
+                throw new Exception('فشل في بدء جلسة الرفع: ' . $initResponse->body());
+            }
 
-            if ($response->successful()) {
-                $result = $response->json();
-                Log::info('تم رفع الملف بنجاح: ' . $fileName, ['file_id' => $result['id']]);
+            $uploadSessionUrl = $initResponse->header('Location');
+
+            // Step 2: Stream file to the resumable session URL
+            $stream = fopen($filePath, 'r');
+            
+            $ch = curl_init($uploadSessionUrl);
+            curl_setopt($ch, CURLOPT_PUT, true);
+            curl_setopt($ch, CURLOPT_INFILE, $stream);
+            curl_setopt($ch, CURLOPT_INFILESIZE, $fileSize);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); // For local env compatibility
+            
+            $responseBody = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            fclose($stream);
+
+            if ($httpCode >= 200 && $httpCode < 300) {
+                $result = json_decode($responseBody, true);
+                Log::info('تم رفع الملف بنجاح: ' . $fileName, ['file_id' => $result['id'] ?? 'unknown']);
+                
+                // Get webViewLink via another request since resumable doesn't return fields immediately unless requested in URL
+                // We can fetch it now to match old return signature
+                if (isset($result['id'])) {
+                    try {
+                        $fileDetails = $this->getFileWithFields($result['id'], 'id,name,webViewLink');
+                        $result = array_merge($result, $fileDetails);
+                    } catch (\Exception $e) {}
+                }
+
                 return $result;
             } else {
-                throw new Exception('فشل رفع الملف: ' . $response->body());
+                throw new Exception("فشل رفع الملف (HTTP {$httpCode}): " . $responseBody);
             }
         } catch (Exception $e) {
             Log::error('خطأ في رفع الملف: ' . $e->getMessage());
@@ -186,7 +208,12 @@ class GoogleDriveService
     {
         try {
             // البحث عن المجلد الجذر "temp" أو إنشائه
-            $rootFolderId = $this->getOrCreateFolder('temp', null);
+            $rootFolderId = config('services.google.general_registration_parent_id') ?: env('GOOGLE_DRIVE_GENERAL_REGISTRATION_PARENT_ID');
+            $usingFallback = false;
+            
+            if (empty($rootFolderId)) {
+                $rootFolderId = $this->getOrCreateFolder('temp', null);
+            }
 
             // تقسيم المسار إلى أجزاء
             $pathParts = explode('/', trim($folderPath, '/'));
@@ -200,7 +227,21 @@ class GoogleDriveService
             $currentFolderId = $rootFolderId;
             foreach ($pathParts as $folderName) {
                 if (!empty($folderName)) {
-                    $currentFolderId = $this->getOrCreateFolder($folderName, $currentFolderId);
+                    try {
+                        $currentFolderId = $this->getOrCreateFolder($folderName, $currentFolderId);
+                    } catch (Exception $e) {
+                        // إذا كان الخطأ 404 (File not found) والمجلد الأب هو المجلد الأساسي من .env
+                        if ($currentFolderId === $rootFolderId && strpos($e->getMessage(), '404') !== false) {
+                            Log::warning("المجلد الأساسي $rootFolderId غير متاح لحساب الخدمة. سيتم استخدام مجلد بديل (Fallback_Uploads) في مساحة حساب الخدمة.");
+                            $rootFolderId = $this->getOrCreateFolder('Fallback_Uploads', null);
+                            $currentFolderId = $rootFolderId;
+                            $usingFallback = true;
+                            // إعادة محاولة إنشاء المجلد داخل المجلد البديل
+                            $currentFolderId = $this->getOrCreateFolder($folderName, $currentFolderId);
+                        } else {
+                            throw $e;
+                        }
+                    }
                 }
             }
 
@@ -209,7 +250,8 @@ class GoogleDriveService
 
             Log::info('تم رفع الملف إلى المسار: ' . $folderPath . '/' . $fileName, [
                 'file_id' => $result['id'] ?? null,
-                'folder_id' => $currentFolderId
+                'folder_id' => $currentFolderId,
+                'used_fallback' => $usingFallback
             ]);
 
             return $result;
@@ -241,7 +283,8 @@ class GoogleDriveService
                     'q' => $query,
                     'fields' => 'files(id, name)',
                     'supportsAllDrives' => 'true',
-                    'includeItemsFromAllDrives' => 'true'
+                    'includeItemsFromAllDrives' => 'true',
+                    'corpora' => 'allDrives'
                 ]);
 
             if ($response->successful()) {
@@ -310,13 +353,14 @@ class GoogleDriveService
     public function listFiles($folderId = null, $pageSize = 10)
     {
         try {
-            $query = $folderId ? "'{$folderId}' in parents" : null;
+            $query = $folderId ? "'{$folderId}' in parents and trashed = false" : "trashed = false";
 
             $params = [
                 'pageSize' => $pageSize,
-                'fields' => 'files(id, name, mimeType, size, createdTime, modifiedTime)',
+                'fields' => 'files(id, name, mimeType, size, createdTime, modifiedTime, thumbnailLink, webViewLink, iconLink)',
                 'supportsAllDrives' => 'true',
                 'includeItemsFromAllDrives' => 'true',
+                'corpora' => 'allDrives'
             ];
 
             if ($query) {
@@ -395,6 +439,7 @@ class GoogleDriveService
                     'fields' => 'files(id, name)',
                     'supportsAllDrives' => 'true',
                     'includeItemsFromAllDrives' => 'true',
+                    'corpora' => 'allDrives'
                 ]);
 
             if (!$response->successful()) {

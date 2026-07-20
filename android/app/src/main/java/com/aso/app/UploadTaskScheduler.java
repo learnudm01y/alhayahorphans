@@ -91,7 +91,7 @@ public class UploadTaskScheduler {
             Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
             // إنشاء طلب مهمة بدون قيود للبدء الفوري
-            OneTimeWorkRequest uploadWorkRequest = new OneTimeWorkRequest.Builder(BackgroundUploadWorker.class)
+            OneTimeWorkRequest uploadWorkRequest = new OneTimeWorkRequest.Builder(ChunkedUploadWorker.class)
                 .setBackoffCriteria(
                     BackoffPolicy.EXPONENTIAL,
                     WorkRequest.MIN_BACKOFF_MILLIS,
@@ -101,11 +101,19 @@ public class UploadTaskScheduler {
                 .addTag("immediate_upload_" + System.currentTimeMillis())
                 .build();
 
-            // جدولة المهمة - REPLACE لضمان البدء الفوري
+            // جدولة المهمة - APPEND_OR_REPLACE لضمان البدء الفوري دون مقاطعة العمل الحالي
             getWorkManager().enqueueUniqueWork(
-                UNIQUE_WORK_NAME + "_" + System.currentTimeMillis(), // اسم فريد لكل مهمة
-                ExistingWorkPolicy.REPLACE,
+                UNIQUE_WORK_NAME, // اسم فريد لكل مهمة
+                ExistingWorkPolicy.KEEP,
                 uploadWorkRequest
+            );
+
+            // جدولة DriveStatusWorker لفحص حالة الملفات
+            OneTimeWorkRequest driveStatusWorkRequest = new OneTimeWorkRequest.Builder(DriveStatusWorker.class).build();
+            getWorkManager().enqueueUniqueWork(
+                "DriveStatusProcessor",
+                ExistingWorkPolicy.KEEP,
+                driveStatusWorkRequest
             );
 
             Log.d(TAG, "✅✅✅ تمت جدولة المهمة - WorkManager سيبدأ فوراً! ✅✅✅");
@@ -118,8 +126,8 @@ public class UploadTaskScheduler {
     }
 
     /**
-     * بدء فوري للرفع - تشغيل BackgroundUploadWorker مباشرة في thread منفصل
-     * هذا يضمن بدء الرفع فوراً بدون انتظار WorkManager
+     * بدء فوري للرفع - تشغيل BackgroundUploadWorker مباشرة
+     * يعتمد الآن على WorkManager لضمان عدم إغلاق النظام للمهمة عند الخروج من التطبيق
      */
     public void startImmediateUpload() {
         Log.d(TAG, "");
@@ -136,84 +144,36 @@ public class UploadTaskScheduler {
 
             Log.d(TAG, "");
             Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-            Log.d(TAG, "⚡⚡⚡ بدء رفع فوري مباشر الآن! ⚡⚡⚡");
+            Log.d(TAG, "⚡⚡⚡ بدء رفع فوري مباشر الآن باستخدام WorkManager! ⚡⚡⚡");
             Log.d(TAG, "📦 عدد الملفات: " + pendingCount);
-            Log.d(TAG, "🔥 تشغيل في thread منفصل للرفع الفوري");
             Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-            // تشغيل في thread منفصل لعدم حجب UI
-            new Thread(() -> {
-                try {
-                    Log.d(TAG, "🚀 Thread بدأ - معالجة الملفات المعلقة...");
+            // إعادة تعيين الملفات قيد الرفع لتكون معلقة ليتم التقاطها
+            dbHelper.resetUploadingFiles();
 
-                    // إنشاء instance من BackgroundUploadWorker وتشغيله
-                    UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(context);
+            Constraints constraints = new Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build();
 
-                    // إعادة تعيين الملفات قيد الرفع
-                    dbHelper.resetUploadingFiles();
+            OneTimeWorkRequest uploadWorkRequest = new OneTimeWorkRequest.Builder(ChunkedUploadWorker.class)
+                .setConstraints(constraints)
+                .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST) // مهم جداً للبدء الفوري وعدم القتل
+                .setBackoffCriteria(
+                    BackoffPolicy.EXPONENTIAL,
+                    WorkRequest.MIN_BACKOFF_MILLIS,
+                    TimeUnit.MILLISECONDS
+                )
+                .addTag("upload_task_immediate")
+                .build();
 
-                    int processed = 0;
-                    int success = 0;
+            // استخدام REPLACE لضمان بدء المهمة فوراً دون تعليق بسبب مهمة سابقة
+            getWorkManager().enqueueUniqueWork(
+                UNIQUE_WORK_NAME + "_immediate",
+                ExistingWorkPolicy.REPLACE,
+                uploadWorkRequest
+            );
 
-                    // معالجة كل الملفات المعلقة
-                    while (true) {
-                        UploadDatabaseHelper.UploadItem nextFile = dbHelper.getNextPendingFile();
-
-                        if (nextFile == null) {
-                            Log.d(TAG, "✅ انتهت معالجة جميع الملفات");
-                            break;
-                        }
-
-                        processed++;
-                        Log.d(TAG, "");
-                        Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                        Log.d(TAG, "📤 معالجة ملف #" + processed + ": " + nextFile.fileName);
-                        Log.d(TAG, "   ├─ ID: " + nextFile.id);
-                        Log.d(TAG, "   ├─ Photo ID: " + nextFile.photoId);
-                        Log.d(TAG, "   └─ API: " + nextFile.apiUrl);
-                        Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-
-                        // تحديث الحالة
-                        dbHelper.updateFileStatus(nextFile.id, UploadDatabaseHelper.STATUS_UPLOADING, null);
-
-                        // محاولة رفع الملف
-                        boolean uploaded = uploadFileDirect(nextFile);
-
-                        if (uploaded) {
-                            dbHelper.updateFileStatus(nextFile.id, UploadDatabaseHelper.STATUS_COMPLETED, null);
-                            success++;
-                            Log.d(TAG, "✅✅✅ نجح رفع الملف! (" + success + "/" + processed + ")");
-                        } else {
-                            dbHelper.incrementRetryCount(nextFile.id);
-                            if (nextFile.retryCount >= 3) {
-                                dbHelper.updateFileStatus(nextFile.id, UploadDatabaseHelper.STATUS_FAILED, "فشل بعد 3 محاولات");
-                                Log.e(TAG, "❌❌❌ فشل رفع الملف بعد 3 محاولات");
-                            } else {
-                                dbHelper.updateFileStatus(nextFile.id, UploadDatabaseHelper.STATUS_PENDING, null);
-                                Log.w(TAG, "⚠️ فشل - سيتم المحاولة مرة أخرى");
-                            }
-                        }
-
-                        Thread.sleep(500); // توقف قصير بين الملفات
-                    }
-
-                    Log.d(TAG, "");
-                    Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-                    Log.d(TAG, "📊 ملخص الرفع الفوري:");
-                    Log.d(TAG, "   ├─ معالج: " + processed);
-                    Log.d(TAG, "   ├─ نجح: " + success + " ✅");
-                    Log.d(TAG, "   └─ فشل: " + (processed - success) + " ❌");
-                    Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-
-                    // حذف الملفات المكتملة
-                    dbHelper.deleteCompletedFiles();
-
-                } catch (Exception e) {
-                    Log.e(TAG, "❌ خطأ في الرفع الفوري: " + e.getMessage(), e);
-                }
-            }).start();
-
-            Log.d(TAG, "✅ تم بدء thread الرفع الفوري");
+            Log.d(TAG, "✅ تم إسناد مهمة الرفع الفوري إلى WorkManager بنجاح");
 
         } catch (Exception e) {
             Log.e(TAG, "خطأ في startImmediateUpload: " + e.getMessage(), e);
@@ -438,16 +398,27 @@ public class UploadTaskScheduler {
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build();
 
-            OneTimeWorkRequest uploadWorkRequest = new OneTimeWorkRequest.Builder(BackgroundUploadWorker.class)
+            OneTimeWorkRequest uploadWorkRequest = new OneTimeWorkRequest.Builder(ChunkedUploadWorker.class)
                 .setConstraints(constraints)
                 .addTag("upload_task")
                 .build();
 
-            // استخدام REPLACE لاستبدال المهمة الحالية
-            getWorkManager().enqueueUniqueWork(
-                UNIQUE_WORK_NAME,
+            // استخدام KEEP للإبقاء على المهمة الحالية
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                "UploadQueueProcessor",
                 ExistingWorkPolicy.REPLACE,
                 uploadWorkRequest
+            );
+
+            // Schedule DriveStatusWorker to run alongside
+            OneTimeWorkRequest driveStatusWorkRequest = new OneTimeWorkRequest.Builder(DriveStatusWorker.class)
+                .setConstraints(constraints)
+                .build();
+
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                "DriveStatusProcessor",
+                ExistingWorkPolicy.REPLACE,
+                driveStatusWorkRequest
             );
 
             Log.d(TAG, "✅ تمت إعادة جدولة مهمة الرفع بنجاح");

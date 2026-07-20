@@ -48,8 +48,34 @@ class Sponsorship extends Model
     protected static function booted()
     {
         static::deleting(function ($sponsorship) {
-            // فك ارتباط جميع الجمعيات قبل حذف الكفالة
             $sponsorship->sponsors()->detach();
+
+            \App\Models\ServerSyncAction::create([
+                'action_type' => 'delete',
+                'entity_id' => $sponsorship->id,
+                'payload' => ['id' => $sponsorship->id],
+                'status' => 'pending'
+            ]);
+        });
+
+        static::created(function ($sponsorship) {
+            $payload = \App\Http\Controllers\Api\SponsorshipSyncController::getSingleEnrichedSponsorship($sponsorship->id) ?: $sponsorship->toArray();
+            \App\Models\ServerSyncAction::create([
+                'action_type' => 'create',
+                'entity_id' => $sponsorship->id,
+                'payload' => $payload,
+                'status' => 'pending'
+            ]);
+        });
+
+        static::updated(function ($sponsorship) {
+            $payload = \App\Http\Controllers\Api\SponsorshipSyncController::getSingleEnrichedSponsorship($sponsorship->id) ?: $sponsorship->toArray();
+            \App\Models\ServerSyncAction::create([
+                'action_type' => 'update',
+                'entity_id' => $sponsorship->id,
+                'payload' => $payload,
+                'status' => 'pending'
+            ]);
         });
     }
 

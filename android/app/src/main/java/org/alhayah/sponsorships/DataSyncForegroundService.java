@@ -126,8 +126,12 @@ public class DataSyncForegroundService extends Service {
         Log.e(TAG, "🔄 Starting data sync process");
         Log.e(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-        currentSessionSuccessCount = 0;
-        currentSessionFailureCount = 0;
+        // Update overall notification before starting the loop
+        updateNotification("تحضير المزامنة...", 0, 100);
+
+        int currentSessionSuccessCount = 0;
+        int currentSessionFailureCount = 0;
+        java.util.Set<Long> sessionFailedIds = new java.util.HashSet<>();
 
         while (isRunning) {
             try {
@@ -168,6 +172,7 @@ public class DataSyncForegroundService extends Service {
                         currentSessionSuccessCount++;
                     } else {
                         currentSessionFailureCount++;
+                        sessionFailedIds.add(item.id);
                     }
 
                     // تأخير قصير بين العناصر
@@ -175,7 +180,14 @@ public class DataSyncForegroundService extends Service {
                 }
 
                 // فحص مرة أخرى في حالة وجود عناصر جديدة
-                pendingItems = dbHelper.getPendingData();
+                List<DataSyncDatabaseHelper.DataSyncItem> freshPending = dbHelper.getPendingData();
+                pendingItems = new java.util.ArrayList<>();
+                for (DataSyncDatabaseHelper.DataSyncItem it : freshPending) {
+                    if (!sessionFailedIds.contains(it.id)) {
+                        pendingItems.add(it);
+                    }
+                }
+                
                 if (pendingItems.isEmpty()) {
                     break;
                 }
@@ -229,12 +241,20 @@ public class DataSyncForegroundService extends Service {
             // الحصول على API URL و Token من SharedPreferences
             SharedPreferences prefs = getSharedPreferences("auth_prefs", Context.MODE_PRIVATE);
             String token = prefs.getString("api_token", "");
-            String baseUrl = prefs.getString("api_base_url", "https://alhayahorphans.org");
+            String baseUrl = prefs.getString("api_base_url", com.aso.app.ApiConfig.BASE_URL);
 
             if (token.isEmpty()) {
                 Log.e(TAG, "❌ No API token - user not logged in");
                 dbHelper.markAsFailed(item.id, "No API token");
                 return false;
+            }
+
+            // 🐛 FIX: Ensure baseUrl has /api if it was stripped by JavaScriptBridge
+            if (baseUrl.endsWith("/")) {
+                baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+            }
+            if (!baseUrl.endsWith("/api")) {
+                baseUrl = baseUrl + "/api";
             }
 
             // بناء URL
@@ -264,6 +284,66 @@ public class DataSyncForegroundService extends Service {
 
             if (responseCode >= 200 && responseCode < 300) {
                 // نجحت المزامنة
+                
+                // 🚀 FIX: Update local sponsorships table updated_at to prevent pagination sync from overwriting it!
+                try {
+                    if ("sponsorship_update".equals(item.dataType) || "sponsorship".equals(item.dataType)) {
+                        java.io.BufferedReader reader = new java.io.BufferedReader(new java.io.InputStreamReader(conn.getInputStream()));
+                        StringBuilder responseBuilder = new StringBuilder();
+                        String line;
+                        while ((line = reader.readLine()) != null) responseBuilder.append(line);
+                        reader.close();
+                        
+                        JSONObject responseJson = new JSONObject(responseBuilder.toString());
+                        JSONObject requestData = new JSONObject(item.dataJson);
+                        
+                        // Extract original ID. Wait, for bulk upload it's {"changes": [{"sponsorship_id": 123, ...}]}
+                        int sponsorshipId = 0;
+                        if (requestData.has("changes")) {
+                            org.json.JSONArray changes = requestData.getJSONArray("changes");
+                            if (changes.length() > 0) {
+                                sponsorshipId = changes.getJSONObject(0).optInt("sponsorship_id", 0);
+                            }
+                        } else {
+                            sponsorshipId = requestData.optInt("id", 0);
+                        }
+                        
+                        if (sponsorshipId > 0) {
+                            String newUpdatedAt = null;
+                            if (responseJson.has("data")) {
+                                org.json.JSONArray dataArr = responseJson.optJSONArray("data");
+                                if (dataArr != null && dataArr.length() > 0) {
+                                    for (int i = 0; i < dataArr.length(); i++) {
+                                        JSONObject updatedItem = dataArr.optJSONObject(i);
+                                        if (updatedItem != null && updatedItem.optInt("id") == sponsorshipId) {
+                                            newUpdatedAt = updatedItem.optString("updated_at", null);
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            com.aso.app.SponsorshipsDatabaseHelper sponsorDb = com.aso.app.SponsorshipsDatabaseHelper.getInstance(getApplicationContext());
+                            android.database.sqlite.SQLiteDatabase db = sponsorDb.getWritableDatabase();
+                            android.content.ContentValues cv = new android.content.ContentValues();
+                            
+                            if (newUpdatedAt != null) {
+                                cv.put("updated_at", newUpdatedAt);
+                                Log.d(TAG, "🚀 Updated local updated_at to server time " + newUpdatedAt + " for ID " + sponsorshipId);
+                            } else {
+                                java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US);
+                                sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+                                cv.put("updated_at", sdf.format(new java.util.Date()));
+                                Log.d(TAG, "🚀 Updated local updated_at to fallback time for ID " + sponsorshipId);
+                            }
+                            
+                            db.update("sponsorships", cv, "id = ?", new String[]{String.valueOf(sponsorshipId)});
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "⚠️ Failed to parse API response for updated_at, ignoring.", e);
+                }
+
                 Log.d(TAG, "✅ Sync successful: ID=" + item.id);
                 dbHelper.markAsUploaded(item.id);
                 return true;

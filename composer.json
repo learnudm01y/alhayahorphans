@@ -22,6 +22,7 @@
         "maatwebsite/excel": "*",
         "mpdf/mpdf": "^8.2",
         "phpoffice/phpspreadsheet": "^1.29",
+        "pusher/pusher-php-server": "^7.2",
         "spatie/browsershot": "5.0",
         "spatie/laravel-permission": "^6.17",
         "yajra/laravel-datatables": "^10.1"

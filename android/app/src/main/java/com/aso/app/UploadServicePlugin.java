@@ -13,22 +13,6 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import java.util.List;
 
-// ═══════════════════════════════════════════════════════════════════
-// 🔌 UploadServicePlugin - Single Entry Point for File Uploads
-//
-// Architecture:
-// JavaScript → UploadService.addFileToQueue() → FileSyncWorker orchestrator
-//
-// The plugin is ONLY responsible for:
-// 1. Validating parameters from JavaScript
-// 2. Reading the file (NO BASE64 - direct file:// URI only)
-// 3. Saving to SQLite database
-// 4. Scheduling FileSyncWorker (the actual upload orchestrator)
-//
-// ALL file uploads are handled by FileSyncWorker (Java side only)
-// NO duplicate code, NO Base64, NO conflicting logic paths
-// ═══════════════════════════════════════════════════════════════════
-
 @CapacitorPlugin(name = "UploadService")
 public class UploadServicePlugin extends Plugin {
     private static final String TAG = "UploadServicePlugin";
@@ -36,45 +20,24 @@ public class UploadServicePlugin extends Plugin {
     private static final String CHANNEL_NAME = "رفع الملفات";
     private static int notificationId = 1000;
 
-    // ✨ NEW: Static reference to plugin instance for broadcasting events
     private static UploadServicePlugin instance;
 
     @Override
     public void load() {
         super.load();
-
-        // Store instance for static access
         instance = this;
-
-        android.util.Log.e(TAG, "");
-        android.util.Log.e(TAG, "╔════════════════════════════════════════════════════════════════╗");
-        android.util.Log.e(TAG, "║  🔌 UploadServicePlugin.load() - PLUGIN LOADED               ║");
-        android.util.Log.e(TAG, "║  ✅ JavaScript can now call: UploadService.addFileToQueue()  ║");
-        android.util.Log.e(TAG, "║  ✅ All uploads handled by FileSyncWorker (Java only)        ║");
-        android.util.Log.e(TAG, "╚════════════════════════════════════════════════════════════════╝");
-        android.util.Log.e(TAG, "");
-
         createNotificationChannel();
     }
 
-    // ═══════════════════════════════════════════════════════════════════
-    // ✨ NEW: Static method to notify JavaScript of upload status changes
-    // Called by FileSyncWorker after upload success/failure
-    // ═══════════════════════════════════════════════════════════════════
     public static void notifyUploadStatusChanged(long fileId, String status, String error) {
         if (instance != null) {
-            android.util.Log.e(TAG, "📡 Broadcasting upload status to JavaScript: fileId=" + fileId + ", status=" + status);
-
             JSObject data = new JSObject();
             data.put("fileId", fileId);
             data.put("status", status);
             if (error != null) {
                 data.put("error", error);
             }
-
             instance.notifyListeners("uploadStatusChanged", data);
-        } else {
-            android.util.Log.w(TAG, "⚠️ Cannot notify JavaScript - plugin instance not available");
         }
     }
 
@@ -90,7 +53,6 @@ public class UploadServicePlugin extends Plugin {
             NotificationManager manager = getContext().getSystemService(NotificationManager.class);
             if (manager != null) {
                 manager.createNotificationChannel(channel);
-                android.util.Log.e(TAG, "✅ تم إنشاء قناة الإشعارات");
             }
         }
     }
@@ -110,54 +72,39 @@ public class UploadServicePlugin extends Plugin {
                 .setAutoCancel(true);
 
             manager.notify(notificationId++, builder.build());
-            android.util.Log.e(TAG, "📢 إشعار: " + title + " - " + message);
         } catch (Exception e) {
-            android.util.Log.e(TAG, "❌ فشل إظهار الإشعار: " + e.getMessage());
+            Log.e(TAG, "فشل إظهار الإشعار: " + e.getMessage());
         }
     }
-
-    // ═══════════════════════════════════════════════════════════════════
-    // 📤 MAIN ENTRY POINT - addFileToQueue()
-    //
-    // JavaScript Calling Pattern:
-    // await UploadService.addFileToQueue({
-    //   filePath: 'file:///path/to/file.jpg',  // file:// URI (NO BASE64!)
-    //   fileName: 'photo.jpg',
-    //   fileType: 'image/jpeg',
-    //   photoId: 123,
-    //   apiUrl: 'https://api.example.com/upload',
-    //   authToken: 'Bearer xxx',
-    //   associationName: 'Alhayah',
-    //   personName: 'John Doe'
-    // })
-    //
-    // Returns:
-    // { success: true, fileId: 42, queued: true }
-    // ═══════════════════════════════════════════════════════════════════
 
     @PluginMethod
     public void addFileToQueue(PluginCall call) {
         try {
-            // Extract parameters
             String filePath = call.getString("filePath");
             String fileName = call.getString("fileName");
             String fileType = call.getString("fileType", "application/octet-stream");
-            Integer photoId = call.getInt("photoId");
+            Integer photoId = call.getInt("photoId"); // This is actually the sponsorship ID
             String apiUrl = call.getString("apiUrl");
             Integer indexedDbId = call.getInt("indexedDbId");
             String authToken = call.getString("authToken", "");
-            String associationName = call.getString("associationName");
-            String personName = call.getString("personName");
-
-            // Default values
-            if (associationName == null || associationName.isEmpty()) {
-                associationName = "General";
+            
+            // Try to lookup from SponsorshipsDatabaseHelper
+            String associationName = "General";
+            String personName = "unknown";
+            if (photoId != null && photoId > 0) {
+                com.aso.app.SponsorshipsDatabaseHelper sponsorshipsDb = com.aso.app.SponsorshipsDatabaseHelper.getInstance(getContext());
+                String spDataStr = sponsorshipsDb.getSponsorship(photoId);
+                if (spDataStr != null && !spDataStr.isEmpty()) {
+                    org.json.JSONObject spData = new org.json.JSONObject(spDataStr);
+                    associationName = spData.optString("association_name", "General");
+                    String orphanName = spData.optString("orphan_name", "");
+                    if (orphanName.isEmpty()) {
+                        orphanName = spData.optString("person_name", "unknown");
+                    }
+                    personName = orphanName;
+                }
             }
-            if (personName == null || personName.isEmpty()) {
-                personName = "unknown";
-            }
 
-            // Validate parameters
             if (filePath == null || filePath.isEmpty() ||
                 fileName == null || fileName.isEmpty() ||
                 photoId == null ||
@@ -168,7 +115,6 @@ public class UploadServicePlugin extends Plugin {
                 return;
             }
 
-            // Validate file path
             String actualFilePath;
             if (filePath.startsWith("file://")) {
                 actualFilePath = filePath.substring(7);
@@ -187,10 +133,6 @@ public class UploadServicePlugin extends Plugin {
 
             long fileSize = sourceFile.length();
 
-            // ✅ NO COPY! File already saved in Documents by CameraActivity
-            // This dramatically improves save speed (from 7s to instant!)
-
-            // Save auth token
             if (authToken != null && !authToken.isEmpty()) {
                 getContext().getSharedPreferences("capacitor", android.content.Context.MODE_PRIVATE)
                         .edit()
@@ -198,7 +140,6 @@ public class UploadServicePlugin extends Plugin {
                         .apply();
             }
 
-            // Save to database
             UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(getContext());
             long fileId = dbHelper.addFileToQueue(
                 actualFilePath,
@@ -212,26 +153,14 @@ public class UploadServicePlugin extends Plugin {
             );
 
             if (fileId <= 0) {
-                android.util.Log.e(TAG, "❌ Failed to save to database!");
                 showNotification("خطأ ❌", "فشل حفظ الملف", false);
                 call.reject("فشل الحفظ");
                 return;
             }
 
-            android.util.Log.e(TAG, "✅ Saved to SQLite with Queue ID: " + fileId);
-
-            // Save IndexedDB mapping if provided
             if (indexedDbId != null && indexedDbId > 0) {
                 dbHelper.saveIndexedDbMapping(fileId, indexedDbId);
-                android.util.Log.e(TAG, "📊 Mapping saved: SQLite ID=" + fileId + " → IndexedDB ID=" + indexedDbId);
             }
-
-            // ═══════════════════════════════════════════════════════════════════
-            // ✅ FILE SAVED - Return immediately to JavaScript
-            //
-            // FileSyncWorker will handle the actual upload in background!
-            // JavaScript doesn't need to wait for upload completion.
-            // ═══════════════════════════════════════════════════════════════════
 
             JSObject result = new JSObject();
             result.put("success", true);
@@ -240,45 +169,14 @@ public class UploadServicePlugin extends Plugin {
             result.put("message", "ملف في قائمة الانتظار - الرفع سيبدأ تلقائياً");
             call.resolve(result);
 
-            android.util.Log.e(TAG, "✅ JavaScript response sent immediately");
-            android.util.Log.e(TAG, "📤 Scheduling FileSyncWorker for background upload...");
-            android.util.Log.e(TAG, "🔍🔍🔍 DIAGNOSTIC: About to call FileSyncWorker.scheduleImmediateSync()...");
-
-            try {
-                // ═══════════════════════════════════════════════════════════════════
-                // Schedule FileSyncWorker - The Single Sync Orchestrator
-                //
-                // This is the ONLY place where we trigger the upload!
-                // ExistingWorkPolicy.KEEP prevents duplicate workers.
-                // ═══════════════════════════════════════════════════════════════════
-                android.util.Log.e(TAG, "🚀🚀🚀 CALLING FileSyncWorker.scheduleImmediateSync() NOW!");
-                FileSyncWorker.scheduleImmediateSync(getContext());
-                android.util.Log.e(TAG, "✅ FileSyncWorker.scheduleImmediateSync() RETURNED successfully");
-                android.util.Log.e(TAG, "   ✅ UniqueWork policy = KEEP (no duplicates)");
-                android.util.Log.e(TAG, "   ✅ Serial processing (one file at a time)");
-                android.util.Log.e(TAG, "   ✅ Circuit breaker (max 3 retries)");
-            } catch (Exception workerError) {
-                android.util.Log.e(TAG, "⚠️  Failed to schedule FileSyncWorker: " + workerError.getMessage());
-                // Non-fatal - file is in queue, upload will work manually later
-            }
-
-            android.util.Log.e(TAG, "");
-            android.util.Log.e(TAG, "╔════════════════════════════════════════════════════════════════╗");
-            android.util.Log.e(TAG, "║  ✅ ADD TO QUEUE COMPLETE - Waiting for FileSyncWorker        ║");
-            android.util.Log.e(TAG, "╚════════════════════════════════════════════════════════════════╝");
-            android.util.Log.e(TAG, "");
+            UploadTaskScheduler.getInstance(getContext()).startImmediateUpload();
 
         } catch (Exception e) {
-            android.util.Log.e(TAG, "❌ Exception: " + e.getMessage(), e);
             showNotification("خطأ في الرفع", e.getMessage(), false);
             call.reject("خطأ: " + e.getMessage());
         }
     }
 
-    /**
-     * ✨ NEW: Get upload statistics (pending, completed, failed files count)
-     * Called from JavaScript to update UI
-     */
     @PluginMethod
     public void getUploadStats(PluginCall call) {
         try {
@@ -288,25 +186,24 @@ public class UploadServicePlugin extends Plugin {
             int uploading = dbHelper.getFilesByStatus(UploadDatabaseHelper.STATUS_UPLOADING).size();
             int completed = dbHelper.getFilesByStatus(UploadDatabaseHelper.STATUS_COMPLETED).size();
             int failed = dbHelper.getFilesByStatus(UploadDatabaseHelper.STATUS_FAILED).size();
+            int processingServer = dbHelper.getFilesByStatus(UploadDatabaseHelper.STATUS_PROCESSING_SERVER).size();
 
             JSObject result = new JSObject();
             result.put("pending", pending);
             result.put("uploading", uploading);
             result.put("completed", completed);
             result.put("failed", failed);
-            result.put("total", pending + uploading + completed + failed);
+            result.put("processing_server", processingServer);
+            result.put("total", pending + uploading + completed + failed + processingServer);
 
             call.resolve(result);
 
         } catch (Exception e) {
-            Log.e(TAG, "❌ Error getting upload stats: " + e.getMessage());
+            Log.e(TAG, "Error getting upload stats: " + e.getMessage());
             call.reject("Error: " + e.getMessage());
         }
     }
 
-    /**
-     * ✨ NEW: Get list of files by status
-     */
     @PluginMethod
     public void getFilesByStatus(PluginCall call) {
         try {
@@ -326,6 +223,9 @@ public class UploadServicePlugin extends Plugin {
                 fileObj.put("retryCount", item.retryCount);
                 fileObj.put("errorMessage", item.errorMessage);
                 fileObj.put("createdAt", item.createdAt);
+                fileObj.put("associationName", item.associationName);
+                fileObj.put("personName", item.personName);
+                fileObj.put("filePath", item.filePath);
                 filesArray.put(fileObj);
             }
 
@@ -336,18 +236,165 @@ public class UploadServicePlugin extends Plugin {
             call.resolve(result);
 
         } catch (Exception e) {
-            Log.e(TAG, "❌ Error getting files: " + e.getMessage());
+            Log.e(TAG, "Error getting files: " + e.getMessage());
             call.reject("Error: " + e.getMessage());
         }
     }
 
-    /**
-     * Utility: Format file size for display
-     */
     private String formatFileSize(long bytes) {
         if (bytes < 1024) return bytes + " B";
         if (bytes < 1024 * 1024) return String.format("%.2f KB", bytes / 1024.0);
         if (bytes < 1024 * 1024 * 1024) return String.format("%.2f MB", bytes / (1024.0 * 1024.0));
         return String.format("%.2f GB", bytes / (1024.0 * 1024.0 * 1024.0));
+    }
+
+    @PluginMethod
+    public void resetProcessingFiles(PluginCall call) {
+        try {
+            UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(getContext());
+            
+            // Get all processing files
+            List<UploadDatabaseHelper.UploadItem> processingItems = dbHelper.getFilesByStatus(UploadDatabaseHelper.STATUS_PROCESSING_SERVER);
+            
+            for (UploadDatabaseHelper.UploadItem item : processingItems) {
+                // Reset to pending
+                dbHelper.updateFileStatus(item.id, UploadDatabaseHelper.STATUS_PENDING, "");
+            }
+            
+            // Trigger the worker to start immediately
+            UploadTaskScheduler.getInstance(getContext()).startImmediateUpload();
+
+            JSObject result = new JSObject();
+            result.put("success", true);
+            result.put("restoredCount", processingItems.size());
+            call.resolve(result);
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error resetting processing files: " + e.getMessage());
+            call.reject("Error: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void retryFailedUploads(PluginCall call) {
+        try {
+            UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(getContext());
+            
+            // Get all failed files
+            List<UploadDatabaseHelper.UploadItem> failedItems = dbHelper.getFilesByStatus(UploadDatabaseHelper.STATUS_FAILED);
+            
+            for (UploadDatabaseHelper.UploadItem item : failedItems) {
+                // Reset to pending and clear error message
+                dbHelper.updateFileStatus(item.id, UploadDatabaseHelper.STATUS_PENDING, "");
+                // Reset retry count to 0 directly using execSQL
+                dbHelper.getWritableDatabase().execSQL("UPDATE upload_queue SET retry_count = 0 WHERE id = " + item.id);
+            }
+            
+            // Trigger the worker to start immediately
+            UploadTaskScheduler.getInstance(getContext()).startImmediateUpload();
+
+            JSObject result = new JSObject();
+            result.put("success", true);
+            result.put("restoredCount", failedItems.size());
+            call.resolve(result);
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error retrying failed uploads: " + e.getMessage());
+            call.reject("Error: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void updateFileStatus(PluginCall call) {
+        String fileName = call.getString("fileName");
+        String status = call.getString("status");
+        
+        if (fileName == null || status == null) {
+            call.reject("fileName and status are required");
+            return;
+        }
+
+        try {
+            UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(getContext());
+            UploadDatabaseHelper.UploadItem item = dbHelper.getFileByName(fileName);
+            
+            if (item != null) {
+                dbHelper.updateFileStatus(item.id, status, null);
+                
+                JSObject result = new JSObject();
+                result.put("success", true);
+                call.resolve(result);
+            } else {
+                call.reject("File not found: " + fileName);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error updating file status: " + e.getMessage());
+            call.reject("Error updating file status: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void resolveContentUrl(PluginCall call) {
+        String uriString = call.getString("uri");
+        if (uriString == null) {
+            call.reject("URI is required");
+            return;
+        }
+
+        if (!uriString.startsWith("content://")) {
+            JSObject result = new JSObject();
+            result.put("path", uriString);
+            call.resolve(result);
+            return;
+        }
+
+        try {
+            android.net.Uri uri = android.net.Uri.parse(uriString);
+            java.io.InputStream is = getContext().getContentResolver().openInputStream(uri);
+            if (is == null) {
+                call.reject("Cannot open InputStream");
+                return;
+            }
+
+            java.io.File cacheDir = getContext().getCacheDir();
+            String fileName = "preview_" + System.currentTimeMillis();
+            
+            android.database.Cursor cursor = getContext().getContentResolver().query(uri, null, null, null, null);
+            if (cursor != null && cursor.moveToFirst()) {
+                int nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME);
+                if (nameIndex != -1) {
+                    String dbFileName = cursor.getString(nameIndex);
+                    if (dbFileName != null && !dbFileName.isEmpty()) {
+                        fileName = System.currentTimeMillis() + "_" + dbFileName;
+                    }
+                }
+                cursor.close();
+            }
+
+            String mimeType = getContext().getContentResolver().getType(uri);
+            if (!fileName.contains(".")) {
+                if ("image/jpeg".equals(mimeType) || "image/jpg".equals(mimeType)) fileName += ".jpg";
+                else if ("image/png".equals(mimeType)) fileName += ".png";
+                else if ("video/mp4".equals(mimeType)) fileName += ".mp4";
+                else fileName += ".jpg"; // fallback
+            }
+
+            java.io.File tempFile = new java.io.File(cacheDir, fileName);
+            java.io.OutputStream os = new java.io.FileOutputStream(tempFile);
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = is.read(buffer)) != -1) {
+                os.write(buffer, 0, bytesRead);
+            }
+            os.close();
+            is.close();
+
+            JSObject result = new JSObject();
+            result.put("path", tempFile.getAbsolutePath());
+            call.resolve(result);
+
+        } catch (Exception e) {
+            call.reject("Exception resolving URI: " + e.getMessage());
+        }
     }
 }

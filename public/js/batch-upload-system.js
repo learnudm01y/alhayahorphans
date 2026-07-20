@@ -77,7 +77,8 @@ class BatchFileUploader {
         }
 
         try {
-            const response = await fetch('/admin/file/process-bulk-folder-upload-batch', {
+            const baseUrl = (window.APP_CONFIG && window.APP_CONFIG.API_URL) ? window.APP_CONFIG.API_URL.replace(/\/api\/?$/, '') : '';
+            const response = await fetch(baseUrl + '/admin/file/process-bulk-folder-upload-batch', {
                 method: 'POST',
                 headers: {
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),

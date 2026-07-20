@@ -55,17 +55,8 @@ public class GoogleDriveUploadPlugin extends Plugin {
             Log.e(TAG, "   ├─ عدد الملفات: " + pendingCount);
             Log.e(TAG, "   └─ Service سيعمل حتى عند إغلاق التطبيق");
 
-            Intent serviceIntent = new Intent(context, UploadForegroundService.class);
-            serviceIntent.putExtra("triggered_by", "google_drive_button");
-            serviceIntent.putExtra("restart_service", true);
-
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                context.startForegroundService(serviceIntent);
-                Log.e(TAG, "✅ startForegroundService() called (Android 8+)");
-            } else {
-                context.startService(serviceIntent);
-                Log.e(TAG, "✅ startService() called (Android 7-)");
-            }
+            SyncOrchestrator.scheduleUpload(context);
+            Log.e(TAG, "✅ SyncOrchestrator.scheduleUpload() called");
 
             Log.e(TAG, "✅ تم بدء خدمة الرفع بنجاح");
             Log.e(TAG, "📤 الخدمة ستحاول رفع جميع الملفات المعلقة");
@@ -143,14 +134,7 @@ public class GoogleDriveUploadPlugin extends Plugin {
 
             if (retriedCount > 0) {
                 // بدء الخدمة لرفعها
-                Intent serviceIntent = new Intent(context, UploadForegroundService.class);
-                serviceIntent.putExtra("triggered_by", "retry_button");
-
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                    context.startForegroundService(serviceIntent);
-                } else {
-                    context.startService(serviceIntent);
-                }
+                SyncOrchestrator.scheduleUpload(context);
 
                 Log.e(TAG, "✅ تم بدء خدمة الرفع لإعادة المحاولة");
             }

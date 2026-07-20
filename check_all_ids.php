@@ -1,0 +1,1 @@
+<?php $req = Request::create('/api/mobile/sync/full', 'GET', ['page' => 1, 'per_page' => 2000]); $c = app()->make('App\Http\Controllers\Api\SponsorshipSyncController'); $res = $c->getFullSync($req)->getData()->data; $ids = []; foreach($res as $r) { $ids[] = $r->id; } $unique = array_unique($ids); echo 'Total: ' . count($ids) . ', Unique: ' . count($unique);

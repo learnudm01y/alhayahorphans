@@ -150,41 +150,13 @@ public class NetworkMonitor {
         Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
         try {
-            // إعادة تعيين الملفات الفاشلة إلى pending
-            int resetCount = dbHelper.resetFailedFiles();
-            if (resetCount > 0) {
-                Log.d(TAG, "🔄 تم إعادة تعيين " + resetCount + " ملف فاشل للمحاولة مرة أخرى");
-            }
-
-            // فحص وجود ملفات معلقة
-            int pendingCount = dbHelper.getPendingFilesCount();
-            Log.d(TAG, "📊 عدد الملفات المعلقة: " + pendingCount);
-
-            if (pendingCount > 0) {
-                Log.d(TAG, "");
-                Log.d(TAG, "🔥🔥🔥 جدولة رفع " + pendingCount + " ملف معلق! 🔥🔥🔥");
-                Log.d(TAG, "");
-
-                // ═══════════════════════════════════════════════════════════════════
-                // 🔄 Single Sync Orchestrator - استخدام FileSyncWorker بدلاً من ForegroundService
-                // ═══════════════════════════════════════════════════════════════════
-                // FileSyncWorker سيعالج الطابور بالتسلسل (ملف واحد في كل مرة)
-                // ForegroundService يُستخدم فقط للملفات الكبيرة >= 10MB
-                // ExistingWorkPolicy.KEEP يمنع تكرار العمل
-                // ═══════════════════════════════════════════════════════════════════
-
-                try {
-                    // جدولة Worker للمعالجة الفورية
-                    com.aso.app.FileSyncWorker.scheduleImmediateSync(context);
-                    Log.d(TAG, "✅ FileSyncWorker scheduled - الرفع سيبدأ فوراً");
-                    Log.d(TAG, "   ✅ UniqueWork policy يمنع تكرار Workers");
-                    Log.d(TAG, "   ✅ معالجة تسلسلية (ملف واحد في كل مرة)");
-                } catch (Exception workerError) {
-                    Log.e(TAG, "❌ فشل جدولة FileSyncWorker: " + workerError.getMessage(), workerError);
-                }
-            } else {
-                Log.d(TAG, "ℹ️  لا توجد ملفات معلقة للرفع");
-            }
+            // ✅ Trigger the Master Reconnect Sync Sequence (Sequential chaining)
+            // 1. Verify Drive Status First
+            // 2. Action Sync (Sponsorship updates)
+            // 3. Reset remaining Failed files
+            // 4. Chunked Upload 
+            Log.d(TAG, "🔄 Starting Master Reconnect Sync Sequence...");
+            SyncOrchestrator.scheduleMasterSyncOnReconnect(context);
 
         } catch (Exception e) {
             Log.e(TAG, "❌ خطأ في معالجة عودة الإنترنت: " + e.getMessage(), e);

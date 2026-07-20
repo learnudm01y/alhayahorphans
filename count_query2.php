@@ -1,0 +1,1 @@
+<?php $req = Request::create('/api/mobile/sync/full', 'GET', ['page' => 1, 'per_page' => 200]); $c = app()->make('App\Http\Controllers\Api\SponsorshipSyncController'); $res = $c->getFullSync($req)->getData()->pagination; echo json_encode($res);

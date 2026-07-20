@@ -24,6 +24,76 @@ use Illuminate\Support\Facades\Log;
 class GoogleDriveUploadController extends Controller
 {
     /**
+     * GET /api/uploads/drive-status
+     *
+     * Check the Google Drive upload status for multiple file names.
+     */
+    public function driveStatus(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file_names' => 'required|array',
+            'file_names.*' => 'string'
+        ]);
+
+        $fileNames = $request->input('file_names');
+        
+        $uploads = GoogleDriveUpload::whereIn('file_name', $fileNames)
+            ->select('file_name', 'upload_status', 'google_drive_file_id', 'updated_at')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $uploads
+        ]);
+    }
+
+    /**
+     * GET /api/uploads/offline-inbox
+     *
+     * Fetch all offline status updates for the user.
+     */
+    public function offlineInbox(Request $request): JsonResponse
+    {
+        $userId = $request->user() ? $request->user()->id : null;
+
+        $query = DB::table('offline_upload_statuses');
+        if ($userId) {
+            $query->where(function($q) use ($userId) {
+                $q->whereNull('user_id')->orWhere('user_id', $userId);
+            });
+        }
+
+        $statuses = $query->orderBy('created_at', 'asc')->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $statuses
+        ]);
+    }
+
+    /**
+     * POST /api/uploads/offline-inbox/ack
+     *
+     * Acknowledge and delete offline status updates.
+     */
+    public function ackOfflineInbox(Request $request): JsonResponse
+    {
+        $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'integer'
+        ]);
+
+        $ids = $request->input('ids');
+        
+        DB::table('offline_upload_statuses')->whereIn('id', $ids)->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => count($ids) . ' statuses acknowledged and deleted.'
+        ]);
+    }
+
+    /**
      * POST /api/uploads/check-duplicate
      *
      * Check if a file with the given hash already exists

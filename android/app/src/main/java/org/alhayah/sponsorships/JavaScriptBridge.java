@@ -166,12 +166,12 @@ public class JavaScriptBridge {
             android.content.SharedPreferences prefs = context.getSharedPreferences("auth_prefs", android.content.Context.MODE_PRIVATE);
             android.content.SharedPreferences.Editor editor = prefs.edit();
             editor.putString("api_token", token);
-            editor.putString("api_base_url", baseUrl != null ? baseUrl : "https://alhayahorphans.org");
+            editor.putString("api_base_url", baseUrl != null ? baseUrl : com.aso.app.ApiConfig.BASE_URL);
             editor.apply();
 
             Log.e(TAG, "✅ Auth data saved to SharedPreferences");
             Log.e(TAG, "   📡 Token: " + (token != null ? token.substring(0, Math.min(15, token.length())) + "..." : "null"));
-            Log.e(TAG, "   🌐 Base URL: " + (baseUrl != null ? baseUrl : "https://alhayahorphans.org"));
+            Log.e(TAG, "   🌐 Base URL: " + (baseUrl != null ? baseUrl : com.aso.app.ApiConfig.BASE_URL));
             Log.e(TAG, "");
 
         } catch (Exception e) {

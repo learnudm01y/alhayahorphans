@@ -24,7 +24,31 @@ class Handler extends ExceptionHandler
     public function register(): void
     {
         $this->reportable(function (Throwable $e) {
-            //
+            if ($e instanceof \Illuminate\Auth\AuthenticationException) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'غير مصرح بالدخول'
+                ], 401);
+            }
+        });
+
+        $this->renderable(function (\Illuminate\Auth\AuthenticationException $e, $request) {
+            if ($request->expectsJson() || $request->is('api/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'يرجى تسجيل الدخول أولاً'
+                ], 401);
+            }
+        });
+
+        $this->renderable(function (\Illuminate\Validation\ValidationException $e, $request) {
+            if ($request->expectsJson() || $request->is('api/*')) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'بيانات غير صالحة',
+                    'errors' => $e->errors()
+                ], 422);
+            }
         });
     }
 }

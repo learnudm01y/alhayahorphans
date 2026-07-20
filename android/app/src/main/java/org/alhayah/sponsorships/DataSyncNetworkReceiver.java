@@ -77,35 +77,10 @@ public class DataSyncNetworkReceiver extends BroadcastReceiver {
         Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
         try {
-            DataSyncDatabaseHelper dbHelper = DataSyncDatabaseHelper.getInstance(context);
-
-            // ✨ إعادة تعيين جميع البيانات الفاشلة
-            int resetCount = dbHelper.resetFailedData();
-            if (resetCount > 0) {
-                Log.d(TAG, "🔄 Reset " + resetCount + " failed items to pending");
-            }
-
-            int pendingCount = dbHelper.getPendingDataCount();
-            Log.d(TAG, "📊 Total pending data count: " + pendingCount);
-
-            if (pendingCount > 0) {
-                Log.d(TAG, "🚀 Starting DataSyncForegroundService with " + pendingCount + " items");
-
-                Intent serviceIntent = new Intent(context, DataSyncForegroundService.class);
-
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    context.startForegroundService(serviceIntent);
-                } else {
-                    context.startService(serviceIntent);
-                }
-
-                Log.d(TAG, "✅ DataSyncForegroundService started from CLOSED app");
-            } else {
-                Log.d(TAG, "ℹ️  No pending data - skipping sync");
-            }
-
+            Log.d(TAG, "🚀 Network reconnected - triggering Unified Master Sync Chain via WorkManager");
+            com.aso.app.SyncOrchestrator.scheduleMasterSyncOnReconnect(context);
         } catch (Exception e) {
-            Log.e(TAG, "❌ Failed to start sync service", e);
+            Log.e(TAG, "❌ Failed to start master sync chain", e);
         }
     }
 }

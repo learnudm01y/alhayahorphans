@@ -23,9 +23,8 @@ public class UploadBootReceiver extends BroadcastReceiver {
                 // إعادة تعيين الملفات التي كانت قيد الرفع
                 dbHelper.resetUploadingFiles();
 
-                // جدولة FileSyncWorker (بدلاً من UploadTaskScheduler القديم)
-                Log.d(TAG, "🚀 Calling FileSyncWorker.scheduleImmediateSync()...");
-                FileSyncWorker.scheduleImmediateSync(context);
+                Log.d(TAG, "🚀 Calling UploadTaskScheduler.startImmediateUpload()...");
+                com.aso.app.UploadTaskScheduler.getInstance(context).startImmediateUpload();
                 Log.d(TAG, "✅ FileSyncWorker scheduled - سيبدأ بمعالجة الملفات المعلقة");
 
             } catch (Exception e) {

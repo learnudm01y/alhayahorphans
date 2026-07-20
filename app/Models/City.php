@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class City extends Model
 {
-    use HasFactory;
+    use HasFactory, \App\Traits\SyncsLookupToMobile;
     protected $fillable = ['city'];
     protected $table = 'city';
 }

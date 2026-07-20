@@ -2190,7 +2190,7 @@ class ShowGeneralRegisrationController extends Controller
                     $rcloneService = new RcloneGoogleDriveService();
 
                     // التحقق من اتصال Rclone
-                    if (!$rcloneService->testConnection()) {
+                    if (!($rcloneService->testConnection()['success'] ?? false)) {
                         throw new \Exception('فشل الاتصال بـ Rclone. تأكد من إعدادات RCLONE_PATH و RCLONE_REMOTE_NAME في ملف .env');
                     }
 

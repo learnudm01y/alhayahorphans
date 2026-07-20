@@ -7,7 +7,7 @@ import org.alhayah.sponsorships.JavaScriptBridge;
 // ✨ CRITICAL: استيراد Plugins للتسجيل
 import com.aso.app.UploadServicePlugin;
 import com.aso.app.GoogleDriveUploadPlugin;
-import com.aso.app.IndexedDBBridge;
+
 import com.aso.app.PermissionsManagerPlugin;  // ✨ NEW: إدارة الصلاحيات المتسلسلة
 
 public class MainActivity extends BridgeActivity {
@@ -23,7 +23,7 @@ public class MainActivity extends BridgeActivity {
         // ✨ CRITICAL: تسجيل Plugins قبل super.onCreate() في Capacitor 6.x
         registerPlugin(UploadServicePlugin.class);
         registerPlugin(GoogleDriveUploadPlugin.class);
-        registerPlugin(IndexedDBBridge.class);
+
         registerPlugin(SponsorshipFolderManager.class);  // ✨ NEW: إدارة مجلدات المكفولين
         registerPlugin(NativeCameraPlugin.class);  // ✨ NEW: Native VIDEO بدون Base64!
         registerPlugin(NativePhotoPlugin.class);  // 📸 NEW: Native PHOTO بسرعة فائقة!
@@ -36,6 +36,19 @@ public class MainActivity extends BridgeActivity {
         // 🌉 تسجيل UploadStatusBridge للتواصل المباشر مع JavaScript
         UploadStatusBridge.registerActivity(this);
         android.util.Log.e(TAG, "✅ UploadStatusBridge registered - Real-time sync enabled");
+        
+        // 🚀 بدء خدمة المزامنة الحقيقية في الخلفية
+        try {
+            android.content.Intent serviceIntent = new android.content.Intent(this, RealtimeSyncService.class);
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent);
+            } else {
+                startService(serviceIntent);
+            }
+            android.util.Log.e(TAG, "✅ RealtimeSyncService started");
+        } catch (Exception e) {
+            android.util.Log.e(TAG, "❌ Failed to start RealtimeSyncService", e);
+        }
 
         // ✅ CRITICAL: معالجة التحديثات المؤجلة من FileSyncWorker
         // إذا كانت ملفات رُفعت بنجاح بينما التطبيق كان مغلقاً،
@@ -207,11 +220,11 @@ public class MainActivity extends BridgeActivity {
             android.util.Log.e(TAG, "❌❌❌ FAILED to add JavaScript Bridges", e);
         }
 
-        // 🆕 DataSyncNetworkMonitor - ALREADY STARTED in AutoUploadApplication!
+        // 🆕 DataSyncNetworkMonitor & NetworkMonitor - ALREADY STARTED in AutoUploadApplication!
         android.util.Log.e(TAG, "");
-        android.util.Log.e(TAG, "🌐 Data Sync Network Monitor:");
-        android.util.Log.e(TAG, "   ✅ Already started in AutoUploadApplication.onCreate()");
-        android.util.Log.e(TAG, "   ✅ No need to start again - runs globally in Application context");
+        android.util.Log.e(TAG, "🌐 Network Monitors:");
+        android.util.Log.e(TAG, "   ✅ DataSyncNetworkMonitor - Started globally in Application context");
+        android.util.Log.e(TAG, "   ✅ NetworkMonitor (File Uploads) - Started globally in Application context");
 
         android.util.Log.e(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         android.util.Log.e(TAG, "");
@@ -220,7 +233,7 @@ public class MainActivity extends BridgeActivity {
         android.util.Log.e(TAG, "   📊 Data: BackgroundSyncPlugin");
         android.util.Log.e(TAG, "   🌉 Bridge: window.AndroidBridge ← ACTIVE!");
         android.util.Log.e(TAG, "   📹 Camera: window.CameraBridge ← ACTIVE!");
-        android.util.Log.e(TAG, "   🌐 Monitor: DataSyncNetworkMonitor ← ACTIVE (from Application)!");
+        android.util.Log.e(TAG, "   🌐 Monitor: DataSyncNetworkMonitor & NetworkMonitor ← ACTIVE (from Application)!");
         android.util.Log.e(TAG, "   🧠 Memory: MemoryMonitor ← ACTIVE!");
         android.util.Log.e(TAG, "   💾 Storage: WebStorageManager ← ACTIVE!");
         android.util.Log.e(TAG, "   📹 CameraMemory: CameraMemoryManager ← ACTIVE!");

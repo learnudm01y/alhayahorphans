@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Sponsor extends Model
 {
-    use HasFactory;
+    use HasFactory, \App\Traits\SyncsLookupToMobile;
 
     protected $table = 'sponsors';
     protected $fillable = [

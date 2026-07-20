@@ -47,6 +47,7 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
     // Status values
     public static final String STATUS_PENDING = "pending";
     public static final String STATUS_UPLOADING = "uploading";
+    public static final String STATUS_PROCESSING_SERVER = "processing_server";
     public static final String STATUS_COMPLETED = "completed";
     public static final String STATUS_FAILED = "failed";
 
@@ -228,6 +229,20 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
         return item;
     }
 
+    public UploadItem getFileByName(String fileName) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.query(TABLE_UPLOAD_QUEUE, null,
+                COLUMN_FILE_NAME + " = ?", new String[]{fileName},
+                null, null, null);
+
+        UploadItem item = null;
+        if (cursor != null && cursor.moveToFirst()) {
+            item = cursorToUploadItem(cursor);
+            cursor.close();
+        }
+        return item;
+    }
+
     /**
      * الحصول على جميع الملفات في حالة معينة
      */
@@ -254,6 +269,36 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
 
         cursor.close();
         Log.d(TAG, "تم جلب " + files.size() + " ملف بحالة: " + status);
+
+        return files;
+    }
+
+    /**
+     * الحصول على جميع الملفات التي تتطلب فحص حالتها من السيرفر (معالجة، فاشلة، معلقة)
+     */
+    public List<UploadItem> getFilesForVerification() {
+        List<UploadItem> files = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        Cursor cursor = db.query(
+            TABLE_UPLOAD_QUEUE,
+            null,
+            COLUMN_STATUS + " IN (?, ?, ?)",
+            new String[]{STATUS_PROCESSING_SERVER, STATUS_FAILED, STATUS_PENDING},
+            null,
+            null,
+            COLUMN_CREATED_AT + " ASC"
+        );
+
+        if (cursor.moveToFirst()) {
+            do {
+                UploadItem item = cursorToUploadItem(cursor);
+                files.add(item);
+            } while (cursor.moveToNext());
+        }
+
+        cursor.close();
+        Log.d(TAG, "🔍 تم جلب " + files.size() + " ملف لفحص حالتهم من السيرفر.");
 
         return files;
     }
@@ -517,6 +562,22 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
                                new String[]{STATUS_FAILED});
 
         Log.d(TAG, "تمت إعادة تعيين " + updated + " ملف فاشل للمحاولة مرة أخرى");
+    }
+
+    /**
+     * إعادة تعيين الملفات المعلقة قيد المعالجة لتصبح في طابور الرفع
+     */
+    public void resetProcessingFiles() {
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(COLUMN_STATUS, STATUS_PENDING);
+        values.put(COLUMN_UPDATED_AT, System.currentTimeMillis());
+
+        int updated = db.update(TABLE_UPLOAD_QUEUE, values,
+                               COLUMN_STATUS + " = ?",
+                               new String[]{STATUS_PROCESSING_SERVER});
+
+        Log.d(TAG, "تمت إعادة تعيين " + updated + " ملف عالق في السيرفر");
     }
 
     private UploadItem cursorToUploadItem(Cursor cursor) {

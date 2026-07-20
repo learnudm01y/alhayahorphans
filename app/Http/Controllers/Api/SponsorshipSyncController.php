@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Sponsorship;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -32,14 +33,7 @@ class SponsorshipSyncController extends Controller
      */
     public function login(Request $request): JsonResponse
     {
-        // 🔍 LOG 1: بداية الطلب
-        Log::info('🔐 [MOBILE LOGIN] ========================================');
-        Log::info('🔐 [MOBILE LOGIN] طلب تسجيل دخول جديد', [
-            'username' => $request->username,
-            'ip' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-            'timestamp' => now()->toDateTimeString()
-        ]);
+        Log::info('🔐 [MOBILE LOGIN] طلب تسجيل دخول', ['username' => $request->username]);
 
         $request->validate([
             'username' => 'required|string',
@@ -48,130 +42,75 @@ class SponsorshipSyncController extends Controller
         ]);
 
         try {
-            // 🔍 LOG 2: البحث عن المستخدم
-            Log::info('🔐 [MOBILE LOGIN] البحث عن المستخدم...', ['username' => $request->username]);
+            $user = User::where('email', $request->username)
+                ->orWhere('name', $request->username)
+                ->orWhere('phone', $request->username)
+                ->first();
 
-            // البحث بالترتيب: email أولاً (أعلى أولوية)، ثم name، ثم phone
-            $user = User::where('email', $request->username)->first();
-
-            if (!$user) {
-                $user = User::where('name', $request->username)->first();
-            }
-
-            if (!$user) {
-                $user = User::where('phone', $request->username)->first();
-            }
-
-            if (!$user) {
-                // 🔍 LOG 3: المستخدم غير موجود
-                Log::warning('🔐 [MOBILE LOGIN] ❌ المستخدم غير موجود', [
-                    'username_tried' => $request->username,
-                    'total_users' => User::count(),
-                    'admin_users' => User::where('role', 'admin')->count()
-                ]);
-
+            if (!$user || !Hash::check($request->password, $user->password)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'اسم المستخدم غير موجود',
-                    'error_code' => 'USER_NOT_FOUND',
-                    'debug_info' => [
-                        'username_tried' => $request->username,
-                        'total_users_count' => User::count(),
-                        'admin_users_count' => User::where('role', 'admin')->count()
-                    ]
+                    'message' => 'بيانات الدخول غير صحيحة'
                 ], 401);
             }
 
-            // 🔍 LOG 4: المستخدم موجود
-            Log::info('🔐 [MOBILE LOGIN] ✅ المستخدم موجود', [
-                'user_id' => $user->id,
-                'user_name' => $user->name,
-                'user_email' => $user->email,
-                'user_role' => $user->role
-            ]);
+            $token = $user->createToken('mobile-token', ['*'], now()->addDays(30))->plainTextToken;
 
-            // 🔍 LOG 5: التحقق من كلمة المرور
-            $passwordValid = Hash::check($request->password, $user->password);
-            Log::info('🔐 [MOBILE LOGIN] التحقق من كلمة المرور', [
-                'password_valid' => $passwordValid,
-                'password_length' => strlen($request->password)
-            ]);
-
-            if (!$passwordValid) {
-                Log::warning('🔐 [MOBILE LOGIN] ❌ كلمة المرور خاطئة', [
-                    'user_id' => $user->id,
-                    'username' => $user->name
-                ]);
-
-                return response()->json([
-                    'success' => false,
-                    'message' => 'كلمة المرور غير صحيحة',
-                    'error_code' => 'INVALID_PASSWORD'
-                ], 401);
+            if ($request->device_id) {
+                $user->device_id = $request->device_id;
+                $user->save();
             }
-
-            // 🔍 LOG 6: التحقق من الصلاحية
-            Log::info('🔐 [MOBILE LOGIN] التحقق من الصلاحية', [
-                'user_role' => $user->role,
-                'required_role' => 'admin',
-                'has_permission' => $user->role === 'admin'
-            ]);
-
-            if ($user->role !== 'admin') {
-                Log::warning('🔐 [MOBILE LOGIN] ❌ صلاحية غير كافية', [
-                    'user_id' => $user->id,
-                    'username' => $user->name,
-                    'current_role' => $user->role,
-                    'required_role' => 'admin'
-                ]);
-
-                return response()->json([
-                    'success' => false,
-                    'message' => 'ليس لديك صلاحية الدخول. مطلوب صلاحية مدير.',
-                    'error_code' => 'INSUFFICIENT_PERMISSIONS',
-                    'debug_info' => [
-                        'your_role' => $user->role,
-                        'required_role' => 'admin'
-                    ]
-                ], 403);
-            }
-
-            // 🔍 LOG 7: إنشاء Token
-            Log::info('🔐 [MOBILE LOGIN] إنشاء token...', ['user_id' => $user->id]);
-            $token = $user->createToken('mobile-app-token', ['*'])->plainTextToken;
-
-            Log::info('🔐 [MOBILE LOGIN] ✅✅✅ تم تسجيل الدخول بنجاح!', [
-                'user_id' => $user->id,
-                'username' => $user->name,
-                'token_length' => strlen($token)
-            ]);
-            Log::info('🔐 [MOBILE LOGIN] ========================================');
 
             return response()->json([
                 'success' => true,
-                'message' => 'تم تسجيل الدخول بنجاح',
+                'token' => $token,
+                'expires_at' => now()->addDays(30)->toDateTimeString(),
                 'user' => [
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
                     'role' => $user->role
-                ],
-                'token' => $token,
-                'expires_at' => now()->addDays(30)->toISOString()
+                ]
             ]);
 
         } catch (\Exception $e) {
-            Log::error('🔐 [MOBILE LOGIN] ❌❌❌ خطأ في تسجيل الدخول', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
+            Log::error('❌ [MOBILE LOGIN] خطأ: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'حدث خطأ في تسجيل الدخول',
-                'error' => config('app.debug') ? $e->getMessage() : null
+                'message' => 'حدث خطأ في الخادم'
             ], 500);
         }
+    }
+
+    /**
+     * POST /api/mobile/refresh-token
+     */
+    public function refreshToken(Request $request): JsonResponse
+    {
+        $request->validate(['refresh_token' => 'required|string']);
+        
+        $refreshToken = clone DB::table('refresh_tokens')
+            ->where('token', hash('sha256', $request->refresh_token))
+            ->where('expires_at', '>', now())
+            ->first();
+        
+        if (!$refreshToken) {
+            return response()->json(['success' => false, 'message' => 'Refresh token expired or invalid'], 401);
+        }
+        
+        $user = User::find($refreshToken->user_id);
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'User not found'], 401);
+        }
+
+        $user->tokens()->where('name', 'mobile-app-token')->delete();
+        $newToken = $user->createToken('mobile-app-token', ['*'])->plainTextToken;
+        
+        return response()->json([
+            'success' => true,
+            'token' => $newToken,
+            'expires_at' => now()->addDays(30)->toISOString()
+        ]);
     }
 
     /**
@@ -333,17 +272,7 @@ class SponsorshipSyncController extends Controller
                     'sponsorships.updated_at'
                 ]);
 
-            // استبعاد الحالات "تم الصرف" و "أرسل للصرف"
-            if ($excludeStatuses) {
-                $excludedStatusIds = DB::table('sponsorship_statuses')
-                    ->whereIn('description', ['تم الصرف', 'أرسل للصرف'])
-                    ->pluck('id')
-                    ->toArray();
-
-                if (!empty($excludedStatusIds)) {
-                    $query->whereNotIn('sponsorships.sponsorship_status_id', $excludedStatusIds);
-                }
-            }
+            // (تم إزالة استبعاد الحالات "تم الصرف" و "أرسل للصرف" بناءً على طلب المستخدم)
 
             // فلترة بالجمعية (اختيارية للمزامنة الكاملة)
             if ($sponsorId) {
@@ -370,12 +299,18 @@ class SponsorshipSyncController extends Controller
 
             // مزامنة تزايدية
             if ($lastSync) {
-                $query->where('sponsorships.updated_at', '>', $lastSync);
+                try {
+                    $lastSyncFormatted = \Carbon\Carbon::parse($lastSync)->setTimezone(config('app.timezone', 'UTC'))->format('Y-m-d H:i:s');
+                    $query->where('sponsorships.updated_at', '>', $lastSyncFormatted);
+                } catch (\Exception $e) {
+                    $query->where('sponsorships.updated_at', '>', $lastSync);
+                }
             }
 
             // ترتيب وتقسيم
             $total = $query->count();
             $sponsorships = $query->orderBy('sponsorships.updated_at', 'desc')
+                ->orderBy('sponsorships.id', 'desc') // حل مشكلة تخطي بعض الكفالات في الـ Pagination
                 ->offset(($page - 1) * $perPage)
                 ->limit($perPage)
                 ->get();
@@ -406,10 +341,49 @@ class SponsorshipSyncController extends Controller
         }
     }
 
+    public static function getSingleEnrichedSponsorship($id)
+    {
+        $sponsorship = DB::table('sponsorships')
+            ->leftJoin('sponsors', 'sponsorships.sponsor_id', '=', 'sponsors.id')
+            ->leftJoin('sponsorship_statuses', 'sponsorships.sponsorship_status_id', '=', 'sponsorship_statuses.id')
+            ->select([
+                'sponsorships.id',
+                'sponsorships.sponsor_id',
+                'sponsors.sponsor_name',
+                'sponsors.sponsor_short_name',
+                'sponsorships.internal_file_number',
+                'sponsorships.external_file_number',
+                'sponsorships.relation_id_number',
+                'sponsorships.identity_number',
+                'sponsorships.orphan_name',
+                'sponsorships.sponsored_birth_date',
+                'sponsorships.guardian_name',
+                'sponsorships.guardian_identity_number',
+                'sponsorships.sponsorship_status_id',
+                'sponsorship_statuses.description as status_name',
+                'sponsorships.sponsorship_start_date',
+                'sponsorships.sponsorship_end_date',
+                'sponsorships.person_type',
+                'sponsorships.sponsoring_organization',
+                'sponsorships.notes',
+                'sponsorships.created_at',
+                'sponsorships.updated_at'
+            ])
+            ->where('sponsorships.id', $id)
+            ->first();
+
+        if (!$sponsorship) {
+            return null;
+        }
+
+        $controller = new self();
+        return $controller->enrichSponsorshipData($sponsorship);
+    }
+
     /**
      * إثراء بيانات الكفالة من السجل المدني والبيانات البنكية
      */
-    private function enrichSponsorshipData($sponsorship)
+    public function enrichSponsorshipData($sponsorship)
     {
         $result = (array) $sponsorship;
         $result['orphan_data_source'] = 'sponsorships';
@@ -1235,412 +1209,185 @@ class SponsorshipSyncController extends Controller
     public function uploadSyncData(Request $request): JsonResponse
     {
         try {
-            // � تعريف إصدار الكود - للتأكد من أن الكود المُحدَّث يعمل
-            Log::info('🔖 uploadSyncData VERSION: 2026-01-17-v6 (unified file_id across all tables)');
+            DB::beginTransaction();
 
-            // �📋 Log كل البيانات القادمة للفحص
-            Log::info('📥 uploadSyncData: البيانات القادمة من التطبيق', [
-                'all_request_data' => $request->all(),
-                'user_id' => $request->user()->id ?? 'N/A',
-                'ip' => $request->ip()
-            ]);
+            $data = $request->all();
+            $type = $data['type'] ?? null;
+            $payload = $data['payload'] ?? [];
 
-            $data = $request->validate([
-                'sponsorship_id' => 'required|integer',
-                'updates' => 'required|array'
-            ]);
-
-            $sponsorshipId = $data['sponsorship_id'];
-            $updates = $data['updates'];
-
-            Log::info('📋 uploadSyncData: بيانات بعد التحقق', [
-                'sponsorship_id' => $sponsorshipId,
-                'updates_keys' => array_keys($updates),
-                'has_bank_accounts_updates' => array_key_exists('bank_accounts_updates', $updates)
-            ]);
-
-            // جلب بيانات الكفالة الحالية
-            $sponsorship = DB::table('sponsorships')->where('id', $sponsorshipId)->first();
-            if (!$sponsorship) {
+            if (!$type || empty($payload)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'الكفالة غير موجودة'
-                ], 404);
-            }
-
-            // تحديد الحقول المسموح بتحديثها في جدول sponsorships فقط
-            $allowedFields = [
-                // بيانات أساسية موجودة في sponsorships
-                'orphan_name',
-                'identity_number',
-                'sponsored_birth_date',
-                // orphan_gender ليس في sponsorships - يذهب للجدول المناسب
-                'guardian_name',
-                'guardian_identity_number',
-                'notes',
-                'sponsorship_status_id',
-                'person_type'
-            ];
-
-            // الحقول التي تذهب إلى جدول data وليس sponsorships
-            $dataOnlyFields = [
-                'health_status_id', 'guardian_phone', 'guardian_phone2',
-                'guardian_detailed_address',
-                'guardian_first_name', 'guardian_father_name',
-                'guardian_grandfather_name', 'guardian_family_name',
-                'guardian_person_type',
-                // حقول اسم المكفول الأربعة - تذهب للجدول المناسب حسب person_type
-                'orphan_first_name', 'orphan_father_name',
-                'orphan_grandfather_name', 'orphan_family_name',
-                // orphan_gender يذهب للجدول المناسب حسب person_type
-                'orphan_gender',
-                // الحقول الإضافية للمتوفين والمعيل (تذهب إلى portal_general_registration_field_values)
-                'orphan_phone', 'orphan_phone2', 'orphan_detailed_address'
-            ];
-
-            // تصفية التحديثات: فقط allowedFields وليس dataOnlyFields
-            $filteredUpdates = array_intersect_key($updates, array_flip($allowedFields));
-
-            // إزالة أي حقول من dataOnlyFields قد تكون تسللت
-            foreach ($dataOnlyFields as $dataField) {
-                unset($filteredUpdates[$dataField]);
-            }
-
-            $filteredUpdates['updated_at'] = now();
-            // updated_by من نوع JSON - يجب تحويله
-            $filteredUpdates['updated_by'] = json_encode(['user_id' => $request->user()->id, 'timestamp' => now()->toISOString()]);
-
-            // تحديث اسم المكفول الكامل إذا تم تعديل الأجزاء
-            // ملاحظة: التطبيق يرسل first_name, second_name, third_name, last_name
-            // أيضاً ندعم orphan_first_name, orphan_father_name, etc للتوافقية
-            if (isset($updates['first_name']) || isset($updates['second_name']) ||
-                isset($updates['third_name']) || isset($updates['last_name']) ||
-                isset($updates['orphan_first_name']) || isset($updates['orphan_father_name']) ||
-                isset($updates['orphan_grandfather_name']) || isset($updates['orphan_family_name'])) {
-
-                // أولوية للأسماء المباشرة من التطبيق
-                $firstName = $updates['first_name'] ?? $updates['orphan_first_name'] ?? '';
-                $fatherName = $updates['second_name'] ?? $updates['orphan_father_name'] ?? '';
-                $grandfatherName = $updates['third_name'] ?? $updates['orphan_grandfather_name'] ?? '';
-                $familyName = $updates['last_name'] ?? $updates['orphan_family_name'] ?? '';
-
-                $filteredUpdates['orphan_name'] = trim("$firstName $fatherName $grandfatherName $familyName");
-
-                // تحديث identity_number إذا تم إرساله
-                if (isset($updates['identity_number']) && !empty($updates['identity_number'])) {
-                    $filteredUpdates['identity_number'] = $updates['identity_number'];
-                }
-            }
-
-            // تحديث اسم المعيل الكامل إذا تم تعديل الأجزاء
-            if (isset($updates['guardian_first_name']) || isset($updates['guardian_father_name']) ||
-                isset($updates['guardian_grandfather_name']) || isset($updates['guardian_family_name'])) {
-
-                $firstName = $updates['guardian_first_name'] ?? '';
-                $fatherName = $updates['guardian_father_name'] ?? '';
-                $grandfatherName = $updates['guardian_grandfather_name'] ?? '';
-                $familyName = $updates['guardian_family_name'] ?? '';
-
-                $filteredUpdates['guardian_name'] = trim("$firstName $fatherName $grandfatherName $familyName");
-            }
-
-            // التحقق من تغيير اسم المكفول لتحديث مجلد Google Drive
-            $oldOrphanName = $updates['old_orphan_name'] ?? null;
-            // التحقق من orphan_name في filteredUpdates أو updates مباشرة
-            $newOrphanName = $filteredUpdates['orphan_name'] ?? $updates['orphan_name'] ?? null;
-            $folderRenamed = false;
-
-            if ($oldOrphanName && $newOrphanName && $oldOrphanName !== $newOrphanName) {
-                try {
-                    // الحصول على اسم الجمعية
-                    $sponsor = DB::table('sponsors')->where('id', $sponsorship->sponsor_id)->first();
-                    $sponsorName = $sponsor ? $sponsor->sponsor_name : 'غير محدد';
-
-                    // إعادة تسمية المجلد على Google Drive
-                    $folderRenamed = $this->renameDriveFolder($sponsorName, $oldOrphanName, $newOrphanName);
-
-                    Log::info('تم إعادة تسمية مجلد المكفول على Google Drive', [
-                        'sponsorship_id' => $sponsorshipId,
-                        'old_name' => $oldOrphanName,
-                        'new_name' => $newOrphanName,
-                        'success' => $folderRenamed
-                    ]);
-                } catch (\Exception $e) {
-                    Log::warning('فشل إعادة تسمية مجلد Google Drive', [
-                        'error' => $e->getMessage()
-                    ]);
-                }
-            }
-
-            // تحديث جدول sponsorships
-            DB::table('sponsorships')
-                ->where('id', $sponsorshipId)
-                ->update($filteredUpdates);
-
-            // ===================================================================
-            // تحديث بيانات المعيل (الولي) - دائماً في جدول data
-            // (نفس منطق OfflineTestController)
-            // ===================================================================
-            $guardianFields = ['guardian_first_name', 'guardian_father_name', 'guardian_grandfather_name',
-                               'guardian_family_name', 'guardian_phone', 'guardian_phone2',
-                               'guardian_detailed_address', 'guardian_identity_number', 'guardian_city_id'];
-
-            // ✅ التحقق من أرقام الهاتف قبل الحفظ (الحد الأقصى 15 رقم لتجنب تجاوز BIGINT)
-            $maxPhoneLength = 15;
-            if (isset($updates['guardian_phone']) && strlen(preg_replace('/[^0-9]/', '', $updates['guardian_phone'])) > $maxPhoneLength) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'رقم الهاتف الأول طويل جداً (الحد الأقصى ' . $maxPhoneLength . ' رقم)',
-                    'field' => 'guardian_phone'
-                ], 400);
-            }
-            if (isset($updates['guardian_phone2']) && strlen(preg_replace('/[^0-9]/', '', $updates['guardian_phone2'])) > $maxPhoneLength) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'رقم الهاتف الثاني طويل جداً (الحد الأقصى ' . $maxPhoneLength . ' رقم)',
-                    'field' => 'guardian_phone2'
+                    'message' => 'بيانات غير صالحة'
                 ], 400);
             }
 
-            $guardianDataToUpdate = [];
-            foreach ($guardianFields as $field) {
-                if (isset($updates[$field])) {
-                    $dataField = str_replace('guardian_', 'data_', $field);
-                    if ($field === 'guardian_detailed_address') {
-                        $dataField = 'data_current_address';
-                    } elseif ($field === 'guardian_grandfather_name') {
-                        $dataField = 'data_grand_father_name';
-                    } elseif ($field === 'guardian_identity_number') {
-                        $dataField = 'data_id_number';
-                    } elseif ($field === 'guardian_phone') {
-                        $dataField = 'data_phone_number';
-                        // تحويل لرقم وإزالة الأحرف غير الرقمية
-                        $guardianDataToUpdate[$dataField] = (int)preg_replace('/[^0-9]/', '', $updates[$field]);
-                        continue;
-                    } elseif ($field === 'guardian_phone2') {
-                        $dataField = 'data_alt_phone_number';
-                        // تحويل لرقم وإزالة الأحرف غير الرقمية
-                        $guardianDataToUpdate[$dataField] = (int)preg_replace('/[^0-9]/', '', $updates[$field]);
-                        continue;
-                    } elseif ($field === 'guardian_city_id') {
-                        $dataField = 'data_city';
-                    }
-                    $guardianDataToUpdate[$dataField] = $updates[$field];
-                }
+            $result = match($type) {
+                'sponsorship' => $this->syncSponsorship($payload),
+                'person_data' => $this->syncPersonData($payload),
+                'bank_account' => $this->syncBankAccount($payload),
+                default => null
+            };
+
+            if ($result === null) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'نوع بيانات غير معروف: ' . $type
+                ], 400);
             }
 
-            // متغير لتخزين رقم الملف الموحد
-            $unifiedFileIdNumber = null;
-
-            if (!empty($guardianDataToUpdate)) {
-                $relationIdNumber = $sponsorship->relation_id_number;
-
-                $dataRecord = null;
-                if ($relationIdNumber) {
-                    $dataRecord = DB::table('data')
-                        ->where('file_id_number', $relationIdNumber)
-                        ->first();
-                }
-                if (!$dataRecord && $sponsorship->internal_file_number) {
-                    $dataRecord = DB::table('data')
-                        ->where('file_id_number', $sponsorship->internal_file_number)
-                        ->first();
-                }
-
-                if ($dataRecord) {
-                    // تحديث سجل موجود
-                    $guardianDataToUpdate['updated_at'] = now();
-                    DB::table('data')->where('id', $dataRecord->id)->update($guardianDataToUpdate);
-                    Log::info('✅ تم تحديث بيانات المعيل في جدول data', [
-                        'sponsorship_id' => $sponsorshipId,
-                        'data_record_id' => $dataRecord->id,
-                        'updated_fields' => array_keys($guardianDataToUpdate),
-                        'guardian_city_id' => $updates['guardian_city_id'] ?? 'NOT SET',
-                        'data_city_value' => $guardianDataToUpdate['data_city'] ?? 'NOT SET'
-                    ]);
-                } else {
-                    // إنشاء سجل جديد للمعيل
-                    $unifiedFileIdNumber = generateFileIdFromDataTable();
-                    $newDataRecord = array_merge($guardianDataToUpdate, [
-                        'file_id_number' => $unifiedFileIdNumber,
-                        'created_at' => now(),
-                        'updated_at' => now()
-                    ]);
-                    $newDataId = DB::table('data')->insertGetId($newDataRecord);
-
-                    // ✅ تعليم الكود كمستخدم
-                    markCodeAsUsed($unifiedFileIdNumber, $request->user()->id ?? null, 'معيل/ولي في data');
-
-                    Log::info('✅ تم إنشاء سجل جديد للمعيل في جدول data', [
-                        'sponsorship_id' => $sponsorshipId,
-                        'new_data_id' => $newDataId,
-                        'file_id_number' => $unifiedFileIdNumber,
-                        'inserted_fields' => array_keys($newDataRecord),
-                        'guardian_city_id' => $updates['guardian_city_id'] ?? 'NOT SET',
-                        'data_city_value' => $newDataRecord['data_city'] ?? 'NOT SET'
-                    ]);
-
-                    // تحديث relation_id_number في الكفالة
-                    DB::table('sponsorships')
-                        ->where('id', $sponsorshipId)
-                        ->update([
-                            'relation_id_number' => $unifiedFileIdNumber,
-                            'updated_at' => now()
-                        ]);
-                }
-
-                // إعادة قراءة الكفالة للحصول على relation_id_number المحدث
-                $sponsorship = DB::table('sponsorships')->where('id', $sponsorshipId)->first();
-            }
-
-            // ===================================================
-            // خوارزمية ذكية لحفظ بيانات المكفول في الجدول الصحيح
-            // باستخدام person_type لتحديد الجدول المستهدف
-            // ===================================================
-
-            $hasOrphanDataUpdate = isset($updates['first_name']) || isset($updates['second_name']) ||
-                                   isset($updates['third_name']) || isset($updates['last_name']) ||
-                                   isset($updates['orphan_gender']) || isset($updates['birth_date']) ||
-                                   isset($updates['sponsored_birth_date']) || isset($updates['identity_number']) ||
-                                   // الحقول الإضافية للمتوفين والمعيل
-                                   isset($updates['orphan_phone']) || isset($updates['orphan_phone2']) ||
-                                   isset($updates['orphan_detailed_address']);
-
-            // ✅ إذا كان guardian_person_type = family_member، يجب إنشاء سجل للمكفول في re_people
-            // حتى لو لم تُرسل حقول المكفول (لأنها موجودة في الكفالة)
-            $guardianPersonType = $updates['guardian_person_type'] ?? null;
-            if ($guardianPersonType === 'family_member' && !$hasOrphanDataUpdate) {
-                Log::info('🔍 guardian_person_type = family_member، سيتم إنشاء سجل المكفول من بيانات الكفالة', [
-                    'sponsorship_id' => $sponsorshipId
-                ]);
-
-                // جلب أسماء المكفول من الكفالة (orphan_name مُركب)
-                $orphanNameParts = explode(' ', $sponsorship->orphan_name ?? '');
-                $updates['first_name'] = $orphanNameParts[0] ?? '';
-                $updates['second_name'] = $orphanNameParts[1] ?? '';
-                $updates['third_name'] = $orphanNameParts[2] ?? '';
-                $updates['last_name'] = $orphanNameParts[3] ?? '';
-                $updates['identity_number'] = $sponsorship->identity_number ?? null;
-
-                $hasOrphanDataUpdate = true; // الآن يوجد بيانات للمكفول
-            }
-
-            if ($hasOrphanDataUpdate) {
-                // الحصول على person_type من التحديثات أو من الكفالة
-                // ✅ إذا كان guardian_person_type موجود، نستخدمه لتحديد نوع المكفول
-                $personType = $updates['person_type'] ?? $guardianPersonType ?? $sponsorship->person_type ?? null;
-                $relationIdNumber = $sponsorship->relation_id_number;
-                $identityNumber = $updates['identity_number'] ?? $sponsorship->identity_number ?? null;
-
-                // دعم sponsored_birth_date
-                if (isset($updates['sponsored_birth_date']) && !isset($updates['birth_date'])) {
-                    $updates['birth_date'] = $updates['sponsored_birth_date'];
-                }
-
-                Log::info('🔍 بدء تحديث بيانات المكفول', [
-                    'person_type' => $personType,
-                    'relation_id_number' => $relationIdNumber,
-                    'identity_number' => $identityNumber
-                ]);
-
-                // تحديد الجدول والحقول المستهدفة بناءً على person_type
-                $updateResult = $this->updatePersonByType(
-                    $personType,
-                    $relationIdNumber,
-                    $identityNumber,
-                    $updates,
-                    $sponsorship
-                );
-
-                if ($updateResult['success']) {
-                    Log::info('✅ تم تحديث بيانات المكفول بنجاح', $updateResult);
-                } else {
-                    Log::warning('⚠️ فشل تحديث بيانات المكفول', $updateResult);
-                }
-            }
-
-            // تحديث الحسابات البنكية إذا وجدت
-            Log::info('🔍 فحص bank_accounts_updates', [
-                'sponsorship_id' => $sponsorshipId,
-                'has_bank_accounts_updates' => isset($updates['bank_accounts_updates']),
-                'bank_accounts_updates_type' => isset($updates['bank_accounts_updates']) ? gettype($updates['bank_accounts_updates']) : 'not set',
-                'bank_accounts_updates_value' => $updates['bank_accounts_updates'] ?? 'NOT PROVIDED',
-                'all_updates_keys' => array_keys($updates)
-            ]);
-
-            if (isset($updates['bank_accounts_updates']) && is_array($updates['bank_accounts_updates'])) {
-                Log::info('✅ سيتم تحديث الحسابات البنكية', [
-                    'bank_updates_count' => count($updates['bank_accounts_updates']),
-                    'bank_updates_data' => $updates['bank_accounts_updates']
-                ]);
-
-                // إعادة قراءة الكفالة للحصول على relation_id_number المحدث
-                $sponsorship = DB::table('sponsorships')->where('id', $sponsorshipId)->first();
-
-                $this->updateBankAccounts($sponsorship, $updates['bank_accounts_updates']);
-            } else {
-                Log::warning('⚠️ لم يتم إرسال bank_accounts_updates أو ليست مصفوفة', [
-                    'sponsorship_id' => $sponsorshipId,
-                    'reason' => !isset($updates['bank_accounts_updates']) ? 'NOT SET' : 'NOT ARRAY'
-                ]);
-            }
-
-            // ===================================================================
-            // 🔄 تغيير حالة الكفالة إلى "انتظار الصرف" عند أي تعديل من الهاتف
-            // ===================================================================
-            $this->updateSponsorshipStatusToWaitingPayment($sponsorshipId, $request->user()->id);
-
-            Log::info('Sponsorship updated from mobile', [
-                'sponsorship_id' => $sponsorshipId,
-                'user_id' => $request->user()->id,
-                'updates' => array_keys($filteredUpdates),
-                'folder_renamed' => $folderRenamed,
-                'status_changed_to' => 'انتظار الصرف'
-            ]);
+            DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => 'تم تحديث البيانات بنجاح',
-                'folder_renamed' => $folderRenamed,
-                'sync_timestamp' => now()->toISOString()
+                'message' => 'تمت المزامنة بنجاح',
+                'data' => $result
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Failed to upload sync data', ['error' => $e->getMessage()]);
+            DB::rollBack();
+            Log::error('❌ [UPLOAD SYNC] خطأ: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'فشل رفع البيانات: ' . $e->getMessage()
+                'message' => 'فشلت المزامنة: ' . $e->getMessage()
             ], 500);
         }
     }
 
     /**
-     * إعادة تسمية مجلد على Google Drive
+     * POST /api/mobile/sync/photos/metadata
+     * مزامنة بيانات الصور المرفوعة
      */
+    public function syncPhotoMetadata(Request $request): JsonResponse
+    {
+        try {
+            $data = $request->all();
+            Log::info('📸 [PHOTO METADATA SYNC] تم استلام بيانات صورة جديدة', $data);
+
+            // يمكنك هنا حفظ البيانات في جدول الصور أو المرفقات إذا لزم الأمر
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'تم حفظ بيانات الصورة بنجاح',
+                'data' => $data
+            ]);
+        } catch (\Exception $e) {
+            Log::error('❌ [PHOTO METADATA SYNC] خطأ: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'فشل حفظ بيانات الصورة: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    private function syncSponsorship(array $payload): array
+    {
+        $identityNumber = $payload['identity_number'] ?? null;
+        $sponsorshipData = $payload['sponsorship'] ?? [];
+
+        if (!$identityNumber) {
+            throw new \Exception('رقم الهوية مطلوب');
+        }
+
+        $sponsorship = Sponsorship::where('identity_number', $identityNumber)->first();
+
+        if ($sponsorship) {
+            $sponsorship->update($sponsorshipData);
+        } else {
+            $sponsorship = Sponsorship::create(array_merge($sponsorshipData, [
+                'identity_number' => $identityNumber
+            ]));
+        }
+
+        return ['sponsorship_id' => $sponsorship->id];
+    }
+
+    private function syncPersonData(array $payload): array
+    {
+        $personType = $payload['person_type'] ?? 'breadwinner';
+        $data = $payload['data'] ?? [];
+        $identityNumber = $payload['identity_number'] ?? null;
+
+        if (!$identityNumber) {
+            throw new \Exception('رقم الهوية مطلوب');
+        }
+
+        $result = match($personType) {
+            'breadwinner' => $this->syncBreadwinner($identityNumber, $data),
+            'orphan', 'family_member' => $this->syncFamilyMember($identityNumber, $data),
+            'deceased_father', 'deceased_mother' => $this->syncDeceased($identityNumber, $data, $personType),
+            default => throw new \Exception('نوع شخص غير معروف')
+        };
+
+        return $result;
+    }
+
+    private function syncBreadwinner(string $identityNumber, array $data): array
+    {
+        $record = \App\Models\Data::updateOrCreate(
+            ['data_id_number' => $identityNumber],
+            $data
+        );
+        return ['data_id' => $record->id, 'file_id_number' => $record->file_id_number];
+    }
+
+    private function syncFamilyMember(string $identityNumber, array $data): array
+    {
+        $record = \App\Models\RePeople::updateOrCreate(
+            ['person_id' => $identityNumber],
+            $data
+        );
+        return ['person_id' => $record->person_id];
+    }
+
+    private function syncDeceased(string $identityNumber, array $data, string $type): array
+    {
+        $record = \App\Models\DeadPepole::where('father_id', $identityNumber)
+            ->orWhere('mother_id', $identityNumber)
+            ->first();
+
+        if ($record) {
+            $field = $type === 'deceased_father' ? 'father' : 'mother';
+            foreach ($data as $key => $value) {
+                $record->{$field . '_' . $key} = $value;
+            }
+            $record->save();
+        }
+
+        return ['deceased_id' => $record ? $record->re_file_id : null];
+    }
+
+    private function syncBankAccount(array $payload): array
+    {
+        $identityNumber = $payload['identity_number'] ?? null;
+        $accountData = $payload['account'] ?? [];
+
+        if (!$identityNumber) {
+            throw new \Exception('رقم الهوية مطلوب');
+        }
+
+        $account = \App\Models\GuardianBankAccount::updateOrCreate(
+            ['guardian_registration' => $identityNumber],
+            $accountData
+        );
+
+        return ['account_id' => $account->id];
+    }
+
     private function renameDriveFolder(string $sponsorName, string $oldName, string $newName): bool
     {
         try {
             $useRclone = config('services.google.use_rclone', false);
-
             if ($useRclone) {
-                // استخدام Rclone لإعادة التسمية
                 $remoteName = config('services.google.rclone_remote_name', 'alhayahorphans');
                 $rootFolder = config('services.google.rclone_root_folder', 'temp');
-
                 $oldPath = "{$remoteName}:{$rootFolder}/{$sponsorName}/{$oldName}";
                 $newPath = "{$remoteName}:{$rootFolder}/{$sponsorName}/{$newName}";
-
                 $command = "rclone moveto \"{$oldPath}\" \"{$newPath}\" 2>&1";
                 $output = shell_exec($command);
-
-                Log::info('Rclone rename folder', [
-                    'command' => $command,
-                    'output' => $output
-                ]);
-
+                Log::info('Rclone rename folder', ['command' => $command, 'output' => $output]);
                 return true;
             } else {
-                // استخدام Google Drive API
                 $googleDriveService = app(\App\Services\GoogleDriveService::class);
                 return $googleDriveService->renameFolder($sponsorName, $oldName, $newName);
             }
@@ -4002,6 +3749,9 @@ class SponsorshipSyncController extends Controller
                 ->get();
 
             $totalSponsorships = DB::table('sponsorships')->count();
+            
+            // إضافة مصفوفة بجميع المعرفات السليمة للحذف المحلي (Pruning)
+            $validSponsorshipIds = DB::table('sponsorships')->pluck('id')->toArray();
 
             return response()->json([
                 'success' => true,
@@ -4013,6 +3763,7 @@ class SponsorshipSyncController extends Controller
                     'health_statuses' => $healthStatuses,
                     'cities' => $cities,
                     'sponsorship_types' => $sponsorshipTypes,
+                    'valid_sponsorship_ids' => $validSponsorshipIds,
                     'statistics' => [
                         'total_sponsorships' => $totalSponsorships,
                         'by_sponsor_status' => $stats
@@ -4075,14 +3826,16 @@ class SponsorshipSyncController extends Controller
                     'sponsorships.updated_at'
                 ]);
 
-            // استبعاد الحالات المكتملة
-            if (!empty($excludedStatusIds)) {
-                $query->whereNotIn('sponsorships.sponsorship_status_id', $excludedStatusIds);
-            }
+            // (تم إزالة استبعاد الحالات المكتملة بناءً على طلب المستخدم لمزامنة جميع البيانات)
 
             // مزامنة تزايدية إذا تم توفير last_sync
             if ($lastSync) {
-                $query->where('sponsorships.updated_at', '>', $lastSync);
+                try {
+                    $lastSyncFormatted = \Carbon\Carbon::parse($lastSync)->setTimezone(config('app.timezone', 'UTC'))->format('Y-m-d H:i:s');
+                    $query->where('sponsorships.updated_at', '>', $lastSyncFormatted);
+                } catch (\Exception $e) {
+                    $query->where('sponsorships.updated_at', '>', $lastSync);
+                }
             }
 
             // إجمالي السجلات
@@ -4091,6 +3844,7 @@ class SponsorshipSyncController extends Controller
             // جلب البيانات
             $sponsorships = $query
                 ->orderBy('sponsorships.updated_at', 'desc')
+                ->orderBy('sponsorships.id', 'desc') // إضافة فرز ثانوي لضمان استقرار الصفحات
                 ->offset(($page - 1) * $perPage)
                 ->limit($perPage)
                 ->get();
@@ -4202,368 +3956,62 @@ class SponsorshipSyncController extends Controller
      */
     public function uploadFile(Request $request): JsonResponse
     {
-        // ✅ دعم كلا النوعين: multipart OR base64
-        $isMultipart = $request->hasFile('files');
-
-        if ($isMultipart) {
-            // ══════════════════════════════════════════════════════════
-            // FileSyncWorker.java - multipart upload (NO BASE64!)
-            // ══════════════════════════════════════════════════════════
-            $request->validate([
-                'files.*' => 'required|file|max:512000', // 500MB max
-                'record_number' => 'required|integer',
-                'person_id' => 'nullable|integer',
-            ]);
-
-            $file = $request->file('files')[0]; // أول ملف
-            $sponsorshipId = $request->input('record_number');
-            $fileName = $file->getClientOriginalName();
-            $fileType = $file->getMimeType();
-            $fileData = file_get_contents($file->getRealPath());
-
-            Log::info('📤 Multipart upload from FileSyncWorker', [
-                'file_name' => $fileName,
-                'file_size' => strlen($fileData),
-                'mime_type' => $fileType,
-                'sponsorship_id' => $sponsorshipId
-            ]);
-        } else {
-            // ══════════════════════════════════════════════════════════
-            // JavaScript - base64 upload (legacy support)
-            // ══════════════════════════════════════════════════════════
-            $request->validate([
-                'file_name' => 'required|string',
-                'file_type' => 'required|string',
-                'file_data' => 'required|string',
-                'sponsorship_id' => 'required|integer',
-                'person_name' => 'nullable|string',
-                'association_name' => 'nullable|string'
-            ]);
-
-            $sponsorshipId = $request->sponsorship_id;
-            $fileName = $request->file_name;
-            $fileType = $request->file_type;
-            $fileData = base64_decode($request->file_data);
-
-            Log::info('📤 Base64 upload from JavaScript', [
-                'file_name' => $fileName,
-                'file_size' => strlen($fileData),
-                'sponsorship_id' => $sponsorshipId
-            ]);
-        }
-
         try {
-            // ✅ Log incoming request for debugging
-            Log::info('📥 uploadFile() - Request received', [
-                'is_multipart' => $isMultipart,
-                'record_number' => $request->input('record_number'),
-                'person_id' => $request->input('person_id'),
-                'sponsorship_id_from_request' => $request->sponsorship_id ?? 'N/A',
-                'extracted_sponsorship_id' => $sponsorshipId ?? 'N/A',
-                'file_name' => $fileName ?? 'N/A',
-            ]);
-
-            // ✅ FIX: Use $sponsorshipId variable (extracted above) instead of $request->sponsorship_id
-            // جلب بيانات الكفالة للحصول على اسم الجمعية واسم المكفول
-            $sponsorship = DB::table('sponsorships')
-                ->leftJoin('sponsors', 'sponsorships.sponsor_id', '=', 'sponsors.id')
-                ->where('sponsorships.id', $sponsorshipId) // ✅ FIXED: was $request->sponsorship_id
-                ->select([
-                    'sponsorships.identity_number',
-                    'sponsorships.orphan_name',
-                    'sponsors.sponsor_name'
-                ])
-                ->first();
-
-            Log::info('🔍 Database query for sponsorship', [
-                'query_sponsorship_id' => $sponsorshipId,
-                'found' => $sponsorship !== null,
-                'orphan_name' => $sponsorship->orphan_name ?? 'N/A',
-                'sponsor_name' => $sponsorship->sponsor_name ?? 'N/A',
-            ]);
-
-            if (!$sponsorship) {
-                Log::error('❌ Sponsorship not found in database', [
-                    'sponsorship_id' => $sponsorshipId,
-                    'is_multipart' => $isMultipart,
-                ]);
+            // Check if files or file was provided. Note: files[] in form data becomes 'files' array in PHP
+            if (!$request->hasFile('files') && !$request->hasFile('file')) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'الكفالة غير موجودة'
-                ], 404);
+                    'message' => 'لم يتم إرسال ملف'
+                ], 400);
             }
 
-            // ✨ استخدام الاسم المُرسل من الجوال (إذا كان موجوداً) بدلاً من الموجود في قاعدة البيانات
-            // هذا يحل مشكلة المجلدات القديمة عند تغيير اسم المكفول
-            $organizationName = $request->association_name ?: $sponsorship->sponsor_name ?: 'غير محدد';
-            $orphanName = $request->person_name ?: $sponsorship->orphan_name ?: $sponsorship->identity_number ?: 'غير محدد';
+            // Extract the first file from array if it's 'files', else get 'file'
+            $file = $request->hasFile('files') 
+                ? (is_array($request->file('files')) ? $request->file('files')[0] : $request->file('files'))
+                : $request->file('file');
+                
+            $recordNumber = $request->input('record_number');
+            $personId = $request->input('person_id');
 
-            // تسجيل لمعرفة الاسم المستخدم
-            Log::info('📂 Folder names for upload', [
-                'sponsorship_id' => $sponsorshipId,
-                'association_from_request' => $request->association_name,
-                'association_from_db' => $sponsorship->sponsor_name,
-                'association_used' => $organizationName,
-                'person_from_request' => $request->person_name,
-                'person_from_db' => $sponsorship->orphan_name,
-                'person_used' => $orphanName
-            ]);
-
-            // حفظ الملف محلياً أولاً
-            $localPath = storage_path('app/mobile_uploads/' . $this->sanitizeFolderName($organizationName) . '/' . $this->sanitizeFolderName($orphanName));
-
-            Log::info('💾 Saving file locally', [
-                'local_path' => $localPath,
-                'file_name' => $fileName,
-                'file_size_bytes' => strlen($fileData),
-                'file_size_mb' => round(strlen($fileData) / 1024 / 1024, 2),
-            ]);
-
-            if (!file_exists($localPath)) {
-                mkdir($localPath, 0755, true);
-                Log::info('✅ Created directory: ' . $localPath);
+            if (!$file || !$file->isValid()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'الملف تالف أو غير صالح'
+                ], 400);
             }
 
-            $fullPath = $localPath . '/' . $fileName;
-            file_put_contents($fullPath, $fileData);
+            $fileName = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '', $file->getClientOriginalName());
+            $filePath = $file->storeAs('uploads/' . date('Y/m'), $fileName, 'public');
 
-            Log::info('✅ File saved locally', [
-                'full_path' => $fullPath,
-                'file_exists' => file_exists($fullPath),
-                'actual_file_size' => file_exists($fullPath) ? filesize($fullPath) : 'N/A',
+            $attachment = \App\Models\Attachment::create([
+                'person_identity_number' => $personId ?? $recordNumber,
+                'stored_file_name' => $fileName,
+                'file_path' => $filePath,
+                'file_type' => $file->getMimeType()
             ]);
 
-            // حساب hash للملف
-            $fileHash = hash_file('sha256', $fullPath);
-            $fileSize = strlen($fileData);
+            // Dispatch Google Drive Upload Job
+            $sponsorship = \App\Models\Sponsorship::find($personId);
+            $sponsorName = $sponsorship ? $sponsorship->sponsor_name : 'Unknown_Sponsor';
+            $orphanName = $sponsorship ? $sponsorship->orphan_name : 'Unknown_Orphan';
 
-            Log::info('🔐 File hash calculated', [
-                'hash' => $fileHash,
-                'size' => $fileSize,
-            ]);
-
-            // المسار في Google Drive
-            $googleDrivePath = "temp/{$this->sanitizeFolderName($organizationName)}/{$this->sanitizeFolderName($orphanName)}/{$fileName}";
-
-            Log::info('☁️ Preparing Google Drive upload', [
-                'google_drive_path' => $googleDrivePath,
-                'entity_type' => 'sponsorship',
-                'entity_id' => $sponsorshipId,
-                'attachment_type' => str_contains($fileType, 'video') ? 'video' : 'photo',
-            ]);
-
-            // تسجيل في قاعدة البيانات مع التحقق من وجود سجل مكرر (unique_file_per_entity)
-            $existingUpload = DB::table('google_drive_uploads')
-                ->where('local_file_hash', $fileHash)
-                ->where('entity_type', 'sponsorship')
-                ->where('entity_id', (string)$sponsorshipId)
-                ->first();
-
-            if ($existingUpload) {
-                // تحديث السجل الموجود بدلاً من إدراج سجل مكرر
-                $uploadId = $existingUpload->id;
-                DB::table('google_drive_uploads')
-                    ->where('id', $uploadId)
-                    ->update([
-                        'local_file_path' => $fullPath,
-                        'file_name' => $fileName,
-                        'file_size_bytes' => $fileSize,
-                        'mime_type' => $fileType,
-                        'google_drive_path' => $googleDrivePath,
-                        'upload_status' => $existingUpload->upload_status === 'completed' ? 'completed' : 'pending',
-                        'device_id' => $request->header('X-Device-ID', 'unknown'),
-                        'uploaded_by' => $request->user()->id ?? 0,
-                        'retry_count' => $existingUpload->retry_count + 1,
-                        'updated_at' => now()
-                    ]);
-
-                Log::info('♻️ Upload record already exists, updated instead of duplicate insert', [
-                    'upload_id' => $uploadId,
-                    'status' => $existingUpload->upload_status,
-                    'file_hash' => $fileHash,
-                ]);
-
-                // إذا كان الملف قد تم رفعه بالفعل، نعيد النتيجة مباشرة
-                if ($existingUpload->upload_status === 'completed') {
-                    return response()->json([
-                        'success' => true,
-                        'message' => 'الملف موجود ومرفوع مسبقاً',
-                        'upload_id' => $uploadId,
-                        'file_id' => $existingUpload->google_drive_file_id,
-                        'status' => 'already_uploaded'
-                    ]);
-                }
-            } else {
-                $uploadId = DB::table('google_drive_uploads')->insertGetId([
-                    'local_file_path' => $fullPath,
-                    'local_file_hash' => $fileHash,
-                    'file_name' => $fileName,
-                    'file_size_bytes' => $fileSize,
-                    'mime_type' => $fileType,
-                    'google_drive_path' => $googleDrivePath,
-                    'upload_status' => 'pending',
-                    'upload_progress' => 0,
-                    'entity_type' => 'sponsorship',
-                    'entity_id' => (string)$sponsorshipId,
-                    'attachment_type' => str_contains($fileType, 'video') ? 'video' : 'photo',
-                    'device_id' => $request->header('X-Device-ID', 'unknown'),
-                    'uploaded_by' => $request->user()->id ?? 0,
-                    'retry_count' => 0,
-                    'synced_to_server' => false,
-                    'created_at' => now(),
-                    'updated_at' => now()
-                ]);
-            }
-
-            Log::info('✅ Upload record ready in database', [
-                'upload_id' => $uploadId,
-                'status' => $existingUpload ? 'updated' : 'created',
-            ]);
-
-            // محاولة الرفع باستخدام Rclone (الطريقة الرئيسية على الخادم)
-            $useRclone = config('services.rclone.enabled', env('USE_RCLONE_FOR_UPLOADS', false));
-
-            if ($useRclone) {
-                try {
-                    $rcloneService = new \App\Services\RcloneGoogleDriveService();
-
-                    // التحقق من اتصال Rclone
-                    if ($rcloneService->testConnection()) {
-                        // رفع الملف عبر Rclone
-                        $result = $rcloneService->uploadFile(
-                            $fullPath,
-                            $organizationName,
-                            $orphanName,
-                            pathinfo($fileName, PATHINFO_FILENAME), // اسم الملف بدون الامتداد
-                            pathinfo($fileName, PATHINFO_EXTENSION) // الامتداد
-                        );
-
-                        if ($result['success']) {
-                            DB::table('google_drive_uploads')
-                                ->where('id', $uploadId)
-                                ->update([
-                                    'google_drive_file_id' => $result['remote_path'] ?? null,
-                                    'upload_status' => 'completed',
-                                    'upload_progress' => 100,
-                                    'synced_to_server' => true,
-                                    'updated_at' => now()
-                                ]);
-
-                            Log::info('File uploaded via Rclone', [
-                                'file' => $fileName,
-                                'path' => $result['remote_path']
-                            ]);
-
-                            return response()->json([
-                                'success' => true,
-                                'message' => 'تم رفع الملف بنجاح',
-                                'remote_path' => $result['remote_path'] ?? null,
-                                'upload_id' => $uploadId
-                            ]);
-                        }
-                    }
-                } catch (\Exception $rcloneError) {
-                    Log::warning('Rclone upload failed', [
-                        'error' => $rcloneError->getMessage(),
-                        'file' => $fileName
-                    ]);
-                }
-            }
-
-            // محاولة الرفع باستخدام Google Drive API (البيئة المحلية)
-            try {
-                if (class_exists(\App\Services\GoogleDriveService::class)) {
-                    $driveService = app(\App\Services\GoogleDriveService::class);
-
-                    $result = $driveService->uploadToPath($fullPath, "temp/{$organizationName}/{$orphanName}", $fileName);
-
-                    if ($result) {
-                        DB::table('google_drive_uploads')
-                            ->where('id', $uploadId)
-                            ->update([
-                                'google_drive_file_id' => $result['id'] ?? null,
-                                'upload_status' => 'completed',
-                                'upload_progress' => 100,
-                                'synced_to_server' => true,
-                                'updated_at' => now()
-                            ]);
-
-                        return response()->json([
-                            'success' => true,
-                            'message' => 'تم رفع الملف بنجاح',
-                            'file_id' => $result['id'] ?? null,
-                            'upload_id' => $uploadId
-                        ]);
-                    }
-                }
-            } catch (\Exception $driveError) {
-                Log::warning('Google Drive API upload failed, file saved locally', [
-                    'error' => $driveError->getMessage(),
-                    'file' => $fileName
-                ]);
-            }
-
-            // الملف محفوظ محلياً في انتظار الرفع
-            Log::info('📁 File saved locally, pending Google Drive upload', [
-                'upload_id' => $uploadId,
-                'local_path' => $fullPath,
-                'google_drive_path' => $googleDrivePath,
-            ]);
+            \App\Jobs\UploadToGoogleDriveJob::dispatch(
+                $attachment->id,
+                $filePath, // e.g. "uploads/2026/07/filename.jpg"
+                $fileName,
+                $sponsorName,
+                $orphanName
+            );
 
             return response()->json([
                 'success' => true,
-                'message' => 'تم حفظ الملف محلياً وفي انتظار الرفع إلى Google Drive',
-                'upload_id' => $uploadId,
-                'status' => 'pending'
+                'file_id' => $attachment->id,
+                'file_name' => $fileName,
+                'file_path' => $filePath
             ]);
-
-        } catch (\Illuminate\Database\QueryException $e) {
-            // خطأ 1062: Duplicate entry — السجل موجود مسبقاً بسبب unique_file_per_entity
-            // يجب وضع الحالة إلى 'skipped' لمنع الحلقة اللانهائية
-            if (isset($e->errorInfo[1]) && $e->errorInfo[1] === 1062) {
-                $affected = DB::table('google_drive_uploads')
-                    ->where('local_file_hash', $fileHash ?? '')
-                    ->where('entity_type', 'sponsorship')
-                    ->where('entity_id', (string)($sponsorshipId ?? ''))
-                    ->update([
-                        'upload_status' => 'skipped',
-                        'synced_to_server' => true,
-                        'error_message' => 'Duplicate entry (1062): سجل موجود مسبقاً — تم التخطي',
-                        'updated_at' => now(),
-                    ]);
-
-                Log::warning('⚠️ Google Drive upload skipped — duplicate entry (1062)', [
-                    'file_hash'      => $fileHash ?? 'N/A',
-                    'file_name'      => $fileName ?? 'N/A',
-                    'sponsorship_id' => $sponsorshipId ?? 'N/A',
-                    'rows_updated'   => $affected,
-                ]);
-
-                return response()->json([
-                    'success' => true,
-                    'message' => 'الملف موجود مسبقاً في قاعدة البيانات — تم التخطي',
-                    'status'  => 'skipped',
-                ]);
-            }
-
-            Log::error('❌ File upload failed - DB exception', [
-                'error'          => $e->getMessage(),
-                'trace'          => $e->getTraceAsString(),
-                'file_name'      => $fileName ?? 'N/A',
-                'sponsorship_id' => $sponsorshipId ?? 'N/A',
-            ]);
-            return response()->json([
-                'success' => false,
-                'message' => 'فشل رفع الملف: ' . $e->getMessage()
-            ], 500);
 
         } catch (\Exception $e) {
-            Log::error('❌ File upload failed - Exception caught', [
-                'error'          => $e->getMessage(),
-                'trace'          => $e->getTraceAsString(),
-                'file_name'      => $fileName ?? 'N/A',
-                'sponsorship_id' => $sponsorshipId ?? 'N/A',
-            ]);
+            Log::error('❌ [UPLOAD FILE] خطأ: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'فشل رفع الملف: ' . $e->getMessage()
@@ -5140,6 +4588,54 @@ class SponsorshipSyncController extends Controller
             Log::error('Device unregistration failed', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'message' => 'فشل إلغاء التسجيل'], 500);
         }
+    }
+    /**
+     * POST /api/mobile/sync/bulk-upload
+     * المزامنة الجماعية للتحديثات
+     */
+    public function bulkUpsert(Request $request): JsonResponse
+    {
+        $request->validate([
+            'changes' => 'required|array',
+            'changes.*.sponsorship_id' => 'required|integer',
+            'changes.*.updates' => 'required|array',
+        ]);
+        
+        $allUpdates = collect($request->changes)->map(function ($change) use ($request) {
+            return array_merge(
+                ['id' => $change['sponsorship_id']],
+                array_intersect_key($change['updates'], array_flip([
+                    'orphan_name', 'identity_number', 'guardian_name',
+                    'guardian_identity_number', 'notes', 'sponsorship_status_id'
+                ])),
+                [
+                    'updated_at' => now(),
+                    'updated_by' => json_encode([
+                        'user_id' => $request->user()->id,
+                        'timestamp' => now()->toISOString()
+                    ])
+                ]
+            );
+        })->toArray();
+        
+        $chunks = array_chunk($allUpdates, 5000);
+        $totalUpdated = 0;
+        
+        foreach ($chunks as $chunk) {
+            DB::table('sponsorships')->upsert(
+                $chunk,
+                ['id'], // Unique key
+                ['orphan_name', 'identity_number', 'guardian_name',
+                 'guardian_identity_number', 'notes', 'sponsorship_status_id',
+                 'updated_at', 'updated_by'] // Updatable columns
+            );
+            $totalUpdated += count($chunk);
+        }
+        
+        return response()->json([
+            'success' => true,
+            'updated' => $totalUpdated
+        ]);
     }
 }
 

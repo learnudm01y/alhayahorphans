@@ -103,27 +103,54 @@ class RcloneGoogleDriveService
             array_unshift($arguments, '--config', $this->configPath);
         }
 
-        $command = $this->rclonePath . ' ' . implode(' ', array_map('escapeshellarg', $arguments));
+        // prepend the executable to arguments
+        array_unshift($arguments, $this->rclonePath);
 
-        Log::info('RCLONE_COMMAND', ['command' => $command]);
+        // Build a readable command string for logging
+        $commandStr = implode(' ', array_map('escapeshellarg', $arguments));
+        Log::info('RCLONE_COMMAND', ['command' => $commandStr]);
 
-        // تنفيذ الأمر
-        $output = [];
-        $returnCode = 0;
-        exec($command . ' 2>&1', $output, $returnCode);
+        try {
+            // Using Laravel's Process facade with a strict 10-minute timeout
+            $result = Process::timeout(600)->run($arguments);
 
-        $outputStr = implode("\n", $output);
+            $outputStr = $result->output() . "\n" . $result->errorOutput();
+            $returnCode = $result->exitCode();
 
-        Log::info('RCLONE_RESULT', [
-            'return_code' => $returnCode,
-            'output' => $outputStr
-        ]);
+            Log::info('RCLONE_RESULT', [
+                'return_code' => $returnCode,
+                'output' => $outputStr
+            ]);
 
-        return [
-            'success' => $returnCode === 0,
-            'output' => $outputStr,
-            'return_code' => $returnCode
-        ];
+            return [
+                'success' => $result->successful(),
+                'output' => $outputStr,
+                'return_code' => $returnCode
+            ];
+            
+        } catch (\Illuminate\Process\Exceptions\ProcessTimedOutException $e) {
+            Log::error('RCLONE_TIMEOUT', [
+                'command' => $commandStr,
+                'message' => $e->getMessage()
+            ]);
+            
+            return [
+                'success' => false,
+                'output' => 'Process Timed Out after 600 seconds',
+                'return_code' => 124 // Standard timeout exit code
+            ];
+        } catch (\Exception $e) {
+            Log::error('RCLONE_EXECUTION_ERROR', [
+                'command' => $commandStr,
+                'message' => $e->getMessage()
+            ]);
+            
+            return [
+                'success' => false,
+                'output' => $e->getMessage(),
+                'return_code' => 1
+            ];
+        }
     }
 
     /**

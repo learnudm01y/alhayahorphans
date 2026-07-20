@@ -140,13 +140,7 @@ public class SponsorshipFolderManager extends Plugin {
                 Log.e(TAG, "✅ Reset failed uploads for re-upload");
                 
                 // تشغيل الخدمة لمحاولة الرفع
-                android.content.Intent serviceIntent = new android.content.Intent(
-                    context, UploadForegroundService.class);
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                    context.startForegroundService(serviceIntent);
-                } else {
-                    context.startService(serviceIntent);
-                }
+                SyncOrchestrator.scheduleUpload(context);
                 Log.e(TAG, "🚀 Upload service triggered");
             }
 
