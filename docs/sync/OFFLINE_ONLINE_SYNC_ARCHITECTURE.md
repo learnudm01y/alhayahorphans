@@ -2891,7 +2891,6 @@ Log::channel('sync')->info('Sync request', [
 ```json
 {
   "laravel/sanctum": "^3.0",
-  "laravel/telescope": "^4.0",
   "spatie/laravel-permission": "^5.0"
 }
 ```

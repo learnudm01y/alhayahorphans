@@ -69,9 +69,8 @@ public class RealtimeSyncService extends Service {
                     .build();
         }
 
-        // الاتصال بخادم الـ WebSocket المحلي مباشرة
-        // 10.0.2.2 هو الـ Localhost الخاص بمحاكي الأندرويد
-        String wsUrl = "ws://10.0.2.2:6001";
+        // الاتصال بخادم الـ WebSocket في الـ Production
+        String wsUrl = "ws://alhayahorphans.org:6001";
 
         Log.d(TAG, "🔌 Connecting to Custom WebSocket: " + wsUrl);
 
@@ -88,6 +87,16 @@ public class RealtimeSyncService extends Service {
                 // 🆕 إرسال إشعار للـ JS بسحب التحديثات التي ربما ضاعت أثناء فترة الانقطاع
                 Intent intent = new Intent("com.aso.app.WEBSOCKET_RECONNECTED");
                 sendBroadcast(intent);
+                
+                // ✨ NEW: Schedule DriveStatusWorker to fetch missed offline updates
+                try {
+                    androidx.work.OneTimeWorkRequest driveStatusWorkRequest = new androidx.work.OneTimeWorkRequest.Builder(DriveStatusWorker.class).build();
+                    androidx.work.WorkManager.getInstance(getApplicationContext()).enqueueUniqueWork(
+                        "DriveStatusProcessor",
+                        androidx.work.ExistingWorkPolicy.REPLACE,
+                        driveStatusWorkRequest
+                    );
+                } catch(Exception ignored){}
             }
 
             @Override

@@ -16,7 +16,6 @@
         "laravel/framework": "^10.10",
         "laravel/sanctum": "^3.3",
         "laravel/scout": "^10.17",
-        "laravel/telescope": "^5.14",
         "laravel/tinker": "^2.8",
         "laravelcollective/html": "6.4",
         "maatwebsite/excel": "*",

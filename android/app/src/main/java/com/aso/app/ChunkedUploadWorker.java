@@ -97,6 +97,56 @@ public class ChunkedUploadWorker extends Worker {
             int processed = 0;
             int success = 0;
 
+            // ✨ NEW: Fetch offline inbox BEFORE processing to avoid re-uploading files that actually finished
+            try {
+                okhttp3.OkHttpClient client = new okhttp3.OkHttpClient.Builder()
+                    .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                    .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                    .build();
+                org.json.JSONArray ackIds = new org.json.JSONArray();
+                okhttp3.Request request = new okhttp3.Request.Builder()
+                        .url(baseUrl + "/api/uploads/offline-inbox")
+                        .header("Authorization", "Bearer " + token)
+                        .header("Accept", "application/json")
+                        .get()
+                        .build();
+                try (okhttp3.Response response = client.newCall(request).execute()) {
+                    if (response.isSuccessful() && response.body() != null) {
+                        org.json.JSONObject jsonResponse = new org.json.JSONObject(response.body().string());
+                        if (jsonResponse.optBoolean("success", false)) {
+                            org.json.JSONArray dataArray = jsonResponse.optJSONArray("data");
+                            if (dataArray != null && dataArray.length() > 0) {
+                                for (int i = 0; i < dataArray.length(); i++) {
+                                    org.json.JSONObject fileObj = dataArray.getJSONObject(i);
+                                    int id = fileObj.optInt("id");
+                                    String fName = fileObj.optString("file_name");
+                                    String status = fileObj.optString("status");
+                                    UploadDatabaseHelper.UploadItem item = dbHelper.getFileByName(fName);
+                                    if (item != null && "completed".equals(status)) {
+                                        dbHelper.updateFileStatus(item.id, UploadDatabaseHelper.STATUS_COMPLETED, null);
+                                    }
+                                    ackIds.put(id);
+                                }
+                            }
+                        }
+                    }
+                }
+                if (ackIds.length() > 0) {
+                    org.json.JSONObject ackObj = new org.json.JSONObject();
+                    ackObj.put("ids", ackIds);
+                    okhttp3.RequestBody ackBody = okhttp3.RequestBody.create(ackObj.toString(), okhttp3.MediaType.parse("application/json; charset=utf-8"));
+                    okhttp3.Request ackRequest = new okhttp3.Request.Builder()
+                            .url(baseUrl + "/api/uploads/offline-inbox/ack")
+                            .header("Authorization", "Bearer " + token)
+                            .header("Accept", "application/json")
+                            .post(ackBody)
+                            .build();
+                    client.newCall(ackRequest).execute().close();
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to check offline inbox in ChunkedUploadWorker", e);
+            }
+
             while (true) {
                 UploadDatabaseHelper.UploadItem nextFile = dbHelper.getNextPendingFile();
 

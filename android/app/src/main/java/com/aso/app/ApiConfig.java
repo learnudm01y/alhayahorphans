@@ -4,7 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 public class ApiConfig {
-    public static final String BASE_URL = "http://10.0.2.2:8000";
+    public static final String BASE_URL = "https://alhayahorphans.org";
     public static final String UPLOAD_FILE_URL = BASE_URL + "/api/mobile/upload-file";
     public static final String LOGIN_URL = BASE_URL + "/api/mobile/login";
     public static final String SPONSORSHIPS_URL = BASE_URL + "/api/mobile/sponsorships";

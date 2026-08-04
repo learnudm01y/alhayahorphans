@@ -81,8 +81,15 @@ public class UploadTaskScheduler {
             int pendingCount = dbHelper.getPendingFilesCount();
             Log.d(TAG, "📊 عدد الملفات المعلقة في DB: " + pendingCount);
 
+            OneTimeWorkRequest driveStatusWorkRequest = new OneTimeWorkRequest.Builder(DriveStatusWorker.class).build();
+
             if (pendingCount == 0) {
                 Log.d(TAG, "لا توجد ملفات معلقة للرفع");
+                getWorkManager().enqueueUniqueWork(
+                    "DriveStatusProcessor",
+                    ExistingWorkPolicy.REPLACE,
+                    driveStatusWorkRequest
+                );
                 return;
             }
 
@@ -101,20 +108,11 @@ public class UploadTaskScheduler {
                 .addTag("immediate_upload_" + System.currentTimeMillis())
                 .build();
 
-            // جدولة المهمة - APPEND_OR_REPLACE لضمان البدء الفوري دون مقاطعة العمل الحالي
-            getWorkManager().enqueueUniqueWork(
-                UNIQUE_WORK_NAME, // اسم فريد لكل مهمة
-                ExistingWorkPolicy.KEEP,
-                uploadWorkRequest
-            );
-
-            // جدولة DriveStatusWorker لفحص حالة الملفات
-            OneTimeWorkRequest driveStatusWorkRequest = new OneTimeWorkRequest.Builder(DriveStatusWorker.class).build();
-            getWorkManager().enqueueUniqueWork(
-                "DriveStatusProcessor",
-                ExistingWorkPolicy.KEEP,
-                driveStatusWorkRequest
-            );
+            // جدولة المهمة بتسلسل: أولاً تحديث الحالات من السيرفر ثم بدء الرفع
+            getWorkManager()
+                .beginUniqueWork(UNIQUE_WORK_NAME, ExistingWorkPolicy.REPLACE, driveStatusWorkRequest)
+                .then(uploadWorkRequest)
+                .enqueue();
 
             Log.d(TAG, "✅✅✅ تمت جدولة المهمة - WorkManager سيبدأ فوراً! ✅✅✅");
             Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -166,12 +164,14 @@ public class UploadTaskScheduler {
                 .addTag("upload_task_immediate")
                 .build();
 
+            OneTimeWorkRequest driveStatusWorkRequest = new OneTimeWorkRequest.Builder(DriveStatusWorker.class).build();
+
             // استخدام REPLACE لضمان بدء المهمة فوراً دون تعليق بسبب مهمة سابقة
-            getWorkManager().enqueueUniqueWork(
-                UNIQUE_WORK_NAME + "_immediate",
-                ExistingWorkPolicy.REPLACE,
-                uploadWorkRequest
-            );
+            // مع إضافة سلسلة لضمان فحص حالة الملفات أولا
+            getWorkManager()
+                .beginUniqueWork(UNIQUE_WORK_NAME + "_immediate", ExistingWorkPolicy.REPLACE, driveStatusWorkRequest)
+                .then(uploadWorkRequest)
+                .enqueue();
 
             Log.d(TAG, "✅ تم إسناد مهمة الرفع الفوري إلى WorkManager بنجاح");
 
