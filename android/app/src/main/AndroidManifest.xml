@@ -110,6 +110,23 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <!-- ⚠️ كان UploadBootReceiver موجوداً في الشيفرة لكنه غير مُعلن هنا إطلاقاً،
+             أي أن استرجاع الملفات العالقة بعد إعادة التشغيل لم يكن يعمل أبداً. -->
+        <receiver
+            android:name="com.aso.app.UploadBootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name="com.aso.app.UploadAlarmReceiver"
+            android:enabled="true"
+            android:exported="false" />
     </application>
 
     <uses-permission android:name="android.permission.INTERNET" />

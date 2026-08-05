@@ -234,9 +234,29 @@ class GoogleDriveUpload extends Model
             'unsynced' => $stats->unsynced ?? 0,
             'total_size' => $stats->total_size ?? 0,
             'uploaded_size' => $stats->uploaded_size ?? 0,
-            'total_size_formatted' => $this->formatBytes($stats->total_size ?? 0),
-            'uploaded_size_formatted' => $this->formatBytes($stats->uploaded_size ?? 0)
+            // ⚠️ كان هنا $this->formatBytes(...) داخل دالة static — وهو خطأ قاتل
+            // (Using $this when not in object context) يُفجّر أول استدعاء
+            // لـ getStatistics() ويُرجع 500 بدل الإحصائيات.
+            'total_size_formatted' => static::humanBytes($stats->total_size ?? 0),
+            'uploaded_size_formatted' => static::humanBytes($stats->uploaded_size ?? 0)
         ];
+    }
+
+    /**
+     * تنسيق الحجم — نسخة static صالحة للاستدعاء من السياقين.
+     */
+    public static function humanBytes($bytes, int $precision = 2): string
+    {
+        $bytes = (float) $bytes;
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+
+        $i = 0;
+        while ($bytes > 1024 && $i < count($units) - 1) {
+            $bytes /= 1024;
+            $i++;
+        }
+
+        return round($bytes, $precision) . ' ' . $units[$i];
     }
 
     /**
@@ -282,20 +302,18 @@ class GoogleDriveUpload extends Model
      */
     public function getFormattedFileSizeAttribute(): string
     {
-        return $this->formatBytes($this->file_size_bytes);
+        return static::humanBytes($this->file_size_bytes);
     }
 
     /**
      * Format bytes to human-readable size
+     *
+     * ملاحظة: النسخة السابقة كانت تعتمد على $i المتسرّب من حلقة for، وهو سلوك
+     * هشّ يعطي 'B' عند مدخل صفر ويُطلق تحذيراً في PHP 8. الآن تفوّض للنسخة
+     * الـ static أعلاه.
      */
-    protected function formatBytes(int $bytes, int $precision = 2): string
+    protected function formatBytes($bytes, int $precision = 2): string
     {
-        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
-
-        for ($i = 0; $bytes > 1024 && $i < count($units) - 1; $i++) {
-            $bytes /= 1024;
-        }
-
-        return round($bytes, $precision) . ' ' . $units[$i];
+        return static::humanBytes($bytes, $precision);
     }
 }

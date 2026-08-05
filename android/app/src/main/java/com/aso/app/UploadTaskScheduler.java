@@ -108,9 +108,13 @@ public class UploadTaskScheduler {
                 .addTag("immediate_upload_" + System.currentTimeMillis())
                 .build();
 
-            // جدولة المهمة بتسلسل: أولاً تحديث الحالات من السيرفر ثم بدء الرفع
+            // ⚠️ KEEP وليس REPLACE.
+            // REPLACE كان يُلغي سلسلة رفع جارية في كل مرة تُستدعى فيها الجدولة —
+            // وهي تُستدعى عند كل تغيّر في الشبكة. النتيجة: فيديو كبير يُقتل في
+            // منتصفه كلما تذبذبت الوصلة، فلا يكتمل أبداً على شبكة ضعيفة.
+            // KEEP يعني: إن كان هناك رفع جارٍ فاتركه يُكمل.
             getWorkManager()
-                .beginUniqueWork(UNIQUE_WORK_NAME, ExistingWorkPolicy.REPLACE, driveStatusWorkRequest)
+                .beginUniqueWork(UNIQUE_WORK_NAME, ExistingWorkPolicy.KEEP, driveStatusWorkRequest)
                 .then(uploadWorkRequest)
                 .enqueue();
 
@@ -146,8 +150,12 @@ public class UploadTaskScheduler {
             Log.d(TAG, "📦 عدد الملفات: " + pendingCount);
             Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
-            // إعادة تعيين الملفات قيد الرفع لتكون معلقة ليتم التقاطها
-            dbHelper.resetUploadingFiles();
+            // ⚠️ إعادة تعيين زمنية فقط، لا شاملة.
+            // resetUploadingFiles() كانت تُعيد كل صف 'uploading' إلى 'pending'
+            // بلا شرط، فتنتزع الصف من تحت عامل يرفعه فعلاً الآن — فينتهي الأمر
+            // برفع نفس الملف مرتين في آنٍ واحد. الآن نُحرّر ما توقّف فقط.
+            dbHelper.reclaimStaleUploads();
+            dbHelper.reclaimStaleProcessing();
 
             Constraints constraints = new Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
@@ -166,10 +174,9 @@ public class UploadTaskScheduler {
 
             OneTimeWorkRequest driveStatusWorkRequest = new OneTimeWorkRequest.Builder(DriveStatusWorker.class).build();
 
-            // استخدام REPLACE لضمان بدء المهمة فوراً دون تعليق بسبب مهمة سابقة
-            // مع إضافة سلسلة لضمان فحص حالة الملفات أولا
+            // KEEP: لا نقتل رفعاً فورياً جارياً بآخر جديد.
             getWorkManager()
-                .beginUniqueWork(UNIQUE_WORK_NAME + "_immediate", ExistingWorkPolicy.REPLACE, driveStatusWorkRequest)
+                .beginUniqueWork(UNIQUE_WORK_NAME + "_immediate", ExistingWorkPolicy.KEEP, driveStatusWorkRequest)
                 .then(uploadWorkRequest)
                 .enqueue();
 
@@ -177,6 +184,42 @@ public class UploadTaskScheduler {
 
         } catch (Exception e) {
             Log.e(TAG, "خطأ في startImmediateUpload: " + e.getMessage(), e);
+        }
+    }
+
+    /** اسم المهمة الدورية التي تُبقي الطابور حياً. */
+    private static final String PERIODIC_SWEEP_NAME = "upload_queue_sweep";
+
+    /**
+     * مهمة دورية تُعيد تشغيل الطابور وتُحرّر الملفات العالقة.
+     *
+     * لماذا هي ضرورية: كل مسارات الجدولة الأخرى تعتمد على حدث (فتح التطبيق،
+     * عودة الشبكة، التقاط صورة). إن مات عامل الرفع في منتصف فيديو ولم يقع أي
+     * حدث بعدها، يبقى الملف في 'uploading' إلى ما لا نهاية بلا أي شيء يوقظه.
+     * هذه المهمة هي شبكة الأمان الأخيرة: كل ١٥ دقيقة تُحرّر العالق وتُعيد الرفع.
+     */
+    public void schedulePeriodicUploadSweep() {
+        try {
+            Constraints constraints = new Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build();
+
+            PeriodicWorkRequest sweep = new PeriodicWorkRequest.Builder(
+                    ChunkedUploadWorker.class, 15, TimeUnit.MINUTES)
+                .setConstraints(constraints)
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+                .addTag("upload_sweep")
+                .build();
+
+            getWorkManager().enqueueUniquePeriodicWork(
+                PERIODIC_SWEEP_NAME,
+                ExistingPeriodicWorkPolicy.KEEP,
+                sweep
+            );
+
+            Log.d(TAG, "✅ جُدولت المهمة الدورية لإنعاش طابور الرفع (كل ١٥ دقيقة)");
+        } catch (Exception e) {
+            Log.e(TAG, "تعذّرت جدولة المهمة الدورية: " + e.getMessage(), e);
         }
     }
 

@@ -32,14 +32,18 @@ public class AutoUploadApplication extends Application {
 
         UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(this);
 
+        // ⚠️ كان هنا شرط زمني معطوب: "last_shutdown" يُكتب عند كل إقلاع، لا عند
+        // الإغلاق، فالمفتاح يحمل زمن آخر تشغيل. النتيجة أن التحرير كان يُعطَّل
+        // تحديداً على الأجهزة النشِطة التي تفتح التطبيق كثيراً — وهي أكثر
+        // الأجهزة عرضةً لتعليق الملفات. أُزيل الشرط: التحرير الآن زمني بحت
+        // داخل reclaimStaleUploads (لا يمسّ إلا ما توقّف فعلاً).
         SharedPreferences prefs = getSharedPreferences("upload_state", MODE_PRIVATE);
-        long lastShutdownTime = prefs.getLong("last_shutdown", 0);
-        long now = System.currentTimeMillis();
+        prefs.edit().putLong("last_start", System.currentTimeMillis()).apply();
 
-        if ((now - lastShutdownTime) > 5 * 60 * 1000 || lastShutdownTime == 0) {
-            dbHelper.resetUploadingFiles();
+        int reclaimed = dbHelper.reclaimStaleUploads() + dbHelper.reclaimStaleProcessing();
+        if (reclaimed > 0) {
+            Log.w(TAG, "♻️ أُعيد " + reclaimed + " ملف عالق إلى طابور الرفع عند الإقلاع");
         }
-        prefs.edit().putLong("last_shutdown", now).apply();
 
         int filesCount = dbHelper.getPendingFilesCount();
         if (filesCount > 0) {
@@ -47,6 +51,9 @@ public class AutoUploadApplication extends Application {
         }
 
         com.aso.app.UploadTaskScheduler.getInstance(getApplicationContext()).scheduleUploadTask();
+
+        // شبكة الأمان الأخيرة: مهمة دورية تُنعش الطابور حتى لو لم يقع أي حدث.
+        com.aso.app.UploadTaskScheduler.getInstance(getApplicationContext()).schedulePeriodicUploadSweep();
 
         DataSyncDatabaseHelper dataSyncDbHelper = DataSyncDatabaseHelper.getInstance(this);
 

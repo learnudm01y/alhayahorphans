@@ -329,6 +329,145 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
         return item;
     }
 
+    // ═══════════════════════════════════════════════════════════════════
+    // 🔒 حجز ذرّي + مُحرِّر الأقفال العالقة
+    //
+    // المشكلة التي تعالجها هذه الكتلة (السبب الجذري الأول لتعليق الملفات):
+    //  - getNextPendingFile() ثم updateFileStatus() عمليتان منفصلتان، فيمكن
+    //    لعاملين متزامنين (وهناك ٥ نقاط دخول تشغّل ChunkedUploadWorker) أن
+    //    يحجزا نفس الصف ويرفعا نفس الملف مرتين.
+    //  - إذا مات العامل وهو في حالة 'uploading' (قتل WorkManager عند ١٠ دقائق،
+    //    أو سقوط العملية) يبقى الصف 'uploading' إلى الأبد: getNextPendingFile
+    //    لا تراه لأنها تصفّي على 'pending' فقط، بينما getPendingFilesCount
+    //    تعدّه — فيظهر للمستخدم "ملف معلق" لا يتحرك أبداً.
+    // ═══════════════════════════════════════════════════════════════════
+
+    /** يُعتبر الصف عالقاً إذا لم يُلمس updated_at خلال هذه المدة. */
+    public static final long STALE_UPLOAD_TIMEOUT_MS = 10 * 60 * 1000L;      // ١٠ دقائق
+    /** مهلة انتظار المعالجة على الخادم قبل إعادة الملف للطابور. */
+    public static final long STALE_PROCESSING_TIMEOUT_MS = 45 * 60 * 1000L;  // ٤٥ دقيقة
+
+    /**
+     * يحجز أول ملف معلق ذرّياً: ينقله من pending إلى uploading داخل معاملة
+     * واحدة، فلا يمكن لعاملَين أن يحصلا على نفس الصف.
+     * يُرجع الصف المحجوز أو null إذا لم يبقَ شيء.
+     */
+    public UploadItem claimNextPendingFile() {
+        SQLiteDatabase db = this.getWritableDatabase();
+        UploadItem claimed = null;
+
+        db.beginTransaction();
+        try {
+            Cursor cursor = db.query(
+                TABLE_UPLOAD_QUEUE,
+                null,
+                COLUMN_STATUS + " = ?",
+                new String[]{STATUS_PENDING},
+                null,
+                null,
+                COLUMN_CREATED_AT + " ASC",
+                "1"
+            );
+
+            UploadItem candidate = null;
+            if (cursor.moveToFirst()) {
+                candidate = cursorToUploadItem(cursor);
+            }
+            cursor.close();
+
+            if (candidate != null) {
+                ContentValues values = new ContentValues();
+                values.put(COLUMN_STATUS, STATUS_UPLOADING);
+                values.put(COLUMN_UPDATED_AT, System.currentTimeMillis());
+
+                // شرط الحالة في WHERE هو ما يجعل الحجز ذرّياً: إن سبقنا عامل
+                // آخر إلى الصف فلن يتغيّر أي سطر ونعود بلا شيء.
+                int rows = db.update(
+                    TABLE_UPLOAD_QUEUE,
+                    values,
+                    COLUMN_ID + " = ? AND " + COLUMN_STATUS + " = ?",
+                    new String[]{String.valueOf(candidate.id), STATUS_PENDING}
+                );
+
+                if (rows == 1) {
+                    candidate.status = STATUS_UPLOADING;
+                    claimed = candidate;
+                }
+            }
+
+            db.setTransactionSuccessful();
+        } catch (Exception e) {
+            Log.e(TAG, "claimNextPendingFile failed", e);
+        } finally {
+            db.endTransaction();
+        }
+
+        return claimed;
+    }
+
+    /**
+     * نبضة حياة: تُحدِّث updated_at للصف الجاري رفعه حتى لا يعتبره المُحرِّر
+     * عالقاً أثناء رفع فيديو كبير يستغرق وقتاً طويلاً.
+     */
+    public void touchUpload(long id) {
+        try {
+            SQLiteDatabase db = this.getWritableDatabase();
+            ContentValues values = new ContentValues();
+            values.put(COLUMN_UPDATED_AT, System.currentTimeMillis());
+            db.update(TABLE_UPLOAD_QUEUE, values, COLUMN_ID + " = ?", new String[]{String.valueOf(id)});
+        } catch (Exception e) {
+            Log.w(TAG, "touchUpload failed for " + id, e);
+        }
+    }
+
+    /**
+     * يُعيد إلى الطابور كل صف عالق في 'uploading' لم تصله نبضة منذ مدة.
+     * هذه هي شبكة الأمان الوحيدة ضد موت العامل في منتصف الرفع.
+     *
+     * @return عدد الصفوف المُحرَّرة
+     */
+    public int reclaimStaleUploads() {
+        return reclaimStale(STATUS_UPLOADING, STALE_UPLOAD_TIMEOUT_MS, "استُؤنف بعد توقف الرفع");
+    }
+
+    /**
+     * يُعيد إلى الطابور الملفات التي بقيت 'processing_server' مدة طويلة.
+     * الخادم قد يموت أثناء رفع rclone دون أن يُخطر الجهاز إطلاقاً، فبدون هذا
+     * تبقى الملفات معلّقة للأبد بانتظار إشعار لن يأتي.
+     *
+     * @return عدد الصفوف المُحرَّرة
+     */
+    public int reclaimStaleProcessing() {
+        return reclaimStale(STATUS_PROCESSING_SERVER, STALE_PROCESSING_TIMEOUT_MS, "انتهت مهلة المعالجة على الخادم");
+    }
+
+    private int reclaimStale(String status, long timeoutMs, String reason) {
+        try {
+            SQLiteDatabase db = this.getWritableDatabase();
+            long cutoff = System.currentTimeMillis() - timeoutMs;
+
+            ContentValues values = new ContentValues();
+            values.put(COLUMN_STATUS, STATUS_PENDING);
+            values.put(COLUMN_UPDATED_AT, System.currentTimeMillis());
+            values.put(COLUMN_ERROR_MESSAGE, reason);
+
+            int rows = db.update(
+                TABLE_UPLOAD_QUEUE,
+                values,
+                COLUMN_STATUS + " = ? AND " + COLUMN_UPDATED_AT + " < ?",
+                new String[]{status, String.valueOf(cutoff)}
+            );
+
+            if (rows > 0) {
+                Log.w(TAG, "♻️ حُرِّر " + rows + " ملف عالق في '" + status + "' وأُعيد للطابور");
+            }
+            return rows;
+        } catch (Exception e) {
+            Log.e(TAG, "reclaimStale(" + status + ") failed", e);
+            return 0;
+        }
+    }
+
     /**
      * تحديث حالة الملف
      */

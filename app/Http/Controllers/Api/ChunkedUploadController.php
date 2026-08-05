@@ -13,21 +13,89 @@ use App\Models\GoogleDriveUpload;
 class ChunkedUploadController extends Controller
 {
     /**
+     * حارس ضد اسم رفع خبيث. X-Upload-Id يُدرج مباشرةً في مسار نظام ملفات،
+     * فبدون تعقيم يمكن الخروج من المجلد المقصود عبر ../
+     */
+    private function safeUploadId(?string $uploadId): ?string
+    {
+        if ($uploadId === null) {
+            return null;
+        }
+        $clean = preg_replace('/[^A-Za-z0-9_\-]/', '', $uploadId);
+        return ($clean === '' || strlen($clean) > 190) ? null : $clean;
+    }
+
+    /** مسار العلامة التي تُثبت أن هذه الرفعة جُمِّعت وسُلِّمت بالفعل. */
+    private function markerPath(string $uploadId): string
+    {
+        return storage_path("app/chunks/_done/{$uploadId}.json");
+    }
+
+    /**
+     * يقرأ علامة الاكتمال إن وُجدت.
+     *
+     * ⚠️ هذه العلامة هي إصلاح السبب الجذري الأول لتعليق الملفات الكبيرة:
+     * كان التجميع يحذف مجلد الأجزاء بالكامل، ثم يُرجع uploadStatus() قائمة
+     * أجزاء فارغة. فإذا انتهت مهلة العميل أثناء التجميع (وهو ما يحدث دائماً مع
+     * الفيديو الكبير) اعتقد العميل أن الجزء فشل، فسأل عن الحالة، فوجد "لم يصل
+     * شيء"، فأعاد رفع الفيديو كاملاً من البايت صفر — إلى ما لا نهاية.
+     */
+    private function readMarker(string $uploadId): ?array
+    {
+        $path = $this->markerPath($uploadId);
+        if (!is_file($path)) {
+            return null;
+        }
+        $raw = @file_get_contents($path);
+        if ($raw === false) {
+            return null;
+        }
+        $data = json_decode($raw, true);
+        return is_array($data) ? $data : null;
+    }
+
+    private function writeMarker(string $uploadId, array $payload): void
+    {
+        $dir = dirname($this->markerPath($uploadId));
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+        // كتابة ذرّية: ملف مؤقت ثم rename، حتى لا يقرأ أحد علامة نصف مكتوبة.
+        $tmp = $this->markerPath($uploadId) . '.tmp';
+        if (@file_put_contents($tmp, json_encode($payload)) !== false) {
+            @rename($tmp, $this->markerPath($uploadId));
+        }
+    }
+
+    /**
      * Handle incoming octet-stream chunk from the mobile app.
      * The app sends chunks directly without init/complete steps.
      */
     public function handleChunk(Request $request)
     {
+        $uploadId = $this->safeUploadId($request->header('X-Upload-Id'));
+
         try {
-            $uploadId = $request->header('X-Upload-Id');
             $chunkIndex = (int) $request->header('X-Chunk-Index');
             $totalChunks = (int) $request->header('X-Total-Chunks');
             $fileName = $request->header('X-File-Name');
             $fileType = $request->header('X-File-Type', 'application/octet-stream');
             $sponsorshipId = $request->header('X-Sponsorship-Id');
+            $declaredSize = (int) $request->header('X-Chunk-Size', 0);
 
             if (!$uploadId || $totalChunks <= 0 || !$fileName) {
-                return response()->json(['error' => 'Missing required headers'], 400);
+                return response()->json(['error' => 'Missing or invalid required headers'], 400);
+            }
+
+            // إن كانت هذه الرفعة قد اكتملت سابقاً فالطلب مكرّر (العميل لم يستلم
+            // ردّنا الأول بسبب انتهاء المهلة). نُعيد نفس النتيجة بدل إعادة
+            // التجميع — وهذا ما يجعل العملية آمنة التكرار (idempotent).
+            if ($marker = $this->readMarker($uploadId)) {
+                return response()->json($marker['response'] ?? [
+                    'success' => true,
+                    'message' => 'سبق تجميع هذه الرفعة',
+                    'sync_state' => 'processing',
+                ]);
             }
 
             // Create temporary directory for this upload
@@ -36,20 +104,42 @@ class ChunkedUploadController extends Controller
                 mkdir($chunkDir, 0755, true);
             }
 
-            // Save the raw chunk data
-            $chunkPath = "{$chunkDir}/chunk_{$chunkIndex}";
-            
             if ($request->hasFile('chunk')) {
                 $chunkData = file_get_contents($request->file('chunk')->getRealPath());
             } else {
                 $chunkData = file_get_contents('php://input');
             }
-            
+
             if ($chunkData === false) {
                 return response()->json(['error' => 'Failed to read chunk data'], 500);
             }
-            
-            file_put_contents($chunkPath, $chunkData);
+
+            // تحقّق من سلامة الجزء: العميل يُعلن حجمه في X-Chunk-Size.
+            // بدون هذا يُقبل جزء مبتور بصمت ويُخزَّن ويُبلَّغ عنه كناجح، ثم
+            // يُجمَّع ملف تالف ويُرفع إلى Drive.
+            if ($declaredSize > 0 && strlen($chunkData) !== $declaredSize) {
+                Log::warning('Chunk size mismatch', [
+                    'upload_id' => $uploadId,
+                    'chunk_index' => $chunkIndex,
+                    'declared' => $declaredSize,
+                    'actual' => strlen($chunkData),
+                ]);
+                // 408 = عابر؛ العميل سيعيد إرسال هذا الجزء وحده.
+                return response()->json([
+                    'error' => 'Chunk truncated in transit',
+                    'expected' => $declaredSize,
+                    'received' => strlen($chunkData),
+                ], 408);
+            }
+
+            // كتابة ذرّية للجزء: بدونها يترك طلب انقطع في منتصفه ملفَ جزء مبتور
+            // يبدو "مستلَماً" فيتخطّاه العميل عند الاستئناف.
+            $chunkPath = "{$chunkDir}/chunk_{$chunkIndex}";
+            $chunkTmp = $chunkPath . '.part';
+            if (file_put_contents($chunkTmp, $chunkData) === false) {
+                return response()->json(['error' => 'Failed to persist chunk'], 500);
+            }
+            rename($chunkTmp, $chunkPath);
 
             // Check if all chunks are received
             $receivedChunks = 0;
@@ -62,8 +152,27 @@ class ChunkedUploadController extends Controller
             $deviceId = $request->header('X-Device-Id', 'mobile_app');
 
             if ($receivedChunks === $totalChunks) {
-                // All chunks received, assemble the file
-                return $this->assembleAndUpload($uploadId, $totalChunks, $fileName, $fileType, $sponsorshipId, $deviceId);
+                // قفل: طلبان متزامنان للجزء الأخير كانا يُجمّعان نفس الرفعة معاً
+                // في نفس الملف المفتوح بوضع الإلحاق (ab) فيتضاعف المحتوى.
+                $lock = \Illuminate\Support\Facades\Cache::lock("chunk_assembly:{$uploadId}", 900);
+
+                if (!$lock->get()) {
+                    return response()->json([
+                        'success' => true,
+                        'message' => 'التجميع جارٍ بالفعل',
+                        'sync_state' => 'processing',
+                    ]);
+                }
+
+                try {
+                    // فحص ثانٍ بعد الحصول على القفل.
+                    if ($marker = $this->readMarker($uploadId)) {
+                        return response()->json($marker['response'] ?? ['success' => true, 'sync_state' => 'processing']);
+                    }
+                    return $this->assembleAndUpload($uploadId, $totalChunks, $fileName, $fileType, $sponsorshipId, $deviceId);
+                } finally {
+                    optional($lock)->release();
+                }
             }
 
             return response()->json([
@@ -75,7 +184,7 @@ class ChunkedUploadController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Chunk upload error: ' . $e->getMessage(), [
-                'upload_id' => $request->header('X-Upload-Id'),
+                'upload_id' => $uploadId,
                 'chunk_index' => $request->header('X-Chunk-Index')
             ]);
             return response()->json(['error' => 'Internal server error: ' . $e->getMessage()], 500);
@@ -95,33 +204,57 @@ class ChunkedUploadController extends Controller
                 mkdir($tempDir, 0755, true);
             }
 
-            $safeFileName = time() . '_' . preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', basename($fileName));
+            // ⚠️ الاسم مشتق من upload_id لا من time().
+            // time() يعطي اسماً مختلفاً في كل محاولة، فكل إعادة محاولة كانت
+            // تُخلّف ملفاً كاملاً مهجوراً على القرص (رُصد ١٧٨ ملفاً مسرّباً).
+            $safeFileName = $uploadId . '_' . preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', basename($fileName));
             $finalPath = "{$tempDir}/{$safeFileName}";
-            
-            $target = fopen($finalPath, 'ab');
+
+            // ⚠️ 'wb' لا 'ab'.
+            // الإلحاق كان يعني أن محاولة تجميع ثانية تُضيف المحتوى فوق الأول
+            // فينتج ملف مضاعف الحجم وتالف.
+            $target = fopen($finalPath, 'wb');
             if ($target === false) {
                 throw new \Exception("Could not open target file for writing");
             }
 
-            for ($i = 0; $i < $totalChunks; $i++) {
-                $chunkFile = "{$chunkDir}/chunk_{$i}";
-                if (!file_exists($chunkFile)) {
-                    fclose($target);
-                    throw new \Exception("Missing chunk {$i}");
-                }
-
-                $source = fopen($chunkFile, 'rb');
-                if ($source) {
-                    while (!feof($source)) {
-                        fwrite($target, fread($source, 8192));
+            try {
+                for ($i = 0; $i < $totalChunks; $i++) {
+                    $chunkFile = "{$chunkDir}/chunk_{$i}";
+                    if (!file_exists($chunkFile)) {
+                        throw new \Exception("Missing chunk {$i}");
                     }
-                    fclose($source);
-                    unlink($chunkFile);
+
+                    $source = fopen($chunkFile, 'rb');
+                    if ($source === false) {
+                        throw new \Exception("Could not read chunk {$i}");
+                    }
+
+                    // ⚠️ لا نحذف الأجزاء أثناء التجميع.
+                    // الحذف أثناء الدوران كان يعني أن أي انهيار في المنتصف يُتلف
+                    // نصف الأجزاء، فيصبح استئناف الرفعة مستحيلاً ويُجبَر العميل
+                    // على إعادة رفع الفيديو كاملاً. الأجزاء تُحذف بعد النجاح فقط.
+                    try {
+                        while (!feof($source)) {
+                            $buf = fread($source, 262144);
+                            if ($buf === false) {
+                                throw new \Exception("Read failure on chunk {$i}");
+                            }
+                            if ($buf !== '' && fwrite($target, $buf) === false) {
+                                throw new \Exception("Write failure while assembling chunk {$i}");
+                            }
+                        }
+                    } finally {
+                        fclose($source);
+                    }
                 }
+            } catch (\Throwable $t) {
+                fclose($target);
+                @unlink($finalPath);   // لا نترك ملفاً نصف مُجمَّع على القرص
+                throw $t;
             }
-            
+
             fclose($target);
-            rmdir($chunkDir);
 
             // Fetch sponsorship to determine the folder structure
             $sponsorship = DB::table('sponsorships')
@@ -243,53 +376,101 @@ class ChunkedUploadController extends Controller
                 $extension
             );
 
-            return response()->json([
+            $payload = [
                 'success' => true,
                 'message' => 'Upload assembled successfully and queued for background processing.',
                 'file_id' => 'queued',
                 'status' => 'processing',
                 'sync_state' => 'processing'
+            ];
+
+            // العلامة تُكتب قبل حذف الأجزاء: إن مات الطلب بين الاثنين نبقى في
+            // حالة "مكتمل + أجزاء زائدة"، وهي غير مؤذية ويُنظّفها الكانس الدوري.
+            // العكس (حذف ثم موت قبل العلامة) هو الذي كان يُنتج التعليق الأبدي.
+            $this->writeMarker($uploadId, [
+                'completed_at' => now()->toIso8601String(),
+                'total_chunks' => $totalChunks,
+                'file_name' => $fileName,
+                'response' => $payload,
             ]);
+
+            $this->purgeChunkDir($chunkDir);
+
+            return response()->json($payload);
 
         } catch (\Exception $e) {
             Log::error('Assembly and upload error: ' . $e->getMessage(), [
                 'upload_id' => $uploadId,
                 'sponsorship_id' => $sponsorshipId
             ]);
+            // الأجزاء ما تزال موجودة، فالمحاولة التالية ستستأنف لا تبدأ من الصفر.
             return response()->json(['error' => 'Assembly failed: ' . $e->getMessage()], 500);
         }
     }
 
+    /** حذف مجلد الأجزاء بأمان بعد نجاح التجميع. */
+    private function purgeChunkDir(string $chunkDir): void
+    {
+        if (!is_dir($chunkDir)) {
+            return;
+        }
+        // ⚠️ rmdir على مجلد غير فارغ يُطلق تحذير PHP يُحوّله Laravel إلى استثناء
+        // فيفشل الطلب بعد أن يكون الملف قد جُمِّع ورُفع فعلاً. نُفرّغه أولاً.
+        foreach ((array) glob($chunkDir . '/*') as $leftover) {
+            @unlink($leftover);
+        }
+        @rmdir($chunkDir);
+    }
+
     /**
      * Get the status of an upload (which chunks have been received)
+     *
+     * هذه نقطة الاستئناف. صحّتها هي الفارق بين "يُكمل من حيث توقف" و"يبدأ
+     * الفيديو من الصفر في كل مرة".
      */
     public function uploadStatus($uploadId)
     {
+        $uploadId = $this->safeUploadId($uploadId);
+        if (!$uploadId) {
+            return response()->json(['error' => 'Invalid upload id'], 400);
+        }
+
+        // ✅ الحالة الأهم: الرفعة اكتملت بالفعل.
+        // نُرجع كل الفهارس كمُستلَمة، فيتخطّى العميل — القديم والجديد — كل
+        // الأجزاء ويعتبر الملف مرفوعاً، بدل إعادة رفع الفيديو كاملاً.
+        if ($marker = $this->readMarker($uploadId)) {
+            $total = (int) ($marker['total_chunks'] ?? 0);
+            return response()->json([
+                'upload_id' => $uploadId,
+                'completed' => true,
+                'sync_state' => 'processing',
+                'total_chunks' => $total,
+                'received_chunks' => $total > 0 ? range(0, $total - 1) : [],
+            ]);
+        }
+
         $chunkDir = storage_path("app/chunks/{$uploadId}");
         $receivedChunks = [];
 
-        if (file_exists($chunkDir) && is_dir($chunkDir)) {
-            $files = scandir($chunkDir);
-            foreach ($files as $file) {
+        if (is_dir($chunkDir)) {
+            foreach ((array) scandir($chunkDir) as $file) {
                 if (preg_match('/^chunk_(\d+)$/', $file, $matches)) {
                     $receivedChunks[] = (int) $matches[1];
                 }
             }
-
-            // If we have chunks, remove the highest chunk index to force the mobile app
-            // to re-upload it. This ensures that the assembly logic (which triggers on the last chunk)
-            // will run again if a previous assembly attempt crashed or failed.
-            if (!empty($receivedChunks)) {
-                $maxChunk = max($receivedChunks);
-                $receivedChunks = array_values(array_filter($receivedChunks, function($c) use ($maxChunk) {
-                    return $c !== $maxChunk;
-                }));
-            }
+            sort($receivedChunks);
         }
+
+        // ⚠️ أُزيل "إسقاط أعلى فهرس".
+        // كان الكود يحذف أكبر رقم جزء عمداً لإجبار العميل على إعادة إرساله حتى
+        // يُعاد تشغيل منطق التجميع. صار ذلك ضاراً وغير لازم: التجميع الآن آمن
+        // التكرار عبر العلامة والقفل، بينما كان الإسقاط يُكلّف إعادة إرسال جزء
+        // كامل في كل استئناف — وعلى شبكة ضعيفة قد لا ينجح ذلك الجزء أبداً.
 
         return response()->json([
             'upload_id' => $uploadId,
-            'received_chunks' => $receivedChunks
+            'completed' => false,
+            'received_chunks' => array_values($receivedChunks)
         ]);
     }
 

@@ -821,7 +821,8 @@ Route::prefix('sync')->middleware(['auth:sanctum'])->group(function () {
 // ====================================================================
 Route::prefix('uploads')->middleware(['auth:sanctum'])->group(function () {
     // Chunk uploads (Mobile app)
-    Route::post('/chunk', [ChunkedUploadController::class, 'handleChunk']);
+    Route::post('/chunk', [ChunkedUploadController::class, 'handleChunk'])
+        ->middleware('large.upload');
 
     // Duplicate checking
     Route::post('/check-duplicate', [GoogleDriveUploadController::class, 'checkDuplicate']);
@@ -911,9 +912,14 @@ Route::prefix('mobile')->middleware(['auth:sanctum'])->group(function () {
     Route::post('/upload-file', [SponsorshipSyncController::class, 'uploadFile']);
 
     // File upload (Chunked V3)
-    Route::post('/upload-chunk', [ChunkedUploadController::class, 'handleChunk']);
+    // ⚠️ large.upload كان مُسجَّلاً في Kernel لكنه غير مُطبَّق على أي مسار أجزاء،
+    // فكان تجميع الفيديو الكامل يجري تحت حدود php.ini الافتراضية
+    // (max_execution_time / memory_limit) فيموت في المنتصف.
+    Route::post('/upload-chunk', [ChunkedUploadController::class, 'handleChunk'])
+        ->middleware('large.upload');
     Route::get('/upload-status/{upload_id}', [ChunkedUploadController::class, 'uploadStatus']);
-    Route::post('/retry-rclone-upload', [ChunkedUploadController::class, 'retryRcloneUpload']);
+    Route::post('/retry-rclone-upload', [ChunkedUploadController::class, 'retryRcloneUpload'])
+        ->middleware('large.upload');
 
     Route::post('/sync/bulk-upload', [SponsorshipSyncController::class, 'bulkUpsert']);
     

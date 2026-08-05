@@ -16,6 +16,17 @@ class UploadToGoogleDriveJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    /**
+     * ⚠️ لم تكن هذه المهمة تُعرّف $timeout ولا $tries إطلاقاً، فكانت ترث
+     * --timeout=300 من إعداد supervisor. لكنها تُشغّل rclone بمهلة ٦٠٠ ثانية
+     * داخلها (السطر ~٩٩)، أي أن العامل يقتل المهمة بعد ٥ دقائق بينما rclone
+     * ما يزال في منتصف رفع الفيديو — وبلا استثناء يُلتقط، فلا يُسجَّل أي فشل
+     * في أي مكان ولا يعلم الجهاز بشيء.
+     */
+    public $timeout = 900;   // أطول من مهلة rclone الداخلية (٦٠٠)
+    public $tries = 3;
+    public $backoff = [120, 600];
+
     public $attachmentId;
     public $localFilePath;
     public $fileName;

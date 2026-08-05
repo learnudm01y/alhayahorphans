@@ -34,11 +34,23 @@ return [
             'driver' => 'sync',
         ],
 
+        /*
+         * ⚠️ retry_after يجب أن يكون أكبر من أطول $timeout لأي مهمة على هذا
+         * الاتصال، وإلا أعاد الطابور توزيع المهمة بينما هي ما تزال تعمل.
+         *
+         * كان ٩٠ ثانية بينما ProcessRcloneUploadJob::$timeout = 3600،
+         * أي أن رفع فيديو كبير إلى Drive كان يُوزَّع من جديد كل دقيقة ونصف:
+         * عاملان (أو أكثر) يرفعان نفس الملف في آنٍ واحد، والفائز يحذف الملف
+         * المصدر من تحت الخاسر، وتُستهلك المحاولات الخمس خلال سبع دقائق ونصف
+         * — ثم يبقى الملف "قيد المعالجة" على الجهاز إلى الأبد.
+         *
+         * ٣٩٠٠ = ساعة (مهلة المهمة) + هامش أمان.
+         */
         'database' => [
             'driver' => 'database',
             'table' => 'jobs',
             'queue' => 'default',
-            'retry_after' => 90,
+            'retry_after' => 3900,
             'after_commit' => false,
         ],
 
@@ -46,7 +58,7 @@ return [
             'driver' => 'beanstalkd',
             'host' => 'localhost',
             'queue' => 'default',
-            'retry_after' => 90,
+            'retry_after' => 3900,
             'block_for' => 0,
             'after_commit' => false,
         ],
@@ -66,7 +78,7 @@ return [
             'driver' => 'redis',
             'connection' => 'default',
             'queue' => env('REDIS_QUEUE', 'default'),
-            'retry_after' => 90,
+            'retry_after' => 3900,
             'block_for' => null,
             'after_commit' => false,
         ],

@@ -17,24 +17,21 @@ class LargeFileUploadMiddleware
      */
     public function handle(Request $request, Closure $next)
     {
-        // تسجيل حالة الإعدادات قبل التحديث
-        Log::info('PHP settings before update', [
-            'upload_max_filesize' => ini_get('upload_max_filesize'),
-            'post_max_size' => ini_get('post_max_size'),
-            'memory_limit' => ini_get('memory_limit'),
-            'max_execution_time' => ini_get('max_execution_time')
-        ]);
+        // ⚠️ أُزيل التسجيل من هنا عمداً.
+        // صار هذا الـ middleware مُطبَّقاً على مسار رفع الأجزاء، وهو مسار ساخن:
+        // فيديو واحد من ٢٠٠ جزء كان سيكتب ٤٠٠ سطر في laravel.log. مع عدة أجهزة
+        // ترفع في آنٍ واحد يمتلئ القرص — وهو أسوأ من المشكلة التي نُصلحها.
+        // للتشخيص عند الحاجة: فعّل APP_DEBUG وسيظهر السطر أدناه فقط.
+        if (config('app.debug')) {
+            Log::debug('LargeFileUpload: applying relaxed PHP limits', [
+                'path' => $request->path(),
+                'post_max_size' => ini_get('post_max_size'),
+                'memory_limit' => ini_get('memory_limit'),
+            ]);
+        }
 
         // تعيين إعدادات PHP لدعم الملفات الكبيرة
         $this->setPhpSettings();
-
-        // تسجيل حالة الإعدادات بعد التحديث
-        Log::info('PHP settings after update', [
-            'upload_max_filesize' => ini_get('upload_max_filesize'),
-            'post_max_size' => ini_get('post_max_size'),
-            'memory_limit' => ini_get('memory_limit'),
-            'max_execution_time' => ini_get('max_execution_time')
-        ]);
 
         return $next($request);
     }

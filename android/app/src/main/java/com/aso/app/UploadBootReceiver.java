@@ -13,23 +13,32 @@ public class UploadBootReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (Intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())) {
-            Log.d(TAG, "📱 تم إعادة تشغيل الجهاز - إعادة جدولة مهام الرفع");
+        String action = intent != null ? intent.getAction() : null;
+        boolean isBoot = Intent.ACTION_BOOT_COMPLETED.equals(action);
+        boolean isUpdate = "android.intent.action.MY_PACKAGE_REPLACED".equals(action);
 
-            try {
-                // الحصول على مدير قاعدة البيانات
-                UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(context);
+        if (!isBoot && !isUpdate) return;
 
-                // إعادة تعيين الملفات التي كانت قيد الرفع
-                dbHelper.resetUploadingFiles();
+        Log.d(TAG, "📱 " + (isBoot ? "إعادة تشغيل الجهاز" : "تحديث التطبيق") + " - إنعاش مهام الرفع");
 
-                Log.d(TAG, "🚀 Calling UploadTaskScheduler.startImmediateUpload()...");
-                com.aso.app.UploadTaskScheduler.getInstance(context).startImmediateUpload();
-                Log.d(TAG, "✅ FileSyncWorker scheduled - سيبدأ بمعالجة الملفات المعلقة");
+        try {
+            UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(context);
 
-            } catch (Exception e) {
-                Log.e(TAG, "❌ خطأ في إعادة جدولة المهام: " + e.getMessage(), e);
-            }
+            // بعد إعادة التشغيل لا يمكن أن يكون هناك عامل جارٍ فعلاً، فالتحرير
+            // الشامل آمن هنا — على عكس استدعائه أثناء عمل التطبيق.
+            dbHelper.resetUploadingFiles();
+            dbHelper.reclaimStaleProcessing();
+
+            UploadTaskScheduler scheduler = UploadTaskScheduler.getInstance(context);
+            scheduler.startImmediateUpload();
+            // إعادة تثبيت المهمة الدورية: WorkManager يُبقيها عبر إعادة التشغيل
+            // عادةً، لكن KEEP تجعل الاستدعاء آمناً ومجانياً إن كانت موجودة.
+            scheduler.schedulePeriodicUploadSweep();
+
+            Log.d(TAG, "✅ أُعيدت جدولة الرفع بعد الإقلاع");
+
+        } catch (Exception e) {
+            Log.e(TAG, "❌ خطأ في إعادة جدولة المهام: " + e.getMessage(), e);
         }
     }
 }

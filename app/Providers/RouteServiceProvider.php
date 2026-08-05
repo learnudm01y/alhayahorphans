@@ -26,6 +26,15 @@ class RouteServiceProvider extends ServiceProvider
     public function boot(): void
     {
         RateLimiter::for('api', function (Request $request) {
+            // ⚠️ حدّ ٦٠ طلباً/دقيقة كان يجعل رفع أي ملف كبير مستحيلاً.
+            // الرفع المُجزَّأ يُرسل طلباً لكل جزء: فيديو ٢٠٠ ميجابايت بأجزاء
+            // ١ ميجابايت = ٢٠٠ طلب، أي أن الجهاز يُحظر بعد أول ٦٠ جزءاً ويتلقى
+            // صفحة 429 بصيغة HTML لا JSON، فيفسّرها العميل كفشل ويُعيد من الصفر.
+            // مسارات الأجزاء لها حدّ خاص واسع، والباقي يبقى على ٦٠.
+            if ($request->is('api/mobile/upload-chunk', 'api/uploads/chunk', 'api/mobile/upload-status/*')) {
+                return Limit::perMinute(1200)->by($request->user()?->id ?: $request->ip());
+            }
+
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
         });
 
