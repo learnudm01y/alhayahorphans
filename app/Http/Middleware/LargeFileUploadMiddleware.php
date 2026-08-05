@@ -21,14 +21,8 @@ class LargeFileUploadMiddleware
         // صار هذا الـ middleware مُطبَّقاً على مسار رفع الأجزاء، وهو مسار ساخن:
         // فيديو واحد من ٢٠٠ جزء كان سيكتب ٤٠٠ سطر في laravel.log. مع عدة أجهزة
         // ترفع في آنٍ واحد يمتلئ القرص — وهو أسوأ من المشكلة التي نُصلحها.
-        // للتشخيص عند الحاجة: فعّل APP_DEBUG وسيظهر السطر أدناه فقط.
-        if (config('app.debug')) {
-            Log::debug('LargeFileUpload: applying relaxed PHP limits', [
-                'path' => $request->path(),
-                'post_max_size' => ini_get('post_max_size'),
-                'memory_limit' => ini_get('memory_limit'),
-            ]);
-        }
+        // لا تسجيل هنا إطلاقاً — ولا حتى خلف شرط APP_DEBUG:
+        // الخادم الحالي يعمل بـ APP_DEBUG=true، فأي سطر هنا يعني سطراً لكل جزء.
 
         // تعيين إعدادات PHP لدعم الملفات الكبيرة
         $this->setPhpSettings();
