@@ -69,10 +69,17 @@ import okhttp3.Response;
 public class ChunkedUploadWorker extends Worker {
     private static final String TAG = "ChunkedUploadWorker";
 
-    /** حجم الجزء الافتراضي. يُخفَّض تلقائياً على الوصلات الضعيفة. */
+    /**
+     * حجم الجزء يتكيّف مع الوصلة:
+     *  • وصلة سريعة  → أجزاء كبيرة = عدد أقل من الرحلات = رفع أسرع بوضوح.
+     *  • وصلة ضعيفة  → أجزاء صغيرة = كل جزء ينجح بسرعة ويُثبَّت التقدّم،
+     *                   وفشل الجزء يكلّف إعادة إرسال قليلة لا ميجابايتات.
+     * حجم الجزء جزء من معرّف الرفع، فتغيّره بين الجولات لا يفسد الاستئناف —
+     * يبدأ جلسة رفع جديدة نظيفة بدل خلط أجزاء بأحجام مختلفة.
+     */
+    private static final int CHUNK_SIZE_FAST    = 4 * 1024 * 1024;  // ٤ ميجابايت
     private static final int CHUNK_SIZE_DEFAULT = 1024 * 1024;      // ١ ميجابايت
     private static final int CHUNK_SIZE_WEAK    = 256 * 1024;       // ٢٥٦ كيلوبايت
-    private static final int CHUNK_SIZE_MIN     = 128 * 1024;       // ١٢٨ كيلوبايت
 
     /** محاولات الجزء الواحد قبل اعتبار الملف فاشلاً في هذه الجولة. */
     private static final int CHUNK_MAX_ATTEMPTS = 4;
@@ -84,6 +91,31 @@ public class ChunkedUploadWorker extends Worker {
 
     /** حد ملفات الجولة الواحدة: نترك الباقي لجولة تالية بدل الاصطدام بسقف التنفيذ. */
     private static final int MAX_FILES_PER_RUN = 20;
+
+    /**
+     * ميزانية وقت الجولة الواحدة.
+     *
+     * WorkManager يقتل أي عامل بعد ١٠ دقائق. الاصطدام بهذا السقف يعني القتل
+     * في منتصف جزء وترك الصف في 'uploading'. لذا نستسلم طوعاً قبله بهامش:
+     * ننهي الجزء الجاري، نُعيد الملف إلى 'pending'، ونطلب إعادة الجدولة.
+     * الأجزاء المرفوعة محفوظة على الخادم فتُستأنف الجولة التالية من موضعها،
+     * وبهذا يكتمل فيديو ضخم عبر عدة جولات بلا خسارة ولا انهيار.
+     */
+    private static final long RUN_BUDGET_MS = 8 * 60 * 1000L;
+
+    /** لحظة بدء الجولة — أساس حساب الميزانية. */
+    private long runStartedAt;
+
+    /**
+     * هل توقّف الملف الأخير بسبب انتهاء ميزانية الوقت لا بسبب فشل حقيقي؟
+     * الفرق جوهري: الاستسلام الطوعي يجب ألا يزيد عدّاد المحاولات، وإلا استهلك
+     * فيديو كبير محاولاته الثلاثين على مجرد تقطيع الجولات.
+     */
+    private boolean yieldedOnBudget;
+
+    private boolean budgetExhausted() {
+        return (System.currentTimeMillis() - runStartedAt) > RUN_BUDGET_MS;
+    }
 
     private static final String CHANNEL_ID = "UploadChannel";
     private static final int NOTIFICATION_ID = 1001;
@@ -134,32 +166,47 @@ public class ChunkedUploadWorker extends Worker {
     }
 
     /**
-     * مطلوبة لـ setExpedited() على أندرويد ٧-١١، وتمنع قتل العامل عند ١٠ دقائق.
+     * تُستدعى فقط حين يُشغَّل الطلب كـ expedited على أندرويد ٧-١١، وحينها
+     * يكون WorkManager نفسه هو من يبدأ الخدمة الأمامية — وهو مسار مسموح.
      */
     @NonNull
     @Override
     public ForegroundInfo getForegroundInfo() {
-        return buildForegroundInfo("جاري رفع الملفات", "تحضير…", 0, 100);
-    }
-
-    private ForegroundInfo buildForegroundInfo(String title, String message, int progress, int max) {
-        android.app.Notification notification = baseNotification(title, message, progress, max).build();
+        android.app.Notification notification =
+            baseNotification("جاري رفع الملفات", "تحضير…", 0, 100).build();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             return new ForegroundInfo(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
         }
         return new ForegroundInfo(NOTIFICATION_ID, notification);
     }
 
+    /**
+     * 🚨 تحذير — لا تُعِد إدخال setForegroundAsync() هنا مهما كان المبرر.
+     *
+     * كانت النسخة السابقة تستدعيها عند كل جزء لرفع سقف تنفيذ العامل.
+     * النتيجة: انهيار كامل للتطبيق عند كل محاولة رفع.
+     *
+     * السبب: التطبيق يستهدف targetSdk 36، ومنذ أندرويد ١٢ يُمنع بدء أي خدمة
+     * أمامية والتطبيق في الخلفية. WorkManager ينفّذ الطلب على الخيط الرئيسي
+     * داخل SystemForegroundDispatcher، فتُرمى ForegroundServiceStartNotAllowedException
+     * هناك — أي خارج أي try/catch نضعه حول الاستدعاء، فلا سبيل لالتقاطها،
+     * والعملية تسقط بالكامل.
+     *
+     * البديل المطبَّق لمشكلة سقف العشر دقائق: العامل يستسلم طوعاً قبل بلوغ
+     * السقف (انظر RUN_BUDGET_MS)، ويترك الملف في 'pending'. الأجزاء المرفوعة
+     * محفوظة على الخادم، فتستأنف الجولة التالية من حيث توقفت بلا خسارة.
+     * إشعار التقدّم هنا إشعار عادي لا يمسّ الخدمات الأمامية إطلاقاً.
+     */
     private void updateProgressNotification(String title, String message, int progress, int max) {
         try {
-            setForegroundAsync(buildForegroundInfo(title, message, progress, max));
-        } catch (Exception e) {
-            // السقوط إلى إشعار عادي إن رفض النظام الخدمة الأمامية.
             NotificationManager manager =
                 (NotificationManager) getApplicationContext().getSystemService(Context.NOTIFICATION_SERVICE);
             if (manager != null) {
                 manager.notify(NOTIFICATION_ID, baseNotification(title, message, progress, max).build());
             }
+        } catch (Exception e) {
+            // الإشعار رفاهية؛ لا يجوز أن يُسقط الرفع أبداً.
+            Log.w(TAG, "تعذّر تحديث الإشعار: " + e.getMessage());
         }
     }
 
@@ -188,16 +235,20 @@ public class ChunkedUploadWorker extends Worker {
     /** حجم الجزء المناسب لحالة الشبكة الحالية. */
     private int pickChunkSize() {
         try {
-            if (NetworkQuality.isSlow(getApplicationContext())) {
-                return CHUNK_SIZE_WEAK;
+            switch (NetworkQuality.classify(getApplicationContext())) {
+                case NetworkQuality.FAST: return CHUNK_SIZE_FAST;
+                case NetworkQuality.WEAK: return CHUNK_SIZE_WEAK;
+                default:                  return CHUNK_SIZE_DEFAULT;
             }
-        } catch (Throwable ignored) { }
-        return CHUNK_SIZE_DEFAULT;
+        } catch (Throwable ignored) {
+            return CHUNK_SIZE_DEFAULT;
+        }
     }
 
     @NonNull
     @Override
     public Result doWork() {
+        runStartedAt = System.currentTimeMillis();
         Log.i(TAG, "بدء عامل الرفع المُجزَّأ");
 
         UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(getApplicationContext());
@@ -240,6 +291,12 @@ public class ChunkedUploadWorker extends Worker {
                     return Result.retry();
                 }
 
+                if (budgetExhausted()) {
+                    Log.i(TAG, "انتهت ميزانية الجولة — تسليم الباقي لجولة تالية");
+                    clearNotification();
+                    return Result.retry();
+                }
+
                 // حجز ذرّي: pending → uploading في معاملة واحدة.
                 UploadDatabaseHelper.UploadItem nextFile = dbHelper.claimNextPendingFile();
 
@@ -257,7 +314,15 @@ public class ChunkedUploadWorker extends Worker {
                 int totalPending = dbHelper.getPendingFilesCount();
                 String notificationTitle = "رفع الملفات (" + processed + "/" + Math.max(totalPending, processed) + ")";
 
+                yieldedOnBudget = false;
                 boolean uploaded = processFile(nextFile, uploadToken, baseUrl, notificationTitle, dbHelper);
+
+                if (!uploaded && yieldedOnBudget) {
+                    // استسلام طوعي: أعِد الملف للطابور بلا أي عقوبة.
+                    dbHelper.updateFileStatus(nextFile.id, UploadDatabaseHelper.STATUS_PENDING, null);
+                    clearNotification();
+                    return Result.retry();
+                }
 
                 if (isStopped()) {
                     // لا نحاسب الملف على إيقافٍ من النظام: أعِده للطابور كما هو.
@@ -450,6 +515,15 @@ public class ChunkedUploadWorker extends Worker {
 
                 for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
                     if (isStopped()) return false;
+
+                    // استسلام طوعي قبل سقف WorkManager: الأجزاء المُرسَلة محفوظة
+                    // على الخادم، فالجولة التالية تستأنف من هنا تماماً.
+                    if (budgetExhausted()) {
+                        Log.i(TAG, "ميزانية الجولة انتهت عند الجزء " + chunkIndex
+                            + "/" + totalChunks + " — سيُستأنف لاحقاً");
+                        yieldedOnBudget = true;
+                        return false;
+                    }
 
                     // ⚠️ readFully لا readOnce: القراءة القصيرة كانت تُزيح حدود
                     // الأجزاء عن العدد المُعلن فيُجمّع الخادم ملفاً مبتوراً.
