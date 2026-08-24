@@ -1,5 +1,5 @@
 {
-  "appId": "org.alhayah.sponsorships",
+  "appId": "com.aso.app",
   "appName": "Sponsorships",
   "webDir": "mobile-app/dist",
   "bundledWebRuntime": false,
@@ -39,9 +39,9 @@
     }
   },
   "android": {
-    "allowMixedContent": true,
+    "allowMixedContent": false,
     "captureInput": true,
-    "webContentsDebuggingEnabled": true,
+    "webContentsDebuggingEnabled": false,
     "minWebViewVersion": 60
   }
 }

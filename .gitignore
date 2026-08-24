@@ -21,3 +21,47 @@ yarn-error.log
 /mobile-app-offline
 /storage
 /alhayah data sample
+
+# ===== Binary / generated artifacts (should not be tracked) =====
+*.apk
+*.aab
+/test_50mb.mp4
+/test.zip
+/dummy_chunk.txt
+/node18.exe
+/node20.exe
+/apk_extract/
+/apk_extract2/
+/from_server/
+/.backups/
+*.log
+
+# ===== Dev/test scratch files =====
+/check_all_ids.php
+/check_all_nulls.php
+/check_api.php
+/check_count.php
+/check_ids.php
+/check_page2_array.php
+/count_query.php
+/count_query2.php
+/fix.py
+/scratch.php
+/test.php
+/test2.php
+/test_drives.php
+/test_duplicates.php
+/test_duplicates2.php
+/test_id.php
+/test_idb.html
+/test_idb.js
+/test_initial.php
+/test_nulls.php
+/test_sync.php
+/test_upload.php
+/error_report.log
+/js_log.txt
+/laravel.log
+/laravel-second-copy.log
+/rendered_page.html
+/emulator_*.png

@@ -1280,6 +1280,139 @@ class SponsorshipSyncController extends Controller
         }
     }
 
+    /**
+     * GET /api/mobile/photos/manifest
+     * قائمة جميع صور الكفالات لتنزيلها للعرض دون إنترنت
+     */
+    public function photosManifest(Request $request): JsonResponse
+    {
+        try {
+            // صور الموقع الحقيقية في جدول attachments بنوع file_type = 12
+            // (مفتاحها رقم الهوية person_identity_number كما يفعل الموقع نفسه).
+            $photoIdentityNumbers = [];
+            DB::table('attachments')
+                ->where('file_type', 12)
+                ->whereNotNull('person_identity_number')
+                ->where('person_identity_number', '<>', '')
+                ->distinct()
+                ->pluck('person_identity_number')
+                ->each(function ($idNum) use (&$photoIdentityNumbers) {
+                    $photoIdentityNumbers[(string) $idNum] = true;
+                });
+
+            $photoBase = url('/api/mobile/registration/photo');
+            $pathBase = url('/api/mobile/photos');
+
+            $rows = DB::table('sponsorships')
+                ->select([
+                    'sponsorships.id',
+                    'sponsorships.internal_file_number',
+                    'sponsorships.identity_number',
+                    'sponsorships.guardian_identity_number',
+                    'sponsorships.orphan_name',
+                    'sponsorships.orphan_photo_path',
+                    'sponsorships.guardian_photo_path'
+                ])
+                ->orderBy('sponsorships.id')
+                ->cursor();
+
+            $items = [];
+            foreach ($rows as $r) {
+                $orphanId = (string) ($r->identity_number ?: '');
+                $guardianId = (string) ($r->guardian_identity_number ?: '');
+
+                $orphanUrl = null;
+                if (!empty($r->orphan_photo_path)) {
+                    $orphanUrl = "{$pathBase}/{$r->id}?type=orphan";
+                } elseif ($orphanId && !empty($photoIdentityNumbers[$orphanId])) {
+                    $orphanUrl = "{$photoBase}/{$orphanId}";
+                }
+
+                $guardianUrl = null;
+                if (!empty($r->guardian_photo_path)) {
+                    $guardianUrl = "{$pathBase}/{$r->id}?type=guardian";
+                } elseif ($guardianId && !empty($photoIdentityNumbers[$guardianId])) {
+                    $guardianUrl = "{$photoBase}/{$guardianId}";
+                }
+
+                if ($orphanUrl || $guardianUrl) {
+                    $items[] = [
+                        'sponsorship_id' => $r->id,
+                        'file_number' => $r->internal_file_number,
+                        'identity_number' => $orphanId,
+                        'guardian_identity_number' => $guardianId,
+                        'orphan_name' => $r->orphan_name,
+                        'orphan_photo_url' => $orphanUrl,
+                        'orphan_identity' => $orphanId ?: null,
+                        'guardian_photo_url' => $guardianUrl,
+                        'guardian_identity' => $guardianId ?: null,
+                    ];
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'total' => count($items),
+                'items' => $items,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('photos manifest error', ['error' => $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'فشل تحميل قائمة الصور: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * GET /api/mobile/photos/{id}?type=orphan|guardian
+     * بثّ صورة الكفالة (مع تفعيل CORS عبر مسار api/*)
+     */
+    public function photoFile(int $id, Request $request)
+    {
+        try {
+            $sponsorship = DB::table('sponsorships')
+                ->where('id', $id)
+                ->select('id', 'orphan_photo_path', 'guardian_photo_path')
+                ->first();
+
+            $path = null;
+            if ($request->get('type') === 'guardian') {
+                $path = $sponsorship->guardian_photo_path ?? null;
+            } elseif ($request->get('type') === 'orphan') {
+                $path = $sponsorship->orphan_photo_path ?? null;
+            } else {
+                $path = $sponsorship->orphan_photo_path ?? $sponsorship->guardian_photo_path ?? null;
+            }
+
+            if (!$sponsorship || empty($path)) {
+                return response()->json(['success' => false, 'message' => 'لا توجد صورة'], 404);
+            }
+
+            $full = storage_path('app/public/' . ltrim($path, '/'));
+            if (!is_file($full)) {
+                return response()->json(['success' => false, 'message' => 'ملف الصورة غير موجود'], 404);
+            }
+
+            $ext = strtolower(pathinfo($full, PATHINFO_EXTENSION));
+            $mime = match ($ext) {
+                'jpg', 'jpeg' => 'image/jpeg',
+                'png' => 'image/png',
+                'webp' => 'image/webp',
+                'gif' => 'image/gif',
+                default => 'application/octet-stream',
+            };
+
+            return response()->file($full, [
+                'Content-Type' => $mime,
+                'Cache-Control' => 'public, max-age=86400',
+            ]);
+        } catch (\Exception $e) {
+            Log::error('photo file error', ['id' => $id, 'error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'message' => 'فشل جلب الصورة'], 500);
+        }
+    }
+
     private function syncSponsorship(array $payload): array
     {
         $identityNumber = $payload['identity_number'] ?? null;
@@ -3942,6 +4075,230 @@ class SponsorshipSyncController extends Controller
                 'success' => false,
                 'message' => 'فشل جلب الإحصائيات'
             ], 500);
+        }
+    }
+
+    // ========================================
+    // Related Data Tables Sync
+    // ========================================
+
+    /**
+     * GET /api/mobile/sync/data-table
+     * جلب جميع بيانات جدول data (المعيلين/أرباب الأسر)
+     */
+    public function getSyncDataTable(Request $request): JsonResponse
+    {
+        try {
+            $page = $request->get('page', 1);
+            $perPage = min($request->get('per_page', 200), 500);
+            $lastSync = $request->get('last_sync');
+
+            $query = DB::table('data')
+                ->select([
+                    'id', 'file_id_number', 'data_section_id', 'data_request_status',
+                    'data_id_number', 'data_first_name', 'data_father_name',
+                    'data_grand_father_name', 'data_family_name',
+                    'data_relationship', 'data_birth_date', 'data_gender',
+                    'data_phone_number', 'data_alt_phone_number',
+                    'data_number_of_individuals', 'data_marital_status',
+                    'data_academic_qualification', 'data_displacement_status',
+                    'data_address_before_displacement', 'data_current_address',
+                    'data_city', 'data_province', 'data_health_status',
+                    'data_description_needs',
+                    'data_employment_status_breadwinner', 'data_housing_status',
+                    'data_current_housing_type', 'data_user_insert_data',
+                    'created_at', 'updated_at'
+                ]);
+
+            if ($lastSync) {
+                $query->where('updated_at', '>', $lastSync);
+            }
+
+            $total = $query->count();
+            $data = $query->orderBy('id', 'asc')
+                ->offset(($page - 1) * $perPage)
+                ->limit($perPage)
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $data,
+                'pagination' => [
+                    'current_page' => (int)$page,
+                    'per_page' => $perPage,
+                    'total' => $total,
+                    'last_page' => (int)ceil($total / $perPage)
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * GET /api/mobile/sync/re-people
+     * جلب جميع بيانات جدول re_people (أفراد العائلة)
+     */
+    public function getSyncRePeople(Request $request): JsonResponse
+    {
+        try {
+            $page = $request->get('page', 1);
+            $perPage = min($request->get('per_page', 200), 500);
+            $lastSync = $request->get('last_sync');
+
+            $query = DB::table('re_people')
+                ->select([
+                    'id', 'registration_id', 'sponsorship_status',
+                    'first_name', 'second_name', 'third_name', 'last_name',
+                    'person_id', 'person_birth_date', 'person_age',
+                    'person_gender', 'person_health_status',
+                    'person_type_of_guarantee',
+                    'person_note', 'created_at', 'updated_at'
+                ]);
+
+            if ($lastSync) {
+                $query->where('updated_at', '>', $lastSync);
+            }
+
+            $total = $query->count();
+            $data = $query->orderBy('id', 'asc')
+                ->offset(($page - 1) * $perPage)
+                ->limit($perPage)
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $data,
+                'pagination' => [
+                    'current_page' => (int)$page,
+                    'per_page' => $perPage,
+                    'total' => $total,
+                    'last_page' => (int)ceil($total / $perPage)
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * GET /api/mobile/sync/dead-people
+     * جلب جميع بيانات جدول dead_people (المتوفون)
+     */
+    public function getSyncDeadPeople(Request $request): JsonResponse
+    {
+        try {
+            $page = $request->get('page', 1);
+            $perPage = min($request->get('per_page', 200), 500);
+            $lastSync = $request->get('last_sync');
+
+            $query = DB::table('dead_people')
+                ->select([
+                    'id', 're_file_id', 'sponsorship_status',
+                    'father_first_name', 'father_second_name', 'father_third_name', 'father_last_name',
+                    'father_id', 'father_death_date', 'father_death_reason',
+                    'mother_first_name', 'mother_second_name', 'mother_third_name', 'mother_last_name',
+                    'mother_id', 'mother_death_reason',
+                    'created_at', 'updated_at'
+                ]);
+
+            if ($lastSync) {
+                $query->where('updated_at', '>', $lastSync);
+            }
+
+            $total = $query->count();
+            $data = $query->orderBy('id', 'asc')
+                ->offset(($page - 1) * $perPage)
+                ->limit($perPage)
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $data,
+                'pagination' => [
+                    'current_page' => (int)$page,
+                    'per_page' => $perPage,
+                    'total' => $total,
+                    'last_page' => (int)ceil($total / $perPage)
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * GET /api/mobile/sync/bank-accounts
+     * جلب جميع بيانات جدول guardian_bank_accounts (الحسابات البنكية)
+     */
+    public function getSyncBankAccounts(Request $request): JsonResponse
+    {
+        try {
+            $page = $request->get('page', 1);
+            $perPage = min($request->get('per_page', 200), 500);
+            $lastSync = $request->get('last_sync');
+
+            $query = DB::table('guardian_bank_accounts')
+                ->leftJoin('bank_names', 'guardian_bank_accounts.bank_name', '=', 'bank_names.id')
+                ->select([
+                    'guardian_bank_accounts.id',
+                    'guardian_bank_accounts.guardian_registration',
+                    'guardian_bank_accounts.bank_name',
+                    'guardian_bank_accounts.iban_usd',
+                    'guardian_bank_accounts.iban_shekel',
+                    'guardian_bank_accounts.check_account',
+                    'guardian_bank_accounts.re_id_number',
+                    'guardian_bank_accounts.re_guardian_name',
+                    'guardian_bank_accounts.re_phone_number',
+                    'guardian_bank_accounts.person_owner_identity_number',
+                    'bank_names.description as bank_name_text',
+                    'guardian_bank_accounts.created_at',
+                    'guardian_bank_accounts.updated_at'
+                ]);
+
+            if ($lastSync) {
+                $query->where('guardian_bank_accounts.updated_at', '>', $lastSync);
+            }
+
+            $total = $query->count();
+            $data = $query->orderBy('guardian_bank_accounts.id', 'asc')
+                ->offset(($page - 1) * $perPage)
+                ->limit($perPage)
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $data,
+                'pagination' => [
+                    'current_page' => (int)$page,
+                    'per_page' => $perPage,
+                    'total' => $total,
+                    'last_page' => (int)ceil($total / $perPage)
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * GET /api/mobile/sync/death-reasons
+     * جلب أسباب الوفاة
+     */
+    public function getSyncDeathReasons(Request $request): JsonResponse
+    {
+        try {
+            $data = DB::table('death_reasons')
+                ->select(['id', 'description'])
+                ->orderBy('id', 'asc')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $data
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
 

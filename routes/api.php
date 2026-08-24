@@ -904,6 +904,13 @@ Route::prefix('mobile')->middleware(['auth:sanctum'])->group(function () {
     Route::post('/sync/photos/metadata', [SponsorshipSyncController::class, 'syncPhotoMetadata']);
     Route::get('/sync/stats', [SponsorshipSyncController::class, 'getSyncStats']);
 
+    // Related data tables sync
+    Route::get('/sync/data-table', [SponsorshipSyncController::class, 'getSyncDataTable']);
+    Route::get('/sync/re-people', [SponsorshipSyncController::class, 'getSyncRePeople']);
+    Route::get('/sync/dead-people', [SponsorshipSyncController::class, 'getSyncDeadPeople']);
+    Route::get('/sync/bank-accounts', [SponsorshipSyncController::class, 'getSyncBankAccounts']);
+    Route::get('/sync/death-reasons', [SponsorshipSyncController::class, 'getSyncDeathReasons']);
+
     // Action Queue
     Route::get('/server-actions', [\App\Http\Controllers\Api\ServerActionController::class, 'pullActions']);
     Route::post('/server-actions/ack', [\App\Http\Controllers\Api\ServerActionController::class, 'ackActions']);
@@ -930,5 +937,33 @@ Route::prefix('mobile')->middleware(['auth:sanctum'])->group(function () {
     // Server-to-Client Sync Queue
     Route::get('/sync/pending-actions', [App\Http\Controllers\Api\ActionSyncController::class, 'getPendingActions']);
     Route::post('/sync/ack-action', [App\Http\Controllers\Api\ActionSyncController::class, 'ackAction']);
+
+    // Mobile full-file registration (بانتظار المراجعة status = 1)
+    Route::get('/registration/lookups', [App\Http\Controllers\Api\MobileRegistrationController::class, 'lookups']);
+    Route::get('/registration/photo/{personId}', [App\Http\Controllers\Api\MobileRegistrationController::class, 'photo']);
+    Route::get('/registration/photo/{personId}/exists', [App\Http\Controllers\Api\MobileRegistrationController::class, 'photoExists']);
+    Route::post('/registration/new-file-id', [App\Http\Controllers\Api\MobileRegistrationController::class, 'newFileId']);
+    Route::post('/registration/upload-chunk', [App\Http\Controllers\Api\MobileRegistrationController::class, 'uploadChunk'])
+        ->middleware('large.upload');
+    Route::get('/registration/file/{fileId}', [App\Http\Controllers\Api\MobileRegistrationController::class, 'getFile']);
+    Route::post('/registration/store', [App\Http\Controllers\Api\MobileRegistrationController::class, 'store']);
+    Route::post('/registration/update', [App\Http\Controllers\Api\MobileRegistrationController::class, 'update']);
+
+    // البحث برقم الهوية في جداول التسجيل (حل تباين رقم الملف بين الكفالة والتسجيل)
+    Route::post('/registration/find-by-id', [App\Http\Controllers\Api\MobileRegistrationController::class, 'findById']);
+    // جلب بيانات المتوفي المسجل على الموقع / من السجل المدني
+    Route::post('/registration/deceased-lookup', [App\Http\Controllers\Api\MobileRegistrationController::class, 'deceasedLookup']);
+
+    // صور الكفالات للعرض دون إنترنت
+    Route::get('/photos/manifest', [App\Http\Controllers\Api\SponsorshipSyncController::class, 'photosManifest']);
+    Route::get('/photos/{id}', [App\Http\Controllers\Api\SponsorshipSyncController::class, 'photoFile'])
+        ->where('id', '[0-9]+');
+
+    // السجل المدني الخفيف (تنزيل مجزأ على الهاتف)
+    Route::get('/civil-registry/manifest', [App\Http\Controllers\Api\MobileRegistrationController::class, 'civilRegistryManifest']);
+    Route::get('/civil-registry/person/{id}', [App\Http\Controllers\Api\MobileRegistrationController::class, 'civilRegistryPerson'])
+        ->where('id', '[0-9]+');
+    Route::get('/civil-registry/file/{file}', [App\Http\Controllers\Api\MobileRegistrationController::class, 'serveCivilRegistryFile'])
+        ->where('file', '[a-zA-Z0-9.\-_]+');
 });
 

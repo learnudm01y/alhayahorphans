@@ -41,6 +41,24 @@ public class UploadServicePlugin extends Plugin {
         }
     }
 
+    /**
+     * [SmartMedia] إشعار تغيّر حالة المعالجة المحلية للواجهة (قيد التجهيز /
+     * تم التحسين / فشل). لا يُرسل أي بيانات حساسة.
+     */
+    public static void notifyMediaStatusChanged(long fileId, String stage, String message,
+                                                long originalSize, long processedSize, double ratio) {
+        if (instance != null) {
+            JSObject data = new JSObject();
+            data.put("fileId", fileId);
+            data.put("stage", stage);
+            data.put("message", message);
+            data.put("originalSize", originalSize);
+            data.put("processedSize", processedSize);
+            data.put("ratio", ratio);
+            instance.notifyListeners("mediaStatusChanged", data);
+        }
+    }
+
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
@@ -141,7 +159,9 @@ public class UploadServicePlugin extends Plugin {
             }
 
             UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(getContext());
-            long fileId = dbHelper.addFileToQueue(
+            long fileId = SmartMediaProcessor.queueForUpload(
+                getContext(),
+                dbHelper,
                 actualFilePath,
                 fileName,
                 fileType,
@@ -162,14 +182,24 @@ public class UploadServicePlugin extends Plugin {
                 dbHelper.saveIndexedDbMapping(fileId, indexedDbId);
             }
 
+            // تحديد رسالة الحالة: قيد المعالجة المحلية أم في طابور الرفع.
+            UploadDatabaseHelper.UploadItem queuedItem = dbHelper.getFileById(fileId);
+            boolean isProcessing = queuedItem != null
+                    && UploadDatabaseHelper.STATUS_PROCESSING.equals(queuedItem.status);
+
             JSObject result = new JSObject();
             result.put("success", true);
             result.put("fileId", fileId);
             result.put("queued", true);
-            result.put("message", "ملف في قائمة الانتظار - الرفع سيبدأ تلقائياً");
+            result.put("status", queuedItem != null ? queuedItem.status : "pending");
+            result.put("message", isProcessing
+                    ? "جاري تجهيز الملف (الضغط الذكي) - سيُرفع تلقائياً"
+                    : "ملف في قائمة الانتظار - الرفع سيبدأ تلقائياً");
             call.resolve(result);
 
-            UploadTaskScheduler.getInstance(getContext()).startImmediateUpload();
+            if (!isProcessing) {
+                UploadTaskScheduler.getInstance(getContext()).startImmediateUpload();
+            }
 
         } catch (Exception e) {
             showNotification("خطأ في الرفع", e.getMessage(), false);
@@ -183,6 +213,8 @@ public class UploadServicePlugin extends Plugin {
             UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(getContext());
 
             int pending = dbHelper.getFilesByStatus(UploadDatabaseHelper.STATUS_PENDING).size();
+            int processing = dbHelper.getFilesByStatus(UploadDatabaseHelper.STATUS_PROCESSING).size();
+            int uploadPending = dbHelper.getFilesByStatus(UploadDatabaseHelper.STATUS_UPLOAD_PENDING).size();
             int uploading = dbHelper.getFilesByStatus(UploadDatabaseHelper.STATUS_UPLOADING).size();
             int completed = dbHelper.getFilesByStatus(UploadDatabaseHelper.STATUS_COMPLETED).size();
             int failed = dbHelper.getFilesByStatus(UploadDatabaseHelper.STATUS_FAILED).size();
@@ -190,16 +222,53 @@ public class UploadServicePlugin extends Plugin {
 
             JSObject result = new JSObject();
             result.put("pending", pending);
+            result.put("processing", processing);
+            result.put("upload_pending", uploadPending);
             result.put("uploading", uploading);
             result.put("completed", completed);
             result.put("failed", failed);
             result.put("processing_server", processingServer);
-            result.put("total", pending + uploading + completed + failed + processingServer);
+            result.put("total", pending + processing + uploadPending + uploading + completed + failed + processingServer);
 
             call.resolve(result);
 
         } catch (Exception e) {
             Log.e(TAG, "Error getting upload stats: " + e.getMessage());
+            call.reject("Error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * [SmartMedia] إحصائيات الضغط الذكي (اختيارية): عدد الملفات المحسّنة
+     * وإجمالي الحجم قبل/بعد والتوفير.
+     */
+    @PluginMethod
+    public void getCompressionStats(PluginCall call) {
+        try {
+            UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(getContext());
+            List<UploadDatabaseHelper.UploadItem> processedItems =
+                    dbHelper.getFilesByStatus(UploadDatabaseHelper.STATUS_COMPLETED);
+
+            int optimizedCount = 0;
+            long before = 0;
+            long after = 0;
+            for (UploadDatabaseHelper.UploadItem item : processedItems) {
+                if (item.compressionEnabled && item.originalSize > 0) {
+                    optimizedCount++;
+                    before += item.originalSize;
+                    after += item.processedSize > 0 ? item.processedSize : item.originalSize;
+                }
+            }
+
+            JSObject result = new JSObject();
+            result.put("optimizedCount", optimizedCount);
+            result.put("originalTotal", before);
+            result.put("processedTotal", after);
+            result.put("savedTotal", Math.max(0, before - after));
+            call.resolve(result);
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting compression stats: " + e.getMessage());
             call.reject("Error: " + e.getMessage());
         }
     }
@@ -226,6 +295,11 @@ public class UploadServicePlugin extends Plugin {
                 fileObj.put("associationName", item.associationName);
                 fileObj.put("personName", item.personName);
                 fileObj.put("filePath", item.filePath);
+                fileObj.put("compressionEnabled", item.compressionEnabled);
+                fileObj.put("compressionType", item.compressionType);
+                fileObj.put("compressionRatio", item.compressionRatio);
+                fileObj.put("originalSize", item.originalSize);
+                fileObj.put("processedSize", item.processedSize);
                 filesArray.put(fileObj);
             }
 
