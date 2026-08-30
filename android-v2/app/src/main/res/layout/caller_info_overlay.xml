@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:layout_margin="16dp"
+    android:padding="16dp"
+    android:background="@drawable/caller_info_bg"
+    android:elevation="8dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="12dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="📞 معلومات المتصل"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="#2A8B8B" />
+
+        <TextView
+            android:id="@+id/btnDismissCaller"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:gravity="center"
+            android:text="✕"
+            android:textSize="16sp"
+            android:textColor="#FF0000"
+            android:background="@drawable/dismiss_btn_bg" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tvCallerName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:textColor="#000000"
+        android:gravity="center"
+        android:layout_marginBottom="12dp" />
+
+    <TextView
+        android:id="@+id/tvCallerFileId"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="15sp"
+        android:textColor="#333333"
+        android:layout_marginBottom="6dp" />
+
+    <TextView
+        android:id="@+id/tvCallerPhone"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="15sp"
+        android:textColor="#333333"
+        android:layout_marginBottom="6dp" />
+
+    <TextView
+        android:id="@+id/tvCallerAddress"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="15sp"
+        android:textColor="#333333"
+        android:layout_marginBottom="6dp" />
+
+    <TextView
+        android:id="@+id/tvCallerIndividuals"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="15sp"
+        android:textColor="#333333"
+        android:layout_marginBottom="6dp" />
+
+    <TextView
+        android:id="@+id/tvCallerSectionId"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="15sp"
+        android:textColor="#333333" />
+
+</LinearLayout>

@@ -154,18 +154,25 @@ class ChunkedUploadController extends Controller
             if ($receivedChunks === $totalChunks) {
                 // قفل: طلبان متزامنان للجزء الأخير كانا يُجمّعان نفس الرفعة معاً
                 // في نفس الملف المفتوح بوضع الإلحاق (ab) فيتضاعف المحتوى.
-                $lock = \Illuminate\Support\Facades\Cache::lock("chunk_assembly:{$uploadId}", 900);
-
-                if (!$lock->get()) {
-                    return response()->json([
-                        'success' => true,
-                        'message' => 'التجميع جارٍ بالفعل',
-                        'sync_state' => 'processing',
-                    ]);
+                // ⚠️ القفل اختياري: إذا فشل (مثلاً مجلد cache غير موجود)، نكمل
+                // بدونه — readMarker يمنع التجميع المزدوج.
+                $lock = null;
+                try {
+                    $lock = \Illuminate\Support\Facades\Cache::lock("chunk_assembly:{$uploadId}", 900);
+                    if (!$lock->get()) {
+                        return response()->json([
+                            'success' => true,
+                            'message' => 'التجميع جارٍ بالفعل',
+                            'sync_state' => 'processing',
+                        ]);
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('Cache lock unavailable, proceeding without lock: ' . $e->getMessage());
+                    $lock = null;
                 }
 
                 try {
-                    // فحص ثانٍ بعد الحصول على القفل.
+                    // فحص ثانٍ بعد الحصول على القفل (أو بدونه).
                     if ($marker = $this->readMarker($uploadId)) {
                         return response()->json($marker['response'] ?? ['success' => true, 'sync_state' => 'processing']);
                     }

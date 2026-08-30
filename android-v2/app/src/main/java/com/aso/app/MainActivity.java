@@ -29,6 +29,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(NativePhotoPlugin.class);  // 📸 NEW: Native PHOTO بسرعة فائقة!
         registerPlugin(org.alhayah.sponsorships.BackgroundSyncPlugin.class);
         registerPlugin(PermissionsManagerPlugin.class);  // ✨ NEW: إدارة الصلاحيات المتسلسلة
+        registerPlugin(BarcodeScannerPlugin.class);  // 📱 NEW: ماسح الباركود الأصلي
         android.util.Log.e(TAG, "✅ Plugins registered BEFORE super.onCreate()");
 
         super.onCreate(savedInstanceState);
@@ -48,6 +49,19 @@ public class MainActivity extends BridgeActivity {
             android.util.Log.e(TAG, "✅ RealtimeSyncService started");
         } catch (Exception e) {
             android.util.Log.e(TAG, "❌ Failed to start RealtimeSyncService", e);
+        }
+
+        // 📞 بدء خدمة كشف المتصل
+        try {
+            android.content.Intent callerIntent = new android.content.Intent(this, CallerInfoService.class);
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                startForegroundService(callerIntent);
+            } else {
+                startService(callerIntent);
+            }
+            android.util.Log.e(TAG, "✅ CallerInfoService started");
+        } catch (Exception e) {
+            android.util.Log.e(TAG, "❌ Failed to start CallerInfoService", e);
         }
 
         // ✅ CRITICAL: معالجة التحديثات المؤجلة من FileSyncWorker

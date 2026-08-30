@@ -38,6 +38,10 @@ public class UploadTaskScheduler {
 
     private static UploadTaskScheduler instance;
 
+    /** debounce: لا نعيد الجدولة أكثر من مرة كل 10 ثوانٍ */
+    private static long lastImmediateUploadAt = 0;
+    private static final long IMMEDIATE_UPLOAD_DEBOUNCE_MS = 10_000;
+
     public static synchronized UploadTaskScheduler getInstance(Context context) {
         if (instance == null) {
             instance = new UploadTaskScheduler(context.getApplicationContext());
@@ -132,6 +136,13 @@ public class UploadTaskScheduler {
      * يعتمد الآن على WorkManager لضمان عدم إغلاق النظام للمهمة عند الخروج من التطبيق
      */
     public void startImmediateUpload() {
+        long now = System.currentTimeMillis();
+        if (now - lastImmediateUploadAt < IMMEDIATE_UPLOAD_DEBOUNCE_MS) {
+            Log.d(TAG, "⚡ startImmediateUpload متخطى — debounce (منذ " + (now - lastImmediateUploadAt) + "ms)");
+            return;
+        }
+        lastImmediateUploadAt = now;
+
         Log.d(TAG, "");
         Log.d(TAG, "⚡⚡⚡ startImmediateUpload تم استدعاؤها! ⚡⚡⚡");
 

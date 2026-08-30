@@ -424,6 +424,61 @@ public class UploadServicePlugin extends Plugin {
         }
     }
 
+    /**
+     * إعادة جدولة الرفع: إيقاف كل عمال الرفع الحاليين → تحرير العالق → بدء جديد
+     * يُستدعى عند تغيير عدد العمال أو عند طلب يدوي من صفحة الرفع.
+     */
+    @PluginMethod
+    public void rescheduleUpload(PluginCall call) {
+        try {
+            Log.d(TAG, "🔄 rescheduleUpload: بدء إعادة جدولة الرفع");
+
+            // 1. إلغاء جميع مهام الرفع الحالية (one-time + periodic sweep)
+            androidx.work.WorkManager wm = androidx.work.WorkManager.getInstance(getContext());
+            wm.cancelUniqueWork("BackgroundUploadWork");
+            wm.cancelUniqueWork("BackgroundUploadWork_immediate");
+            wm.cancelAllWorkByTag("upload_task");
+            wm.cancelAllWorkByTag("upload_task_immediate");
+            Log.d(TAG, "   ✅ أُلغيت جميع مهام الرفع الحالية");
+
+            // 2. تحرير الملفات العالقة في uploading → pending
+            UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(getContext());
+            int reclaimed1 = dbHelper.reclaimStaleUploads();
+            int reclaimed2 = dbHelper.reclaimStaleProcessing();
+            int reclaimed3 = dbHelper.reclaimStaleLocalProcessing();
+            int totalReclaimed = reclaimed1 + reclaimed2 + reclaimed3;
+            Log.d(TAG, "   ♻️ حُرّر " + totalReclaimed + " ملف عالق");
+
+            // 3. تنظيف الملفات المؤقتة اليتيمة
+            SmartMediaProcessor.cleanupOrphanedTempFiles(getContext(), dbHelper);
+
+            // 4. إعادة جدولة الرفع مع العدد الحالي للعمال
+            UploadTaskScheduler scheduler = UploadTaskScheduler.getInstance(getContext());
+            scheduler.schedulePeriodicUploadSweep();
+            scheduler.schedulePeriodicMediaProcessing();
+
+            // 5. بدء رفع فوري
+            int pendingCount = dbHelper.getPendingFilesCount();
+            if (pendingCount > 0) {
+                scheduler.startImmediateUpload();
+                Log.d(TAG, "   🚀 بدء رفع " + pendingCount + " ملف فوراً");
+            }
+
+            JSObject result = new JSObject();
+            result.put("success", true);
+            result.put("reclaimed", totalReclaimed);
+            result.put("pendingFiles", pendingCount);
+            result.put("message", "أُلغيت المهام القديمة وبدأ الرفع من جديد بـ " +
+                getContext().getSharedPreferences("upload_prefs", android.content.Context.MODE_PRIVATE)
+                    .getInt("upload_workers", 1) + " عمال");
+            call.resolve(result);
+
+        } catch (Exception e) {
+            Log.e(TAG, "خطأ في rescheduleUpload", e);
+            call.reject("خطأ في إعادة الجدولة: " + e.getMessage());
+        }
+    }
+
     @PluginMethod
     public void getUploadWorkers(PluginCall call) {
         try {

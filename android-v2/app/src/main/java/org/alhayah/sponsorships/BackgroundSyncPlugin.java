@@ -911,4 +911,20 @@ public class BackgroundSyncPlugin extends Plugin {
             call.reject("Failed: " + e.getMessage());
         }
     }
+
+    @PluginMethod
+    public void isIgnoringBatteryOptimizations(PluginCall call) {
+        try {
+            android.os.PowerManager pm = (android.os.PowerManager) getContext().getSystemService(android.content.Context.POWER_SERVICE);
+            boolean isIgnoring = android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M
+                    && pm.isIgnoringBatteryOptimizations(getContext().getPackageName());
+            JSObject ret = new JSObject();
+            ret.put("isIgnoring", isIgnoring);
+            call.resolve(ret);
+        } catch (Exception e) {
+            JSObject ret = new JSObject();
+            ret.put("isIgnoring", true);
+            call.resolve(ret);
+        }
+    }
 }

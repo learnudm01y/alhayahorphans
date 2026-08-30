@@ -956,6 +956,8 @@ Route::prefix('mobile')->middleware(['auth:sanctum'])->group(function () {
 
     // صور الكفالات للعرض دون إنترنت
     Route::get('/photos/manifest', [App\Http\Controllers\Api\SponsorshipSyncController::class, 'photosManifest']);
+    Route::get('/photos/{id}/exists', [App\Http\Controllers\Api\SponsorshipSyncController::class, 'photoExists'])
+        ->where('id', '[0-9]+');
     Route::get('/photos/{id}', [App\Http\Controllers\Api\SponsorshipSyncController::class, 'photoFile'])
         ->where('id', '[0-9]+');
 

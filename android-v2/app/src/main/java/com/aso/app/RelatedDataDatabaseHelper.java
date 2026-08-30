@@ -17,7 +17,7 @@ import org.json.JSONObject;
 public class RelatedDataDatabaseHelper extends SQLiteOpenHelper {
     private static final String TAG = "RelatedDataDB";
     private static final String DATABASE_NAME = "related_data.db";
-    private static final int DATABASE_VERSION = 1;
+    private static final int DATABASE_VERSION = 2;
 
     private static RelatedDataDatabaseHelper instance;
 
@@ -84,6 +84,7 @@ public class RelatedDataDatabaseHelper extends SQLiteOpenHelper {
                 + "person_age INTEGER, "
                 + "person_gender INTEGER, "
                 + "person_health_status INTEGER, "
+                + "person_birth_certificate TEXT, "
                 + "person_type_of_guarantee INTEGER, "
                 + "person_note TEXT, "
                 + "search_text TEXT, "
@@ -150,13 +151,13 @@ public class RelatedDataDatabaseHelper extends SQLiteOpenHelper {
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        // حذف وإعادة الإنشاء
-        db.execSQL("DROP TABLE IF EXISTS data_table");
-        db.execSQL("DROP TABLE IF EXISTS re_people");
-        db.execSQL("DROP TABLE IF EXISTS dead_people");
-        db.execSQL("DROP TABLE IF EXISTS guardian_bank_accounts");
-        db.execSQL("DROP TABLE IF EXISTS death_reasons");
-        onCreate(db);
+        if (oldVersion < 2) {
+            try {
+                db.execSQL("ALTER TABLE re_people ADD COLUMN person_birth_certificate TEXT DEFAULT ''");
+            } catch (Exception e) {
+                Log.w(TAG, "Column person_birth_certificate may already exist: " + e.getMessage());
+            }
+        }
     }
 
     // ==================== حفظ البيانات ====================
@@ -435,6 +436,41 @@ public class RelatedDataDatabaseHelper extends SQLiteOpenHelper {
             }
         } catch (Exception e) {
             Log.e(TAG, "getDataByIdNumber error", e);
+        } finally {
+            cursor.close();
+        }
+        return result;
+    }
+
+    /**
+     * البحث برقم الهاتف في جدول data
+     * يبحث في data_phone_number و data_alt_phone_number
+     * أو آخر 9 أرقام من data_id_number
+     */
+    public JSONObject getDataByPhoneNumber(String phoneNumber) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        String cleaned = phoneNumber.replaceAll("[^0-9]", "");
+        String last9 = cleaned.length() > 9 ? cleaned.substring(cleaned.length() - 9) : cleaned;
+
+        Cursor cursor = db.rawQuery(
+                "SELECT * FROM data_table WHERE " +
+                "data_phone_number LIKE ? OR data_phone_number LIKE ? OR " +
+                "data_alt_phone_number LIKE ? OR data_alt_phone_number LIKE ? LIMIT 1",
+                new String[]{
+                    "%" + cleaned, "%" + last9,
+                    "%" + cleaned, "%" + last9
+                });
+
+        JSONObject result = null;
+        try {
+            if (cursor.moveToFirst()) {
+                result = new JSONObject();
+                for (int i = 0; i < cursor.getColumnCount(); i++) {
+                    result.put(cursor.getColumnName(i), cursor.getString(i));
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "getDataByPhoneNumber error", e);
         } finally {
             cursor.close();
         }

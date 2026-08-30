@@ -53,6 +53,13 @@
             android:screenOrientation="portrait" />
 
         <activity
+            android:name="com.aso.app.BarcodeScannerActivity"
+            android:label="مسح الباركود"
+            android:theme="@style/AppTheme.NoActionBar"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <activity
             android:name="com.aso.app.PhotoActivity"
             android:label="التقاط صورة"
             android:theme="@style/AppTheme.NoActionBar"
@@ -127,6 +134,22 @@
             android:name="com.aso.app.UploadAlarmReceiver"
             android:enabled="true"
             android:exported="false" />
+
+        <receiver
+            android:name="com.aso.app.IncomingCallReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
+
+        <service
+            android:name="com.aso.app.CallerInfoService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
     </application>
 
     <uses-permission android:name="android.permission.INTERNET" />
@@ -153,6 +176,10 @@
         tools:ignore="ScopedStorage" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />

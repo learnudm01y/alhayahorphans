@@ -449,8 +449,18 @@ public class ChunkedUploadWorker extends Worker {
                     }
                 });
             }
-            try { latch.await(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
-            executor.shutdown();
+            try {
+                // ⚠️ timeout 5 دقائق: بدونه يعلق العامل إلى الأبد إن تشبّث
+                // اتصال شبكة ميّت، فيقتل WorkManager المهمة بالكامل ولا يعيدها
+                // إلا بعد 15 دقيقة (الperiodic sweep). بهذا ينتهي بسرعة ويُعيد
+                // الجدولة تلقائياً عبر Result.retry().
+                boolean finished = latch.await(5, TimeUnit.MINUTES);
+                if (!finished) {
+                    Log.w(TAG, "⚠️ انتهت مهلة انتظار العمال — إيقاف العمال المتبقية");
+                    stopped.set(true);
+                }
+            } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+            executor.shutdownNow();
             clearNotification();
             if (yielded.get() || stopped.get()) return Result.retry();
             if (sawFailure.get()) return Result.retry();
@@ -818,11 +828,23 @@ public class ChunkedUploadWorker extends Worker {
 
                 // ٤٢٩ و٥xx و٤٠٨ عابرة — تستحق إعادة المحاولة.
                 if (code == 408 || code == 429 || code >= 500) {
-                    Log.w(TAG, "خطأ عابر في الجزء: HTTP " + code);
+                    String errorBody = "";
+                    try {
+                        if (response.body() != null) {
+                            errorBody = response.body().string();
+                        }
+                    } catch (Exception ignored) {}
+                    Log.w(TAG, "خطأ عابر في الجزء: HTTP " + code + " — " + errorBody);
                     return ChunkResult.TRANSIENT;
                 }
 
-                Log.e(TAG, "خطأ دائم في الجزء: HTTP " + code);
+                String errorBodyPermanent = "";
+                try {
+                    if (response.body() != null) {
+                        errorBodyPermanent = response.body().string();
+                    }
+                } catch (Exception ignored) {}
+                Log.e(TAG, "خطأ دائم في الجزء: HTTP " + code + " — " + errorBodyPermanent);
                 return ChunkResult.PERMANENT;
             }
         } catch (Exception e) {

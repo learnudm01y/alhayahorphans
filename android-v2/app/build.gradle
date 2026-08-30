@@ -65,6 +65,9 @@ dependencies {
 
     // Media3 Transformer — ضغط فيديو موثوق (بدل Surface-to-Surface اليدوي)
     implementation "androidx.media3:media3-transformer:1.7.1"
+
+    // ML Kit Barcode Scanning (bundled — no Google Play Services needed)
+    implementation "com.google.mlkit:barcode-scanning:17.3.0"
 }
 
 apply from: 'capacitor.build.gradle'

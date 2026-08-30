@@ -1365,6 +1365,41 @@ class SponsorshipSyncController extends Controller
     }
 
     /**
+     * GET /api/mobile/photos/{id}/exists?type=orphan|guardian
+     */
+    public function photoExists(int $id, Request $request): JsonResponse
+    {
+        try {
+            $sponsorship = DB::table('sponsorships')
+                ->where('id', $id)
+                ->select('orphan_photo_path', 'guardian_photo_path')
+                ->first();
+
+            if (!$sponsorship) {
+                return response()->json(['exists' => false]);
+            }
+
+            $path = null;
+            if ($request->get('type') === 'guardian') {
+                $path = $sponsorship->guardian_photo_path ?? null;
+            } elseif ($request->get('type') === 'orphan') {
+                $path = $sponsorship->orphan_photo_path ?? null;
+            } else {
+                $path = $sponsorship->orphan_photo_path ?? $sponsorship->guardian_photo_path ?? null;
+            }
+
+            if (empty($path)) {
+                return response()->json(['exists' => false]);
+            }
+
+            $full = storage_path('app/public/' . ltrim($path, '/'));
+            return response()->json(['exists' => is_file($full)]);
+        } catch (\Exception $e) {
+            return response()->json(['exists' => false]);
+        }
+    }
+
+    /**
      * GET /api/mobile/photos/{id}?type=orphan|guardian
      * بثّ صورة الكفالة (مع تفعيل CORS عبر مسار api/*)
      */
