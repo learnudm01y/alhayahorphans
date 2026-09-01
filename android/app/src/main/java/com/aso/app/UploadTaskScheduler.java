@@ -223,53 +223,6 @@ public class UploadTaskScheduler {
         }
     }
 
-    /** ════════════════════════════════════════════════════════════════
-     * [SmartMedia] جدولة معالجة الملفات المحلية (الضغط الذكي).
-     * تُشغَّل عشوائياً وتبقى حية (KEEP) إن كانت جارية لبث تعدد المرات،
-     * ثم تُنقل الملفات من 'processing' إلى 'upload_pending' ليتولاها الرفع.
-     * ═══════════════════════════════════════════════════════════════════ */
-    private static final String MEDIA_PROCESSING_WORK = "SmartMediaProcessingWork";
-    private static final String PERIODIC_MEDIA_SWEEP = "smart_media_sweep";
-
-    public void scheduleSmartMediaProcessing() {
-        try {
-            OneTimeWorkRequest mediaWork = new OneTimeWorkRequest.Builder(SmartMediaWorker.class)
-                .setBackoffCriteria(
-                    BackoffPolicy.EXPONENTIAL,
-                    WorkRequest.MIN_BACKOFF_MILLIS,
-                    TimeUnit.MILLISECONDS
-                )
-                .addTag("smart_media_processing")
-                .build();
-            getWorkManager().enqueueUniqueWork(
-                MEDIA_PROCESSING_WORK,
-                ExistingWorkPolicy.KEEP,
-                mediaWork
-            );
-            Log.d(TAG, "✅ جُدولت معالجة الوسائط الذكية");
-        } catch (Exception e) {
-            Log.e(TAG, "تعذّرت جدولة معالجة الوسائط: " + e.getMessage(), e);
-        }
-    }
-
-    /** مهمة دورية تسترد state={'processing'} العالقة وتنظف الملفات المؤقتة. */
-    public void schedulePeriodicMediaProcessing() {
-        try {
-            PeriodicWorkRequest sweep = new PeriodicWorkRequest.Builder(
-                    SmartMediaWorker.class, 15, TimeUnit.MINUTES)
-                .addTag("smart_media_sweep")
-                .build();
-            getWorkManager().enqueueUniquePeriodicWork(
-                PERIODIC_MEDIA_SWEEP,
-                ExistingPeriodicWorkPolicy.KEEP,
-                sweep
-            );
-            Log.d(TAG, "✅ جُدولت مهمة إنعاش المعالجة الذكية (كل ١٥ دقيقة)");
-        } catch (Exception e) {
-            Log.e(TAG, "تعذّرت جدولة المهمة الدورية للمعالجة: " + e.getMessage(), e);
-        }
-    }
-
     /**
      * رفع ملف مباشرة - نسخة محسّنة مع STREAMING لمنع OOM
      * ✅ يستخدم BufferedInputStream للملفات الكبيرة

@@ -1056,57 +1056,11 @@ class MobileRegistrationController extends Controller
     public function findById(Request $request): JsonResponse
     {
         try {
-            $request->validate(['id_number' => 'required|string|max:100']);
+            $request->validate(['id_number' => 'required|string|max:20']);
 
             $id = trim($request->input('id_number'));
-            $isId = preg_match('/^\d{6,20}$/', $id);
-            if (!$isId && mb_strlen($id) < 2) {
-                return response()->json(['success' => false, 'message' => 'نص البحث قصير جداً'], 422);
-            }
-            // If not an ID, treat as name search - search in data and re_people by name
-            if (!$isId) {
-                $name = $id;
-                $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $name) . '%';
-                // Search in data (guardians) by name
-                $data = DB::table('data')
-                    ->where(function($q) use ($like) {
-                        $q->where('data_first_name', 'like', $like)
-                          ->orWhere('data_father_name', 'like', $like)
-                          ->orWhere('data_family_name', 'like', $like)
-                          ->orWhereRaw("CONCAT_WS(' ', data_first_name, data_father_name, data_family_name) LIKE ?", [$like]);
-                    })
-                    ->select('file_id_number', 'data_id_number', 'data_first_name', 'data_father_name', 'data_grand_father_name', 'data_family_name', 'data_section_id', 'data_province', 'data_request_status')
-                    ->first();
-                if ($data) {
-                    return response()->json([
-                        'success' => true,
-                        'matched_in' => 'data',
-                        'file_id_number' => $data->file_id_number ? str_pad((string) $data->file_id_number, 6, '0', STR_PAD_LEFT) : null,
-                        'record' => (array) $data,
-                        'sponsorship' => null,
-                        'sponsorship_file_number' => null,
-                    ]);
-                }
-                $member = DB::table('re_people')
-                    ->where(function($q) use ($like) {
-                        $q->where('first_name', 'like', $like)
-                          ->orWhere('last_name', 'like', $like)
-                          ->orWhereRaw("CONCAT_WS(' ', first_name, second_name, third_name, last_name) LIKE ?", [$like]);
-                    })
-                    ->select('registration_id', 'first_name', 'second_name', 'third_name', 'last_name', 'person_id')
-                    ->first();
-                if ($member) {
-                    $fileId = $member->registration_id ? str_pad((string) $member->registration_id, 6, '0', STR_PAD_LEFT) : null;
-                    return response()->json([
-                        'success' => true,
-                        'matched_in' => 're_people',
-                        'file_id_number' => $fileId,
-                        'record' => (array) $member,
-                        'sponsorship' => null,
-                        'sponsorship_file_number' => null,
-                    ]);
-                }
-                return response()->json(['success' => false, 'message' => 'لا توجد بيانات بهذا الاسم'], 404);
+            if (!preg_match('/^\d{6,20}$/', $id)) {
+                return response()->json(['success' => false, 'message' => 'رقم هوية غير صالح'], 422);
             }
             $type = $request->input('type', 'any');
 

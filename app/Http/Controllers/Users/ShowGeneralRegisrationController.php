@@ -264,12 +264,22 @@ class ShowGeneralRegisrationController extends Controller
                 $showAttachmentsSection = false;
             }
 
+            // 🆕 التحقق من إعداد ضغط الصور
+            $compressAttachments = true; // القيمة الافتراضية: مفعّل
+            if (isset($fieldSettings->compress_attachments_images)) {
+                $compressAttachments = (bool) $fieldSettings->compress_attachments_images;
+            }
+
             Log::info('SECTION_VISIBILITY_SETTINGS', [
                 'sponsor_id' => $sponsorId,
                 'show_family_members_section' => $showFamilyMembersSection,
                 'show_attachments_section' => $showAttachmentsSection,
+                'compress_attachments' => $compressAttachments,
                 'documents_count' => $documentTypes->count()
             ]);
+        } else {
+            // القيمة الافتراضية إذا لم تكن هناك إعدادات
+            $compressAttachments = true;
         }
 
         // جلب المرفقات الموجودة حالياً
@@ -303,7 +313,8 @@ class ShowGeneralRegisrationController extends Controller
             'documentTypes',
             'existingAttachments',
             'showFamilyMembersSection',
-            'showAttachmentsSection'
+            'showAttachmentsSection',
+            'compressAttachments'
         ));
     }
 
@@ -2184,6 +2195,38 @@ class ShowGeneralRegisrationController extends Controller
                 ]);
 
                 $uploadedCount = 0;
+
+                // قراءة إعداد الضغط للجمعية
+                $compressEnabled = true;
+                if ($sponsorship->sponsor_id) {
+                    $fieldSettingsForCompress = \App\Models\SponsorFieldSetting::where('sponsor_id', $sponsorship->sponsor_id)->first();
+                    $compressEnabled = (bool) ($fieldSettingsForCompress->compress_attachments_images ?? true);
+                }
+
+                Log::info('ATTACHMENTS_COMPRESS_SETTING', [
+                    'sponsor_id' => $sponsorship->sponsor_id,
+                    'compress_enabled' => $compressEnabled,
+                ]);
+
+                // معالجة ضغط الصور قبل الرفع (إذا كان مفعّلاً)
+                if ($compressEnabled) {
+                    $imageProcessor = new \App\Services\ImageProcessingService();
+                    foreach ($validAttachments as $docTypeId => $files) {
+                        foreach ($files as $index => $file) {
+                            if (str_starts_with($file->getMimeType(), 'image/')) {
+                                $compressed = $imageProcessor->compressImage($file);
+                                if ($compressed) {
+                                    $validAttachments[$docTypeId][$index] = $compressed;
+                                    Log::info('IMAGE_COMPRESSED_BEFORE_UPLOAD', [
+                                        'original_size' => $file->getSize(),
+                                        'compressed_size' => $compressed->getSize(),
+                                        'doc_type_id' => $docTypeId,
+                                    ]);
+                                }
+                            }
+                        }
+                    }
+                }
 
                 if ($useRclone) {
                     // ===== استخدام Rclone لرفع الملفات =====

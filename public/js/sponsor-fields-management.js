@@ -17,6 +17,7 @@ class SponsorFieldsManager {
         this.fieldsData = [];
         this.documentsData = [];
         this.currentTab = 'fields'; // 'fields' or 'documents'
+        this.compressAttachmentsEnabled = true; // إعداد الضغط
         this.init();
     }
 
@@ -220,6 +221,12 @@ class SponsorFieldsManager {
             self.saveFieldsConfiguration();
         });
 
+        // تبديل حالة الضغط
+        $(document).on('change', '#compress_attachments_images_toggle', function() {
+            self.compressAttachmentsEnabled = $(this).is(':checked');
+            self.updateCompressToggleLabel();
+        });
+
         // النقر على عنصر الحقل (لتفعيله/تعطيله)
         $(document).on('click', '.field-item', function(e) {
             if (!$(e.target).is('.field-switch, .merged-fields-switch')) {
@@ -288,6 +295,23 @@ class SponsorFieldsManager {
     }
 
     /**
+     * تحديث حالة زر التبديل للضغط
+     */
+    updateCompressToggle() {
+        $('#compress_attachments_images_toggle').prop('checked', this.compressAttachmentsEnabled);
+        this.updateCompressToggleLabel();
+    }
+
+    /**
+     * تحديث نص حالة زر التبديل للضغط
+     */
+    updateCompressToggleLabel() {
+        const isChecked = $('#compress_attachments_images_toggle').is(':checked');
+        $('#compress_enabled_text').toggle(isChecked);
+        $('#compress_disabled_text').toggle(!isChecked);
+    }
+
+    /**
      * تحميل حقول الجمعية
      */
     loadSponsorFields(sponsorId) {
@@ -306,7 +330,9 @@ class SponsorFieldsManager {
             success: function(response) {
                 if (response.success) {
                     self.fieldsData = response.fields;
+                    self.compressAttachmentsEnabled = response.compress_attachments_images;
                     self.displayFields();
+                    self.updateCompressToggle();
                 } else {
                     self.showError('حدث خطأ أثناء تحميل الحقول');
                 }
@@ -837,7 +863,8 @@ class SponsorFieldsManager {
                 'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
             },
             data: {
-                fields: activeFieldsDbColumns
+                fields: activeFieldsDbColumns,
+                compress_attachments_images: $('#compress_attachments_images_toggle').is(':checked')
             },
             success: function(response) {
                 if (response.success) {

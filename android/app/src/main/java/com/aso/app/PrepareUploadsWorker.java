@@ -31,23 +31,6 @@ public class PrepareUploadsWorker extends Worker {
             } else {
                 Log.d(TAG, "ℹ️ No failed files needed resetting.");
             }
-
-            // [SmartMedia] شبكة الأمان: الملفات العالقة في المعالجة المحلية
-            // (processing) بعد إغلاق التطبيق تُعاد للأصل لتُرفع على الأقل.
-            int reclaimedLocal = dbHelper.reclaimStaleLocalProcessing();
-            if (reclaimedLocal > 0) {
-                Log.w(TAG, "♻️ reclaimed " + reclaimedLocal + " stale local-processing rows → pending");
-            }
-
-            // [SmartMedia] تنظيف الملفات المؤقتة غير المرتبطة بأي صف نشط.
-            SmartMediaProcessor.cleanupOrphanedTempFiles(getApplicationContext(), dbHelper);
-
-            // [SmartMedia] استئناف معالجة أي ملفات بقيت قيد الضغط الذكي.
-            if (dbHelper.getProcessingFilesCount() > 0) {
-                com.aso.app.UploadTaskScheduler.getInstance(getApplicationContext())
-                        .scheduleSmartMediaProcessing();
-            }
-
             return Result.success();
         } catch (Exception e) {
             Log.e(TAG, "❌ Failed to reset files: " + e.getMessage(), e);

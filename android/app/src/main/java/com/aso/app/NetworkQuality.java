@@ -8,69 +8,53 @@ import android.os.Build;
 import android.util.Log;
 
 /**
- * تصنيف جودة الوصلة الحالية.
+ * تقدير جودة الوصلة الحالية.
  *
- * يُستخدم لاختيار حجم الجزء (chunk) عند الرفع:
- *  • وصلة سريعة → أجزاء كبيرة: عدد أقل من الرحلات، رفع أسرع بوضوح.
- *  • وصلة ضعيفة → أجزاء صغيرة: كل جزء ينجح بسرعة فيُثبَّت التقدّم أولاً بأول،
- *    وفشل جزء يكلّف إعادة إرسال كيلوبايتات لا ميجابايتات.
- *
- * القاعدة العامة: احتمال فشل الجزء يتناسب مع زمن إرساله، وكلفة الفشل تتناسب
- * مع حجمه. لذلك الجزء الكبير على وصلة ضعيفة أسوأ خيار ممكن.
+ * يُستخدم لاختيار حجم الجزء (chunk) عند الرفع: على وصلة ضعيفة يكون الجزء
+ * الكبير كارثة — كل فشل يُهدر ما رُفع منه بالكامل، واحتمال الفشل يتناسب مع
+ * حجم الجزء. تقسيم الرفع إلى أجزاء صغيرة يجعل التقدّم يُحفظ باستمرار.
  */
 public class NetworkQuality {
     private static final String TAG = "NetworkQuality";
 
-    public static final int WEAK   = 0;
-    public static final int NORMAL = 1;
-    public static final int FAST   = 2;
-
-    /** أقل من هذا يُعتبر وصلة ضعيفة (كيلوبت/ثانية صعوداً). */
-    private static final int WEAK_KBPS = 600;
-    /** أعلى من هذا يُعتبر وصلة سريعة. */
-    private static final int FAST_KBPS = 5000;
+    /** أقل من هذا يُعتبر وصلة ضعيفة (كيلوبت/ثانية). */
+    private static final int SLOW_KBPS = 600;
 
     /**
-     * يصنّف الوصلة الحالية. يعود WEAK عند تعذّر التحديد — الافتراض المتحفّظ أأمن.
+     * هل الوصلة الحالية بطيئة أو غير مؤكدة؟
+     * يعود true أيضاً عند تعذّر التحديد — الافتراض المتحفّظ أأمن.
      */
-    public static int classify(Context context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return WEAK;
+    public static boolean isSlow(Context context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return true;
 
         try {
             ConnectivityManager cm = (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-            if (cm == null) return WEAK;
+            if (cm == null) return true;
 
-            Network network = cm.getActiveNetwork();
-            if (network == null) return WEAK;
+            Network network = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
+                ? cm.getActiveNetwork() : null;
+            if (network == null) return true;
 
             NetworkCapabilities caps = cm.getNetworkCapabilities(network);
-            if (caps == null) return WEAK;
-
-            // الوصلة غير الموثّقة تتصرّف كالضعيفة حتى لو ادّعت سرعة عالية.
-            if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
-                return WEAK;
-            }
+            if (caps == null) return true;
 
             int upKbps = caps.getLinkUpstreamBandwidthKbps();
-            if (upKbps <= 0) return NORMAL;
+            if (upKbps <= 0) return true;
 
-            if (upKbps < WEAK_KBPS) {
+            // الوصلة غير الموثّقة تتصرّف كالضعيفة حتى لو ادّعت سرعة عالية.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
+                return true;
+            }
+
+            boolean slow = upKbps < SLOW_KBPS;
+            if (slow) {
                 Log.d(TAG, "وصلة ضعيفة: " + upKbps + " كيلوبت/ث صعوداً");
-                return WEAK;
             }
-            if (upKbps >= FAST_KBPS) {
-                Log.d(TAG, "وصلة سريعة: " + upKbps + " كيلوبت/ث صعوداً");
-                return FAST;
-            }
-            return NORMAL;
+            return slow;
         } catch (Exception e) {
             Log.w(TAG, "تعذّر تقدير جودة الشبكة: " + e.getMessage());
-            return WEAK;
+            return true;
         }
-    }
-
-    /** توافق للخلف مع النداءات القديمة. */
-    public static boolean isSlow(Context context) {
-        return classify(context) == WEAK;
     }
 }

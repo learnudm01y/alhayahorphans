@@ -1,6 +1,32 @@
+include ':app'
 include ':capacitor-cordova-android-plugins'
 project(':capacitor-cordova-android-plugins').projectDir = new File('./capacitor-cordova-android-plugins/')
 
-include ':app'
-
-apply from: 'capacitor.settings.gradle'
+// Capacitor plugins
+def rootPath = settingsDir.getParentFile().getAbsolutePath()
+include ':capacitor-android'
+project(':capacitor-android').projectDir = new File(rootPath + '/node_modules/@capacitor/android/capacitor')
+include ':capacitor-app'
+project(':capacitor-app').projectDir = new File(rootPath + '/node_modules/@capacitor/app/android')
+include ':capacitor-camera'
+project(':capacitor-camera').projectDir = new File(rootPath + '/node_modules/@capacitor/camera/android')
+include ':capacitor-filesystem'
+project(':capacitor-filesystem').projectDir = new File(rootPath + '/node_modules/@capacitor/filesystem/android')
+include ':capacitor-haptics'
+project(':capacitor-haptics').projectDir = new File(rootPath + '/node_modules/@capacitor/haptics/android')
+include ':capacitor-keyboard'
+project(':capacitor-keyboard').projectDir = new File(rootPath + '/node_modules/@capacitor/keyboard/android')
+include ':capacitor-local-notifications'
+project(':capacitor-local-notifications').projectDir = new File(rootPath + '/node_modules/@capacitor/local-notifications/android')
+include ':capacitor-network'
+project(':capacitor-network').projectDir = new File(rootPath + '/node_modules/@capacitor/network/android')
+include ':capacitor-preferences'
+project(':capacitor-preferences').projectDir = new File(rootPath + '/node_modules/@capacitor/preferences/android')
+include ':capacitor-status-bar'
+project(':capacitor-status-bar').projectDir = new File(rootPath + '/node_modules/@capacitor/status-bar/android')
+include ':capacitor-community-sqlite'
+project(':capacitor-community-sqlite').projectDir = new File(rootPath + '/node_modules/@capacitor-community/sqlite/android')
+include ':capawesome-capacitor-background-task'
+project(':capawesome-capacitor-background-task').projectDir = new File(rootPath + '/node_modules/@capawesome/capacitor-background-task/android')
+include ':capawesome-capacitor-file-picker'
+project(':capawesome-capacitor-file-picker').projectDir = new File(rootPath + '/node_modules/@capawesome/capacitor-file-picker/android')

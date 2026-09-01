@@ -245,10 +245,8 @@ public class CameraActivity extends AppCompatActivity {
         try {
             UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(this);
 
-            // حفظ في قاعدة البيانات — مع الضغط الذكي قبل طابور الرفع
-            long fileId = SmartMediaProcessor.queueForUpload(
-                this,
-                dbHelper,
+            // حفظ في قاعدة البيانات
+            long fileId = dbHelper.addFileToQueue(
                 filePath,
                 fileName,
                 "video/mp4",
@@ -291,23 +289,99 @@ public class CameraActivity extends AppCompatActivity {
      * ✨ حفظ في مجلد Documents العام (Public Storage) ليكون متاحاً للمستخدم
      */
     private String saveToExternalDocumentsFolder(android.net.Uri sourceUri, String fileName) {
-        // نفس منطق الصور حرفياً عبر MediaArchive — كان الفيديو أيضاً يُدرج في
-        // مجموعة Downloads بمسار Documents/ وهو مزيج يرفضه أندرويد.
-        String savedPath = MediaArchive.save(
-            this, sourceUri, fileName, "video/mp4", associationName, personName);
+        Log.e(TAG, "💾 saveToExternalDocumentsFolder() START");
+        Log.e(TAG, "   sourceUri: " + sourceUri.toString());
+        Log.e(TAG, "   fileName: " + fileName);
 
-        if (savedPath != null) {
-            UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(this);
-            dbHelper.savePersonNameHistory(
-                sponsorshipId,
-                associationName != null ? associationName : "",
-                personName != null ? personName : "",
-                MediaArchive.absoluteFolder(associationName, personName)
-            );
-        } else {
-            Log.e(TAG, "⚠️ لم يُحفظ الفيديو على الذاكرة الخارجية — الرفع سيستمر رغم ذلك");
+        String safeAssociationName = (associationName != null && !associationName.isEmpty())
+            ? associationName.replaceAll("[^a-zA-Z0-9_\\-\\u0600-\\u06FF\\s]", "_")
+            : "General";
+        String safePersonName = (personName != null && !personName.isEmpty())
+            ? personName.replaceAll("[^a-zA-Z0-9_\\-\\u0600-\\u06FF\\s]", "_")
+            : "Unknown_" + sponsorshipId;
+
+        // هيكلية المسار: /Documents/sponsorships_alhayahorphans/[Association]/[Person]/
+        String relativeFolderPath = android.os.Environment.DIRECTORY_DOCUMENTS + "/sponsorships_alhayahorphans/" + safeAssociationName + "/" + safePersonName;
+        String absoluteFolderPath = android.os.Environment.getExternalStorageDirectory().getAbsolutePath() + 
+                                    "/Documents/sponsorships_alhayahorphans/" + safeAssociationName + "/" + safePersonName;
+        String absoluteFilePath = absoluteFolderPath + "/" + fileName;
+
+        boolean success = false;
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // ANDROID 10+ (Q): استخدام MediaStore للحفظ في مجلد Documents العام
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+                values.put(MediaStore.MediaColumns.RELATIVE_PATH, relativeFolderPath);
+                values.put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4");
+
+                // نستخدم مجموعة Downloads لأنها تدعم حفظ أي نوع ملف داخل Documents/
+                Uri collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+                Uri itemUri = getContentResolver().insert(collection, values);
+
+                if (itemUri != null) {
+                    try (java.io.InputStream is = getContentResolver().openInputStream(sourceUri);
+                         java.io.OutputStream os = getContentResolver().openOutputStream(itemUri)) {
+                        if (is != null && os != null) {
+                            byte[] buffer = new byte[16384];
+                            int read;
+                            while ((read = is.read(buffer)) != -1) {
+                                os.write(buffer, 0, read);
+                            }
+                            success = true;
+                            Log.e(TAG, "✅ Video successfully saved to public Documents folder via MediaStore");
+                        }
+                    }
+                    if (!success) {
+                        getContentResolver().delete(itemUri, null, null);
+                    }
+                }
+            } else {
+                // ANDROID 9 وما قبل: استخدام File API التقليدي
+                File documentsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOCUMENTS);
+                File mainDir = new File(documentsDir, "sponsorships_alhayahorphans");
+                File associationDir = new File(mainDir, safeAssociationName);
+                File personDir = new File(associationDir, safePersonName);
+
+                if (!personDir.exists()) {
+                    personDir.mkdirs();
+                }
+
+                File destFile = new File(personDir, fileName);
+
+                try (java.io.InputStream is = getContentResolver().openInputStream(sourceUri);
+                     java.io.OutputStream os = new java.io.FileOutputStream(destFile)) {
+                    if (is != null) {
+                        byte[] buffer = new byte[16384];
+                        int read;
+                        while ((read = is.read(buffer)) != -1) {
+                            os.write(buffer, 0, read);
+                        }
+                        success = true;
+                        Log.e(TAG, "✅ Video successfully saved to public Documents folder: " + destFile.getAbsolutePath());
+                    }
+                }
+            }
+
+            if (success) {
+                // حفظ تاريخ المجلد الجديد في قاعدة البيانات
+                UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(this);
+                dbHelper.savePersonNameHistory(
+                    sponsorshipId,
+                    associationName != null ? associationName : "",
+                    personName != null ? personName : "",
+                    absoluteFolderPath
+                );
+                return absoluteFilePath;
+            } else {
+                return null;
+            }
+
+        } catch (Exception e) {
+            Log.e(TAG, "❌ Failed to save video to public Documents folder: " + e.getMessage());
+            e.printStackTrace();
+            return null;
         }
-
-        return savedPath;
     }
 }

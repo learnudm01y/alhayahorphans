@@ -1430,9 +1430,9 @@
                                                        id="file-{{ $docType->id }}"
                                                        name="attachments[{{ $docType->id }}][]"
                                                        class="d-none"
-                                                       accept="image/*,video/*"
+                                                       accept="image/*,video/*,.pdf"
                                                        multiple
-                                                       onchange="previewFiles(this, {{ $docType->id }})">
+                                                       onchange="handleFileSelectWithCropper(this, {{ $docType->id }}, {{ json_encode($compressAttachments ?? true) }})">
 
                                                 {{-- منطقة المعاينة --}}
                                                 <div id="preview-{{ $docType->id }}" class="preview-container mt-3 d-none">
@@ -2739,6 +2739,86 @@
         });
     </script>
 @endif
+
+{{-- Cropper Modal --}}
+@include('user.generalRegistration.layout.cropperHtml')
+@include('user.generalRegistration.layout.cropperStyle')
+
+<script>
+// تمرير إعداد الضغط إلى JavaScript
+window._compressAttachmentsEnabled = {{ json_encode($compressAttachments ?? true) }};
+
+// معالجة اختيار الملفات مع Cropper للصور
+function handleFileSelectWithCropper(input, docTypeId, compressEnabled) {
+    const files = Array.from(input.files);
+    
+    if (files.length === 0) return;
+    
+    // معالجة كل ملف
+    let processedCount = 0;
+    
+    files.forEach((file, index) => {
+        if (file.type.startsWith('image/')) {
+            // صورة → فتح Cropper
+            showCropperModal(file, function(croppedFile) {
+                if (croppedFile) {
+                    // استبدال الملف الأصلي بالملف المقصوص/المضغوط
+                    replaceFileInInput(input, index, croppedFile, docTypeId);
+                }
+                processedCount++;
+                if (processedCount === files.length) {
+                    previewFiles(input, docTypeId);
+                }
+            });
+        } else {
+            // فيديو/PDF → معاينة مباشرة
+            processedCount++;
+            if (processedCount === files.length) {
+                previewFiles(input, docTypeId);
+            }
+        }
+    });
+}
+
+// استبدال ملف في حقل الإدخال
+function replaceFileInInput(input, index, newFile, docTypeId) {
+    const dataTransfer = new DataTransfer();
+    
+    for (let i = 0; i < input.files.length; i++) {
+        if (i === index) {
+            dataTransfer.items.add(newFile);
+        } else {
+            dataTransfer.items.add(input.files[i]);
+        }
+    }
+    
+    input.files = dataTransfer.files;
+}
+
+// إضافة هذا السطر لتحميل Cropper.js إذا لم يكن محملاً
+document.addEventListener('DOMContentLoaded', function() {
+    // التحقق من تحميل Cropper.js
+    if (typeof Cropper === 'undefined') {
+        var script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js';
+        document.head.appendChild(script);
+        
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css';
+        document.head.appendChild(link);
+    }
+    
+    // التحقق من تحميل browser-image-compression
+    if (typeof imageCompression === 'undefined') {
+        var script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js';
+        document.head.appendChild(script);
+    }
+});
+</script>
+
+@include('user.generalRegistration.javascript.cropper')
 
 @endsection
 

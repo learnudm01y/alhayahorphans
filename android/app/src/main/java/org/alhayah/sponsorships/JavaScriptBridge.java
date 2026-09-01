@@ -154,7 +154,7 @@ public class JavaScriptBridge {
         try {
             Log.e(TAG, "");
             Log.e(TAG, "🔐🔐🔐 saveAuthData() CALLED 🔐🔐🔐");
-            Log.d(TAG, "📥 Token: " + (token != null && !token.isEmpty() ? "[received]" : "[null]"));
+            Log.d(TAG, "📥 Token: " + (token != null ? token.substring(0, Math.min(20, token.length())) + "..." : "null"));
             Log.d(TAG, "🌐 Base URL (raw): " + baseUrl);
 
             // إزالة /api من نهاية الرابط إذا كان موجود
@@ -170,29 +170,12 @@ public class JavaScriptBridge {
             editor.apply();
 
             Log.e(TAG, "✅ Auth data saved to SharedPreferences");
-            Log.e(TAG, "   📡 Token: " + (token != null && !token.isEmpty() ? "[saved]" : "[null]"));
+            Log.e(TAG, "   📡 Token: " + (token != null ? token.substring(0, Math.min(15, token.length())) + "..." : "null"));
             Log.e(TAG, "   🌐 Base URL: " + (baseUrl != null ? baseUrl : com.aso.app.ApiConfig.BASE_URL));
             Log.e(TAG, "");
 
         } catch (Exception e) {
             Log.e(TAG, "❌ Error saving auth data", e);
         }
-    }
-
-    /**
-     * [SmartMedia] ضبط إعداد «الضغط الذكي قبل الرفع» من الواجهة.
-     */
-    @JavascriptInterface
-    public void setSmartCompressionEnabled(boolean enabled) {
-        com.aso.app.SmartMediaProcessor.setEnabled(context, enabled);
-        Log.d(TAG, "[SmartMedia] smart_compression_enabled = " + enabled);
-    }
-
-    /**
-     * [SmartMedia] قراءة إعداد «الضغط الذكي قبل الرفع».
-     */
-    @JavascriptInterface
-    public boolean isSmartCompressionEnabled() {
-        return com.aso.app.SmartMediaProcessor.isEnabled(context);
     }
 }

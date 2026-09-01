@@ -151,6 +151,28 @@
                                             </div>
                                         </div>
 
+                                        <!-- إعداد ضغط صور المرفقات -->
+                                        <div class="card bg-light-warning mb-5">
+                                            <div class="card-body py-3">
+                                                <div class="d-flex align-items-center justify-content-between">
+                                                    <div class="d-flex align-items-center">
+                                                        <i class="fas fa-compress-arrows-alt text-warning fs-2x me-3"></i>
+                                                        <div>
+                                                            <span class="fw-bold text-gray-800">ضغط صور المرفقات</span>
+                                                            <div class="text-muted fs-7">تطبيق ضغط + قص تلقائي للصور قبل الرفع (يُ Kept الحجم ≤ 100KB)</div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="form-check form-switch form-switch-sm form-check-custom">
+                                                        <input class="form-check-input" type="checkbox" id="compress_attachments_images_toggle" checked>
+                                                        <label class="form-check-label" for="compress_attachments_images_toggle">
+                                                            <span id="compress_enabled_text" class="text-success fw-bold">مفعّل</span>
+                                                            <span id="compress_disabled_text" class="text-danger fw-bold" style="display:none;">معطّل</span>
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
                                         <div class="scroll-y" style="max-height: 600px;">
                                             <div id="activeFieldsContainer">
                                                 <!-- سيتم ملء الحقول المفعلة هنا -->

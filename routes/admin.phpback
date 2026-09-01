@@ -589,8 +589,6 @@ Route::prefix('admin')->group(function () {
         Route::delete('/{id}', [CivilRegistryController::class, 'destroy'])->name('civil-registry.destroy');
         Route::get('/search', [CivilRegistryController::class, 'search'])->name('civil-registry.search');
         Route::get('/stats', [CivilRegistryController::class, 'stats'])->name('civil-registry.stats');
-        Route::get('/import-template', [CivilRegistryController::class, 'importTemplate'])->name('civil-registry.import-template');
-        Route::post('/import', [CivilRegistryController::class, 'importFromExcel'])->name('civil-registry.import');
     });
 });
 

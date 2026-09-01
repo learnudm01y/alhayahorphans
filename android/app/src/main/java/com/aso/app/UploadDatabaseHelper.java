@@ -17,7 +17,7 @@ import java.util.List;
 public class UploadDatabaseHelper extends SQLiteOpenHelper {
     private static final String TAG = "UploadDatabaseHelper";
     private static final String DATABASE_NAME = "upload_queue.db";
-    private static final int DATABASE_VERSION = 7;  // Version 7: Smart Media Compression columns + local processing states
+    private static final int DATABASE_VERSION = 6;  // Version 6: Added auth_token column
 
     // Table name
     private static final String TABLE_UPLOAD_QUEUE = "upload_queue";
@@ -40,22 +40,12 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
     private static final String COLUMN_ASSOCIATION_NAME = "association_name";
     private static final String COLUMN_PERSON_NAME = "person_name";
 
-    // Columns - Smart Media Compression (version 7)
-    private static final String COLUMN_ORIGINAL_SIZE = "original_size";
-    private static final String COLUMN_PROCESSED_SIZE = "processed_size";
-    private static final String COLUMN_COMPRESSION_ENABLED = "compression_enabled";
-    private static final String COLUMN_COMPRESSION_TYPE = "compression_type";
-    private static final String COLUMN_COMPRESSION_RATIO = "compression_ratio";
-
     // Columns - indexeddb_mapping
     private static final String COLUMN_SQLITE_ID = "sqlite_id";
     private static final String COLUMN_INDEXEDDB_ID = "indexeddb_id";
 
     // Status values
     public static final String STATUS_PENDING = "pending";
-    public static final String STATUS_PROCESSING = "processing";          // ✨ محلي: قيد الضغط الذكي
-    public static final String STATUS_PROCESSED = "processed";            // ✨ محلي: انتهى الضغط بنجاح
-    public static final String STATUS_UPLOAD_PENDING = "upload_pending";  // ✨ جاهز للرفع (الملف النهائي)
     public static final String STATUS_UPLOADING = "uploading";
     public static final String STATUS_PROCESSING_SERVER = "processing_server";
     public static final String STATUS_COMPLETED = "completed";
@@ -92,12 +82,7 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
                 + COLUMN_CREATED_AT + " INTEGER NOT NULL, "
                 + COLUMN_UPDATED_AT + " INTEGER NOT NULL, "
                 + COLUMN_ASSOCIATION_NAME + " TEXT DEFAULT 'General', "
-                + COLUMN_PERSON_NAME + " TEXT DEFAULT 'unknown', "
-                + COLUMN_ORIGINAL_SIZE + " INTEGER DEFAULT 0, "
-                + COLUMN_PROCESSED_SIZE + " INTEGER DEFAULT 0, "
-                + COLUMN_COMPRESSION_ENABLED + " INTEGER DEFAULT 0, "
-                + COLUMN_COMPRESSION_TYPE + " TEXT, "
-                + COLUMN_COMPRESSION_RATIO + " REAL DEFAULT 0"
+                + COLUMN_PERSON_NAME + " TEXT DEFAULT 'unknown'"
                 + ")";
 
         db.execSQL(CREATE_TABLE);
@@ -163,15 +148,6 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
             db.execSQL("ALTER TABLE " + TABLE_UPLOAD_QUEUE + " ADD COLUMN " + COLUMN_AUTH_TOKEN + " TEXT");
             Log.d(TAG, "Database upgraded to version 6: Added auth_token column");
         }
-        if (oldVersion < 7) {
-            // أعمدة الضغط الذكي في الإصدار 7
-            db.execSQL("ALTER TABLE " + TABLE_UPLOAD_QUEUE + " ADD COLUMN " + COLUMN_ORIGINAL_SIZE + " INTEGER DEFAULT 0");
-            db.execSQL("ALTER TABLE " + TABLE_UPLOAD_QUEUE + " ADD COLUMN " + COLUMN_PROCESSED_SIZE + " INTEGER DEFAULT 0");
-            db.execSQL("ALTER TABLE " + TABLE_UPLOAD_QUEUE + " ADD COLUMN " + COLUMN_COMPRESSION_ENABLED + " INTEGER DEFAULT 0");
-            db.execSQL("ALTER TABLE " + TABLE_UPLOAD_QUEUE + " ADD COLUMN " + COLUMN_COMPRESSION_TYPE + " TEXT");
-            db.execSQL("ALTER TABLE " + TABLE_UPLOAD_QUEUE + " ADD COLUMN " + COLUMN_COMPRESSION_RATIO + " REAL DEFAULT 0");
-            Log.d(TAG, "Database upgraded to version 7: Added Smart Media Compression columns");
-        }
     }
 
     /**
@@ -226,184 +202,6 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
         Log.e(TAG, "");
 
         return id;
-    }
-
-    /**
-     * ✨ Smart Media Compression: إضافة ملف بحالة معالجة محلية (processing).
-     * لا يحجزه عامل الرفع — يضغطه SmartMediaWorker أولاً ثم ينقله إلى
-     * upload_pending. بهذا لا يدخل الأصل أبداً إلى طابور الرفع عند تفعيل الضغط.
-     */
-    public long addFileToQueueForProcessing(String filePath, String fileName, String fileType, int photoId,
-                                            String apiUrl, String authToken, String associationName,
-                                            String personName, long originalSize) {
-        long currentTime = System.currentTimeMillis();
-
-        SQLiteDatabase db = this.getWritableDatabase();
-        ContentValues values = new ContentValues();
-        values.put(COLUMN_FILE_PATH, filePath);
-        values.put(COLUMN_FILE_NAME, fileName);
-        values.put(COLUMN_FILE_TYPE, fileType);
-        values.put(COLUMN_PHOTO_ID, photoId);
-        values.put(COLUMN_API_URL, apiUrl);
-        values.put(COLUMN_AUTH_TOKEN, authToken);
-        values.put(COLUMN_STATUS, STATUS_PROCESSING);
-        values.put(COLUMN_RETRY_COUNT, 0);
-        values.put(COLUMN_CREATED_AT, currentTime);
-        values.put(COLUMN_UPDATED_AT, currentTime);
-        values.put(COLUMN_ASSOCIATION_NAME, associationName != null ? associationName : "General");
-        values.put(COLUMN_PERSON_NAME, personName != null ? personName : "unknown");
-        values.put(COLUMN_ORIGINAL_SIZE, originalSize);
-        values.put(COLUMN_PROCESSED_SIZE, 0);
-        values.put(COLUMN_COMPRESSION_ENABLED, 0);
-        values.put(COLUMN_COMPRESSION_RATIO, 0);
-
-        long id = db.insert(TABLE_UPLOAD_QUEUE, null, values);
-        if (id > 0) {
-            Log.d(TAG, "File queued for local processing: id=" + id + " status=" + STATUS_PROCESSING);
-        }
-        return id;
-    }
-
-    /**
-     * ✨ حجز ذرّي لأول ملف في حالة المعالجة المحلية (processing → يبقى
-     * processing مع تحديث updated_at). صف واحد فقط يربح، فلا يعالج عاملان
-     * نفس الملف.
-     */
-    public UploadItem claimNextProcessingFile() {
-        SQLiteDatabase db = this.getWritableDatabase();
-        UploadItem claimed = null;
-
-        db.beginTransaction();
-        try {
-            Cursor cursor = db.query(
-                TABLE_UPLOAD_QUEUE,
-                null,
-                COLUMN_STATUS + " = ?",
-                new String[]{STATUS_PROCESSING},
-                null,
-                null,
-                COLUMN_CREATED_AT + " ASC",
-                "1"
-            );
-
-            UploadItem candidate = null;
-            if (cursor.moveToFirst()) {
-                candidate = cursorToUploadItem(cursor);
-            }
-            cursor.close();
-
-            if (candidate != null) {
-                ContentValues values = new ContentValues();
-                values.put(COLUMN_UPDATED_AT, System.currentTimeMillis());
-                int rows = db.update(
-                    TABLE_UPLOAD_QUEUE,
-                    values,
-                    COLUMN_ID + " = ? AND " + COLUMN_STATUS + " = ?",
-                    new String[]{String.valueOf(candidate.id), STATUS_PROCESSING}
-                );
-                if (rows == 1) {
-                    claimed = candidate;
-                }
-            }
-
-            db.setTransactionSuccessful();
-        } catch (Exception e) {
-            Log.e(TAG, "claimNextProcessingFile failed", e);
-        } finally {
-            db.endTransaction();
-        }
-
-        return claimed;
-    }
-
-    /** عدد الملفات قيد المعالجة المحلية. */
-    public int getProcessingFilesCount() {
-        SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = db.rawQuery(
-            "SELECT COUNT(*) FROM " + TABLE_UPLOAD_QUEUE + " WHERE " + COLUMN_STATUS + " = ?",
-            new String[]{STATUS_PROCESSING}
-        );
-        int count = 0;
-        if (cursor.moveToFirst()) count = cursor.getInt(0);
-        cursor.close();
-        return count;
-    }
-
-    /**
-     * ✨ نجحت المعالجة: يستبدل المسار بالملف النهائي، يحفظ بيانات الضغط،
-     * وينقل الحالة إلى upload_pending (قابل للحجز من عامل الرفع).
-     */
-    public void markProcessed(long id, String finalPath, String finalFileName, long originalSize,
-                              long processedSize, boolean compressionEnabled, String compressionType,
-                              double ratio) {
-        try {
-            SQLiteDatabase db = this.getWritableDatabase();
-            ContentValues values = new ContentValues();
-            values.put(COLUMN_FILE_PATH, finalPath);
-            values.put(COLUMN_FILE_NAME, finalFileName);
-            values.put(COLUMN_ORIGINAL_SIZE, originalSize);
-            values.put(COLUMN_PROCESSED_SIZE, processedSize);
-            values.put(COLUMN_COMPRESSION_ENABLED, compressionEnabled ? 1 : 0);
-            values.put(COLUMN_COMPRESSION_TYPE, compressionType);
-            values.put(COLUMN_COMPRESSION_RATIO, ratio);
-            values.put(COLUMN_STATUS, STATUS_UPLOAD_PENDING);
-            values.putNull(COLUMN_ERROR_MESSAGE);
-            values.put(COLUMN_UPDATED_AT, System.currentTimeMillis());
-            db.update(TABLE_UPLOAD_QUEUE, values, COLUMN_ID + " = ?", new String[]{String.valueOf(id)});
-            Log.d(TAG, "File processed → upload_pending: id=" + id + " final=" + finalPath
-                    + " saved=" + ratio + "%");
-        } catch (Exception e) {
-            Log.e(TAG, "markProcessed failed for " + id, e);
-        }
-    }
-
-    /**
-     * ✨ فشل المعالجة: حسب السياسة، يعود للأصل (pending) أو يفشل نهائياً (failed).
-     */
-    public void markCompressionFailed(long id, String reason, boolean fallbackToOriginal) {
-        try {
-            SQLiteDatabase db = this.getWritableDatabase();
-            ContentValues values = new ContentValues();
-            values.put(COLUMN_COMPRESSION_ENABLED, 0);
-            values.put(COLUMN_COMPRESSION_TYPE, (String) null);
-            values.put(COLUMN_COMPRESSION_RATIO, 0);
-            values.put(COLUMN_STATUS, fallbackToOriginal ? STATUS_PENDING : STATUS_FAILED);
-            values.put(COLUMN_ERROR_MESSAGE, "SmartMedia: " + (reason != null ? reason : "compression failed"));
-            values.put(COLUMN_UPDATED_AT, System.currentTimeMillis());
-            db.update(TABLE_UPLOAD_QUEUE, values, COLUMN_ID + " = ?", new String[]{String.valueOf(id)});
-            Log.w(TAG, "Compression failed → " + values.getAsString(COLUMN_STATUS) + " for id=" + id
-                    + " reason=" + reason);
-        } catch (Exception e) {
-            Log.e(TAG, "markCompressionFailed failed for " + id, e);
-        }
-    }
-
-    /**
-     * ✨ شبكة الأمان: كل صف عالق في 'processing' منذ مدة (مات التطبيق أثناء
-     * الضغط) يُعاد للأصل كـ pending حتى لا يُحبَس ملف إلى الأبد.
-     */
-    public int reclaimStaleLocalProcessing() {
-        return reclaimStale(STATUS_PROCESSING, 30 * 60 * 1000L, "انتهت مهلة المعالجة المحلية");
-    }
-
-    /** كل المسارات النشطة (غير المكتملة) — لتنظيف الملفات المؤقتة. */
-    public List<String> getActiveQueueFilePaths() {
-        List<String> paths = new ArrayList<>();
-        try {
-            SQLiteDatabase db = this.getReadableDatabase();
-            Cursor cursor = db.rawQuery(
-                "SELECT " + COLUMN_FILE_PATH + " FROM " + TABLE_UPLOAD_QUEUE
-                + " WHERE " + COLUMN_STATUS + " != ?",
-                new String[]{STATUS_COMPLETED}
-            );
-            while (cursor.moveToNext()) {
-                paths.add(cursor.getString(0));
-            }
-            cursor.close();
-        } catch (Exception e) {
-            Log.w(TAG, "getActiveQueueFilePaths failed", e);
-        }
-        return paths;
     }
 
     /**
@@ -563,8 +361,8 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
             Cursor cursor = db.query(
                 TABLE_UPLOAD_QUEUE,
                 null,
-                COLUMN_STATUS + " IN (?, ?)",
-                new String[]{STATUS_PENDING, STATUS_UPLOAD_PENDING},
+                COLUMN_STATUS + " = ?",
+                new String[]{STATUS_PENDING},
                 null,
                 null,
                 COLUMN_CREATED_AT + " ASC",
@@ -587,8 +385,8 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
                 int rows = db.update(
                     TABLE_UPLOAD_QUEUE,
                     values,
-                    COLUMN_ID + " = ? AND " + COLUMN_STATUS + " IN (?, ?)",
-                    new String[]{String.valueOf(candidate.id), STATUS_PENDING, STATUS_UPLOAD_PENDING}
+                    COLUMN_ID + " = ? AND " + COLUMN_STATUS + " = ?",
+                    new String[]{String.valueOf(candidate.id), STATUS_PENDING}
                 );
 
                 if (rows == 1) {
@@ -849,8 +647,8 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = this.getReadableDatabase();
         Cursor cursor = db.rawQuery(
             "SELECT COUNT(*) FROM " + TABLE_UPLOAD_QUEUE
-            + " WHERE " + COLUMN_STATUS + " IN (?, ?, ?)",
-            new String[]{STATUS_PENDING, STATUS_UPLOADING, STATUS_UPLOAD_PENDING}
+            + " WHERE " + COLUMN_STATUS + " IN (?, ?)",
+            new String[]{STATUS_PENDING, STATUS_UPLOADING}
         );
 
         int count = 0;
@@ -943,18 +741,6 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
         item.associationName = (associationIdx >= 0) ? cursor.getString(associationIdx) : "General";
         item.personName = (personIdx >= 0) ? cursor.getString(personIdx) : "unknown";
 
-        // Smart Media Compression fields (null-safe for v6 databases)
-        int originalIdx = cursor.getColumnIndex(COLUMN_ORIGINAL_SIZE);
-        int processedIdx = cursor.getColumnIndex(COLUMN_PROCESSED_SIZE);
-        int enabledIdx = cursor.getColumnIndex(COLUMN_COMPRESSION_ENABLED);
-        int typeIdx = cursor.getColumnIndex(COLUMN_COMPRESSION_TYPE);
-        int ratioIdx = cursor.getColumnIndex(COLUMN_COMPRESSION_RATIO);
-        item.originalSize = (originalIdx >= 0) ? cursor.getLong(originalIdx) : 0;
-        item.processedSize = (processedIdx >= 0) ? cursor.getLong(processedIdx) : 0;
-        item.compressionEnabled = (enabledIdx >= 0) && cursor.getInt(enabledIdx) == 1;
-        item.compressionType = (typeIdx >= 0) ? cursor.getString(typeIdx) : null;
-        item.compressionRatio = (ratioIdx >= 0) ? cursor.getDouble(ratioIdx) : 0;
-
         return item;
     }
 
@@ -1031,13 +817,6 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
         public long updatedAt;
         public String associationName;
         public String personName;
-
-        // Smart Media Compression fields
-        public long originalSize;
-        public long processedSize;
-        public boolean compressionEnabled;
-        public String compressionType;
-        public double compressionRatio;
 
         @Override
         public String toString() {

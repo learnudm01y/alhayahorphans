@@ -4,18 +4,18 @@
 
 <head>
     <base href="../" />
-    <title>الحياة للتنمية الأسرية</title>
+    <title>البوابة العامة لتسجيل الأيتام</title>
     <meta charset="utf-8" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="الحياة للتنمية الأسرية - بوابة تسجيل الأيتام والمستفيدين" />
+    <meta name="description" content="بوابة تسجيل الأيتام والمستفيدين" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta property="og:locale" content="ar_SA" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="الحياة للتنمية الأسرية" />
-    <meta property="og:description" content="بوابة تسجيل الأيتام والمستفيدين - الحياة للتنمية الأسرية" />
+    <meta property="og:title" content="بوابة تسجيل الأيتام والمستفيدين" />
+    <meta property="og:description" content="بوابة تسجيل الأيتام والمستفيدين" />
     <meta property="og:url" content="{{ url()->current() }}" />
-    <meta property="og:site_name" content="الحياة للتنمية الأسرية" />
+    <meta property="og:site_name" content="بوابة تسجيل الأيتام والمستفيدين" />
     <meta property="og:image" content="{{ asset('uploads/logo02small.png') }}" />
     <meta property="og:image:width" content="200" />
     <meta property="og:image:height" content="200" />

@@ -407,6 +407,7 @@ class SponsorController extends Controller
             return response()->json([
                 'success' => true,
                 'fields' => $fields,
+                'compress_attachments_images' => (bool) ($fieldSettings->compress_attachments_images ?? true),
                 'sponsor' => [
                     'id' => $sponsor->id,
                     'name' => $sponsor->sponsor_name,
@@ -497,6 +498,11 @@ class SponsorController extends Controller
                 if (in_array($legacyColumn, $allColumns, true)) {
                     $fieldSettings->{$legacyColumn} = 0;
                 }
+            }
+
+            // حفظ إعداد ضغط الصور (يُقبل كمعامل منفصل عن الحقول)
+            if ($request->has('compress_attachments_images')) {
+                $fieldSettings->compress_attachments_images = $request->boolean('compress_attachments_images', true);
             }
 
             $fieldSettings->save();

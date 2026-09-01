@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>شكراً لتعاونكم - جمعية الحياة</title>
+    <title>شكراً لتعاونكم</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&display=swap');
 
@@ -172,7 +172,7 @@
         </div>
 
         <h1 class="message">شكراً لحسن تعاونكم</h1>
-        <h2 class="sub-message">جمعية الحياة</h2>
+        <h2 class="sub-message">بوابة تسجيل الأيتام والمستفيدين</h2>
 
         <div class="footer">
             <p>تم استلام طلبكم بنجاح</p>

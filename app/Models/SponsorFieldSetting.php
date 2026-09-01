@@ -126,6 +126,8 @@ class SponsorFieldSetting extends Model
         // Section Control Fields - التحكم في الأقسام
         'field_family_members_section',
         'field_attachments_section',
+        // Image Processing Control - التحكم بمعالجة الصور
+        'compress_attachments_images',
     ];
 
     protected $casts = [
@@ -241,6 +243,8 @@ class SponsorFieldSetting extends Model
         // Section Control Fields - التحكم في الأقسام
         'field_family_members_section' => 'boolean',
         'field_attachments_section' => 'boolean',
+        // Image Processing Control - التحكم بمعالجة الصور
+        'compress_attachments_images' => 'boolean',
         // Enabled Documents - JSON array
         'enabled_documents' => 'array',
     ];

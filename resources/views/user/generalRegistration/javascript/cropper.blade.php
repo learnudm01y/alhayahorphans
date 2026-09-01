@@ -519,8 +519,11 @@ window.showCropperModal = function(file, callback) {
 
       let finalFile = croppedFile;
 
-      // ضغط الملف المقصوص فقط إذا كان أكبر من 100KB
-      if (croppedFile.size > 100 * 1024) {
+      // فحص: هل الضغط مفعّل من الإعداد؟
+      const shouldCompress = window._compressAttachmentsEnabled !== false;
+
+      // ضغط الملف المقصوص فقط إذا كان أكبر من 100KB والضغط مفعّل
+      if (shouldCompress && croppedFile.size > 100 * 1024) {
         console.log('[CropButton] الملف يحتاج للضغط:', croppedFile.size, 'bytes');
 
         if (statusText) {
@@ -553,7 +556,11 @@ window.showCropperModal = function(file, callback) {
           // استخدم الملف المقصوص بدون ضغط في حالة فشل الضغط
         }
       } else {
-        console.log('[CropButton] الملف صغير بما فيه الكفاية، لا حاجة للضغط');
+        if (!shouldCompress) {
+          console.log('[CropButton] الضغط معطّل من إعدادات الجمعية');
+        } else {
+          console.log('[CropButton] الملف صغير بما فيه الكفاية، لا حاجة للضغط');
+        }
       }
 
       // تحديث شريط التقدم - انتهاء المعالجة

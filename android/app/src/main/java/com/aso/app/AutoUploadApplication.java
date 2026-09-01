@@ -45,17 +45,6 @@ public class AutoUploadApplication extends Application {
             Log.w(TAG, "♻️ أُعيد " + reclaimed + " ملف عالق إلى طابور الرفع عند الإقلاع");
         }
 
-        // [SmartMedia] شبكة الأمان عند الإقلاع: استرداد ملفات المعالجة المحلية
-        // العالقة بعد إيقاف/موت التطبيق وتنظيف الملفات المؤقتة اليتيمة.
-        int reclaimedLocal = dbHelper.reclaimStaleLocalProcessing();
-        if (reclaimedLocal > 0) {
-            Log.w(TAG, "♻️ أُعيد " + reclaimedLocal + " ملفاً عالقاً في المعالجة المحلية إلى الطابور");
-        }
-        SmartMediaProcessor.cleanupOrphanedTempFiles(this, dbHelper);
-        if (dbHelper.getProcessingFilesCount() > 0) {
-            UploadTaskScheduler.getInstance(getApplicationContext()).scheduleSmartMediaProcessing();
-        }
-
         int filesCount = dbHelper.getPendingFilesCount();
         if (filesCount > 0) {
             com.aso.app.UploadTaskScheduler.getInstance(getApplicationContext()).startImmediateUpload();
@@ -65,9 +54,6 @@ public class AutoUploadApplication extends Application {
 
         // شبكة الأمان الأخيرة: مهمة دورية تُنعش الطابور حتى لو لم يقع أي حدث.
         com.aso.app.UploadTaskScheduler.getInstance(getApplicationContext()).schedulePeriodicUploadSweep();
-
-        // [SmartMedia] مهمة دورية لمعالجة/استرداد الملفات قيد الضغط الذكي.
-        com.aso.app.UploadTaskScheduler.getInstance(getApplicationContext()).schedulePeriodicMediaProcessing();
 
         DataSyncDatabaseHelper dataSyncDbHelper = DataSyncDatabaseHelper.getInstance(this);
 

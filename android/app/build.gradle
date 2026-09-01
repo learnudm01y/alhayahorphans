@@ -62,9 +62,6 @@ dependencies {
 
     // OkHttp for efficient file uploads (NO Base64!)
     implementation "com.squareup.okhttp3:okhttp:4.12.0"
-
-    // Media3 Transformer — ضغط فيديو موثوق (بدل Surface-to-Surface اليدوي)
-    implementation "androidx.media3:media3-transformer:1.7.1"
 }
 
 apply from: 'capacitor.build.gradle'
