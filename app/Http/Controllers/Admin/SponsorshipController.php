@@ -1856,6 +1856,7 @@ class SponsorshipController extends Controller
                     'اسم المستخدم',  // رقم الهوية
                     'كلمة المرور',    // رقم الملف (خارجي أو داخلي)
                     'رقم هاتف المعيل', // 🆕 رقم الهاتف من جدول data
+                    'رابط الدخول',    // 🆕 رابط الدخول المباشر
                 ];
 
                 $sheet->fromArray($headers, NULL, 'A1');
@@ -1876,7 +1877,7 @@ class SponsorshipController extends Controller
                         'vertical' => Alignment::VERTICAL_CENTER,
                     ]
                 ];
-                $sheet->getStyle('A1:E1')->applyFromArray($headerStyle);
+                $sheet->getStyle('A1:F1')->applyFromArray($headerStyle);
 
                 // كتابة البيانات
                 $row = 2;
@@ -1889,12 +1890,19 @@ class SponsorshipController extends Controller
                     // 🆕 جلب رقم هاتف المعيل من جدول data أو portal_general_registration_field_values
                     $guardianPhone = $this->getGuardianPhone($sponsorship->guardian_identity_number);
 
+                    // 🆕 بناء رابط الدخول المباشر (المختصر)
+                    $autoLoginUrl = '';
+                    if ($sponsorship->identity_number && $fileNumber) {
+                        $autoLoginUrl = url('/s/' . $sponsorship->identity_number . '-' . $fileNumber);
+                    }
+
                     $data = [
                         $sponsorNames ?: '-',
                         $sponsorship->orphan_name ?: '-',
                         $sponsorship->identity_number ?: '-',  // اسم المستخدم
                         $fileNumber ?: '-',                    // كلمة المرور (الرقم الداخلي)
                         $guardianPhone ?: '-',                 // 🆕 رقم هاتف المعيل
+                        $autoLoginUrl ?: '-',                  // 🆕 رابط الدخول المباشر
                     ];
 
                     $sheet->fromArray($data, NULL, 'A' . $row);
@@ -1902,7 +1910,7 @@ class SponsorshipController extends Controller
                 }
 
                 // ضبط عرض الأعمدة تلقائياً
-                foreach (range('A', 'E') as $col) {
+                foreach (range('A', 'F') as $col) {
                     $sheet->getColumnDimension($col)->setAutoSize(true);
                 }
 

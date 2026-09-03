@@ -65,3 +65,8 @@ yarn-error.log
 /laravel-second-copy.log
 /rendered_page.html
 /emulator_*.png
+/rclone-v1.75.0-windows-amd64
+/rclone
+*.conf
+*.ps1
+/wkhtmltopdf

@@ -1355,7 +1355,7 @@
                                         </div>
 
                                         <div class="row">
-                                            {{-- عرض المرفقات الموجودة كصور نائبة فقط --}}
+                                            {{-- عرض المرفقات الموجودة --}}
                                             @if(isset($existingAttachments[$docType->id]) && count($existingAttachments[$docType->id]) > 0)
                                                 <div class="col-12 mb-3">
                                                     <div class="existing-files border rounded p-3 bg-light">
@@ -1430,7 +1430,7 @@
                                                        id="file-{{ $docType->id }}"
                                                        name="attachments[{{ $docType->id }}][]"
                                                        class="d-none"
-                                                       accept="image/*,video/*,.pdf"
+                                                       accept="image/*,video/*,.pdf,.heic,.heif"
                                                        multiple
                                                        onchange="handleFileSelectWithCropper(this, {{ $docType->id }}, {{ json_encode($compressAttachments ?? true) }})">
 
@@ -2758,7 +2758,12 @@ function handleFileSelectWithCropper(input, docTypeId, compressEnabled) {
     let processedCount = 0;
     
     files.forEach((file, index) => {
-        if (file.type.startsWith('image/')) {
+        // فحص: هل الملف صورة (بما فيها HEIC)?
+        const isImage = file.type.startsWith('image/') ||
+                        file.name.toLowerCase().endsWith('.heic') ||
+                        file.name.toLowerCase().endsWith('.heif');
+
+        if (isImage) {
             // صورة → فتح Cropper
             showCropperModal(file, function(croppedFile) {
                 if (croppedFile) {
@@ -2814,6 +2819,13 @@ document.addEventListener('DOMContentLoaded', function() {
         var script = document.createElement('script');
         script.src = 'https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js';
         document.head.appendChild(script);
+    }
+
+    // تحميل heic2any لتحويل صور HEIC
+    if (typeof heic2any === 'undefined') {
+        var heicScript = document.createElement('script');
+        heicScript.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
+        document.head.appendChild(heicScript);
     }
 });
 </script>

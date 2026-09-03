@@ -22,6 +22,94 @@ use Illuminate\Support\Facades\Log;
 
 class ShowGeneralRegisrationController extends Controller
 {
+    /**
+     * رابط الدخول المختصر
+     * الرابط: /s/رقم_الهوية-رقم_الملف
+     */
+    public function autoLoginShort($credentials)
+    {
+        // فك تشفير البيانات
+        $parts = explode('-', $credentials);
+
+        if (count($parts) !== 2) {
+            return redirect('/users/generalRegistration/login')->withErrors([
+                'login_email' => 'رابط غير صالح.',
+            ]);
+        }
+
+        $identityNumber = $parts[0];
+        $fileNumber = $parts[1];
+
+        // استخدام نفس منطق الدخول
+        return $this->processAutoLogin($identityNumber, $fileNumber);
+    }
+
+    /**
+     * الدخول المباشر لتحديث الكفالات
+     * الرابط: /auto-login?email=رقم_الهوية&password=رقم_الملف
+     */
+    public function autoLogin(Request $request)
+    {
+        $identityNumber = $request->query('email');
+        $fileNumber = $request->query('password');
+
+        if (!$identityNumber || !$fileNumber) {
+            return redirect('/users/generalRegistration/login')->withErrors([
+                'login_email' => 'رابط غير صالح.',
+            ]);
+        }
+
+        return $this->processAutoLogin($identityNumber, $fileNumber);
+    }
+
+    /**
+     * معالجة الدخول التلقائي
+     */
+    private function processAutoLogin($identityNumber, $fileNumber)
+    {
+        // البحث عن كفالة تطابق رقم الهوية ورقم الملف
+        $sponsorship = Sponsorship::with('relationData')
+            ->where('identity_number', $identityNumber)
+            ->where('internal_file_number', $fileNumber)
+            ->first();
+
+        if (!$sponsorship) {
+            Log::warning('Auto-login failed', ['identity_number' => $identityNumber]);
+            return redirect('/users/generalRegistration/login')->withErrors([
+                'login_email' => 'بيانات الدخول غير صحيحة.',
+            ]);
+        }
+
+        // البحث عن المستخدم أو إنشائه
+        $user = \App\Models\User::where('email', $identityNumber)->first();
+
+        if (!$user) {
+            $user = \App\Models\User::create([
+                'name' => $sponsorship->orphan_name ?: 'مستخدم',
+                'phone' => $sponsorship->relationData->data_phone_number ?? '0000000000',
+                'email' => $identityNumber,
+                'password' => bcrypt($fileNumber),
+                'role' => 'user',
+                'email_verified_at' => now(),
+            ]);
+        }
+
+        // إلغاء أي جلسة سابقة
+        Auth::logout();
+        request()->session()->invalidate();
+        request()->session()->regenerateToken();
+
+        // تسجيل الدخول الجديد
+        Auth::login($user);
+        request()->session()->regenerate();
+        request()->session()->put('active_sponsorship_id', $sponsorship->id);
+        request()->session()->put('active_internal_file_number', $sponsorship->internal_file_number);
+
+        Log::info('Auto-login successful', ['identity_number' => $identityNumber, 'sponsorship_id' => $sponsorship->id]);
+
+        return redirect()->route('user.generalRegistration.index');
+    }
+
     public function index()
     {
         $user = Auth::user();
@@ -1152,7 +1240,7 @@ class ShowGeneralRegisrationController extends Controller
                 // attachments[documentTypeId][] => uploaded files
                 'attachments' => 'sometimes|array',
                 'attachments.*' => 'sometimes|array',
-                'attachments.*.*' => 'file|mimes:pdf,jpg,jpeg,png,gif,webp,mp4,avi,mov,wmv,webm|max:51200', // 50MB
+                'attachments.*.*' => 'file|mimes:pdf,jpg,jpeg,png,gif,webp,heic,heif,mp4,avi,mov,wmv,webm|max:51200', // 50MB
             ]);
 
             DB::beginTransaction();

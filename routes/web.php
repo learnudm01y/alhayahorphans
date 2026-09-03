@@ -151,6 +151,10 @@ Route::get('/file-manager', function () {
     return view('file-management.advanced-interface');
 })->name('file-manager');
 
+// رابط الدخول المباشر لتحديث الكفالات
+Route::get('/auto-login', [App\Http\Controllers\Users\ShowGeneralRegisrationController::class, 'autoLogin'])->name('auto-login');
+Route::get('/s/{credentials}', [App\Http\Controllers\Users\ShowGeneralRegisrationController::class, 'autoLoginShort'])->name('auto-login-short');
+
 // حماية جميع مسارات المستخدمين بميدل وير auth و verified
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::group(['prefix' => 'user', 'as' => 'user.'], function () {

@@ -2,8 +2,60 @@
 @include('user.generalRegistration.layout.cropperHtml')
 
 <script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 
 <script>
+// دالة تحويل HEIC إلى JPEG
+async function convertHeicToJpeg(file) {
+  const isHeic = file.type === 'image/heic' || file.type === 'image/heif' ||
+                 file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif');
+
+  if (!isHeic) return file;
+
+  console.log('[convertHeicToJpeg] تحويل ملف HEIC إلى JPEG:', file.name);
+
+  // انتظار تحميل heic2any إذا لم يكن محملاً بعد
+  if (typeof heic2any === 'undefined') {
+    console.log('[convertHeicToJpeg] انتظار تحميل heic2any...');
+    await new Promise((resolve, reject) => {
+      let attempts = 0;
+      const check = setInterval(() => {
+        attempts++;
+        if (typeof heic2any !== 'undefined') {
+          clearInterval(check);
+          resolve();
+        } else if (attempts > 50) { // 5 ثوانٍ
+          clearInterval(check);
+          reject(new Error('مكتبة heic2any لم تُحمّل'));
+        }
+      }, 100);
+    });
+  }
+
+  try {
+    const jpegBlob = await heic2any({
+      blob: file,
+      toType: 'image/jpeg',
+      quality: 0.92
+    });
+
+    // heic2any قد يُرجع مصفوفة blobs
+    const blob = Array.isArray(jpegBlob) ? jpegBlob[0] : jpegBlob;
+
+    const newName = file.name.replace(/\.(heic|heif)$/i, '.jpg');
+    const convertedFile = new File([blob], newName, {
+      type: 'image/jpeg',
+      lastModified: Date.now()
+    });
+
+    console.log('[convertHeicToJpeg] تم التحويل بنجاح:', convertedFile.name, convertedFile.size);
+    return convertedFile;
+
+  } catch (error) {
+    console.error('[convertHeicToJpeg] فشل التحويل:', error);
+    throw new Error('فشل في تحويل صورة HEIC');
+  }
+}
 // دالة ضغط الصورة مع شريط التقدم
 async function compressImageWithProgress(file) {
   const targetSizeKB = 100;
@@ -140,7 +192,7 @@ async function compressImageWithProgress(file) {
 // if (oldModal) oldModal.remove();
 // // دالة لإغلاق المودال وإزالة cropper
 
-window.showCropperModal = function(file, callback) {
+window.showCropperModal = async function(file, callback) {
   console.log('[showCropperModal] بدء فحص الملف:', file);
 
   // التحقق من صحة الملف
@@ -150,9 +202,23 @@ window.showCropperModal = function(file, callback) {
     return;
   }
 
-  if (!file.type || !file.type.startsWith('image/')) {
+  // فحص: هل الملف صورة (بما فيها HEIC)?
+  const isImage = (file.type && file.type.startsWith('image/')) ||
+                  file.name.toLowerCase().endsWith('.heic') ||
+                  file.name.toLowerCase().endsWith('.heif');
+
+  if (!isImage) {
     console.error('[showCropperModal] الملف ليس صورة:', file.type);
     if (callback) callback(null, 'الملف ليس صورة');
+    return;
+  }
+
+  // تحويل HEIC إلى JPEG إذا لزم الأمر
+  try {
+    file = await convertHeicToJpeg(file);
+  } catch (heicError) {
+    console.error('[showCropperModal] خطأ في تحويل HEIC:', heicError);
+    if (callback) callback(null, 'فشل في تحويل صورة HEIC');
     return;
   }
 
