@@ -1,8 +1,8 @@
 @include('user.generalRegistration.layout.cropperStyle')
 @include('user.generalRegistration.layout.cropperHtml')
 
-<script src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+<script src="{{ asset('js/browser-image-compression.js') }}"></script>
+<script src="{{ asset('js/heic2any.min.js') }}"></script>
 
 <script>
 // دالة تحويل HEIC إلى JPEG

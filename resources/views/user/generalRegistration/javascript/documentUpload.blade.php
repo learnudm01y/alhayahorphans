@@ -108,6 +108,11 @@
     </style>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            function isHeicFile(file) {
+                const name = (file.name || '').toLowerCase();
+                return name.endsWith('.heic') || name.endsWith('.heif');
+            }
+
             // دالة رفع الملف بنظام الأجزاء (Chunks) مع إعادة المحاولة
             window.uploadFileInChunks = async function(file, fileIdNumber, onProgress) {
                 const chunkSize = 1024 * 1024; // 1 ميغابايت
@@ -1022,8 +1027,11 @@
                     let previewFile = null;
                     let showProcessingOverlay = false;
 
-                    // أولوية العرض: دائماً اعرض ملف صالح
-                    if (task.originalFile && task.originalFile.type && task.originalFile.type.startsWith('image/')) {
+                    // أولوية العرض: دائماً اعرض ملف صالح (بما في HEIC)
+                    if (task.originalFile && (
+                        (task.originalFile.type && task.originalFile.type.startsWith('image/')) ||
+                        isHeicFile(task.originalFile)
+                    )) {
                         previewFile = task.originalFile; // العرض الفوري للملف الأصلي
                         console.log(`[renderAttachmentTasksUI] ✅ استخدام الملف الأصلي للعرض الفوري: ${task.originalFile.name}`);
 
@@ -1253,13 +1261,13 @@
                         console.log('📱 [DeviceIntegration] جهاز محمول، إظهار مودال اختيار المصدر');
 
                         // إظهار مودال اختيار مصدر الصورة مع callback صحيح
-                        window.DeviceImageSource.showModal(function(selectedFile) {
+                        window.DeviceImageSource.showModal(async function(selectedFile) {
                             if (selectedFile) {
                                 console.log('📱 [DeviceIntegration] تم استلام ملف من مودال اختيار المصدر:', selectedFile.name);
 
                                 // ⭐ هنا المفتاح: نقل الملف مباشرة إلى نظام المعالجة
                                 // بدلاً من محاكاة اختيار الملف في input
-                                handleFileSelection(selectedFile, personKey, docTypeSelect, newFileInput);
+                                await handleFileSelection(selectedFile, personKey, docTypeSelect, newFileInput);
                             }
                         });
 
@@ -1271,7 +1279,7 @@
                 });
 
                 // دالة معالجة اختيار الملف (منفصلة للاستخدام المشترك)
-                function handleFileSelection(file, personKey, docTypeSelect, fileInput) {
+                async function handleFileSelection(file, personKey, docTypeSelect, fileInput) {
                     console.log('🟠 محاولة رفع ملف، قيمة نوع الوثيقة:', docTypeSelect.value, 'في المنطقة:', personKey);
 
                     // منع المستخدم من الرفع إذا كانت هناك معالجة جارية
@@ -1352,6 +1360,24 @@
                     const docTypeName = docTypeSelect.options[docTypeSelect.selectedIndex]?.text || docTypeValue;
                     const fileIdNumber = document.querySelector('input[name="file_id_number"]')?.value || '';
 
+                    // تحويل HEIC إلى JPEG قبل إنشاء المهمة حتى يظهر التحويل في المعاينة فوراً
+                    if (isHeicFile(file)) {
+                        console.log('🔄 تحويل HEIC إلى JPEG قبل إضافة المهمة:', file.name);
+                        try {
+                            const convertFn = window.convertHeicToJpeg;
+                            if (!convertFn) {
+                                Swal.fire({ icon: 'error', title: 'خطأ', text: 'مكتبة تحويل HEIC غير متوفرة. يرجى تحديث الصفحة.', confirmButtonText: 'حسناً' });
+                                return;
+                            }
+                            file = await convertFn(file);
+                            console.log('✅ تم تحويل HEIC بنجاح:', file.name);
+                        } catch (e) {
+                            console.error('خطأ في تحويل HEIC:', e);
+                            Swal.fire({ icon: 'error', title: 'خطأ', text: 'فشل في تحويل صورة HEIC', confirmButtonText: 'حسناً' });
+                            return;
+                        }
+                    }
+
                     console.log('📋 تفاصيل الرفع:', {
                         personKey: personKey,
                         personId: personId,
@@ -1374,8 +1400,8 @@
                 newFileInput.addEventListener('change', function(e) {
                     if (e.target.files && e.target.files.length > 0) {
                         // معالجة كل ملف منفصل
-                        Array.from(e.target.files).forEach(file => {
-                            handleFileSelection(file, personKey, docTypeSelect, newFileInput);
+                        Array.from(e.target.files).forEach(async file => {
+                            await handleFileSelection(file, personKey, docTypeSelect, newFileInput);
                         });
                     }
                 });

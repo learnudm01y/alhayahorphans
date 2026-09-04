@@ -18,6 +18,16 @@
         </i>
     </button>
 
+    <button class="btn btn-icon btn-light-warning btn-sm regenerate-file-number"
+            data-id="{{ $row->id }}"
+            data-current="{{ $row->internal_file_number ?: '-' }}"
+            title="إعادة توليد رقم الملف الداخلي">
+        <i class="ki-duotone ki-refresh fs-4">
+            <span class="path1"></span>
+            <span class="path2"></span>
+        </i>
+    </button>
+
     <button class="btn btn-icon btn-light-danger btn-sm delete-sponsorship"
             data-id="{{ $row->id }}"
             title="حذف">

@@ -1967,6 +1967,60 @@
                 });
             });
 
+            // Regenerate File Number
+            $(document).on('click', '.regenerate-file-number', function() {
+                const btn = $(this);
+                const sponsorshipId = btn.data('id');
+                const currentNumber = btn.data('current');
+
+                Swal.fire({
+                    title: 'إعادة توليد رقم الملف الداخلي',
+                    html: `الرقم الحالي: <strong>${currentNumber}</strong><br>سيتم توليد رقم جديد فريد`,
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonColor: '#3085d6',
+                    cancelButtonColor: '#d33',
+                    confirmButtonText: 'نعم، أعد التوليد',
+                    cancelButtonText: 'إلغاء'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>');
+
+                        $.ajax({
+                            url: `/admin/sponsorships/${sponsorshipId}/regenerate-file-number`,
+                            type: 'POST',
+                            data: {
+                                _token: '{{ csrf_token() }}'
+                            },
+                            success: function(response) {
+                                if (response.success) {
+                                    Swal.fire({
+                                        icon: 'success',
+                                        title: 'تم إعادة التوليد',
+                                        html: response.message,
+                                        timer: 3000,
+                                        showConfirmButton: false
+                                    });
+                                    $('#sponsorships-table').DataTable().ajax.reload(null, false);
+                                } else {
+                                    Swal.fire('خطأ!', response.message || 'حدث خطأ', 'error');
+                                }
+                            },
+                            error: function(xhr) {
+                                let errorMessage = 'حدث خطأ أثناء إعادة توليد رقم الملف';
+                                if (xhr.responseJSON && xhr.responseJSON.message) {
+                                    errorMessage = xhr.responseJSON.message;
+                                }
+                                Swal.fire('خطأ!', errorMessage, 'error');
+                            },
+                            complete: function() {
+                                btn.prop('disabled', false).html('<i class="ki-duotone ki-refresh fs-4"><span class="path1"></span><span class="path2"></span></i>');
+                            }
+                        });
+                    }
+                });
+            });
+
             // View Sponsorship
             $(document).on('click', '.view-sponsorship', function() {
                 const sponsorshipId = $(this).data('id');

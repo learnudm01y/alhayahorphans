@@ -628,7 +628,7 @@
                         <label for="single_image" class="form-label fw-bold">
                             <i class="bi bi-image"></i> صورة الخلفية الكاملة
                         </label>
-                        <input type="file" class="form-control" id="single_image" name="single_image" accept="image/*">
+                         <input type="file" class="form-control" id="single_image" name="single_image" accept="image/*,.heic,.heif">
                         <small class="text-muted">الحجم الموصى به: A4 (595 × 842 بكسل)</small>
                         <div id="single_image_preview" class="mt-2"></div>
                     </div>
@@ -640,21 +640,21 @@
                                 <label for="header_image" class="form-label fw-bold">
                                     <i class="bi bi-arrow-up-square"></i> صورة الرأس
                                 </label>
-                                <input type="file" class="form-control" id="header_image" name="header_image" accept="image/*">
+                                 <input type="file" class="form-control" id="header_image" name="header_image" accept="image/*,.heic,.heif">
                                 <div id="header_image_preview" class="mt-2"></div>
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label for="main_image" class="form-label fw-bold">
                                     <i class="bi bi-square"></i> الصورة الرئيسية
                                 </label>
-                                <input type="file" class="form-control" id="main_image" name="main_image" accept="image/*">
+                                 <input type="file" class="form-control" id="main_image" name="main_image" accept="image/*,.heic,.heif">
                                 <div id="main_image_preview" class="mt-2"></div>
                             </div>
                             <div class="col-md-4 mb-3">
                                 <label for="footer_image" class="form-label fw-bold">
                                     <i class="bi bi-arrow-down-square"></i> صورة التذييل
                                 </label>
-                                <input type="file" class="form-control" id="footer_image" name="footer_image" accept="image/*">
+                                 <input type="file" class="form-control" id="footer_image" name="footer_image" accept="image/*,.heic,.heif">
                                 <div id="footer_image_preview" class="mt-2"></div>
                             </div>
                         </div>

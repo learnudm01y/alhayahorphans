@@ -129,12 +129,12 @@ class GeneralRegistrationController extends Controller
                 'family_members' => 'sometimes|array',
                 // Attachments
                 // 'person_identity_number' => 'required|string',
-                'document_file.*' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
+                'document_file.*' => 'required|file|mimes:jpg,jpeg,png,pdf,heic|max:5120',
             ], [
                 'file_id_number.required' => 'رقم الملف الموحد مطلوب.',
                 'data_id_number.required' => 'رقم الهوية مطلوب.',
                 'data_id_number.digits' => 'رقم الهوية يجب أن يكون 9 أرقام بالضبط.',
-                'document_file.*.mimes' => 'يجب أن تكون صيغة الملف jpg أو jpeg أو png أو pdf.',
+                'document_file.*.mimes' => 'يجب أن تكون صيغة الملف jpg أو jpeg أو png أو pdf أو heic.',
                 'document_file.*.max' => 'حجم الملف لا يجوز أن يتجاوز 5 ميغابايت.',
             ]);
 

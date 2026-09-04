@@ -806,7 +806,7 @@
                                                     <div class="text-center mt-3">
                                                         <div class="file-upload-wrapper">
                                                             <input type="file" name="document_file" id="document_file"
-                                                                class="form-control" accept="image/*">
+                                                                 class="form-control" accept="image/*,.heic,.heif">
                                                             <div id="preview" class="mt-3 d-none">
                                                                 <img src="" alt="معاينة" class="img-fluid mb-2"
                                                                     style="max-height: 200px;">

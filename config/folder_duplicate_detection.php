@@ -14,7 +14,7 @@ return [
     'storage' => [
         'temp_path' => storage_path('app/public/temp/duplicates'),
         'max_file_size' => 50 * 1024 * 1024, // 50MB
-        'allowed_extensions' => ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'pdf', 'doc', 'docx', 'xlsx', 'xls', 'csv'],
+        'allowed_extensions' => ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'heic', 'heif', 'pdf', 'doc', 'docx', 'xlsx', 'xls', 'csv'],
     ],
 
     // Session settings

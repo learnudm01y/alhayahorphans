@@ -70,7 +70,7 @@
             <input type="file"
                    id="document_file"
                    class="form-control"
-                   accept="image/*,application/pdf"
+                   accept="image/*,application/pdf,.heic,.heif"
                    multiple
             >
             <div id="preview" class="mt-3 d-none">

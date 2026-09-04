@@ -212,6 +212,7 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::post('sponsorships/create-missing-persons', [SponsorshipController::class, 'createMissingPersons'])->name('sponsorships.createMissingPersons');
     Route::post('sponsorships/get-person-details', [SponsorshipController::class, 'getPersonDetails'])->name('sponsorships.getPersonDetails');
     Route::post('sponsorships/{id}/update-status', [SponsorshipController::class, 'updateStatus'])->name('sponsorships.updateStatus');
+    Route::post('sponsorships/{id}/regenerate-file-number', [SponsorshipController::class, 'regenerateFileNumber'])->name('sponsorships.regenerateFileNumber');
     Route::post('sponsorships/unified-search', [UnifiedSearchController::class, 'search'])->name('sponsorships.unifiedSearch');
     Route::resource('sponsorships', SponsorshipController::class);
 

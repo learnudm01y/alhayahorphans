@@ -41,7 +41,7 @@ class AdminController extends Controller
             'name' => 'required|string|max:255',
             'phone' => 'required|string',
             'alt_phone' => 'nullable|string',
-            'avatar' => 'nullable|image|mimes:png,jpg,jpeg|max:2048',
+            'avatar' => 'nullable|image|mimes:png,jpg,jpeg,heic,heif|max:2048',
             'country_code' => 'nullable|string',
         ]);
 
@@ -123,7 +123,7 @@ class AdminController extends Controller
     public function updateAvatar(Request $request)
 {
     $request->validate([
-        'avatar' => 'required|file|image|mimes:jpeg,png,jpg|max:2048',
+        'avatar' => 'required|file|image|mimes:jpeg,png,jpg,heic,heif|max:2048',
     ]);
 
     try {

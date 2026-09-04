@@ -4,9 +4,15 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.hardware.Camera;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
+import android.view.Gravity;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
@@ -27,12 +33,19 @@ public class BarcodeScannerActivity extends Activity implements SurfaceHolder.Ca
 
     private static final String TAG = "BarcodeScanner";
     private static final int PERMISSION_REQUEST = 100;
+    private static final long AUTO_FINISH_DELAY_MS = 5000;
+    private static final long SCAN_COOLDOWN_MS = 1500;
 
     private Camera camera;
     private SurfaceView surfaceView;
     private BarcodeScanner mlScanner;
     private volatile boolean processing = false;
     private volatile boolean found = false;
+
+    private TextView resultOverlay;
+    private String lastResult = null;
+    private final Handler autoFinishHandler = new Handler(Looper.getMainLooper());
+    private long scanCooldownUntil = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,6 +84,25 @@ public class BarcodeScannerActivity extends Activity implements SurfaceHolder.Ca
         lineParams.gravity = android.view.Gravity.CENTER;
         scanLine.setLayoutParams(lineParams);
         root.addView(scanLine);
+
+        // Overlay لعرض بيانات الباركود المقروءة فوق الكاميرا
+        resultOverlay = new TextView(this);
+        resultOverlay.setTextColor(0xFFFFFFFF);
+        resultOverlay.setTextSize(22);
+        resultOverlay.setTypeface(null, Typeface.BOLD);
+        resultOverlay.setGravity(Gravity.CENTER);
+        resultOverlay.setPadding(32, 24, 32, 24);
+        GradientDrawable overlayBg = new GradientDrawable();
+        overlayBg.setColor(0xCC000000);
+        overlayBg.setCornerRadius(20f);
+        resultOverlay.setBackground(overlayBg);
+        resultOverlay.setVisibility(View.GONE);
+        FrameLayout.LayoutParams overlayParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT);
+        overlayParams.gravity = Gravity.CENTER_HORIZONTAL | Gravity.TOP;
+        overlayParams.topMargin = 80;
+        root.addView(resultOverlay, overlayParams);
 
         setContentView(root);
 
@@ -133,6 +165,9 @@ public class BarcodeScannerActivity extends Activity implements SurfaceHolder.Ca
 
             camera.setPreviewCallback((data, cam) -> {
                 if (processing || found) return;
+                if (System.currentTimeMillis() < scanCooldownUntil) {
+                    return;
+                }
                 processing = true;
 
                 try {
@@ -149,7 +184,6 @@ public class BarcodeScannerActivity extends Activity implements SurfaceHolder.Ca
                     mlScanner.process(image)
                             .addOnSuccessListener(barcodes -> {
                                 if (!found && !barcodes.isEmpty()) {
-                                    found = true;
                                     String code = null;
                                     for (Barcode b : barcodes) {
                                         code = b.getRawValue();
@@ -158,10 +192,32 @@ public class BarcodeScannerActivity extends Activity implements SurfaceHolder.Ca
                                     }
                                     if (code != null) {
                                         Log.e(TAG, "BARCODE FOUND: " + code);
-                                        Intent resultIntent = new Intent();
-                                        resultIntent.putExtra("barcode", code);
-                                        setResult(RESULT_OK, resultIntent);
-                                        finish();
+                                        found = true;
+                                        final String barcodeCode = code;
+                                        lastResult = code;
+                                        scanCooldownUntil = System.currentTimeMillis() + SCAN_COOLDOWN_MS;
+
+                                        // عرض بيانات الباركود فوق الكاميرا
+                                        runOnUiThread(() -> {
+                                            resultOverlay.setText("✅ " + barcodeCode);
+                                            resultOverlay.setVisibility(View.VISIBLE);
+                                        });
+
+                                        // إعادة بدء مؤقت الإغلاق التلقائي
+                                        autoFinishHandler.removeCallbacksAndMessages(null);
+                                        autoFinishHandler.postDelayed(() -> {
+                                            if (lastResult != null) {
+                                                Intent resultIntent = new Intent();
+                                                resultIntent.putExtra("barcode", lastResult);
+                                                setResult(RESULT_OK, resultIntent);
+                                                finish();
+                                            }
+                                        }, AUTO_FINISH_DELAY_MS);
+
+                                        // السماح بالمسح بعد تهدئة قصيرة
+                                        autoFinishHandler.postDelayed(() -> {
+                                            found = false;
+                                        }, SCAN_COOLDOWN_MS);
                                     } else {
                                         processing = false;
                                     }
@@ -205,6 +261,7 @@ public class BarcodeScannerActivity extends Activity implements SurfaceHolder.Ca
     @Override
     protected void onDestroy() {
         Log.e(TAG, "onDestroy");
+        autoFinishHandler.removeCallbacksAndMessages(null);
         releaseCamera();
         if (mlScanner != null) {
             try { mlScanner.close(); } catch (Exception e) {}

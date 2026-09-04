@@ -151,10 +151,10 @@ class RecordsManagementController extends Controller
                 // Attachments (optional unless files are uploaded)
                 // 'person_identity_number' => 'required|string',
                 'file_type' => 'nullable|string',
-                'document_file.*' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+                'document_file.*' => 'nullable|file|mimes:jpg,jpeg,png,pdf,heic,heif|max:5120',
             ], [
                 'file_id_number.required' => 'رقم الملف الموحد مطلوب.',
-                'document_file.*.mimes' => 'يجب أن تكون صيغة الملف jpg أو jpeg أو png أو pdf.',
+                'document_file.*.mimes' => 'يجب أن تكون صيغة الملف jpg أو jpeg أو png أو pdf أو heic.',
                 'document_file.*.max' => 'حجم الملف لا يجوز أن يتجاوز 5 ميغابايت.',
             ]);
 

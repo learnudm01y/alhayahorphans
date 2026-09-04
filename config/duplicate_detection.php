@@ -14,7 +14,7 @@ return [
     'storage' => [
         'temp_path' => storage_path('app/temp'),
         'max_file_size' => 50 * 1024 * 1024, // 50MB
-        'allowed_extensions' => ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xlsx', 'xls'],
+        'allowed_extensions' => ['jpg', 'jpeg', 'png', 'gif', 'heic', 'heif', 'pdf', 'doc', 'docx', 'xlsx', 'xls'],
     ],
 
     // Session settings

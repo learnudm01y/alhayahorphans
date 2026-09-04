@@ -1761,6 +1761,75 @@ class SponsorshipController extends Controller
     }
 
     /**
+     * إعادة توليد رقم الملف الداخلي لكفالة
+     */
+    public function regenerateFileNumber(Request $request, $id)
+    {
+        try {
+            $sponsorship = Sponsorship::findOrFail($id);
+            $oldNumber = $sponsorship->internal_file_number;
+
+            if (empty($oldNumber)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'رقم الملف الداخلي فارغ بالفعل'
+                ], 400);
+            }
+
+            $oldNumberFormatted = $oldNumber;
+
+            // تحرير الرقم القديم من reserved_codes (تعيين used = false)
+            DB::table('reserved_codes')
+                ->where('code', $oldNumber)
+                ->update(['used' => false, 'updated_at' => now()]);
+
+            // توليد رقم جديد فريد
+            $newNumber = generateUniqueReservedCode('sponsorships', 'internal_file_number');
+
+            if (empty($newNumber)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'فشل في توليد رقم ملف جديد'
+                ], 500);
+            }
+
+            // تحديث الكفالة بالرقم الجديد
+            $sponsorship->internal_file_number = $newNumber;
+            $sponsorship->save();
+            $sponsorship->addUpdater(auth()->id());
+
+            // تعليم الرقم الجديد كمستخدم
+            markCodeAsUsed($newNumber, auth()->id());
+
+            Log::info('🔄 إعادة توليد رقم الملف الداخلي', [
+                'sponsorship_id' => $id,
+                'old_number' => $oldNumberFormatted,
+                'new_number' => $newNumber,
+                'user_id' => auth()->id()
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "تم تغيير رقم الملف من '{$oldNumberFormatted}' إلى '{$newNumber}'",
+                'old_number' => $oldNumberFormatted,
+                'new_number' => $newNumber
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('❌ خطأ في إعادة توليد رقم الملف الداخلي:', [
+                'message' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'sponsorship_id' => $id
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء إعادة توليد رقم الملف الداخلي'
+            ], 500);
+        }
+    }
+
+    /**
      * تصدير بيانات الكفالات إلى Excel مع الفلاتر
      */
     public function export(Request $request)

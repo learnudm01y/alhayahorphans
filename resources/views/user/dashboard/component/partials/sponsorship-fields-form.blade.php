@@ -201,7 +201,7 @@
 
         <div class="mb-3">
             <label class="form-label">رفع مرفقات جديدة (PDF, JPG, PNG)</label>
-            <input type="file" name="attachments[]" class="form-control" multiple accept=".pdf,.jpg,.jpeg,.png">
+             <input type="file" name="attachments[]" class="form-control" multiple accept=".pdf,.jpg,.jpeg,.png,.heic,.heif">
             <small class="text-muted">يمكنك رفع عدة ملفات. الحجم الأقصى للملف: 10MB</small>
         </div>
 

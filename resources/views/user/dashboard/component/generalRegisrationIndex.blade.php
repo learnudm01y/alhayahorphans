@@ -2805,26 +2805,26 @@ document.addEventListener('DOMContentLoaded', function() {
     // التحقق من تحميل Cropper.js
     if (typeof Cropper === 'undefined') {
         var script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js';
+        script.src = '{{ asset("js/cropper.min.js") }}';
         document.head.appendChild(script);
         
         var link = document.createElement('link');
         link.rel = 'stylesheet';
-        link.href = 'https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css';
+        link.href = '{{ asset("css/cropper.min.css") }}';
         document.head.appendChild(link);
     }
     
     // التحقق من تحميل browser-image-compression
     if (typeof imageCompression === 'undefined') {
         var script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js';
+        script.src = '{{ asset("js/browser-image-compression.js") }}';
         document.head.appendChild(script);
     }
 
     // تحميل heic2any لتحويل صور HEIC
     if (typeof heic2any === 'undefined') {
         var heicScript = document.createElement('script');
-        heicScript.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
+        heicScript.src = '{{ asset("js/heic2any.min.js") }}';
         document.head.appendChild(heicScript);
     }
 });
