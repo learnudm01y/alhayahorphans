@@ -172,12 +172,8 @@
                     <i class="bi {{ $personTypeInfo['icon'] }} fs-4 me-3"></i>
                     <div>
                         <h5 class="alert-heading mb-1">
-                            نوع الشخص: <strong>{{ $personTypeInfo['label'] }}</strong>
+                            يجب ادخال البيانات بشكل دقيق والالتزام بالاسم الظاهر وعدم التعديل عليه واستبداله بشخص آخر
                         </h5>
-                        <small class="opacity-75">
-                            <i class="bi bi-database me-1"></i>
-                            يتم تخزين البيانات في: {{ $personTypeInfo['table'] }}
-                        </small>
                     </div>
                 </div>
             @else

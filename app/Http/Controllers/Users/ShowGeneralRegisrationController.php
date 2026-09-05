@@ -153,6 +153,19 @@ class ShowGeneralRegisrationController extends Controller
             ]);
         }
 
+        // ✅ التحقق من حالة الكفالة - لا يُسمح بالتحديث إلا إذا كانت الحالة "جارية" (1)
+        if ($sponsorship->sponsorship_status_id != 1) {
+            Log::info('SPONSORSHIP_CLOSED', [
+                'sponsorship_id' => $sponsorship->id,
+                'status_id' => $sponsorship->sponsorship_status_id,
+                'user_id' => $user->id
+            ]);
+            return view('user.dashboard.component.generalRegisrationIndex', [
+                'sponsorship' => null,
+                'error' => 'تم تحديث البيانات مسبقاً وإغلاق الملف'
+            ]);
+        }
+
         // تحميل جميع العلاقات
         $sponsorship->load([
             'sponsor',
@@ -2534,7 +2547,7 @@ class ShowGeneralRegisrationController extends Controller
             }
 
             // ✅ تحديث حالة الكفالة إلى "محدث" (ID = 3) بعد حفظ البيانات
-            $sponsorship->sponsorship_status_id = 3; // 3 = محدث
+            $sponsorship->sponsorship_status_id = 2; // 2 = تدقيق
             $sponsorship->save();
 
             Log::info('SPONSORSHIP_STATUS_UPDATED', [
@@ -2553,9 +2566,15 @@ class ShowGeneralRegisrationController extends Controller
                 'relation_id_number' => $sponsorship->relation_id_number,
             ]);
 
+            // ✅ تسجيل خروج مباشرة بعد الحفظ
+            $logoutMessage = 'تم حفظ التغييرات بنجاح';
+            Auth::logout();
+            session()->invalidate();
+            session()->regenerateToken();
+
             return redirect()
                 ->route('user.generalRegistration.index')
-                ->with('success', 'تم حفظ التغييرات بنجاح');
+                ->with('success', $logoutMessage);
 
         } catch (\Exception $e) {
             DB::rollBack();
