@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>شكراً لتعاونكم</title>
+    <title>إدارة التسجيلات - شكراً لتعاونكم</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&display=swap');
 
@@ -162,7 +162,7 @@
 <body>
     <div class="container">
         <div class="logo">
-            <img src="{{ asset('uploads/logo01.png') }}" alt="جمعية الحياة">
+            <img src="{{ asset('uploads/logo01.png') }}" alt="إدارة التسجيلات">
         </div>
 
         <div class="success-icon">

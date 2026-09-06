@@ -6,7 +6,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تسجيل الدخول للبوابة</title>
+    <title>إدارة التسجيلات - تسجيل الدخول</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
     <meta name="color-scheme" content="light dark">
@@ -226,8 +226,8 @@
     <div class="animated-shape shape3"></div>
     <div class="login-card">
         <div class="text-center mb-4">
-            <img src="{{ asset('uploads/avatar.jpg') }}" alt="Logo" class="login-logo">
-            <div class="login-title">تسجيل الدخول للبوابة</div>
+            <img src="{{ asset('uploads/avatar.jpg') }}" alt="إدارة التسجيلات" class="login-logo">
+            <div class="login-title">إدارة التسجيلات</div>
             <div class="login-desc">يرجى إدخال رقم هوية المكفول ورقم الملف الداخلي</div>
         </div>
         <form id="loginForm" method="POST" action="{{ route('user.login') }}" autocomplete="off">

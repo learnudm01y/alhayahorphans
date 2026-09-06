@@ -4,15 +4,15 @@
 
 <head>
     <base href="../" />
-    <title>البوابة العامة لتسجيل الأيتام</title>
+    <title>إدارة التسجيلات</title>
     <meta charset="utf-8" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="بوابة تسجيل الأيتام والمستفيدين" />
+    <meta name="description" content="إدارة التسجيلات" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta property="og:locale" content="ar_SA" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="بوابة تسجيل الأيتام والمستفيدين" />
+    <meta property="og:title" content="إدارة التسجيلات" />
     <meta property="og:description" content="بوابة تسجيل الأيتام والمستفيدين" />
     <meta property="og:url" content="{{ url()->current() }}" />
     <meta property="og:site_name" content="بوابة تسجيل الأيتام والمستفيدين" />
@@ -189,7 +189,7 @@
 
     <!--begin::Logo-->
     <div class="logo-container">
-        <img src="{{ asset('uploads/logo01.png') }}" alt="الحياة لتنمية الأسرة" title="Al Hayah For Family Development">
+        <img src="{{ asset('uploads/logo01.png') }}" alt="إدارة التسجيلات" title="إدارة التسجيلات">
     </div>
     <!--end::Logo-->
 
