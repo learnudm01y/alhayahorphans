@@ -1250,7 +1250,6 @@ class ShowGeneralRegisrationController extends Controller
             $request->validate([
                 'fields' => 'array',
                 'family_members' => 'array',
-                // attachments[documentTypeId][] => uploaded files
                 'attachments' => 'sometimes|array',
                 'attachments.*' => 'sometimes|array',
                 'attachments.*.*' => 'file|mimes:pdf,jpg,jpeg,png,gif,webp,heic,heif,mp4,avi,mov,wmv,webm|max:51200', // 50MB
@@ -2277,8 +2276,9 @@ class ShowGeneralRegisrationController extends Controller
 
             // معالجة المرفقات الجديدة
             if ($attachmentsValidTotal > 0) {
-                // التحقق من استخدام Rclone أو Google Drive API
+                // التحقق من استخدام Rclone أو Google Drive API أو التخزين المحلي
                 $useRclone = config('services.rclone.enabled', env('USE_RCLONE_FOR_UPLOADS', false));
+                $useLocalStorage = env('USE_LOCAL_STORAGE_FOR_UPLOADS', false);
 
                 $organizationName = $sponsorship->sponsor?->sponsor_name ?: ($sponsorship->sponsoring_organization ?: 'غير محدد');
                 $orphanName = $sponsorship->orphan_name ?: $sponsorship->identity_number;
@@ -2287,6 +2287,7 @@ class ShowGeneralRegisrationController extends Controller
                     'sponsorship_id' => $sponsorship->id,
                     'identity' => $sponsorship->identity_number,
                     'use_rclone' => $useRclone,
+                    'use_local_storage' => $useLocalStorage,
                     'organization_name' => $organizationName,
                     'orphan_name' => $orphanName,
                     'attachments_total_files' => $attachmentsTotal,
@@ -2330,7 +2331,7 @@ class ShowGeneralRegisrationController extends Controller
                 }
 
                 if ($useRclone) {
-                    // ===== استخدام Rclone لرفع الملفات =====
+                    // ===== استخدام Rclone لرفع الملفات + نسخة محلية =====
                     $rcloneService = new RcloneGoogleDriveService();
 
                     // التحقق من اتصال Rclone
@@ -2341,6 +2342,20 @@ class ShowGeneralRegisrationController extends Controller
                     // إنشاء مسار المجلد: temp/اسم الجمعية/اسم الشخص
                     $basePath = $rcloneService->createFolderStructure($organizationName, $orphanName);
 
+                    // مسار التخزين المحلي
+                    $fileIdNumber = $sponsorship->relation_id_number ?: $sponsorship->internal_file_number;
+                    $fileIdNumberAttach = str_pad($fileIdNumber, 6, '0', STR_PAD_LEFT);
+
+                    // قراءة إعداد الحفظ المحلي من إعدادات الجمعية (قائمة بمعرفات الوثائق)
+                    $saveLocalDocIds = [];
+                    if ($sponsorship->sponsor_id) {
+                        $fieldSettingsForLocal = \App\Models\SponsorFieldSetting::where('sponsor_id', $sponsorship->sponsor_id)->first();
+                        $saveLocalDocIds = $fieldSettingsForLocal->save_local_attachments ?? [];
+                        if (!is_array($saveLocalDocIds)) {
+                            $saveLocalDocIds = json_decode($saveLocalDocIds, true) ?: [];
+                        }
+                    }
+
                     foreach ($validAttachments as $docTypeId => $files) {
                         $documentType = \App\Models\DocumentType::find($docTypeId);
 
@@ -2348,14 +2363,15 @@ class ShowGeneralRegisrationController extends Controller
                             continue;
                         }
 
+                        $saveLocalForDoc = in_array((int)$docTypeId, $saveLocalDocIds);
+
                         $fileIndex = 0;
                         foreach ((array)$files as $file) {
                             $fileIndex++;
                             $extension = strtolower($file->getClientOriginalExtension() ?: '');
                             $documentTypeName = $documentType->description ?: 'وثيقة';
 
-                            // رفع الملف عبر Rclone
-                            // المعمارية: temp/اسم الجمعية/اسم الشخص/اسم الوثيقة.امتداد
+                            // رفع الملف عبر Rclone إلى Google Drive (دائماً)
                             $uploadResult = $rcloneService->uploadFile(
                                 $file->getRealPath(),
                                 $organizationName,
@@ -2374,21 +2390,42 @@ class ShowGeneralRegisrationController extends Controller
                                 continue;
                             }
 
-                            // حفظ في قاعدة البيانات
-                            Attachment::create([
-                                'person_identity_number' => $sponsorship->identity_number,
-                                'stored_file_name' => $uploadResult['filename'],
-                                'file_path' => $uploadResult['remote_path'],
-                                'file_type' => $docTypeId,
-                            ]);
+                            // حفظ محلي + DB فقط إذا كان مفعّلاً لهذا النوع من الوثائق
+                            if ($saveLocalForDoc) {
+                                $localFileName = "{$documentTypeName}_{$fileIdNumberAttach}_{$sponsorship->identity_number}.{$extension}";
+                                $localFolder = 'uploads/' . $fileIdNumberAttach;
+                                $localPath = $file->storeAs($localFolder, $localFileName, 'public');
 
-                            $uploadedCount++;
+                                $filePath = 'storage/' . $localPath;
+                                $storedFileName = $localFileName;
+
+                                Attachment::create([
+                                    'person_identity_number' => $sponsorship->identity_number,
+                                    'stored_file_name' => $storedFileName,
+                                    'file_path' => $filePath,
+                                    'file_type' => $docTypeId,
+                                    'file_size' => $file->getSize(),
+                                ]);
+
+                                $uploadedCount++;
+
+                                Log::info('ATTACHMENT_SAVED_LOCAL', [
+                                    'identity' => $sponsorship->identity_number,
+                                    'doc_type' => $documentTypeName,
+                                    'local_path' => $filePath,
+                                ]);
+                            } else {
+                                Log::info('ATTACHMENT_SKIPPED_NO_SAVE_LOCAL', [
+                                    'identity' => $sponsorship->identity_number,
+                                    'doc_type' => $documentTypeName,
+                                    'rclone_remote_path' => $uploadResult['remote_path'] ?? null,
+                                ]);
+                            }
 
                             Log::info('ATTACHMENT_UPLOADED_VIA_RCLONE', [
                                 'identity' => $sponsorship->identity_number,
                                 'doc_type' => $documentTypeName,
-                                'filename' => $uploadResult['filename'],
-                                'remote_path' => $uploadResult['remote_path'],
+                                'saved_local' => $saveLocalForDoc,
                             ]);
                         }
                     }
@@ -2398,6 +2435,61 @@ class ShowGeneralRegisrationController extends Controller
                         'identity' => $sponsorship->identity_number,
                         'uploaded_count' => $uploadedCount,
                         'base_path' => $basePath,
+                    ]);
+
+                } elseif ($useLocalStorage) {
+                    // ===== التخزين المحلي (محلي على السيرفر) =====
+                    $fileIdNumber = $sponsorship->relation_id_number ?: $sponsorship->internal_file_number;
+                    $fileIdNumberAttach = str_pad($fileIdNumber, 6, '0', STR_PAD_LEFT);
+
+                    foreach ($validAttachments as $docTypeId => $files) {
+                        $documentType = \App\Models\DocumentType::find($docTypeId);
+
+                        if (!$documentType || !$sponsorship->identity_number) {
+                            continue;
+                        }
+
+                        $fileIndex = 0;
+                        foreach ((array)$files as $file) {
+                            $fileIndex++;
+                            $extension = strtolower($file->getClientOriginalExtension() ?: '');
+                            $fileType = $documentType->description ?: 'وثيقة';
+
+                            // اسم الملف: نوع الوثيقة _ رقم الملف _ رقم الهوية
+                            $newFileName = "{$fileType}_{$fileIdNumberAttach}_{$sponsorship->identity_number}.{$extension}";
+                            $folder = 'uploads/' . $fileIdNumberAttach;
+
+                            if ($folder === 'public' || $folder === 'public/') {
+                                throw new \Exception('خطأ في مسار التخزين: يجب تحديد مجلد فرعي داخل uploads');
+                            }
+
+                            $path = $file->storeAs($folder, $newFileName, 'public');
+
+                            // حفظ في قاعدة البيانات
+                            Attachment::create([
+                                'person_identity_number' => $sponsorship->identity_number,
+                                'stored_file_name' => $newFileName,
+                                'file_path' => 'storage/' . $path,
+                                'file_type' => $docTypeId,
+                                'file_size' => $file->getSize(),
+                            ]);
+
+                            $uploadedCount++;
+
+                            Log::info('ATTACHMENT_UPLOADED_LOCAL', [
+                                'identity' => $sponsorship->identity_number,
+                                'doc_type' => $documentType->description,
+                                'filename' => $newFileName,
+                                'folder' => $folder,
+                                'file_size' => $file->getSize(),
+                            ]);
+                        }
+                    }
+
+                    Log::info('LOCAL_STORAGE_ATTACHMENTS_UPLOAD_COMPLETED', [
+                        'sponsorship_id' => $sponsorship->id,
+                        'identity' => $sponsorship->identity_number,
+                        'uploaded_count' => $uploadedCount,
                     ]);
 
                 } else {

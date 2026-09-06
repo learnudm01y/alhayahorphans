@@ -128,6 +128,8 @@ class SponsorFieldSetting extends Model
         'field_attachments_section',
         // Image Processing Control - التحكم بمعالجة الصور
         'compress_attachments_images',
+        // Local Storage Control - التحكم بالحفظ المحلي
+        'save_local_attachments',
     ];
 
     protected $casts = [
@@ -245,6 +247,7 @@ class SponsorFieldSetting extends Model
         'field_attachments_section' => 'boolean',
         // Image Processing Control - التحكم بمعالجة الصور
         'compress_attachments_images' => 'boolean',
+        'save_local_attachments' => 'array',
         // Enabled Documents - JSON array
         'enabled_documents' => 'array',
     ];

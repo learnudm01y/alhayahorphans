@@ -164,7 +164,7 @@
                 };
                 reader.readAsDataURL(file);
             } else {
-                previewImg.src = '/path/to/default/document/icon.png'; // استبدل بمسار أيقونة المستند الافتراضية
+                previewImg.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="%236c757d" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>');
                 preview.classList.remove('d-none');
             }
         });
@@ -944,129 +944,6 @@
                     return this.logs;
                 }
             };
-
-            // تعريف المتغيرات
-            const confirmBtn = document.getElementById('confirmUpload');
-            const fileInput = document.getElementById('document_file');
-            const personSelector = document.getElementById('person_selector');
-            const docTypeSelect = document.getElementById('document_type');
-            const docs = new Map();
-
-            if (confirmBtn) {
-                confirmBtn.addEventListener('click', function() {
-                    try {
-                        const file = fileInput.files[0];
-                        const selectedPerson = personSelector.value;
-                        const docType = docTypeSelect.value;
-
-
-                        const docId = `doc_${Date.now()}`;
-                        let idNumber = '';
-
-                        try {
-                            if (selectedPerson === 'main') {
-                                idNumber = document.querySelector('input[name="data_id_number"]').value;
-                            } else if (selectedPerson.startsWith('deceased_')) {
-                                const parent = selectedPerson.split('_')[1];
-                                idNumber = document.querySelector(`input[name="${parent}_id"]`)?.value ||
-                                    '';
-                            } else if (selectedPerson.startsWith('family_')) {
-                                const index = selectedPerson.split('_')[1];
-                                idNumber = document.querySelector(
-                                    `input[name="family_members[${index}][person_id]"]`)?.value || '';
-                            }
-                        } catch (error) {
-                            ErrorTracker.log('error', 'get_id_number', error, {
-                                selectedPerson
-                            });
-                        }
-
-                        try {
-                            const docInfo = {
-                                file: file,
-                                personType: selectedPerson,
-                                documentType: docType,
-                                idNumber: idNumber
-                            };
-
-                            docs.set(docId, docInfo);
-                        } catch (error) {
-                            ErrorTracker.log('error', 'store_doc_info', error, {
-                                docId,
-                                selectedPerson
-                            });
-                        }
-
-                        // إعادة تعيين الحقول
-                        $('#person_selector').val('');
-                        $('#document_type').val('');
-                        $('#document_file').val('');
-                        $('#preview').addClass('d-none');
-                        $('#preview img').attr('src', '');
-                        $('.is-invalid').removeClass('is-invalid');
-                        $('.invalid-feedback').remove();
-
-                    } catch (error) {
-                        ErrorTracker.log('error', 'document_upload', error);
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'خطأ في رفع الملف',
-                            text: error.message
-                        });
-                    }
-                });
-            }
-
-            // إرسال النموذج
-            const form = (document.getElementById('main_form') || document.querySelector('form'));
-            if (form) {
-                form.addEventListener('submit', function(e) {
-                    try {
-                        ErrorTracker.log('info', 'form_submission_start', 'بدء إرسال النموذج');
-
-                        docs.forEach((docInfo, docId) => {
-                            try {
-                                ErrorTracker.log('debug', 'process_doc', `معالجة المرفق: ${docId}`,
-                                    docInfo);
-
-                                const formData = new FormData();
-                                formData.append(`documents[${docId}][file]`, docInfo.file);
-                                formData.append(`documents[${docId}][type]`, docInfo.documentType ||
-                                    '');
-                                formData.append(`documents[${docId}][person_type]`, docInfo
-                                    .personType || '');
-                                formData.append(`documents[${docId}][identity_number]`, docInfo
-                                    .idNumber || '');
-
-                                for (let [key, value] of formData.entries()) {
-                                    const input = document.createElement('input');
-                                    input.type = 'hidden';
-                                    input.name = key;
-                                    input.value = typeof value === 'string' ? value : '';
-                                    form.appendChild(input);
-                                }
-
-                            } catch (docError) {
-                                ErrorTracker.log('error', 'process_doc_error', docError, {
-                                    docId,
-                                    docInfo
-                                });
-                            }
-                        });
-
-                        ErrorTracker.log('info', 'form_submission_complete', 'تم تجهيز النموذج للإرسال');
-
-                    } catch (error) {
-                        e.preventDefault();
-                        ErrorTracker.log('error', 'form_submission_failed', error);
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'خطأ في إرسال النموذج',
-                            text: error.message || 'حدث خطأ أثناء الإرسال'
-                        });
-                    }
-                });
-            }
         });
     </script>
 @endpush

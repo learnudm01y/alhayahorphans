@@ -40,7 +40,7 @@
                                     <span class="path1"></span><span class="path2"></span>
                                 </i>
                                 <!--begin::Inputs-->
-                                <input type="file" name="avatar" id="avatar-input" id="uploadImageInput" accept="image/*,.heic,.heif">
+                                <input type="file" name="avatar" id="avatar-input" accept="image/*,.heic,.heif">
                                 <input type="hidden" name="avatar_remove">
                                 <!--end::Inputs-->
                             </label>

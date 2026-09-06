@@ -198,60 +198,6 @@ $(document).on('click', '#kt_password_submit', function (e) {
     });
 });
 
-cropperSaveBtn.addEventListener('click', function () {
-    if (cropper) {
-        const canvas = cropper.getCroppedCanvas({
-            width: 300,
-            height: 300,
-            imageSmoothingQuality: 'high'
-        });
-
-        canvas.toBlob(function (blob) {
-            // إنشاء FormData لإرسالها
-            const formData = new FormData();
-            formData.append('avatar', blob, 'avatar.jpg');
-
-            // إرسال الطلب عبر AJAX
-            $.ajax({
-                url: '{{ route("admin.updateAvatar") }}', // غيره حسب الراوت الخاص بك
-                type: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false,
-                success: function (response) {
-                    if (response.success) {
-                        // ✅ تحديث صور الواجهة
-                        const timestamp = new Date().getTime();
-                        document.querySelectorAll('img.user-avatar').forEach(img => {
-                            const src = img.getAttribute('src').split('?')[0];
-                            img.setAttribute('src', `${src}?v=${timestamp}`);
-                        });
-
-                        Swal.fire({
-                            icon: 'success',
-                            text: 'تم تحديث الصورة بنجاح'
-                        });
-
-                        cropperModal.hide();
-                        cropper.destroy();
-                    } else {
-                        Swal.fire({
-                            icon: 'error',
-                            text: response.message || 'فشل رفع الصورة'
-                        });
-                    }
-                },
-                error: function () {
-                    Swal.fire({
-                        icon: 'error',
-                        text: 'حدث خطأ أثناء رفع الصورة'
-                    });
-                }
-            });
-        }, 'image/jpeg');
-    }
-});
-
     }
 
     // تنفيذ التهيئة عند التحميل الأول

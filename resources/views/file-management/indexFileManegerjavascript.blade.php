@@ -1952,8 +1952,8 @@
                                 identityFolder: identityFolder,
                                 source: type === 'folder' ? 'folder-upload' : 'images-folder',
                                 processing: {
-                                    compression: document.getElementById('compressImages').checked,
-                                    cloudSync: document.getElementById('cloudSync').checked,
+                                    compression: document.getElementById('compressImages')?.checked ?? false,
+                                    cloudSync: document.getElementById('cloudSync')?.checked ?? false,
                                     ocr: false
                                 }
                             };
@@ -3293,14 +3293,14 @@
                         // إضافة معلومات إضافية
                         formData.append('upload_type', uploadType);
                         // formData.append('person_id', document.getElementById('personId').value || '');
-                        formData.append('compress_images', document.getElementById('compressImages').checked);
-                        formData.append('auto_organize', document.getElementById('autoOrganize').checked);
-                        formData.append('cloud_sync', document.getElementById('cloudSync').checked);
+                        formData.append('compress_images', document.getElementById('compressImages')?.checked ?? false);
+                        formData.append('auto_organize', document.getElementById('autoOrganize')?.checked ?? false);
+                        formData.append('cloud_sync', document.getElementById('cloudSync')?.checked ?? false);
                         formData.append('enable_duplicate_detection', this.duplicateDetectionEnabled);
                         formData.append('enable_duplicate_detection', this.duplicateDetectionEnabled);
 
                         // إضافة ملف Excel إذا كان موجود
-                        const excelFile = document.getElementById('excelFileInput').files[0];
+                        const excelFile = document.getElementById('excelFileInput')?.files?.[0];
                         if (excelFile) {
                             formData.append('excel_file', excelFile);
                             formData.append('enable_excel_import', document.getElementById('enableExcelImport').checked);
@@ -3555,94 +3555,85 @@
                         this.updateFileCounts();
 
                         // رفع الملفات بشكل تدريجي ومتسلسل
-                        this.uploadFilesSequentially(pendingFiles);
+                        await this.uploadFilesSequentially(pendingFiles);
                     }
 
                     // دالة جديدة لرفع الملفات بشكل متسلسل وسلس
                     async uploadFilesSequentially(files) {
-                        let currentIndex = 0;
+                        console.log('🚀 بدء رفع الملفات العادية...', { count: files.length });
 
-                        const uploadNext = async () => {
-                            if (currentIndex < files.length) {
-                                const fileData = files[currentIndex];
+                        files.forEach(fileData => {
+                            fileData.status = 'processing';
+                            this.updateFileStatus(fileData.id, 'processing');
+                        });
+                        this.updateOverallProgress();
 
-                                this.activeUploads++;
-                                fileData.status = 'processing';
-                                this.updateFileStatus(fileData.id, 'processing');
-                                this.updateOverallProgress();
+                        try {
+                            const formData = new FormData();
 
-                                try {
-                                    // محاكاة رفع الملف مع تقدم واقعي
-                                    await this.simulateFileUploadWithProgress(fileData);
+                            files.forEach((fileData, index) => {
+                                formData.append(`files[${index}]`, fileData.file);
+                            });
+
+                            formData.append('record_number', document.getElementById('recordNumber')?.value || '');
+                            formData.append('person_id', document.getElementById('personId')?.value || '');
+                            formData.append('auto_compress', document.getElementById('compressImages')?.checked || false);
+                            formData.append('cloud_sync', document.getElementById('cloudSync')?.checked || false);
+                            formData.append('auto_organize', document.getElementById('autoOrganize')?.checked || false);
+
+                            console.log('📤 إرسال الملفات إلى الخادم via admin upload...');
+
+                            const response = await fetch('/admin/file/upload-files', {
+                                method: 'POST',
+                                headers: {
+                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                                    'Accept': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest'
+                                },
+                                body: formData
+                            });
+
+                            const result = await response.json();
+
+                            if (response.ok && result.success) {
+                                console.log('✅ نجح رفع الملفات:', result);
+
+                                files.forEach(fileData => {
                                     fileData.status = 'completed';
+                                    fileData.progress = 100;
                                     this.updateFileStatus(fileData.id, 'completed');
-                                } catch (error) {
+                                });
+
+                                refreshAllFolderFiles();
+                            } else {
+                                console.error('❌ فشل رفع الملفات:', result);
+                                files.forEach(fileData => {
                                     fileData.status = 'failed';
                                     this.updateFileStatus(fileData.id, 'failed');
-                                    console.error('❌ خطأ في رفع الملف:', fileData.file.name, error);
-                                } finally {
-                                    this.activeUploads--;
-                                    // تحديث شريط التقدم
-                                    this.updateOverallProgress();
-                                }
-
-                                currentIndex++;
-                                // انتظار قصير قبل الملف التالي
-                                setTimeout(uploadNext, 300);
-                            } else {
-                                // انتهت جميع الملفات - تحديث نهائي فقط
-                                this.updateFileCounts();
-
-                                // إخفاء شريط التقدم بعد الانتهاء
-                                setTimeout(() => {
-                                    const progressSection = document.getElementById('uploadProgressSection');
-                                    if (progressSection) {
-                                        progressSection.style.transition = 'opacity 0.5s ease';
-                                        progressSection.style.opacity = '0';
-
-                                        setTimeout(() => {
-                                            progressSection.style.display = 'none';
-                                            progressSection.style.opacity = '1';
-                                        }, 500);
-                                    }
-                                }, 1000);
+                                });
                             }
-                        };
+                        } catch (error) {
+                            console.error('❌ خطأ في رفع الملفات:', error);
+                            files.forEach(fileData => {
+                                fileData.status = 'failed';
+                                this.updateFileStatus(fileData.id, 'failed');
+                            });
+                        } finally {
+                            this.updateFileCounts();
+                            this.updateOverallProgress();
 
-                        uploadNext();
-                    }
-
-                    // محاكي رفع محسن مع تقدم تدريجي
-                    async simulateFileUploadWithProgress(fileData) {
-                        return new Promise((resolve, reject) => {
-                            let progress = 0;
-                            const totalTime = 1500 + Math.random() * 1000; // 1.5-2.5 ثانية
-                            const steps = 10;
-                            const stepTime = totalTime / steps;
-
-                            const updateProgress = () => {
-                                progress += 10;
-                                fileData.progress = progress;
-
-                                if (progress >= 100) {
-                                    // نجح الرفع في 90% من الحالات
-                                    Math.random() > 0.1 ? resolve() : reject(new Error('Upload failed'));
-                                } else {
-                                    setTimeout(updateProgress, stepTime);
-                                }
-                            };
-
-                            updateProgress();
-                        });
-                    }
-
-                    async simulateFileUpload(fileData) {
-                        return new Promise((resolve, reject) => {
                             setTimeout(() => {
-                                // Randomly succeed or fail the upload
-                                Math.random() > 0.2 ? resolve() : reject(new Error('Upload failed'));
-                            }, 2000);
-                        });
+                                const progressSection = document.getElementById('uploadProgressSection');
+                                if (progressSection) {
+                                    progressSection.style.transition = 'opacity 0.5s ease';
+                                    progressSection.style.opacity = '0';
+                                    setTimeout(() => {
+                                        progressSection.style.display = 'none';
+                                        progressSection.style.opacity = '1';
+                                    }, 500);
+                                }
+                            }, 1000);
+                        }
                     }
 
                     updateFileStatus(fileId, status) {

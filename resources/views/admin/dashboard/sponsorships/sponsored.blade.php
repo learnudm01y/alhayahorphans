@@ -2341,6 +2341,12 @@
                     return;
                 }
 
+                // حفظ الملف للاستخدام في الاستيراد لاحقاً (تجنب الرفع المكرر)
+                const excelFileInput = document.getElementById('excel_file');
+                if (excelFileInput && excelFileInput.files.length > 0) {
+                    window._cachedExcelFile = excelFileInput.files[0];
+                }
+
                 const formData = new FormData(this);
                 formData.append('check_only', '1'); // فحص فقط
 
@@ -2357,14 +2363,6 @@
                 let currentProgress = 0;
                 let progressInterval = null;
                 let uploadComplete = false;
-                let processingStarted = false;
-
-                // مراحل التقدم:
-                // 0-30%: رفع الملف
-                // 30-50%: قراءة وتحليل الملف
-                // 50-80%: فحص البيانات والبحث في قاعدة البيانات
-                // 80-95%: تجهيز النتائج
-                // 95-100%: اكتمال
 
                 function updateProgress(progress, statusText) {
                     currentProgress = progress;
@@ -2373,29 +2371,6 @@
                     if (statusText) {
                         $('#import_status_text').text(statusText);
                     }
-                }
-
-                // بدء التقدم التدريجي للمعالجة
-                function startProcessingProgress() {
-                    processingStarted = true;
-                    updateProgress(30, 'جاري قراءة وتحليل الملف...');
-
-                    progressInterval = setInterval(() => {
-                        if (currentProgress < 50) {
-                            currentProgress += 2;
-                            updateProgress(currentProgress, 'جاري قراءة وتحليل الملف...');
-                        } else if (currentProgress < 70) {
-                            currentProgress += 1;
-                            updateProgress(currentProgress, 'جاري فحص البيانات والبحث في قاعدة البيانات...');
-                        } else if (currentProgress < 85) {
-                            currentProgress += 0.5;
-                            updateProgress(Math.round(currentProgress), 'جاري البحث في السجل المدني...');
-                        } else if (currentProgress < 95) {
-                            currentProgress += 0.3;
-                            updateProgress(Math.round(currentProgress), 'جاري تجهيز النتائج...');
-                        }
-                        // التوقف عند 95% وانتظار الاستجابة الفعلية
-                    }, 200);
                 }
 
                 $.ajax({
@@ -2408,14 +2383,13 @@
                         const xhr = new window.XMLHttpRequest();
                         xhr.upload.addEventListener('progress', function(e) {
                             if (e.lengthComputable) {
-                                // رفع الملف: 0-30%
-                                const uploadPercent = Math.round((e.loaded / e.total) * 30);
+                                // رفع الملف: 0-100%
+                                const uploadPercent = Math.round((e.loaded / e.total) * 90);
                                 updateProgress(uploadPercent, 'جاري تحميل الملف...');
 
                                 if (e.loaded === e.total && !uploadComplete) {
                                     uploadComplete = true;
-                                    // بدء مرحلة المعالجة
-                                    startProcessingProgress();
+                                    updateProgress(90, 'جاري معالجة البيانات...');
                                 }
                             }
                         }, false);
@@ -2423,11 +2397,6 @@
                     },
                     success: function(response) {
                         console.log(' Response received:', response);
-
-                        // إيقاف التقدم التدريجي
-                        if (progressInterval) {
-                            clearInterval(progressInterval);
-                        }
 
                         // إكمال التقدم إلى 100%
                         updateProgress(100, 'اكتمل الفحص ✓');
@@ -2453,11 +2422,6 @@
                         console.error('❌ AJAX Error:', xhr);
                         console.error('Status:', xhr.status);
                         console.error('Response:', xhr.responseText);
-
-                        // 🔥 إيقاف التقدم التدريجي عند حدوث خطأ
-                        if (progressInterval) {
-                            clearInterval(progressInterval);
-                        }
 
                         $('#check_file_btn').prop('disabled', false);
                         $('#import_progress_container').hide();
@@ -3903,7 +3867,12 @@
 
             // تنفيذ الاستيراد الفعلي
             $('#import_submit_btn').on('click', function() {
+                // استخدام الملف المخزن لتجنب الرفع المكرر
+                const cachedFile = window._cachedExcelFile;
                 const formData = new FormData($('#importExcelForm')[0]);
+                if (cachedFile) {
+                    formData.set('excel_file', cachedFile, cachedFile.name);
+                }
                 // إزالة check_only لتنفيذ الاستيراد
 
                 $('#import_progress_container').show();
@@ -3914,15 +3883,7 @@
 
                 // 🔥 نظام تقدم واقعي للاستيراد
                 let importProgress = 0;
-                let importProgressInterval = null;
                 let importUploadComplete = false;
-
-                // مراحل الاستيراد:
-                // 0-20%: رفع الملف
-                // 20-40%: قراءة وتحليل البيانات
-                // 40-70%: إنشاء المعيلين والمكفولين
-                // 70-90%: إدخال الكفالات
-                // 90-100%: حفظ البيانات البنكية
 
                 function updateImportProgress(progress, statusText) {
                     importProgress = progress;
@@ -3931,29 +3892,6 @@
                     if (statusText) {
                         $('#import_status_text').text(statusText);
                     }
-                }
-
-                function startImportProcessingProgress() {
-                    updateImportProgress(20, 'جاري قراءة وتحليل البيانات...');
-
-                    importProgressInterval = setInterval(() => {
-                        if (importProgress < 35) {
-                            importProgress += 1.5;
-                            updateImportProgress(Math.round(importProgress), 'جاري قراءة وتحليل البيانات...');
-                        } else if (importProgress < 50) {
-                            importProgress += 1;
-                            updateImportProgress(Math.round(importProgress), 'جاري إنشاء المعيلين من السجل المدني...');
-                        } else if (importProgress < 65) {
-                            importProgress += 0.8;
-                            updateImportProgress(Math.round(importProgress), 'جاري إنشاء المكفولين...');
-                        } else if (importProgress < 80) {
-                            importProgress += 0.5;
-                            updateImportProgress(Math.round(importProgress), 'جاري إدخال بيانات الكفالات...');
-                        } else if (importProgress < 95) {
-                            importProgress += 0.3;
-                            updateImportProgress(Math.round(importProgress), 'جاري حفظ البيانات البنكية...');
-                        }
-                    }, 300);
                 }
 
                 $.ajax({
@@ -3966,23 +3904,18 @@
                         const xhr = new window.XMLHttpRequest();
                         xhr.upload.addEventListener('progress', function(e) {
                             if (e.lengthComputable) {
-                                const uploadPercent = Math.round((e.loaded / e.total) * 20);
+                                const uploadPercent = Math.round((e.loaded / e.total) * 90);
                                 updateImportProgress(uploadPercent, 'جاري تحميل الملف...');
 
                                 if (e.loaded === e.total && !importUploadComplete) {
                                     importUploadComplete = true;
-                                    startImportProcessingProgress();
+                                    updateImportProgress(90, 'جاري معالجة البيانات...');
                                 }
                             }
                         }, false);
                         return xhr;
                     },
                     success: function(response) {
-                        // إيقاف التقدم التدريجي
-                        if (importProgressInterval) {
-                            clearInterval(importProgressInterval);
-                        }
-
                         updateImportProgress(100, 'اكتمل الاستيراد ✓');
 
                         // 🔧 DEBUG: طباعة الاستجابة للتحقق

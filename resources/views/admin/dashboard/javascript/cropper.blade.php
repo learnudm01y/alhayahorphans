@@ -15,7 +15,31 @@
       document.body.addEventListener('change', e => {
         if (!e.target.matches('input[name="avatar"]')) return;
         const file = e.target.files[0];
-        if (!file || !file.type.startsWith('image/')) return;
+        if (!file) return;
+
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/heic', 'image/heif'];
+        const allowedExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif'];
+        const ext = file.name.split('.').pop().toLowerCase();
+
+        if (!allowedTypes.includes(file.type) && !allowedExts.includes(ext)) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'نوع ملف غير مدعوم',
+            text: 'الرجاء اختيار صورة (JPG, PNG, GIF, WebP, BMP, HEIC)'
+          });
+          e.target.value = '';
+          return;
+        }
+
+        if (file.size > 10 * 1024 * 1024) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'الملف كبير جداً',
+            text: 'الحد الأقصى لحجم الصورة 10 ميجابايت'
+          });
+          e.target.value = '';
+          return;
+        }
 
         const reader = new FileReader();
         reader.onload = ev => {

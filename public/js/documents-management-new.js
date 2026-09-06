@@ -77,7 +77,7 @@ function renderDocuments() {
 
     if (documentsData.length === 0) {
         console.warn('⚠️ لا توجد وثائق للعرض!');
-        tbody.html('<tr><td colspan="5" class="text-center text-muted py-5">لا توجد وثائق</td></tr>');
+        tbody.html('<tr><td colspan="6" class="text-center text-muted py-5">لا توجد وثائق</td></tr>');
         return;
     }
 
@@ -88,6 +88,8 @@ function renderDocuments() {
         const statusBadge = doc.is_enabled
             ? '<span class="badge badge-light-success">مفعل</span>'
             : '<span class="badge badge-light-secondary">معطل</span>';
+
+        const isSaveLocal = doc.save_local ? 'checked' : '';
 
         if (doc.is_enabled) enabledCount++;
 
@@ -111,6 +113,15 @@ function renderDocuments() {
                 </td>
                 <td class="text-center status-badge">
                     ${statusBadge}
+                </td>
+                <td class="text-center">
+                    <div class="form-check form-switch form-check-custom">
+                        <input type="checkbox"
+                               class="form-check-input save-local-toggle"
+                               data-doc-id="${doc.id}"
+                               ${isSaveLocal}
+                               title="حفظ محلي بجانب Google Drive">
+                    </div>
                 </td>
             </tr>
         `;
@@ -151,10 +162,12 @@ function saveDocuments() {
     $('.doc-checkbox').each(function() {
         const docId = parseInt($(this).data('doc-id'));
         const isEnabled = $(this).is(':checked');
+        const saveLocal = $(`.save-local-toggle[data-doc-id="${docId}"]`).is(':checked');
 
         documents.push({
             document_type_id: docId,
-            is_enabled: isEnabled
+            is_enabled: isEnabled,
+            save_local: saveLocal
         });
     });
 

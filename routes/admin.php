@@ -40,6 +40,7 @@ use App\Http\Controllers\Users\UserController;
 use App\Http\Controllers\Admin\SpeedTestController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Admin\ManageTheUserRequestController;
+use App\Http\Controllers\AttachmentAuditController;
 use App\Http\Controllers\DuplicateFileController;
 use App\Http\Controllers\CivilRegistrySearchController;
 use App\Http\Controllers\Admin\CivilRegistryController;
@@ -297,6 +298,9 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
         // Bulk Folder Upload with Duplicate Detection
         Route::post('process-bulk-folder-upload', [UnifiedFileManagementController::class, 'processBulkFolderUploadWithDuplicateDetection'])->name('file.process.bulk.folder.upload');
 
+        // Regular File Upload (non-folder)
+        Route::post('upload-files', [UnifiedFileManagementController::class, 'smartUpload'])->name('file.upload.files');
+
         // Batch Upload for Large Folders (to avoid PHP limits)
         Route::post('process-bulk-folder-upload-batch', [UnifiedFileManagementController::class, 'processBulkFolderUploadBatch'])->name('file.process.bulk.folder.upload.batch');
 
@@ -392,6 +396,19 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
         Route::get('real-statistics', [UnifiedFileManagementController::class, 'getRealDuplicateFilesStatistics'])->name('duplicate.files.real.statistics');
     });
 });;
+
+Route::prefix('admin')->group(function () {
+    Route::get('attachment-audit', [AttachmentAuditController::class, 'index'])->name('attachment-audit.index');
+    Route::get('attachment-audit/duplicates', [AttachmentAuditController::class, 'findDuplicates'])->name('attachment-audit.duplicates');
+    Route::delete('attachment-audit/duplicates/delete', [AttachmentAuditController::class, 'deleteDuplicates'])->name('attachment-audit.duplicates.delete');
+    Route::delete('attachment-audit/duplicates/delete-single', [AttachmentAuditController::class, 'deleteSingleDuplicate'])->name('attachment-audit.duplicates.delete-single');
+    Route::get('attachment-audit/broken-links', [AttachmentAuditController::class, 'checkBrokenLinks'])->name('attachment-audit.broken-links');
+    Route::delete('attachment-audit/broken-links/delete', [AttachmentAuditController::class, 'deleteBrokenLink'])->name('attachment-audit.broken-links.delete');
+    Route::delete('attachment-audit/broken-links/delete-all', [AttachmentAuditController::class, 'deleteAllBrokenLinks'])->name('attachment-audit.broken-links.delete-all');
+    Route::get('attachment-audit/export', [AttachmentAuditController::class, 'export'])->name('attachment-audit.export');
+    Route::get('attachment-audit/without-attachments', [AttachmentAuditController::class, 'getWithoutAttachments'])->name('attachment-audit.without-attachments');
+    Route::post('attachment-audit/export-without-attachments', [AttachmentAuditController::class, 'exportWithoutAttachments'])->name('attachment-audit.export-without-attachments');
+});
 
 // Admin Routes Group - Additional Testing Routes
 Route::prefix('admin')->group(function () {

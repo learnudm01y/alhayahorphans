@@ -562,8 +562,18 @@ class SponsorController extends Controller
                 }
             }
 
+            // الحصول على معرفات الوثائق المفعّل فيها الحفظ المحلي
+            $saveLocalDocIds = [];
+            if ($fieldSettings && $fieldSettings->save_local_attachments) {
+                $saveLocalDocIds = $fieldSettings->save_local_attachments;
+                if (!is_array($saveLocalDocIds)) {
+                    $saveLocalDocIds = json_decode($saveLocalDocIds, true) ?: [];
+                }
+            }
+
             Log::info('Enabled document IDs', [
                 'enabled_ids' => $enabledDocumentIds,
+                'save_local_ids' => $saveLocalDocIds,
                 'type' => gettype($enabledDocumentIds),
                 'count' => count($enabledDocumentIds)
             ]);
@@ -572,14 +582,16 @@ class SponsorController extends Controller
             $documentTypes = \App\Models\DocumentType::all();
 
             // تحويل البيانات إلى صيغة مناسبة
-            $settings = $documentTypes->map(function($docType) use ($enabledDocumentIds) {
+            $settings = $documentTypes->map(function($docType) use ($enabledDocumentIds, $saveLocalDocIds) {
                 $isEnabled = in_array($docType->id, $enabledDocumentIds);
+                $saveLocal = in_array($docType->id, $saveLocalDocIds);
 
                 return [
                     'id' => $docType->id,
                     'description' => $docType->description,
                     'pref' => $docType->pref,
-                    'is_enabled' => $isEnabled
+                    'is_enabled' => $isEnabled,
+                    'save_local' => $saveLocal
                 ];
             });
 
@@ -677,20 +689,28 @@ class SponsorController extends Controller
             $validated = $request->validate([
                 'documents' => 'required|array',
                 'documents.*.document_type_id' => 'required|integer',
-                'documents.*.is_enabled' => 'required|boolean'
+                'documents.*.is_enabled' => 'required|boolean',
+                'documents.*.save_local' => 'nullable|boolean'
             ]);
 
             Log::info('Validation passed', ['validated' => $validated]);
 
-            // جمع معرفات الوثائق المفعلة فقط
+            // جمع معرفات الوثائق المفعلة والمفعّل فيها الحفظ المحلي
             $enabledDocumentIds = [];
+            $saveLocalDocIds = [];
             foreach ($validated['documents'] as $doc) {
                 if ($doc['is_enabled'] === true) {
                     $enabledDocumentIds[] = (int)$doc['document_type_id'];
                 }
+                if (!empty($doc['save_local'])) {
+                    $saveLocalDocIds[] = (int)$doc['document_type_id'];
+                }
             }
 
-            Log::info('Enabled documents extracted', ['enabled_ids' => $enabledDocumentIds]);
+            Log::info('Enabled documents extracted', [
+                'enabled_ids' => $enabledDocumentIds,
+                'save_local_ids' => $saveLocalDocIds
+            ]);
 
             // جلب أو إنشاء إعدادات الحقول
             $fieldSettings = $sponsor->fieldSettings;
@@ -703,8 +723,9 @@ class SponsorController extends Controller
                 Log::info('Updating existing field settings', ['settings_id' => $fieldSettings->id]);
             }
 
-            // حفظ معرفات الوثائق المفعلة
+            // حفظ معرفات الوثائق المفعلة + الحفظ المحلي
             $fieldSettings->enabled_documents = $enabledDocumentIds;
+            $fieldSettings->save_local_attachments = $saveLocalDocIds;
             $saved = $fieldSettings->save();
 
             Log::info('Field settings save result', [
@@ -726,7 +747,8 @@ class SponsorController extends Controller
                 'message' => 'تم حفظ إعدادات الوثائق بنجاح',
                 'data' => [
                     'enabled_count' => count($enabledDocumentIds),
-                    'enabled_documents' => $enabledDocumentIds
+                    'enabled_documents' => $enabledDocumentIds,
+                    'save_local_documents' => $saveLocalDocIds
                 ]
             ]);
 

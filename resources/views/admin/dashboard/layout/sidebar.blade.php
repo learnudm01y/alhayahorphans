@@ -721,6 +721,14 @@
                         <span class="menu-title"> إدارة الملفات المكررة </span>
                     </a>
                 </div>
+                <div class="menu-item">
+                    <a class="menu-link" href="{{ route('attachment-audit.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-search-plus"></i>
+                        </span>
+                        <span class="menu-title"> فحص المرفقات </span>
+                    </a>
+                </div>
                 @endcanany
             </div>
         </div>

@@ -79,8 +79,37 @@
                     selectedFilesByPerson[personKey] = [];
                 }
                 if (fileInput.files && fileInput.files.length > 0) {
-                    if (previewList) previewList.innerHTML = '';
+                    const maxSize = 10 * 1024 * 1024; // 10MB
+                    const maxTotalSize = 50 * 1024 * 1024; // 50MB إجمالي
+                    let totalSize = 0;
+                    const validFiles = [];
+
                     Array.from(fileInput.files).forEach((file) => {
+                        if (file.size > maxSize) {
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'ملف كبير جداً',
+                                text: `الملف "${file.name}" يتجاوز الحد الأقصى (10 ميجابايت)`
+                            });
+                            return;
+                        }
+                        totalSize += file.size;
+                        validFiles.push(file);
+                    });
+
+                    if (totalSize > maxTotalSize) {
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'حجم الملفات الإجمالي كبير',
+                            text: 'إجمالي حجم الملفات يتجاوز 50 ميجابايت'
+                        });
+                        return;
+                    }
+
+                    if (validFiles.length === 0) return;
+
+                    if (previewList) previewList.innerHTML = '';
+                    validFiles.forEach((file) => {
                         const reader = new FileReader();
                         reader.onload = function(event) {
                             const container = document.createElement('div');
@@ -734,63 +763,6 @@
                 }
             });
         }
-
-        // عند تجهيز FormData للإرسال:
-        function sendFormWithFiles(formSelector, url, method = 'POST') {
-            const form = document.querySelector(formSelector);
-            if (!form) return;
-
-            const formData = new FormData(form);
-
-            // معالجة رقم الهوية ورقم الملف لأفراد الأسرة في attachmentsByPerson
-            if (window.attachmentsByPerson && typeof window.attachmentsByPerson.forEach === 'function') {
-                ensureAttachmentsByPersonIdentityAndFileId(window.attachmentsByPerson);
-                let pIndex = 0;
-                window.attachmentsByPerson.forEach(function(person) {
-                    formData.append(`attachmentsByPerson[${pIndex}][person_identity_number]`, person.personIdentityNumber || '');
-                    formData.append(`attachmentsByPerson[${pIndex}][file_id_number]`, person.fileIdNumber || '');
-                    if (Array.isArray(person.documents)) {
-                        person.documents.forEach(function(doc, dIndex) {
-                            if (doc.file instanceof File) {
-                                formData.append(`attachmentsByPerson[${pIndex}][documents][${dIndex}][file]`, doc.file, doc.storedFileName);
-                            }
-                            formData.append(`attachmentsByPerson[${pIndex}][documents][${dIndex}][file_type]`, doc.fileType);
-                            formData.append(`attachmentsByPerson[${pIndex}][documents][${dIndex}][stored_file_name]`, doc.storedFileName);
-                            formData.append(`attachmentsByPerson[${pIndex}][documents][${dIndex}][file_id_number]`, doc.fileIdNumber || '');
-                        });
-                    }
-                    pIndex++;
-                });
-            }
-
-            // ...أكمل تجهيز بقية البيانات...
-
-            fetch(url, {
-                method: method,
-                body: formData,
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                // ... التعامل مع النجاح ...
-            })
-            .catch(error => {
-                // ... التعامل مع الخطأ ...
-            });
-        }
-
-        // مثال على الاستخدام عند الضغط على زر الحفظ:
-        document.addEventListener('DOMContentLoaded', function() {
-            const saveBtn = document.getElementById('saveBtn');
-            if (saveBtn) {
-                saveBtn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    sendFormWithFiles('form', form.action, 'POST');
-                });
-            }
-        });
 
         // إصلاح اختفاء رقم الملف عند اختيار قسم أفراد الأسرة في بوابة المرفقات
         document.addEventListener('DOMContentLoaded', function() {

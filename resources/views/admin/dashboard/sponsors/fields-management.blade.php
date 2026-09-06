@@ -224,6 +224,7 @@
                                                 <th>اسم الوثيقة</th>
                                                 <th class="w-120px">البادئة</th>
                                                 <th class="w-120px text-center">الحالة</th>
+                                                <th class="w-100px text-center">حفظ محلي</th>
                                             </tr>
                                         </thead>
                                         <tbody id="documents_tbody">

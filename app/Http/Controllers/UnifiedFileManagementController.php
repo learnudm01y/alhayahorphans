@@ -163,6 +163,7 @@ class UnifiedFileManagementController extends Controller
 
                 case 'pdf':
                 case 'excel':
+                case 'word':
                     return $this->processDocumentFile($file, $recordNumber, $personId, $options, $fileType);
 
                 default:
