@@ -4,7 +4,7 @@
 
 <head>
     <base href="../" />
-    <title> لوحة الإدارة المركزية </title>
+    <title> إدارة التسجيلات </title>
     <meta charset="utf-8" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <meta name="description"
@@ -181,7 +181,7 @@
                             <!--begin::Title-->
                             <h1
                                 class="page-heading d-flex text-dark fw-bold fs-3 flex-column justify-content-center my-0">
-                                لوحة التحكم المركزية</h1>
+                                إدارة التسجيلات</h1>
                             <!--end::Title-->
                             <!--begin::Breadcrumb-->
                             <ul class="breadcrumb breadcrumb-separatorless fw-semibold fs-7 my-0 pt-1">
