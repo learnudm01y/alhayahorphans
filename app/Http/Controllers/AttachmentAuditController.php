@@ -291,4 +291,62 @@ class AttachmentAuditController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * فحص الملفات الموجودة على القرص بدون سجل في DB
+     */
+    public function findOrphanFiles()
+    {
+        try {
+            $results = $this->auditService->findOrphanFiles();
+
+            return response()->json([
+                'success' => true,
+                'data' => $results,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('AttachmentAudit: Error finding orphan files', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء فحص الملفات: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * إضافة ملفات محددة إلى جدول attachments
+     */
+    public function addOrphanFiles(Request $request)
+    {
+        try {
+            $files = $request->input('files', []);
+
+            if (empty($files)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لم يتم تحديد أي ملفات',
+                ], 400);
+            }
+
+            $results = $this->auditService->addOrphanFiles($files);
+
+            return response()->json([
+                'success' => true,
+                'message' => "تم إضافة {$results['added_count']} ملف بنجاح",
+                'data' => $results,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('AttachmentAudit: Error adding orphan files', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء الإضافة: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
 }

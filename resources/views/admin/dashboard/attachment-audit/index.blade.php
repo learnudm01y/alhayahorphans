@@ -30,6 +30,11 @@
                 <i class="fas fa-users me-2"></i>المعيلين والأفراد والمتوفين
             </button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link fw-bold" data-bs-toggle="tab" data-bs-target="#orphan-tab" type="button" role="tab">
+                <i class="fas fa-file-upload me-2"></i>ملفات بدون سجل
+            </button>
+        </li>
     </ul>
 
     <div class="tab-content">
@@ -290,8 +295,99 @@
                 </div>
             </div>
         </div>
+
+        {{-- ===== تبويب الملفات بدون سجل ===== --}}
+        <div class="tab-pane fade" id="orphan-tab" role="tabpanel">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h5 class="fw-bold mb-0">
+                        <i class="fas fa-file-upload me-2 text-success"></i>
+                        الملفات الموجودة على القرص بدون سجل في قاعدة البيانات
+                    </h5>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button class="btn btn-primary" id="btn-find-orphan">
+                            <i class="fas fa-search me-2"></i>بدء الفحص
+                        </button>
+                        <button class="btn btn-success" id="btn-add-all-orphan" style="display:none;">
+                            <i class="fas fa-plus-circle me-2"></i>إضافة الكل
+                        </button>
+                        <button class="btn btn-info" id="btn-add-selected-orphan" style="display:none;">
+                            <i class="fas fa-plus me-2"></i>إضافة المحدد
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="orphan-loading" class="text-center py-10" style="display:none;">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-3 text-muted">جاري فحص الملفات على القرص...</p>
+                    </div>
+
+                    <div id="orphan-stats" style="display:none;">
+                        <div class="row g-4 mb-4">
+                            <div class="col-md-3">
+                                <div class="card border-primary border-2">
+                                    <div class="card-body text-center py-3">
+                                        <h3 class="fw-bold text-primary mb-0" id="orph-total-disk">0</h3>
+                                        <small class="text-muted">إجمالي الملفات على القرص</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card border-success border-2">
+                                    <div class="card-body text-center py-3">
+                                        <h3 class="fw-bold text-success mb-0" id="orph-in-db">0</h3>
+                                        <small class="text-muted">مسجلة في DB</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card border-danger border-2">
+                                    <div class="card-body text-center py-3">
+                                        <h3 class="fw-bold text-danger mb-0" id="orph-count">0</h3>
+                                        <small class="text-muted">بدون سجل</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card border-info border-2">
+                                    <div class="card-body text-center py-3">
+                                        <h3 class="fw-bold text-info mb-0" id="orph-added">0</h3>
+                                        <small class="text-muted">تمت إضافتها</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th class="text-center" style="width:40px;">
+                                            <input type="checkbox" id="select-all-orphan" class="form-check-input">
+                                        </th>
+                                        <th class="text-center">#</th>
+                                        <th>مسار الملف</th>
+                                        <th class="text-center">الحجم</th>
+                                        <th class="text-center">النوع</th>
+                                        <th class="text-center">رقم الهوية</th>
+                                        <th class="text-center">رقم الملف</th>
+                                        <th class="text-center">النوع (ID)</th>
+                                        <th class="text-center">الإجراء</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="orphan-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div id="orphan-empty" class="text-center py-10 text-muted">
+                        <i class="fas fa-file-upload text-muted" style="font-size: 3rem;"></i>
+                        <p class="mt-3">اضغط "بدء الفحص" للبحث عن الملفات بدون سجل</p>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-</div>
 
 <style>
     .dup-group-card { border: 2px solid #e0e0e0; border-radius: 12px; margin-bottom: 20px; overflow: hidden; transition: all 0.3s; }
@@ -319,6 +415,7 @@
 $(document).ready(function() {
     let duplicatesData = [];
     let brokenLinksData = [];
+    let orphanFilesData = [];
     let selectedForDelete = new Set();
 
     const imageExts = ['jpg','jpeg','png','gif','webp','bmp'];
@@ -866,6 +963,208 @@ $(document).ready(function() {
         form.submit();
         document.body.removeChild(form);
     });
+
+    // ===== الملفات بدون سجل =====
+    $('#btn-find-orphan').on('click', function() {
+        const $btn = $(this);
+        $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>جاري الفحص...');
+        $('#orphan-loading').show();
+        $('#orphan-stats').hide();
+        $('#orphan-empty').hide();
+
+        $.ajax({
+            url: '{{ route("attachment-audit.orphan-files") }}',
+            method: 'GET',
+            success: function(response) {
+                $('#orphan-loading').hide();
+                $btn.prop('disabled', false).html('<i class="fas fa-search me-2"></i>بدء الفحص');
+                if (response.success) {
+                    renderOrphanResults(response.data);
+                }
+            },
+            error: function() {
+                $('#orphan-loading').hide();
+                $btn.prop('disabled', false).html('<i class="fas fa-search me-2"></i>بدء الفحص');
+                Swal.fire('خطأ', 'حدث خطأ أثناء فحص الملفات', 'error');
+            }
+        });
+    });
+
+    function renderOrphanResults(data) {
+        orphanFilesData = data.orphan_files || [];
+        $('#orph-total-disk').text(data.total_files_on_disk || 0);
+        $('#orph-in-db').text(data.total_in_db || 0);
+        $('#orph-count').text(data.orphan_count || 0);
+        $('#orph-added').text('0');
+
+        if (orphanFilesData.length === 0) {
+            $('#orphan-stats').hide();
+            $('#orphan-empty').show().html(
+                '<i class="fas fa-check-circle text-success" style="font-size: 3rem;"></i>' +
+                '<p class="mt-3 fw-bold text-success">جميع الملفات مسجلة في قاعدة البيانات</p>'
+            );
+            $('#btn-add-all-orphan').hide();
+            $('#btn-add-selected-orphan').hide();
+            return;
+        }
+
+        $('#btn-add-all-orphan').show();
+        $('#btn-add-selected-orphan').show();
+
+        const tbody = $('#orphan-tbody').empty();
+        orphanFilesData.forEach(function(item, idx) {
+            const ext = (item.extension || '').toLowerCase();
+            const isImg = ['jpg','jpeg','png','gif','webp','bmp','heic','heif'].includes(ext);
+            const preview = isImg
+                ? '<img src="/' + item.file_path + '" class="dup-thumb" style="height:50px;width:auto;border-radius:4px;">'
+                : '<i class="fas fa-file fa-2x text-muted"></i>';
+
+            tbody.append(`
+                <tr>
+                    <td class="text-center">
+                        <input type="checkbox" class="form-check-input orphan-checkbox" data-idx="${idx}">
+                    </td>
+                    <td class="text-center">${idx + 1}</td>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            ${preview}
+                            <span class="small">${item.file_path}</span>
+                        </div>
+                    </td>
+                    <td class="text-center">${formatSize(item.file_size)}</td>
+                    <td class="text-center"><span class="badge bg-secondary">${ext.toUpperCase()}</span></td>
+                    <td class="text-center">${item.identity_number || '-'}</td>
+                    <td class="text-center">${item.file_id_number || '-'}</td>
+                    <td class="text-center">${item.doc_type_id || '-'}</td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-outline-success add-orphan-single" data-idx="${idx}" title="إضافة">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </td>
+                </tr>
+            `);
+        });
+
+        $('#orphan-stats').show();
+        $('#orphan-empty').hide();
+    }
+
+    $(document).on('click', '.add-orphan-single', function() {
+        const idx = $(this).data('idx');
+        const file = orphanFilesData[idx];
+        if (!file) return;
+
+        const $btn = $(this);
+        $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>');
+
+        $.ajax({
+            url: '{{ route("attachment-audit.add-orphan-files") }}',
+            method: 'POST',
+            contentType: 'application/json',
+            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+            data: JSON.stringify({
+                files: [file]
+            }),
+            success: function(response) {
+                if (response.success) {
+                    Swal.fire('تم', response.message, 'success');
+                    $btn.closest('tr').fadeOut(300, function() { $(this).remove(); });
+                    const current = parseInt($('#orph-added').text()) || 0;
+                    $('#orph-added').text(current + 1);
+                    const remaining = parseInt($('#orph-count').text()) - 1;
+                    $('#orph-count').text(Math.max(0, remaining));
+                } else {
+                    Swal.fire('خطأ', response.message, 'error');
+                    $btn.prop('disabled', false).html('<i class="fas fa-plus"></i>');
+                }
+            },
+            error: function() {
+                Swal.fire('خطأ', 'حدث خطأ أثناء الإضافة', 'error');
+                $btn.prop('disabled', false).html('<i class="fas fa-plus"></i>');
+            }
+        });
+    });
+
+    $('#select-all-orphan').on('change', function() {
+        $('.orphan-checkbox').prop('checked', $(this).is(':checked'));
+    });
+
+    $('#btn-add-selected-orphan').on('click', function() {
+        const selected = [];
+        $('.orphan-checkbox:checked').each(function() {
+            const idx = $(this).data('idx');
+            if (orphanFilesData[idx]) selected.push(orphanFilesData[idx]);
+        });
+
+        if (selected.length === 0) {
+            Swal.fire('تنبيه', 'لم يتم تحديد أي ملفات', 'warning');
+            return;
+        }
+
+        Swal.fire({
+            title: 'إضافة ' + selected.length + ' ملف؟',
+            text: 'سيتم إنشاء سجل لكل ملف في جدول المرفقات',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#28a745',
+            confirmButtonText: 'نعم، أضفها',
+            cancelButtonText: 'إلغاء'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                addOrphanFilesToDb(selected);
+            }
+        });
+    });
+
+    $('#btn-add-all-orphan').on('click', function() {
+        if (orphanFilesData.length === 0) return;
+
+        Swal.fire({
+            title: 'إضافة الكل؟',
+            text: 'سيتم إنشاء سجل لـ ' + orphanFilesData.length + ' ملف في جدول المرفقات',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#28a745',
+            confirmButtonText: 'نعم، أضف الكل',
+            cancelButtonText: 'إلغاء'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                addOrphanFilesToDb(orphanFilesData);
+            }
+        });
+    });
+
+    function addOrphanFilesToDb(files) {
+        Swal.fire({ title: 'جاري الإضافة...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+        $.ajax({
+            url: '{{ route("attachment-audit.add-orphan-files") }}',
+            method: 'POST',
+            contentType: 'application/json',
+            headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+            data: JSON.stringify({
+                files: files
+            }),
+            success: function(response) {
+                Swal.close();
+                if (response.success) {
+                    Swal.fire('تم', response.message, 'success');
+                    const added = response.data.added_count || 0;
+                    const current = parseInt($('#orph-added').text()) || 0;
+                    $('#orph-added').text(current + added);
+                    const remaining = parseInt($('#orph-count').text()) - added;
+                    $('#orph-count').text(Math.max(0, remaining));
+                    $('#btn-find-orphan').click();
+                } else {
+                    Swal.fire('خطأ', response.message, 'error');
+                }
+            },
+            error: function() {
+                Swal.close();
+                Swal.fire('خطأ', 'حدث خطأ أثناء الإضافة', 'error');
+            }
+        });
+    }
 });
 </script>
 @endpush

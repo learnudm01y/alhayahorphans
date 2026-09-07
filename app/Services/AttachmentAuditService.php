@@ -5,7 +5,7 @@ namespace App\Services;
 use App\Models\Attachment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\File;
 
 class AttachmentAuditService
 {
@@ -384,5 +384,144 @@ class AttachmentAuditService
         }
 
         return $csv;
+    }
+
+    /**
+     * فحص الملفات الموجودة فعلياً على القرص ومقارنتها مع جدول attachments
+     * يستبعد ملفات PDF
+     */
+    public function findOrphanFiles(): array
+    {
+        $basePath = storage_path('app/public');
+        $scanFolders = ['attachments', 'uploads'];
+        $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif', 'svg', 'tiff', 'tif', 'mp4', 'avi', 'mov', 'mkv', 'wmv', 'flv', 'doc', 'docx', 'ppt', 'pptx', 'txt'];
+
+        $allFiles = [];
+        foreach ($scanFolders as $folder) {
+            $folderPath = $basePath . '/' . $folder;
+            if (!is_dir($folderPath)) continue;
+            $this->scanDirectoryRecursive($folderPath, $basePath, $folder, $allowedExtensions, $allFiles);
+        }
+
+        $existingPaths = DB::table('attachments')
+            ->whereNotNull('file_path')
+            ->where('file_path', '!=', '')
+            ->pluck('file_path')
+            ->map(fn($p) => ltrim($p, '/'))
+            ->flip();
+
+        $orphanFiles = [];
+        foreach ($allFiles as $file) {
+            $relativePath = $file['relative_path'];
+            if ($existingPaths->has($relativePath)) continue;
+
+            $parsed = $this->parseOrphanFileName($file['file_name'], $file['folder']);
+            $orphanFiles[] = [
+                'file_path' => $relativePath,
+                'full_path' => $file['full_path'],
+                'file_name' => $file['file_name'],
+                'file_size' => $file['file_size'],
+                'extension' => $file['extension'],
+                'folder' => $file['folder'],
+                'identity_number' => $parsed['identity_number'],
+                'doc_type_id' => $parsed['doc_type_id'],
+                'file_id_number' => $parsed['file_id_number'],
+            ];
+        }
+
+        usort($orphanFiles, fn($a, $b) => strcmp($a['file_path'], $b['file_path']));
+
+        return [
+            'total_files_on_disk' => count($allFiles),
+            'total_in_db' => $existingPaths->count(),
+            'orphan_count' => count($orphanFiles),
+            'orphan_files' => $orphanFiles,
+        ];
+    }
+
+    /**
+     * مسح مجلد بشكل تكراري
+     */
+    private function scanDirectoryRecursive(string $dirPath, string $basePath, string $relativeFolder, array $allowedExtensions, array &$results): void
+    {
+        $items = File::allFiles($dirPath);
+        foreach ($items as $item) {
+            $ext = strtolower($item->getExtension());
+            if (!in_array($ext, $allowedExtensions)) continue;
+            if ($ext === 'pdf') continue;
+
+            $fullPath = $item->getPathname();
+            $relativePath = str_replace($basePath . '/', '', $fullPath);
+            $relativePath = str_replace('\\', '/', $relativePath);
+
+            $results[] = [
+                'full_path' => $fullPath,
+                'relative_path' => $relativePath,
+                'file_name' => $item->getFilename(),
+                'file_size' => $item->getSize(),
+                'extension' => $ext,
+                'folder' => $relativeFolder,
+            ];
+        }
+    }
+
+    /**
+     * تحليل اسم الملف واستخراج البيانات
+     * التنسيق: {docTypeId}_{fileIdNumber}_{identityNumber}.{ext}
+     */
+    private function parseOrphanFileName(string $fileName, string $folder): array
+    {
+        $name = pathinfo($fileName, PATHINFO_FILENAME);
+        $parts = explode('_', $name);
+
+        $result = [
+            'doc_type_id' => null,
+            'identity_number' => null,
+            'file_id_number' => null,
+        ];
+
+        if (count($parts) >= 3) {
+            $result['doc_type_id'] = is_numeric($parts[0]) ? (int) $parts[0] : $parts[0];
+            $result['file_id_number'] = $parts[1];
+            $result['identity_number'] = $parts[2];
+        } elseif (count($parts) === 2) {
+            $result['file_id_number'] = $parts[0];
+            $result['identity_number'] = $parts[1];
+        }
+
+        return $result;
+    }
+
+    /**
+     * إضافة ملفات محددة إلى جدول attachments
+     */
+    public function addOrphanFiles(array $files): array
+    {
+        $added = 0;
+        $errors = [];
+
+        foreach ($files as $file) {
+            try {
+                $fileSize = file_exists($file['full_path']) ? filesize($file['full_path']) : 0;
+
+                DB::table('attachments')->insert([
+                    'person_identity_number' => $file['identity_number'],
+                    'file_type' => $file['doc_type_id'],
+                    'file_path' => $file['file_path'],
+                    'stored_file_name' => $file['file_name'],
+                    'file_size' => $fileSize,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                $added++;
+            } catch (\Exception $e) {
+                $errors[] = ['file' => $file['file_path'], 'error' => $e->getMessage()];
+            }
+        }
+
+        return [
+            'added_count' => $added,
+            'errors' => $errors,
+        ];
     }
 }

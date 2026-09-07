@@ -408,6 +408,8 @@ Route::prefix('admin')->group(function () {
     Route::get('attachment-audit/export', [AttachmentAuditController::class, 'export'])->name('attachment-audit.export');
     Route::get('attachment-audit/without-attachments', [AttachmentAuditController::class, 'getWithoutAttachments'])->name('attachment-audit.without-attachments');
     Route::post('attachment-audit/export-without-attachments', [AttachmentAuditController::class, 'exportWithoutAttachments'])->name('attachment-audit.export-without-attachments');
+    Route::get('attachment-audit/orphan-files', [AttachmentAuditController::class, 'findOrphanFiles'])->name('attachment-audit.orphan-files');
+    Route::post('attachment-audit/add-orphan-files', [AttachmentAuditController::class, 'addOrphanFiles'])->name('attachment-audit.add-orphan-files');
 });
 
 // Admin Routes Group - Additional Testing Routes
