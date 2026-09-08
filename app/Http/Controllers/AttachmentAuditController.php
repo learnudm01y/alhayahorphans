@@ -52,6 +52,30 @@ class AttachmentAuditController extends Controller
     }
 
     /**
+     * كشف المكررات حسب المسار
+     */
+    public function findDuplicatePaths()
+    {
+        try {
+            $results = $this->auditService->findDuplicatePaths();
+
+            return response()->json([
+                'success' => true,
+                'data' => $results,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('AttachmentAudit: Error finding duplicate paths', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * حذف المكررات مع الاحتفاظ بالأقدم
      */
     public function deleteDuplicates()
@@ -293,25 +317,47 @@ class AttachmentAuditController extends Controller
     }
 
     /**
-     * فحص الملفات الموجودة على القرص بدون سجل في DB
+     * بدء فحص الملفات بدون سجل
      */
-    public function findOrphanFiles()
+    public function initOrphanScan()
     {
         try {
-            $results = $this->auditService->findOrphanFiles();
+            $results = $this->auditService->initOrphanScan();
 
             return response()->json([
                 'success' => true,
                 'data' => $results,
             ]);
         } catch (\Exception $e) {
-            Log::error('AttachmentAudit: Error finding orphan files', [
+            Log::error('AttachmentAudit: Error init orphan scan', [
                 'error' => $e->getMessage(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'حدث خطأ أثناء فحص الملفات: ' . $e->getMessage(),
+                'message' => 'حدث خطأ أثناء الفحص: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * جلب صفحة من نتائج الفحص
+     */
+    public function getOrphanFilesPage(Request $request)
+    {
+        try {
+            $page = (int) $request->input('page', 1);
+            $perPage = (int) $request->input('per_page', 50);
+            $results = $this->auditService->getOrphanFilesPage($page, $perPage);
+
+            return response()->json([
+                'success' => true,
+                'data' => $results,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ: ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -322,6 +368,16 @@ class AttachmentAuditController extends Controller
     public function addOrphanFiles(Request $request)
     {
         try {
+            if ($request->input('add_all')) {
+                $results = $this->auditService->addAllOrphanFilesFromCache();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => "تم إضافة {$results['added_count']} ملف بنجاح",
+                    'data' => $results,
+                ]);
+            }
+
             $files = $request->input('files', []);
 
             if (empty($files)) {

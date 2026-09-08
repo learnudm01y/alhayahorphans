@@ -12,7 +12,8 @@ class VerifyCsrfToken extends Middleware
      * @var array<int, string>
      */
     protected $except = [
-        'api/files/*', // استثناء مؤقت للاختبار
-        'admin/speedtest/api', // استثناء لـ API اختبار السرعة
+        'api/files/*',
+        'admin/speedtest/api',
+        'admin/attachment-audit/add-orphan-files',
     ];
 }

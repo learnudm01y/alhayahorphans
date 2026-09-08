@@ -6,11 +6,12 @@ use App\Models\Attachment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Cache;
 
 class AttachmentAuditService
 {
     /**
-     * كشف المكررات حسب رقم الهوية + نوع الوثيقة
+     * فحص المكررات حسب رقم الهوية + نوع الوثيقة
      */
     public function findDuplicates(): array
     {
@@ -65,6 +66,83 @@ class AttachmentAuditService
     }
 
     /**
+     * فحص المكررات حسب المسار (نفس الملف مسجل أكثر من مرة)
+     * يستخدم REPLACE للتوافق مع storage/attachments/ و attachments/
+     */
+    public function findDuplicatePaths(): array
+    {
+        $normalizedExpr = "REPLACE(file_path, 'storage/', '')";
+
+        // 1. استعلام واحد — يلاقي المسارات المكررة
+        $duplicates = DB::table('attachments')
+            ->select(
+                DB::raw("{$normalizedExpr} as normalized_path"),
+                DB::raw('COUNT(*) as count'),
+                DB::raw('MIN(id) as keep_id')
+            )
+            ->whereNotNull('file_path')
+            ->where('file_path', '!=', '')
+            ->groupBy(DB::raw("{$normalizedExpr}"))
+            ->having('count', '>', 1)
+            ->orderByDesc('count')
+            ->get();
+
+        if ($duplicates->isEmpty()) {
+            return [
+                'total_groups' => 0,
+                'total_duplicates' => 0,
+                'total_to_delete' => 0,
+                'groups' => [],
+            ];
+        }
+
+        // 2. استعلام واحد — يجيب كل السجلات المكررة دفعة وحدة
+        $normalizedPaths = $duplicates->pluck('normalized_path')->toArray();
+        $placeholders = implode(',', array_fill(0, count($normalizedPaths), '?'));
+
+        $allRecords = DB::table('attachments')
+            ->whereRaw("{$normalizedExpr} IN ({$placeholders})", $normalizedPaths)
+            ->orderBy('id', 'asc')
+            ->get();
+
+        // 3. يربط كل سجل بمجموعته في الذاكرة
+        $recordsByPath = [];
+        foreach ($allRecords as $record) {
+            $np = str_replace('storage/', '', $record->file_path);
+            $recordsByPath[$np][] = [
+                'id' => $record->id,
+                'person_identity_number' => $record->person_identity_number,
+                'stored_file_name' => $record->stored_file_name,
+                'file_path' => $record->file_path,
+                'file_type' => $record->file_type,
+                'file_size' => $record->file_size,
+                'created_at' => $record->created_at,
+            ];
+        }
+
+        // 4. يبني النتيجة النهائية
+        $results = [];
+        foreach ($duplicates as $dup) {
+            $results[] = [
+                'file_path' => $dup->normalized_path,
+                'count' => (int) $dup->count,
+                'keep_id' => (int) $dup->keep_id,
+                'records' => $recordsByPath[$dup->normalized_path] ?? [],
+            ];
+        }
+
+        $totalDuplicates = collect($results)->sum('count');
+        $totalToDelete = $totalDuplicates - count($results);
+
+        return [
+            'total_groups' => count($results),
+            'total_duplicates' => $totalDuplicates,
+            'total_to_delete' => $totalToDelete,
+            'groups' => $results,
+        ];
+    }
+
+    /**
      * حذف المكررات مع الاحتفاظ بالأقدم (أقل ID)
      */
     public function deleteDuplicatesKeepOldest(): array
@@ -80,6 +158,7 @@ class AttachmentAuditService
             ->get();
 
         $deletedCount = 0;
+        $deletedFiles = 0;
         $errors = [];
 
         foreach ($duplicates as $dup) {
@@ -91,8 +170,12 @@ class AttachmentAuditService
 
             foreach ($idsToDelete as $id) {
                 try {
-                    DB::table('attachments')->where('id', $id)->delete();
-                    $deletedCount++;
+                    $record = DB::table('attachments')->where('id', $id)->first();
+                    if ($record) {
+                        $this->deleteFileFromDiskIfNeeded($record->file_path);
+                        DB::table('attachments')->where('id', $id)->delete();
+                        $deletedCount++;
+                    }
                 } catch (\Exception $e) {
                     $errors[] = ['id' => $id, 'error' => $e->getMessage()];
                 }
@@ -106,10 +189,63 @@ class AttachmentAuditService
     }
 
     /**
-     * حذف مكرر واحد
+     * حذف مكرر واحد — يحذف السجل من DB + الملف من القرص إذا ما في سجل تاني يشير إليه
      */
     public function deleteSingleDuplicate(int $id): bool
     {
+        $record = DB::table('attachments')->where('id', $id)->first();
+        if (!$record) return false;
+
+        $this->deleteFileFromDiskIfNeeded($record->file_path);
+
+        return DB::table('attachments')->where('id', $id)->delete() > 0;
+    }
+
+    /**
+     * حذف ملف من القرص بشرط أمان:
+     * يتأكد إنو ما في أي سجل تاني في DB يشير لنفس الملف الفعلي
+     */
+    private function deleteFileFromDiskIfNeeded(?string $filePath): void
+    {
+        if (empty($filePath)) return;
+
+        $normalized = $this->normalizeFilePath($filePath);
+
+        $otherRecordsCount = DB::table('attachments')
+            ->where('file_path', '!=', $filePath)
+            ->whereRaw("REPLACE(file_path, 'storage/', '') = ?", [$normalized])
+            ->count();
+
+        if ($otherRecordsCount > 0) return;
+
+        $fullPath = storage_path('app/public/' . $normalized);
+        if (file_exists($fullPath)) {
+            @unlink($fullPath);
+        }
+    }
+
+    /**
+     * تطبيع المسار — يشيل storage/ من البداية
+     */
+    private function normalizeFilePath(string $filePath): string
+    {
+        $path = ltrim($filePath, '/');
+        if (str_starts_with($path, 'storage/')) {
+            $path = substr($path, 8);
+        }
+        return $path;
+    }
+
+    /**
+     * حذف رابط مكسور واحد — يحذف السجل من DB + الملف من القرص إذا ما في سجل تاني
+     */
+    public function deleteBrokenLink(int $id): bool
+    {
+        $record = DB::table('attachments')->where('id', $id)->first();
+        if (!$record) return false;
+
+        $this->deleteFileFromDiskIfNeeded($record->file_path);
+
         return DB::table('attachments')->where('id', $id)->delete() > 0;
     }
 
@@ -175,14 +311,6 @@ class AttachmentAuditService
     }
 
     /**
-     * حذف رابط مكسور واحد
-     */
-    public function deleteBrokenLink(int $id): bool
-    {
-        return DB::table('attachments')->where('id', $id)->delete() > 0;
-    }
-
-    /**
      * حذف كل الروابط المكسورة
      */
     public function deleteAllBrokenLinks(array $brokenIds): array
@@ -192,8 +320,12 @@ class AttachmentAuditService
 
         foreach ($brokenIds as $id) {
             try {
-                DB::table('attachments')->where('id', $id)->delete();
-                $deletedCount++;
+                $record = DB::table('attachments')->where('id', $id)->first();
+                if ($record) {
+                    $this->deleteFileFromDiskIfNeeded($record->file_path);
+                    DB::table('attachments')->where('id', $id)->delete();
+                    $deletedCount++;
+                }
             } catch (\Exception $e) {
                 $errors[] = ['id' => $id, 'error' => $e->getMessage()];
             }
@@ -388,9 +520,9 @@ class AttachmentAuditService
 
     /**
      * فحص الملفات الموجودة فعلياً على القرص ومقارنتها مع جدول attachments
-     * يستبعد ملفات PDF
+     * يخزن النتائج في Cache ويُرجع إحصائيات أولية فقط
      */
-    public function findOrphanFiles(): array
+    public function initOrphanScan(): array
     {
         $basePath = storage_path('app/public');
         $scanFolders = ['attachments', 'uploads'];
@@ -403,17 +535,25 @@ class AttachmentAuditService
             $this->scanDirectoryRecursive($folderPath, $basePath, $folder, $allowedExtensions, $allFiles);
         }
 
-        $existingPaths = DB::table('attachments')
+        $existingPaths = [];
+        $rows = DB::table('attachments')
             ->whereNotNull('file_path')
             ->where('file_path', '!=', '')
-            ->pluck('file_path')
-            ->map(fn($p) => ltrim($p, '/'))
-            ->flip();
+            ->select('file_path')
+            ->cursor();
+        foreach ($rows as $row) {
+            $path = ltrim($row->file_path, '/');
+            if (str_starts_with($path, 'storage/')) {
+                $path = substr($path, 8);
+            }
+            $existingPaths[$path] = true;
+        }
+        unset($rows);
 
         $orphanFiles = [];
         foreach ($allFiles as $file) {
             $relativePath = $file['relative_path'];
-            if ($existingPaths->has($relativePath)) continue;
+            if (isset($existingPaths[$relativePath])) continue;
 
             $parsed = $this->parseOrphanFileName($file['file_name'], $file['folder']);
             $orphanFiles[] = [
@@ -428,14 +568,41 @@ class AttachmentAuditService
                 'file_id_number' => $parsed['file_id_number'],
             ];
         }
+        $totalOnDisk = count($allFiles);
+        unset($allFiles, $existingPaths, $rows);
 
         usort($orphanFiles, fn($a, $b) => strcmp($a['file_path'], $b['file_path']));
 
+        $cacheKey = 'orphan_scan_results';
+        Cache::put($cacheKey, $orphanFiles, 3600);
+
         return [
-            'total_files_on_disk' => count($allFiles),
-            'total_in_db' => $existingPaths->count(),
+            'total_files_on_disk' => $totalOnDisk,
+            'total_in_db' => DB::table('attachments')->count(),
             'orphan_count' => count($orphanFiles),
-            'orphan_files' => $orphanFiles,
+            'total_pages' => (int) ceil(count($orphanFiles) / 50),
+        ];
+    }
+
+    /**
+     * جلب صفحة من نتائج الفحص المخزنة في Cache
+     */
+    public function getOrphanFilesPage(int $page = 1, int $perPage = 50): array
+    {
+        $cacheKey = 'orphan_scan_results';
+        $allOrphans = Cache::get($cacheKey, []);
+
+        $total = count($allOrphans);
+        $totalPages = (int) ceil($total / $perPage);
+        $offset = ($page - 1) * $perPage;
+        $pageFiles = array_slice($allOrphans, $offset, $perPage);
+
+        return [
+            'orphan_files' => $pageFiles,
+            'orphan_count' => $total,
+            'total_pages' => $totalPages,
+            'current_page' => $page,
+            'per_page' => $perPage,
         ];
     }
 
@@ -493,29 +660,117 @@ class AttachmentAuditService
     }
 
     /**
-     * إضافة ملفات محددة إلى جدول attachments
+     * إضافة جميع الملفات المفقودة — يفحص ويضيف دفعة 1000 بدون cache
+     */
+    public function addAllOrphanFilesFromCache(int $batchSize = 1000): array
+    {
+        $basePath = storage_path('app/public');
+        $scanFolders = ['attachments', 'uploads'];
+        $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif', 'svg', 'tiff', 'tif', 'mp4', 'avi', 'mov', 'mkv', 'wmv', 'flv', 'doc', 'docx', 'ppt', 'pptx', 'txt'];
+
+        $allFiles = [];
+        foreach ($scanFolders as $folder) {
+            $folderPath = $basePath . '/' . $folder;
+            if (!is_dir($folderPath)) continue;
+            $this->scanDirectoryRecursive($folderPath, $basePath, $folder, $allowedExtensions, $allFiles);
+        }
+
+        $existingPaths = [];
+        $rows = DB::table('attachments')->whereNotNull('file_path')->where('file_path', '!=', '')->select('file_path')->cursor();
+        foreach ($rows as $row) {
+            $path = ltrim($row->file_path, '/');
+            if (str_starts_with($path, 'storage/')) {
+                $path = substr($path, 8);
+            }
+            $existingPaths[$path] = true;
+        }
+        unset($rows);
+
+        $added = 0;
+        $errors = [];
+        $batch = [];
+        $now = now();
+
+        foreach ($allFiles as $file) {
+            $relativePath = $file['relative_path'];
+            if (isset($existingPaths[$relativePath])) continue;
+
+            $parsed = $this->parseOrphanFileName($file['file_name'], $file['folder']);
+
+            $batch[] = [
+                'person_identity_number' => $parsed['identity_number'],
+                'file_type' => $parsed['doc_type_id'],
+                'file_path' => $relativePath,
+                'stored_file_name' => $file['file_name'],
+                'file_size' => $file['file_size'],
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+
+            if (count($batch) >= $batchSize) {
+                try {
+                    DB::table('attachments')->insert($batch);
+                    $added += count($batch);
+                } catch (\Exception $e) {
+                    $errors[] = ['file' => 'batch', 'error' => $e->getMessage()];
+                }
+                $batch = [];
+                break;
+            }
+        }
+
+        if (!empty($batch)) {
+            try {
+                DB::table('attachments')->insert($batch);
+                $added += count($batch);
+            } catch (\Exception $e) {
+                $errors[] = ['file' => 'batch', 'error' => $e->getMessage()];
+            }
+        }
+
+        $hasMore = ($added >= $batchSize);
+
+        return [
+            'added_count' => $added,
+            'remaining' => $hasMore ? 'more' : 0,
+            'errors' => $errors,
+        ];
+    }
+
+    /**
+     * إضافة ملفات محددة إلى جدول attachments (بإدخالات جماعية)
      */
     public function addOrphanFiles(array $files): array
     {
         $added = 0;
         $errors = [];
+        $now = now();
 
         foreach ($files as $file) {
             try {
-                $fileSize = file_exists($file['full_path']) ? filesize($file['full_path']) : 0;
+                $identity = $file['identity_number'] ?? null;
+                $docType = $file['doc_type_id'] ?? null;
+                $filePath = $file['file_path'] ?? null;
+
+                if (!$filePath) {
+                    $errors[] = ['file' => 'unknown', 'error' => 'مسار الملف فارغ'];
+                    continue;
+                }
+
+                $fileSize = (isset($file['full_path']) && file_exists($file['full_path'])) ? filesize($file['full_path']) : ($file['file_size'] ?? 0);
 
                 DB::table('attachments')->insert([
-                    'person_identity_number' => $file['identity_number'],
-                    'file_type' => $file['doc_type_id'],
-                    'file_path' => $file['file_path'],
-                    'stored_file_name' => $file['file_name'],
+                    'person_identity_number' => $identity,
+                    'file_type' => $docType,
+                    'file_path' => $filePath,
+                    'stored_file_name' => $file['file_name'] ?? basename($filePath),
                     'file_size' => $fileSize,
-                    'created_at' => now(),
-                    'updated_at' => now(),
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ]);
                 $added++;
             } catch (\Exception $e) {
-                $errors[] = ['file' => $file['file_path'], 'error' => $e->getMessage()];
+                $errors[] = ['file' => $file['file_path'] ?? 'unknown', 'error' => $e->getMessage()];
             }
         }
 

@@ -400,6 +400,7 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
 Route::prefix('admin')->group(function () {
     Route::get('attachment-audit', [AttachmentAuditController::class, 'index'])->name('attachment-audit.index');
     Route::get('attachment-audit/duplicates', [AttachmentAuditController::class, 'findDuplicates'])->name('attachment-audit.duplicates');
+    Route::get('attachment-audit/duplicate-paths', [AttachmentAuditController::class, 'findDuplicatePaths'])->name('attachment-audit.duplicate-paths');
     Route::delete('attachment-audit/duplicates/delete', [AttachmentAuditController::class, 'deleteDuplicates'])->name('attachment-audit.duplicates.delete');
     Route::delete('attachment-audit/duplicates/delete-single', [AttachmentAuditController::class, 'deleteSingleDuplicate'])->name('attachment-audit.duplicates.delete-single');
     Route::get('attachment-audit/broken-links', [AttachmentAuditController::class, 'checkBrokenLinks'])->name('attachment-audit.broken-links');
@@ -408,7 +409,8 @@ Route::prefix('admin')->group(function () {
     Route::get('attachment-audit/export', [AttachmentAuditController::class, 'export'])->name('attachment-audit.export');
     Route::get('attachment-audit/without-attachments', [AttachmentAuditController::class, 'getWithoutAttachments'])->name('attachment-audit.without-attachments');
     Route::post('attachment-audit/export-without-attachments', [AttachmentAuditController::class, 'exportWithoutAttachments'])->name('attachment-audit.export-without-attachments');
-    Route::get('attachment-audit/orphan-files', [AttachmentAuditController::class, 'findOrphanFiles'])->name('attachment-audit.orphan-files');
+    Route::get('attachment-audit/orphan-files', [AttachmentAuditController::class, 'initOrphanScan'])->name('attachment-audit.orphan-files');
+    Route::get('attachment-audit/orphan-files-page', [AttachmentAuditController::class, 'getOrphanFilesPage'])->name('attachment-audit.orphan-files-page');
     Route::post('attachment-audit/add-orphan-files', [AttachmentAuditController::class, 'addOrphanFiles'])->name('attachment-audit.add-orphan-files');
 });
 
