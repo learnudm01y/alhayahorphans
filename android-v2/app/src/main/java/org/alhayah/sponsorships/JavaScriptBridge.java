@@ -75,11 +75,6 @@ public class JavaScriptBridge {
                 Log.e(TAG, "🚀 Starting DataSyncForegroundService...");
                 DataSyncForegroundService.startSync(context);
                 Log.e(TAG, "✅ DataSyncForegroundService started!");
-
-                // ⚡ جدولة AlarmManager فوري (5 ثوانٍ) للتأكد من الرفع حتى عند إغلاق التطبيق
-                Log.e(TAG, "⚡ Scheduling immediate AlarmManager for background retry...");
-                DataSyncAlarmReceiver.scheduleImmediateCheck(context);
-                Log.e(TAG, "✅ Immediate alarm scheduled (will trigger in 5 sec even if app closed)");
             } else {
                 Log.e(TAG, "❌ Failed to add data to queue");
             }

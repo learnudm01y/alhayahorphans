@@ -40,9 +40,14 @@ public class DownloadForegroundService extends Service {
 
     private PowerManager.WakeLock wakeLock;
     private volatile boolean isRunning = false;
+    private static volatile boolean sIsDownloading = false;
     private Thread syncThread;
     private NotificationManager notificationManager;
     private NotificationCompat.Builder notificationBuilder;
+
+    public static boolean isDownloading() {
+        return sIsDownloading;
+    }
 
     public static void startDownload(Context context) {
         startDownload(context, 3);
@@ -79,6 +84,7 @@ public class DownloadForegroundService extends Service {
         final int w = workers;
         if (!isRunning) {
             isRunning = true;
+            sIsDownloading = true;
             syncThread = new Thread(() -> performDownload(w));
             syncThread.start();
         }
@@ -253,7 +259,7 @@ public class DownloadForegroundService extends Service {
                         JSONArray dataArray = json.optJSONArray("data");
                         if (dataArray == null) dataArray = json.optJSONArray("sponsorships");
                         if (dataArray != null && dataArray.length() > 0) {
-                            synchronized (dbHelper) { dbHelper.saveBatchSponsorships(dataArray, pendingIds); }
+                            synchronized (com.aso.app.SponsorshipsDatabaseHelper.class) { dbHelper.saveBatchSponsorships(dataArray, pendingIds); }
                             totalSponsorshipsSynced.addAndGet(dataArray.length());
                         }
                         pagesCompleted.incrementAndGet();
@@ -314,7 +320,7 @@ public class DownloadForegroundService extends Service {
                                     JSONArray dataArray = json.optJSONArray("data");
                                     if (dataArray == null) dataArray = json.optJSONArray("sponsorships");
                                     if (dataArray != null && dataArray.length() > 0) {
-                                        synchronized (dbHelper) { dbHelper.saveBatchSponsorships(dataArray, pendingIds); }
+                                        synchronized (com.aso.app.SponsorshipsDatabaseHelper.class) { dbHelper.saveBatchSponsorships(dataArray, pendingIds); }
                                         totalSponsorshipsSynced.addAndGet(dataArray.length());
                                     }
                                     int done = pagesCompleted.incrementAndGet();
@@ -501,6 +507,7 @@ public class DownloadForegroundService extends Service {
     public void onDestroy() {
         super.onDestroy();
         isRunning = false;
+        sIsDownloading = false;
         if (wakeLock != null && wakeLock.isHeld()) {
             try {
                 wakeLock.release();

@@ -180,7 +180,9 @@ public class RealtimeSyncService extends Service {
                         Log.w(TAG, "⚠️ Realtime Update Ignored: Sponsorship " + id + " has pending local edits.");
                     } else {
                         // 1. الكتابة المباشرة في قاعدة بيانات SQLite المحلية!!
-                        dbHelper.saveSponsorship(id, json.toString());
+                        synchronized (com.aso.app.SponsorshipsDatabaseHelper.class) {
+                            dbHelper.saveSponsorship(id, json.toString());
+                        }
                         Log.d(TAG, "💾 Saved incoming real-time update to SQLite natively! ID: " + id);
                         
                         // 2. إشعار محلي للمستخدم

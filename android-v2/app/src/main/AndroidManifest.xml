@@ -5,6 +5,8 @@
     <application
         android:name="com.aso.app.AutoUploadApplication"
         android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -12,6 +14,7 @@
         android:theme="@style/AppTheme"
         android:largeHeap="true"
         android:hardwareAccelerated="true"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:usesCleartextTraffic="true"
         android:requestLegacyExternalStorage="true">
 
@@ -86,11 +89,6 @@
             </intent-filter>
         </receiver>
 
-        <receiver
-            android:name="org.alhayah.sponsorships.DataSyncAlarmReceiver"
-            android:enabled="true"
-            android:exported="false" />
-
         <service
             android:name="org.alhayah.sponsorships.DataSyncForegroundService"
             android:enabled="true"
@@ -129,11 +127,6 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
-
-        <receiver
-            android:name="com.aso.app.UploadAlarmReceiver"
-            android:enabled="true"
-            android:exported="false" />
 
         <receiver
             android:name="com.aso.app.IncomingCallReceiver"

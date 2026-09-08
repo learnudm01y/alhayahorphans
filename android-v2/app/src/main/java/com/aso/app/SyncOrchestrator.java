@@ -64,10 +64,8 @@ public class SyncOrchestrator {
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build();
 
-        // 1. Upload Local Action Queue (Text Modifications) First
-        OneTimeWorkRequest localActionsUploadRequest = new OneTimeWorkRequest.Builder(DataSyncQueueWorker.class)
-                .setConstraints(constraints)
-                .build();
+        // 1. Start DataSyncForegroundService for offline data upload (non-blocking)
+        org.alhayah.sponsorships.DataSyncForegroundService.startSync(context);
 
         // 2. Verify Drive Status Second (clear inbox)
         OneTimeWorkRequest verifyStatusRequest = new OneTimeWorkRequest.Builder(DriveStatusWorker.class)
@@ -89,13 +87,12 @@ public class SyncOrchestrator {
                 .setConstraints(constraints)
                 .build();
 
-        // Chain them sequentially to guarantee thread safety and prevent any overlapping database/network writes
+        // Chain steps 2-5 sequentially (step 1 runs independently as Foreground Service)
         WorkManager.getInstance(context)
                 .beginUniqueWork(
                         "MasterSyncOnReconnect",
                         ExistingWorkPolicy.REPLACE,
-                        localActionsUploadRequest)
-                .then(verifyStatusRequest)
+                        verifyStatusRequest)
                 .then(downloadUpdatesRequest)
                 .then(prepareUploadsRequest)
                 .then(chunkedUploadRequest)

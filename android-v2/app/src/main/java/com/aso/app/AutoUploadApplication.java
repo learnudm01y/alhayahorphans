@@ -103,11 +103,7 @@ public class AutoUploadApplication extends Application {
 
         NetworkConnectedWorker.scheduleWork(this);
 
-        // ✨ CRITICAL FIX: Start DataSyncNetworkMonitor to listen for internet connectivity changes
-        // This ensures the app can sync in the background when internet returns without opening the app.
-        org.alhayah.sponsorships.DataSyncNetworkMonitor.getInstance(this).startMonitoring();
-
-        // 🆕 Start File Network Monitor to handle file upload auto-retries on internet reconnect
-        com.aso.app.NetworkMonitor.getInstance(this).startMonitoring();
+        // ✨ مراقبة شبكة موحدة: تجمع وظائف NetworkMonitor و DataSyncNetworkMonitor
+        com.aso.app.UnifiedNetworkMonitor.getInstance(this).startMonitoring();
     }
 }

@@ -34,6 +34,9 @@ public class MainActivity extends BridgeActivity {
 
         super.onCreate(savedInstanceState);
 
+        // إبقاء الشاشة مضاءة أثناء استخدام التطبيق
+        getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
         // 🌉 تسجيل UploadStatusBridge للتواصل المباشر مع JavaScript
         UploadStatusBridge.registerActivity(this);
         android.util.Log.e(TAG, "✅ UploadStatusBridge registered - Real-time sync enabled");
@@ -234,11 +237,10 @@ public class MainActivity extends BridgeActivity {
             android.util.Log.e(TAG, "❌❌❌ FAILED to add JavaScript Bridges", e);
         }
 
-        // 🆕 DataSyncNetworkMonitor & NetworkMonitor - ALREADY STARTED in AutoUploadApplication!
+        // 🆕 UnifiedNetworkMonitor - ALREADY STARTED in AutoUploadApplication!
         android.util.Log.e(TAG, "");
         android.util.Log.e(TAG, "🌐 Network Monitors:");
-        android.util.Log.e(TAG, "   ✅ DataSyncNetworkMonitor - Started globally in Application context");
-        android.util.Log.e(TAG, "   ✅ NetworkMonitor (File Uploads) - Started globally in Application context");
+        android.util.Log.e(TAG, "   ✅ UnifiedNetworkMonitor - Started globally in Application context");
 
         android.util.Log.e(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         android.util.Log.e(TAG, "");
@@ -247,7 +249,7 @@ public class MainActivity extends BridgeActivity {
         android.util.Log.e(TAG, "   📊 Data: BackgroundSyncPlugin");
         android.util.Log.e(TAG, "   🌉 Bridge: window.AndroidBridge ← ACTIVE!");
         android.util.Log.e(TAG, "   📹 Camera: window.CameraBridge ← ACTIVE!");
-        android.util.Log.e(TAG, "   🌐 Monitor: DataSyncNetworkMonitor & NetworkMonitor ← ACTIVE (from Application)!");
+        android.util.Log.e(TAG, "   🌐 Monitor: UnifiedNetworkMonitor ← ACTIVE (from Application)!");
         android.util.Log.e(TAG, "   🧠 Memory: MemoryMonitor ← ACTIVE!");
         android.util.Log.e(TAG, "   💾 Storage: WebStorageManager ← ACTIVE!");
         android.util.Log.e(TAG, "   📹 CameraMemory: CameraMemoryManager ← ACTIVE!");

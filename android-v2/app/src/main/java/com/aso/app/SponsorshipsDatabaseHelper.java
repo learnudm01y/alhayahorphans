@@ -314,6 +314,39 @@ public class SponsorshipsDatabaseHelper extends SQLiteOpenHelper {
     }
 
     /**
+     * عد الكفالات مع فلاتر (بدلاً من جلب كل السجلات)
+     */
+    public int getSponsorshipsCount(int sponsorId, int statusId, String search) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        
+        StringBuilder queryBuilder = new StringBuilder("SELECT COUNT(*) FROM " + TABLE_SPONSORSHIPS + " WHERE 1=1 ");
+        java.util.ArrayList<String> argsList = new java.util.ArrayList<>();
+        
+        if (sponsorId > 0) {
+            queryBuilder.append(" AND " + COLUMN_SPONSOR_ID + " = ? ");
+            argsList.add(String.valueOf(sponsorId));
+        }
+        if (statusId > 0) {
+            queryBuilder.append(" AND " + COLUMN_STATUS_ID + " = ? ");
+            argsList.add(String.valueOf(statusId));
+        }
+        if (search != null && !search.isEmpty()) {
+            queryBuilder.append(" AND " + COLUMN_SEARCH_TEXT + " LIKE ? ");
+            argsList.add("%" + search.toLowerCase() + "%");
+        }
+        
+        String[] args = argsList.toArray(new String[0]);
+        Cursor cursor = db.rawQuery(queryBuilder.toString(), args);
+        
+        int count = 0;
+        if (cursor.moveToFirst()) {
+            count = cursor.getInt(0);
+        }
+        cursor.close();
+        return count;
+    }
+
+    /**
      * بحث في الكفالات - بالكلمات المنفصلة (كل كلمة يجب أن تظهر)
      */
     public JSONArray searchSponsorships(String searchTerm, int page, int limit) {

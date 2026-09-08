@@ -220,6 +220,28 @@ public class BackgroundSyncPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void getSponsorshipsCount(PluginCall call) {
+        try {
+            int sponsorId = call.getInt("sponsorId", 0);
+            int statusId = call.getInt("statusId", 0);
+            String search = call.getString("search", "");
+            
+            Context context = getContext();
+            com.aso.app.SponsorshipsDatabaseHelper dbHelper = com.aso.app.SponsorshipsDatabaseHelper.getInstance(context);
+            
+            int count = dbHelper.getSponsorshipsCount(sponsorId, statusId, search);
+            
+            JSObject ret = new JSObject();
+            ret.put("count", count);
+            ret.put("success", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to count sponsorships", e);
+            call.reject("Failed to count sponsorships: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
     public void saveSponsorship(PluginCall call) {
         try {
             int id = call.getInt("id", 0);

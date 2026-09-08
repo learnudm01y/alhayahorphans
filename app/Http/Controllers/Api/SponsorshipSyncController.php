@@ -1288,7 +1288,6 @@ class SponsorshipSyncController extends Controller
     {
         try {
             // صور الموقع الحقيقية في جدول attachments بنوع file_type = 12
-            // (مفتاحها رقم الهوية person_identity_number كما يفعل الموقع نفسه).
             $photoIdentityNumbers = [];
             DB::table('attachments')
                 ->where('file_type', 12)
@@ -1303,6 +1302,7 @@ class SponsorshipSyncController extends Controller
             $photoBase = url('/api/mobile/registration/photo');
             $pathBase = url('/api/mobile/photos');
 
+            // Optimized: Only fetch sponsorships that actually have photo data
             $rows = DB::table('sponsorships')
                 ->select([
                     'sponsorships.id',
@@ -1313,8 +1313,16 @@ class SponsorshipSyncController extends Controller
                     'sponsorships.orphan_photo_path',
                     'sponsorships.guardian_photo_path'
                 ])
+                ->where(function ($q) use ($photoIdentityNumbers) {
+                    $q->whereNotNull('orphan_photo_path')
+                      ->orWhereNotNull('guardian_photo_path');
+                    if (!empty($photoIdentityNumbers)) {
+                        $q->orWhereIn('identity_number', array_keys($photoIdentityNumbers))
+                          ->orWhereIn('guardian_identity_number', array_keys($photoIdentityNumbers));
+                    }
+                })
                 ->orderBy('sponsorships.id')
-                ->cursor();
+                ->get();
 
             $items = [];
             foreach ($rows as $r) {

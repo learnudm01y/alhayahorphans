@@ -39,7 +39,7 @@
     }
   },
   "android": {
-    "allowMixedContent": true,
+    "allowMixedContent": false,
     "captureInput": true,
     "webContentsDebuggingEnabled": true,
     "minWebViewVersion": 60

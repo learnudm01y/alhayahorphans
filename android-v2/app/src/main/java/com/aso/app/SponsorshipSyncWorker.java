@@ -25,6 +25,12 @@ public class SponsorshipSyncWorker extends Worker {
     public Result doWork() {
         Log.i(TAG, "Starting real sponsorship sync");
         try {
+            // تخطي إذا كان DownloadForegroundService يعمل بالفعل (يستخدم نفس endpoints)
+            if (org.alhayah.sponsorships.DownloadForegroundService.isDownloading()) {
+                Log.i(TAG, "DownloadForegroundService is running, skipping periodic sync to avoid duplication");
+                return Result.success();
+            }
+
             SharedPreferences prefs = getApplicationContext()
                 .getSharedPreferences("auth_prefs", Context.MODE_PRIVATE);
             String token = prefs.getString("api_token", "");
@@ -231,7 +237,9 @@ public class SponsorshipSyncWorker extends Worker {
 
                         if (dataArray != null && dataArray.length() > 0) {
                             java.util.Set<Integer> currentPendingIds = syncDbHelper.getPendingEntityIds();
-                            dbHelper.saveBatchSponsorships(dataArray, currentPendingIds);
+                            synchronized (com.aso.app.SponsorshipsDatabaseHelper.class) {
+                                dbHelper.saveBatchSponsorships(dataArray, currentPendingIds);
+                            }
                             totalSponsorshipsSynced += dataArray.length();
 
                             // Broadcast progress to user interface

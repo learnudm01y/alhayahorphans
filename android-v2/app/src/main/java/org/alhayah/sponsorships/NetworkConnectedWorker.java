@@ -57,7 +57,7 @@ public class NetworkConnectedWorker extends Worker {
             DataSyncDatabaseHelper dbHelper = DataSyncDatabaseHelper.getInstance(context);
 
             // ✨ CRITICAL ARCHITECTURE FIX: Trigger Unified Master Sync Chain
-            // This runs: DataSyncQueueWorker -> DriveStatusWorker -> SponsorshipSyncWorker -> PrepareUploadsWorker -> ChunkedUploadWorker
+            // This runs: DataSyncForegroundService -> DriveStatusWorker -> SponsorshipSyncWorker -> PrepareUploadsWorker -> ChunkedUploadWorker
             Log.d(TAG, "📦 Scheduling Unified Master Sync Chain on network reconnect");
             com.aso.app.SyncOrchestrator.scheduleMasterSyncOnReconnect(context);
 

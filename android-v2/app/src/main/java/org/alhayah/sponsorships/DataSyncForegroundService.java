@@ -337,7 +337,9 @@ public class DataSyncForegroundService extends Service {
                                 Log.d(TAG, "🚀 Updated local updated_at to fallback time for ID " + sponsorshipId);
                             }
                             
-                            db.update("sponsorships", cv, "id = ?", new String[]{String.valueOf(sponsorshipId)});
+                            synchronized (com.aso.app.SponsorshipsDatabaseHelper.class) {
+                                db.update("sponsorships", cv, "id = ?", new String[]{String.valueOf(sponsorshipId)});
+                            }
                         }
                     }
                 } catch (Exception e) {

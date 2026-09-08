@@ -27,7 +27,7 @@ public class DataSyncDatabaseHelper extends SQLiteOpenHelper {
 
     // Database info
     private static final String DATABASE_NAME = "data_sync.db";
-    private static final int DATABASE_VERSION = 1;
+    private static final int DATABASE_VERSION = 2;
 
     // Table name
     private static final String TABLE_SYNC_QUEUE = "sync_queue";
@@ -42,6 +42,7 @@ public class DataSyncDatabaseHelper extends SQLiteOpenHelper {
     private static final String COL_ERROR_MESSAGE = "error_message"; // Last error message
     private static final String COL_CREATED_AT = "created_at"; // Timestamp
     private static final String COL_UPLOADED_AT = "uploaded_at"; // Timestamp
+    private static final String COL_PROCESSING_STARTED_AT = "processing_started_at"; // When upload started
 
     // Status values
     public static final String STATUS_PENDING = "pending";
@@ -79,7 +80,8 @@ public class DataSyncDatabaseHelper extends SQLiteOpenHelper {
                 + COL_RETRY_COUNT + " INTEGER DEFAULT 0, "
                 + COL_ERROR_MESSAGE + " TEXT, "
                 + COL_CREATED_AT + " INTEGER NOT NULL, "
-                + COL_UPLOADED_AT + " INTEGER"
+                + COL_UPLOADED_AT + " INTEGER, "
+                + COL_PROCESSING_STARTED_AT + " INTEGER"
                 + ")";
 
         db.execSQL(createTable);
@@ -88,9 +90,10 @@ public class DataSyncDatabaseHelper extends SQLiteOpenHelper {
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_SYNC_QUEUE);
-        onCreate(db);
-        Log.d(TAG, "⚠️ Database upgraded from v" + oldVersion + " to v" + newVersion);
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE " + TABLE_SYNC_QUEUE + " ADD COLUMN " + COL_PROCESSING_STARTED_AT + " INTEGER");
+            Log.d(TAG, "✅ Database upgraded from v" + oldVersion + " to v" + newVersion + ": added processing_started_at");
+        }
     }
 
     /**
@@ -152,6 +155,7 @@ public class DataSyncDatabaseHelper extends SQLiteOpenHelper {
 
         ContentValues values = new ContentValues();
         values.put(COL_STATUS, STATUS_UPLOADING);
+        values.put(COL_PROCESSING_STARTED_AT, System.currentTimeMillis());
 
         int rows = db.update(TABLE_SYNC_QUEUE, values, COL_ID + " = ?", new String[]{String.valueOf(id)});
         Log.d(TAG, "🔄 Marked as uploading: ID=" + id + " (rows=" + rows + ")");
@@ -166,6 +170,7 @@ public class DataSyncDatabaseHelper extends SQLiteOpenHelper {
         ContentValues values = new ContentValues();
         values.put(COL_STATUS, STATUS_UPLOADED);
         values.put(COL_UPLOADED_AT, System.currentTimeMillis());
+        values.putNull(COL_PROCESSING_STARTED_AT);
 
         int rows = db.update(TABLE_SYNC_QUEUE, values, COL_ID + " = ?", new String[]{String.valueOf(id)});
         Log.d(TAG, "✅ Marked as uploaded: ID=" + id + " (rows=" + rows + ")");
@@ -207,7 +212,7 @@ public class DataSyncDatabaseHelper extends SQLiteOpenHelper {
 
     /**
      * ✨ NEW: إعادة تعيين البيانات الفاشلة إلى pending عند عودة الإنترنت
-     * هذه الدالة تُستدعى من DataSyncNetworkMonitor عند اكتشاف الاتصال
+     * هذه الدالة تُستدعى من UnifiedNetworkMonitor عند اكتشاف الاتصال
      */
     public int resetFailedData() {
         SQLiteDatabase db = getWritableDatabase();
@@ -216,10 +221,13 @@ public class DataSyncDatabaseHelper extends SQLiteOpenHelper {
         values.put(COL_STATUS, STATUS_PENDING);
         values.put(COL_RETRY_COUNT, 0);
         values.put(COL_ERROR_MESSAGE, (String) null);
+        values.putNull(COL_PROCESSING_STARTED_AT);
 
+        // إعادة تعيين العناصر الفاشلة + العناصر القيد المعالجة لأكثر من 5 دقائق
+        long fiveMinutesAgo = System.currentTimeMillis() - (5 * 60 * 1000);
         int rows = db.update(TABLE_SYNC_QUEUE, values,
-                            COL_STATUS + " = ?",
-                            new String[]{STATUS_FAILED});
+                            COL_STATUS + " = ? OR (" + COL_STATUS + " = ? AND " + COL_PROCESSING_STARTED_AT + " < ?)",
+                            new String[]{STATUS_FAILED, STATUS_UPLOADING, String.valueOf(fiveMinutesAgo)});
 
         // ✅ طباعة log فقط عندما يكون هناك failed items فعلاً (توفير الذاكرة)
         if (rows > 0) {
