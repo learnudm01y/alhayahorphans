@@ -416,7 +416,7 @@
                     if (window.allDocs && window.allDocs instanceof Map) {
                         console.log('جميع الوثائق في allDocs:', Array.from(window.allDocs.entries()));
                     }
-                    window.documentTypes.filter(dt => dt.basic_enabled && dt.basic_required).forEach(dt => {
+                    window.documentTypes.filter(dt => dt.basic_required).forEach(dt => {
                         let found = false;
                         // توحيد prefType مرة واحدة
                         const prefType = (dt.pref || '').toString().trim().toLowerCase();
@@ -462,11 +462,11 @@
                     const el = document.querySelector(`[name="${name}"]`);
                     if (el && !el.value) missingFields.push(name);
                 });
-                const motherSection = document.getElementById('motherInfoSection');
-                if (motherSection && motherSection.style.display !== 'none') {
-                    const motherFields = [
-                        'mother_first_name', 'mother_last_name', 'mother_id', 'mother_death_date', 'mother_death_reason'
-                    ];
+                        const motherSection = document.getElementById('motherInfoSection');
+                        if (motherSection && motherSection.style.display !== 'none') {
+                            const motherFields = [
+                                'deceased_mother_first_name', 'deceased_mother_last_name', 'deceased_mother_id', 'mother_death_date', 'mother_death_reason'
+                            ];
                     motherFields.forEach(name => {
                         const el = motherSection.querySelector(`[name="${name}"]`);
                         if (el && !el.value) missingFields.push(name);
@@ -481,7 +481,7 @@
                     const fatherIdInput = document.querySelector('input[name="father_id"]');
                     const fatherId = fatherIdInput ? fatherIdInput.value : null;
                     if (fatherId) {
-                        window.documentTypes.filter(dt => dt.deceased_enabled && dt.deceased_required).forEach(dt => {
+                        window.documentTypes.filter(dt => dt.deceased_required).forEach(dt => {
                             let found = false;
                             window.allDocs.forEach(arr => {
                                 arr.forEach(doc => {
@@ -505,10 +505,10 @@
                             }
                         });
                     }
-                    const motherIdInput = motherSection ? motherSection.querySelector('input[name="mother_id"]') : null;
+                    const motherIdInput = motherSection ? motherSection.querySelector('input[name="deceased_mother_id"]') : null;
                     const motherId = motherIdInput ? motherIdInput.value : null;
                     if (motherSection && motherSection.style.display !== 'none' && motherId) {
-                        window.documentTypes.filter(dt => dt.deceased_enabled && dt.deceased_required).forEach(dt => {
+                        window.documentTypes.filter(dt => dt.deceased_required).forEach(dt => {
                             let found = false;
                             window.allDocs.forEach(arr => {
                                 arr.forEach(doc => {
@@ -551,7 +551,7 @@
                         if (el && !el.value) valid = false;
                     }
                     if (window.documentTypes) {
-                        window.documentTypes.filter(dt => dt.family_enabled && dt.family_required).forEach(dt => {
+                        window.documentTypes.filter(dt => dt.family_required).forEach(dt => {
                             let found = false;
                             if (window.allDocs && window.allDocs instanceof Map) {
                                 window.allDocs.forEach(arr => {
@@ -632,13 +632,9 @@
                             }
                         }
                         if (allCompleted) {
-                            navBtn.disabled = false;
-                            navBtn.classList.remove('disabled');
                             navBtn.style.color = '#000';
                             navBtn.style.backgroundColor = '';
                         } else {
-                            navBtn.disabled = true;
-                            navBtn.classList.add('disabled');
                             navBtn.style.color = '#aaa';
                             navBtn.style.backgroundColor = '#eee';
                         }
@@ -646,14 +642,10 @@
                     }
                     // التبويبات الأخرى: تُفعل فقط إذا اكتملت البوابة السابقة مباشرة (prevCompleted)
                     if (prevCompleted) {
-                        navBtn.disabled = false;
-                        navBtn.classList.remove('disabled');
                         navBtn.style.color = '#000';
                         navBtn.style.backgroundColor = '';
                         prevCompleted = tab.validate();
                     } else {
-                        navBtn.disabled = true;
-                        navBtn.classList.add('disabled');
                         navBtn.style.color = '#aaa';
                         navBtn.style.backgroundColor = '#eee';
                         prevCompleted = false;
@@ -708,7 +700,7 @@
                             'data_relationship', 'data_birth_date', 'data_gender', 'data_phone_number',
                             'data_marital_status', 'data_displacement_status', 'data_current_address',
                             'data_city', 'data_province', 'data_health_status', 'data_employment_status_breadwinner',
-                            'data_housing_status', 'data_current_housing_type'
+                            'data_housing_status', 'data_current_housing_type', 'data_number_of_individuals'
                         ];
                         let missingFields = [];
                         for (const name of requiredFields) {
@@ -723,7 +715,7 @@
                         let missingDocs = [];
                         if (window.documentTypes) {
                             // تحقق من window.allDocs (المصفوفة المركزية)
-                            window.documentTypes.filter(dt => dt.basic_enabled && dt.basic_required).forEach(dt => {
+                            window.documentTypes.filter(dt => dt.basic_required).forEach(dt => {
                         let found = false;
                         if (window.allDocs && window.allDocs instanceof Map) {
                             window.allDocs.forEach(arr => {
@@ -783,7 +775,7 @@
                             const fatherIdInput = document.querySelector('input[name="father_id"]');
                             const fatherId = fatherIdInput ? fatherIdInput.value : null;
                             if (fatherId) {
-                                window.documentTypes.filter(dt => dt.deceased_enabled && dt.deceased_required).forEach(dt => {
+                                window.documentTypes.filter(dt => dt.deceased_required).forEach(dt => {
                                     let found = false;
                                     window.allDocs.forEach(arr => {
                                         arr.forEach(doc => {
@@ -804,10 +796,10 @@
                                 });
                             }
                             // تحقق للأم إذا كانت ظاهرة
-                            const motherIdInput = motherSection ? motherSection.querySelector('input[name="mother_id"]') : null;
+                            const motherIdInput = motherSection ? motherSection.querySelector('input[name="deceased_mother_id"]') : null;
                             const motherId = motherIdInput ? motherIdInput.value : null;
                             if (motherSection && motherSection.style.display !== 'none' && motherId) {
-                                window.documentTypes.filter(dt => dt.deceased_enabled && dt.deceased_required).forEach(dt => {
+                                window.documentTypes.filter(dt => dt.deceased_required).forEach(dt => {
                                     let found = false;
                                     window.allDocs.forEach(arr => {
                                         arr.forEach(doc => {
@@ -844,7 +836,7 @@
                                 if (el && !el.value) valid = false;
                             }
                             if (window.documentTypes) {
-                                window.documentTypes.filter(dt => dt.family_enabled && dt.family_required).forEach(dt => {
+                                window.documentTypes.filter(dt => dt.family_required).forEach(dt => {
                                     let found = false;
                                     if (window.allDocs && window.allDocs instanceof Map) {
                                         window.allDocs.forEach(arr => {
@@ -891,7 +883,8 @@
                             data_health_status: 'الحالة الصحية',
                             data_employment_status_breadwinner: 'حالة العمل (معيل)',
                             data_housing_status: 'حالة السكن',
-                            data_current_housing_type: 'نوع السكن الحالي'
+                            data_current_housing_type: 'نوع السكن الحالي',
+                            data_number_of_individuals: 'عدد أفراد الأسرة'
                         };
                         const requiredFields = Object.keys(fieldLabels);
                         for (const name of requiredFields) {
@@ -904,7 +897,7 @@
                             }
                         }
                         if (window.documentTypes) {
-                            window.documentTypes.filter(dt => dt.basic_enabled && dt.basic_required).forEach(dt => {
+                            window.documentTypes.filter(dt => dt.basic_required).forEach(dt => {
                                 let found = false;
                                 if (window.allDocs && window.allDocs instanceof Map) {
                                     window.allDocs.forEach(arr => {
@@ -954,9 +947,9 @@
                             father_id: 'رقم هوية الأب',
                             father_death_date: 'تاريخ وفاة الأب',
                             father_death_reason: 'سبب وفاة الأب',
-                            mother_first_name: 'اسم الأم (الأول)',
-                            mother_last_name: 'اسم الأم (العائلة)',
-                            mother_id: 'رقم هوية الأم',
+                            deceased_mother_first_name: 'اسم الأم (الأول)',
+                            deceased_mother_last_name: 'اسم الأم (العائلة)',
+                            deceased_mother_id: 'رقم هوية الأم',
                             mother_death_date: 'تاريخ وفاة الأم',
                             mother_death_reason: 'سبب وفاة الأم'
                         };
@@ -972,7 +965,7 @@
                         const motherSection = document.getElementById('motherInfoSection');
                         if (motherSection && motherSection.style.display !== 'none') {
                             const motherFields = [
-                                'mother_first_name', 'mother_last_name', 'mother_id', 'mother_death_date', 'mother_death_reason'
+                                'deceased_mother_first_name', 'deceased_mother_last_name', 'deceased_mother_id', 'mother_death_date', 'mother_death_reason'
                             ];
                             motherFields.forEach(name => {
                                 const el = motherSection.querySelector(`[name="${name}"]`);
@@ -985,7 +978,7 @@
                             const fatherIdInput = document.querySelector('input[name="father_id"]');
                             const fatherId = fatherIdInput ? fatherIdInput.value : null;
                             if (fatherId) {
-                                window.documentTypes.filter(dt => dt.deceased_enabled && dt.deceased_required).forEach(dt => {
+                                window.documentTypes.filter(dt => dt.deceased_required).forEach(dt => {
                                     let found = false;
                                     window.allDocs.forEach(arr => {
                                         arr.forEach(doc => {
@@ -1003,10 +996,10 @@
                                 });
                             }
                             // الأم
-                            const motherIdInput = motherSection ? motherSection.querySelector('input[name="mother_id"]') : null;
+                            const motherIdInput = motherSection ? motherSection.querySelector('input[name="deceased_mother_id"]') : null;
                             const motherId = motherIdInput ? motherIdInput.value : null;
                             if (motherSection && motherSection.style.display !== 'none' && motherId) {
-                                window.documentTypes.filter(dt => dt.deceased_enabled && dt.deceased_required).forEach(dt => {
+                                window.documentTypes.filter(dt => dt.deceased_required).forEach(dt => {
                                     let found = false;
                                     window.allDocs.forEach(arr => {
                                         arr.forEach(doc => {
@@ -1087,7 +1080,7 @@
                                     }
                                 }
                                 if (window.documentTypes && personId) {
-                                    window.documentTypes.filter(dt => dt.family_enabled && dt.family_required).forEach(dt => {
+                                    window.documentTypes.filter(dt => dt.family_required).forEach(dt => {
                                         let found = false;
                                         if (window.allDocs && window.allDocs instanceof Map) {
                                             window.allDocs.forEach(arr => {

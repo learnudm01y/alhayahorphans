@@ -204,6 +204,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/check-existing-guardian', [GeneralRegistrationController::class, 'checkExistingGuardian'])->name('check.existing.guardian');
     Route::post('/get-guardian-with-bank-accounts', [GeneralRegistrationController::class, 'getGuardianWithBankAccounts'])->name('get.guardian.bank.accounts');
 
+    // 🆕 مسارات البوابة العامة المحدثة
+    Route::post('/lookup-guardian', [GeneralRegistrationController::class, 'lookupGuardian'])->name('lookup.guardian');
+    Route::post('/lookup-mother', [GeneralRegistrationController::class, 'lookupMother'])->name('lookup.mother');
+    Route::post('/check-person-linked', [GeneralRegistrationController::class, 'checkPersonLinked'])->name('check.person.linked');
+
 
 // Reserved Codes Management Routes (Admin Only)
 Route::middleware(['auth', 'verified'])->prefix('admin/reserved-codes')->group(function () {

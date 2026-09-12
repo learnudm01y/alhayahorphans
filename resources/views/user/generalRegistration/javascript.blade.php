@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const motherFileInput = document.getElementById('mainDocumentFileInput_mother');
     if (motherDocType && motherFileInput) {
         motherDocType.addEventListener('mousedown', function(e) {
-            const idVal = document.querySelector('[name="mother_id"]')?.value || '';
+            const idVal = document.querySelector('[name="deceased_mother_id"]')?.value || '';
             if (!idVal) {
                 e.preventDefault();
                 Swal.fire({
@@ -90,7 +90,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         motherDocType.addEventListener('change', function(e) {
-            const idVal = document.querySelector('[name="mother_id"]')?.value || '';
+            const idVal = document.querySelector('[name="deceased_mother_id"]')?.value || '';
             if (!idVal) {
                 Swal.fire({
                     icon: 'warning',
@@ -212,14 +212,14 @@ document.addEventListener('DOMContentLoaded', function() {
 // }, true);
 // new code
 function checkDuplicateIdsInForm(input) {
-    // جمع جميع حقول رقم الهوية من جميع البوابات
+    // جمع جميع حقول رقم الهوية من جميع البوابات (فقط المرئية)
     const idInputs = [
         ...document.querySelectorAll('input[name="data_id_number"]'), // البيانات الأساسية
         ...document.querySelectorAll('input[name="father_id"]'), // الأب المتوفى
-        ...document.querySelectorAll('input[name="mother_id"]'), // الأم المتوفاة
+        ...document.querySelectorAll('input[name="deceased_mother_id"]'), // الأم المتوفاة
         ...document.querySelectorAll('input[name^="additional_deceased"][name$="[id_number]"]'), // المتوفين الإضافيين
         ...document.querySelectorAll('input[name^="family_members"][name$="[person_id]"]') // أفراد الأسرة
-    ];
+    ].filter(el => el.offsetParent !== null); // تصفية الحقول غير المرئية
 
     const ids = {};
     let duplicate = null;
@@ -283,66 +283,15 @@ function checkDuplicateIdsInForm(input) {
     return true;
 }
 
-// التحقق على مستوى قاعدة البيانات فقط إذا لم يكن مكرر في النموذج
+// التحقق على مستوى قاعدة البيانات — معطل حسب الطلب
 async function checkIdNumbersInDatabase() {
-    // جمع جميع حقول رقم الهوية من جميع البوابات
-    const idInputs = [
-        ...document.querySelectorAll('input[name="data_id_number"]'), // البيانات الأساسية
-        ...document.querySelectorAll('input[name="father_id"]'), // الأب المتوفى
-        ...document.querySelectorAll('input[name="mother_id"]'), // الأم المتوفاة
-        ...document.querySelectorAll('input[name^="additional_deceased"][name$="[id_number]"]'), // المتوفين الإضافيين
-        ...document.querySelectorAll('input[name^="family_members"][name$="[person_id]"]') // أفراد الأسرة
-    ];
-
-    for (const input of idInputs) {
-        const id = input.value.trim();
-        if (!id || id.length < 9) continue; // تجاهل القيم الفارغة أو القصيرة
-
-        // تحقق من التكرار في النموذج أولاً
-        if (!checkDuplicateIdsInForm(input)) {
-            return false;
-        }
-
-        // تحقق من قاعدة البيانات
-        try {
-            const res = await fetch('/check-id-number', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                },
-                body: JSON.stringify({ id_number: id })
-            });
-            const data = await res.json();
-
-            if (data.exists) {
-                input.classList.add('is-invalid');
-                input.classList.remove('is-valid');
-                Swal.fire({
-                    icon: 'error',
-                    title: 'رقم هوية موجود مسبقاً',
-                    text: `رقم الهوية ${id} موجود بالفعل في قاعدة البيانات!`,
-                    confirmButtonText: 'حسناً',
-                    didClose: () => {
-                        input.focus();
-                    }
-                });
-                return false;
-            } else {
-                input.classList.remove('is-invalid');
-                input.classList.add('is-valid');
-            }
-        } catch (error) {
-            console.error('خطأ في التحقق من رقم الهوية:', error);
-        }
-    }
     return true;
 }
 
 // استدعِ الدالة عند كل إدخال
 document.addEventListener('input', function(e) {
     if (
-        e.target.matches('input[name="data_id_number"], input[name="father_id"], input[name="mother_id"], input[name^="additional_deceased"][name$="[id_number]"], input[name^="family_members"][name$="[person_id]"]')
+        e.target.matches('input[name="data_id_number"], input[name="father_id"], input[name="deceased_mother_id"], input[name^="additional_deceased"][name$="[id_number]"], input[name^="family_members"][name$="[person_id]"]')
     ) {
         checkDuplicateIdsInForm(e.target);
     }
@@ -351,7 +300,7 @@ document.addEventListener('input', function(e) {
 // اربطها مع جميع حقول الهوية عند الخروج من الحقل
 document.addEventListener('blur', function(e) {
     if (
-        e.target.matches('input[name="data_id_number"], input[name="father_id"], input[name="mother_id"], input[name^="additional_deceased"][name$="[id_number]"], input[name^="family_members"][name$="[person_id]"]')
+        e.target.matches('input[name="data_id_number"], input[name="father_id"], input[name="deceased_mother_id"], input[name^="additional_deceased"][name$="[id_number]"], input[name^="family_members"][name$="[person_id]"]')
     ) {
         // تحقق من التكرار في النموذج أولاً
         if (!checkDuplicateIdsInForm(e.target)) return;

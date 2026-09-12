@@ -1,4 +1,3 @@
-<div class="tab-pane fade show active" id="basic" role="tabpanel" aria-labelledby="basic-tab">
     <div class="row g-3">
         <div class="col-md-4">
             <label class="form-label">القسم الوصي (المعيل) <span class="text-danger">*</span></label>
@@ -41,7 +40,7 @@
         </div>
         <div class="col-md-4">
             <label class="form-label">صلة القرابة الوصي (المعيل) <span class="text-danger">*</span></label>
-            <select name="data_relationship" class="form-select">
+            <select name="data_relationship" id="data_relationship" class="form-select">
                 <option value="">اختر صلة القرابة</option>
                 @foreach ($category_of_relationship->where('attribute', '!=', 'Unknown') as $category)
                     <option value="{{ $category->id }}">{{ $category->attribute }}</option>
@@ -223,6 +222,48 @@
             <div id="bankAccountsContainer" class="d-none">
                 <!-- سيتم توليد النماذج البنكية هنا عبر الجافاسكريبت -->
             </div>
+
+            <!-- قسم بيانات الأم (يظهر/يختفي حسب صلة القرابة) -->
+            <div id="motherSection" class="mt-4 d-none" style="border: 2px solid #6f42c1; border-radius: 10px; padding: 15px; background: #f8f0ff;">
+                <h6 class="text-purple fw-bold mb-3"><i class="fas fa-female me-2"></i>بيانات الأم</h6>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">رقم هوية الأم <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <input type="text" name="mother_id" id="mother_id" class="form-control" inputmode="numeric" maxlength="9" pattern="[0-9]{9}" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+                            <span class="input-group-text" id="motherLookupStatus" style="display:none;">
+                                <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+                            </span>
+                        </div>
+                        <small class="text-muted">سيتم جلب البيانات تلقائياً من السجل المدني</small>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">اسم الأم الأول <span class="text-danger">*</span></label>
+                        <input type="text" name="mother_first_name" id="mother_first_name" class="form-control" maxlength="30">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">اسم الأب (اسم ثاني الأم) <span class="text-danger">*</span></label>
+                        <input type="text" name="mother_second_name" id="mother_second_name" class="form-control" maxlength="30">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">اسم الجد (اسم ثالث الأم) <span class="text-danger">*</span></label>
+                        <input type="text" name="mother_third_name" id="mother_third_name" class="form-control" maxlength="30">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">اسم عائلة الأم <span class="text-danger">*</span></label>
+                        <input type="text" name="mother_last_name" id="mother_last_name" class="form-control" maxlength="30">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">هل الأم على قيد الحياة؟ <span class="text-danger">*</span></label>
+                        <select name="mother_is_alive" id="mother_is_alive" class="form-select">
+                            <option value="">اختر</option>
+                            <option value="1">نعم</option>
+                            <option value="0">لا</option>
+                        </select>
+                    </div>
+                </div>
+                <input type="hidden" name="mother_from_civil_registry" id="mother_from_civil_registry" value="0">
+            </div>
             <!-- ملاحظة توضيحية لرفع الملفات -->
             <div class="alert alert-primary py-2 mb-2 mt-3" style="font-size: 0.97rem;">
                 يرجى اختيار نوع الوثيقة أولاً، وسوف يتم تحويلك لرفع الصورة
@@ -256,7 +297,6 @@
             </div>
         </div>
     </div>
-</div>
 <!-- زر التالي مع تباعد مناسب -->
 <div class="mt-5 mb-5 text-end">
     <button type="button" class="btn btn-success px-5 py-2 fs-5" id="goToNextTabBtn" style="margin-top: 10rem; margin-bottom: 5rem;">
@@ -398,6 +438,37 @@
                         confirmButtonText: 'حسنًا'
                     });
                     return;
+                }
+
+                // تحقق من بيانات الأم إذا كان القسم مرئياً
+                const motherSection = document.getElementById('motherSection');
+                if (motherSection && !motherSection.classList.contains('d-none')) {
+                    const motherRequiredFields = [
+                        { name: 'mother_id', label: 'رقم هوية الأم' },
+                        { name: 'mother_first_name', label: 'اسم الأم الأول' },
+                        { name: 'mother_second_name', label: 'اسم الأب (اسم ثاني الأم)' },
+                        { name: 'mother_third_name', label: 'اسم الجد (اسم ثالث الأم)' },
+                        { name: 'mother_last_name', label: 'اسم عائلة الأم' },
+                        { name: 'mother_is_alive', label: 'حالة الأم' },
+                    ];
+                    let motherInvalid = null;
+                    for (const field of motherRequiredFields) {
+                        const el = document.querySelector(`[name="${field.name}"]`);
+                        if (el && !el.value) {
+                            motherInvalid = field;
+                            break;
+                        }
+                    }
+                    if (motherInvalid) {
+                        e.preventDefault();
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'تنبيه',
+                            text: `يرجى إدخال ${motherInvalid.label} قبل المتابعة!`,
+                            confirmButtonText: 'حسنًا'
+                        });
+                        return;
+                    }
                 }
 
                 // تحقق من أرقام الهوية (تكرار وقاعدة بيانات) قبل أي انتقال
@@ -708,26 +779,13 @@
     });
 
     /**
-     * 🆕 دالة التحقق من وجود المعيل في قاعدة البيانات
-     * وجلب بياناته والحسابات البنكية إن وجدت
+     * جلب بيانات المعيل من السجل المدني وملء الحقول تلقائياً
      */
     async function checkExistingGuardian(identityNumber) {
         if (!identityNumber || identityNumber.length !== 9) return;
 
         try {
-            // إظهار مؤشر التحميل
-            Swal.fire({
-                title: 'جاري البحث...',
-                text: 'جاري التحقق من وجود بيانات سابقة لهذا الرقم',
-                allowOutsideClick: false,
-                allowEscapeKey: false,
-                showConfirmButton: false,
-                didOpen: () => {
-                    Swal.showLoading();
-                }
-            });
-
-            const response = await fetch('{{ route("check.existing.guardian") }}', {
+            const response = await fetch('{{ route("lookup.guardian") }}', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -738,41 +796,9 @@
 
             const result = await response.json();
 
-            if (result.exists) {
-                // تم العثور على المعيل
-                Swal.fire({
-                    icon: 'info',
-                    title: '✅ تم العثور على بيانات موجودة!',
-                    html: `
-                        <div class="text-start">
-                            <p><strong>المصدر:</strong> ${getSourceName(result.source)}</p>
-                            <p><strong>رقم الملف:</strong> ${result.file_id_number || 'غير متاح'}</p>
-                            <p><strong>الاسم:</strong> ${result.guardian_data?.full_name || 'غير متاح'}</p>
-                            <p><strong>عدد الحسابات البنكية:</strong> ${result.bank_accounts?.length || 0}</p>
-                            <hr>
-                            <p class="text-warning"><i class="fas fa-info-circle"></i> سيتم ربط الطلب الجديد بهذا المعيل بدلاً من إنشاء سجل جديد.</p>
-                        </div>
-                    `,
-                    confirmButtonText: 'ملء البيانات تلقائياً',
-                    showCancelButton: true,
-                    cancelButtonText: 'تجاهل',
-                }).then((swalResult) => {
-                    if (swalResult.isConfirmed) {
-                        fillGuardianData(result);
-                    }
-                });
-
-                // تخزين رقم الملف للاستخدام لاحقاً في الربط
-                window.existingGuardianFileId = result.file_id_number;
-                window.existingGuardianSource = result.source;
-
-            } else {
-                // لم يتم العثور - سيتم إنشاء سجل جديد
-                Swal.close();
-                window.existingGuardianFileId = null;
-                window.existingGuardianSource = null;
+            if (result.success && result.data && result.source === 'civil_registry') {
+                fillFieldsFromCivilRegistry(result.data);
             }
-
         } catch (error) {
             console.error('خطأ في التحقق من المعيل:', error);
             Swal.close();
@@ -780,164 +806,201 @@
     }
 
     /**
-     * جلب اسم المصدر بالعربية
+     * ملء الحقول من السجل المدني
      */
-    function getSourceName(source) {
-        const sources = {
-            'data': 'جدول المعيلين (data)',
-            'dead_people_father': 'سجل المتوفين (الأب)',
-            'dead_people_mother': 'سجل المتوفين (الأم)'
+    function fillFieldsFromCivilRegistry(personData) {
+        const fields = {
+            'data_id_number': personData.data_id_number || personData.id_number,
+            'data_first_name': personData.data_first_name || personData.first_name,
+            'data_father_name': personData.data_father_name || personData.father_name,
+            'data_grand_father_name': personData.data_grand_father_name || personData.grand_father_name,
+            'data_family_name': personData.data_family_name || personData.family_name,
+            'data_birth_date': personData.data_birth_date || personData.birth_date,
+            'data_gender': personData.data_gender || personData.gender,
+            'data_marital_status': personData.data_marital_status || personData.marital_status,
+            'data_city': personData.data_city || personData.city,
+            'data_current_address': personData.data_current_address || personData.street
         };
-        return sources[source] || source;
+
+        Object.keys(fields).forEach(fieldName => {
+            const field = document.querySelector('[name="' + fieldName + '"]');
+            if (field && fields[fieldName]) {
+                if (fieldName === 'data_birth_date') {
+                    try {
+                        let dateValue = fields[fieldName];
+                        if (dateValue) {
+                            const dateObj = new Date(dateValue);
+                            if (!isNaN(dateObj.getTime())) {
+                                const year = dateObj.getFullYear();
+                                const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                                const day = String(dateObj.getDate()).padStart(2, '0');
+                                field.value = `${year}-${month}-${day}`;
+                            } else {
+                                field.value = dateValue;
+                            }
+                        }
+                    } catch (e) {}
+                } else {
+                    field.value = fields[fieldName];
+                }
+                field.dispatchEvent(new Event('change', { bubbles: true }));
+                field.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        });
+
     }
 
-    /**
-     * 🆕 ملء بيانات المعيل تلقائياً من البيانات المسترجعة
-     */
-    function fillGuardianData(result) {
-        const data = result.guardian_data;
-        if (!data) return;
+    // =====================================================
+    // 🆕 قسم بيانات الأم حسب صلة القرابة
+    // =====================================================
+    document.addEventListener('DOMContentLoaded', function() {
+        const relationshipSelect = document.getElementById('data_relationship');
+        const motherSection = document.getElementById('motherSection');
+        const motherIdInput = document.getElementById('mother_id');
 
-        // ملء الحقول الأساسية
-        const fieldMappings = {
-            'data_first_name': data.first_name,
-            'data_father_name': data.father_name,
-            'data_grand_father_name': data.grand_father_name,
-            'data_family_name': data.family_name,
-            'data_phone_number': data.phone_number,
-            'data_alt_phone_number': data.alt_phone_number,
-            'data_birth_date': data.birth_date,
-            'data_current_address': data.current_address,
-            'data_city': data.city,
-            'data_province': data.province,
-        };
-
-        for (const [fieldName, fieldValue] of Object.entries(fieldMappings)) {
-            if (fieldValue) {
-                const input = document.querySelector(`[name="${fieldName}"]`);
-                if (input) {
-                    input.value = fieldValue;
-                    // إضافة تنسيق للحقول المملوءة تلقائياً
-                    input.style.backgroundColor = '#e8f5e9';
+        if (relationshipSelect) {
+            relationshipSelect.addEventListener('change', function() {
+                const selectedValue = this.value;
+                // إذا كانت صلة القرابة = 1 (الأم)، لا تظهر قسم الأم
+                if (selectedValue === '1' || selectedValue === '') {
+                    motherSection.classList.add('d-none');
+                    // مسح حقول الأم
+                    clearMotherFields();
+                } else {
+                    motherSection.classList.remove('d-none');
                 }
-            }
+            });
         }
 
-        // ملء الجنس (select)
-        if (data.gender) {
-            const genderSelect = document.querySelector('[name="data_gender"]');
-            if (genderSelect) {
-                genderSelect.value = data.gender;
-                genderSelect.style.backgroundColor = '#e8f5e9';
-            }
-        }
+        // البحث عن الأم في السجل المدني عند إدخال رقم الهوية
+        if (motherIdInput) {
+            let motherDebounceTimer;
+            motherIdInput.addEventListener('input', function() {
+                clearTimeout(motherDebounceTimer);
+                const value = this.value.trim();
+                if (value.length >= 9) {
+                    motherDebounceTimer = setTimeout(() => {
+                        lookupMother(value);
+                    }, 500);
+                }
+            });
 
-        // ملء الحالة الاجتماعية (select)
-        if (data.marital_status) {
-            const maritalSelect = document.querySelector('[name="data_marital_status"]');
-            if (maritalSelect) {
-                maritalSelect.value = data.marital_status;
-                maritalSelect.style.backgroundColor = '#e8f5e9';
-            }
+            motherIdInput.addEventListener('blur', function() {
+                const value = this.value.trim();
+                if (value.length >= 9) {
+                    lookupMother(value);
+                }
+            });
         }
+    });
 
-        // 🆕 ملء الحسابات البنكية إن وجدت
-        if (result.bank_accounts && result.bank_accounts.length > 0) {
-            fillBankAccounts(result.bank_accounts);
-        }
-
-        // إضافة حقل مخفي لتخزين رقم الملف الموجود
-        let hiddenField = document.getElementById('existing_file_id_number');
-        if (!hiddenField) {
-            hiddenField = document.createElement('input');
-            hiddenField.type = 'hidden';
-            hiddenField.name = 'existing_file_id_number';
-            hiddenField.id = 'existing_file_id_number';
-            document.getElementById('main_form')?.appendChild(hiddenField);
-        }
-        hiddenField.value = result.file_id_number || '';
-
-        // إضافة حقل مخفي للمصدر
-        let sourceField = document.getElementById('existing_guardian_source');
-        if (!sourceField) {
-            sourceField = document.createElement('input');
-            sourceField.type = 'hidden';
-            sourceField.name = 'existing_guardian_source';
-            sourceField.id = 'existing_guardian_source';
-            document.getElementById('main_form')?.appendChild(sourceField);
-        }
-        sourceField.value = result.source || '';
-
-        Swal.fire({
-            icon: 'success',
-            title: 'تم ملء البيانات!',
-            text: 'تم ملء البيانات تلقائياً. يمكنك تعديلها إذا لزم الأمر.',
-            timer: 2000,
-            showConfirmButton: false
+    function clearMotherFields() {
+        const fields = ['mother_id', 'mother_first_name', 'mother_second_name', 'mother_third_name', 'mother_last_name', 'mother_is_alive'];
+        fields.forEach(fieldName => {
+            const field = document.getElementById(fieldName) || document.querySelector(`[name="${fieldName}"]`);
+            if (field) field.value = '';
         });
     }
 
-    /**
-     * 🆕 ملء الحسابات البنكية من البيانات المسترجعة
-     */
-    function fillBankAccounts(bankAccounts) {
-        if (!bankAccounts || bankAccounts.length === 0) return;
+    async function lookupMother(idNumber) {
+        if (!idNumber || idNumber.length < 9) return;
 
-        const addBankAccountBtn = document.getElementById('addBankAccountBtn');
-        const bankAccountsContainer = document.getElementById('bankAccountsContainer');
+        const statusEl = document.getElementById('motherLookupStatus');
+        if (statusEl) statusEl.style.display = 'flex';
 
-        if (!addBankAccountBtn || !bankAccountsContainer) return;
+        try {
+            const response = await fetch('{{ route("lookup.mother") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({ identity_number: idNumber })
+            });
 
-        // إظهار منطقة الحسابات البنكية
-        bankAccountsContainer.classList.remove('d-none');
+            const result = await response.json();
 
-        bankAccounts.forEach((account, index) => {
-            // إضافة نموذج حساب بنكي جديد
-            addBankAccountBtn.click();
+            if (statusEl) statusEl.style.display = 'none';
 
-            // الانتظار قليلاً لإنشاء النموذج
-            setTimeout(() => {
-                const forms = document.querySelectorAll('.bank-account-form');
-                const lastForm = forms[forms.length - 1];
+            if (result.success && result.data) {
+                const data = result.data;
+                setMotherField('mother_first_name', data.mother_first_name);
+                setMotherField('mother_second_name', data.mother_second_name);
+                setMotherField('mother_third_name', data.mother_third_name);
+                setMotherField('mother_last_name', data.mother_last_name);
 
-                if (lastForm) {
-                    // ملء بيانات الحساب
-                    const bankNameSelect = lastForm.querySelector('[name*="bank_name"]');
-                    if (bankNameSelect && account.bank_name) {
-                        bankNameSelect.value = account.bank_name;
-                        bankNameSelect.style.backgroundColor = '#e8f5e9';
-                    }
-
-                    const ibanUsd = lastForm.querySelector('[name*="iban_usd"]');
-                    if (ibanUsd && account.iban_usd) {
-                        ibanUsd.value = account.iban_usd;
-                        ibanUsd.style.backgroundColor = '#e8f5e9';
-                    }
-
-                    const ibanShekel = lastForm.querySelector('[name*="iban_shekel"]');
-                    if (ibanShekel && account.iban_shekel) {
-                        ibanShekel.value = account.iban_shekel;
-                        ibanShekel.style.backgroundColor = '#e8f5e9';
-                    }
-
-                    const ownerIdInput = lastForm.querySelector('[name*="person_owner_identity_number"]');
-                    if (ownerIdInput && account.person_owner_identity_number) {
-                        ownerIdInput.value = account.person_owner_identity_number;
-                        ownerIdInput.style.backgroundColor = '#e8f5e9';
-                    }
-
-                    const ownerNameInput = lastForm.querySelector('[name*="re_guardian_name"]');
-                    if (ownerNameInput && account.re_guardian_name) {
-                        ownerNameInput.value = account.re_guardian_name;
-                        ownerNameInput.style.backgroundColor = '#e8f5e9';
-                    }
-
-                    const phoneInput = lastForm.querySelector('[name*="re_phone_number"]');
-                    if (phoneInput && account.re_phone_number) {
-                        phoneInput.value = account.re_phone_number;
-                        phoneInput.style.backgroundColor = '#e8f5e9';
-                    }
+                // تحديد حالة الحياة تلقائياً من السجل المدني
+                const isAliveSelect = document.getElementById('mother_is_alive');
+                if (isAliveSelect) {
+                    isAliveSelect.value = data.is_alive ? '1' : '0';
                 }
-            }, 100 * (index + 1));
-        });
+
+                document.getElementById('mother_from_civil_registry').value = '1';
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'تم جلب بيانات الأم',
+                    text: result.message,
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            } else {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'لم يتم العثور على بيانات',
+                    text: result.message || 'يرجى إدخال بيانات الأم يدوياً',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            }
+        } catch (error) {
+            if (statusEl) statusEl.style.display = 'none';
+            console.error('خطأ في البحث عن الأم:', error);
+        }
+    }
+
+    function setMotherField(name, value) {
+        const field = document.getElementById(name) || document.querySelector(`[name="${name}"]`);
+        if (field && value) {
+            field.value = value;
+            field.style.backgroundColor = '#e8f5e9';
+        }
+    }
+
+    // =====================================================
+    // 🆕 التحقق من ربط الشخص بمعيل آخر
+    // =====================================================
+    async function checkPersonLinked(identityNumber, currentFileId) {
+        if (!identityNumber || identityNumber.length < 9) return false;
+
+        try {
+            const response = await fetch('{{ route("check.person.linked") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({
+                    identity_number: identityNumber,
+                    current_file_id: currentFileId
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.is_linked) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'الشخص مرتبط بمعيل آخر',
+                    text: result.message,
+                    confirmButtonText: 'حسناً'
+                });
+                return true;
+            }
+
+            return false;
+        } catch (error) {
+            console.error('خطأ في التحقق من ربط الشخص:', error);
+            return false;
+        }
     }</script>

@@ -110,6 +110,77 @@ class ShowGeneralRegisrationController extends Controller
         return redirect()->route('user.generalRegistration.index');
     }
 
+    /**
+     * 🆕 التحقق من المرفقات الإجبارية
+     * يتحقق من أن كل حقل مرفق ظاهر في الصفحة يحتوي على ملف جديد واحد على الأقل
+     * لا يتحقق من الملفات المحفوظة مسبقاً في قاعدة البيانات
+     */
+    private function validateRequiredAttachments($sponsorship, array $validAttachments): array
+    {
+        $missingDocs = [];
+
+        if (!$sponsorship || !$sponsorship->sponsor_id) {
+            return $missingDocs;
+        }
+
+        // جلب إعدادات الحقول للجمعية
+        $fieldSettings = \App\Models\SponsorFieldSetting::where('sponsor_id', $sponsorship->sponsor_id)->first();
+        if (!$fieldSettings) {
+            return $missingDocs;
+        }
+
+        // جلب الوثائق المفعلة للجمعية
+        $enabledDocumentIds = $fieldSettings->enabled_documents ?? [];
+        if (empty($enabledDocumentIds) || !is_array($enabledDocumentIds)) {
+            return $missingDocs;
+        }
+
+        $documentTypes = \App\Models\DocumentType::whereIn('id', $enabledDocumentIds)->get();
+        if ($documentTypes->isEmpty()) {
+            return $missingDocs;
+        }
+
+        // تحديد البوابة بناءً على نوع الشخص
+        $personType = $sponsorship->person_type;
+        $portal = 'basic'; // الافتراضي: البيانات الأساسية
+
+        if ($personType === 'family_member') {
+            $portal = 'family';
+        } elseif (in_array($personType, ['deceased_father', 'deceased_mother'])) {
+            $portal = 'deceased';
+        }
+
+        $enabledColumn = $portal . '_enabled';
+
+        // 🆕 جمع معرفات الوثائق المرفوعة حالياً (من الطلب الحالي فقط)
+        $uploadedDocTypeIds = array_keys($validAttachments);
+
+        // 🆕 التحقق من كل وثيقة مفعلة في البوابة (يجب رفع ملف جديد واحد على الأقل)
+        foreach ($documentTypes as $docType) {
+            // التحقق من أن الوثيقة مفعلة في البوابة الحالية
+            if (!$docType->{$enabledColumn}) {
+                continue;
+            }
+
+            // التحقق من أن الملف الجديد مرفوع لهذا النوع
+            if (!in_array((string) $docType->id, $uploadedDocTypeIds)) {
+                $missingDocs[] = $docType->description;
+            }
+        }
+
+        if (!empty($missingDocs)) {
+            Log::warning('MISSING_REQUIRED_ATTACHMENTS', [
+                'sponsorship_id' => $sponsorship->id,
+                'portal' => $portal,
+                'person_type' => $personType,
+                'missing_documents' => $missingDocs,
+                'new_uploads' => $uploadedDocTypeIds,
+            ]);
+        }
+
+        return $missingDocs;
+    }
+
     public function index()
     {
         $user = Auth::user();
@@ -1012,7 +1083,7 @@ class ShowGeneralRegisrationController extends Controller
         $values['show_mother_death_fields'] = $showMotherDeathFields;
 
         // 🆕 معالجة ذكية لمعلومات الأم (حية أو متوفية)
-        $guardianIsMother = ($guardianRelationship == 2 || $guardianRelationshipText === 'أم');
+        $guardianIsMother = ($guardianRelationship == 1 || $guardianRelationshipText === 'أم' || $guardianRelationshipText === 'الأم');
         $showMotherSection = true; // افتراضياً نعرض قسم الأم
         $showLivingMotherFields = false; // افتراضياً لا نعرض حقول الأم الحية
         $motherIsGuardian = false;
@@ -1254,6 +1325,16 @@ class ShowGeneralRegisrationController extends Controller
                 'attachments.*' => 'sometimes|array',
                 'attachments.*.*' => 'file|mimes:pdf,jpg,jpeg,png,gif,webp,heic,heif,mp4,avi,mov,wmv,webm|max:51200', // 50MB
             ]);
+
+            // 🆕 التحقق من رفع ملف واحد على الأقل لكل حقل مرفق ظاهر في الصفحة
+            $missingRequiredDocs = $this->validateRequiredAttachments($sponsorship, $validAttachments);
+            if (!empty($missingRequiredDocs)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'يجب رفع ملف واحد على الأقل لكل نوع وثيقة. الوثائق الناقصة: ' . implode('، ', $missingRequiredDocs),
+                    'missing_documents' => $missingRequiredDocs,
+                ], 422);
+            }
 
             DB::beginTransaction();
 
@@ -2233,10 +2314,15 @@ class ShowGeneralRegisrationController extends Controller
                             $hasName = !empty($memberData['first_name']) || !empty($memberData['second_name']) ||
                                        !empty($memberData['third_name']) || !empty($memberData['last_name']);
 
+                            $personId = trim($memberData['person_id'] ?? $memberData['identity_number'] ?? '');
+                            if (!preg_match('/^\d{9}$/', $personId)) {
+                                continue;
+                            }
+
                             if ($hasName) {
                                 DB::table('re_people')->insert([
                                     'registration_id' => $fileIdForFamilyMembers,
-                                    'person_id' => rand(700000000, 799999999), // رقم هوية عشوائي مؤقت
+                                    'person_id' => $personId,
                                     'first_name' => $memberData['first_name'] ?? '',
                                     'second_name' => $memberData['second_name'] ?? '',
                                     'third_name' => $memberData['third_name'] ?? '',
@@ -2252,6 +2338,7 @@ class ShowGeneralRegisrationController extends Controller
                                     'sponsorship_id' => $sponsorship->id,
                                     'person_type' => $sponsorship->person_type,
                                     'file_id_number' => $fileIdForFamilyMembers,
+                                    'person_id' => $personId,
                                     'member_name' => trim("{$memberData['first_name']} {$memberData['last_name']}"),
                                 ]);
                             }
@@ -2279,6 +2366,17 @@ class ShowGeneralRegisrationController extends Controller
                 // التحقق من استخدام Rclone أو Google Drive API أو التخزين المحلي
                 $useRclone = config('services.rclone.enabled', env('USE_RCLONE_FOR_UPLOADS', false));
                 $useLocalStorage = env('USE_LOCAL_STORAGE_FOR_UPLOADS', false);
+
+                // 🆕 إذا كان Google Drive معطّل للجمعية، نحفظ محلياً فقط
+                $googleDriveEnabled = $sponsorship->sponsor?->google_drive_enabled ?? false;
+                if (!$googleDriveEnabled) {
+                    $useRclone = false;
+                    $useLocalStorage = true;
+                    Log::info('GOOGLE_DRIVE_DISABLED_FOR_SPONSOR', [
+                        'sponsor_id' => $sponsorship->sponsor_id,
+                        'identity' => $sponsorship->identity_number,
+                    ]);
+                }
 
                 $organizationName = $sponsorship->sponsor?->sponsor_name ?: ($sponsorship->sponsoring_organization ?: 'غير محدد');
                 $orphanName = $sponsorship->orphan_name ?: $sponsorship->identity_number;
@@ -2453,10 +2551,14 @@ class ShowGeneralRegisrationController extends Controller
                         foreach ((array)$files as $file) {
                             $fileIndex++;
                             $extension = strtolower($file->getClientOriginalExtension() ?: '');
-                            $fileType = $documentType->description ?: 'وثيقة';
+                            $fileType = $documentType->pref ?: 'وثيقة';
 
-                            // اسم الملف: نوع الوثيقة _ رقم الملف _ رقم الهوية
-                            $newFileName = "{$fileType}_{$fileIdNumberAttach}_{$sponsorship->identity_number}.{$extension}";
+                            // اسم الملف: pref_رقم_الملف_رقم_الهوية + رقم تسلسلي لتجنب الكتابة فوق القديم
+                            $existingCount = Attachment::where('person_identity_number', $sponsorship->identity_number)
+                                ->where('file_type', $fileType)
+                                ->count();
+                            $serial = $existingCount > 0 ? '_' . ($existingCount + 1) : '';
+                            $newFileName = "{$fileType}_{$fileIdNumberAttach}_{$sponsorship->identity_number}{$serial}.{$extension}";
                             $folder = 'uploads/' . $fileIdNumberAttach;
 
                             if ($folder === 'public' || $folder === 'public/') {
@@ -2659,14 +2761,13 @@ class ShowGeneralRegisrationController extends Controller
             ]);
 
             // ✅ تسجيل خروج مباشرة بعد الحفظ
-            $logoutMessage = 'تم حفظ التغييرات بنجاح';
             Auth::logout();
             session()->invalidate();
             session()->regenerateToken();
 
             return redirect()
-                ->route('user.generalRegistration.index')
-                ->with('success', $logoutMessage);
+                ->route('user.thank.you.page')
+                ->with('success', 'تم حفظ التغييرات بنجاح');
 
         } catch (\Exception $e) {
             DB::rollBack();

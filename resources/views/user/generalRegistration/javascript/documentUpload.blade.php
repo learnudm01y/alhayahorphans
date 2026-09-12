@@ -1321,7 +1321,7 @@
                             console.log('[handleFileSelection] استخدام قيمة افتراضية للأب المتوفى:', personId);
                         }
                     } else if (personKey === 'deceased_mother') {
-                        const motherIdInput = document.querySelector('input[name="mother_id"]');
+                        const motherIdInput = document.querySelector('input[name="deceased_mother_id"]');
                         personId = motherIdInput ? motherIdInput.value.trim() : '';
                         if (!personId) {
                             personId = 'default_mother';

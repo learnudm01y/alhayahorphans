@@ -223,8 +223,8 @@
                                     <div class="border rounded p-3 mb-2" style="background:#fff3f3;">
                                         <span class="fw-bold text-danger"><i class="fas fa-female me-1"></i>الأم المتوفية</span>
                                         <div class="mt-2">
-                                            <span class="fw-bold"><i class="fas fa-user me-1"></i>الاسم:</span> ${getVal('mother_first_name')} ${getVal('mother_last_name')}<br>
-                                            <span class="fw-bold"><i class="fas fa-id-badge me-1"></i>رقم الهوية:</span> ${getVal('mother_id')}<br>
+                                            <span class="fw-bold"><i class="fas fa-user me-1"></i>الاسم:</span> ${getVal('deceased_mother_first_name')} ${getVal('deceased_mother_last_name')}<br>
+                                            <span class="fw-bold"><i class="fas fa-id-badge me-1"></i>رقم الهوية:</span> ${getVal('deceased_mother_id')}<br>
                                             <span class="fw-bold"><i class="fas fa-calendar-alt me-1"></i>تاريخ الوفاة:</span> ${getVal('mother_death_date')}<br>
                                             <span class="fw-bold"><i class="fas fa-skull-crossbones me-1"></i>سبب الوفاة:</span> ${getSelText('mother_death_reason')}
                                         </div>
@@ -425,7 +425,7 @@
         });
 // معالجة تكرار الإرسال: إزالة جميع event listeners السابقة من زر الحفظ النهائي وربط مستمع واحد فقط مع حماية isSubmitting
 document.addEventListener('DOMContentLoaded', function() {
-    let isSubmitting = false;
+    window.isSubmitting = false;
     // استبدال الزر بنسخة جديدة لإزالة أي event listeners سابقة
     const oldFinalSaveBtn = document.getElementById('finalSaveBtn');
     if (oldFinalSaveBtn) {
@@ -435,7 +435,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (finalSaveBtn) {
             finalSaveBtn.addEventListener('click', async function(e) {
                 e.preventDefault();
-                if (isSubmitting || window.isSubmitting) return;
+                if (window.isSubmitting) return;
 
                 // 🆕 التحقق من رقم الهوية الرئيسي أولاً قبل أي شيء
                 const mainIdInput = document.querySelector('[name="data_id_number"]');
@@ -495,12 +495,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
 
-                isSubmitting = true;
                 window.isSubmitting = true;
 
                 const valid = await validateAllIds(e);
                 if (!valid) {
-                    isSubmitting = false;
                     window.isSubmitting = false;
                     // إزالة تمييز الخطأ من جميع حقول الهوية أولاً
                     document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
@@ -548,10 +546,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 const mainForm = document.getElementById('main_form');
                 if (mainForm) {
                     console.log('[DEBUG] سيتم تنفيذ requestSubmit على main_form');
-                    // إزالة التركيز من زر الحفظ حتى تظهر رسالة Swal فوقه
                     finalSaveBtn && finalSaveBtn.blur && finalSaveBtn.blur();
 
-                    // إظهار رسالة انتظار فقط (سيتم معالجة النجاح/الفشل في manageForm.blade.php)
                     Swal.fire({
                         icon: 'info',
                         title: 'جاري الحفظ',
@@ -565,10 +561,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
 
                     // إرسال النموذج (سيتم معالجة الاستجابة في manageForm.blade.php)
-                    mainForm.requestSubmit();
+                    try {
+                        mainForm.requestSubmit();
+                    } catch (submitErr) {
+                        console.error('[DEBUG] requestSubmit فشل، محاولة بديلة:', submitErr);
+                        mainForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                    }
                 } else {
                     console.error('[DEBUG] لم يتم العثور على النموذج main_form');
-                    isSubmitting = false;
+                    window.isSubmitting = false;
                 }
                 // لا تعيد isSubmitting إلى false إلا بعد إعادة تحميل الصفحة أو ظهور رسالة نجاح
             });
@@ -576,22 +577,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// دالة التحقق الموحدة
-async function validateAllIds(e) {
-    // تحقق من التكرار في النموذج
-    const isUnique = checkDuplicateIdsInForm();
-    if (!isUnique) {
-        if (e) e.preventDefault();
-        return false;
-    }
-    // تحقق من قاعدة البيانات
-    const dbOk = await checkIdNumbersInDatabase();
-    if (!dbOk) {
-        if (e) e.preventDefault();
-        return false;
-    }
-    return true;
-}
+// validateAllIds معرّفة في javascript.blade.php — لا تكرر هنا
 
     </script>
 @endpush

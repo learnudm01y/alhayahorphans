@@ -77,16 +77,16 @@
                         parent.querySelector('input[name="member_id"]') ||
                         parent.querySelector('input[name="data_id_number"]') ||
                         parent.querySelector('input[name="father_id"]') ||
-                        parent.querySelector('input[name="mother_id"]') ||
+                        parent.querySelector('input[name="deceased_mother_id"]') ||
                         document.getElementById('data_id_number') ||
                         document.querySelector('input[name="data_id_number"]') ||
                         document.querySelector('input[name="father_id"]') ||
-                        document.querySelector('input[name="mother_id"]') ||
+                        document.querySelector('input[name="deceased_mother_id"]') ||
                         document.querySelector('input[name="member_id"]') ||
                         document.querySelector('input[name^="family_members["][name$="[person_id]"]');
                     // تحقق من أن رقم الهوية للأب أو الأم في بوابة المتوفين موجود
                     const isDeceasedFather = !!parent.querySelector('input[name="father_id"]');
-                    const isDeceasedMother = !!parent.querySelector('input[name="mother_id"]');
+                    const isDeceasedMother = !!parent.querySelector('input[name="deceased_mother_id"]');
                     if (isDeceasedFather && !parent.querySelector('input[name="father_id"]').value) {
                         Swal.fire({
                             icon: 'warning',
@@ -95,7 +95,7 @@
                         });
                         return false;
                     }
-                    if (isDeceasedMother && !parent.querySelector('input[name="mother_id"]').value) {
+                    if (isDeceasedMother && !parent.querySelector('input[name="deceased_mother_id"]').value) {
                         Swal.fire({
                             icon: 'warning',
                             title: 'تنبيه',
@@ -278,11 +278,11 @@
                             parent.querySelector('input[name="member_id"]') ||
                             parent.querySelector('input[name="data_id_number"]') ||
                             parent.querySelector('input[name="father_id"]') ||
-                            parent.querySelector('input[name="mother_id"]') ||
+                            parent.querySelector('input[name="deceased_mother_id"]') ||
                             document.getElementById('data_id_number') ||
                             document.querySelector('input[name="data_id_number"]') ||
                             document.querySelector('input[name="father_id"]') ||
-                            document.querySelector('input[name="mother_id"]') ||
+                            document.querySelector('input[name="deceased_mother_id"]') ||
                             document.querySelector('input[name="member_id"]') ||
                             document.querySelector(
                                 'input[name^="family_members["][name$="[person_id]"]');
@@ -374,8 +374,9 @@
         });
     </script>
 
-    {{-- cropper modal - تم نقله إلى javascript.blade.php لتجنب التكرار --}}
+{{-- cropper modal - تم نقله إلى javascript.blade.php لتجنب التكرار --}}
 
+@push('scriptsCodeUserRegistration')
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // دعم جميع بوابات أفراد الأسرة بشكل ديناميكي
@@ -500,13 +501,13 @@
                     const motherSection = document.getElementById('motherInfoSection');
                     if (motherSection && motherSection.style.display !== 'none') {
                         const motherFields = [{
-                                name: 'mother_first_name'
+                                name: 'deceased_mother_first_name'
                             },
                             {
-                                name: 'mother_last_name'
+                                name: 'deceased_mother_last_name'
                             },
                             {
-                                name: 'mother_id'
+                                name: 'deceased_mother_id'
                             },
                             {
                                 name: 'mother_death_date'
@@ -623,7 +624,7 @@
             const deceasedFatherRequiredDocs = window.deceasedFatherRequiredDocs || [];
             const deceasedMotherRequiredDocs = window.deceasedMotherRequiredDocs || [];
             const fatherIdInput = document.querySelector('input[name="father_id"]');
-            const motherIdInput = document.querySelector('input[name="mother_id"]');
+            const motherIdInput = document.querySelector('input[name="deceased_mother_id"]');
             if (deceasedFatherRequiredDocs.length > 0 && fatherIdInput && fatherIdInput.value) {
                 preventTabSwitchIfDocsMissing('deceased-tab-next', fatherIdInput.value, deceasedFatherRequiredDocs,
                     'المتوفى (الأب)');
@@ -651,8 +652,6 @@
         });
     </script>
 @endpush
-
-{{-- cropper modal - تم نقله إلى javascript.blade.php لتجنب التكرار --}}
 
 @push('scriptsCodeUserRegistration')
     <script>
@@ -716,13 +715,13 @@
                     const motherSection = document.getElementById('motherInfoSection');
                     if (motherSection && motherSection.style.display !== 'none') {
                         const motherFields = [{
-                                name: 'mother_first_name'
+                                name: 'deceased_mother_first_name'
                             },
                             {
-                                name: 'mother_last_name'
+                                name: 'deceased_mother_last_name'
                             },
                             {
-                                name: 'mother_id'
+                                name: 'deceased_mother_id'
                             },
                             {
                                 name: 'mother_death_date'
@@ -839,7 +838,7 @@
             const deceasedFatherRequiredDocs = window.deceasedFatherRequiredDocs || [];
             const deceasedMotherRequiredDocs = window.deceasedMotherRequiredDocs || [];
             const fatherIdInput = document.querySelector('input[name="father_id"]');
-            const motherIdInput = document.querySelector('input[name="mother_id"]');
+            const motherIdInput = document.querySelector('input[name="deceased_mother_id"]');
             if (deceasedFatherRequiredDocs.length > 0 && fatherIdInput && fatherIdInput.value) {
                 preventTabSwitchIfDocsMissing('deceased-tab-next', fatherIdInput.value, deceasedFatherRequiredDocs,
                     'المتوفى (الأب)');
@@ -866,6 +865,9 @@
 
         });
     </script>
+@endpush
+
+{{-- cropper modal - تم نقله إلى javascript.blade.php لتجنب التكرار --}}
 
     <script>
         document.addEventListener('invalid', function(e) {
@@ -873,7 +875,7 @@
             const input = e.target;
             if ((input.offsetParent === null || input.disabled) && input.name) {
                 // تفعيل التبويب المناسب تلقائياً
-                if (input.name === 'mother_id' || input.closest('#motherInfoSection')) {
+                if (input.name === 'deceased_mother_id' || input.closest('#motherInfoSection')) {
                     const tabBtn = document.getElementById('deceased-tab');
                     if (tabBtn) tabBtn.click();
                 } else if (input.name === 'father_id' || input.closest('#deceased')) {
@@ -1194,7 +1196,8 @@
                         method: 'POST',
                         body: formData,
                         headers: {
-                            'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value
+                            'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value,
+                            'Accept': 'application/json'
                         }
                     })
                     .then(async response => {
@@ -1218,6 +1221,28 @@
                     .then(({ data, status, ok }) => {
                         // إغلاق رسالة الانتظار
                         Swal.close();
+
+                        // معالجة أخطاء المرفقات الإجبارية (missing_documents)
+                        if (typeof data === 'object' && data && data.success === false && data.missing_documents && data.missing_documents.length > 0) {
+                            let docsList = data.missing_documents.map(doc => `<li style="margin: 5px 0; padding: 4px 8px; background: #fff3cd; border-radius: 4px; border-right: 3px solid #ffc107;">${doc}</li>`).join('');
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'مرفقات ناقصة',
+                                html: `<div style="text-align: right;">
+                                    <p style="margin-bottom: 10px; font-weight: bold;">${data.message || 'يجب رفع ملف واحد على الأقل لكل نوع وثيقة:'}</p>
+                                    <ul style="list-style: none; padding: 0; margin: 0;">${docsList}</ul>
+                                </div>`,
+                                confirmButtonText: 'حسناً',
+                                customClass: {
+                                    htmlContainer: 'text-start'
+                                }
+                            });
+
+                            if (typeof window.isSubmitting !== 'undefined') {
+                                window.isSubmitting = false;
+                            }
+                            return;
+                        }
 
                         // معالجة أخطاء الـ validation (422)
                         if (status === 422) {
@@ -1285,31 +1310,14 @@
                         // إذا كانت الاستجابة JSON وبها success=true
                         if (typeof data === 'object' && data && data.success) {
                             if (data && data.success && data.redirect) {
-                                // معالجة الرابط إذا كان يبدأ بـ http أو https أو //
-                                let redirectUrl = data.redirect;
-                                if (redirectUrl.startsWith('http://') || redirectUrl.startsWith('https://') || redirectUrl.startsWith('//')) {
-                                    window.location.href = redirectUrl;
-                                } else {
-                                    // إذا كان الرابط نسبي، أضفه إلى أصل الموقع
-                                    window.location.href = window.location.origin + (redirectUrl.startsWith('/') ? redirectUrl : '/' + redirectUrl);
-                                }
+                                window.location.href = data.redirect;
                                 return;
                             }
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'تم الحفظ',
-                                text: 'تم حفظ السجل بنجاح'
-                            });
-                            // setTimeout(() => window.location.reload(), 1500);
+                            window.location.reload();
                         }
                         // إذا كانت الاستجابة نصية والكود 200 فقط
                         else if (status === 200 && ok && typeof data === 'string') {
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'تم الحفظ',
-                                text: 'تم حفظ السجل بنجاح'
-                            });
-                            setTimeout(() => window.location.reload(), 1500);
+                            window.location.reload();
                         }
                         // إذا كانت هناك أخطاء أخرى
                         else if (!ok) {

@@ -7,6 +7,18 @@
     <title>إدارة التسجيلات</title>
     <meta charset="utf-8" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
+    <meta name="autocomplete" content="off" />
+    <style>
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus,
+        select:-webkit-autofill,
+        textarea:-webkit-autofill {
+            -webkit-box-shadow: 0 0 0px 1000px white inset !important;
+            -webkit-text-fill-color: #000 !important;
+            transition: background-color 5000s ease-in-out 0s;
+        }
+    </style>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="إدارة التسجيلات" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -186,6 +198,13 @@
 
 </head>
 <body id="kt_app_body" class="app-default" style="margin: 0; padding: 0;">
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('form[autocomplete="off"] input, form[autocomplete="off"] select, form[autocomplete="off"] textarea').forEach(function(el) {
+                el.setAttribute('autocomplete', 'one-time-code');
+            });
+        });
+    </script>
 
     <!--begin::Logo-->
     <div class="logo-container">

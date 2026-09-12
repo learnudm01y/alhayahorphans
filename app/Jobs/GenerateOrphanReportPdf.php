@@ -633,7 +633,7 @@ class GenerateOrphanReportPdf implements ShouldQueue
         // 3. معالجة ذكية لبيانات الأم بناءً على حالتها
         // استخدام guardian_relation_id المُجلَّب من data أو dead_people (وليس من portal)
         $motherStatus = $fieldValues['field_mother_status'] ?? null;
-        $guardianIsMother = ($guardianRelationId == 2); // 2 = أم
+        $guardianIsMother = ($guardianRelationId == 1); // 1 = أم
 
         Log::info('MOTHER_STATUS_CHECK', [
             'guardian_relationship' => $guardianRelationId,

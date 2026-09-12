@@ -483,7 +483,7 @@ if ($validator->fails()) {
                 $fileDuplicates = 0;
                 $fileErrors = 0;
                 $batch = [];
-                $seenInFile = []; // لمنع تكرار رقم الهوية داخل الملف الواحد
+            //    $seenInFile = []; // لمنع تكرار رقم الهوية داخل الملف الواحد
 
                 foreach ($rows as $index => $row) {
                     $rowNumber = $index + 2;
@@ -509,13 +509,13 @@ if ($validator->fails()) {
                         $fileErrors++;
                         continue;
                     }
-                    if (isset($existingIds[$identity]) || isset($seenInFile[$identity])) {
-                        $duplicates++;
-                        $fileDuplicates++;
-                        continue;
-                    }
-                    $seenInFile[$identity] = true;
-                    $existingIds[$identity] = true; // حتى لا يتكرر في الملفات التالية
+                  //  if (isset($existingIds[$identity]) || isset($seenInFile[$identity])) {
+                   //     $duplicates++;
+                  //      $fileDuplicates++;
+                   //     continue;
+                   // }
+                   // $seenInFile[$identity] = true;
+                 //   $existingIds[$identity] = true; // حتى لا يتكرر في الملفات التالية
 
                     $batch[] = [
                         'CI_ID_NUM' => $identity,

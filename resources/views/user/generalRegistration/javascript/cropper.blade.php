@@ -247,6 +247,23 @@ window.showCropperModal = async function(file, callback) {
 
   console.log('[showCropperModal] ✅ جميع العناصر موجودة');
 
+  // تنظيف أي cropper قديم من استدعاء سابق
+  if (elements.image.cropperInstance) {
+    try { elements.image.cropperInstance.destroy(); } catch(e) {}
+    elements.image.cropperInstance = null;
+  }
+  // تنظيف أي cropper container متبقٍ من Cropper.js
+  const cropArea = elements.image.parentElement;
+  if (cropArea) {
+    cropArea.querySelectorAll('.cropper-container, .cropper-bg').forEach(el => el.remove());
+    // إعادة الصورة الأصلية
+    const originalImg = cropArea.querySelector('#cropperImage');
+    if (originalImg) {
+      originalImg.className = '';
+      originalImg.style.cssText = '';
+    }
+  }
+
   // المتغيرات الرئيسية
   let cropper = null;
   let cropperReady = false;

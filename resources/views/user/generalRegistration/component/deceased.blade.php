@@ -98,8 +98,8 @@
                           <div class="col-md-4">
                               <label class="form-label">رقم الهوية <span class="text-danger">*</span></label>
                               <div class="input-group">
-                                  <input type="text" name="mother_id" class="form-control deceased-id-input" data-target="mother" inputmode="numeric" minlength="9" maxlength="10" pattern="[0-9]{9,10}" oninput="this.value = this.value.replace(/[^0-9]/g, '');" placeholder="أدخل رقم الهوية لجلب البيانات">
-                                  <span class="input-group-text deceased-search-status" data-target="mother" style="display:none;">
+                                   <input type="text" name="deceased_mother_id" class="form-control deceased-id-input" data-target="deceased_mother" inputmode="numeric" minlength="9" maxlength="10" pattern="[0-9]{9,10}" oninput="this.value = this.value.replace(/[^0-9]/g, '');" placeholder="أدخل رقم الهوية لجلب البيانات">
+                                   <span class="input-group-text deceased-search-status" data-target="deceased_mother" style="display:none;">
                                       <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
                                   </span>
                               </div>
@@ -107,21 +107,21 @@
                           </div>
                           <div class="col-md-2">
                               <label class="form-label">الاسم الأول <span class="text-danger">*</span></label>
-                              <input type="text" name="mother_first_name" class="form-control" maxlength="30">
-                          </div>
-                          <div class="col-md-2">
-                              <label class="form-label">الاسم الثاني <span class="text-primary"
-                                      style="color:#6c757d !important;">(اختياري)</span></label>
-                              <input type="text" name="mother_second_name" class="form-control" maxlength="30">
-                          </div>
-                          <div class="col-md-2">
-                              <label class="form-label">الاسم الثالث <span class="text-primary"
-                                      style="color:#6c757d !important;">(اختياري)</span></label>
-                              <input type="text" name="mother_third_name" class="form-control" maxlength="30">
-                          </div>
-                          <div class="col-md-2">
-                              <label class="form-label">اسم العائلة <span class="text-danger">*</span></label>
-                              <input type="text" name="mother_last_name" class="form-control" maxlength="30">
+                               <input type="text" name="deceased_mother_first_name" class="form-control" maxlength="30">
+                           </div>
+                           <div class="col-md-2">
+                               <label class="form-label">الاسم الثاني <span class="text-primary"
+                                       style="color:#6c757d !important;">(اختياري)</span></label>
+                               <input type="text" name="deceased_mother_second_name" class="form-control" maxlength="30">
+                           </div>
+                           <div class="col-md-2">
+                               <label class="form-label">الاسم الثالث <span class="text-primary"
+                                       style="color:#6c757d !important;">(اختياري)</span></label>
+                               <input type="text" name="deceased_mother_third_name" class="form-control" maxlength="30">
+                           </div>
+                           <div class="col-md-2">
+                               <label class="form-label">اسم العائلة <span class="text-danger">*</span></label>
+                               <input type="text" name="deceased_mother_last_name" class="form-control" maxlength="30">
                           </div>
                           <div class="col-md-4">
                               <label class="form-label">تاريخ الوفاة <span class="text-danger">*</span></label>
@@ -188,8 +188,7 @@
       <!-- SweetAlert2 CDN -->
       <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
       <script>
-          document.addEventListener('DOMContentLoaded', async function(e) {
-             e.preventDefault();
+          document.addEventListener('DOMContentLoaded', function() {
 
               // 🆕 متغيرات المتوفين الإضافيين
               let additionalDeceasedCount = 0;
@@ -561,7 +560,7 @@
 
               // 🆕 تعريف المتغيرات في البداية لاستخدامها في كل الدوال
               const fatherIdInput = document.querySelector('[name="father_id"]');
-              const motherIdInput = document.querySelector('[name="mother_id"]');
+              const motherIdInput = document.querySelector('[name="deceased_mother_id"]');
               const motherSection = document.getElementById('motherInfoSection');
 
               const nextBtn = document.getElementById('goToFamilyTabBtn');
@@ -658,9 +657,9 @@
                       // إذا ظهرت بيانات الأم، تحقق من حقولها أيضًا
                       if (!firstInvalid && motherSection && motherSection.style.display !== 'none') {
                           const motherRequired = [
-                              { name: 'mother_first_name', label: 'الاسم الأول للأم' },
-                              { name: 'mother_last_name', label: 'اسم العائلة للأم' },
-                              { name: 'mother_id', label: 'رقم هوية الأم' },
+                              { name: 'deceased_mother_first_name', label: 'الاسم الأول للأم' },
+                              { name: 'deceased_mother_last_name', label: 'اسم العائلة للأم' },
+                              { name: 'deceased_mother_id', label: 'رقم هوية الأم' },
                               { name: 'mother_death_date', label: 'تاريخ وفاة الأم' },
                               { name: 'mother_death_reason', label: 'سبب وفاة الأم' },
                           ];

@@ -2105,6 +2105,40 @@
                 form.addEventListener('submit', function(e) {
                     e.preventDefault();
 
+                    var missingDocs = [];
+                    var missingWithOld = [];
+                    document.querySelectorAll('.attachment-card[data-doc-type-id]').forEach(function(card) {
+                        var docTypeId = card.getAttribute('data-doc-type-id');
+                        var hasExisting = card.querySelector('.existing-files') !== null;
+                        var fileInput = document.getElementById('file-' + docTypeId);
+                        var hasNew = fileInput && fileInput.files && fileInput.files.length > 0;
+                        var docName = card.querySelector('h5') ? card.querySelector('h5').textContent.trim() : 'وثيقة #' + docTypeId;
+                        if (!hasNew) {
+                            missingDocs.push(docName);
+                            if (hasExisting) {
+                                missingWithOld.push(docName);
+                            }
+                        }
+                    });
+
+                    if (missingDocs.length > 0) {
+                        var docsList = missingDocs.map(function(doc) {
+                            return '<li style="margin: 5px 0; padding: 4px 8px; background: #fff3cd; border-radius: 4px; border-right: 3px solid #ffc107;">' + doc + '</li>';
+                        }).join('');
+                        var extraMsg = '';
+                        if (missingWithOld.length > 0) {
+                            extraMsg = '<p style="margin-top: 10px; color: #856404; font-size: 0.9em;"><i class="bi bi-info-circle me-1"></i>الwyżق عليها بها ملفات سابقة لكنها تحتاج ملف جديد: ' + missingWithOld.join('، ') + '</p>';
+                        }
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'مرفقات ناقصة',
+                            html: '<div style="text-align: right;"><p style="margin-bottom: 10px; font-weight: bold;">يجب رفع ملف واحد على الأقل لكل نوع وثيقة:</p><ul style="list-style: none; padding: 0; margin: 0;">' + docsList + '</ul>' + extraMsg + '</div>',
+                            confirmButtonText: 'حسناً',
+                            customClass: { htmlContainer: 'text-start' }
+                        });
+                        return;
+                    }
+
                     Swal.fire({
                         title: 'تأكيد الحفظ',
                         text: 'هل أنت متأكد من حفظ التغييرات على بياناتك؟',

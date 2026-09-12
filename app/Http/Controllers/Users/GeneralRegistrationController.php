@@ -11,6 +11,7 @@ use App\Models\CI_PERSONAL_CD;
 use App\Models\City;
 use App\Models\Data;
 use App\Models\DeadPepole;
+use App\Models\AdditionalDeceased;
 use App\Models\DeathReason;
 use App\Models\DisplacementStatus;
 use App\Models\DocumentType;
@@ -125,15 +126,30 @@ class GeneralRegistrationController extends Controller
                 'data_employment_status_breadwinner' => 'nullable|string',
                 'data_housing_status' => 'nullable|string',
                 'data_current_housing_type' => 'nullable|string',
+                'data_request_status' => 'nullable|integer',
+                // Mother fields (living - baseTap)
+                'mother_id' => 'nullable|string|digits:9',
+                'mother_first_name' => 'nullable|string|max:255',
+                'mother_second_name' => 'nullable|string|max:255',
+                'mother_third_name' => 'nullable|string|max:255',
+                'mother_last_name' => 'nullable|string|max:255',
+                'mother_is_alive' => 'nullable|in:0,1',
+                // Mother fields (deceased - deceased tab)
+                'deceased_mother_id' => 'nullable|string|digits:9',
+                'deceased_mother_first_name' => 'nullable|string|max:255',
+                'deceased_mother_second_name' => 'nullable|string|max:255',
+                'deceased_mother_third_name' => 'nullable|string|max:255',
+                'deceased_mother_last_name' => 'nullable|string|max:255',
                 // Family members (if any)
                 'family_members' => 'sometimes|array',
                 // Attachments
-                // 'person_identity_number' => 'required|string',
                 'document_file.*' => 'required|file|mimes:jpg,jpeg,png,pdf,heic|max:5120',
             ], [
                 'file_id_number.required' => 'رقم الملف الموحد مطلوب.',
                 'data_id_number.required' => 'رقم الهوية مطلوب.',
                 'data_id_number.digits' => 'رقم الهوية يجب أن يكون 9 أرقام بالضبط.',
+                'mother_id.digits' => 'رقم هوية الأم يجب أن يكون 9 أرقام بالضبط.',
+                'deceased_mother_id.digits' => 'رقم هوية الأم المتوفية يجب أن يكون 9 أرقام بالضبط.',
                 'document_file.*.mimes' => 'يجب أن تكون صيغة الملف jpg أو jpeg أو png أو pdf أو heic.',
                 'document_file.*.max' => 'حجم الملف لا يجوز أن يتجاوز 5 ميغابايت.',
             ]);
@@ -144,52 +160,48 @@ class GeneralRegistrationController extends Controller
             // استخدم رقم الملف مع الأصفار البادئة دائماً
             $fileIdNumber = str_pad($request->input('file_id_number'), 6, '0', STR_PAD_LEFT);
 
-            // 🆕 التحقق إذا كان المعيل موجود مسبقاً في قاعدة البيانات
-            $existingFileIdNumber = $request->input('existing_file_id_number');
-            $existingGuardianSource = $request->input('existing_guardian_source');
             $guardianIdentity = $request->input('data_id_number');
             $useExistingGuardian = false;
             $existingGuardianData = null;
+            $existingFileIdNumber = null;
 
-            // التحقق إذا تم تمرير معيل موجود من الواجهة
-            if (!empty($existingFileIdNumber)) {
-                $existingGuardianData = Data::where('file_id_number', $existingFileIdNumber)->first();
-                if ($existingGuardianData) {
-                    $useExistingGuardian = true;
-                    Log::info('🔗 استخدام معيل موجود من الواجهة', [
-                        'existing_file_id' => $existingFileIdNumber,
-                        'guardian_identity' => $guardianIdentity
-                    ]);
-                }
-            }
-
-            // إذا لم يتم تمرير معيل موجود، نبحث عنه تلقائياً
-            if (!$useExistingGuardian && !empty($guardianIdentity)) {
-                // البحث في جدول data
+            // 1️⃣ أولاً: البحث عن معيل موجود في قاعدة البيانات
+            if (!empty($guardianIdentity)) {
                 $existingGuardianData = Data::where('data_id_number', $guardianIdentity)->first();
 
                 if ($existingGuardianData) {
                     $useExistingGuardian = true;
                     $existingFileIdNumber = $existingGuardianData->file_id_number;
-                    Log::info('🔗 تم العثور على معيل موجود في جدول data', [
-                        'existing_file_id' => $existingFileIdNumber,
-                        'guardian_identity' => $guardianIdentity
+                    $fileIdNumber = $existingFileIdNumber; // استخدام رقم الملف الموجود
+                    Log::info('🔗 تم العثور على معيل موجود', [
+                        'file_id' => $existingFileIdNumber,
+                        'identity' => $guardianIdentity
                     ]);
-                } else {
-                    // البحث في جدول dead_people (الأب أو الأم)
-                    $deadPerson = DeadPepole::where('father_id', $guardianIdentity)
-                        ->orWhere('mother_id', $guardianIdentity)
-                        ->first();
+                }
+            }
 
-                    if ($deadPerson) {
-                        $existingFileIdNumber = $deadPerson->re_file_id;
-                        Log::info('🔗 تم العثور على شخص في جدول dead_people، سيتم الربط بالملف', [
-                            'dead_people_file_id' => $existingFileIdNumber,
-                            'guardian_identity' => $guardianIdentity,
-                            'is_father' => ($deadPerson->father_id == $guardianIdentity)
-                        ]);
-                        // لا نستخدم المعيل الموجود، لكن نحتفظ برقم الملف للربط
+            // 2️⃣ ثانياً: التحقق من عدم ارتباط المعيل بمعيل آخر
+            if (!$useExistingGuardian && !empty($guardianIdentity)) {
+                $linkedData = Data::where('data_id_number', $guardianIdentity)->first();
+                if ($linkedData && $linkedData->file_id_number != $fileIdNumber) {
+                    DB::rollBack();
+                    $errorMsg = 'هذا الشخص مسجل مسبقاً في النظام ومرتبط بمعيل آخر. لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.';
+                    if ($request->ajax() || $request->wantsJson()) {
+                        return response()->json(['success' => false, 'message' => $errorMsg], 422);
                     }
+                    return redirect()->back()->withInput()->with('error', $errorMsg);
+                }
+
+                $linkedRePeople = RePeople::where('person_id', $guardianIdentity)
+                    ->where('registration_id', '!=', $fileIdNumber)
+                    ->first();
+                if ($linkedRePeople) {
+                    DB::rollBack();
+                    $errorMsg = 'هذا الشخص مسجل مسبقاً في النظام ومرتبط بمعيل آخر. لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.';
+                    if ($request->ajax() || $request->wantsJson()) {
+                        return response()->json(['success' => false, 'message' => $errorMsg], 422);
+                    }
+                    return redirect()->back()->withInput()->with('error', $errorMsg);
                 }
             }
 
@@ -212,14 +224,44 @@ class GeneralRegistrationController extends Controller
             $data = null;
 
             if ($useExistingGuardian && $existingGuardianData) {
-                // 🆕 استخدام المعيل الموجود - لا نقوم بإنشاء سجل جديد
+                // 🆕 تحديث بيانات المعيل الموجود
+                $existingGuardianData->update([
+                    'data_section_id' => $request->input('data_section_id'),
+                    'data_id_number' => $request->input('data_id_number'),
+                    'data_first_name' => $request->input('data_first_name'),
+                    'data_father_name' => $request->input('data_father_name'),
+                    'data_grand_father_name' => $request->input('data_grand_father_name'),
+                    'data_family_name' => $request->input('data_family_name'),
+                    'data_relationship' => $request->input('data_relationship'),
+                    'data_birth_date' => $request->input('data_birth_date'),
+                    'data_gender' => $request->input('data_gender'),
+                    'data_phone_number' => $request->input('data_phone_number'),
+                    'data_alt_phone_number' => $request->input('data_alt_phone_number'),
+                    'data_number_of_individuals' => $request->input('data_number_of_individuals'),
+                    'data_marital_status' => $request->input('data_marital_status'),
+                    'data_academic_qualification' => $request->input('data_academic_qualification'),
+                    'data_displacement_status' => $request->input('data_displacement_status'),
+                    'data_address_before_displacement' => $request->input('data_address_before_displacement'),
+                    'data_current_address' => $request->input('data_current_address'),
+                    'data_city' => $request->input('data_city'),
+                    'data_province' => $request->input('data_province'),
+                    'data_health_status' => $request->input('data_health_status'),
+                    'data_description_needs' => $request->input('data_description_needs'),
+                    'data_number_mail' => $request->input('data_number_mail'),
+                    'data_number_female' => $request->input('data_number_female'),
+                    'data_number_of_individuals_with_chronic_diseases' => $request->input('data_number_of_individuals_with_chronic_diseases'),
+                    'data_number_of_people_with_special_needs' => $request->input('data_number_of_people_with_special_needs'),
+                    'data_employment_status_breadwinner' => $request->input('data_employment_status_breadwinner'),
+                    'data_housing_status' => $request->input('data_housing_status'),
+                    'data_current_housing_type' => $request->input('data_current_housing_type'),
+                    'data_request_status' => 2, // تحديث طلب موجود
+                ]);
                 $data = $existingGuardianData;
                 $fileIdNumber = $existingFileIdNumber;
 
-                Log::info('✅ تم استخدام معيل موجود بدلاً من إنشاء سجل جديد', [
+                Log::info('✅ تم تحديث بيانات المعيل', [
                     'file_id_number' => $fileIdNumber,
                     'guardian_identity' => $guardianIdentity,
-                    'guardian_name' => $existingGuardianData->data_first_name . ' ' . $existingGuardianData->data_family_name
                 ]);
             } else {
                 // إنشاء سجل معيل جديد
@@ -308,21 +350,33 @@ class GeneralRegistrationController extends Controller
                         $existingAccountsCount = GuardianBankAccount::where('guardian_registration', $fileIdNumber)->count();
                         $isFirstAccount = ($existingAccountsCount == 0);
 
-                        GuardianBankAccount::create([
+                        // البحث عن حساب بنكي موجود لنفس الشخص
+                        $existingBankAccount = null;
+                        if (!empty($reIdNumber)) {
+                            $existingBankAccount = GuardianBankAccount::where('guardian_registration', $fileIdNumber)
+                                ->where('person_owner_identity_number', $reIdNumber)
+                                ->first();
+                        }
+
+                        $bankData = [
                             'guardian_registration' => $fileIdNumber,
                             'bank_name' => $bankAccount['bank_name'] ?? null,
                             'iban_usd' => $bankAccount['iban_usd'] ?? null,
                             'iban_shekel' => $bankAccount['iban_shekel'] ?? null,
-                            'person_owner_identity_number' => $reIdNumber, // رقم هوية صاحب الحساب
+                            'person_owner_identity_number' => $reIdNumber,
                             're_id_number' => $reIdNumber,
                             're_guardian_name' => $bankAccount['re_guardian_name'] ?? null,
                             're_phone_number' => $bankAccount['re_phone_number'] ?? null,
-                            'check_account' => $isFirstAccount ? 1 : 0, // ✅ الحساب الأول يُعتمد تلقائياً
-                        ]);
-                        Log::info('🟢 تم تخزين حساب بنكي مع رقم هوية صاحب الحساب:', [
-                            'person_owner_identity_number' => $reIdNumber,
-                            're_id_number' => $reIdNumber
-                        ]);
+                            'check_account' => $isFirstAccount ? 1 : 0,
+                        ];
+
+                        if ($existingBankAccount) {
+                            $existingBankAccount->update($bankData);
+                            Log::info('✅ تم تحديث حساب بنكي موجود', ['person_id' => $reIdNumber]);
+                        } else {
+                            GuardianBankAccount::create($bankData);
+                            Log::info('🟢 تم إنشاء حساب بنكي جديد', ['person_id' => $reIdNumber]);
+                        }
                     } else {
                         Log::warning('⚠️ لم يتم تخزين حساب بنكي بسبب نقص البيانات', $bankAccount);
                     }
@@ -333,7 +387,7 @@ class GeneralRegistrationController extends Controller
             // 3. Store deceased only إذا كان القسم أيتام ويوجد بيانات للأب أو الأم
             if ($request->input('data_section_id') == 1) {
                 $fatherFilled = $request->filled('father_first_name') || $request->filled('father_last_name') || $request->filled('father_id');
-                $motherFilled = $request->filled('mother_first_name') || $request->filled('mother_last_name') || $request->filled('mother_id');
+                $motherFilled = $request->filled('deceased_mother_first_name') || $request->filled('deceased_mother_last_name') || $request->filled('deceased_mother_id');
 
                 if ($fatherFilled || $motherFilled) {
                     // التحقق من صحة أرقام الهوية
@@ -346,10 +400,10 @@ class GeneralRegistrationController extends Controller
                         $validationMessages['father_id.digits'] = 'رقم هوية الأب يجب أن يكون 9 أرقام بالضبط';
                     }
 
-                    if ($request->filled('mother_id')) {
-                        $validationRules['mother_id'] = 'required|digits:9';
-                        $validationMessages['mother_id.required'] = 'رقم هوية الأم مطلوب';
-                        $validationMessages['mother_id.digits'] = 'رقم هوية الأم يجب أن يكون 9 أرقام بالضبط';
+                    if ($request->filled('deceased_mother_id')) {
+                        $validationRules['deceased_mother_id'] = 'required|digits:9';
+                        $validationMessages['deceased_mother_id.required'] = 'رقم هوية الأم مطلوب';
+                        $validationMessages['deceased_mother_id.digits'] = 'رقم هوية الأم يجب أن يكون 9 أرقام بالضبط';
                     }
 
                     // تنفيذ التحقق إذا كان هناك قواعد
@@ -357,9 +411,10 @@ class GeneralRegistrationController extends Controller
                         $request->validate($validationRules, $validationMessages);
                     }
 
-                    DeadPepole::create([
+                    // تحديث أو إنشاء بيانات الأب والأم المتوفين
+                    $existingDeadRecord = DeadPepole::where('re_file_id', $fileIdNumber)->first();
+                    $deceasedData = [
                         're_file_id' => $fileIdNumber,
-
                         // بيانات الأب
                         'father_first_name' => $request->input('father_first_name'),
                         'father_second_name' => $request->input('father_second_name'),
@@ -368,16 +423,23 @@ class GeneralRegistrationController extends Controller
                         'father_id' => $request->input('father_id'),
                         'father_death_date' => $request->input('father_death_date'),
                         'father_death_reason' => $request->input('father_death_reason'),
-
-                        // بيانات الأم (قد تكون فارغة)
-                        'mother_first_name' => $request->input('mother_first_name'),
-                        'mother_second_name' => $request->input('mother_second_name'),
-                        'mother_third_name' => $request->input('mother_third_name'),
-                        'mother_last_name' => $request->input('mother_last_name'),
-                        'mother_id' => $request->input('mother_id'),
+                        // بيانات الأم
+                        'mother_first_name' => $request->input('deceased_mother_first_name'),
+                        'mother_second_name' => $request->input('deceased_mother_second_name'),
+                        'mother_third_name' => $request->input('deceased_mother_third_name'),
+                        'mother_last_name' => $request->input('deceased_mother_last_name'),
+                        'mother_id' => $request->input('deceased_mother_id'),
                         'mother_death_date' => $request->input('mother_death_date'),
                         'mother_death_reason' => $request->input('mother_death_reason'),
-                    ]);
+                    ];
+
+                    if ($existingDeadRecord) {
+                        $existingDeadRecord->update($deceasedData);
+                        Log::info('✅ تم تحديث بيانات الأب والأم المتوفين', ['file_id' => $fileIdNumber]);
+                    } else {
+                        DeadPepole::create($deceasedData);
+                        Log::info('✅ تم إنشاء سجل بيانات الأب والأم المتوفين', ['file_id' => $fileIdNumber]);
+                    }
                 }
 
                 // 🆕 حفظ المتوفين الإضافيين (غير الأب والأم) - يتم تنفيذه دائماً للقسم 1 (أيتام)
@@ -413,7 +475,15 @@ class GeneralRegistrationController extends Controller
                             ]);
                         }
 
-                        \App\Models\AdditionalDeceased::create([
+                        // تحديث أو إنشاء متوفي إضافي
+                        $existingAdditional = null;
+                        if (!empty($personId)) {
+                            $existingAdditional = \App\Models\AdditionalDeceased::where('re_file_id', $fileIdNumber)
+                                ->where('person_id', $personId)
+                                ->first();
+                        }
+
+                        $additionalData = [
                             're_file_id' => $fileIdNumber,
                             'person_id' => $personId,
                             'first_name' => $deceased['first_name'] ?? null,
@@ -423,25 +493,104 @@ class GeneralRegistrationController extends Controller
                             'relationship' => $deceased['relationship'] ?? 'other',
                             'death_date' => $deceased['death_date'] ?? null,
                             'death_reason' => $deceased['death_reason'] ?? null,
-                        ]);
+                        ];
 
-                        Log::info('✅ تم حفظ متوفي إضافي:', [
-                            'index' => $index,
-                            'file_id' => $fileIdNumber,
-                            'person_id' => $personId,
-                            'relationship' => $deceased['relationship'] ?? 'other',
-                            'name' => ($deceased['first_name'] ?? '') . ' ' . ($deceased['last_name'] ?? '')
-                        ]);
+                        if ($existingAdditional) {
+                            $existingAdditional->update($additionalData);
+                            Log::info('✅ تم تحديث متوفي إضافي', ['person_id' => $personId]);
+                        } else {
+                            \App\Models\AdditionalDeceased::create($additionalData);
+                            Log::info('✅ تم إنشاء متوفي إضافي جديد', ['person_id' => $personId]);
+                        }
                     }
                 }
             } // نهاية شرط if ($request->input('data_section_id') == 1)
+
+            // ═══════════════════════════════════════════════════════════════
+            // 3.5. معالجة بيانات الأم — ذكية (حية أو متوفية أو المعيل هي الأم)
+            // ═══════════════════════════════════════════════════════════════
+            $guardianRelationship = $request->input('data_relationship');
+            $guardianRelationshipText = $request->input('data_relationship_text', '');
+            $motherIsAlive = $request->input('mother_is_alive');
+            $motherId = $request->input('mother_id') ?: $request->input('deceased_mother_id');
+            $motherFilled = $request->filled('mother_first_name') || $request->filled('mother_last_name') || !empty($motherId)
+                || $request->filled('deceased_mother_first_name') || $request->filled('deceased_mother_last_name')
+                || $request->filled('deceased_mother_id');
+
+            Log::info('🔍 [DEBUG] Mother data check:', [
+                'guardian_relationship' => $guardianRelationship,
+                'guardian_relationship_text' => $guardianRelationshipText,
+                'mother_is_alive' => $motherIsAlive,
+                'mother_id' => $motherId,
+                'mother_first_name' => $request->input('mother_first_name'),
+                'mother_last_name' => $request->input('mother_last_name'),
+                'mother_second_name' => $request->input('mother_second_name'),
+                'mother_third_name' => $request->input('mother_third_name'),
+                'motherFilled' => $motherFilled,
+                'file_id' => $fileIdNumber,
+            ]);
+
+            // تحديد ما إذا كان المعيل هو الأم
+            $guardianIsMother = ($guardianRelationship == 1 || $guardianRelationshipText === 'أم' || $guardianRelationshipText === 'الأم');
+
+            if ($guardianIsMother) {
+                // ═══════════════════════════════════════════════════════════
+                // الحالة 1: المعيل هو الأم — نسخ بيانات المعيل كبيانات للأم
+                // ═══════════════════════════════════════════════════════════
+                $this->saveLivingMotherToPortal($request, $fileIdNumber, null, true);
+                Log::info('✅ تم نسخ بيانات المعيل (الأم) إلى portal_general_registration_field_values', [
+                    'guardian_id' => $guardianIdentity,
+                    'file_id' => $fileIdNumber
+                ]);
+
+            } elseif ($motherFilled) {
+                // ═══════════════════════════════════════════════════════════
+                // الحالة 2: المعيل ليس الأم — حفظ حسب الحالة (حية/متوفية)
+                // ═══════════════════════════════════════════════════════════
+                if ($motherIsAlive === '1') {
+                    // الأم حية — حفظ البيانات في portal_general_registration_field_values
+                    $this->saveLivingMotherToPortal($request, $fileIdNumber, $motherId, false);
+                    Log::info('✅ تم حفظ بيانات الأم الحية في portal_general_registration_field_values', [
+                        'mother_id' => $motherId,
+                        'file_id' => $fileIdNumber
+                    ]);
+                } else {
+                    // الأم متوفاة — حفظ البيانات في dead_people
+                    $deadRecord = DeadPepole::where('re_file_id', $fileIdNumber)->first();
+
+                    $motherData = [
+                        'mother_first_name' => $request->input('deceased_mother_first_name'),
+                        'mother_second_name' => $request->input('deceased_mother_second_name'),
+                        'mother_third_name' => $request->input('deceased_mother_third_name'),
+                        'mother_last_name' => $request->input('deceased_mother_last_name'),
+                        'mother_id' => $motherId,
+                        'mother_death_date' => $request->input('mother_death_date'),
+                    ];
+
+                    if ($request->filled('mother_death_reason')) {
+                        $motherData['mother_death_reason'] = $request->input('mother_death_reason');
+                    }
+
+                    if ($deadRecord) {
+                        $deadRecord->update($motherData);
+                        Log::info('✅ تم تحديث بيانات الأم المتوفاة في dead_people:', ['mother_id' => $motherId, 'file_id' => $fileIdNumber]);
+                    } else {
+                        $motherData['re_file_id'] = $fileIdNumber;
+                        DeadPepole::create($motherData);
+                        Log::info('✅ تم إنشاء سجل بيانات الأم المتوفاة في dead_people:', ['mother_id' => $motherId, 'file_id' => $fileIdNumber]);
+                    }
+
+                    // حفظ بيانات الأم المتوفية也在 portal_general_registration_field_values
+                    $this->saveDeceasedMotherToPortal($request, $fileIdNumber, $motherId);
+                }
+            }
 
 
             // 4. Store family members
             $familyMembers = $request->input('family_members');
 
             if (is_array($familyMembers)) {
-                // التحقق من صحة أرقام الهوية لأفراد الأسرة
+                // التحقق من صحة أرقام الهوية لأفراد الأسرة ومنع التكرار
                 foreach ($familyMembers as $index => $member) {
                     if (!empty($member['person_id'])) {
                         // التحقق من أن رقم الهوية 9 أرقام
@@ -458,13 +607,39 @@ class GeneralRegistrationController extends Controller
                             }
                             throw new \Exception("رقم هوية فرد الأسرة رقم " . ($index + 1) . " يجب أن يكون 9 أرقام بالضبط");
                         }
+
+                        // 🆕 التحقق من أن الشخص ليس مرتبطاً بمعيل آخر
+                        $existingInData = Data::where('data_id_number', $member['person_id'])->first();
+                        if ($existingInData && $existingInData->file_id_number != $fileIdNumber) {
+                            $errorMsg = "الشخص برقم هوية " . $member['person_id'] . " مسجل مسبقاً في النظام ومرتبط بمعيل آخر. لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.";
+                            if ($request->ajax() || $request->wantsJson()) {
+                                return response()->json([
+                                    'success' => false,
+                                    'message' => $errorMsg
+                                ], 422);
+                            }
+                            throw new \Exception($errorMsg);
+                        }
+
+                        $existingInRePeople = RePeople::where('person_id', $member['person_id'])
+                            ->where('registration_id', '!=', $fileIdNumber)
+                            ->first();
+                        if ($existingInRePeople) {
+                            $errorMsg = "الشخص برقم هوية " . $member['person_id'] . " مسجل مسبقاً في النظام ومرتبط بمعيل آخر. لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.";
+                            if ($request->ajax() || $request->wantsJson()) {
+                                return response()->json([
+                                    'success' => false,
+                                    'message' => $errorMsg
+                                ], 422);
+                            }
+                            throw new \Exception($errorMsg);
+                        }
                     }
                 }
 
-                // حفظ أفراد الأسرة
+                // حفظ أفراد الأسرة (تحديث أو إنشاء)
                 foreach ($familyMembers as $member) {
-                    // حفظ في جدول re_people
-                    RePeople::create([
+                    $memberData = [
                         'registration_id' => $fileIdNumber,
                         'sponsorship_status' => $member['sponsorship_status'] ?? null,
                         'first_name' => $member['first_name'] ?? null,
@@ -478,7 +653,21 @@ class GeneralRegistrationController extends Controller
                         'person_health_status' => $member['person_health_status'] ?? null,
                         'person_type_of_guarantee' => $member['person_type_of_guarantee'] ?? null,
                         'person_note' => $member['person_note'] ?? null,
-                    ]);
+                    ];
+
+                    // البحث عن سجل موجود لنفس الشخص في نفس الملف
+                    $existingMember = null;
+                    if (!empty($member['person_id'])) {
+                        $existingMember = RePeople::where('registration_id', $fileIdNumber)
+                            ->where('person_id', $member['person_id'])
+                            ->first();
+                    }
+
+                    if ($existingMember) {
+                        $existingMember->update($memberData);
+                    } else {
+                        RePeople::create($memberData);
+                    }
                 }
             }
 
@@ -581,7 +770,12 @@ class GeneralRegistrationController extends Controller
                     }
 
                     // اسم الملف: نوع الوثيقة _ رقم الملف الخاص بالشخص _ رقم هوية الشخص
-                    $newFileName = "{$fileType}_{$fileIdNumberAttach}_{$realPersonId}.{$extension}";
+                    // إضافة رقم تسلسلي لتجنب الكتابة فوق الملفات القديمة
+                    $existingCount = Attachment::where('person_identity_number', $realPersonId)
+                        ->where('file_type', $fileType)
+                        ->count();
+                    $serial = $existingCount > 0 ? '_' . ($existingCount + 1) : '';
+                    $newFileName = "{$fileType}_{$fileIdNumberAttach}_{$realPersonId}{$serial}.{$extension}";
                     $folder = 'uploads/' . $fileIdNumberAttach;
                     if ($folder === 'public' || $folder === 'public/') {
                         throw new \Exception('خطأ في مسار التخزين: يجب تحديد مجلد فرعي داخل uploads');
@@ -633,7 +827,7 @@ class GeneralRegistrationController extends Controller
             if (!\App\Models\User::where('email', $request->input('data_id_number'))->exists()) {
                 $user = \App\Models\User::create([
                     'name' => $request->input('data_first_name'),
-                    'phone' => $request->input('data_phone_number'),
+                    'phone' => $request->input('data_phone_number') ?? $request->input('data_id_number'), // قيمة افتراضية = رقم الهوية
                     'email' => $request->input('data_id_number'), // تخزين رقم الهوية مباشرة في عمود البريد الإلكتروني
                     'password' => bcrypt($randomPassword),
                     'role' => 'user',
@@ -646,9 +840,9 @@ class GeneralRegistrationController extends Controller
             DB::commit();
 
             if ($request->ajax() || $request->wantsJson()) {
-                return response()->json(['success' => true]);
+                return response()->json(['success' => true, 'redirect' => route('user.thank.you.page')]);
             }
-            return response()->json(['success' => true, 'redirect' => route('user.thank.you.page')]);
+            return redirect()->route('user.thank.you.page');
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('خطأ في تخزين السجل: ' . $e->getMessage());
@@ -1518,10 +1712,185 @@ class GeneralRegistrationController extends Controller
     }
 
     /**
-     * 🆕 جلب بيانات المعيل الموجود مع الحسابات البنكية لعرضها في النموذج
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
+     * البحث الشامل عن المعيل: يجلب كل البيانات من كل الجداول المرتبطة
+     */
+    public function lookupGuardian(Request $request)
+    {
+        try {
+            $identityNumber = $request->input('identity_number');
+
+            if (empty($identityNumber) || strlen($identityNumber) < 9) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'رقم الهوية يجب أن يكون 9 أرقام على الأقل'
+                ]);
+            }
+
+            // البحث في السجل المدني فقط
+            $normalizedSearchService = app(\App\Services\NormalizedSearchService::class);
+            $civilResults = $normalizedSearchService->searchCivilRegistry($identityNumber, 1);
+
+            if ($civilResults && $civilResults->isNotEmpty()) {
+                $person = $civilResults->first();
+                $birthDate = null;
+                if ($person->CI_BIRTH_DT) {
+                    try {
+                        $carbonDate = $person->CI_BIRTH_DT instanceof \Carbon\Carbon
+                            ? $person->CI_BIRTH_DT
+                            : \Carbon\Carbon::parse($person->CI_BIRTH_DT);
+                        $birthDate = $carbonDate->format('Y-m-d');
+                    } catch (\Exception $e) {}
+                }
+                return response()->json([
+                    'success' => true,
+                    'source' => 'civil_registry',
+                    'data' => [
+                        'data_id_number' => $person->id_number,
+                        'data_first_name' => $person->CI_FIRST_ARB,
+                        'data_father_name' => $person->CI_FATHER_ARB,
+                        'data_grand_father_name' => $person->CI_GRAND_FATHER_ARB,
+                        'data_family_name' => $person->CI_FAMILY_ARB,
+                        'data_birth_date' => $birthDate,
+                        'data_gender' => $person->CI_SEX_CD,
+                        'is_alive' => empty($person->CI_DEAD_DT),
+                    ],
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'source' => 'not_found',
+                'exists' => false,
+                'data' => null,
+                'message' => 'لم يتم العثور على بيانات لهذا الرقم في السجل المدني.'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('خطأ في البحث عن المعيل: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء البحث: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * البحث عن بيانات الأم برقم الهوية في السجل المدني
+     */
+    public function lookupMother(Request $request)
+    {
+        try {
+            $identityNumber = $request->input('identity_number');
+
+            if (empty($identityNumber) || strlen($identityNumber) < 9) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'رقم الهوية يجب أن يكون 9 أرقام على الأقل'
+                ]);
+            }
+
+            // البحث في السجل المدني
+            $normalizedSearchService = app(\App\Services\NormalizedSearchService::class);
+            $results = $normalizedSearchService->searchCivilRegistry($identityNumber, 1);
+
+            if ($results && $results->isNotEmpty()) {
+                $person = $results->first();
+                $birthDate = null;
+                if ($person->CI_BIRTH_DT) {
+                    try {
+                        $carbonDate = $person->CI_BIRTH_DT instanceof \Carbon\Carbon
+                            ? $person->CI_BIRTH_DT
+                            : \Carbon\Carbon::parse($person->CI_BIRTH_DT);
+                        $birthDate = $carbonDate->format('Y-m-d');
+                    } catch (\Exception $e) {}
+                }
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'mother_id' => $person->id_number,
+                        'mother_first_name' => $person->CI_FIRST_ARB,
+                        'mother_second_name' => $person->CI_FATHER_ARB,
+                        'mother_third_name' => $person->CI_GRAND_FATHER_ARB,
+                        'mother_last_name' => $person->CI_FAMILY_ARB,
+                        'mother_birth_date' => $birthDate,
+                        'mother_gender' => $person->CI_SEX_CD,
+                        'is_alive' => empty($person->CI_DEAD_DT),
+                        'death_date' => !empty($person->CI_DEAD_DT) ? $person->CI_DEAD_DT : null,
+                    ],
+                    'message' => 'تم جلب بيانات الأم من السجل المدني.'
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => null,
+                'message' => 'لم يتم العثور على بيانات لهذا الرقم في السجل المدني.'
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('خطأ في البحث عن الأم: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء البحث: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * التحقق مما إذا كان الشخص مرتبطاً بمعيل آخر
+     */
+    public function checkPersonLinked(Request $request)
+    {
+        try {
+            $identityNumber = $request->input('identity_number');
+            $currentFileId = $request->input('current_file_id');
+
+            if (empty($identityNumber)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'رقم الهوية مطلوب'
+                ]);
+            }
+
+            // فحص في جدول data (هل هو معيل لملف آخر؟)
+            $dataRecord = Data::where('data_id_number', $identityNumber)->first();
+            if ($dataRecord && $dataRecord->file_id_number != $currentFileId) {
+                return response()->json([
+                    'success' => true,
+                    'is_linked' => true,
+                    'message' => 'هذا الشخص مسجل مسبقاً في النظام ومرتبط بمعيل آخر. لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.'
+                ]);
+            }
+
+            // فحص في جدول re_people (هل هو فرد أسرة في ملف آخر؟)
+            $rePeopleRecord = RePeople::where('person_id', $identityNumber)
+                ->where('registration_id', '!=', $currentFileId)
+                ->first();
+            if ($rePeopleRecord) {
+                return response()->json([
+                    'success' => true,
+                    'is_linked' => true,
+                    'message' => 'هذا الشخص مسجل مسبقاً في النظام ومرتبط بمعيل آخر. لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.'
+                ]);
+            }
+
+            return response()->json([
+                'success' => true,
+                'is_linked' => false,
+                'message' => ''
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('خطأ في التحقق من ربط الشخص: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء التحقق'
+            ], 500);
+        }
+    }
+
+    /**
+     * جلب بيانات المعيل الموجود مع الحسابات البنكية لعرضها في النموذج
      */
     public function getGuardianWithBankAccounts(Request $request)
     {
@@ -1598,6 +1967,155 @@ class GeneralRegistrationController extends Controller
                 'message' => 'حدث خطأ: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * حفظ بيانات الأم الحية في portal_general_registration_field_values
+     * 
+     * @param Request $request
+     * @param string $fileIdNumber رقم الملف
+     * @param string|null $motherId رقم هوية الأم (إذا كانت المعيل ليست الأم)
+     * @param bool $guardianIsMother هل المعيل هو الأم؟
+     */
+    private function saveLivingMotherToPortal(Request $request, string $fileIdNumber, ?string $motherId, bool $guardianIsMother = false): void
+    {
+        if ($guardianIsMother) {
+            // ═══════════════════════════════════════════════════════════
+            // الحالة 1: المعيل هو الأم — نسخ بيانات المعيل من جدول data
+            // ═══════════════════════════════════════════════════════════
+            $guardianData = \App\Models\Data::where('file_id_number', $fileIdNumber)->first();
+
+            if ($guardianData) {
+                $portalFields = [
+                    'field_mother_status' => 'حية',
+                    'field_living_mother_id' => $guardianData->data_id_number,
+                    'field_living_mother_first_name' => $guardianData->data_first_name,
+                    'field_living_mother_second_name' => $guardianData->data_father_name,
+                    'field_living_mother_third_name' => $guardianData->data_grand_father_name,
+                    'field_living_mother_last_name' => $guardianData->data_family_name,
+                ];
+                $guardianIdentity = $guardianData->data_id_number;
+            } else {
+                Log::warning('⚠️ لم يتم العثور على بيانات المعيل لنسخها كبيانات الأم', [
+                    'file_id' => $fileIdNumber
+                ]);
+                return;
+            }
+        } else {
+            // ═══════════════════════════════════════════════════════════
+            // الحالة 2: المعيل ليس الأم — استخدام بيانات الأم من النموذج
+            // ═══════════════════════════════════════════════════════════
+            $portalFields = [
+                'field_mother_status' => 'حية',
+                'field_living_mother_id' => $motherId,
+                'field_living_mother_first_name' => $request->input('mother_first_name'),
+                'field_living_mother_second_name' => $request->input('mother_second_name'),
+                'field_living_mother_third_name' => $request->input('mother_third_name'),
+                'field_living_mother_last_name' => $request->input('mother_last_name'),
+                'field_living_mother_birth_date' => $request->input('mother_birth_date'),
+           //     'field_living_mother_phone' => $request->input('mother_phone'),
+            ];
+			
+			
+			
+			
+			
+			
+            $guardianIdentity = $request->input('data_id_number');
+        }
+
+        // جلب sponsorship_id من جدول sponsorships
+        $sponsorship = \App\Models\Sponsorship::where('identity_number', $guardianIdentity)->first();
+        $sponsorshipId = $sponsorship?->id;
+
+        foreach ($portalFields as $fieldKey => $fieldValue) {
+            if (is_null($fieldValue) || $fieldValue === '') {
+                continue;
+            }
+
+            // البحث عن سجل موجود
+            $existingRecord = \App\Models\PortalGeneralRegistrationFieldValue::where('file_id_number', $fileIdNumber)
+                ->where('field_key', $fieldKey)
+                ->first();
+
+            if ($existingRecord) {
+                $existingRecord->update([
+                    'field_value' => $fieldValue,
+                    'identity_number' => $guardianIdentity,
+                    'updated_by_user_id' => auth()->id(),
+                ]);
+            } else {
+                \App\Models\PortalGeneralRegistrationFieldValue::create([
+                    'file_id_number' => $fileIdNumber,
+                    'identity_number' => $guardianIdentity,
+                    'sponsorship_id' => $sponsorshipId,
+                    'field_key' => $fieldKey,
+                    'field_value' => $fieldValue,
+                    'updated_by_user_id' => auth()->id(),
+                ]);
+            }
+        }
+
+        Log::info('✅ تم حفظ بيانات الأم الحية في portal_general_registration_field_values', [
+            'guardian_is_mother' => $guardianIsMother,
+            'file_id' => $fileIdNumber,
+            'fields_count' => count(array_filter($portalFields, fn($v) => !is_null($v) && $v !== ''))
+        ]);
+    }
+
+    /**
+     * حفظ بيانات الأم المتوفية في portal_general_registration_field_values
+     */
+    private function saveDeceasedMotherToPortal(Request $request, string $fileIdNumber, ?string $motherId): void
+    {
+        $guardianIdentity = $request->input('data_id_number');
+
+        $portalFields = [
+            'field_mother_status' => 'متوفية',
+            'field_mother_id' => $motherId,
+            'field_mother_first_name' => $request->input('deceased_mother_first_name'),
+            'field_mother_second_name' => $request->input('deceased_mother_second_name'),
+            'field_mother_third_name' => $request->input('deceased_mother_third_name'),
+            'field_mother_last_name' => $request->input('deceased_mother_last_name'),
+            'field_mother_death_date' => $request->input('mother_death_date'),
+            'field_mother_death_reason' => $request->input('mother_death_reason'),
+        ];
+
+        $sponsorship = \App\Models\Sponsorship::where('identity_number', $guardianIdentity)->first();
+        $sponsorshipId = $sponsorship?->id;
+
+        foreach ($portalFields as $fieldKey => $fieldValue) {
+            if (is_null($fieldValue) || $fieldValue === '') {
+                continue;
+            }
+
+            $existingRecord = \App\Models\PortalGeneralRegistrationFieldValue::where('file_id_number', $fileIdNumber)
+                ->where('field_key', $fieldKey)
+                ->first();
+
+            if ($existingRecord) {
+                $existingRecord->update([
+                    'field_value' => $fieldValue,
+                    'identity_number' => $guardianIdentity,
+                    'updated_by_user_id' => auth()->id(),
+                ]);
+            } else {
+                \App\Models\PortalGeneralRegistrationFieldValue::create([
+                    'file_id_number' => $fileIdNumber,
+                    'identity_number' => $guardianIdentity,
+                    'sponsorship_id' => $sponsorshipId,
+                    'field_key' => $fieldKey,
+                    'field_value' => $fieldValue,
+                    'updated_by_user_id' => auth()->id(),
+                ]);
+            }
+        }
+
+        Log::info('✅ تم حفظ بيانات الأم المتوفية في portal_general_registration_field_values', [
+            'file_id' => $fileIdNumber,
+            'mother_id' => $motherId,
+            'fields_count' => count(array_filter($portalFields, fn($v) => !is_null($v) && $v !== ''))
+        ]);
     }
 }
 

@@ -105,46 +105,107 @@
             }
         });
     </script>
-    {{-- التحكم في إظهار وإخفاء نموذج ادخال الام --}}
+    {{-- التحكم في إظهار وإخفاء نموذج ادخال الام + التعبئة التلقائية عند اختيار "ام متوفية" --}}
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const toggleMotherButton = document.getElementById('toggleMotherInfo');
             const motherInfoSection = document.getElementById('motherInfoSection');
             let isMotherSectionVisible = false;
 
+            // دالة إظهار قسم الأم المتوفية
+            function showMotherSection() {
+                if (isMotherSectionVisible) return;
+                motherInfoSection.style.display = 'block';
+                motherInfoSection.style.opacity = '0';
+                motherInfoSection.style.transform = 'translateY(-20px)';
+                motherInfoSection.style.transition = 'all 0.3s ease';
+                setTimeout(() => {
+                    motherInfoSection.style.opacity = '1';
+                    motherInfoSection.style.transform = 'translateY(0)';
+                }, 10);
+                toggleMotherButton.innerHTML = '<i class="fas fa-minus me-2"></i>إخفاء بيانات الأم المتوفية';
+                toggleMotherButton.classList.remove('btn-primary');
+                toggleMotherButton.classList.add('btn-danger');
+                isMotherSectionVisible = true;
+            }
+
+            // دالة إخفاء قسم الأم المتوفية
+            function hideMotherSection() {
+                if (!isMotherSectionVisible) return;
+                motherInfoSection.style.transition = 'all 0.3s ease';
+                motherInfoSection.style.opacity = '0';
+                motherInfoSection.style.transform = 'translateY(-20px)';
+                setTimeout(() => {
+                    motherInfoSection.style.display = 'none';
+                }, 300);
+                toggleMotherButton.innerHTML = '<i class="fas fa-plus me-2"></i>إضافة بيانات الأم المتوفية';
+                toggleMotherButton.classList.remove('btn-danger');
+                toggleMotherButton.classList.add('btn-primary');
+                isMotherSectionVisible = false;
+            }
+
+            // زر التبديل اليدوي
             toggleMotherButton.addEventListener('click', function(e) {
-                e.preventDefault(); // منع أي سلوك افتراضي
+                e.preventDefault();
                 if (!isMotherSectionVisible) {
-                    // إظهار القسم مع التحريك
-                    motherInfoSection.style.display = 'block';
-                    motherInfoSection.style.opacity = '0';
-                    motherInfoSection.style.transform = 'translateY(-20px)';
-                    motherInfoSection.style.transition = 'all 0.3s ease';
-
-                    setTimeout(() => {
-                        motherInfoSection.style.opacity = '1';
-                        motherInfoSection.style.transform = 'translateY(0)';
-                    }, 10);
-
-                    this.innerHTML = '<i class="fas fa-minus me-2"></i>إخفاء بيانات الأم المتوفية';
-                    this.classList.remove('btn-primary');
-                    this.classList.add('btn-danger');
-                    isMotherSectionVisible = true;
+                    showMotherSection();
                 } else {
-                    // إخفاء القسم مع التحريك
-                    motherInfoSection.style.transition = 'all 0.3s ease';
-                    motherInfoSection.style.opacity = '0';
-                    motherInfoSection.style.transform = 'translateY(-20px)';
-                    setTimeout(() => {
-                        motherInfoSection.style.display = 'none';
-                    }, 300);
-
-                    this.innerHTML = '<i class="fas fa-plus me-2"></i>إضافة بيانات الأم المتوفية';
-                    this.classList.remove('btn-danger');
-                    this.classList.add('btn-primary');
-                    isMotherSectionVisible = false;
+                    hideMotherSection();
                 }
             });
+
+            // 🆕 عند تغيير حالة الأم (حية / متوفية) في البوابة الأساسية
+            const motherIsAliveSelect = document.getElementById('mother_is_alive');
+            if (motherIsAliveSelect) {
+                motherIsAliveSelect.addEventListener('change', function() {
+                    const isDeceased = this.value === '0';
+
+                    if (isDeceased) {
+                        // فتح قسم الأم المتوفية تلقائياً
+                        showMotherSection();
+
+                        // نسخ بيانات الأم الحية إلى حقول الأم المتوفية
+                        const livingMotherId = document.getElementById('mother_id');
+                        const livingMotherFirstName = document.getElementById('mother_first_name');
+                        const livingMotherSecondName = document.getElementById('mother_second_name');
+                        const livingMotherThirdName = document.getElementById('mother_third_name');
+                        const livingMotherLastName = document.getElementById('mother_last_name');
+
+                        const deceasedMotherId = motherInfoSection.querySelector('[name="deceased_mother_id"]');
+                        const deceasedMotherFirstName = motherInfoSection.querySelector('[name="deceased_mother_first_name"]');
+                        const deceasedMotherSecondName = motherInfoSection.querySelector('[name="deceased_mother_second_name"]');
+                        const deceasedMotherThirdName = motherInfoSection.querySelector('[name="deceased_mother_third_name"]');
+                        const deceasedMotherLastName = motherInfoSection.querySelector('[name="deceased_mother_last_name"]');
+
+                        // نسخ البيانات إذا كانت موجودة والحقول فارغة
+                        if (livingMotherId && deceasedMotherId && !deceasedMotherId.value) {
+                            deceasedMotherId.value = livingMotherId.value;
+                        }
+                        if (livingMotherFirstName && deceasedMotherFirstName && !deceasedMotherFirstName.value) {
+                            deceasedMotherFirstName.value = livingMotherFirstName.value;
+                        }
+                        if (livingMotherSecondName && deceasedMotherSecondName && !deceasedMotherSecondName.value) {
+                            deceasedMotherSecondName.value = livingMotherSecondName.value;
+                        }
+                        if (livingMotherThirdName && deceasedMotherThirdName && !deceasedMotherThirdName.value) {
+                            deceasedMotherThirdName.value = livingMotherThirdName.value;
+                        }
+                        if (livingMotherLastName && deceasedMotherLastName && !deceasedMotherLastName.value) {
+                            deceasedMotherLastName.value = livingMotherLastName.value;
+                        }
+
+                        // التركيز على حقل تاريخ الوفاة
+                        setTimeout(() => {
+                            const deathDateInput = motherInfoSection.querySelector('[name="mother_death_date"]');
+                            if (deathDateInput) deathDateInput.focus();
+                        }, 400);
+
+                    } else if (this.value === '1') {
+                        // إخفاء قسم الأم المتوفية عند التحول إلى "حية"
+                        hideMotherSection();
+                    }
+                });
+            }
 
             // تم إزالة فرض إظهار بيانات الأم المتوفية قبل الإرسال لكي لا يضطر المستخدم لإدخالها إذا لم يرغب بذلك
         });
@@ -163,9 +224,9 @@
 
             // التحقق من الحقول الإجبارية للأم المتوفية
             const motherRequiredFields = {
-                'mother_first_name': 'الاسم الأول للأم',
-                'mother_last_name': 'اسم عائلة الأم',
-                'mother_id': 'رقم هوية الأم',
+                'deceased_mother_first_name': 'الاسم الأول للأم',
+                'deceased_mother_last_name': 'اسم عائلة الأم',
+                'deceased_mother_id': 'رقم هوية الأم',
                 'mother_death_date': 'تاريخ وفاة الأم',
                 'mother_death_reason': 'سبب وفاة الأم'
             };
@@ -229,7 +290,7 @@
                     // التحقق من بيانات الأم إذا كانت مضافة وأدخل المستخدم رقم هويتها
                     const motherSection = document.getElementById('motherInfoSection');
                     if (motherSection && motherSection.style.display !== 'none') {
-                        const motherIdInput = this.querySelector('[name="mother_id"]');
+                        const motherIdInput = this.querySelector('[name="deceased_mother_id"]');
                         const motherIdValue = motherIdInput ? motherIdInput.value.trim() : '';
 
                         if (motherIdValue) {

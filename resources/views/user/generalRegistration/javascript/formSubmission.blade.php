@@ -139,21 +139,13 @@
                         }) => {
                             // تحقق من نوع الاستجابة
                             if (typeof data === 'object' && data.success) {
-                                Swal.fire({
-                                    icon: 'success',
-                                    title: 'تم الحفظ',
-                                    text: 'تم حفظ السجل بنجاح'
-                                }).then(() => {
+                                if (data.redirect) {
+                                    window.location.href = data.redirect;
+                                } else {
                                     window.location.reload();
-                                });
+                                }
                             } else if (status === 200 && typeof data === 'string' && data.indexOf('success') !== -1) {
-                                Swal.fire({
-                                    icon: 'success',
-                                    title: 'تم الحفظ',
-                                    text: 'تم حفظ السجل بنجاح'
-                                }).then(() => {
-                                    window.location.reload();
-                                });
+                                window.location.reload();
                             } else {
                                 // عرض رسالة خطأ مفصلة
                                 let errorMessage = 'حدث خطأ أثناء الحفظ';
