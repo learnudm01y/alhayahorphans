@@ -476,6 +476,34 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
     }
 
     /**
+     * جلب جميع الملفات في استدعاء واحد (أسرع من 8 استدعاءات منفصلة)
+     */
+    public List<UploadItem> getAllFilesForDisplay() {
+        List<UploadItem> files = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        Cursor cursor = db.query(
+            TABLE_UPLOAD_QUEUE,
+            null,
+            null,
+            null,
+            null,
+            null,
+            COLUMN_CREATED_AT + " DESC"
+        );
+
+        if (cursor.moveToFirst()) {
+            do {
+                UploadItem item = cursorToUploadItem(cursor);
+                files.add(item);
+            } while (cursor.moveToNext());
+        }
+
+        cursor.close();
+        return files;
+    }
+
+    /**
      * الحصول على جميع الملفات التي تتطلب فحص حالتها من السيرفر (معالجة، فاشلة، معلقة)
      */
     public List<UploadItem> getFilesForVerification() {

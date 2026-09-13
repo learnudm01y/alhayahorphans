@@ -332,9 +332,9 @@ public class ChunkedUploadWorker extends Worker {
                 String notificationTitle = "رفع الملفات (" + processed + "/" + Math.max(totalPending, processed) + ")";
 
                 yieldedOnBudget = false;
-                boolean uploaded = processFile(nextFile, uploadToken, baseUrl, notificationTitle, dbHelper);
+                String uploadError = processFile(nextFile, uploadToken, baseUrl, notificationTitle, dbHelper);
 
-                if (!uploaded && yieldedOnBudget) {
+                if (uploadError == null && yieldedOnBudget) {
                     dbHelper.updateFileStatus(nextFile.id, UploadDatabaseHelper.STATUS_PENDING, null);
                     clearNotification();
                     return Result.retry();
@@ -346,7 +346,7 @@ public class ChunkedUploadWorker extends Worker {
                     return Result.retry();
                 }
 
-                if (uploaded) {
+                if (uploadError == null) {
                     dbHelper.updateFileStatus(nextFile.id, UploadDatabaseHelper.STATUS_PROCESSING_SERVER, null);
                     success++;
                     Log.d(TAG, "✅ رُفع للخادم، بانتظار معالجة Drive (" + success + "/" + processed + ")");
@@ -364,11 +364,11 @@ public class ChunkedUploadWorker extends Worker {
 
                     if (newRetryCount >= FILE_MAX_RETRIES) {
                         dbHelper.updateFileStatus(nextFile.id, UploadDatabaseHelper.STATUS_FAILED,
-                            "فشل بعد " + FILE_MAX_RETRIES + " محاولة");
-                        Log.e(TAG, "❌ فشل نهائي بعد " + FILE_MAX_RETRIES + " محاولة");
+                            uploadError);
+                        Log.e(TAG, "❌ فشل نهائي بعد " + FILE_MAX_RETRIES + " محاولة: " + uploadError);
                     } else {
                         dbHelper.updateFileStatus(nextFile.id, UploadDatabaseHelper.STATUS_PENDING, null);
-                        Log.w(TAG, "⚠️ فشل — سيُعاد لاحقاً (" + newRetryCount + "/" + FILE_MAX_RETRIES + ")");
+                        Log.w(TAG, "⚠️ فشل (" + uploadError + ") — سيُعاد لاحقاً (" + newRetryCount + "/" + FILE_MAX_RETRIES + ")");
                         clearNotification();
                         return Result.retry();
                     }
@@ -407,8 +407,8 @@ public class ChunkedUploadWorker extends Worker {
                             String uploadToken2 = (nextFile.authToken != null && !nextFile.authToken.isEmpty()) ? nextFile.authToken : finalToken;
                             String notificationTitle2 = "رفع الملفات (" + cur + ") [" + workers + " workers]";
                             yieldedOnBudget = false;
-                            boolean uploaded2 = processFile(nextFile, uploadToken2, finalBaseUrl, notificationTitle2, dbHelper);
-                            if (!uploaded2 && yieldedOnBudget) {
+                            String uploadError2 = processFile(nextFile, uploadToken2, finalBaseUrl, notificationTitle2, dbHelper);
+                            if (uploadError2 == null && yieldedOnBudget) {
                                 synchronized (dbHelper) { dbHelper.updateFileStatus(nextFile.id, UploadDatabaseHelper.STATUS_PENDING, null); }
                                 yielded.set(true);
                                 break;
@@ -418,7 +418,7 @@ public class ChunkedUploadWorker extends Worker {
                                 stopped.set(true);
                                 break;
                             }
-                            if (uploaded2) {
+                            if (uploadError2 == null) {
                                 synchronized (dbHelper) { dbHelper.updateFileStatus(nextFile.id, UploadDatabaseHelper.STATUS_PROCESSING_SERVER, null); }
                                 success.incrementAndGet();
                                 Log.d(TAG, "✅ [Worker] رُفع للخادم (" + success.get() + "/" + cur + ")");
@@ -433,7 +433,7 @@ public class ChunkedUploadWorker extends Worker {
                                     dbHelper.incrementRetryCount(nextFile.id);
                                     int newRetryCount = nextFile.retryCount + 1;
                                     if (newRetryCount >= FILE_MAX_RETRIES) {
-                                        dbHelper.updateFileStatus(nextFile.id, UploadDatabaseHelper.STATUS_FAILED, "فشل بعد " + FILE_MAX_RETRIES + " محاولة");
+                                        dbHelper.updateFileStatus(nextFile.id, UploadDatabaseHelper.STATUS_FAILED, uploadError2);
                                     } else {
                                         dbHelper.updateFileStatus(nextFile.id, UploadDatabaseHelper.STATUS_PENDING, null);
                                     }
@@ -547,8 +547,11 @@ public class ChunkedUploadWorker extends Worker {
         }
     }
 
-    private boolean processFile(UploadDatabaseHelper.UploadItem item, String token, String baseUrl,
-                                String notifTitle, UploadDatabaseHelper dbHelper) {
+    /**
+     * @return null = success, non-null = error reason (saved to DB for debugging)
+     */
+    private String processFile(UploadDatabaseHelper.UploadItem item, String token, String baseUrl,
+                               String notifTitle, UploadDatabaseHelper dbHelper) {
         try {
             String filePath = item.filePath;
             String fileName = item.fileName;
@@ -560,7 +563,7 @@ public class ChunkedUploadWorker extends Worker {
 
             if (filePath == null || fileName == null) {
                 Log.e(TAG, "معطيات ناقصة للعنصر " + item.id);
-                return false;
+                return "الملف بدون مسار أو اسم";
             }
 
             if (filePath.startsWith("file://")) {
@@ -580,7 +583,7 @@ public class ChunkedUploadWorker extends Worker {
                 }
                 if (!file.exists()) {
                     Log.e(TAG, "الملف غير موجود: " + filePath);
-                    return false;
+                    return "الملف غير موجود: " + filePath;
                 }
                 fileSize = file.length();
                 uri = Uri.fromFile(file);
@@ -588,7 +591,7 @@ public class ChunkedUploadWorker extends Worker {
 
             if (fileSize <= 0) {
                 Log.e(TAG, "الملف فارغ أو تعذّر قياسه: " + filePath);
-                return false;
+                return "الملف فارغ (0 بايت): " + filePath;
             }
 
             final int chunkSize = pickChunkSize();
@@ -604,13 +607,13 @@ public class ChunkedUploadWorker extends Worker {
             try (InputStream fileStream = openStream(uri)) {
                 if (fileStream == null) {
                     Log.e(TAG, "تعذّر فتح مجرى القراءة: " + uri);
-                    return false;
+                    return "تعذّر فتح الملف: " + uri;
                 }
 
                 byte[] buffer = new byte[chunkSize];
 
                 for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-                    if (isStopped()) return false;
+                    if (isStopped()) return null;
 
                     // استسلام طوعي قبل سقف WorkManager: الأجزاء المُرسَلة محفوظة
                     // على الخادم، فالجولة التالية تستأنف من هنا تماماً.
@@ -618,7 +621,7 @@ public class ChunkedUploadWorker extends Worker {
                         Log.i(TAG, "ميزانية الجولة انتهت عند الجزء " + chunkIndex
                             + "/" + totalChunks + " — سيُستأنف لاحقاً");
                         yieldedOnBudget = true;
-                        return false;
+                        return null;
                     }
 
                     // ⚠️ readFully لا readOnce: القراءة القصيرة كانت تُزيح حدود
@@ -646,7 +649,7 @@ public class ChunkedUploadWorker extends Worker {
 
                     if (!chunkSuccess) {
                         Log.e(TAG, "فشل الجزء " + chunkIndex + " بعد كل المحاولات");
-                        return false;
+                        return "فشل رفع الجزء " + (chunkIndex + 1) + "/" + totalChunks;
                     }
 
                     // نبضة حياة: تمنع المُحرِّر من اعتبار الملف عالقاً أثناء
@@ -655,11 +658,11 @@ public class ChunkedUploadWorker extends Worker {
                 }
             }
 
-            return true;
+            return null;
 
         } catch (Exception e) {
             Log.e(TAG, "فشل الرفع المُجزَّأ للعنصر " + item.id, e);
-            return false;
+            return "استثناء: " + e.getMessage();
         }
     }
 

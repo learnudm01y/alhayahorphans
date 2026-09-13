@@ -260,6 +260,7 @@
                                         </th>
                                         <th class="text-center">ID</th>
                                         <th>رقم الهوية</th>
+                                        <th>الاسم</th>
                                         <th>اسم الملف</th>
                                         <th>المسار</th>
                                         <th class="text-center">إجراء</th>
@@ -447,6 +448,7 @@
                                         <th class="text-center">الحجم</th>
                                         <th class="text-center">النوع</th>
                                         <th class="text-center">رقم الهوية</th>
+                                        <th>الاسم</th>
                                         <th class="text-center">رقم الملف</th>
                                         <th class="text-center">النوع (ID)</th>
                                         <th class="text-center">الإجراء</th>
@@ -718,6 +720,7 @@ $(document).ready(function() {
                     <div class="dup-group-header">
                         <div>
                             <strong class="text-primary">الهوية: ${group.person_identity_number}</strong>
+                            ${group.full_name ? '<span class="text-muted ms-2">— ' + group.full_name + '</span>' : ''}
                             <span class="badge bg-secondary ms-2">النوع: ${group.file_type}</span>
                             <span class="badge bg-warning ms-1">${group.count} سجلات</span>
                         </div>
@@ -978,6 +981,7 @@ $(document).ready(function() {
                         <td class="text-center"><input type="checkbox" class="form-check-input dup-path-checkbox" data-id="${r.id}" ${isOldest ? 'disabled checked title="السجل الأقدم - يُحتفظ به"' : ''}></td>
                         <td class="text-center">${r.id}</td>
                         <td>${r.person_identity_number || '-'}</td>
+                        <td>${r.full_name || '-'}</td>
                         <td>${r.stored_file_name || '-'}</td>
                         <td class="text-center">${r.file_type || '-'}</td>
                         <td class="text-center">${formatSize(r.file_size)}</td>
@@ -1012,6 +1016,7 @@ $(document).ready(function() {
                                     <th class="text-center" style="width:40px"><input type="checkbox" class="form-check-input select-all-dup-path"></th>
                                     <th class="text-center">ID</th>
                                     <th>رقم الهوية</th>
+                                    <th>الاسم</th>
                                     <th>اسم الملف</th>
                                     <th class="text-center">النوع</th>
                                     <th class="text-center">الحجم</th>
@@ -1168,6 +1173,7 @@ $(document).ready(function() {
                     <td class="text-center"><input type="checkbox" class="form-check-input broken-checkbox" data-id="${item.id}"></td>
                     <td class="text-center">${item.id}</td>
                     <td>${item.person_identity_number || '-'}</td>
+                    <td>${item.full_name || '-'}</td>
                     <td>${item.stored_file_name || '-'}</td>
                     <td><code class="text-danger" style="font-size:0.75rem;word-break:break-all;">${item.file_path}</code></td>
                     <td class="text-center">
@@ -1477,6 +1483,7 @@ $(document).ready(function() {
                     <td class="text-center">${formatSize(item.file_size)}</td>
                     <td class="text-center"><span class="badge bg-secondary">${ext.toUpperCase()}</span></td>
                     <td class="text-center">${item.identity_number || '-'}</td>
+                    <td>${item.full_name || '-'}</td>
                     <td class="text-center">${item.file_id_number || '-'}</td>
                     <td class="text-center">${item.doc_type_id || '-'}</td>
                     <td class="text-center">

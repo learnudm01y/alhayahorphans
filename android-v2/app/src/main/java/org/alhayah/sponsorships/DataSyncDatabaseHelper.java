@@ -248,8 +248,8 @@ public class DataSyncDatabaseHelper extends SQLiteOpenHelper {
         
         Cursor cursor = db.rawQuery(
             "SELECT " + COL_DATA_JSON + " FROM " + TABLE_SYNC_QUEUE +
-            " WHERE " + COL_STATUS + " = ? OR " + COL_STATUS + " = ?",
-            new String[]{STATUS_PENDING, STATUS_FAILED}
+            " WHERE " + COL_STATUS + " = ? OR " + COL_STATUS + " = ? OR " + COL_STATUS + " = ?",
+            new String[]{STATUS_PENDING, STATUS_FAILED, STATUS_UPLOADING}
         );
 
         while (cursor.moveToNext()) {

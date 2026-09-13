@@ -2,9 +2,11 @@ package com.aso.app;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.hardware.Camera;
@@ -27,30 +29,35 @@ import com.google.mlkit.vision.barcode.BarcodeScanning;
 import com.google.mlkit.vision.barcode.common.Barcode;
 import com.google.mlkit.vision.common.InputImage;
 
-import java.util.List;
-
 public class BarcodeScannerActivity extends Activity implements SurfaceHolder.Callback {
 
     private static final String TAG = "BarcodeScanner";
     private static final int PERMISSION_REQUEST = 100;
     private static final long AUTO_FINISH_DELAY_MS = 5000;
-    private static final long SCAN_COOLDOWN_MS = 1500;
+    private static final long CONTINUOUS_COOLDOWN_MS = 800;
 
     private Camera camera;
     private SurfaceView surfaceView;
     private BarcodeScanner mlScanner;
     private volatile boolean processing = false;
-    private volatile boolean found = false;
+    private boolean continuousMode = false;
 
-    private TextView resultOverlay;
+    private boolean found = false;
     private String lastResult = null;
     private final Handler autoFinishHandler = new Handler(Looper.getMainLooper());
+
+    private TextView resultOverlay;
+    private TextView statusText;
     private long scanCooldownUntil = 0;
+    private int scanCount = 0;
+
+    private BroadcastReceiver stopReceiver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Log.e(TAG, "onCreate");
+        continuousMode = getIntent().getBooleanExtra("continuous", false);
+        Log.e(TAG, "onCreate continuousMode=" + continuousMode);
 
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
@@ -65,15 +72,15 @@ public class BarcodeScannerActivity extends Activity implements SurfaceHolder.Ca
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
 
-        TextView statusText = new TextView(this);
+        statusText = new TextView(this);
         statusText.setText("جاري البحث عن باركود...");
         statusText.setTextColor(0xFFFFFFFF);
         statusText.setTextSize(18);
-        statusText.setGravity(android.view.Gravity.CENTER);
+        statusText.setGravity(Gravity.CENTER);
         FrameLayout.LayoutParams textParams = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT);
-        textParams.gravity = android.view.Gravity.BOTTOM;
+        textParams.gravity = Gravity.BOTTOM;
         textParams.bottomMargin = 100;
         root.addView(statusText, textParams);
 
@@ -81,11 +88,10 @@ public class BarcodeScannerActivity extends Activity implements SurfaceHolder.Ca
         scanLine.setBackgroundColor(0xFF2A8B8B);
         FrameLayout.LayoutParams lineParams = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, 4);
-        lineParams.gravity = android.view.Gravity.CENTER;
+        lineParams.gravity = Gravity.CENTER;
         scanLine.setLayoutParams(lineParams);
         root.addView(scanLine);
 
-        // Overlay لعرض بيانات الباركود المقروءة فوق الكاميرا
         resultOverlay = new TextView(this);
         resultOverlay.setTextColor(0xFFFFFFFF);
         resultOverlay.setTextSize(22);
@@ -122,6 +128,26 @@ public class BarcodeScannerActivity extends Activity implements SurfaceHolder.Ca
         if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.CAMERA}, PERMISSION_REQUEST);
         }
+
+        if (continuousMode) {
+            stopReceiver = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context context, Intent intent) {
+                    Log.e(TAG, "Stop broadcast received");
+                    finish();
+                }
+            };
+            registerReceiver(stopReceiver, new IntentFilter("com.aso.app.STOP_SCAN"), Context.RECEIVER_NOT_EXPORTED);
+        }
+    }
+
+    @Override
+    public void onBackPressed() {
+        Log.e(TAG, "onBackPressed continuousMode=" + continuousMode);
+        if (continuousMode) {
+            BarcodeScannerPlugin.onScanStopped();
+        }
+        finish();
     }
 
     @Override
@@ -152,10 +178,9 @@ public class BarcodeScannerActivity extends Activity implements SurfaceHolder.Ca
     }
 
     private void openCamera() {
-        Log.e(TAG, "openCamera()");
+        Log.e(TAG, "openCamera() continuousMode=" + continuousMode);
         try {
             camera = Camera.open(Camera.CameraInfo.CAMERA_FACING_BACK);
-            Log.e(TAG, "Camera opened OK, size=" + camera.getParameters().getPreviewSize().width + "x" + camera.getParameters().getPreviewSize().height);
             camera.setPreviewDisplay(surfaceView.getHolder());
             camera.setDisplayOrientation(90);
 
@@ -164,10 +189,11 @@ public class BarcodeScannerActivity extends Activity implements SurfaceHolder.Ca
             camera.setParameters(params);
 
             camera.setPreviewCallback((data, cam) -> {
-                if (processing || found) return;
-                if (System.currentTimeMillis() < scanCooldownUntil) {
-                    return;
-                }
+                if (processing) return;
+                if (System.currentTimeMillis() < scanCooldownUntil) return;
+
+                if (!continuousMode && found) return;
+
                 processing = true;
 
                 try {
@@ -183,7 +209,7 @@ public class BarcodeScannerActivity extends Activity implements SurfaceHolder.Ca
 
                     mlScanner.process(image)
                             .addOnSuccessListener(barcodes -> {
-                                if (!found && !barcodes.isEmpty()) {
+                                if (!barcodes.isEmpty()) {
                                     String code = null;
                                     for (Barcode b : barcodes) {
                                         code = b.getRawValue();
@@ -191,33 +217,50 @@ public class BarcodeScannerActivity extends Activity implements SurfaceHolder.Ca
                                         if (code != null) break;
                                     }
                                     if (code != null) {
-                                        Log.e(TAG, "BARCODE FOUND: " + code);
-                                        found = true;
+                                        Log.e(TAG, "BARCODE FOUND: " + code + " continuousMode=" + continuousMode);
                                         final String barcodeCode = code;
-                                        lastResult = code;
-                                        scanCooldownUntil = System.currentTimeMillis() + SCAN_COOLDOWN_MS;
 
-                                        // عرض بيانات الباركود فوق الكاميرا
-                                        runOnUiThread(() -> {
-                                            resultOverlay.setText("✅ " + barcodeCode);
-                                            resultOverlay.setVisibility(View.VISIBLE);
-                                        });
+                                        if (continuousMode) {
+                                            scanCooldownUntil = System.currentTimeMillis() + CONTINUOUS_COOLDOWN_MS;
+                                            scanCount++;
 
-                                        // إعادة بدء مؤقت الإغلاق التلقائي
-                                        autoFinishHandler.removeCallbacksAndMessages(null);
-                                        autoFinishHandler.postDelayed(() -> {
-                                            if (lastResult != null) {
-                                                Intent resultIntent = new Intent();
-                                                resultIntent.putExtra("barcode", lastResult);
-                                                setResult(RESULT_OK, resultIntent);
-                                                finish();
-                                            }
-                                        }, AUTO_FINISH_DELAY_MS);
+                                            BarcodeScannerPlugin.onBarcodeScanned(barcodeCode);
 
-                                        // السماح بالمسح بعد تهدئة قصيرة
-                                        autoFinishHandler.postDelayed(() -> {
-                                            found = false;
-                                        }, SCAN_COOLDOWN_MS);
+                                            runOnUiThread(() -> {
+                                                resultOverlay.setText("✅ " + barcodeCode + " (#" + scanCount + ")");
+                                                resultOverlay.setVisibility(View.VISIBLE);
+                                                autoFinishHandler.removeCallbacksAndMessages(null);
+                                                autoFinishHandler.postDelayed(() -> {
+                                                    resultOverlay.setVisibility(View.GONE);
+                                                }, 2000);
+                                                statusText.setText("تم قراءة " + scanCount + " باركود — جاري البحث...");
+                                            });
+
+                                            processing = false;
+                                        } else {
+                                            found = true;
+                                            lastResult = code;
+                                            scanCooldownUntil = System.currentTimeMillis() + 3000;
+
+                                            runOnUiThread(() -> {
+                                                resultOverlay.setText("✅ " + barcodeCode);
+                                                resultOverlay.setVisibility(View.VISIBLE);
+                                            });
+
+                                            autoFinishHandler.removeCallbacksAndMessages(null);
+                                            autoFinishHandler.postDelayed(() -> {
+                                                if (lastResult != null) {
+                                                    Intent resultIntent = new Intent();
+                                                    resultIntent.putExtra("barcode", lastResult);
+                                                    setResult(RESULT_OK, resultIntent);
+                                                    finish();
+                                                }
+                                            }, AUTO_FINISH_DELAY_MS);
+
+                                            autoFinishHandler.postDelayed(() -> {
+                                                found = false;
+                                            }, 3000);
+                                        }
                                     } else {
                                         processing = false;
                                     }
@@ -260,12 +303,16 @@ public class BarcodeScannerActivity extends Activity implements SurfaceHolder.Ca
 
     @Override
     protected void onDestroy() {
-        Log.e(TAG, "onDestroy");
+        Log.e(TAG, "onDestroy continuousMode=" + continuousMode);
         autoFinishHandler.removeCallbacksAndMessages(null);
         releaseCamera();
         if (mlScanner != null) {
             try { mlScanner.close(); } catch (Exception e) {}
             mlScanner = null;
+        }
+        if (stopReceiver != null) {
+            try { unregisterReceiver(stopReceiver); } catch (Exception e) {}
+            stopReceiver = null;
         }
         super.onDestroy();
     }

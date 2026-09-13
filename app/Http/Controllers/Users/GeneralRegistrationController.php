@@ -769,13 +769,8 @@ class GeneralRegistrationController extends Controller
                         }
                     }
 
-                    // اسم الملف: نوع الوثيقة _ رقم الملف الخاص بالشخص _ رقم هوية الشخص
-                    // إضافة رقم تسلسلي لتجنب الكتابة فوق الملفات القديمة
-                    $existingCount = Attachment::where('person_identity_number', $realPersonId)
-                        ->where('file_type', $fileType)
-                        ->count();
-                    $serial = $existingCount > 0 ? '_' . ($existingCount + 1) : '';
-                    $newFileName = "{$fileType}_{$fileIdNumberAttach}_{$realPersonId}{$serial}.{$extension}";
+                    // اسم الملف: نوع الوثيقة _ رقم الملف الخاص بالشخص _ رقم هوية الشخص _ تاريخ ووقت اليوم
+                    $newFileName = "{$fileType}_{$fileIdNumberAttach}_{$realPersonId}_" . date('Ymd_His') . ".{$extension}";
                     $folder = 'uploads/' . $fileIdNumberAttach;
                     if ($folder === 'public' || $folder === 'public/') {
                         throw new \Exception('خطأ في مسار التخزين: يجب تحديد مجلد فرعي داخل uploads');

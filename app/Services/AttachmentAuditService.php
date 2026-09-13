@@ -11,6 +11,61 @@ use Illuminate\Support\Facades\Cache;
 class AttachmentAuditService
 {
     /**
+     * جلب أسماء الأشخاص من جداول الموقع (بدون السجل المدني)
+     */
+    private function lookupNamesByIdentities(array $identities): array
+    {
+        if (empty($identities)) return [];
+
+        $cleanIds = array_filter(array_map('trim', $identities), fn($id) => $id !== '');
+        if (empty($cleanIds)) return [];
+
+        $names = [];
+
+        $breadwinners = DB::table('data')
+            ->whereIn('data_id_number', $cleanIds)
+            ->select('data_id_number', DB::raw("CONCAT(data_first_name, ' ', data_father_name, ' ', data_grand_father_name, ' ', data_family_name) as full_name"))
+            ->get();
+        foreach ($breadwinners as $b) {
+            $names[(string) $b->data_id_number] = trim($b->full_name);
+        }
+
+        $familyMembers = DB::table('re_people')
+            ->whereIn('person_id', $cleanIds)
+            ->select('person_id', DB::raw("CONCAT(first_name, ' ', second_name, ' ', third_name, ' ', last_name) as full_name"))
+            ->get();
+        foreach ($familyMembers as $f) {
+            $names[(string) $f->person_id] = trim($f->full_name);
+        }
+
+        $deceasedFathers = DB::table('dead_people')
+            ->whereIn('father_id', $cleanIds)
+            ->select('father_id', DB::raw("CONCAT(father_first_name, ' ', father_second_name, ' ', father_third_name, ' ', father_last_name) as full_name"))
+            ->get();
+        foreach ($deceasedFathers as $df) {
+            $names[(string) $df->father_id] = trim($df->full_name);
+        }
+
+        $deceasedMothers = DB::table('dead_people')
+            ->whereIn('mother_id', $cleanIds)
+            ->select('mother_id', DB::raw("CONCAT(mother_first_name, ' ', mother_second_name, ' ', mother_third_name, ' ', mother_last_name) as full_name"))
+            ->get();
+        foreach ($deceasedMothers as $dm) {
+            $names[(string) $dm->mother_id] = trim($dm->full_name);
+        }
+
+        $additionalDeceased = DB::table('additional_deceased')
+            ->whereIn('person_id', $cleanIds)
+            ->select('person_id', DB::raw("CONCAT(first_name, ' ', second_name, ' ', third_name, ' ', last_name) as full_name"))
+            ->get();
+        foreach ($additionalDeceased as $ad) {
+            $names[(string) $ad->person_id] = trim($ad->full_name);
+        }
+
+        return $names;
+    }
+
+    /**
      * فحص المكررات حسب رقم الهوية + نوع الوثيقة
      */
     public function findDuplicates(): array
@@ -56,6 +111,14 @@ class AttachmentAuditService
 
         $totalDuplicates = collect($results)->sum('count');
         $totalToDelete = $totalDuplicates - count($results);
+
+        // جلب الأسماء
+        $allIds = array_column($results, 'person_identity_number');
+        $names = $this->lookupNamesByIdentities($allIds);
+        foreach ($results as &$item) {
+            $item['full_name'] = $names[$item['person_identity_number']] ?? null;
+        }
+        unset($item);
 
         return [
             'total_groups' => count($results),
@@ -130,6 +193,24 @@ class AttachmentAuditService
                 'records' => $recordsByPath[$dup->normalized_path] ?? [],
             ];
         }
+
+        // جلب الأسماء
+        $allIds = [];
+        foreach ($results as $group) {
+            foreach ($group['records'] as $r) {
+                if (!empty($r['person_identity_number'])) {
+                    $allIds[] = $r['person_identity_number'];
+                }
+            }
+        }
+        $names = $this->lookupNamesByIdentities(array_unique($allIds));
+        foreach ($results as &$group) {
+            foreach ($group['records'] as &$r) {
+                $r['full_name'] = $names[$r['person_identity_number']] ?? null;
+            }
+            unset($r);
+        }
+        unset($group);
 
         $totalDuplicates = collect($results)->sum('count');
         $totalToDelete = $totalDuplicates - count($results);
@@ -300,6 +381,14 @@ class AttachmentAuditService
                 ];
             }
         }
+
+        // جلب الأسماء
+        $allBrokenIds = array_column($broken, 'person_identity_number');
+        $names = $this->lookupNamesByIdentities(array_filter($allBrokenIds));
+        foreach ($broken as &$item) {
+            $item['full_name'] = $names[$item['person_identity_number']] ?? null;
+        }
+        unset($item);
 
         return [
             'total' => $total,
@@ -596,6 +685,14 @@ class AttachmentAuditService
         $totalPages = (int) ceil($total / $perPage);
         $offset = ($page - 1) * $perPage;
         $pageFiles = array_slice($allOrphans, $offset, $perPage);
+
+        // جلب الأسماء
+        $allIds = array_column($pageFiles, 'identity_number');
+        $names = $this->lookupNamesByIdentities(array_filter($allIds));
+        foreach ($pageFiles as &$file) {
+            $file['full_name'] = $names[$file['identity_number']] ?? null;
+        }
+        unset($file);
 
         return [
             'orphan_files' => $pageFiles,

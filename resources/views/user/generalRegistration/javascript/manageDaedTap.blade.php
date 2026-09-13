@@ -180,6 +180,7 @@
                         // نسخ البيانات إذا كانت موجودة والحقول فارغة
                         if (livingMotherId && deceasedMotherId && !deceasedMotherId.value) {
                             deceasedMotherId.value = livingMotherId.value;
+                            deceasedMotherId.dispatchEvent(new Event('input', { bubbles: true }));
                         }
                         if (livingMotherFirstName && deceasedMotherFirstName && !deceasedMotherFirstName.value) {
                             deceasedMotherFirstName.value = livingMotherFirstName.value;

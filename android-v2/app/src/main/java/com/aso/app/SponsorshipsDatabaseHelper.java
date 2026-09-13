@@ -478,6 +478,7 @@ public class SponsorshipsDatabaseHelper extends SQLiteOpenHelper {
             long maxTimestamp = cursor.getLong(0);
             if (maxTimestamp > 0) {
                 java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US);
+                sdf.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
                 maxDate = sdf.format(new java.util.Date(maxTimestamp));
             }
         }
@@ -493,38 +494,41 @@ public class SponsorshipsDatabaseHelper extends SQLiteOpenHelper {
         
         SQLiteDatabase db = this.getWritableDatabase();
         try {
+            // Build set of valid IDs
+            java.util.Set<Integer> validIdSet = new java.util.HashSet<>();
+            for (int i = 0; i < validIds.length(); i++) {
+                validIdSet.add(validIds.getInt(i));
+            }
+            
             // Get all current local IDs
             Cursor c = db.rawQuery("SELECT " + COLUMN_ID + " FROM " + TABLE_SPONSORSHIPS, null);
-            java.util.Set<Integer> localIds = new java.util.HashSet<>();
+            java.util.List<Integer> idsToDelete = new java.util.ArrayList<>();
             if (c.moveToFirst()) {
                 do {
-                    localIds.add(c.getInt(0));
+                    int localId = c.getInt(0);
+                    if (!validIdSet.contains(localId)) {
+                        idsToDelete.add(localId);
+                    }
                 } while (c.moveToNext());
             }
             c.close();
             
-            // Remove valid IDs from our localIds set
-            for (int i = 0; i < validIds.length(); i++) {
-                localIds.remove(validIds.getInt(i));
-            }
-            
-            // Delete the remaining ones (these were deleted on the server)
-            if (!localIds.isEmpty()) {
-                db.beginTransaction();
-                try {
-                    for (int idToDelete : localIds) {
-                        db.delete(TABLE_SPONSORSHIPS, COLUMN_ID + " = ?", new String[]{String.valueOf(idToDelete)});
-                    }
-                    db.setTransactionSuccessful();
-                    Log.d(TAG, "✅ Pruned " + localIds.size() + " deleted sponsorships from local database.");
-                } finally {
-                    db.endTransaction();
+            // Batch delete using single SQL statement
+            if (!idsToDelete.isEmpty()) {
+                StringBuilder placeholders = new StringBuilder();
+                for (int i = 0; i < idsToDelete.size(); i++) {
+                    if (i > 0) placeholders.append(",");
+                    placeholders.append("?");
                 }
+                String[] idStrs = new String[idsToDelete.size()];
+                for (int i = 0; i < idsToDelete.size(); i++) idStrs[i] = String.valueOf(idsToDelete.get(i));
+                db.delete(TABLE_SPONSORSHIPS, COLUMN_ID + " IN (" + placeholders + ")", idStrs);
+                Log.d(TAG, "Pruned " + idsToDelete.size() + " deleted sponsorships from local database.");
             } else {
-                Log.d(TAG, "✅ No deleted sponsorships found to prune.");
+                Log.d(TAG, "No deleted sponsorships found to prune.");
             }
         } catch (Exception e) {
-            Log.e(TAG, "❌ Error pruning deleted sponsorships", e);
+            Log.e(TAG, "Error pruning deleted sponsorships", e);
         }
     }
 }

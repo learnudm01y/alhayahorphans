@@ -557,4 +557,39 @@ public class UploadServicePlugin extends Plugin {
             call.reject("Exception resolving URI: " + e.getMessage());
         }
     }
+
+    /**
+     * جلب جميع الملفات في استدعاء واحد (أسرب من 8 استدعاءات منفصلة)
+     */
+    @PluginMethod
+    public void getAllFiles(PluginCall call) {
+        try {
+            UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(getContext());
+            List<UploadDatabaseHelper.UploadItem> allFiles = dbHelper.getAllFilesForDisplay();
+            com.getcapacitor.JSArray filesArray = new com.getcapacitor.JSArray();
+            if (allFiles != null) {
+                for (UploadDatabaseHelper.UploadItem item : allFiles) {
+                    JSObject obj = new JSObject();
+                    obj.put("id", item.id);
+                    obj.put("filePath", item.filePath);
+                    obj.put("fileName", item.fileName);
+                    obj.put("fileType", item.fileType);
+                    obj.put("status", item.status);
+                    obj.put("personName", item.personName);
+                    obj.put("associationName", item.associationName);
+                    obj.put("retryCount", item.retryCount);
+                    obj.put("errorMessage", item.errorMessage);
+                    obj.put("compressionRatio", item.compressionRatio);
+                    obj.put("compressionType", item.compressionType);
+                    filesArray.put(obj);
+                }
+            }
+            JSObject result = new JSObject();
+            result.put("files", filesArray);
+            call.resolve(result);
+        } catch (Exception e) {
+            Log.e(TAG, "خطأ في getAllFiles", e);
+            call.reject("خطأ في جلب الملفات: " + e.getMessage());
+        }
+    }
 }

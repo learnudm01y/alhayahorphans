@@ -39,11 +39,12 @@ public class DownloadForegroundService extends Service {
     private static final String CHANNEL_NAME = "مزامنة الكفالات من السيرفر";
 
     private PowerManager.WakeLock wakeLock;
-    private volatile boolean isRunning = false;
     private static volatile boolean sIsDownloading = false;
+    private volatile boolean isRunning = false;
     private Thread syncThread;
     private NotificationManager notificationManager;
     private NotificationCompat.Builder notificationBuilder;
+    private volatile ExecutorService activeExecutor;
 
     public static boolean isDownloading() {
         return sIsDownloading;
@@ -147,25 +148,42 @@ public class DownloadForegroundService extends Service {
         sendBroadcast(intent);
     }
 
+    private String fetchUrl(String urlStr, String token) throws Exception {
+        HttpURLConnection conn = null;
+        BufferedReader reader = null;
+        try {
+            URL url = new URL(urlStr);
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Authorization", "Bearer " + token);
+            conn.setRequestProperty("Accept", "application/json");
+            conn.setConnectTimeout(60000);
+            conn.setReadTimeout(60000);
+            int code = conn.getResponseCode();
+            if (code == 401) throw new SecurityException("Unauthorized");
+            if (code != 200) throw new Exception("HTTP " + code);
+            reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) sb.append(line);
+            return sb.toString();
+        } finally {
+            if (reader != null) try { reader.close(); } catch (Exception ignored) {}
+            if (conn != null) conn.disconnect();
+        }
+    }
+
     private void performDownload(int workersParam) {
         Log.i(TAG, "Starting real sponsorship sync with " + workersParam + " workers");
         int workers = Math.min(Math.max(workersParam, 1), 6);
         try {
             SharedPreferences prefs = getApplicationContext().getSharedPreferences("auth_prefs", Context.MODE_PRIVATE);
             String token = prefs.getString("api_token", "");
-            if (token.isEmpty()) {
-                stopSelf();
-                return;
-            }
+            if (token.isEmpty()) { stopSelf(); return; }
 
             String baseUrl = ApiConfig.getBaseUrl(getApplicationContext());
-            if (baseUrl == null || baseUrl.isEmpty()) {
-                stopSelf();
-                return;
-            }
-            if (baseUrl.endsWith("/")) {
-                baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
-            }
+            if (baseUrl == null || baseUrl.isEmpty()) { stopSelf(); return; }
+            if (baseUrl.endsWith("/")) baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
 
             String initialUrlStr = baseUrl.endsWith("/api") ? baseUrl + "/mobile/sync/initial" : baseUrl + "/api/mobile/sync/initial";
             String urlStr = baseUrl.endsWith("/api") ? baseUrl + "/mobile/sync/sponsorships" : baseUrl + "/api/mobile/sync/sponsorships";
@@ -177,44 +195,28 @@ public class DownloadForegroundService extends Service {
             broadcastProgress(5, "Fetching base data...", 0);
             updateNotification("Fetching base data...", 5, 100);
 
+            // 1. Fetch lookups + pruning
             try {
-                URL initialUrl = new URL(initialUrlStr);
-                HttpURLConnection connInit = (HttpURLConnection) initialUrl.openConnection();
-                connInit.setRequestMethod("GET");
-                connInit.setRequestProperty("Authorization", "Bearer " + token);
-                connInit.setRequestProperty("Accept", "application/json");
-                connInit.setConnectTimeout(60000);
-                connInit.setReadTimeout(60000);
-
-                int initResponseCode = connInit.getResponseCode();
-                if (initResponseCode == 200) {
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(connInit.getInputStream()));
-                    StringBuilder response = new StringBuilder();
-                    String line;
-                    while ((line = reader.readLine()) != null) response.append(line);
-                    reader.close();
-
-                    Log.d(TAG, "Initial lookups sync response: " + response.toString().substring(0, Math.min(200, response.length())));
-
-                    JSONObject initJson = new JSONObject(response.toString());
-                    if (initJson.optBoolean("success", false)) {
-                        JSONObject data = initJson.optJSONObject("data");
-                        if (data != null) {
-                            if (data.has("sponsors")) dbHelper.saveLookup("sponsors", data.optJSONArray("sponsors") != null ? data.getJSONArray("sponsors").toString() : "[]");
-                            if (data.has("sponsorship_statuses")) dbHelper.saveLookup("sponsorship_statuses", data.optJSONArray("sponsorship_statuses") != null ? data.getJSONArray("sponsorship_statuses").toString() : "[]");
-                            if (data.has("bank_names")) dbHelper.saveLookup("bank_names", data.optJSONArray("bank_names") != null ? data.getJSONArray("bank_names").toString() : "[]");
-                            if (data.has("health_statuses")) dbHelper.saveLookup("health_statuses", data.optJSONArray("health_statuses") != null ? data.getJSONArray("health_statuses").toString() : "[]");
-                            if (data.has("cities")) dbHelper.saveLookup("cities", data.optJSONArray("cities") != null ? data.getJSONArray("cities").toString() : "[]");
-                            if (data.has("sponsorship_types")) dbHelper.saveLookup("sponsorship_types", data.optJSONArray("sponsorship_types") != null ? data.getJSONArray("sponsorship_types").toString() : "[]");
-                            if (data.has("valid_sponsorship_ids")) {
-                                dbHelper.syncValidSponsorships(data.optJSONArray("valid_sponsorship_ids"));
-                            }
-                            Log.d(TAG, "Lookups & Pruning completed.");
+                String initResp = fetchUrl(initialUrlStr, token);
+                JSONObject initJson = new JSONObject(initResp);
+                if (initJson.optBoolean("success", false)) {
+                    JSONObject data = initJson.optJSONObject("data");
+                    if (data != null) {
+                        if (data.has("sponsors")) dbHelper.saveLookup("sponsors", data.optJSONArray("sponsors") != null ? data.getJSONArray("sponsors").toString() : "[]");
+                        if (data.has("sponsorship_statuses")) dbHelper.saveLookup("sponsorship_statuses", data.optJSONArray("sponsorship_statuses") != null ? data.getJSONArray("sponsorship_statuses").toString() : "[]");
+                        if (data.has("bank_names")) dbHelper.saveLookup("bank_names", data.optJSONArray("bank_names") != null ? data.getJSONArray("bank_names").toString() : "[]");
+                        if (data.has("health_statuses")) dbHelper.saveLookup("health_statuses", data.optJSONArray("health_statuses") != null ? data.getJSONArray("health_statuses").toString() : "[]");
+                        if (data.has("cities")) dbHelper.saveLookup("cities", data.optJSONArray("cities") != null ? data.getJSONArray("cities").toString() : "[]");
+                        if (data.has("sponsorship_types")) dbHelper.saveLookup("sponsorship_types", data.optJSONArray("sponsorship_types") != null ? data.getJSONArray("sponsorship_types").toString() : "[]");
+                        if (data.has("valid_sponsorship_ids")) {
+                            dbHelper.syncValidSponsorships(data.optJSONArray("valid_sponsorship_ids"));
                         }
+                        Log.d(TAG, "Lookups & Pruning completed.");
                     }
-                } else {
-                    Log.e(TAG, "Initial lookups failed: " + initResponseCode);
                 }
+            } catch (SecurityException e) {
+                Log.e(TAG, "Unauthorized during initial lookups");
+                stopSelf(); return;
             } catch (Exception e) {
                 Log.e(TAG, "Exception during initial lookups", e);
             }
@@ -223,7 +225,7 @@ public class DownloadForegroundService extends Service {
             AtomicInteger totalSponsorshipsSynced = new AtomicInteger(0);
             AtomicInteger pagesCompleted = new AtomicInteger(0);
 
-            // Fetch first page synchronously to learn lastPage
+            // 2. Fetch first page synchronously to learn lastPage
             int lastPage = 1;
             boolean firstPageDone = false;
             int retryCount = 0;
@@ -231,50 +233,31 @@ public class DownloadForegroundService extends Service {
             while (!firstPageDone && retryCount < MAX_RETRIES && isRunning) {
                 try {
                     String currentUrlStr = urlStr + "?per_page=200&page=1";
-                    if (lastSyncDate != null) {
-                        currentUrlStr += "&last_sync=" + java.net.URLEncoder.encode(lastSyncDate, "UTF-8");
-                    }
-                    URL url = new URL(currentUrlStr);
-                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                    conn.setRequestMethod("GET");
-                    conn.setRequestProperty("Authorization", "Bearer " + token);
-                    conn.setRequestProperty("Accept", "application/json");
-                    conn.setConnectTimeout(60000);
-                    conn.setReadTimeout(60000);
-                    int responseCode = conn.getResponseCode();
-                    if (responseCode == 200) {
-                        BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                        StringBuilder response = new StringBuilder();
-                        String line;
-                        while ((line = reader.readLine()) != null) response.append(line);
-                        reader.close();
-                        JSONObject json = new JSONObject(response.toString());
-                        JSONObject pagination = json.optJSONObject("pagination");
-                        if (pagination != null) {
-                            lastPage = pagination.optInt("last_page", 1);
-                        } else {
-                            JSONObject meta = json.has("meta") ? json.optJSONObject("meta") : json;
-                            if (meta != null) lastPage = meta.optInt("last_page", 1);
-                        }
-                        JSONArray dataArray = json.optJSONArray("data");
-                        if (dataArray == null) dataArray = json.optJSONArray("sponsorships");
-                        if (dataArray != null && dataArray.length() > 0) {
-                            synchronized (com.aso.app.SponsorshipsDatabaseHelper.class) { dbHelper.saveBatchSponsorships(dataArray, pendingIds); }
-                            totalSponsorshipsSynced.addAndGet(dataArray.length());
-                        }
-                        pagesCompleted.incrementAndGet();
-                        int pct = lastPage > 0 ? (int)(((float)pagesCompleted.get() / lastPage)*100) : 100;
-                        broadcastProgress(pct, "Syncing... " + pct + "% [" + workers + " workers]", totalSponsorshipsSynced.get());
-                        updateNotification("Loading data (1/" + lastPage + ")...", pct, 100);
-                        firstPageDone = true;
-                    } else if (responseCode == 401) {
-                        Log.e(TAG, "Unauthorized");
-                        break;
+                    if (lastSyncDate != null) currentUrlStr += "&last_sync=" + java.net.URLEncoder.encode(lastSyncDate, "UTF-8");
+
+                    String resp = fetchUrl(currentUrlStr, token);
+                    JSONObject json = new JSONObject(resp);
+                    JSONObject pagination = json.optJSONObject("pagination");
+                    if (pagination != null) {
+                        lastPage = pagination.optInt("last_page", 1);
                     } else {
-                        retryCount++;
-                        if (retryCount >= MAX_RETRIES) break;
-                        Thread.sleep(3000);
+                        JSONObject meta = json.has("meta") ? json.optJSONObject("meta") : json;
+                        if (meta != null) lastPage = meta.optInt("last_page", 1);
                     }
+                    JSONArray dataArray = json.optJSONArray("data");
+                    if (dataArray == null) dataArray = json.optJSONArray("sponsorships");
+                    if (dataArray != null && dataArray.length() > 0) {
+                        synchronized (SponsorshipsDatabaseHelper.class) { dbHelper.saveBatchSponsorships(dataArray, pendingIds); }
+                        totalSponsorshipsSynced.addAndGet(dataArray.length());
+                    }
+                    pagesCompleted.incrementAndGet();
+                    int pct = lastPage > 0 ? (int)(((float)pagesCompleted.get() / lastPage)*100) : 100;
+                    broadcastProgress(pct, "Syncing... " + pct + "% [" + workers + " workers]", totalSponsorshipsSynced.get());
+                    updateNotification("Loading data (1/" + lastPage + ")...", pct, 100);
+                    firstPageDone = true;
+                } catch (SecurityException e) {
+                    Log.e(TAG, "Unauthorized on page 1");
+                    break;
                 } catch (Exception e) {
                     Log.e(TAG, "Exception on page 1", e);
                     retryCount++;
@@ -283,58 +266,49 @@ public class DownloadForegroundService extends Service {
                 }
             }
 
+            // 3. Fetch remaining pages in parallel
             if (!firstPageDone) {
                 Log.e(TAG, "Failed to fetch first page, aborting");
             } else if (lastPage > 1 && isRunning) {
                 final int finalLastPage = lastPage;
                 final int finalWorkers = workers;
                 int remaining = finalLastPage - 1;
-                ExecutorService executor = Executors.newFixedThreadPool(Math.min(finalWorkers, remaining));
+                activeExecutor = Executors.newFixedThreadPool(Math.min(finalWorkers, remaining));
                 CountDownLatch latch = new CountDownLatch(remaining);
                 final String fLastSync = lastSyncDate;
                 final String fUrlStr = urlStr;
                 final String fToken = token;
+
+                // Refresh pendingIds every 5 pages to protect concurrent local edits
                 for (int p = 2; p <= finalLastPage; p++) {
+                    if (!isRunning) break;
+                    if ((p - 2) % 5 == 0) {
+                        pendingIds = syncDbHelper.getPendingEntityIds();
+                    }
                     final int pageNum = p;
-                    executor.submit(() -> {
+                    final java.util.Set<Integer> pagePendingIds = new java.util.HashSet<>(pendingIds);
+                    activeExecutor.submit(() -> {
                         int rc = 0;
                         while (rc < MAX_RETRIES && isRunning) {
                             try {
                                 String curUrl = fUrlStr + "?per_page=200&page=" + pageNum;
                                 if (fLastSync != null) curUrl += "&last_sync=" + java.net.URLEncoder.encode(fLastSync, "UTF-8");
-                                URL url = new URL(curUrl);
-                                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                                conn.setRequestMethod("GET");
-                                conn.setRequestProperty("Authorization", "Bearer " + fToken);
-                                conn.setRequestProperty("Accept", "application/json");
-                                conn.setConnectTimeout(60000);
-                                conn.setReadTimeout(60000);
-                                int code = conn.getResponseCode();
-                                if (code == 200) {
-                                    BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                                    StringBuilder resp = new StringBuilder();
-                                    String line;
-                                    while ((line = reader.readLine()) != null) resp.append(line);
-                                    reader.close();
-                                    JSONObject json = new JSONObject(resp.toString());
-                                    JSONArray dataArray = json.optJSONArray("data");
-                                    if (dataArray == null) dataArray = json.optJSONArray("sponsorships");
-                                    if (dataArray != null && dataArray.length() > 0) {
-                                        synchronized (com.aso.app.SponsorshipsDatabaseHelper.class) { dbHelper.saveBatchSponsorships(dataArray, pendingIds); }
-                                        totalSponsorshipsSynced.addAndGet(dataArray.length());
-                                    }
-                                    int done = pagesCompleted.incrementAndGet();
-                                    int pct = (int)(((float)done / finalLastPage)*100);
-                                    broadcastProgress(pct, "Syncing... " + pct + "% [" + finalWorkers + " workers]", totalSponsorshipsSynced.get());
-                                    updateNotification("Loading data (" + done + "/" + finalLastPage + ")...", pct, 100);
-                                    break;
-                                } else if (code == 401) {
-                                    break;
-                                } else {
-                                    rc++;
-                                    if (rc >= MAX_RETRIES) break;
-                                    Thread.sleep(3000);
+                                String resp = fetchUrl(curUrl, fToken);
+                                JSONObject json = new JSONObject(resp);
+                                JSONArray dataArray = json.optJSONArray("data");
+                                if (dataArray == null) dataArray = json.optJSONArray("sponsorships");
+                                if (dataArray != null && dataArray.length() > 0) {
+                                    synchronized (SponsorshipsDatabaseHelper.class) { dbHelper.saveBatchSponsorships(dataArray, pagePendingIds); }
+                                    totalSponsorshipsSynced.addAndGet(dataArray.length());
                                 }
+                                int done = pagesCompleted.incrementAndGet();
+                                int pct = (int)(((float)done / finalLastPage)*100);
+                                broadcastProgress(pct, "Syncing... " + pct + "% [" + finalWorkers + " workers]", totalSponsorshipsSynced.get());
+                                updateNotification("Loading data (" + done + "/" + finalLastPage + ")...", pct, 100);
+                                break;
+                            } catch (SecurityException e) {
+                                Log.e(TAG, "Unauthorized on page " + pageNum);
+                                break;
                             } catch (Exception e) {
                                 Log.e(TAG, "Exception on page " + pageNum, e);
                                 rc++;
@@ -345,11 +319,13 @@ public class DownloadForegroundService extends Service {
                         latch.countDown();
                     });
                 }
-                latch.await();
-                executor.shutdown();
+                boolean completed = latch.await(30, java.util.concurrent.TimeUnit.MINUTES);
+                if (!completed) Log.w(TAG, "Parallel sync timed out after 30 minutes");
+                activeExecutor.shutdownNow();
+                activeExecutor = null;
             }
 
-            // تحميل الجداول المرتبطة
+            // 4. Download related tables
             if (isRunning) {
                 downloadRelatedTables(dbHelper, token, baseUrl);
             }
@@ -362,7 +338,6 @@ public class DownloadForegroundService extends Service {
             sendBroadcast(intent);
 
             updateNotification("Sync completed", 100, 100);
-            Thread.sleep(2000);
         } catch (Exception e) {
             Log.e(TAG, "Sync failed", e);
         } finally {
@@ -411,84 +386,60 @@ public class DownloadForegroundService extends Service {
                 boolean pageDone = false;
 
                 while (retries < maxRetries && !pageDone && isRunning) {
-                    HttpURLConnection conn = null;
                     try {
                         String urlStr = baseUrl + "/api/mobile/sync/" + endpoint + "?per_page=" + perPage + "&page=" + page;
                         if (lastSync != null) {
                             urlStr += "&last_sync=" + java.net.URLEncoder.encode(lastSync, "UTF-8");
                         }
-                        URL url = new URL(urlStr);
-                        conn = (HttpURLConnection) url.openConnection();
-                        conn.setRequestMethod("GET");
-                        conn.setRequestProperty("Authorization", "Bearer " + token);
-                        conn.setRequestProperty("Accept", "application/json");
-                        conn.setConnectTimeout(60000);
-                        conn.setReadTimeout(60000);
+                        String resp = fetchUrl(urlStr, token);
+                        JSONObject json = new JSONObject(resp);
+                        JSONArray data = json.optJSONArray("data");
+                        JSONObject pagination = json.optJSONObject("pagination");
 
-                        int code = conn.getResponseCode();
-                        if (code == 200) {
-                            BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                            StringBuilder resp = new StringBuilder();
-                            String line;
-                            while ((line = reader.readLine()) != null) resp.append(line);
-                            reader.close();
+                        if (pagination != null) {
+                            lastPage = pagination.optInt("last_page", 1);
+                            int serverTotal = pagination.optInt("total", 0);
 
-                            JSONObject json = new JSONObject(resp.toString());
-                            JSONArray data = json.optJSONArray("data");
-                            JSONObject pagination = json.optJSONObject("pagination");
+                            if (page == 1 && serverTotal == 0 && lastSync != null) {
+                                Log.d(TAG, tableName + " no new records — skipping");
+                                page = lastPage + 1;
+                                pageDone = true;
+                                break;
+                            }
 
-                            if (pagination != null) {
-                                lastPage = pagination.optInt("last_page", 1);
-                                int serverTotal = pagination.optInt("total", 0);
-
-                                if (page == 1 && serverTotal == 0 && lastSync != null) {
-                                    Log.d(TAG, tableName + " no new records — skipping");
+                            if (page == 1 && serverTotal > 0 && lastSync == null) {
+                                int localCount = relatedDb.getCount(tableName);
+                                if (localCount >= serverTotal) {
+                                    Log.d(TAG, tableName + " complete (" + localCount + "/" + serverTotal + ") — skipping");
+                                    prefs.edit().putString("last_sync_" + tableName, iso.format(new java.util.Date())).apply();
                                     page = lastPage + 1;
                                     pageDone = true;
                                     break;
                                 }
-
-                                if (page == 1 && serverTotal > 0 && lastSync == null) {
-                                    int localCount = relatedDb.getCount(tableName);
-                                    if (localCount >= serverTotal) {
-                                        Log.d(TAG, tableName + " complete (" + localCount + "/" + serverTotal + ") — skipping");
-                                        prefs.edit().putString("last_sync_" + tableName, iso.format(new java.util.Date())).apply();
-                                        page = lastPage + 1;
-                                        pageDone = true;
-                                        break;
-                                    }
-                                }
                             }
-
-                            if (data != null && data.length() > 0) {
-                                relatedDb.saveBatch(tableName, data);
-                                totalSynced += data.length();
-                            }
-
-                            int pct = lastPage > 0 ? (int)(((float)page / lastPage) * 100) : 100;
-                            broadcastProgress(pct, "Loading " + tableName + " (" + totalSynced + ")", totalSynced);
-                            updateNotification(tableName + " (" + page + "/" + lastPage + ")", pct, 100);
-
-                            pageDone = true;
-                            page++;
-                        } else if (code == 401) {
-                            Log.w(TAG, "401 on " + tableName + " page " + page + " — stopping");
-                            pageDone = true;
-                            page = lastPage + 1;
-                        } else {
-                            retries++;
-                            Log.w(TAG, "HTTP " + code + " on " + tableName + " page " + page + " (retry " + retries + "/" + maxRetries + ")");
-                            if (retries < maxRetries) Thread.sleep(3000);
-                            else { page++; pageDone = true; }
                         }
+
+                        if (data != null && data.length() > 0) {
+                            relatedDb.saveBatch(tableName, data);
+                            totalSynced += data.length();
+                        }
+
+                        int pct = lastPage > 0 ? (int)(((float)page / lastPage) * 100) : 100;
+                        broadcastProgress(pct, "Loading " + tableName + " (" + totalSynced + ")", totalSynced);
+                        updateNotification(tableName + " (" + page + "/" + lastPage + ")", pct, 100);
+
+                        pageDone = true;
+                        page++;
+                    } catch (SecurityException e) {
+                        Log.w(TAG, "401 on " + tableName + " page " + page + " — stopping");
+                        pageDone = true;
+                        page = lastPage + 1;
                     } catch (Exception e) {
                         retries++;
                         Log.w(TAG, "Error on " + tableName + " page " + page + ": " + e.getMessage() + " (retry " + retries + "/" + maxRetries + ")");
                         if (retries < maxRetries) {
-                            try { Thread.sleep(5000); } catch (InterruptedException ignored) {}
+                            try { Thread.sleep(3000); } catch (InterruptedException ignored) {}
                         } else { page++; pageDone = true; }
-                    } finally {
-                        if (conn != null) conn.disconnect();
                     }
                 }
             }
@@ -508,6 +459,10 @@ public class DownloadForegroundService extends Service {
         super.onDestroy();
         isRunning = false;
         sIsDownloading = false;
+        if (activeExecutor != null) {
+            activeExecutor.shutdownNow();
+            activeExecutor = null;
+        }
         if (wakeLock != null && wakeLock.isHeld()) {
             try {
                 wakeLock.release();

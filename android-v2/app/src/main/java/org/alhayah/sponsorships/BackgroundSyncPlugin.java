@@ -40,7 +40,7 @@ public class BackgroundSyncPlugin extends Plugin {
             ret.put("progress", progress);
             ret.put("message", message);
             ret.put("total", total);
-            instance.notifyListeners("syncProgress", ret);
+            instance.getActivity().runOnUiThread(() -> instance.notifyListeners("syncProgress", ret));
         }
     }
 
@@ -50,7 +50,7 @@ public class BackgroundSyncPlugin extends Plugin {
         if (instance != null) {
             JSObject ret = new JSObject();
             ret.put("success", true);
-            instance.notifyListeners("syncFinished", ret);
+            instance.getActivity().runOnUiThread(() -> instance.notifyListeners("syncFinished", ret));
         }
     }
 
@@ -159,6 +159,7 @@ public class BackgroundSyncPlugin extends Plugin {
         android.content.IntentFilter filter = new android.content.IntentFilter();
         filter.addAction("com.aso.app.REALTIME_UPDATE");
         filter.addAction("com.aso.app.SYNC_PROGRESS");
+        filter.addAction("com.aso.app.WEBSOCKET_RECONNECTED");
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             getContext().registerReceiver(realTimeReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
         } else {
@@ -497,7 +498,7 @@ public class BackgroundSyncPlugin extends Plugin {
             if (id > 0) {
                 // Also update local copy if it's a sponsorship update
                 if ("sponsorship_update".equals(dataType)) {
-                    int sponsorshipId = data.getInteger("id", 0);
+                    int sponsorshipId = data.optInt("id", 0);
                     if (sponsorshipId > 0) {
                         com.aso.app.SponsorshipsDatabaseHelper sponsorshipsDb = com.aso.app.SponsorshipsDatabaseHelper.getInstance(context);
                         synchronized (com.aso.app.SponsorshipsDatabaseHelper.class) {

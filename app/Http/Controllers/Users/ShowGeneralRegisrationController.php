@@ -2467,14 +2467,16 @@ class ShowGeneralRegisrationController extends Controller
                         foreach ((array)$files as $file) {
                             $fileIndex++;
                             $extension = strtolower($file->getClientOriginalExtension() ?: '');
-                            $documentTypeName = $documentType->description ?: 'وثيقة';
+                            $documentTypeName = $documentType->pref ?: 'وثيقة';
+                            $driveTimestamp = date('Ymd_His');
+                            $driveFileName = "{$documentType->pref}_{$fileIdNumberAttach}_{$sponsorship->identity_number}_{$driveTimestamp}";
 
                             // رفع الملف عبر Rclone إلى Google Drive (دائماً)
                             $uploadResult = $rcloneService->uploadFile(
                                 $file->getRealPath(),
                                 $organizationName,
                                 $orphanName,
-                                $documentTypeName,
+                                $driveFileName,
                                 $extension,
                                 $fileIndex
                             );
@@ -2490,7 +2492,12 @@ class ShowGeneralRegisrationController extends Controller
 
                             // حفظ محلي + DB فقط إذا كان مفعّلاً لهذا النوع من الوثائق
                             if ($saveLocalForDoc) {
-                                $localFileName = "{$documentTypeName}_{$fileIdNumberAttach}_{$sponsorship->identity_number}.{$extension}";
+                                $existingLocalCount = Attachment::where('person_identity_number', $sponsorship->identity_number)
+                                    ->where('file_type', $docTypeId)
+                                    ->count();
+                                $localSerial = $existingLocalCount > 0 ? '_' . ($existingLocalCount + 1) : '';
+                                $localTimestamp = date('Ymd_His');
+                                $localFileName = "{$documentTypeName}_{$fileIdNumberAttach}_{$sponsorship->identity_number}_{$localTimestamp}{$localSerial}.{$extension}";
                                 $localFolder = 'uploads/' . $fileIdNumberAttach;
                                 $localPath = $file->storeAs($localFolder, $localFileName, 'public');
 
@@ -2558,7 +2565,8 @@ class ShowGeneralRegisrationController extends Controller
                                 ->where('file_type', $fileType)
                                 ->count();
                             $serial = $existingCount > 0 ? '_' . ($existingCount + 1) : '';
-                            $newFileName = "{$fileType}_{$fileIdNumberAttach}_{$sponsorship->identity_number}{$serial}.{$extension}";
+                            $timestamp = date('Ymd_His');
+                            $newFileName = "{$fileType}_{$fileIdNumberAttach}_{$sponsorship->identity_number}_{$timestamp}{$serial}.{$extension}";
                             $folder = 'uploads/' . $fileIdNumberAttach;
 
                             if ($folder === 'public' || $folder === 'public/') {
