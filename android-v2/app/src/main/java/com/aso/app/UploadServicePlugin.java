@@ -592,4 +592,75 @@ public class UploadServicePlugin extends Plugin {
             call.reject("خطأ في جلب الملفات: " + e.getMessage());
         }
     }
+
+    @PluginMethod
+    public void deleteFile(PluginCall call) {
+        String fileName = call.getString("fileName");
+        if (fileName == null || fileName.isEmpty()) {
+            call.reject("fileName is required");
+            return;
+        }
+        try {
+            UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(getContext());
+            UploadDatabaseHelper.UploadItem item = dbHelper.getFileByName(fileName);
+            if (item == null) {
+                call.reject("File not found: " + fileName);
+                return;
+            }
+            // حذف الملف الفعلي من القرص
+            if (item.filePath != null) {
+                try {
+                    java.io.File file;
+                    if (item.filePath.startsWith("content://")) {
+                        // لا يمكن حذف content URI مباشرة
+                    } else {
+                        file = new java.io.File(item.filePath);
+                        if (!file.exists()) {
+                            file = new java.io.File(getContext().getFilesDir(), item.filePath);
+                        }
+                        if (file.exists()) {
+                            file.delete();
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "تعذّر حذف الملف من القرص: " + item.filePath, e);
+                }
+            }
+            // حذف السجل من قاعدة البيانات
+            dbHelper.deleteFile(item.id);
+            JSObject result = new JSObject();
+            result.put("success", true);
+            call.resolve(result);
+        } catch (Exception e) {
+            Log.e(TAG, "خطأ في حذف الملف", e);
+            call.reject("خطأ في حذف الملف: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void recompressFile(PluginCall call) {
+        String fileName = call.getString("fileName");
+        if (fileName == null || fileName.isEmpty()) {
+            call.reject("fileName is required");
+            return;
+        }
+        try {
+            UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(getContext());
+            UploadDatabaseHelper.UploadItem item = dbHelper.getFileByName(fileName);
+            if (item == null) {
+                call.reject("File not found: " + fileName);
+                return;
+            }
+            // إعادة تعيين الحالة إلى processing لكي يضغطها SmartMediaWorker
+            dbHelper.updateFileStatus(item.id, UploadDatabaseHelper.STATUS_PROCESSING, null);
+            // جدولة المعالجة
+            UploadTaskScheduler.getInstance(getContext()).scheduleSmartMediaProcessing();
+            JSObject result = new JSObject();
+            result.put("success", true);
+            call.resolve(result);
+        } catch (Exception e) {
+            Log.e(TAG, "خطأ في إعادة ضغط الملف", e);
+            call.reject("خطأ في إعادة ضغط الملف: " + e.getMessage());
+        }
+    }
 }
