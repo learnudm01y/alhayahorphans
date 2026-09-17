@@ -12,6 +12,7 @@ class DocumentType extends Model
     protected $fillable = [
         'description',
         'pref',
+        'file_type',
         'basic_enabled',
         'deceased_enabled',
         'family_enabled'

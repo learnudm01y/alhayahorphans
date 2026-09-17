@@ -5,6 +5,7 @@
         data-id="{{ $row->id }}"
         data-description="{{ $row->description }}"
         data-pref="{{ $row->pref }}"
+        data-file-type="{{ $row->file_type ?? 'document' }}"
         data-action="{{ route('admin.DocumentType_name.update', $row->id) }}">
         <i class="fas fa-edit"></i>
     </button>

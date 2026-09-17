@@ -27,12 +27,14 @@ class DocumentTypeCotroller extends Controller
         $request->validate([
             'description' => 'required|string|max:255',
             'pref' => 'required|string|max:255|unique:document_types,pref',
+            'file_type' => 'nullable|in:document,image',
         ]);
 
         try {
             DocumentType::create([
                 'description' => $request->description,
                 'pref' => $request->pref,
+                'file_type' => $request->file_type ?? 'document',
             ]);
             return redirect()->back()->with('success', 'تمت إضافة نوع الوثيقة بنجاح');
         } catch (Exception $e) {
@@ -52,8 +54,17 @@ class DocumentTypeCotroller extends Controller
             'id' => $id,
             'portal' => $request->input('portal'),
             'enabled' => $request->input('enabled'),
+            'file_type' => $request->input('file_type'),
             'all' => $request->all()
         ]);
+
+        // تحديث نوع الملف (صورة/وثيقة) عبر AJAX
+        if ($request->has('file_type') && !$request->has('description')) {
+            $fileType = in_array($request->input('file_type'), ['image', 'document']) ? $request->input('file_type') : 'document';
+            $documentType->file_type = $fileType;
+            $documentType->save();
+            return response()->json(['success' => true, 'file_type' => $documentType->file_type]);
+        }
 
         $portal = $request->input('portal');
         $enabled = $request->input('enabled');
@@ -92,12 +103,14 @@ class DocumentTypeCotroller extends Controller
         $request->validate([
             'description' => 'required|string|max:255',
             'pref' => 'required|string|max:255|unique:document_types,pref,' . $id,
+            'file_type' => 'nullable|in:document,image',
         ]);
 
         try {
             $documentType->update([
                 'description' => $request->description,
                 'pref' => $request->pref,
+                'file_type' => $request->file_type ?? $documentType->file_type ?? 'document',
             ]);
             return redirect()->back()->with('success', 'تم تحديث نوع الوثيقة بنجاح');
         } catch (Exception $e) {
@@ -113,6 +126,6 @@ class DocumentTypeCotroller extends Controller
         $DocumentType = DocumentType::findOrFail($id);
         $DocumentType->delete();
 
-        return redirect()->back()->with('success', 'تم حذف  نوع الوثيقة بنجاح');
+        return redirect()->back()->with('success', 'تم حذف نوع الوثيقة بنجاح');
     }
 }

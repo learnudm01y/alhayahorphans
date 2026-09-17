@@ -21,6 +21,22 @@ class DocumentTypeDataTable extends DataTable
     public function dataTable(QueryBuilder $query): EloquentDataTable
     {
         return (new EloquentDataTable($query))
+            ->addColumn('file_type', function ($row) {
+                $isImage = ($row->file_type === 'image');
+                $docActive = !$isImage ? 'btn-primary active' : 'btn-outline-secondary';
+                $imgActive = $isImage ? 'btn-info text-white active' : 'btn-outline-secondary';
+
+                return '
+                <div class="btn-group btn-group-sm file-type-toggle-group" role="group" data-id="' . $row->id . '">
+                    <button type="button" class="btn ' . $docActive . ' document-type-btn" data-value="document" title="وثيقة">
+                        <i class="fas fa-file-alt"></i> وثيقة
+                    </button>
+                    <button type="button" class="btn ' . $imgActive . ' document-type-btn" data-value="image" title="صورة">
+                        <i class="fas fa-image"></i> صورة
+                    </button>
+                </div>
+                ';
+            })
             ->addColumn('basic_enabled', function ($row) {
                 return view('admin.dashboard.category_management.partials.DocumentTypeSwitchWithRequired', [
                     'row' => $row,
@@ -43,6 +59,7 @@ class DocumentTypeDataTable extends DataTable
                 return view('admin.dashboard.category_management.partials.DocumentTypeActions', compact('row'))->render();
             })
             ->rawColumns([
+                'file_type',
                 'basic_enabled',
                 'deceased_enabled',
                 'family_enabled',
@@ -82,7 +99,7 @@ class DocumentTypeDataTable extends DataTable
                 Button::make('print'),
             ])
             ->parameters([
-                'select' => false, // منع التحديد/التفاعل
+                'select' => false,
             ]);
     }
 
@@ -104,6 +121,12 @@ class DocumentTypeDataTable extends DataTable
 
             Column::make('pref')
                 ->title('الاختصار')
+                ->addClass('text-center'),
+
+            Column::computed('file_type')
+                ->title('طبيعة الملف')
+                ->exportable(true)
+                ->printable(true)
                 ->addClass('text-center'),
 
             Column::computed('basic_enabled')

@@ -392,8 +392,7 @@
                     'data_first_name', 'data_father_name', 'data_grand_father_name', 'data_family_name',
                     'data_relationship', 'data_birth_date', 'data_gender', 'data_phone_number',
                     'data_marital_status', 'data_displacement_status', 'data_current_address',
-                    'data_city', 'data_province', 'data_health_status', 'data_employment_status_breadwinner',
-                    'data_housing_status', 'data_current_housing_type','data_number_of_individuals'
+                    'data_city', 'data_health_status', 'data_number_of_individuals'
                 ];
                 let missingFields = [];
                 for (const name of requiredFields) {
@@ -699,8 +698,7 @@
                             'data_first_name', 'data_father_name', 'data_grand_father_name', 'data_family_name',
                             'data_relationship', 'data_birth_date', 'data_gender', 'data_phone_number',
                             'data_marital_status', 'data_displacement_status', 'data_current_address',
-                            'data_city', 'data_province', 'data_health_status', 'data_employment_status_breadwinner',
-                            'data_housing_status', 'data_current_housing_type', 'data_number_of_individuals'
+                            'data_city', 'data_health_status', 'data_number_of_individuals'
                         ];
                         let missingFields = [];
                         for (const name of requiredFields) {

@@ -74,26 +74,11 @@
             <small class="text-muted">أدخل رقم الجوال بهذا الشكل: 0599905588</small>
         </div>
         <div class="col-md-4">
-            <label class="form-label">عدد افراد الاسرة الوصي (المعيل)</label>
-            <input type="number" name="data_number_of_individuals" class="form-control" min="0" max="9999" maxlength="4" oninput="if(this.value.length>4)this.value=this.value.slice(0,4);" required>
-        </div>
-        <div class="col-md-4">
             <label class="form-label">الحالة الاجتماعية الوصي (المعيل) <span class="text-danger">*</span></label>
             <select name="data_marital_status" class="form-select">
                 <option value="">اختر الحالة</option>
                 @foreach ($ci_personal_cd as $status)
                     <option value="{{ $status->id }}">{{ $status->CI_PERSONAL_CD }}
-                    </option>
-                @endforeach
-            </select>
-        </div>
-        <div class="col-md-4">
-            <label class="form-label">المؤهل العلمي الوصي (المعيل) <span class="text-primary">(اختياري)</span></label>
-            <select name="data_academic_qualification" class="form-select">
-                <option value="">اختر المؤهل</option>
-                @foreach ($academic_qualification->where('description', '!=', 'Unknown') as $qualification)
-                    <option value="{{ $qualification->id }}">
-                        {{ $qualification->description }}
                     </option>
                 @endforeach
             </select>
@@ -118,7 +103,7 @@
                     <label class="form-label">العنوان الحالي الوصي (المعيل) <span class="text-danger">*</span></label>
                     <input type="text" name="data_current_address" class="form-control" maxlength="30">
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-6">
                     <label class="form-label">المدينة الوصي (المعيل) <span class="text-danger">*</span></label>
                     <select name="data_city" class="form-select">
                         <option value="">اختر المدينة</option>
@@ -128,10 +113,11 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-6 d-none">
                     <label class="form-label">المحافظة الوصي (المعيل) <span class="text-danger">*</span></label>
-                    <select name="data_province" class="form-select">
-                        <option value="">اختر المحافظة</option>
+                    <input type="hidden" name="data_province" value="">
+                    <select name="data_province_visible" class="form-select" disabled aria-label="المحافظة" title="المحافظة يتم تحديدها تلقائياً">
+                        <option value="">المحافظة تضاف تلقائياً</option>
                         @foreach ($province->where('description', '!=', 'Unknown') as $province_item)
                             <option value="{{ $province_item->id }}">
                                 {{ $province_item->description }}</option>
@@ -158,57 +144,24 @@
                 </div>
             </div>
         </div>
-        <div class="col-12">
-            <div class="row g-3">
+        <div class="col-12" style="display:none;">
+            <div class="row g-3 align-items-end">
                 <div class="col-md-3">
-                    <label class="form-label">عدد الذكور الوصي (المعيل) <span class="text-primary">(اختياري)</span></label>
-                    <input type="number" name="data_number_mail" class="form-control" min="0" max="9999" maxlength="4" oninput="if(this.value.length>4)this.value=this.value.slice(0,4);">
+                    <input type="hidden" name="data_number_mail" class="family-count-field" value="0">
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">عدد الإناث الوصي (المعيل) <span class="text-primary">(اختياري)</span></label>
-                    <input type="number" name="data_number_female" class="form-control" min="0" max="9999" maxlength="4" oninput="if(this.value.length>4)this.value=this.value.slice(0,4);">
+                    <input type="hidden" name="data_number_female" class="family-count-field" value="0">
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">عدد الأفراد المصابين بأمراض مزمنة الوصي (المعيل) <span class="text-primary">(اختياري)</span></label>
-                    <input type="number" name="data_number_of_individuals_with_chronic_diseases"
-                        class="form-control" min="0" max="9999" maxlength="4" oninput="if(this.value.length>4)this.value=this.value.slice(0,4);">
+                    <input type="hidden" name="data_number_of_individuals_with_chronic_diseases" class="family-count-field" value="0">
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label">عدد ذوي الاحتياجات الخاصة الوصي (المعيل) <span class="text-primary">(اختياري)</span></label>
-                    <input type="number" name="data_number_of_people_with_special_needs" class="form-control"
-                        min="0" max="9999" maxlength="4" oninput="if(this.value.length>4)this.value=this.value.slice(0,4);">
+                    <input type="hidden" name="data_number_of_people_with_special_needs" class="family-count-field" value="0">
+                </div>
+                <div class="col-md-12">
+                    <input type="hidden" name="data_number_of_individuals" class="family-total-field" value="0">
                 </div>
             </div>
-        </div>
-        <div class="col-md-4">
-            <label class="form-label">الحالة الوظيفية المعيل <span class="text-danger">*</span></label>
-            <select name="data_employment_status_breadwinner" class="form-select">
-                <option value="">اختر الحالة</option>
-                @foreach ($employment_status_breadwinner->where('description', '!=', 'Unknown') as $employment_status_item)
-                    <option value="{{ $employment_status_item->id }}">
-                        {{ $employment_status_item->description }}</option>
-                @endforeach
-            </select>
-        </div>
-        <div class="col-md-4">
-            <label class="form-label">حالة السكن الوصي (المعيل) <span class="text-danger">*</span></label>
-            <select name="data_housing_status" class="form-select">
-                <option value="">اختر الحالة</option>
-                @foreach ($HousingStatus->where('description', '!=', 'Unknown') as $HousingStatusItem)
-                    <option value="{{ $HousingStatusItem->id }}">
-                        {{ $HousingStatusItem->description }}</option>
-                @endforeach
-            </select>
-        </div>
-        <div class="col-md-4">
-            <label class="form-label">نوع السكن الحالي الوصي (المعيل) <span class="text-danger">*</span></label>
-            <select name="data_current_housing_type" class="form-select">
-                <option value="">اختر الحالة</option>
-                @foreach ($TypeOfAccommodation->where('description', '!=', 'Unknown') as $TypeOfAccommodationItem)
-                    <option value="{{ $TypeOfAccommodationItem->id }}">
-                        {{ $TypeOfAccommodationItem->description }}</option>
-                @endforeach
-            </select>
         </div>
         <div class="col-md-4 mt-3">
             <!-- ملاحظة و زر إضافة حساب بنكي جديد -->
@@ -391,24 +344,8 @@
                         label: 'المدينة'
                     },
                     {
-                        name: 'data_province',
-                        label: 'المحافظة'
-                    },
-                    {
                         name: 'data_health_status',
                         label: 'الحالة الصحية'
-                    },
-                    {
-                        name: 'data_employment_status_breadwinner',
-                        label: 'الحالة الوظيفية المعيل'
-                    },
-                    {
-                        name: 'data_housing_status',
-                        label: 'حالة السكن'
-                    },
-                    {
-                        name: 'data_current_housing_type',
-                        label: 'نوع السكن الحالي'
                     },
                     {
                         name: 'data_number_of_individuals',

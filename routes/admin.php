@@ -222,6 +222,7 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     // Category Of Relation Management
     Route::resource('CategoryOfRelation_name', CategoryOfRelationController::class)->middleware('permission:عرض قسم إدارة التصنيفات|إدارة صلة القرابة');
     // city name Management
+    Route::patch('city_name/{id}/update-province', [CityController::class, 'updateProvince'])->name('city_name.updateProvince')->middleware('permission:عرض قسم إدارة التصنيفات|إدارة أسماء المدن');
     Route::resource('city_name', CityController::class)->middleware('permission:عرض قسم إدارة التصنيفات|إدارة أسماء المدن');
     // currency type  Management
     Route::resource('CurrencyType_name', CurrencyTypeController::class)->middleware('permission:عرض قسم إدارة التصنيفات|إدارة العملات');

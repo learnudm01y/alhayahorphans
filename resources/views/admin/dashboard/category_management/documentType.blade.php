@@ -58,6 +58,13 @@
                         <label for="add_pref" class="form-label">المختصر</label>
                         <input type="text" name="pref" id="add_pref" class="form-control" value="{{ old('pref') }}" required>
                     </div>
+                    <div class="mb-3">
+                        <label for="add_file_type" class="form-label">طبيعة الملف</label>
+                        <select name="file_type" id="add_file_type" class="form-select">
+                            <option value="document">وثيقة 📄</option>
+                            <option value="image">صورة 🖼️</option>
+                        </select>
+                    </div>
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-success">حفظ</button>
                     </div>
@@ -86,6 +93,13 @@
                     <div class="mb-3">
                         <label for="edit_pref" class="form-label">المختصر</label>
                         <input type="text" name="pref" id="edit_pref" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_file_type" class="form-label">طبيعة الملف</label>
+                        <select name="file_type" id="edit_file_type" class="form-select">
+                            <option value="document">وثيقة 📄</option>
+                            <option value="image">صورة 🖼️</option>
+                        </select>
                     </div>
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-warning">تحديث</button>
@@ -127,13 +141,11 @@
     <script>
         // تهيئة القوائم المنسدلة
         function initDropdowns() {
-            // انتظار تحميل Bootstrap
             if (typeof bootstrap === 'undefined') {
                 setTimeout(initDropdowns, 100);
                 return;
             }
 
-            // تهيئة جميع القوائم المنسدلة في الجدول
             setTimeout(function() {
                 const dropdownTriggerList = document.querySelectorAll('[data-bs-toggle="dropdown"]');
                 dropdownTriggerList.forEach(function(dropdownTriggerEl) {
@@ -147,6 +159,53 @@
                     }
                 });
             }, 100);
+        }
+
+        // تفعيل أزرار تحديد نوع الملف (صورة/وثيقة)
+        function bindFileTypeButtons() {
+            document.querySelectorAll('.file-type-toggle-group').forEach(function(groupEl) {
+                if (groupEl.dataset.bound) return;
+                groupEl.querySelectorAll('.document-type-btn').forEach(function(btn) {
+                    btn.addEventListener('click', function() {
+                        const id = groupEl.dataset.id;
+                        const fileType = this.dataset.value;
+
+                        fetch("{{ route('admin.DocumentType_name.update', 0) }}".replace('/0', '/' + id), {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                'Content-Type': 'application/json',
+                                'Accept': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                file_type: fileType,
+                                _method: 'PATCH'
+                            })
+                        })
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.success) {
+                                toastr.success('تم تحديث طبيعة الملف بنجاح');
+                                if (window.LaravelDataTables && window.LaravelDataTables['documenttype-table']) {
+                                    window.LaravelDataTables['documenttype-table'].ajax.reload(function() {
+                                        bindDocumentTypeSwitches();
+                                        bindDocumentTypeRequiredRadios();
+                                        bindFileTypeButtons();
+                                        initDropdowns();
+                                    }, false);
+                                }
+                            } else {
+                                toastr.error('فشل التحديث: ' + (data.error || 'خطأ غير معروف'));
+                            }
+                        })
+                        .catch((err) => {
+                            toastr.error('حدث خطأ أثناء الاتصال بالخادم');
+                            console.error(err);
+                        });
+                    });
+                });
+                groupEl.dataset.bound = "1";
+            });
         }
 
         // تفعيل زر on/off لأي بوابة
@@ -178,6 +237,7 @@
                                 window.LaravelDataTables['documenttype-table'].ajax.reload(function() {
                                     bindDocumentTypeSwitches();
                                     bindDocumentTypeRequiredRadios();
+                                    bindFileTypeButtons();
                                     initDropdowns();
                                 }, false);
                             }
@@ -223,6 +283,7 @@
                                 window.LaravelDataTables['documenttype-table'].ajax.reload(function() {
                                     bindDocumentTypeSwitches();
                                     bindDocumentTypeRequiredRadios();
+                                    bindFileTypeButtons();
                                     initDropdowns();
                                 }, false);
                             }
@@ -242,6 +303,7 @@
         $(document).ready(function() {
             bindDocumentTypeSwitches();
             bindDocumentTypeRequiredRadios();
+            bindFileTypeButtons();
             initDropdowns();
 
             // معالجة نماذج التعديل والحذف
@@ -252,6 +314,7 @@
                 window.LaravelDataTables['documenttype-table'].on('draw', function() {
                     bindDocumentTypeSwitches();
                     bindDocumentTypeRequiredRadios();
+                    bindFileTypeButtons();
                     initDropdowns();
                 });
             }
@@ -263,11 +326,13 @@
                 const id = $(this).data('id');
                 const description = $(this).data('description');
                 const pref = $(this).data('pref');
+                const fileType = $(this).data('file-type');
                 const action = $(this).data('action');
 
                 $('#edit_DocumentType_id').val(id);
                 $('#edit_description').val(description);
                 $('#edit_pref').val(pref);
+                $('#edit_file_type').val(fileType || 'document');
                 $('#editDocumentTypeForm').attr('action', action);
             });
         }

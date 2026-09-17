@@ -90,6 +90,85 @@
                     if (mainForm) mainForm.requestSubmit();
                 });
             }
+
+            const citySelect = document.querySelector('select[name="data_city"]');
+            const hiddenProvinceInput = document.querySelector('input[name="data_province"]');
+            const visibleProvinceSelect = document.querySelector('select[name="data_province_visible"]');
+            const cityProvinceMap = @json($city->mapWithKeys(function ($item) { return [$item->id => $item->province_id ?? null]; })->all());
+
+            function syncProvinceFromCity() {
+                if (!citySelect || !hiddenProvinceInput) return;
+                const selectedCityId = citySelect.value;
+                const mappedProvince = cityProvinceMap[selectedCityId] ?? '';
+                hiddenProvinceInput.value = mappedProvince;
+                if (visibleProvinceSelect) {
+                    visibleProvinceSelect.value = mappedProvince || '';
+                }
+            }
+
+            if (citySelect) {
+                citySelect.addEventListener('change', syncProvinceFromCity);
+                syncProvinceFromCity();
+            }
+
+            function syncFamilySummaryHiddenValues() {
+                const familyForms = document.querySelectorAll('#familyMembersContainer .family-member-form:not(.d-none)');
+                let maleCount = 0;
+                let femaleCount = 0;
+                let chronicCount = 0;
+                let specialNeedsCount = 0;
+
+                familyForms.forEach(function(form) {
+                    const genderSelect = form.querySelector('select[name$="[person_gender]"]');
+                    const healthSelect = form.querySelector('select[name$="[person_health_status]"]');
+                    const genderValue = genderSelect ? genderSelect.value : '';
+                    if (genderValue === '1') maleCount++;
+                    if (genderValue === '2') femaleCount++;
+
+                    if (healthSelect) {
+                        const selectedOption = healthSelect.options[healthSelect.selectedIndex];
+                        const selectedText = selectedOption ? selectedOption.textContent || '' : '';
+                        if (selectedText.includes('مزمن')) chronicCount++;
+                        if (selectedText.includes('معاق') || selectedText.includes('احتياج') || selectedText.includes('إعاقة')) specialNeedsCount++;
+                    }
+                });
+
+                const maleInput = document.querySelector('[name="data_number_mail"]');
+                const femaleInput = document.querySelector('[name="data_number_female"]');
+                const chronicInput = document.querySelector('[name="data_number_of_individuals_with_chronic_diseases"]');
+                const specialInput = document.querySelector('[name="data_number_of_people_with_special_needs"]');
+                const totalInput = document.querySelector('[name="data_number_of_individuals"]');
+
+                if (maleInput) maleInput.value = maleCount;
+                if (femaleInput) femaleInput.value = femaleCount;
+                if (chronicInput) chronicInput.value = chronicCount;
+                if (specialInput) specialInput.value = specialNeedsCount;
+                if (totalInput) totalInput.value = maleCount + femaleCount;
+            }
+
+            document.addEventListener('change', function(event) {
+                const isFamilyGender = event.target && event.target.matches('select[name$="[person_gender]"]');
+                const isFamilyHealth = event.target && event.target.matches('select[name$="[person_health_status]"]');
+                if (isFamilyGender || isFamilyHealth) {
+                    syncFamilySummaryHiddenValues();
+                }
+            });
+
+            const familyMemberObserver = new MutationObserver(function() {
+                syncFamilySummaryHiddenValues();
+            });
+
+            const familyMembersContainer = document.getElementById('familyMembersContainer');
+            if (familyMembersContainer) {
+                familyMemberObserver.observe(familyMembersContainer, {
+                    childList: true,
+                    subtree: true,
+                    attributes: true,
+                    attributeFilter: ['value', 'selected', 'style', 'class']
+                });
+            }
+
+            syncFamilySummaryHiddenValues();
         });
     </script>
 

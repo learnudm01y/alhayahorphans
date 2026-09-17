@@ -3,7 +3,8 @@
         data-bs-toggle="modal"
         data-bs-target="#editCityModal"
         data-id="{{ $row->id }}"
-        data-description="{{ $row->description }}"
+        data-name="{{ $row->city }}"
+        data-province-id="{{ $row->province_id }}"
         data-action="{{ route('admin.city_name.update', $row->id) }}">
         <i class="fas fa-edit"></i>
     </button>
@@ -11,7 +12,7 @@
         data-bs-toggle="modal"
         data-bs-target="#deleteCityModal"
         data-id="{{ $row->id }}"
-        data-description="{{ $row->description }}"
+        data-name="{{ $row->city }}"
         data-action="{{ route('admin.city_name.destroy', $row->id) }}">
         <i class="fas fa-trash"></i>
     </button>

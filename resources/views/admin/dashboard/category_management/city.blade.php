@@ -6,9 +6,9 @@
         <div class="col-md-12">
             <div class="card shadow-sm">
                 <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0"> اسماء المدن </h5>
+                    <h5 class="mb-0">إدارة المدن</h5>
                     <button class="btn btn-light btn-sm" data-bs-toggle="modal" data-bs-target="#addCityModal">
-                        <i class="fas fa-plus"></i> إضافة أسماء مدن
+                        <i class="fas fa-plus"></i> إضافة مدينة جديدة
                     </button>
                 </div>
                 <div class="card-body">
@@ -16,6 +16,12 @@
                         @if (session('success'))
                             <div class="alert alert-success alert-dismissible fade show" role="alert">
                                 {{ session('success') }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        @endif
+                        @if (session('error'))
+                            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                                {{ session('error') }}
                                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                             </div>
                         @endif
@@ -44,15 +50,26 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title" id="addCityModalLabel">إضافة أسماء مدن</h5>
+                <h5 class="modal-title" id="addCityModalLabel">إضافة مدينة جديدة</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <form method="POST" action="{{ route('admin.city_name.store') }}">
                     @csrf
                     <div class="mb-3">
-                        <label for="add_name" class="form-label"> أسماء مدن</label>
-                        <input type="text" name="city" id="add_name" class="form-control" value="{{ old('city') }}" required autofocus>
+                        <label for="add_name" class="form-label">اسم المدينة <span class="text-danger">*</span></label>
+                        <input type="text" name="city" id="add_name" class="form-control" value="{{ old('city') }}" required autofocus placeholder="أدخل اسم المدينة">
+                    </div>
+                    <div class="mb-3">
+                        <label for="add_province_id" class="form-label">المحافظة</label>
+                        <select name="province_id" id="add_province_id" class="form-select">
+                            <option value="">اختر المحافظة (اختياري)</option>
+                            @foreach ($provinces as $province)
+                                <option value="{{ $province->id }}" {{ old('province_id') == $province->id ? 'selected' : '' }}>
+                                    {{ $province->description }}
+                                </option>
+                            @endforeach
+                        </select>
                     </div>
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-success">حفظ</button>
@@ -67,7 +84,7 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-warning text-dark">
-                <h5 class="modal-title" id="editCityModalLabel">تعديل أسماء مدن</h5>
+                <h5 class="modal-title" id="editCityModalLabel">تعديل بيانات المدينة</h5>
                 <button type="button" class="btn-close btn-close-dark" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -76,8 +93,19 @@
                     @method('PUT')
                     <input type="hidden" name="City_id" id="edit_City_id">
                     <div class="mb-3">
-                        <label for="edit_name" class="form-label"> أسماء مدن</label>
-                        <input type="text" name="city" id="edit_name" class="form-control" required>
+                        <label for="edit_name" class="form-label">اسم المدينة <span class="text-danger">*</span></label>
+                        <input type="text" name="city" id="edit_name" class="form-control" required placeholder="أدخل اسم المدينة">
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_province_id" class="form-label">المحافظة</label>
+                        <select name="province_id" id="edit_province_id" class="form-select">
+                            <option value="">اختر المحافظة (اختياري)</option>
+                            @foreach ($provinces as $province)
+                                <option value="{{ $province->id }}">
+                                    {{ $province->description }}
+                                </option>
+                            @endforeach
+                        </select>
                     </div>
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-warning">تحديث</button>
@@ -92,18 +120,20 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title" id="deleteCityModalLabel">حذف أسماء مدن</h5>
+                <h5 class="modal-title" id="deleteCityModalLabel">حذف المدينة</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p>هل أنت متأكد أنك تريد حذف أسماء مدن؟</p>
-                <strong id="delete_City_name"></strong>
+                <p>هل أنت متأكد أنك تريد حذف هذه المدينة؟</p>
+                <div class="alert alert-secondary text-center">
+                    <strong id="delete_City_name" class="fs-5 text-dark"></strong>
+                </div>
                 <form id="deleteCityForm" method="POST" action="" class="mt-3">
                     @csrf
                     @method('DELETE')
                     <div class="d-flex justify-content-end">
                         <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">إلغاء</button>
-                        <button type="submit" class="btn btn-danger">حذف</button>
+                        <button type="submit" class="btn btn-danger">تأكيد الحذف</button>
                     </div>
                 </form>
             </div>
@@ -115,20 +145,51 @@
 @push('scriptsCode')
     {!! $dataTable->scripts() !!}
     <script>
-        // Populate Edit Modal
+        $(document).on('change', '.city-province-ui', function () {
+            const cityId = $(this).data('city-id');
+            const provinceId = $(this).val();
+            const selectElem = $(this);
+
+            if (cityId) {
+                selectElem.prop('disabled', true);
+                $.ajax({
+                    url: '/admin/city_name/' + cityId + '/update-province',
+                    type: 'PATCH',
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        province_id: provinceId
+                    },
+                    success: function (response) {
+                        selectElem.prop('disabled', false);
+                    },
+                    error: function () {
+                        selectElem.prop('disabled', false);
+                        alert('حدث خطأ أثناء تحديث المحافظة');
+                    }
+                });
+            }
+        });
+
+        $(document).ready(function () {
+            $(".alert").delay(5000).slideUp(300, function() {
+                $(this).alert('close');
+            });
+        });
+
         $('#editCityModal').on('show.bs.modal', function (event) {
             var button = $(event.relatedTarget);
             var id = button.data('id');
             var name = button.data('name');
+            var provinceId = button.data('province-id');
             var actionUrl = button.data('action');
 
             var modal = $(this);
             modal.find('#edit_City_id').val(id);
             modal.find('#edit_name').val(name);
+            modal.find('#edit_province_id').val(provinceId || '');
             modal.find('#editCityForm').attr('action', actionUrl);
         });
 
-        // Populate Delete Modal
         $('#deleteCityModal').on('show.bs.modal', function (event) {
             var button = $(event.relatedTarget);
             var name = button.data('name');
@@ -137,13 +198,6 @@
             var modal = $(this);
             modal.find('#delete_City_name').text(name);
             modal.find('#deleteCityForm').attr('action', actionUrl);
-        });
-
-        // Auto-hide alerts
-        $(document).ready(function(){
-            $(".alert").delay(5000).slideUp(300, function() {
-                $(this).alert('close');
-            });
         });
     </script>
 @endpush
