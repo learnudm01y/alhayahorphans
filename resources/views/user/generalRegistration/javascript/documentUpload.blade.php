@@ -107,6 +107,7 @@
         }
     </style>
     <script>
+        const docFileTypeMap = @json($documentTypes->pluck('file_type', 'pref')->toArray());
         document.addEventListener('DOMContentLoaded', function() {
             function isHeicFile(file) {
                 const name = (file.name || '').toLowerCase();
@@ -291,6 +292,7 @@
                     processedFile: file,
                     docType: docType,
                     docTypeName: docTypeName || docType, // اسم الوثيقة للعرض
+                    fileType: docFileTypeMap[docType] || 'image',
                     personId: personId.toString().trim(),
                     fileIdNumber: fileIdNumber || '',
                     status: 'pending', // دائماً pending في البداية للعرض الفوري
@@ -631,7 +633,7 @@
                         }
                     }, timeoutMs);
 
-                    showCropperModalPromise(task.originalFile, timeoutMs)
+                    showCropperModalPromise(task.originalFile, timeoutMs, task.fileType)
                         .then(croppedFile => {
                             // تنظيف المؤقت عند النجاح
                             if (task.timer) {
@@ -685,7 +687,7 @@
                 }
             }
 
-            function showCropperModalPromise(file, timeoutMs = 120000) {
+            function showCropperModalPromise(file, timeoutMs = 120000, fileType = 'image') {
                 return new Promise((resolve, reject) => {
                     let finished = false;
                     let cropperStarted = false;
@@ -767,10 +769,12 @@
                             console.log('[showCropperModalPromise] 📊 تفاصيل الملف:', {
                                 name: file.name,
                                 type: file.type,
-                                size: file.size
+                                size: file.size,
+                                fileType: fileType
                             });
 
-                            // ⭐ CRITICAL: التأكد من تمرير الملف بشكل صحيح
+                            // ⭐ CRITICAL: تمرير fileType على كائن الملف لتمكين تخطي فحص الوجه للوثائق
+                            file._fileType = fileType;
                             showCropper(file, function(croppedFile, error) {
                                 // ⭐ أضف هنا: إظهار رسالة الانتظار بعد الضغط على زر "قص وحفظ"
                                 showProcessingAlert();

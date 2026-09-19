@@ -34,6 +34,44 @@ use App\Services\BankAccountValidationService;
 
 class GeneralRegistrationController extends Controller
 {
+    /**
+     * تحويل بيانات النموذج إلى مصفوفة بيانات المعيل
+     */
+    private function mapGuardianData(Request $request, string $fileIdNumber): array
+    {
+        return [
+            'file_id_number' => $fileIdNumber,
+            'data_section_id' => $request->input('data_section_id'),
+            'data_id_number' => $request->input('data_id_number'),
+            'data_first_name' => $request->input('data_first_name'),
+            'data_father_name' => $request->input('data_father_name'),
+            'data_grand_father_name' => $request->input('data_grand_father_name'),
+            'data_family_name' => $request->input('data_family_name'),
+            'data_relationship' => $request->input('data_relationship'),
+            'data_birth_date' => $request->input('data_birth_date'),
+            'data_gender' => $request->input('data_gender'),
+            'data_phone_number' => $request->input('data_phone_number'),
+            'data_alt_phone_number' => $request->input('data_alt_phone_number'),
+            'data_number_of_individuals' => $request->input('data_number_of_individuals'),
+            'data_marital_status' => $request->input('data_marital_status'),
+            'data_academic_qualification' => $request->input('data_academic_qualification'),
+            'data_displacement_status' => $request->input('data_displacement_status'),
+            'data_address_before_displacement' => $request->input('data_address_before_displacement'),
+            'data_current_address' => $request->input('data_current_address'),
+            'data_city' => $request->input('data_city'),
+            'data_province' => $request->input('data_province'),
+            'data_health_status' => $request->input('data_health_status'),
+            'data_description_needs' => $request->input('data_description_needs'),
+            'data_number_mail' => $request->input('data_number_mail'),
+            'data_number_female' => $request->input('data_number_female'),
+            'data_number_of_individuals_with_chronic_diseases' => $request->input('data_number_of_individuals_with_chronic_diseases'),
+            'data_number_of_people_with_special_needs' => $request->input('data_number_of_people_with_special_needs'),
+            'data_employment_status_breadwinner' => $request->input('data_employment_status_breadwinner'),
+            'data_housing_status' => $request->input('data_housing_status'),
+            'data_current_housing_type' => $request->input('data_current_housing_type'),
+        ];
+    }
+
     public function index(): View
     {
         $generalSection = GeneralCategory::all();
@@ -94,9 +132,13 @@ class GeneralRegistrationController extends Controller
 
     public function store(Request $request)
     {
-        try {
-            // 1. Validate basic data and attachments
-            $request->validate([
+        $maxRetries = 3;
+        $retryCount = 0;
+
+        while (true) {
+            try {
+                // 1. Validate basic data and attachments
+                $request->validate([
                 'file_id_number' => 'required|string',
                 'data_section_id' => 'required|integer',
                 'data_id_number' => 'required|string|digits:9',
@@ -224,38 +266,9 @@ class GeneralRegistrationController extends Controller
             $data = null;
 
             if ($useExistingGuardian && $existingGuardianData) {
-                // 🆕 تحديث بيانات المعيل الموجود
-                $existingGuardianData->update([
-                    'data_section_id' => $request->input('data_section_id'),
-                    'data_id_number' => $request->input('data_id_number'),
-                    'data_first_name' => $request->input('data_first_name'),
-                    'data_father_name' => $request->input('data_father_name'),
-                    'data_grand_father_name' => $request->input('data_grand_father_name'),
-                    'data_family_name' => $request->input('data_family_name'),
-                    'data_relationship' => $request->input('data_relationship'),
-                    'data_birth_date' => $request->input('data_birth_date'),
-                    'data_gender' => $request->input('data_gender'),
-                    'data_phone_number' => $request->input('data_phone_number'),
-                    'data_alt_phone_number' => $request->input('data_alt_phone_number'),
-                    'data_number_of_individuals' => $request->input('data_number_of_individuals'),
-                    'data_marital_status' => $request->input('data_marital_status'),
-                    'data_academic_qualification' => $request->input('data_academic_qualification'),
-                    'data_displacement_status' => $request->input('data_displacement_status'),
-                    'data_address_before_displacement' => $request->input('data_address_before_displacement'),
-                    'data_current_address' => $request->input('data_current_address'),
-                    'data_city' => $request->input('data_city'),
-                    'data_province' => $request->input('data_province'),
-                    'data_health_status' => $request->input('data_health_status'),
-                    'data_description_needs' => $request->input('data_description_needs'),
-                    'data_number_mail' => $request->input('data_number_mail'),
-                    'data_number_female' => $request->input('data_number_female'),
-                    'data_number_of_individuals_with_chronic_diseases' => $request->input('data_number_of_individuals_with_chronic_diseases'),
-                    'data_number_of_people_with_special_needs' => $request->input('data_number_of_people_with_special_needs'),
-                    'data_employment_status_breadwinner' => $request->input('data_employment_status_breadwinner'),
-                    'data_housing_status' => $request->input('data_housing_status'),
-                    'data_current_housing_type' => $request->input('data_current_housing_type'),
-                    'data_request_status' => 2, // تحديث طلب موجود
-                ]);
+                $guardianData = $this->mapGuardianData($request, $fileIdNumber);
+                $guardianData['data_request_status'] = 2; // تحديث طلب موجود
+                $existingGuardianData->update($guardianData);
                 $data = $existingGuardianData;
                 $fileIdNumber = $existingFileIdNumber;
 
@@ -264,40 +277,10 @@ class GeneralRegistrationController extends Controller
                     'guardian_identity' => $guardianIdentity,
                 ]);
             } else {
-                // إنشاء سجل معيل جديد
-                $data = Data::create([
-                'file_id_number' => $fileIdNumber,
-                'data_section_id' => $request->input('data_section_id'),
-                'data_id_number' => $request->input('data_id_number'),
-                'data_first_name' => $request->input('data_first_name'),
-                'data_father_name' => $request->input('data_father_name'),
-                'data_grand_father_name' => $request->input('data_grand_father_name'),
-                'data_family_name' => $request->input('data_family_name'),
-                'data_relationship' => $request->input('data_relationship'),
-                'data_birth_date' => $request->input('data_birth_date'),
-                'data_gender' => $request->input('data_gender'),
-                'data_phone_number' => $request->input('data_phone_number'),
-                'data_alt_phone_number' => $request->input('data_alt_phone_number'),
-                'data_number_of_individuals' => $request->input('data_number_of_individuals'),
-                'data_marital_status' => $request->input('data_marital_status'),
-                'data_academic_qualification' => $request->input('data_academic_qualification'),
-                'data_displacement_status' => $request->input('data_displacement_status'),
-                'data_address_before_displacement' => $request->input('data_address_before_displacement'),
-                'data_current_address' => $request->input('data_current_address'),
-                'data_city' => $request->input('data_city'),
-                'data_province' => $request->input('data_province'), // <-- تم التصحيح هنا
-                'data_health_status' => $request->input('data_health_status'),
-                'data_description_needs' => $request->input('data_description_needs'),
-                'data_number_mail' => $request->input('data_number_mail'),
-                'data_number_female' => $request->input('data_number_female'),
-                'data_number_of_individuals_with_chronic_diseases' => $request->input('data_number_of_individuals_with_chronic_diseases'),
-                'data_number_of_people_with_special_needs' => $request->input('data_number_of_people_with_special_needs'),
-                'data_employment_status_breadwinner' => $request->input('data_employment_status_breadwinner'),
-                'data_housing_status' => $request->input('data_housing_status'),
-                'data_current_housing_type' => $request->input('data_current_housing_type'),
-                'data_user_insert_data' => "N_user" ,
-                'data_request_status' => 1, // تأكد من وجود هذا السطر دائماً
-            ]);
+                $guardianData = $this->mapGuardianData($request, $fileIdNumber);
+                $guardianData['data_user_insert_data'] = "N_user";
+                $guardianData['data_request_status'] = 1;
+                $data = Data::create($guardianData);
 
                 // وضع علامة على الرقم كمستخدم في جدول reserved_codes
                 markCodeAsUsed($fileIdNumber);
@@ -312,6 +295,11 @@ class GeneralRegistrationController extends Controller
 
             Log::info('🟢 بيانات الحسابات البنكية المستلمة من الواجهة:', ['bank_accounts' => $bankAccounts]);
             if (is_array($bankAccounts) && count($bankAccounts) > 0) {
+                // جلب كل الحسابات البنكية الموجودة مسبقاً دفعة واحدة (تحسين الأداء)
+                $existingAccounts = GuardianBankAccount::where('guardian_registration', $fileIdNumber)->get();
+                $existingAccountsCount = $existingAccounts->count();
+                $existingAccountsByIdentity = $existingAccounts->keyBy('person_owner_identity_number');
+
                 foreach ($bankAccounts as $index => $bankAccount) {
                     Log::info('🔵 حساب بنكي فردي:', $bankAccount);
                     // تأكد من استقبال وتخزين person_owner_identity_number
@@ -327,35 +315,38 @@ class GeneralRegistrationController extends Controller
                         // 🔍 التحقق من عدم تكرار الحساب البنكي
                         $accountIdNumber = $reIdNumber ?? $guardianIdNumber;
 
-                        $duplicateCheck = $bankValidationService->checkDuplicateBankAccount([
-                            'guardian_registration' => $fileIdNumber,
-                            're_phone_number' => $bankAccount['re_phone_number'] ?? null,
-                            'bank_name' => $bankAccount['bank_name'] ?? null,
-                            're_id_number' => $accountIdNumber
-                        ]);
+                        // فحص التكرار محلياً بدلاً من query في كل مرة
+                        $isDuplicate = false;
+                        foreach ($existingAccounts as $existingAccount) {
+                            $matchId = ($existingAccount->person_owner_identity_number == $accountIdNumber);
+                            $matchPhone = (!empty($bankAccount['re_phone_number']) && $existingAccount->re_phone_number == $bankAccount['re_phone_number']);
+                            $matchBank = (!empty($bankAccount['bank_name']) && $existingAccount->bank_name == $bankAccount['bank_name']);
 
-                        if ($duplicateCheck['is_duplicate']) {
-                            $duplicateBankErrors[] = [
-                                'index' => $index + 1,
-                                'message' => $duplicateCheck['message']
-                            ];
-                            Log::warning('⚠️ محاولة إضافة حساب بنكي مكرر في التسجيل العام', [
-                                'index' => $index,
-                                'existing_account' => $duplicateCheck['existing_account']
-                            ]);
+                            if ($matchId && ($matchPhone || $matchBank)) {
+                                $isDuplicate = true;
+                                $duplicateBankErrors[] = [
+                                    'index' => $index + 1,
+                                    'message' => 'الحساب البنكي مكرر - موجود مسبقاً للشخص ' . $accountIdNumber
+                                ];
+                                Log::warning('⚠️ محاولة إضافة حساب بنكي مكرر في التسجيل العام', [
+                                    'index' => $index,
+                                    'existing_account' => $existingAccount->id
+                                ]);
+                                break;
+                            }
+                        }
+
+                        if ($isDuplicate) {
                             continue; // تجاوز هذا الحساب المكرر
                         }
 
                         // 🆕 التحقق إذا كان هذا أول حساب بنكي للشخص (يُعتمد تلقائياً)
-                        $existingAccountsCount = GuardianBankAccount::where('guardian_registration', $fileIdNumber)->count();
                         $isFirstAccount = ($existingAccountsCount == 0);
 
-                        // البحث عن حساب بنكي موجود لنفس الشخص
+                        // البحث عن حساب بنكي موجود لنفس الشخص (محلياً)
                         $existingBankAccount = null;
                         if (!empty($reIdNumber)) {
-                            $existingBankAccount = GuardianBankAccount::where('guardian_registration', $fileIdNumber)
-                                ->where('person_owner_identity_number', $reIdNumber)
-                                ->first();
+                            $existingBankAccount = $existingAccountsByIdentity->get($reIdNumber);
                         }
 
                         $bankData = [
@@ -580,7 +571,7 @@ class GeneralRegistrationController extends Controller
                         Log::info('✅ تم إنشاء سجل بيانات الأم المتوفاة في dead_people:', ['mother_id' => $motherId, 'file_id' => $fileIdNumber]);
                     }
 
-                    // حفظ بيانات الأم المتوفية也在 portal_general_registration_field_values
+                    // حفظ بيانات الأم المتوفية في portal_general_registration_field_values
                     $this->saveDeceasedMotherToPortal($request, $fileIdNumber, $motherId);
                 }
             }
@@ -756,6 +747,8 @@ class GeneralRegistrationController extends Controller
                     $realPersonId = is_numeric($personType) ? $personType : null;
                 }
                 if (($file || $tempPath) && $realPersonId && $fileType && $fileIdNumberAttach && $storedFileName && preg_match('/^\d+$/', $realPersonId)) {
+                    // ملاحظة: فحص الوجه يتم الآن Client-Side عبر face-api.js في الواجهة الأمامية
+
                     $extension = '';
                     $fileSize = 0;
                     if ($file) {
@@ -838,19 +831,34 @@ class GeneralRegistrationController extends Controller
                 return response()->json(['success' => true, 'redirect' => route('user.thank.you.page')]);
             }
             return redirect()->route('user.thank.you.page');
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('خطأ في تخزين السجل: ' . $e->getMessage());
-            if ($request->ajax() || $request->wantsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'error' => $e->getMessage()
-                ], 500);
+
+            } catch (\Exception $e) {
+                DB::rollBack();
+
+                // إعادة المحاولة في حالة Deadlock
+                $isDeadlock = str_contains($e->getMessage(), 'Deadlock') ||
+                              str_contains($e->getMessage(), 'deadlock') ||
+                              str_contains($e->getMessage(), 'Lock wait timeout');
+
+                if ($isDeadlock && $retryCount < $maxRetries) {
+                    $retryCount++;
+                    Log::warning("🔄 Deadlock detected, retrying transaction (attempt {$retryCount}/{$maxRetries})");
+                    sleep(1); // انتظار ثانية قبل إعادة المحاولة
+                    continue;
+                }
+
+                Log::error('خطأ في تخزين السجل: ' . $e->getMessage());
+                if ($request->ajax() || $request->wantsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'error' => $e->getMessage()
+                    ], 500);
+                }
+                return redirect()->back()
+                    ->withInput()
+                    ->with('error', 'حدث خطأ أثناء حفظ السجل: ' . $e->getMessage());
             }
-            return redirect()->back()
-                ->withInput()
-                ->with('error', 'حدث خطأ أثناء حفظ السجل: ' . $e->getMessage());
-        }
+        } // end while
     }
     // إضافة دالة الرفع المجزأ
     public function uploadChunk(Request $request)
@@ -953,7 +961,7 @@ class GeneralRegistrationController extends Controller
                     $results['has_account'] = true;
                     $results['source'] = 're_people';
                     $results['data'] = $rePeopleResult;
-                    $results['message'] = 'تم العثور على سجل موجود مسبقاً  .';
+                    $results['message'] = 'تم العثور على سجل موجود مسبقاً.';
                     $results['search_time'] = round((microtime(true) - $startTime) * 1000, 2) . ' ms';
                     return response()->json($results);
                 }
@@ -1019,7 +1027,7 @@ class GeneralRegistrationController extends Controller
                     $results['has_account'] = true;
                     $results['source'] = 're_people';
                     $results['data'] = $rePeopleResult;
-                    $results['message'] = 'تم العثور على سجل موجود مسبقاً  .';
+                    $results['message'] = 'تم العثور على سجل موجود مسبقاً.';
                     $results['search_time'] = round((microtime(true) - $startTime) * 1000, 2) . ' ms';
                     return response()->json($results);
                 }
@@ -1367,160 +1375,6 @@ class GeneralRegistrationController extends Controller
                 'message' => 'حدث خطأ أثناء جلب البيانات: ' . $e->getMessage()
             ], 500);
         }
-    }
-
-    /**
-     * البحث الذكي في جدول محدد مع تحسين الأداء
-     */
-    private function searchInTable($table, $searchTerm, $normalizedQuery, $noSpacesQuery, &$results)
-    {
-        $result = null;
-
-        if ($table === 'data') {
-            $result = Data::where(function($query) use ($searchTerm, $normalizedQuery) {
-                $query->where('data_id_number', $searchTerm)
-                      ->orWhere('file_id_number', $searchTerm);
-
-                $fullName = "CONCAT(IFNULL(data_first_name, ''), ' ', IFNULL(data_father_name, ''), ' ', IFNULL(data_grand_father_name, ''), ' ', IFNULL(data_family_name, ''))";
-                $query->orWhereRaw("({$this->buildCombinedNormSql($fullName)}) LIKE ?", ["%{$normalizedQuery}%"]);
-
-                foreach (['data_first_name', 'data_father_name', 'data_grand_father_name', 'data_family_name'] as $column) {
-                    $query->orWhereRaw("({$this->buildCombinedNormSql($column)}) LIKE ?", ["%{$normalizedQuery}%"]);
-                }
-            })->first();
-
-            if ($result) {
-                $results['found'] = true;
-                $results['has_account'] = true;
-                $results['source'] = 'data';
-                $results['data'] = [
-                    'file_id_number' => $result->file_id_number,
-                    'id_number' => $result->data_id_number,
-                    'full_name' => trim(
-                        ($result->data_first_name ?? '') . ' ' .
-                        ($result->data_father_name ?? '') . ' ' .
-                        ($result->data_grand_father_name ?? '') . ' ' .
-                        ($result->data_family_name ?? '')
-                    ),
-                    'phone' => $result->data_phone_number,
-                    'type' => 'معيل أسرة'
-                ];
-                $results['message'] = 'تم العثور على سجل موجود مسبقاً. يرجى تسجيل الدخول.';
-            }
-        } elseif ($table === 're_people') {
-            $result = RePeople::where(function($query) use ($searchTerm, $normalizedQuery) {
-                $query->where('person_id', $searchTerm);
-
-                $fullName = "CONCAT(IFNULL(first_name, ''), ' ', IFNULL(second_name, ''), ' ', IFNULL(third_name, ''), ' ', IFNULL(last_name, ''))";
-                $query->orWhereRaw("({$this->buildCombinedNormSql($fullName)}) LIKE ?", ["%{$normalizedQuery}%"]);
-
-                foreach (['first_name', 'second_name', 'third_name', 'last_name'] as $column) {
-                    $query->orWhereRaw("({$this->buildCombinedNormSql($column)}) LIKE ?", ["%{$normalizedQuery}%"]);
-                }
-            })->first();
-
-            if ($result) {
-                $results['found'] = true;
-                $results['has_account'] = true;
-                $results['source'] = 're_people';
-                $results['data'] = [
-                    'file_id_number' => $result->registration_id,
-                    'id_number' => $result->person_id,
-                    'full_name' => trim(
-                        ($result->first_name ?? '') . ' ' .
-                        ($result->second_name ?? '') . ' ' .
-                        ($result->third_name ?? '') . ' ' .
-                        ($result->last_name ?? '')
-                    ),
-                    'type' => 'يتيم / فرد من الأسرة'
-                ];
-                $results['message'] = 'تم العثور على سجل موجود مسبقاً. يرجى تسجيل الدخول.';
-            }
-        } elseif ($table === 'dead_people') {
-            $result = DeadPepole::where(function($query) use ($searchTerm, $normalizedQuery) {
-                $query->where('father_id', $searchTerm)
-                      ->orWhere('mother_id', $searchTerm);
-
-                $fatherFullName = "CONCAT(IFNULL(father_first_name, ''), ' ', IFNULL(father_second_name, ''), ' ', IFNULL(father_third_name, ''), ' ', IFNULL(father_last_name, ''))";
-                $query->orWhereRaw("({$this->buildCombinedNormSql($fatherFullName)}) LIKE ?", ["%{$normalizedQuery}%"]);
-
-                $motherFullName = "CONCAT(IFNULL(mother_first_name, ''), ' ', IFNULL(mother_second_name, ''), ' ', IFNULL(mother_third_name, ''), ' ', IFNULL(mother_last_name, ''))";
-                $query->orWhereRaw("({$this->buildCombinedNormSql($motherFullName)}) LIKE ?", ["%{$normalizedQuery}%"]);
-
-                foreach (['father_first_name', 'father_second_name', 'father_third_name', 'father_last_name',
-                          'mother_first_name', 'mother_second_name', 'mother_third_name', 'mother_last_name'] as $column) {
-                    $query->orWhereRaw("({$this->buildCombinedNormSql($column)}) LIKE ?", ["%{$normalizedQuery}%"]);
-                }
-            })->first();
-
-            if ($result) {
-                $results['found'] = true;
-                $results['has_account'] = true;
-                $results['source'] = 'dead_people';
-
-                $isFather = ($result->father_id == $searchTerm ||
-                            stripos($result->father_first_name ?? '', $searchTerm) !== false ||
-                            stripos($result->father_last_name ?? '', $searchTerm) !== false);
-
-                $results['data'] = [
-                    'file_id_number' => $result->re_file_id,
-                    'id_number' => $isFather ? $result->father_id : $result->mother_id,
-                    'full_name' => $isFather ?
-                        trim(
-                            ($result->father_first_name ?? '') . ' ' .
-                            ($result->father_second_name ?? '') . ' ' .
-                            ($result->father_third_name ?? '') . ' ' .
-                            ($result->father_last_name ?? '')
-                        ) :
-                        trim(
-                            ($result->mother_first_name ?? '') . ' ' .
-                            ($result->mother_second_name ?? '') . ' ' .
-                            ($result->mother_third_name ?? '') . ' ' .
-                            ($result->mother_last_name ?? '')
-                        ),
-                    'type' => 'متوفى'
-                ];
-                $results['message'] = 'تم العثور على سجل موجود مسبقاً. يرجى تسجيل الدخول.';
-            }
-        }
-    }
-
-    /**
-     * بناء SQL inline للتطبيع مع المسافات (محسّن)
-     * يجمع بين البحث بالمسافات وبدون مسافات في SQL واحدة
-     */
-    private function buildCombinedNormSql($column)
-    {
-        // تطبيع الأحرف وإزالة المسافات الزائدة
-        return "TRIM(
-            REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
-                {$column},
-                'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ة', 'ه'), 'ى', 'ي'), 'ـ', ''),
-                '  ', ' '), '   ', ' '))";
-    }
-
-    /**
-     * بناء SQL inline للتطبيع مع المسافات
-     */
-    private function buildNormSqlInline($column)
-    {
-        return "TRIM(
-            REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
-                {$column},
-                'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ة', 'ه'), 'ى', 'ي'), 'ـ', ''),
-                '  ', ' '), '   ', ' '))";
-    }
-
-    /**
-     * بناء SQL inline لإزالة كل المسافات
-     */
-    private function buildNoSpacesSqlInline($column)
-    {
-        return "REPLACE(TRIM(
-            REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
-                {$column},
-                'أ', 'ا'), 'إ', 'ا'), 'آ', 'ا'), 'ة', 'ه'), 'ى', 'ي'), 'ـ', '')),
-                ' ', '')";
     }
 
     /**
@@ -2010,15 +1864,9 @@ class GeneralRegistrationController extends Controller
                 'field_living_mother_birth_date' => $request->input('mother_birth_date'),
            //     'field_living_mother_phone' => $request->input('mother_phone'),
             ];
-			
-			
-			
-			
-			
-			
+
             $guardianIdentity = $request->input('data_id_number');
         }
-
         // جلب sponsorship_id من جدول sponsorships
         $sponsorship = \App\Models\Sponsorship::where('identity_number', $guardianIdentity)->first();
         $sponsorshipId = $sponsorship?->id;

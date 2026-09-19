@@ -91,7 +91,6 @@
                 <form id="editCityForm" method="POST" action="">
                     @csrf
                     @method('PUT')
-                    <input type="hidden" name="City_id" id="edit_City_id">
                     <div class="mb-3">
                         <label for="edit_name" class="form-label">اسم المدينة <span class="text-danger">*</span></label>
                         <input type="text" name="city" id="edit_name" class="form-control" required placeholder="أدخل اسم المدينة">
@@ -162,9 +161,10 @@
                     success: function (response) {
                         selectElem.prop('disabled', false);
                     },
-                    error: function () {
+                    error: function(xhr) {
                         selectElem.prop('disabled', false);
-                        alert('حدث خطأ أثناء تحديث المحافظة');
+                        var msg = (xhr.responseJSON && xhr.responseJSON.message) ? xhr.responseJSON.message : 'حدث خطأ أثناء تحديث المحافظة';
+                        alert(msg);
                     }
                 });
             }
@@ -184,7 +184,6 @@
             var actionUrl = button.data('action');
 
             var modal = $(this);
-            modal.find('#edit_City_id').val(id);
             modal.find('#edit_name').val(name);
             modal.find('#edit_province_id').val(provinceId || '');
             modal.find('#editCityForm').attr('action', actionUrl);

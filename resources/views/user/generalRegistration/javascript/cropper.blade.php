@@ -3,8 +3,117 @@
 
 <script src="{{ asset('js/browser-image-compression.js') }}"></script>
 <script src="{{ asset('js/heic2any.min.js') }}"></script>
+<script src="{{ asset('js/face-api.js') }}"></script>
 
 <script>
+// ═══════════════════════════════════════════════════════════════
+// فحص الوجه Client-Side عبر face-api.js
+// ═══════════════════════════════════════════════════════════════
+let _faceModelsLoaded = false;
+
+async function loadFaceModels() {
+  if (_faceModelsLoaded) return true;
+
+  // التحقق من أن مكتبة face-api.js محملة
+  if (typeof faceapi === 'undefined') {
+    console.error('[FaceCheck] مكتبة face-api.js غير محملة');
+    return false;
+  }
+
+  try {
+    // تهيئة TensorFlow.js مع WebGL (تجنب WASM)
+    await faceapi.tf.setBackend('webgl');
+    await faceapi.tf.ready();
+    console.log('[FaceCheck] تم تهيئة TensorFlow.js بـ WebGL backend');
+  } catch (e) {
+    console.warn('[FaceCheck] WebGL غير متاح، محاولة WASM...');
+    try {
+      await faceapi.tf.ready();
+    } catch (e2) {
+      console.error('[FaceCheck] فشل تهيئة TensorFlow.js:', e2);
+      return false;
+    }
+  }
+
+  // قائمة المصادر: أولاً محلي (أسرع)، ثم CDN كـ fallback
+  const MODEL_SOURCES = [
+    '{{ asset("scripts/models") }}',
+    'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model'
+  ];
+
+  for (const MODEL_URL of MODEL_SOURCES) {
+    try {
+      await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
+      await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+      _faceModelsLoaded = true;
+      console.log('[FaceCheck] تم تحميل نماذج فحص الوجه من:', MODEL_URL);
+      return true;
+    } catch (err) {
+      console.warn('[FaceCheck] فشل التحميل من:', MODEL_URL, err.message);
+    }
+  }
+
+  console.error('[FaceCheck] فشل تحميل النماذج من جميع المصادر');
+  return false;
+}
+
+async function checkFaceOnCanvas(canvas) {
+  try {
+    const detection = await faceapi
+      .detectAllFaces(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.65 }))
+      .withFaceLandmarks();
+
+    if (!detection || detection.length === 0) {
+      return { valid: false, reason: 'لم يتم العثور على وجه واضح في الصورة' };
+    }
+
+    if (detection.length > 1) {
+      return { valid: false, reason: 'الصورة تحتوي على أكثر من وجه - يرجى إرسال صورة لشخص واحد فقط' };
+    }
+
+    const face = detection[0];
+
+    const positions = face.landmarks.positions;
+    if (!positions || positions.length < 68) {
+      return { valid: false, reason: 'معالم الوجه غير مكتملة - يرجى استخدام صورة وجه واضحة' };
+    }
+
+    const isValidGroup = (pts) => pts.every(p => p && typeof p.x === 'number' && typeof p.y === 'number' && !isNaN(p.x) && isFinite(p.x));
+
+    const jaw = positions.slice(0, 17);
+    if (jaw.length !== 17 || !isValidGroup(jaw)) {
+      return { valid: false, reason: 'الفك غير واضح - يرجى استخدام صورة وجه واضحة من الأمام' };
+    }
+
+    const nose = positions.slice(27, 36);
+    if (nose.length !== 9 || !isValidGroup(nose)) {
+      return { valid: false, reason: 'معالم الأنف غير واضحة' };
+    }
+
+    const leftEye = positions.slice(36, 42);
+    const rightEye = positions.slice(42, 48);
+    if (leftEye.length !== 6 || rightEye.length !== 6 || !isValidGroup(leftEye) || !isValidGroup(rightEye)) {
+      return { valid: false, reason: 'معالم العينين غير واضحة' };
+    }
+
+    const mouth = positions.slice(48, 68);
+    if (mouth.length !== 20 || !isValidGroup(mouth)) {
+      return { valid: false, reason: 'معالم الفم غير واضحة' };
+    }
+
+    const boxWidth = face.detection.box.width;
+    const relativeWidth = boxWidth / canvas.width;
+    if (relativeWidth < 0.12) {
+      return { valid: false, reason: 'حجم الوجه صغير جداً بالنسبة للصورة - يقرّب الصورة' };
+    }
+
+    return { valid: true };
+  } catch (err) {
+    console.error('[FaceCheck] خطأ في فحص الوجه:', err);
+    return { valid: false, reason: 'تعذر فحص الصورة الشخصية' };
+  }
+}
+
 // دالة تحويل HEIC إلى JPEG
 async function convertHeicToJpeg(file) {
   const isHeic = file.type === 'image/heic' || file.type === 'image/heif' ||
@@ -302,22 +411,7 @@ window.showCropperModal = async function(file, callback) {
     });
   }
 
-        //   function cleanup() {
-        //     if (cropper) {
-        //       cropper.destroy();
-        //       cropper = null;
-        //     }
-        //     elements.cropBtn.onclick = null;
-        //     if (objectUrl) {
-        //       URL.revokeObjectURL(objectUrl);
-        //       objectUrl = null;
-        //     }
-        //     if (timeoutTimer) {
-        //       clearTimeout(timeoutTimer);
-        //       timeoutTimer = null;
-        //     }
-        //   }
-        function cleanup() {
+  function cleanup() {
         if (cropper) {
             cropper.destroy();
             cropper = null;
@@ -556,6 +650,66 @@ window.showCropperModal = async function(file, callback) {
 
       console.log('[CropButton] تم إنشاء canvas مقصوص بنجاح');
 
+      // ═══════════════════════════════════════════════════════════════
+      // فحص الوجه Client-Side بعد القص مباشرة (فقط للصور الشخصية)
+      // ═══════════════════════════════════════════════════════════════
+      const fileType = file._fileType || 'image';
+      if (fileType === 'document') {
+        console.log('[FaceCheck] ⏭️ تخطي فحص الوجه - الوثيقة لا تتطلب فحص:', file.name);
+      } else {
+        if (progressBar && statusText) {
+          progressBar.style.width = '40%';
+          progressBar.textContent = '40%';
+          statusText.innerHTML = '<small>جاري فحص الوجه...</small>';
+        }
+
+        const modelsLoaded = await loadFaceModels();
+        if (modelsLoaded) {
+          const faceResult = await checkFaceOnCanvas(canvas);
+          if (!faceResult.valid) {
+            Swal.close();
+            Swal.fire({
+              icon: 'warning',
+              title: 'صورة غير مقبولة',
+              text: faceResult.reason,
+              confirmButtonText: 'اختر صورة أخرى',
+              allowOutsideClick: false
+            }).then(() => {
+              cleanup();
+              // فتح حوار اختيار ملف جديد بدل إعادة فتح الكروبر بنفس الملف
+              const fileInput = document.createElement('input');
+              fileInput.type = 'file';
+              fileInput.accept = 'image/*';
+              fileInput.style.display = 'none';
+              fileInput.onchange = (e) => {
+                const newFile = e.target.files[0];
+                fileInput.remove();
+                if (newFile) {
+                  newFile._fileType = fileType;
+                  window.showCropperModal(newFile, callback);
+                }
+              };
+              document.body.appendChild(fileInput);
+              fileInput.click();
+            });
+            return;
+          }
+          console.log('[FaceCheck] ✅ تم التحقق من الوجه بنجاح');
+        } else {
+          // فشل تحميل النماذج = رفض الرفع بدلاً من التخطي الصامت
+          Swal.close();
+          Swal.fire({
+            icon: 'error',
+            title: 'خطأ في التحقق',
+            text: 'تعذر تحميل نظام فحص الوجه. يرجى التحقق من اتصال الإنترنت و المحاولة مرة أخرى.',
+            confirmButtonText: 'حسناً'
+          });
+          cleanup();
+          callback(null, 'فشل تحميل نظام فحص الوجه');
+          return;
+        }
+      }
+
       // تحديث شريط التقدم - تحويل إلى blob
       if (progressBar && statusText) {
         progressBar.style.width = '50%';
@@ -586,6 +740,8 @@ window.showCropperModal = async function(file, callback) {
         type: file.type,
         lastModified: Date.now()
       });
+      // نقل _fileType من الملف الأصلي للملف المقصوص
+      croppedFile._fileType = fileType;
 
       console.log('[CropButton] تم إنشاء ملف مقصوص:', {
         name: croppedFile.name,
