@@ -4,18 +4,29 @@
       const imageEl     = document.getElementById('cropperImage');
       const saveBtn     = document.getElementById('cropperSaveBtn');
       let   cropper     = null;
-      const cropperModal = new bootstrap.Modal(modalEl);
 
       if (!modalEl || !imageEl || !saveBtn) {
         console.warn('❗ Cropper modal elements missing:', { modalEl, imageEl, saveBtn });
         return;
       }
 
+      const cropperModal = new bootstrap.Modal(modalEl);
+
       // 1️⃣ رصد تغيير أي حقل input[name="avatar"]
       document.body.addEventListener('change', e => {
         if (!e.target.matches('input[name="avatar"]')) return;
         const file = e.target.files[0];
         if (!file || !file.type.startsWith('image/')) return;
+
+        if (file.size > 10 * 1024 * 1024) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'الملف كبير جداً',
+            text: 'الحد الأقصى لحجم الصورة 10 ميجابايت'
+          });
+          e.target.value = '';
+          return;
+        }
 
         const reader = new FileReader();
         reader.onload = ev => {
@@ -41,6 +52,10 @@
       // 3️⃣ حفظ الصورة المقطوعة ورفعها للسيرفر
       saveBtn.addEventListener('click', () => {
         if (!cropper) return console.warn('⚠️ Cropper not ready');
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'جاري الرفع...';
+
         const canvas = cropper.getCroppedCanvas({
           width:       300,
           height:      300,
@@ -57,7 +72,10 @@
             headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
             body:    fd
           })
-          .then(res => res.json())
+          .then(res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+            return res.json();
+          })
           .then(data => {
             if (data.success) {
               const newUrl = `${data.avatar}?v=${Date.now()}`;
@@ -85,6 +103,10 @@
               title: 'فشل رفع الصورة',
               text:  'حاول مرة أخرى'
             });
+          })
+          .finally(() => {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'حفظ الصورة';
           });
         }, 'image/png');
       });

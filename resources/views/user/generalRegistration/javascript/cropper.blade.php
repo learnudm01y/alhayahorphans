@@ -28,10 +28,19 @@ async function loadFaceModels() {
   } catch (e) {
     console.warn('[FaceCheck] WebGL غير متاح، محاولة WASM...');
     try {
+      await faceapi.tf.setBackend('wasm');
       await faceapi.tf.ready();
+      console.log('[FaceCheck] تم تهيئة TensorFlow.js بـ WASM backend');
     } catch (e2) {
-      console.error('[FaceCheck] فشل تهيئة TensorFlow.js:', e2);
-      return false;
+      console.warn('[FaceCheck] WASM غير متاح، محاولة CPU...');
+      try {
+        await faceapi.tf.setBackend('cpu');
+        await faceapi.tf.ready();
+        console.log('[FaceCheck] تم تهيئة TensorFlow.js بـ CPU backend (أبطأ)');
+      } catch (e3) {
+        console.error('[FaceCheck] فشل تهيئة TensorFlow.js:', e3);
+        return false;
+      }
     }
   }
 
@@ -59,54 +68,121 @@ async function loadFaceModels() {
 
 async function checkFaceOnCanvas(canvas) {
   try {
-    const detection = await faceapi
-      .detectAllFaces(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.65 }))
+    // ═══════════════════════════════════════════════════════════════
+    // Two-Pass Detection: كشف الوجه أولاً، ثم تكبير منطقة الوجه لفحص المعالم
+    // ═══════════════════════════════════════════════════════════════
+
+    // Pass 1: كشف الوجه على الصورة الكاملة
+    const detections = await faceapi
+      .detectAllFaces(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.50 }))
       .withFaceLandmarks();
 
-    if (!detection || detection.length === 0) {
+    console.log('[FaceCheck] Pass 1: تم كشف', detections.length, 'وجه(وجوه)');
+
+    if (!detections || detections.length === 0) {
       return { valid: false, reason: 'لم يتم العثور على وجه واضح في الصورة' };
     }
 
-    if (detection.length > 1) {
+    if (detections.length > 1) {
       return { valid: false, reason: 'الصورة تحتوي على أكثر من وجه - يرجى إرسال صورة لشخص واحد فقط' };
     }
 
-    const face = detection[0];
+    const face = detections[0];
+    const box = face.detection.box;
+    console.log('[FaceCheck] Confidence Score:', face.detection.score.toFixed(3));
 
-    const positions = face.landmarks.positions;
+    // فحص حجم الوجه في الصورة الأصلية
+    const relativeWidth = box.width / canvas.width;
+    console.log('[FaceCheck] حجم الوجه:', (relativeWidth * 100).toFixed(1) + '% من عرض الصورة');
+
+    if (relativeWidth < 0.06) {
+      return { valid: false, reason: 'حجم الوجه صغير جداً بالنسبة للصورة - يقرّب الصورة' };
+    }
+
+    // Pass 2: قص منطقة مكبّرة حول الوجه لفحص المعالم بدقة
+    const padding = Math.max(box.width, box.height) * 0.5;
+    const sx = Math.max(0, box.x - padding);
+    const sy = Math.max(0, box.y - padding);
+    const sw = Math.min(canvas.width - sx, box.width + padding * 2);
+    const sh = Math.min(canvas.height - sy, box.height + padding * 2);
+
+    console.log('[FaceCheck] Pass 2: تكبير منطقة الوجه من', sw.toFixed(0), 'x', sh.toFixed(0), 'إلى 300px');
+
+    const zoomCanvas = document.createElement('canvas');
+    const ZOOM_WIDTH = 300;
+    const ZOOM_HEIGHT = Math.round(ZOOM_WIDTH * (sh / sw));
+    zoomCanvas.width = ZOOM_WIDTH;
+    zoomCanvas.height = ZOOM_HEIGHT;
+
+    const ctx = zoomCanvas.getContext('2d');
+    ctx.drawImage(canvas, sx, sy, sw, sh, 0, 0, ZOOM_WIDTH, ZOOM_HEIGHT);
+
+    // فحص المعالم على المنطقة المكبّرة
+    const detailed = await faceapi
+      .detectSingleFace(zoomCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.50 }))
+      .withFaceLandmarks();
+
+    if (!detailed) {
+      console.warn('[FaceCheck] Pass 2 فشل، الاعتماد على نتائج Pass 1');
+      const pass1Landmarks = face.landmarks;
+      if (pass1Landmarks && pass1Landmarks.positions && pass1Landmarks.positions.length >= 68) {
+        // نكمل التحقق على بيانات Pass 1
+      } else {
+        zoomCanvas.width = 0;
+        zoomCanvas.height = 0;
+        return { valid: false, reason: 'تعذر تحليل تفاصيل الوجه - يرجى استخدام صورة وجه واضحة' };
+      }
+    }
+
+    const positions = detailed ? detailed.landmarks.positions : face.landmarks.positions;
     if (!positions || positions.length < 68) {
+      zoomCanvas.width = 0;
+      zoomCanvas.height = 0;
       return { valid: false, reason: 'معالم الوجه غير مكتملة - يرجى استخدام صورة وجه واضحة' };
     }
 
-    const isValidGroup = (pts) => pts.every(p => p && typeof p.x === 'number' && typeof p.y === 'number' && !isNaN(p.x) && isFinite(p.x));
+    const isValidGroup = (pts) => pts.every(p => p && typeof p.x === 'number' && typeof p.y === 'number' && !isNaN(p.x) && isFinite(p.x) && !isNaN(p.y) && isFinite(p.y));
 
     const jaw = positions.slice(0, 17);
     if (jaw.length !== 17 || !isValidGroup(jaw)) {
+      zoomCanvas.width = 0;
+      zoomCanvas.height = 0;
       return { valid: false, reason: 'الفك غير واضح - يرجى استخدام صورة وجه واضحة من الأمام' };
+    }
+
+    const rightEyebrow = positions.slice(17, 22);
+    const leftEyebrow = positions.slice(22, 27);
+    if (rightEyebrow.length !== 5 || leftEyebrow.length !== 5 || !isValidGroup(rightEyebrow) || !isValidGroup(leftEyebrow)) {
+      zoomCanvas.width = 0;
+      zoomCanvas.height = 0;
+      return { valid: false, reason: 'معالم الحاجبين غير واضحة - يرجى استخدام صورة وجه واضحة من الأمام' };
     }
 
     const nose = positions.slice(27, 36);
     if (nose.length !== 9 || !isValidGroup(nose)) {
+      zoomCanvas.width = 0;
+      zoomCanvas.height = 0;
       return { valid: false, reason: 'معالم الأنف غير واضحة' };
     }
 
     const leftEye = positions.slice(36, 42);
     const rightEye = positions.slice(42, 48);
     if (leftEye.length !== 6 || rightEye.length !== 6 || !isValidGroup(leftEye) || !isValidGroup(rightEye)) {
+      zoomCanvas.width = 0;
+      zoomCanvas.height = 0;
       return { valid: false, reason: 'معالم العينين غير واضحة' };
     }
 
     const mouth = positions.slice(48, 68);
     if (mouth.length !== 20 || !isValidGroup(mouth)) {
+      zoomCanvas.width = 0;
+      zoomCanvas.height = 0;
       return { valid: false, reason: 'معالم الفم غير واضحة' };
     }
 
-    const boxWidth = face.detection.box.width;
-    const relativeWidth = boxWidth / canvas.width;
-    if (relativeWidth < 0.12) {
-      return { valid: false, reason: 'حجم الوجه صغير جداً بالنسبة للصورة - يقرّب الصورة' };
-    }
-
+    zoomCanvas.width = 0;
+    zoomCanvas.height = 0;
+    console.log('[FaceCheck] ✅ تم التحقق من الوجه بنجاح (Two-Pass)');
     return { valid: true };
   } catch (err) {
     console.error('[FaceCheck] خطأ في فحص الوجه:', err);
@@ -165,142 +241,6 @@ async function convertHeicToJpeg(file) {
     throw new Error('فشل في تحويل صورة HEIC');
   }
 }
-// دالة ضغط الصورة مع شريط التقدم
-async function compressImageWithProgress(file) {
-  const targetSizeKB = 100;
-  const targetSizeBytes = targetSizeKB * 1024;
-  const maxSizeMB = 50;
-
-  console.log('[compressImage] بدء ضغط الصورة:', {
-    name: file.name,
-    size: file.size,
-    type: file.type
-  });
-
-  // التحقق من حجم الملف
-  if (file.size > maxSizeMB * 1024 * 1024) {
-    throw new Error(`حجم الملف يتجاوز ${maxSizeMB} ميجابايت`);
-  }
-
-  // تجاهل الملفات الصغيرة بالفعل
-  if (file.size <= targetSizeBytes) {
-    console.log('[compressImage] الملف صغير بالفعل، لا حاجة للضغط');
-    return file;
-  }
-
-  // عرض شريط التقدم
-  Swal.fire({
-    title: 'جاري ضغط الصورة...',
-    html: `
-      <div class="progress mb-3" style="height: 20px;">
-        <div class="progress-bar progress-bar-striped progress-bar-animated"
-             role="progressbar"
-             style="width: 0%"
-             id="compressionProgress">0%</div>
-      </div>
-      <div class="text-muted">
-        <small>الحجم الأصلي: ${(file.size / 1024 / 1024).toFixed(2)} MB</small><br>
-        <small>الهدف: ${targetSizeKB} KB</small>
-      </div>
-    `,
-    allowOutsideClick: false,
-    showConfirmButton: false,
-    didOpen: () => {
-      // تحريك شريط التقدم
-      let progress = 0;
-      const progressBar = document.getElementById('compressionProgress');
-      const interval = setInterval(() => {
-        progress += Math.random() * 15;
-        if (progress > 90) progress = 90;
-
-        progressBar.style.width = progress + '%';
-        progressBar.textContent = Math.round(progress) + '%';
-      }, 200);
-
-      // حفظ المؤقت لتنظيفه لاحقاً
-      Swal.getPopup().progressInterval = interval;
-    }
-  });
-
-  try {
-    // خيارات الضغط
-    const options = {
-      maxSizeMB: targetSizeKB / 1024, // تحويل KB إلى MB
-      maxWidthOrHeight: 1920,
-      useWebWorker: true,
-      fileType: file.type,
-      initialQuality: 0.8,
-      alwaysKeepResolution: false,
-      onProgress: (progress) => {
-        const progressBar = document.getElementById('compressionProgress');
-        if (progressBar) {
-          const realProgress = Math.min(90 + (progress * 10), 100);
-          progressBar.style.width = realProgress + '%';
-          progressBar.textContent = Math.round(realProgress) + '%';
-        }
-      }
-    };
-
-    console.log('[compressImage] بدء الضغط بالخيارات:', options);
-
-    const compressedFile = await imageCompression(file, options);
-
-    // تنظيف المؤقت
-    const popup = Swal.getPopup();
-    if (popup && popup.progressInterval) {
-      clearInterval(popup.progressInterval);
-    }
-
-    console.log('[compressImage] تم الضغط بنجاح:', {
-      originalSize: file.size,
-      compressedSize: compressedFile.size,
-      compressionRatio: ((1 - compressedFile.size / file.size) * 100).toFixed(1) + '%'
-    });
-
-    // إخفاء شريط التقدم
-    Swal.close();
-
-    // عرض نتيجة الضغط
-    const compressionRatio = ((1 - compressedFile.size / file.size) * 100).toFixed(1);
-    Swal.fire({
-      icon: 'success',
-      title: 'تم ضغط الصورة بنجاح',
-      html: `
-        <div class="text-center">
-          <p class="mb-2">الحجم الأصلي: <strong>${(file.size / 1024 / 1024).toFixed(2)} MB</strong></p>
-          <p class="mb-2">الحجم الجديد: <strong>${(compressedFile.size / 1024).toFixed(2)} KB</strong></p>
-          <p class="text-success">تم توفير ${compressionRatio}% من المساحة</p>
-        </div>
-      `,
-      timer: 3000,
-      showConfirmButton: false
-    });
-
-    return compressedFile;
-
-  } catch (error) {
-    // تنظيف المؤقت في حالة الخطأ
-    const popup = Swal.getPopup();
-    if (popup && popup.progressInterval) {
-      clearInterval(popup.progressInterval);
-    }
-
-    console.error('[compressImage] خطأ في الضغط:', error);
-    Swal.fire({
-      icon: 'error',
-      title: 'خطأ في ضغط الصورة',
-      text: error.message || 'حدث خطأ غير متوقع'
-    });
-    throw error;
-  }
-}
-// // إزالة أي cropper modal سابق
-// document.querySelectorAll('.cropper-modal, .modal[data-cropper-modal]').forEach(m => m.remove());
-// // أو إذا كان لديك ID ثابت:
-// const oldModal = document.getElementById('cropperModal');
-// if (oldModal) oldModal.remove();
-// // دالة لإغلاق المودال وإزالة cropper
-
 window.showCropperModal = async function(file, callback) {
   console.log('[showCropperModal] بدء فحص الملف:', file);
 
@@ -412,34 +352,31 @@ window.showCropperModal = async function(file, callback) {
   }
 
   function cleanup() {
-        if (cropper) {
-            cropper.destroy();
-            cropper = null;
-        }
-        elements.cropBtn.onclick = null;
-        if (objectUrl) {
-            URL.revokeObjectURL(objectUrl);
-            objectUrl = null;
-        }
-        if (timeoutTimer) {
-            clearTimeout(timeoutTimer);
-            timeoutTimer = null;
-        }
-        }
+    if (cropper) {
+      cropper.destroy();
+      cropper = null;
+    }
+    elements.cropBtn.onclick = null;
+    if (objectUrl) {
+      URL.revokeObjectURL(objectUrl);
+      objectUrl = null;
+    }
+    if (timeoutTimer) {
+      clearTimeout(timeoutTimer);
+      timeoutTimer = null;
+    }
+  }
 
-        // أضف هذا بعد تعريف cleanup مباشرة
-        const cancelBtn = document.getElementById('cropperCancelBtn');
-        if (cancelBtn) {
-        cancelBtn.onclick = function() {
-            cleanup();
-            handleAttachmentCancelAndCleanup(file);
-            callback(null);
-            // إغلاق المودال إذا لم يكن مغلقاً تلقائياً
-            bootstrap.Modal.getInstance(elements.modal)?.hide();
-        };
-        }
-
-
+  // زر الإلغاء
+  const cancelBtn = document.getElementById('cropperCancelBtn');
+  if (cancelBtn) {
+    cancelBtn.onclick = function() {
+      cleanup();
+      handleAttachmentCancelAndCleanup(file);
+      callback(null);
+      bootstrap.Modal.getInstance(elements.modal)?.hide();
+    };
+  }
 
   // تنظيف عند إغلاق المودال
   elements.modal.addEventListener('hidden.bs.modal', cleanup, { once: true });
@@ -457,47 +394,37 @@ window.showCropperModal = async function(file, callback) {
     callback(null);
   }, 300000);
 
-  // تحميل الصورة
-  const reader = new FileReader();
-
-  reader.onerror = () => {
-    console.error('[showCropperModal] خطأ في قراءة الملف');
+  // إنشاء Object URL مباشرة (أسرع وأخف من FileReader + data URL)
+  try {
+    objectUrl = URL.createObjectURL(file);
+  } catch (urlError) {
+    console.error('[showCropperModal] خطأ في إنشاء URL للملف:', urlError);
     cleanup();
     handleAttachmentCancelAndCleanup(file);
     callback(null, 'خطأ في قراءة الملف');
+    return;
+  }
+
+  elements.image.src = objectUrl;
+
+  // تحسين حجم الصورة
+  elements.image.onload = () => {
+    const container = elements.image.parentElement;
+    const containerWidth = container.clientWidth || 800;
+    const containerHeight = container.clientHeight || 600;
+
+    elements.image.style.maxWidth = '95%';
+    elements.image.style.maxHeight = '95%';
+
+    console.log('[showCropperModal] تم تحميل الصورة بنجاح');
+    initializeCropper();
   };
 
-  reader.onload = (e) => {
-    if (!e.target.result) {
-      console.error('[showCropperModal] لا توجد بيانات');
-      cleanup();
-      callback(null, 'لا توجد بيانات في الملف');
-      return;
-    }
-
-    objectUrl = e.target.result;
-    elements.image.src = objectUrl;
-
-    // تحسين حجم الصورة
-    elements.image.onload = () => {
-      const container = elements.image.parentElement;
-      const containerWidth = container.clientWidth || 800;
-      const containerHeight = container.clientHeight || 600;
-
-      // تطبيق حجم محسن
-      elements.image.style.maxWidth = '95%';
-      elements.image.style.maxHeight = '95%';
-
-      console.log('[showCropperModal] تم تحميل الصورة بنجاح');
-      initializeCropper();
-    };
-
-    elements.image.onerror = () => {
-      console.error('[showCropperModal] خطأ في تحميل الصورة');
-      cleanup();
-       handleAttachmentCancelAndCleanup(file);
-      callback(null, 'خطأ في تحميل الصورة');
-    };
+  elements.image.onerror = () => {
+    console.error('[showCropperModal] خطأ في تحميل الصورة');
+    cleanup();
+    handleAttachmentCancelAndCleanup(file);
+    callback(null, 'خطأ في تحميل الصورة');
   };
 
   function initializeCropper() {
@@ -835,12 +762,6 @@ window.showCropperModal = async function(file, callback) {
       callback(null);
     }
   };
-
-  // تنظيف عند إغلاق المودال
-  elements.modal.addEventListener('hidden.bs.modal', cleanup, { once: true });
-
-  // قراءة الملف
-  reader.readAsDataURL(file);
 
   // عرض المودال مع ضمان الحجم الصحيح
   const modal = new bootstrap.Modal(elements.modal, {

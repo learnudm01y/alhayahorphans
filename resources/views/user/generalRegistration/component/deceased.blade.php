@@ -1,4 +1,12 @@
 <div class="tab-pane fade" id="deceased" role="tabpanel" aria-labelledby="deceased-tab">
+      <style>
+          #deceased input[type="file"],
+          #deceased .mainDocumentFileInput {
+              display: none !important;
+              visibility: hidden !important;
+              pointer-events: none !important;
+          }
+      </style>
       <div class="row g-3">
           <!-- Father Information -->
           <div class="col-12">

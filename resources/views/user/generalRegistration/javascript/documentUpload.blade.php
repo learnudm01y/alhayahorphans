@@ -1207,19 +1207,7 @@
                     previewDiv.appendChild(card);
                 });
 
-                // إخفاء جميع عناصر input[type="file"] الخاصة بالرفع
-                setTimeout(() => {
-                    document.querySelectorAll('[data-upload-zone] input[type="file"]').forEach(input => {
-                        input.style.display = 'none';
-                        input.style.visibility = 'hidden';
-                        input.style.width = '0';
-                        input.style.height = '0';
-                        input.style.pointerEvents = 'none';
-                        input.style.opacity = '0';
-                        input.style.position = 'absolute';
-                        input.style.left = '-9999px';
-                    });
-                }, 0);
+                // عدم إخفاء عناصر input[type="file"]؛ تركها طبيعية للسماح بفتح منتقي الملفات بشكل صحيح
             }
 
             function initUploadZone(zone) {
@@ -1254,31 +1242,23 @@
 
                 // ⭐ التكامل المحسن مع مودال اختيار مصدر الصورة
                 newFileInput.addEventListener('click', function(e) {
-                    // فحص نوع الجهاز
+                    // السماح للمتصفح بفتح منتقي الملفات بشكل طبيعي.
+                    // إذا كان هناك مودال مصدر الصور على الهاتف، سيتم التعامل معه فقط عند الحاجة، دون منع النقر الطبيعي.
                     const deviceInfo = window.DeviceImageSource ? window.DeviceImageSource.detectDevice() : null;
 
-                    // إذا كان جهاز محمول أو لوحي وكان مودال اختيار المصدر متوفراً
                     if (deviceInfo && (deviceInfo.isMobile || deviceInfo.isTablet) && window.DeviceImageSource) {
-                        e.preventDefault();
-                        e.stopPropagation();
+                        console.log('📱 [DeviceIntegration] جهاز محمول، التحقق من مودال اختيار المصدر');
 
-                        console.log('📱 [DeviceIntegration] جهاز محمول، إظهار مودال اختيار المصدر');
-
-                        // إظهار مودال اختيار مصدر الصورة مع callback صحيح
                         window.DeviceImageSource.showModal(async function(selectedFile) {
                             if (selectedFile) {
                                 console.log('📱 [DeviceIntegration] تم استلام ملف من مودال اختيار المصدر:', selectedFile.name);
-
-                                // ⭐ هنا المفتاح: نقل الملف مباشرة إلى نظام المعالجة
-                                // بدلاً من محاكاة اختيار الملف في input
                                 await handleFileSelection(selectedFile, personKey, docTypeSelect, newFileInput);
                             }
                         });
 
-                        return false;
+                        return;
                     }
 
-                    // للكمبيوتر أو إذا لم يكن مودال اختيار المصدر متوفراً، المتابعة بالطريقة العادية
                     console.log('💻 [DeviceIntegration] كمبيوتر أو مودال غير متوفر، استخدام الطريقة العادية');
                 });
 
@@ -1427,9 +1407,16 @@
                 // لا تعيد تعيين select إلا بعد رفع الملفات فعليًا (يمكنك التعليق على السطر التالي إذا أردت إبقاء الاختيار)
                 // docTypeSelect.value = '';
                 docTypeSelect.addEventListener('change', function() {
-                    // فتح حوار اختيار الملف فور اختيار نوع الوثيقة
                     if (this.value && !this.disabled) {
-                        newFileInput.click();
+                        setTimeout(() => {
+                            try {
+                                if (document.body.contains(newFileInput)) {
+                                    newFileInput.click();
+                                }
+                            } catch (err) {
+                                console.warn('[initUploadZone] فشل فتح منتقي الملفات بعد تغيير نوع الوثيقة:', err);
+                            }
+                        }, 50);
                     }
 
                     if (!allDocs.has(personKey)) return;
