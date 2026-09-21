@@ -139,11 +139,20 @@ class MobileRegistrationController extends Controller
                 }
             };
 
-            $sections = $safeSelect('general_category', ['id', 'description'], 'id');
+            $sections = $safeSelect('general_category', ['id', 'description', 'status'], 'id');
             $provinces = $safeSelect('provinces', ['id', 'description'], 'id');
             $relations = $safeSelect('category_of_relations', ['id', 'attribute'], 'id', ['attribute' => ['<>', 'Unknown']]);
             $cities = $safeSelect('city', ['id', 'city', 'province_id'], 'city');
             $deathReasons = $safeSelect('death_reasons', ['id', 'description'], 'id');
+            $maritalStatuses = $safeSelect('ci_personal_cd', ['id', 'CI_PERSONAL_CD'], 'id');
+            $academicQualifications = $safeSelect('academic_degree', ['id', 'description'], 'id');
+            $displacementStatuses = $safeSelect('displacement_status', ['id', 'description'], 'id', ['description' => ['<>', 'Unknown']]);
+            $healthStatuses = $safeSelect('health_status', ['id', 'description'], 'id', ['description' => ['<>', 'Unknown']]);
+            $employmentStatuses = $safeSelect('employment', ['id', 'description'], 'id');
+            $housingStatuses = $safeSelect('housing_status', ['id', 'description'], 'id');
+            $housingTypes = $safeSelect('type_of_accommodation', ['id', 'description'], 'id');
+            $bankNames = $safeSelect('bank_names', ['id', 'description'], 'id');
+            $documentTypes = $safeSelect('document_type', ['id', 'pref', 'description', 'basic_enabled', 'basic_required', 'family_enabled', 'family_required', 'deceased_enabled', 'deceased_required'], 'id', ['description' => ['<>', 'Unknown']]);
 
             return response()->json([
                 'success' => true,
@@ -152,6 +161,15 @@ class MobileRegistrationController extends Controller
                 'relations' => $relations,
                 'cities' => $cities,
                 'death_reasons' => $deathReasons,
+                'marital_statuses' => $maritalStatuses,
+                'academic_qualifications' => $academicQualifications,
+                'displacement_statuses' => $displacementStatuses,
+                'health_statuses' => $healthStatuses,
+                'employment_statuses' => $employmentStatuses,
+                'housing_statuses' => $housingStatuses,
+                'housing_types' => $housingTypes,
+                'bank_names' => $bankNames,
+                'document_types' => $documentTypes,
             ]);
         } catch (\Exception $e) {
             Log::error('MobileRegistration lookups failed', ['error' => $e->getMessage()]);
@@ -451,10 +469,14 @@ class MobileRegistrationController extends Controller
 
             $this->storeBankAccounts($fileIdNumber, $request->input('bank_accounts', []), $request->input('data_id_number'));
 
+            // logic for deceased father and mother (dead_people table)
             if ((int) $request->input('data_section_id') === 1) {
                 $this->storeDeceased($fileIdNumber, $request);
                 $this->storeAdditionalDeceased($fileIdNumber, $request->input('additional_deceased', []));
             }
+
+            // logic for living mother (field values table) - mirror web logic
+            $this->storeMotherFieldValues($fileIdNumber, $request);
 
             $this->replaceFamilyMembers($fileIdNumber, $request->input('family_members', []), $fileIdNumber);
 
@@ -680,6 +702,56 @@ class MobileRegistrationController extends Controller
     private function userMarker(?int $userId): string
     {
         return $userId ? 'APP-' . $userId : 'APP-user';
+    }
+
+    private function storeMotherFieldValues(string $fileIdNumber, Request $request): void
+    {
+        $rel = (string) $request->input('data_relationship');
+        $guardianIsMother = ($rel === '1');
+        $motherIsAlive = $request->input('mother_is_alive');
+        $identityNumber = $request->input('data_id_number');
+
+        $portalFields = [];
+
+        if ($guardianIsMother) {
+            $portalFields = [
+                'field_mother_status' => 'حية',
+                'field_living_mother_id' => $request->input('data_id_number'),
+                'field_living_mother_first_name' => $request->input('data_first_name'),
+                'field_living_mother_second_name' => $request->input('data_father_name'),
+                'field_living_mother_third_name' => $request->input('data_grand_father_name'),
+                'field_living_mother_last_name' => $request->input('data_family_name'),
+            ];
+        } elseif ($motherIsAlive === '1') {
+            $portalFields = [
+                'field_mother_status' => 'حية',
+                'field_living_mother_id' => $request->input('mother_id'),
+                'field_living_mother_first_name' => $request->input('mother_first_name'),
+                'field_living_mother_second_name' => $request->input('mother_second_name'),
+                'field_living_mother_third_name' => $request->input('mother_third_name'),
+                'field_living_mother_last_name' => $request->input('mother_last_name'),
+            ];
+        } elseif ($motherIsAlive === '0') {
+            $portalFields = [
+                'field_mother_status' => 'متوفية',
+                'field_mother_id' => $request->input('mother_id'),
+                'field_mother_first_name' => $request->input('mother_first_name'),
+                'field_mother_second_name' => $request->input('mother_second_name'),
+                'field_mother_third_name' => $request->input('mother_third_name'),
+                'field_mother_last_name' => $request->input('mother_last_name'),
+                'field_mother_death_date' => $request->input('mother_death_date'),
+                'field_mother_death_reason' => $request->input('mother_death_reason'),
+            ];
+        }
+
+        foreach ($portalFields as $key => $value) {
+            if ($value !== null && $value !== '') {
+                DB::table('portal_general_registration_field_values')->updateOrInsert(
+                    ['file_id_number' => $fileIdNumber, 'field_key' => $key],
+                    ['field_value' => $value, 'identity_number' => $identityNumber, 'updated_at' => now()]
+                );
+            }
+        }
     }
 
     private function storeBankAccounts(string $fileIdNumber, array $bankAccounts, string $guardianIdentity): void

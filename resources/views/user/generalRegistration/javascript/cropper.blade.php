@@ -603,21 +603,30 @@ window.showCropperModal = async function(file, callback) {
               allowOutsideClick: false
             }).then(() => {
               cleanup();
-              // فتح حوار اختيار ملف جديد بدل إعادة فتح الكروبر بنفس الملف
-              const fileInput = document.createElement('input');
-              fileInput.type = 'file';
-              fileInput.accept = 'image/*';
-              fileInput.style.display = 'none';
-              fileInput.onchange = (e) => {
-                const newFile = e.target.files[0];
-                fileInput.remove();
-                if (newFile) {
-                  newFile._fileType = fileType;
-                  window.showCropperModal(newFile, callback);
-                }
-              };
-              document.body.appendChild(fileInput);
-              fileInput.click();
+              // فتح حوار اختيار ملف جديد عبر مودال النظام المخصص بدل نافذة أندرويد
+              if (window.DeviceImageSource && typeof window.DeviceImageSource.showModal === 'function') {
+                window.DeviceImageSource.showModal(function(newFile) {
+                  if (newFile) {
+                    newFile._fileType = fileType;
+                    window.showCropperModal(newFile, callback);
+                  }
+                });
+              } else {
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.accept = 'image/*';
+                fileInput.style.display = 'none';
+                fileInput.onchange = (e) => {
+                  const newFile = e.target.files[0];
+                  fileInput.remove();
+                  if (newFile) {
+                    newFile._fileType = fileType;
+                    window.showCropperModal(newFile, callback);
+                  }
+                };
+                document.body.appendChild(fileInput);
+                fileInput.click();
+              }
             });
             return;
           }

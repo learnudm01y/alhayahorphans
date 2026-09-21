@@ -447,21 +447,26 @@ document.addEventListener('DOMContentLoaded', function() {
         };
     }
 
-    // دالة تكوين input الكاميرا حسب نوع الجهاز
+    // دالة تكوين input الكاميرا ومعرض الصور حسب نوع الجهاز لمنع ظهور نافذة النظام المزدوجة
     function configureCameraInput(deviceInfo) {
         const cameraInput = document.getElementById('deviceCameraInput');
+        const galleryInput = document.getElementById('deviceGalleryInput');
 
         cameraInput.removeAttribute('capture');
+        if (galleryInput) {
+            galleryInput.removeAttribute('capture');
+            galleryInput.setAttribute('accept', 'image/jpeg,image/png,image/jpg,image/webp');
+        }
 
         if (deviceInfo.isMobile) {
             cameraInput.setAttribute('capture', 'environment');
-            console.log('📱 [CameraConfig] تم تكوين الكاميرا للجوال');
+            console.log('📱 [CameraConfig] تم تكوين الكاميرا للجوال مباشرة');
         } else if (deviceInfo.isTablet) {
             cameraInput.setAttribute('capture', 'user');
-            console.log('📱 [CameraConfig] تم تكوين الكاميرا للتابلت');
+            console.log('📱 [CameraConfig] تم تكوين الكاميرا للتابلت مباشرة');
         } else {
             cameraInput.setAttribute('capture', 'user');
-            console.log('💻 [CameraConfig] تم تكوين الكاميرا للكمبيوتر');
+            console.log('💻 [CameraConfig] تم تكوين الكاميرا للكمبيوتر مباشرة');
         }
     }
 
@@ -583,23 +588,13 @@ document.addEventListener('DOMContentLoaded', function() {
         // زر الكاميرا
         cameraBtn.addEventListener('click', function() {
             console.log('📸 [Camera] تم النقر على زر الكاميرا');
-            cameraBtn.classList.add('loading');
-
-            setTimeout(() => {
-                cameraInput.click();
-                cameraBtn.classList.remove('loading');
-            }, 100);
+            cameraInput.click();
         });
 
         // زر معرض الصور
         galleryBtn.addEventListener('click', function() {
-            console.log('🖼️ [Gallery] تم النقر على زر معرض الصور');
-            galleryBtn.classList.add('loading');
-
-            setTimeout(() => {
-                galleryInput.click();
-                galleryBtn.classList.remove('loading');
-            }, 100);
+            console.log('🖼️ [Gallery] تم النقر على معرض الصور');
+            galleryInput.click();
         });
 
         // معالجة اختيار الملف من الكاميرا
