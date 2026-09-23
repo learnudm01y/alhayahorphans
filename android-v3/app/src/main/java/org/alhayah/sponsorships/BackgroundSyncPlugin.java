@@ -34,7 +34,7 @@ public class BackgroundSyncPlugin extends Plugin {
         lastProgress = progress;
         lastMessage = message;
         lastTotal = total;
-        
+
         if (instance != null) {
             JSObject ret = new JSObject();
             ret.put("progress", progress);
@@ -68,16 +68,16 @@ public class BackgroundSyncPlugin extends Plugin {
     public void saveLookup(PluginCall call) {
         String type = call.getString("type");
         JSArray dataArray = call.getArray("data");
-        
+
         if (type == null || dataArray == null) {
             call.reject("Must provide type and data");
             return;
         }
-        
+
         try {
             com.aso.app.SponsorshipsDatabaseHelper dbHelper = com.aso.app.SponsorshipsDatabaseHelper.getInstance(getContext());
             dbHelper.saveLookup(type, dataArray.toString());
-            
+
             JSObject ret = new JSObject();
             ret.put("success", true);
             call.resolve(ret);
@@ -107,7 +107,7 @@ public class BackgroundSyncPlugin extends Plugin {
             if ("com.aso.app.REALTIME_UPDATE".equals(intent.getAction())) {
                 JSObject ret = new JSObject();
                 ret.put("sponsorship_id", intent.getIntExtra("sponsorship_id", -1));
-                
+
                 // 🆕 تمرير نوع التحديث (lookup_update أو sponsorship) للـ JS
                 String updateType = intent.getStringExtra("update_type");
                 if (updateType != null) {
@@ -117,7 +117,7 @@ public class BackgroundSyncPlugin extends Plugin {
                 if (lookupType != null) {
                     ret.put("lookup_type", lookupType);
                 }
-                
+
                 String data = intent.getStringExtra("sponsorship_data");
                 if (data != null) {
                     try {
@@ -134,11 +134,11 @@ public class BackgroundSyncPlugin extends Plugin {
                 int progress = intent.getIntExtra("progress", -1);
                 String message = intent.getStringExtra("message");
                 int total = intent.getIntExtra("total", 0);
-                
+
                 lastProgress = progress;
                 lastMessage = message;
                 lastTotal = total;
-                
+
                 JSObject ret = new JSObject();
                 if (progress == 100) {
                     ret.put("success", true);
@@ -185,7 +185,7 @@ public class BackgroundSyncPlugin extends Plugin {
             if (workers > 6) workers = 6;
             Context context = getContext();
             org.alhayah.sponsorships.DownloadForegroundService.startDownload(context, workers);
-            
+
             JSObject ret = new JSObject();
             ret.put("success", true);
             ret.put("message", "Full download started in resilient foreground service");
@@ -204,12 +204,12 @@ public class BackgroundSyncPlugin extends Plugin {
             int sponsorId = call.getInt("sponsorId", 0);
             int statusId = call.getInt("statusId", 0);
             String search = call.getString("search", "");
-            
+
             Context context = getContext();
             com.aso.app.SponsorshipsDatabaseHelper dbHelper = com.aso.app.SponsorshipsDatabaseHelper.getInstance(context);
-            
+
             JSONArray data = dbHelper.getSponsorships(page, limit, sponsorId, statusId, search);
-            
+
             JSObject ret = new JSObject();
             ret.put("data", data);
             ret.put("success", true);
@@ -226,12 +226,12 @@ public class BackgroundSyncPlugin extends Plugin {
             int sponsorId = call.getInt("sponsorId", 0);
             int statusId = call.getInt("statusId", 0);
             String search = call.getString("search", "");
-            
+
             Context context = getContext();
             com.aso.app.SponsorshipsDatabaseHelper dbHelper = com.aso.app.SponsorshipsDatabaseHelper.getInstance(context);
-            
+
             int count = dbHelper.getSponsorshipsCount(sponsorId, statusId, search);
-            
+
             JSObject ret = new JSObject();
             ret.put("count", count);
             ret.put("success", true);
@@ -247,12 +247,12 @@ public class BackgroundSyncPlugin extends Plugin {
         try {
             int id = call.getInt("id", 0);
             JSObject data = call.getObject("data");
-            
+
             if (id > 0 && data != null) {
                 Context context = getContext();
                 com.aso.app.SponsorshipsDatabaseHelper dbHelper = com.aso.app.SponsorshipsDatabaseHelper.getInstance(context);
                 dbHelper.saveSponsorship(id, data.toString());
-                
+
                 JSObject ret = new JSObject();
                 ret.put("success", true);
                 call.resolve(ret);
@@ -264,18 +264,18 @@ public class BackgroundSyncPlugin extends Plugin {
             call.reject("Failed to save sponsorship: " + e.getMessage());
         }
     }
-    
+
     @PluginMethod
     public void deleteSponsorship(PluginCall call) {
         try {
             int id = call.getInt("id", 0);
-            
+
             if (id > 0) {
                 Context context = getContext();
                 com.aso.app.SponsorshipsDatabaseHelper dbHelper = com.aso.app.SponsorshipsDatabaseHelper.getInstance(context);
                 android.database.sqlite.SQLiteDatabase db = dbHelper.getWritableDatabase();
                 db.delete("sponsorships", "id = ?", new String[]{String.valueOf(id)});
-                
+
                 JSObject ret = new JSObject();
                 ret.put("success", true);
                 call.resolve(ret);
@@ -294,12 +294,12 @@ public class BackgroundSyncPlugin extends Plugin {
             Context context = getContext();
             DataSyncDatabaseHelper syncDbHelper = DataSyncDatabaseHelper.getInstance(context);
             java.util.Set<Integer> pendingIds = syncDbHelper.getPendingEntityIds();
-            
+
             org.json.JSONArray jsonArray = new org.json.JSONArray();
             for (Integer id : pendingIds) {
                 jsonArray.put(id);
             }
-            
+
             JSObject ret = new JSObject();
             ret.put("success", true);
             ret.put("pendingIds", jsonArray);
@@ -318,10 +318,10 @@ public class BackgroundSyncPlugin extends Plugin {
                 call.reject("Sponsorship ID required");
                 return;
             }
-            
+
             Context context = getContext();
             com.aso.app.SponsorshipsDatabaseHelper dbHelper = com.aso.app.SponsorshipsDatabaseHelper.getInstance(context);
-            
+
             String jsonStr = dbHelper.getSponsorship(id);
             if (jsonStr != null) {
                 JSObject ret = new JSObject();
@@ -360,12 +360,12 @@ public class BackgroundSyncPlugin extends Plugin {
             String query = call.getString("query", "");
             int page = call.getInt("page", 1);
             int limit = call.getInt("limit", 20);
-            
+
             Context context = getContext();
             com.aso.app.SponsorshipsDatabaseHelper dbHelper = com.aso.app.SponsorshipsDatabaseHelper.getInstance(context);
-            
+
             JSONArray data = dbHelper.searchSponsorships(query, page, limit);
-            
+
             JSObject ret = new JSObject();
             ret.put("data", data);
             ret.put("success", true);
@@ -381,15 +381,15 @@ public class BackgroundSyncPlugin extends Plugin {
         try {
             int id = call.getInt("id", 0);
             JSObject data = call.getObject("data");
-            
+
             if (id == 0 || data == null) {
                 call.reject("Sponsorship ID and data required");
                 return;
             }
-            
+
             Context context = getContext();
             com.aso.app.SponsorshipsDatabaseHelper dbHelper = com.aso.app.SponsorshipsDatabaseHelper.getInstance(context);
-            
+
             String existingDataStr = dbHelper.getSponsorship(id);
             if (existingDataStr != null) {
                 try {
@@ -406,7 +406,7 @@ public class BackgroundSyncPlugin extends Plugin {
             } else {
                 dbHelper.saveSponsorship(id, data.toString());
             }
-            
+
             JSObject ret = new JSObject();
             ret.put("success", true);
             call.resolve(ret);
@@ -465,7 +465,7 @@ public class BackgroundSyncPlugin extends Plugin {
             Context context = getContext();
             com.aso.app.SponsorshipsDatabaseHelper db = com.aso.app.SponsorshipsDatabaseHelper.getInstance(context);
             String jsonPayload = db.getLookup(type);
-            
+
             JSObject ret = new JSObject();
             if (jsonPayload != null) {
                 ret.put("data", new org.json.JSONArray(jsonPayload));
@@ -512,7 +512,7 @@ public class BackgroundSyncPlugin extends Plugin {
                                         existingData.put(key, data.get(key));
                                     }
                                     sponsorshipsDb.saveSponsorship(sponsorshipId, existingData.toString());
-                                    
+
                                     // Fire REALTIME_UPDATE so the UI refreshes IMMEDIATELY!
                                     android.content.Intent updateIntent = new android.content.Intent("com.aso.app.REALTIME_UPDATE");
                                     updateIntent.putExtra("sponsorship_id", sponsorshipId);
@@ -896,11 +896,47 @@ public class BackgroundSyncPlugin extends Plugin {
             JSONArray accounts = relatedDb().getBankAccountsByRegistration(registration);
             JSObject ret = new JSObject();
             ret.put("success", true);
-            ret.put("data", new com.getcapacitor.JSArray(accounts.toString()));
+            ret.put("data", com.getcapacitor.JSArray.from(accounts));
             ret.put("count", accounts.length());
             call.resolve(ret);
         } catch (Exception e) {
             Log.e(TAG, "getBankAccountsByRegistration failed", e);
+            call.reject("Failed: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod
+    public void getFileFullDetails(PluginCall call) {
+        try {
+            String registrationId = call.getString("registrationId", "");
+            if (registrationId.isEmpty()) {
+                call.reject("registrationId is required");
+                return;
+            }
+
+            RelatedDataDatabaseHelper db = relatedDb();
+            JSObject ret = new JSObject();
+
+            // 1. Family Members
+            JSONArray rePeople = db.getRePeopleByRegistration(registrationId);
+            ret.put("family_members", com.getcapacitor.JSArray.from(rePeople));
+
+            // 2. Deceased (Father/Mother)
+            JSONObject dead = db.getDeadPersonByFileId(registrationId);
+            ret.put("deceased", dead != null ? new JSObject(dead.toString()) : JSONObject.NULL);
+
+            // 3. Additional Deceased
+            JSONArray addDead = db.getAdditionalDeceasedByRegistration(registrationId);
+            ret.put("additional_deceased", com.getcapacitor.JSArray.from(addDead));
+
+            // 4. Bank Accounts
+            JSONArray banks = db.getBankAccountsByRegistration(registrationId);
+            ret.put("bank_accounts", com.getcapacitor.JSArray.from(banks));
+
+            ret.put("success", true);
+            call.resolve(ret);
+        } catch (Exception e) {
+            Log.e(TAG, "getFileFullDetails failed", e);
             call.reject("Failed: " + e.getMessage());
         }
     }

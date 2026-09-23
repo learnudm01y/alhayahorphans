@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2a8b8b">
+    <title>التقارير - v4</title>
+    <script src="../js/config.js"></script>
+    <link rel="stylesheet" href="../css/admin.css">
+</head>
+<body>
+    <div class="header">
+        <h1>التقارير (توليد محلي)</h1>
+        <div class="sub">v4 Offline Admin · <span id="mode-badge" class="badge badge-offline">Offline</span></div>
+    </div>
+
+    <nav class="nav-tabs container" style="margin-top:12px">
+        <a href="dashboard.html">لوحة القيادة</a>
+        <a href="sponsorships.html">الكفالات</a>
+        <a href="reports.html" class="active">التقارير</a>
+        <a href="permissions.html">الصلاحيات</a>
+        <a href="files.html">الملفات</a>
+        <a href="civil-registry.html">السجل المدني</a>
+        <a href="../screens/conflict-review.html">مراجعة التكرارات</a>
+        <a href="../screens/sync-health.html">صحة المزامنة</a>
+    </nav>
+
+    <div class="container">
+        <div class="toolbar">
+            <select id="rtype">
+                <option value="sponsorships">تقرير الكفالات</option>
+                <option value="files">تقرير الملفات</option>
+                <option value="bank_accounts">تقرير حسابات البنوك</option>
+            </select>
+            <button class="btn" id="btn-run">عرض</button>
+            <button class="btn btn-outline" id="btn-pdf">تصدير PDF</button>
+        </div>
+        <div class="section-title">النتائج <span class="badge badge-info" id="row-count">0</span></div>
+        <div id="table-wrap"><div class="empty" id="msg">اختر تقريراً واضغط عرض.</div></div>
+        <div class="watermark" id="wm"></div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="../js/sync-client-v4.js"></script>
+    <script src="../js/admin-api.js"></script>
+    <script src="../js/crud-helper.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script>
+    AdminNav.mount('reports');
+    (function () {
+        var currentType = 'sponsorships';
+        function toast(m) {
+            var t = document.getElementById('toast');
+            t.textContent = m; t.style.display = 'block';
+            setTimeout(function () { t.style.display = 'none'; }, 3500);
+        }
+        function setBadge() {
+            var b = document.getElementById('mode-badge');
+            if (navigator.onLine) { b.textContent = 'Online'; b.className = 'badge badge-ok'; }
+            else { b.textContent = 'Offline'; b.className = 'badge badge-offline'; }
+        }
+        window.addEventListener('online', setBadge);
+        window.addEventListener('offline', setBadge);
+        setBadge();
+
+        function load() {
+            currentType = document.getElementById('rtype').value;
+            if (!window.SyncClientV4) {
+                document.getElementById('msg').textContent = 'Bridge غير متاح.';
+                return;
+            }
+            SyncClientV4.getReportBundle(currentType).then(function (res) {
+                var b = (res && res.bundle) || {};
+                var rows = b.rows || [];
+                document.getElementById('row-count').textContent = rows.length;
+                document.getElementById('wm').textContent = b.watermark || '';
+                if (!rows.length) {
+                    document.getElementById('table-wrap').innerHTML =
+                        '<div class="empty">لا بيانات — أول مزامنة ستجلب مصدر التقارير.</div>';
+                    return;
+                }
+                var keys = Object.keys(rows[0] || {});
+                var html = '<table class="data"><thead><tr>';
+                keys.forEach(function (k) { html += '<th>' + k + '</th>'; });
+                html += '</tr></thead><tbody>';
+                rows.forEach(function (r) {
+                    html += '<tr>';
+                    keys.forEach(function (k) {
+                        var v = r[k];
+                        html += '<td>' + (v == null ? '—' : String(v)) + '</td>';
+                    });
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+                document.getElementById('table-wrap').innerHTML = html;
+            }).catch(function (e) {
+                document.getElementById('table-wrap').innerHTML =
+                    '<div class="empty">خطأ: ' + e.message + '</div>';
+            });
+        }
+
+        document.getElementById('btn-run').addEventListener('click', load);
+        document.getElementById('rtype').addEventListener('change', load);
+        document.getElementById('btn-pdf').addEventListener('click', function () {
+            if (!window.SyncClientV4) return;
+            var title = document.getElementById('rtype').selectedOptions[0].textContent;
+            SyncClientV4.generateReportPdf(currentType, title).then(function (res) {
+                if (res && res.success) toast('PDF محلي جاهز: ' + res.path);
+                else toast('فشل التوليد');
+            }).catch(function () { toast('Bridge غير متاح'); });
+        });
+
+        document.addEventListener('DOMContentLoaded', load);
+    })();
+    </script>
+</body>
+</html>

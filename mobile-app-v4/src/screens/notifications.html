@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2a8b8b">
+    <title>مركز الإشعارات - v4</title>
+    <script src="../js/config.js"></script>
+    <link rel="stylesheet" href="../css/admin.css">
+    <link rel="stylesheet" href="../css/material-icons.css">
+</head>
+<body>
+    <div class="header">
+        <h1>مركز الإشعارات المحلي</h1>
+        <div class="sub">Local Notifications · sync_v4.db · <span id="mode-badge" class="badge badge-offline">Offline</span></div>
+    </div>
+
+    <nav class="nav-tabs container" style="margin-top:12px">
+        <a href="../admin/dashboard.html">لوحة القيادة</a>
+        <a href="conflict-review.html">التعارضات</a>
+        <a href="sync-health.html">صحة المزامنة</a>
+        <a href="audit.html">التدقيق</a>
+        <a href="devices.html">الأجهزة</a>
+        <a href="notifications.html" class="active">الإشعارات</a>
+    </nav>
+
+    <div class="container">
+        <div class="filter-chips" id="type-chips">
+            <button class="chip active" data-type="">الكل</button>
+            <button class="chip" data-type="conflict">تعارضات</button>
+            <button class="chip" data-type="sync_error">أخطاء مزامنة</button>
+            <button class="chip" data-type="upload_done">اكتمال رفع</button>
+            <button class="chip" data-type="info">معلومات</button>
+        </div>
+
+        <div class="toolbar">
+            <button class="btn btn-outline" id="btn-mark">تعليم الكل كمقروء</button>
+            <button class="btn btn-outline" id="btn-refresh">تحديث</button>
+            <span class="badge badge-warn" id="unread">0 جديد</span>
+        </div>
+
+        <div id="list"><div class="empty" id="msg">جاري التحميل…</div></div>
+        <div class="watermark">إشعارات محلية بالكامل — لا تحتاج إنترنت لحظة العرض. كل مستخدم يرى تنبيهات جهازه فقط.</div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="../js/admin-api.js"></script>
+    <script src="../js/crud-helper.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script>
+    AdminNav.mount('notifications');
+    (function () {
+        var typeFilter = '';
+        CrudHelper.setOnlineBadge();
+
+        var TYPE_META = {
+            conflict: { icon: 'merge_type', color: 'var(--err)', label: 'تعارض' },
+            sync_error: { icon: 'sync_problem', color: 'var(--warn)', label: 'خطأ مزامنة' },
+            upload_done: { icon: 'cloud_done', color: 'var(--ok)', label: 'رفع مكتمل' },
+            info: { icon: 'info', color: 'var(--info)', label: 'معلومة' }
+        };
+
+        function getLocal() {
+            try {
+                return JSON.parse(localStorage.getItem('v4_local_notifications') || '[]');
+            } catch (e) { return []; }
+        }
+
+        function saveLocal(arr) {
+            try { localStorage.setItem('v4_local_notifications', JSON.stringify(arr)); }
+            catch (e) {}
+        }
+
+        function load() {
+            // Merge bridge notifications + local storage notifications
+            var local = getLocal();
+            var source = Promise.resolve({ notifications: local });
+
+            if (window.SyncClientV4 && SyncClientV4.getLocalNotifications) {
+                source = SyncClientV4.getLocalNotifications().catch(function () {
+                    return { notifications: local };
+                });
+            } else {
+                // Fallback: try HTTP
+                source = AdminAPI.http('GET', '/mobile/v4/notifications').catch(function () {
+                    return { notifications: local };
+                });
+            }
+
+            source.then(function (res) {
+                var items = (res && (res.notifications || res.data || res.rows)) || [];
+                if (typeFilter) {
+                    items = items.filter(function (n) { return n.type === typeFilter; });
+                }
+                var unread = items.filter(function (n) { return !n.read_at && !n.is_read; }).length;
+                document.getElementById('unread').textContent = unread + ' جديد';
+
+                if (!items.length) {
+                    document.getElementById('list').innerHTML =
+                        '<div class="empty"><span class="material-icons">notifications_off</span><br>لا إشعارات.</div>';
+                    return;
+                }
+
+                var html = '';
+                items.forEach(function (n) {
+                    var meta = TYPE_META[n.type] || TYPE_META.info;
+                    var isUnread = !n.read_at && !n.is_read;
+                    html += '<div class="conflict-card" data-id="' + (n.id || '') + '" ' +
+                        'style="' + (isUnread ? 'border-right:3px solid ' + meta.color + ';' : 'opacity:.75;') + '">' +
+                        '<div style="display:flex;gap:10px;align-items:flex-start">' +
+                        '<span class="material-icons" style="color:' + meta.color + ';font-size:22px">' +
+                        meta.icon + '</span>' +
+                        '<div style="flex:1">' +
+                        '<div style="font-weight:700;font-size:13px">' +
+                        (n.title || meta.label) +
+                        (isUnread ? ' <span class="badge badge-warn">جديد</span>' : '') +
+                        '</div>' +
+                        '<div style="font-size:12px;color:var(--ink-2);margin-top:4px">' +
+                        (n.body || n.message || '') + '</div>' +
+                        '<div style="font-size:11px;color:var(--ink-3);margin-top:6px">' +
+                        (n.created_at ? new Date(n.created_at).toLocaleString('ar') : '') +
+                        (n.type ? ' · ' + n.type : '') + '</div>' +
+                        '</div>' +
+                        (isUnread
+                            ? '<button class="btn btn-sm btn-outline" data-read="' + (n.id || '') + '">✓</button>'
+                            : '') +
+                        '</div></div>';
+                });
+                document.getElementById('list').innerHTML = html;
+
+                document.querySelectorAll('button[data-read]').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        markRead(btn.dataset.read);
+                    });
+                });
+            }).catch(function (e) {
+                document.getElementById('list').innerHTML =
+                    '<div class="empty">خطأ: ' + (e.message || e) + '</div>';
+            });
+        }
+
+        function markRead(id) {
+            var local = getLocal();
+            var found = local.find(function (n) { return String(n.id) === String(id); });
+            if (found) {
+                found.read_at = new Date().toISOString();
+                saveLocal(local);
+            }
+            if (window.SyncClientV4 && SyncClientV4.markNotificationRead) {
+                SyncClientV4.markNotificationRead({ id: id }).catch(function () {});
+            }
+            load();
+        }
+
+        document.querySelectorAll('#type-chips .chip').forEach(function (chip) {
+            chip.addEventListener('click', function () {
+                document.querySelectorAll('#type-chips .chip').forEach(function (c) { c.classList.remove('active'); });
+                chip.classList.add('active');
+                typeFilter = chip.dataset.type;
+                load();
+            });
+        });
+
+        document.getElementById('btn-mark').addEventListener('click', function () {
+            var local = getLocal();
+            local.forEach(function (n) {
+                if (!n.read_at) n.read_at = new Date().toISOString();
+            });
+            saveLocal(local);
+            CrudHelper.toast('تم تعليم الكل كمقروء', 'success');
+            load();
+        });
+
+        document.getElementById('btn-refresh').addEventListener('click', load);
+        document.addEventListener('DOMContentLoaded', load);
+    })();
+    </script>
+</body>
+</html>

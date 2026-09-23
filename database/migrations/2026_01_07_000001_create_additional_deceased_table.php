@@ -17,8 +17,8 @@ return new class extends Migration
             Schema::create('additional_deceased', function (Blueprint $table) {
                 $table->bigIncrements('id');
 
-                // رقم الملف المرتبط (نفس file_id_number في جدول data - نوعه string)
-                $table->string('re_file_id', 255);
+                // رقم الملف المرتبط (نفس file_id_number في جدول data - نوعه unsignedBigInteger)
+                $table->unsignedBigInteger('re_file_id');
 
                 // رقم هوية المتوفي
                 $table->string('person_id', 20)->nullable();

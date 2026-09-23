@@ -865,7 +865,7 @@ use App\Http\Controllers\Api\SponsorshipSyncController;
 Route::prefix('mobile')->group(function () {
     // Login endpoint
     Route::post('/login', [SponsorshipSyncController::class, 'login']);
-    
+
     // Refresh token endpoint
     Route::post('/refresh-token', [SponsorshipSyncController::class, 'refreshToken']);
 
@@ -910,6 +910,7 @@ Route::prefix('mobile')->middleware(['auth:sanctum'])->group(function () {
     Route::get('/sync/dead-people', [SponsorshipSyncController::class, 'getSyncDeadPeople']);
     Route::get('/sync/bank-accounts', [SponsorshipSyncController::class, 'getSyncBankAccounts']);
     Route::get('/sync/death-reasons', [SponsorshipSyncController::class, 'getSyncDeathReasons']);
+    Route::get('/sync/additional-deceased', [SponsorshipSyncController::class, 'getSyncAdditionalDeceased']);
 
     // Action Queue
     Route::get('/server-actions', [\App\Http\Controllers\Api\ServerActionController::class, 'pullActions']);
@@ -929,11 +930,11 @@ Route::prefix('mobile')->middleware(['auth:sanctum'])->group(function () {
         ->middleware('large.upload');
 
     Route::post('/sync/bulk-upload', [SponsorshipSyncController::class, 'bulkUpsert']);
-    
+
     // Action Layer
     Route::post('/sync/actions', [App\Http\Controllers\Api\ActionSyncController::class, 'syncAction']);
     Route::post('/sponsorships/sync-updates', [App\Http\Controllers\Api\ActionSyncController::class, 'syncAction']);
-    
+
     // Server-to-Client Sync Queue
     Route::get('/sync/pending-actions', [App\Http\Controllers\Api\ActionSyncController::class, 'getPendingActions']);
     Route::post('/sync/ack-action', [App\Http\Controllers\Api\ActionSyncController::class, 'ackAction']);

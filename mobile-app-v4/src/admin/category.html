@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2a8b8b">
+    <title>تصنيف - v4</title>
+    <script src="../js/config.js"></script>
+    <link rel="stylesheet" href="../css/admin.css">
+    <link rel="stylesheet" href="../css/material-icons.css">
+</head>
+<body>
+    <div class="header">
+        <h1 id="title">تصنيف</h1>
+        <div class="sub">CRUD موحّد · v4 · <span id="mode-badge" class="badge badge-offline">Offline</span></div>
+    </div>
+
+    <nav class="nav-tabs container" style="margin-top:12px">
+        <a href="dashboard.html">لوحة القيادة</a>
+        <a href="records.html">السجلات</a>
+        <a href="categories.html" class="active">التصنيفات</a>
+        <a href="sponsorships.html">الكفالات</a>
+        <a href="sponsors.html">الجمعيات</a>
+        <a href="files.html">الملفات</a>
+    </nav>
+
+    <div class="container">
+        <div class="toolbar">
+            <button class="btn" id="btn-new">+ إضافة جديد</button>
+            <input type="search" id="q" placeholder="بحث…" />
+            <button class="btn btn-outline" id="btn-back">← رجوع للتصنيفات</button>
+        </div>
+
+        <div class="section-title">العناصر <span class="badge badge-info" id="row-count">0</span></div>
+        <div id="table-wrap"><div class="empty" id="msg">جاري التحميل…</div></div>
+        <div id="pager"></div>
+        <div class="watermark" id="wm"></div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="../js/categories-config.js"></script>
+    <script src="../js/admin-api.js"></script>
+    <script src="../js/crud-helper.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script>
+    AdminNav.mount('categories');
+    (function () {
+        var params = new URLSearchParams(location.search);
+        var catKey = params.get('cat') || '';
+        var cat = window.getCatByKey ? window.getCatByKey(catKey) : null;
+        var page = 1, totalPages = 1, rows = [];
+
+        CrudHelper.setOnlineBadge();
+        document.getElementById('btn-back').addEventListener('click', function () {
+            location.href = 'categories.html';
+        });
+
+        if (!cat) {
+            document.getElementById('msg').textContent = 'تصنيف غير معروف — اختر من القائمة.';
+            document.getElementById('btn-new').disabled = true;
+            return;
+        }
+        document.getElementById('title').textContent = cat.name;
+
+        function load() {
+            document.getElementById('msg').textContent = 'جاري التحميل…';
+            AdminAPI.getCategories(catKey, {
+                q: document.getElementById('q').value.trim(),
+                page: page
+            }).then(function (res) {
+                rows = (res && (res.data || res.rows)) || [];
+                if (res && res.total_pages) totalPages = res.total_pages;
+                document.getElementById('row-count').textContent =
+                    (res && res.total != null) ? res.total : rows.length;
+                document.getElementById('wm').textContent =
+                    res && res.offline ? 'وضع Offline — عرض آخر نسخة مخزّنة.' : '';
+
+                var columns = (cat.fields || []).map(function (f) {
+                    return { key: f.name, label: f.label };
+                });
+                if (!columns.length) columns = [{ key: 'name', label: 'الاسم' }];
+
+                CrudHelper.renderTable(document.getElementById('table-wrap'), columns, rows, {
+                    emptyText: 'لا عناصر في هذا التصنيف بعد.',
+                    actions: {
+                        edit: function (row) { openForm(row); },
+                        delete: function (row) {
+                            AdminAPI.deleteCategory(catKey, row.id).then(function () {
+                                CrudHelper.toast('تم الحذف', 'success');
+                                load();
+                            }).catch(function () {
+                                CrudHelper.toast('تعذّر الحذف — يتطلب اتصالاً', 'error');
+                            });
+                        }
+                    }
+                });
+                CrudHelper.renderPagination(document.getElementById('pager'), page, totalPages, function (p) {
+                    page = p; load();
+                });
+            }).catch(function (e) {
+                document.getElementById('table-wrap').innerHTML =
+                    '<div class="empty">خطأ: ' + e.message + '</div>';
+            });
+        }
+
+        function openForm(existing) {
+            var title = existing ? 'تعديل — ' + cat.name : 'إضافة — ' + cat.name;
+            var formHost = document.createElement('div');
+            CrudHelper.renderForm(formHost, cat.fields, existing || {}, function (data) {
+                var req = existing
+                    ? AdminAPI.updateCategory(catKey, existing.id, data)
+                    : AdminAPI.createCategory(catKey, data);
+                req.then(function (r) {
+                    if (r && (r.success || r.id)) {
+                        CrudHelper.toast('تم الحفظ ✓', 'success');
+                        modal.hide();
+                        load();
+                    } else {
+                        CrudHelper.toast((r && r.message) || 'فشل الحفظ', 'error');
+                    }
+                }).catch(function () {
+                    CrudHelper.toast('يتطلب اتصالاً بالشبكة للحفظ', 'error');
+                });
+            });
+            var modal = CrudHelper.showModal(title, formHost, [
+                { label: 'إلغاء', onClick: function (hide) { hide(); } }
+            ]);
+        }
+
+        document.getElementById('btn-new').addEventListener('click', function () { openForm(null); });
+        document.getElementById('q').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { page = 1; load(); }
+        });
+        document.addEventListener('DOMContentLoaded', load);
+    })();
+    </script>
+</body>
+</html>

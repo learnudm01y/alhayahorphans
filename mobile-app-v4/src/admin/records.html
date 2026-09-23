@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2a8b8b">
+    <title>السجلات - v4</title>
+    <script src="../js/config.js"></script>
+    <link rel="stylesheet" href="../css/admin.css">
+    <link rel="stylesheet" href="../css/material-icons.css">
+</head>
+<body>
+    <div class="header">
+        <h1>البيانات المدخلة</h1>
+        <div class="sub">إدارة التسجيلات · v4 · <span id="mode-badge" class="badge badge-offline">Offline</span></div>
+    </div>
+
+    <nav class="nav-tabs container" style="margin-top:12px">
+        <a href="dashboard.html">لوحة القيادة</a>
+        <a href="records.html" class="active">السجلات</a>
+        <a href="record-form.html?new=1">إدخال جديد</a>
+        <a href="search-records.html">البحث الشامل</a>
+        <a href="categories.html">التصنيفات</a>
+        <a href="sponsorships.html">الكفالات</a>
+        <a href="files.html">الملفات</a>
+        <a href="reports.html">التقارير</a>
+    </nav>
+
+    <div class="container">
+        <div class="toolbar">
+            <input type="search" id="q" placeholder="بحث بالاسم أو رقم الملف أو الهوية…" />
+            <button class="btn" id="btn-search">بحث</button>
+            <a class="btn" href="record-form.html?new=1" style="text-decoration:none">+ إدخال جديد</a>
+        </div>
+
+        <div class="filter-chips" id="section-chips">
+            <button class="chip active" data-sec="">الكل</button>
+            <button class="chip" data-sec="1">أولاً</button>
+            <button class="chip" data-sec="2">ثانياً</button>
+            <button class="chip" data-sec="3">ثالثاً</button>
+        </div>
+
+        <div class="stats-inline">
+            <span class="s">النتائج: <b id="total">0</b></span>
+            <span class="s">صفحة <b id="pg">1</b></span>
+        </div>
+
+        <div id="table-wrap"><div class="empty" id="msg">جاري التحميل…</div></div>
+        <div id="pager"></div>
+        <div class="watermark" id="wm"></div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="../js/admin-api.js"></script>
+    <script src="../js/crud-helper.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script>
+    AdminNav.mount('records');
+    (function () {
+        var page = 1, section = '';
+        CrudHelper.setOnlineBadge();
+
+        var columns = [
+            { key: 'file_id_number', label: 'رقم الملف' },
+            { key: 'data_first_name', label: 'الاسم الأول' },
+            { key: 'data_father_name', label: 'اسم الأب' },
+            { key: 'data_family_name', label: 'اسم العائلة' },
+            { key: 'data_id_number', label: 'رقم الهوية' },
+            { key: 'data_gender', label: 'الجنس' },
+            { key: 'data_birth_date', label: 'تاريخ الميلاد' },
+            {
+                key: 'data_request_status', label: 'الحالة', render: function (v) {
+                    if (!v) return '—';
+                    var cls = v == 1 ? 'badge-ok' : (v == 2 ? 'badge-warn' : 'badge-info');
+                    return '<span class="badge ' + cls + '">' + v + '</span>';
+                }
+            }
+        ];
+
+        function load() {
+            document.getElementById('msg').textContent = 'جاري التحميل…';
+            document.getElementById('pg').textContent = page;
+            AdminAPI.getRecords({
+                q: document.getElementById('q').value.trim(),
+                section: section,
+                page: page
+            }).then(function (res) {
+                var rows = (res && (res.data || res.rows)) || [];
+                document.getElementById('total').textContent =
+                    (res && res.total != null) ? res.total : rows.length;
+                document.getElementById('wm').textContent =
+                    (res && res.offline) ? 'وضع Offline — آخر نسخة مزامَنة.' :
+                        (res && res.generated_at ? 'آخر تحديث: ' + res.generated_at : '');
+
+                CrudHelper.renderTable(document.getElementById('table-wrap'), columns, rows, {
+                    emptyText: 'لا سجلات — أول مزامنة ستجلبها أو ابدأ بإدخال جديد.',
+                    actions: {
+                        view: function (row) {
+                            location.href = 'record-show.html?id=' + encodeURIComponent(row.file_id_number || row.id);
+                        },
+                        edit: function (row) {
+                            location.href = 'record-form.html?id=' + encodeURIComponent(row.file_id_number || row.id);
+                        },
+                        delete: function (row) {
+                            AdminAPI.deleteRecord(row.file_id_number || row.id).then(function () {
+                                CrudHelper.toast('تم الحذف', 'success');
+                                load();
+                            }).catch(function () {
+                                CrudHelper.toast('يتطلب اتصالاً', 'error');
+                            });
+                        }
+                    }
+                });
+
+                var tp = (res && res.total_pages) || 1;
+                CrudHelper.renderPagination(document.getElementById('pager'), page, tp, function (p) {
+                    page = p; load();
+                });
+            }).catch(function (e) {
+                document.getElementById('table-wrap').innerHTML =
+                    '<div class="empty">خطأ: ' + e.message + '</div>';
+            });
+        }
+
+        document.getElementById('btn-search').addEventListener('click', function () {
+            page = 1; load();
+        });
+        document.getElementById('q').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { page = 1; load(); }
+        });
+        document.querySelectorAll('#section-chips .chip').forEach(function (chip) {
+            chip.addEventListener('click', function () {
+                document.querySelectorAll('#section-chips .chip').forEach(function (c) { c.classList.remove('active'); });
+                chip.classList.add('active');
+                section = chip.dataset.sec;
+                page = 1;
+                load();
+            });
+        });
+        document.addEventListener('DOMContentLoaded', load);
+    })();
+    </script>
+</body>
+</html>

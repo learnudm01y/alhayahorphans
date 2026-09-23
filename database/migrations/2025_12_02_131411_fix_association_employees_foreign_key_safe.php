@@ -12,7 +12,11 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // الطريقة الآمنة: تحديث البيانات الخاطئة إلى NULL بدلاً من حذفها
+        // العمود sponsor_id يُضاف لاحقاً في 2025_12_02_132514 — تجاهل إن لم يكن موجوداً بعد
+        if (!Schema::hasColumn('association_employees', 'sponsor_id')) {
+            return;
+        }
+
         DB::statement('
             UPDATE association_employees
             SET sponsor_id = NULL

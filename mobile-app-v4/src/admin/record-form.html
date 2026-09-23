@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2a8b8b">
+    <title>إدخال/تعديل سجل - v4</title>
+    <script src="../js/config.js"></script>
+    <link rel="stylesheet" href="../css/admin.css">
+    <link rel="stylesheet" href="../css/material-icons.css">
+</head>
+<body>
+    <div class="header">
+        <h1 id="form-title">إدخال سجل جديد</h1>
+        <div class="sub">إدارة التسجيلات · v4 · <span id="mode-badge" class="badge badge-offline">Offline</span></div>
+    </div>
+
+    <nav class="nav-tabs container" style="margin-top:12px">
+        <a href="dashboard.html">لوحة القيادة</a>
+        <a href="records.html">السجلات</a>
+        <a href="record-form.html" class="active">إدخال/تعديل</a>
+        <a href="search-records.html">البحث الشامل</a>
+        <a href="categories.html">التصنيفات</a>
+    </nav>
+
+    <div class="container">
+        <div class="rec-tabs" id="tabs">
+            <button class="active" data-tab="breadwinner">المعيل</button>
+            <button data-tab="family">أفراد الأسرة</button>
+            <button data-tab="deceased">الوفيات</button>
+            <button data-tab="documents">الوثائق والمرفقات</button>
+        </div>
+
+        <!-- المعيل -->
+        <div class="tab-pane" id="pane-breadwinner">
+            <div class="section-title">بيانات المعيل</div>
+            <div id="form-bw"></div>
+        </div>
+
+        <!-- أفراد الأسرة -->
+        <div class="tab-pane" id="pane-family" style="display:none">
+            <div class="toolbar">
+                <button class="btn btn-outline" id="btn-add-member">+ إضافة فرد</button>
+            </div>
+            <div id="family-list"><div class="empty">لا أفراد — اضغط إضافة.</div></div>
+        </div>
+
+        <!-- الوفيات -->
+        <div class="tab-pane" id="pane-deceased" style="display:none">
+            <div class="toolbar">
+                <button class="btn btn-outline" id="btn-add-dead">+ إضافة وفاة</button>
+            </div>
+            <div id="dead-list"><div class="empty">لا وفيات مسجلة.</div></div>
+        </div>
+
+        <!-- الوثائق -->
+        <div class="tab-pane" id="pane-docs" style="display:none">
+            <div class="section-title">رفع الوثائق والمرفقات</div>
+            <div class="card" style="margin-bottom:12px">
+                <p style="font-size:13px;color:var(--ink-2);margin-bottom:10px">
+                    رفع المرفقات من شاشة الرفع المخصصة (تبقى كما هي) — أو استخدم الربط أدناه.
+                </p>
+                <a class="btn btn-outline" href="../upload.html" style="text-decoration:none;display:inline-block">
+                    فتح شاشة الرفع ↗
+                </a>
+                <a class="btn btn-outline" href="../photography.html" style="text-decoration:none;display:inline-block;margin-right:8px">
+                    فتح شاشة التصوير ↗
+                </a>
+            </div>
+            <div id="docs-list"><div class="empty">لا مرفقات بعد لهذا السجل.</div></div>
+        </div>
+
+        <div class="form-actions" style="margin-top:20px">
+            <button class="btn" id="btn-save">حفظ السجل</button>
+            <button class="btn btn-outline" id="btn-cancel">إلغاء</button>
+        </div>
+        <div class="watermark" id="wm"></div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="../js/admin-api.js"></script>
+    <script src="../js/crud-helper.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script>
+    AdminNav.mount('records');
+    (function () {
+        var params = new URLSearchParams(location.search);
+        var editId = params.get('id');
+        var isNew = params.get('new') === '1' || !editId;
+        var familyMembers = [];
+        var deceasedList = [];
+        var bwData = {};
+
+        CrudHelper.setOnlineBadge();
+        document.getElementById('form-title').textContent =
+            isNew ? 'إدخال سجل جديد' : 'تعديل سجل #' + editId;
+
+        var bwFields = [
+            { name: 'file_id_number', label: 'رقم الملف', placeholder: 'يولَّد تلقائياً إن تُرك فارغاً' },
+            { name: 'data_section_id', label: 'القسم', type: 'select', options: [] },
+            { name: 'data_first_name', label: 'الاسم الأول', required: true },
+            { name: 'data_father_name', label: 'اسم الأب', required: true },
+            { name: 'data_grand_father_name', label: 'اسم الجد' },
+            { name: 'data_family_name', label: 'اسم العائلة', required: true },
+            { name: 'data_id_number', label: 'رقم الهوية' },
+            { name: 'data_birth_date', label: 'تاريخ الميلاد', type: 'date' },
+            { name: 'data_gender', label: 'الجنس', type: 'select', options: [{ value: 'M', label: 'ذكر' }, { value: 'F', label: 'أنثى' }] },
+            { name: 'data_marital_status', label: 'الحالة الاجتماعية', type: 'select', options: [] },
+            { name: 'data_academic_qualification', label: 'التعليم', type: 'select', options: [] },
+            { name: 'data_employment_status_breadwinner', label: 'الوظيفة', type: 'select', options: [] },
+            { name: 'data_health_status', label: 'الحالة الصحية', type: 'select', options: [] },
+            { name: 'data_displacement_status', label: 'حالة النزوح', type: 'select', options: [] },
+            { name: 'data_city', label: 'المدينة', type: 'select', options: [] },
+            { name: 'data_province', label: 'المحافظة', type: 'select', options: [] },
+            { name: 'data_housing_status', label: 'حالة السكن', type: 'select', options: [] },
+            { name: 'data_phone', label: 'الهاتف' },
+            { name: 'data_number_of_individuals', label: 'عدد الأفراد', type: 'number' },
+            { name: 'data_description_needs', label: 'وصف الاحتياجات', type: 'textarea' },
+            { name: 'data_request_status', label: 'حالة الطلب', type: 'select', options: [] }
+        ];
+
+        function loadRefOptions(fields) {
+            // Lazy-load select options from categories API when online
+            var selects = fields.filter(function (f) { return f.type === 'select' && !f.options.length; });
+            selects.forEach(function (f) {
+                var map = {
+                    data_section_id: 'general_category',
+                    data_marital_status: 'marital_status',
+                    data_academic_qualification: 'academic_degrees',
+                    data_employment_status_breadwinner: 'employment',
+                    data_health_status: 'health_statuses',
+                    data_displacement_status: 'displacement_statuses',
+                    data_city: 'city',
+                    data_province: 'provinces',
+                    data_housing_status: 'housing_status',
+                    data_request_status: 'request_status'
+                };
+                var cat = map[f.name];
+                if (!cat) return;
+                AdminAPI.getCategories(cat, {}).then(function (res) {
+                    var rows = (res && (res.data || res.rows)) || [];
+                    f.options = rows.map(function (r) {
+                        return { value: r.id, label: r.name || r.description };
+                    });
+                    // re-render form preserving values
+                    renderBw();
+                }).catch(function () {});
+            });
+        }
+
+        function renderBw() {
+            CrudHelper.renderForm(document.getElementById('form-bw'), bwFields, bwData, function (data) {
+                bwData = data;
+                save();
+            });
+        }
+
+        // Tabs
+        document.querySelectorAll('#tabs button').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                document.querySelectorAll('#tabs button').forEach(function (b) { b.classList.remove('active'); });
+                btn.classList.add('active');
+                document.querySelectorAll('.tab-pane').forEach(function (p) { p.style.display = 'none'; });
+                var pane = document.getElementById('pane-' + btn.dataset.tab);
+                if (pane) pane.style.display = 'block';
+            });
+        });
+
+        // Family members (local state until save)
+        function renderFamily() {
+            var host = document.getElementById('family-list');
+            if (!familyMembers.length) {
+                host.innerHTML = '<div class="empty">لا أفراد — اضغط إضافة.</div>';
+                return;
+            }
+            CrudHelper.renderTable(host, [
+                { key: 'person_name', label: 'الاسم' },
+                { key: 'person_gender', label: 'الجنس' },
+                { key: 'person_age', label: 'العمر' },
+                { key: 'person_health_status', label: 'الصحة' }
+            ], familyMembers, {
+                actions: {
+                    delete: function (row) {
+                        familyMembers = familyMembers.filter(function (m) { return m !== row; });
+                        renderFamily();
+                    }
+                }
+            });
+        }
+        document.getElementById('btn-add-member').addEventListener('click', function () {
+            var host = document.createElement('div');
+            CrudHelper.renderForm(host, [
+                { name: 'person_name', label: 'الاسم الرباعي', required: true },
+                { name: 'person_gender', label: 'الجنس', type: 'select', options: [{ value: 'M', label: 'ذكر' }, { value: 'F', label: 'أنثى' }] },
+                { name: 'person_age', label: 'العمر', type: 'number' },
+                { name: 'person_health_status', label: 'الحالة الصحية' },
+                { name: 'person_type_of_guarantee', label: 'نوع الكفالة' }
+            ], {}, function (data) {
+                familyMembers.push(data);
+                renderFamily();
+                modal.hide();
+                CrudHelper.toast('أُضيف فرد ✓', 'success');
+            });
+            var modal = CrudHelper.showModal('إضافة فرد أسرة', host, [
+                { label: 'إلغاء', onClick: function (h) { h(); } }
+            ]);
+        });
+
+        // Deceased
+        function renderDead() {
+            var host = document.getElementById('dead-list');
+            if (!deceasedList.length) {
+                host.innerHTML = '<div class="empty">لا وفيات مسجلة.</div>';
+                return;
+            }
+            CrudHelper.renderTable(host, [
+                { key: 'dead_name', label: 'الاسم' },
+                { key: 'dead_relation', label: 'صلة القرابة' },
+                { key: 'dead_date', label: 'تاريخ الوفاة' },
+                { key: 'dead_reason', label: 'سبب الوفاة' }
+            ], deceasedList, {
+                actions: {
+                    delete: function (row) {
+                        deceasedList = deceasedList.filter(function (d) { return d !== row; });
+                        renderDead();
+                    }
+                }
+            });
+        }
+        document.getElementById('btn-add-dead').addEventListener('click', function () {
+            var host = document.createElement('div');
+            CrudHelper.renderForm(host, [
+                { name: 'dead_name', label: 'الاسم الرباعي', required: true },
+                { name: 'dead_relation', label: 'صلة القرابة', type: 'select', options: [{ value: 'father', label: 'الوالد' }, { value: 'mother', label: 'الوالدة' }, { value: 'other', label: 'أخرى' }] },
+                { name: 'dead_date', label: 'تاريخ الوفاة', type: 'date' },
+                { name: 'dead_reason', label: 'سبب الوفاة', type: 'select', options: [] },
+                { name: 'dead_id_number', label: 'رقم الهوية' }
+            ], {}, function (data) {
+                deceasedList.push(data);
+                renderDead();
+                modal.hide();
+                CrudHelper.toast('أُضيفت وفاة ✓', 'success');
+            });
+            var modal = CrudHelper.showModal('إضافة وفاة', host, [
+                { label: 'إلغاء', onClick: function (h) { h(); } }
+            ]);
+        });
+
+        function save() {
+            var payload = Object.assign({}, bwData, {
+                family_members: familyMembers,
+                deceased: deceasedList
+            });
+            var req = isNew
+                ? AdminAPI.createRecord(payload)
+                : AdminAPI.updateRecord(editId, payload);
+            req.then(function (r) {
+                if (r && (r.success || r.id || r.file_id_number)) {
+                    CrudHelper.toast('تم الحفظ ✓', 'success');
+                    setTimeout(function () {
+                        location.href = 'records.html';
+                    }, 600);
+                } else {
+                    CrudHelper.toast((r && r.message) || 'فشل الحفظ', 'error');
+                }
+            }).catch(function () {
+                // offline queue hint
+                CrudHelper.toast('غير متصل — سيُحفظ عند عودة الشبكة', 'info');
+                try {
+                    var q = JSON.parse(localStorage.getItem('v4_record_outbox') || '[]');
+                    q.push({ ts: Date.now(), payload: payload });
+                    localStorage.setItem('v4_record_outbox', JSON.stringify(q));
+                } catch (e) {}
+            });
+        }
+
+        document.getElementById('btn-save').addEventListener('click', save);
+        document.getElementById('btn-cancel').addEventListener('click', function () {
+            history.length > 1 ? history.back() : location.href = 'records.html';
+        });
+
+        function loadExisting() {
+            if (isNew) { renderBw(); return; }
+            AdminAPI.getRecord(editId).then(function (res) {
+                var rec = (res && res.data) || res || {};
+                bwData = rec;
+                renderBw();
+                familyMembers = rec.family_members || [];
+                deceasedList = rec.deceased || [];
+                renderFamily();
+                renderDead();
+                document.getElementById('wm').textContent = 'تعديل سجل #' + editId;
+            }).catch(function () {
+                renderBw();
+                CrudHelper.toast('تعذّر تحميل السجل — قد تحتاج اتصالاً', 'error');
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            loadExisting();
+            loadRefOptions(bwFields);
+        });
+    })();
+    </script>
+</body>
+</html>

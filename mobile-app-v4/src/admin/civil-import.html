@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2a8b8b">
+    <title>استيراد السجل المدني - v4</title>
+    <script src="../js/config.js"></script>
+    <link rel="stylesheet" href="../css/admin.css">
+    <link rel="stylesheet" href="../css/material-icons.css">
+</head>
+<body>
+    <div class="header">
+        <h1>استيراد Excel — السجل المدني</h1>
+        <div class="sub">Civil Import · v4 · <span id="mode-badge" class="badge badge-offline">Offline</span></div>
+    </div>
+
+    <nav class="nav-tabs container" style="margin-top:12px">
+        <a href="dashboard.html">لوحة القيادة</a>
+        <a href="civil-registry.html">عرض السجل</a>
+        <a href="civil-import.html" class="active">استيراد Excel</a>
+        <a href="records.html">السجلات</a>
+    </nav>
+
+    <div class="container">
+        <div class="card" style="margin-bottom:14px">
+            <strong>متطلبات الملف:</strong>
+            <ul style="font-size:13px;color:var(--ink-2);margin:8px 18px 0;line-height:1.8">
+                <li>صيغ مدعومة: XLSX / XLS / CSV</li>
+                <li>الحد الأقصى: 10MB لكل ملف</li>
+                <li>يمكن اختيار عدة ملفات دفعة واحدة</li>
+                <li>يكشف المكررات تلقائياً قبل الإدراج</li>
+            </ul>
+            <div class="toolbar" style="margin-top:12px">
+                <button class="btn btn-outline" id="btn-template">تحميل قالب</button>
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom:14px;border:2px dashed var(--line);text-align:center;padding:28px">
+            <span class="material-icons" style="font-size:48px;color:var(--brand-600)">cloud_upload</span>
+            <p style="margin:8px 0;font-weight:600">اسحب الملفات هنا أو اختر من الجهاز</p>
+            <input type="file" id="files" multiple accept=".xlsx,.xls,.csv" />
+        </div>
+
+        <div class="section-title">الملفات المحددة <span class="badge badge-info" id="file-count">0</span></div>
+        <div id="file-list"><div class="empty">لم تختر ملفات.</div></div>
+
+        <div class="toolbar" style="margin-top:12px">
+            <button class="btn" id="btn-validate">1. تحقق</button>
+            <button class="btn" id="btn-import" disabled>2. استيراد</button>
+            <button class="btn btn-outline" id="btn-reset">إعادة ضبط</button>
+        </div>
+
+        <div id="progress" style="display:none">
+            <div class="progress-bar"><div class="fill" id="pfill" style="width:0%"></div></div>
+            <div style="font-size:13px;color:var(--ink-2)" id="ptext">0%</div>
+        </div>
+
+        <div class="section-title">نتيجة التحقق</div>
+        <div id="validation"><div class="empty">لم يُفحص بعد.</div></div>
+
+        <div class="watermark" id="wm"></div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="../js/admin-api.js"></script>
+    <script src="../js/crud-helper.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script>
+    AdminNav.mount('civil-import');
+    (function () {
+        var picked = [];
+        CrudHelper.setOnlineBadge();
+
+        document.getElementById('files').addEventListener('change', function () {
+            picked = Array.from(this.files || []);
+            document.getElementById('file-count').textContent = picked.length;
+            if (!picked.length) {
+                document.getElementById('file-list').innerHTML = '<div class="empty">لم تختر ملفات.</div>';
+                return;
+            }
+            var html = '<table class="data"><thead><tr><th>الاسم</th><th>الحجم</th></tr></thead><tbody>';
+            picked.forEach(function (f) {
+                html += '<tr><td>' + f.name + '</td><td>' + (f.size / 1024).toFixed(1) + ' KB</td></tr>';
+            });
+            html += '</tbody></table>';
+            document.getElementById('file-list').innerHTML = html;
+            document.getElementById('btn-import').disabled = true;
+        });
+
+        document.getElementById('btn-template').addEventListener('click', function () {
+            AdminAPI.downloadCivilTemplate().then(function (b) {
+                var a = document.createElement('a');
+                a.href = URL.createObjectURL(b);
+                a.download = 'civil-registry-template.xlsx';
+                a.click();
+            }).catch(function () {
+                CrudHelper.toast('يتطلب اتصالاً لتحميل القالب', 'error');
+            });
+        });
+
+        document.getElementById('btn-validate').addEventListener('click', function () {
+            if (!picked.length) { CrudHelper.toast('اختر ملفات أولاً', 'info'); return; }
+            if (!navigator.onLine) {
+                document.getElementById('validation').innerHTML =
+                    '<div class="empty">التحقق يتطلب اتصالاً بالشبكة.</div>';
+                return;
+            }
+            var fd = new FormData();
+            picked.forEach(function (f) { fd.append('files[]', f); });
+            document.getElementById('validation').innerHTML = '<div class="empty">جاري التحقق…</div>';
+            AdminAPI.validateCivilImport(fd).then(function (j) {
+                var report = j.report || j;
+                var html = '<div class="stats-inline">' +
+                    '<span class="s">الصفوف: <b>' + (report.total_rows || 0) + '</b></span>' +
+                    '<span class="s">صالحة: <b>' + (report.valid_rows || 0) + '</b></span>' +
+                    '<span class="s">مكررة: <b>' + (report.duplicates || 0) + '</b></span>' +
+                    '<span class="s">أخطاء: <b>' + (report.errors || 0) + '</b></span>' +
+                    '</div>';
+                if (report.error_list && report.error_list.length) {
+                    html += '<ul style="font-size:13px;color:var(--err);margin:8px 18px">';
+                    report.error_list.slice(0, 20).forEach(function (e) {
+                        html += '<li>' + e + '</li>';
+                    });
+                    html += '</ul>';
+                }
+                document.getElementById('validation').innerHTML = html;
+                document.getElementById('btn-import').disabled = !(report.valid_rows > 0);
+            }).catch(function () {
+                document.getElementById('validation').innerHTML =
+                    '<div class="empty">فشل التحقق — تحقق من الاتصال.</div>';
+            });
+        });
+
+        document.getElementById('btn-import').addEventListener('click', function () {
+            if (!picked.length) return;
+            if (!confirm('بدء الاستيراد؟')) return;
+            var fd = new FormData();
+            picked.forEach(function (f) { fd.append('files[]', f); });
+            var base = (window.APP_CONFIG && window.APP_CONFIG.API_URL) || 'https://alhayahorphans.org/api';
+            var token = '';
+            try { token = localStorage.getItem('api_token') || ''; } catch (e) {}
+            document.getElementById('progress').style.display = 'block';
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', base + '/mobile/v4/civil-registry/import');
+            xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+            xhr.upload.onprogress = function (e) {
+                if (e.lengthComputable) {
+                    var pct = Math.round(e.loaded / e.total * 100);
+                    document.getElementById('pfill').style.width = pct + '%';
+                    document.getElementById('ptext').textContent = pct + '%';
+                }
+            };
+            xhr.onload = function () {
+                document.getElementById('ptext').textContent = 'اكتمل';
+                try {
+                    var j = JSON.parse(xhr.responseText);
+                    CrudHelper.toast('تم استيراد ' + (j.imported || 0) + ' صف ✓', 'success');
+                    document.getElementById('validation').innerHTML +=
+                        '<div class="card" style="margin-top:10px"><strong>نتيجة الاستيراد:</strong><br>' +
+                        'مُدرج: ' + (j.imported || 0) + ' · مكرر متجاهل: ' + (j.skipped_duplicates || 0) +
+                        ' · فشل: ' + (j.failed || 0) + '</div>';
+                } catch (e) {
+                    CrudHelper.toast('اكتمل الرفع', 'success');
+                }
+            };
+            xhr.onerror = function () {
+                CrudHelper.toast('فشل الرفع', 'error');
+            };
+            xhr.send(fd);
+        });
+
+        document.getElementById('btn-reset').addEventListener('click', function () {
+            picked = [];
+            document.getElementById('files').value = '';
+            document.getElementById('file-count').textContent = '0';
+            document.getElementById('file-list').innerHTML = '<div class="empty">لم تختر ملفات.</div>';
+            document.getElementById('validation').innerHTML = '<div class="empty">لم يُفحص بعد.</div>';
+            document.getElementById('btn-import').disabled = true;
+            document.getElementById('progress').style.display = 'none';
+        });
+    })();
+    </script>
+</body>
+</html>

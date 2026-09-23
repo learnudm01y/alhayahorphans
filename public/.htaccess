@@ -23,10 +23,8 @@
 </IfModule>
 
 # تعيين مسار ملف php.ini المحلي
-<IfModule mod_php.c>
-    php_value auto_prepend_file ""
-    php_admin_value open_basedir none
-</IfModule>
+# ملاحظة: php_value auto_prepend_file "" فارغ يسبب Apache 500 (يحتاج قيمتين)
+# و php_admin_value غير مسموح داخل .htaccess — تم تعطيله مؤقتاً للسماح بالطلبات
 
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>

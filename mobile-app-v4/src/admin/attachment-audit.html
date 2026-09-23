@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2a8b8b">
+    <title>تدقيق المرفقات - v4</title>
+    <script src="../js/config.js"></script>
+    <link rel="stylesheet" href="../css/admin.css">
+    <link rel="stylesheet" href="../css/material-icons.css">
+</head>
+<body>
+    <div class="header">
+        <h1>تدقيق المرفقات</h1>
+        <div class="sub">Attachment Audit · v4 · <span id="mode-badge" class="badge badge-offline">Offline</span></div>
+    </div>
+
+    <nav class="nav-tabs container" style="margin-top:12px">
+        <a href="dashboard.html">لوحة القيادة</a>
+        <a href="files.html">فهرس المرفقات</a>
+        <a href="folders.html">المجلدات</a>
+        <a href="duplicates.html">المكررات</a>
+        <a href="attachment-audit.html" class="active">التدقيق</a>
+        <a href="../upload.html">الرفع</a>
+    </nav>
+
+    <div class="container">
+        <div class="filter-chips" id="audit-chips">
+            <button class="chip active" data-view="dupes">مكررات المحتوى</button>
+            <button class="chip" data-view="broken">روابط مكسورة</button>
+            <button class="chip" data-view="orphans">ملفات يتيمة</button>
+            <button class="chip" data-view="noattach">سجلات بدون مرفقات</button>
+        </div>
+
+        <div class="stats-inline">
+            <span class="s">النتائج: <b id="total">0</b></span>
+            <span class="s">الحجم: <b id="size">—</b></span>
+        </div>
+
+        <div class="toolbar">
+            <button class="btn btn-outline" id="btn-export">تصدير Excel</button>
+            <button class="btn btn-danger" id="btn-clean">تنظيف المحدد</button>
+            <button class="btn btn-outline" id="btn-refresh">إعادة الفحص</button>
+        </div>
+
+        <div id="results"><div class="empty" id="msg">جاري التحميل…</div></div>
+        <div id="pager"></div>
+        <div class="watermark" id="wm"></div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="../js/admin-api.js"></script>
+    <script src="../js/crud-helper.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script>
+    AdminNav.mount('attachment-audit');
+    (function () {
+        var view = 'dupes', page = 1;
+        CrudHelper.setOnlineBadge();
+
+        var VIEWS = {
+            dupes: {
+                cols: [
+                    { key: 'stored_file_name', label: 'الملف' },
+                    { key: 'identity_number', label: 'الهوية' },
+                    { key: 'dup_count', label: 'التكرار' },
+                    { key: 'file_size', label: 'الحجم' }
+                ],
+                label: 'مكررات'
+            },
+            broken: {
+                cols: [
+                    { key: 'file_path', label: 'المسار' },
+                    { key: 'identity_number', label: 'الهوية' },
+                    { key: 'reason', label: 'السبب' }
+                ],
+                label: 'روابط مكسورة'
+            },
+            orphans: {
+                cols: [
+                    { key: 'file_path', label: 'الملف اليتيم' },
+                    { key: 'file_size', label: 'الحجم' },
+                    { key: 'modified_at', label: 'آخر تعديل' }
+                ],
+                label: 'ملفات يتيمة'
+            },
+            noattach: {
+                cols: [
+                    { key: 'file_id_number', label: 'رقم الملف' },
+                    { key: 'data_first_name', label: 'الاسم' },
+                    { key: 'data_id_number', label: 'الهوية' }
+                ],
+                label: 'سجلات بدون مرفقات'
+            }
+        };
+
+        function load() {
+            var v = VIEWS[view];
+            document.getElementById('msg').textContent = 'جاري الفحص…';
+            AdminAPI.http('GET', '/mobile/v4/files/audit', {
+                view: view, page: page
+            }).then(function (res) {
+                var rows = (res && (res.data || res.rows)) || [];
+                document.getElementById('total').textContent =
+                    (res && res.total != null) ? res.total : rows.length;
+                document.getElementById('size').textContent =
+                    (res && res.total_size) || '—';
+                document.getElementById('wm').textContent =
+                    res && res.offline ? 'وضع Offline.' : 'فحص مباشر.';
+
+                CrudHelper.renderTable(document.getElementById('results'), v.cols, rows, {
+                    emptyText: view === 'dupes' ? 'لا مكررات محتوى ✓'
+                        : view === 'broken' ? 'لا روابط مكسورة ✓'
+                            : view === 'orphans' ? 'لا ملفات يتيمة ✓'
+                                : 'كل السجلات لديها مرفقات ✓'
+                });
+                CrudHelper.renderPagination(document.getElementById('pager'), page,
+                    (res && res.total_pages) || 1, function (p) { page = p; load(); });
+            }).catch(function (e) {
+                document.getElementById('results').innerHTML =
+                    '<div class="empty">خطأ: ' + e.message + '</div>';
+            });
+        }
+
+        document.querySelectorAll('#audit-chips .chip').forEach(function (chip) {
+            chip.addEventListener('click', function () {
+                document.querySelectorAll('#audit-chips .chip').forEach(function (c) { c.classList.remove('active'); });
+                chip.classList.add('active');
+                view = chip.dataset.view;
+                page = 1;
+                load();
+            });
+        });
+        document.getElementById('btn-export').addEventListener('click', function () {
+            CrudHelper.toast('يتطلب اتصالاً للتصدير', 'info');
+        });
+        document.getElementById('btn-clean').addEventListener('click', function () {
+            CrudHelper.toast('التنظيف يتطلب مراجعة يدوية — استخدم شاشة المكررات', 'info');
+        });
+        document.getElementById('btn-refresh').addEventListener('click', load);
+        document.addEventListener('DOMContentLoaded', load);
+    })();
+    </script>
+</body>
+</html>

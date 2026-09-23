@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2a8b8b">
+    <title>الملفات المكررة - v4</title>
+    <script src="../js/config.js"></script>
+    <link rel="stylesheet" href="../css/admin.css">
+    <link rel="stylesheet" href="../css/material-icons.css">
+</head>
+<body>
+    <div class="header">
+        <h1>إدارة الملفات المكررة</h1>
+        <div class="sub">Duplicates · v4 · <span id="mode-badge" class="badge badge-offline">Offline</span></div>
+    </div>
+
+    <nav class="nav-tabs container" style="margin-top:12px">
+        <a href="dashboard.html">لوحة القيادة</a>
+        <a href="files.html">فهرس المرفقات</a>
+        <a href="folders.html">المجلدات</a>
+        <a href="duplicates.html" class="active">المكررات</a>
+        <a href="attachment-audit.html">التدقيق</a>
+        <a href="../upload.html">الرفع</a>
+    </nav>
+
+    <div class="container">
+        <div class="stats-inline">
+            <span class="s">إجمالي المكررات: <b id="stat-total">0</b></span>
+            <span class="s">مجموعات: <b id="stat-groups">0</b></span>
+            <span class="s">الحجم القابل للاسترجاع: <b id="stat-size">—</b></span>
+        </div>
+
+        <div class="toolbar">
+            <input type="search" id="q" placeholder="بحث…" />
+            <button class="btn" id="btn-search">بحث</button>
+            <button class="btn btn-outline" id="btn-export">تصدير Excel</button>
+            <button class="btn btn-danger" id="btn-bulk">حذف المحدد</button>
+        </div>
+
+        <div class="section-title">المكررات <span class="badge badge-info" id="row-count">0</span></div>
+        <div id="table-wrap"><div class="empty" id="msg">جاري التحميل…</div></div>
+        <div id="pager"></div>
+        <div class="watermark" id="wm"></div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="../js/admin-api.js"></script>
+    <script src="../js/crud-helper.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script>
+    AdminNav.mount('duplicates');
+    (function () {
+        var page = 1;
+        var selected = {};
+        CrudHelper.setOnlineBadge();
+
+        function load() {
+            document.getElementById('msg').textContent = 'جاري التحميل…';
+            AdminAPI.getDuplicates({
+                q: document.getElementById('q').value.trim(),
+                page: page
+            }).then(function (res) {
+                var rows = (res && (res.data || res.rows)) || [];
+                document.getElementById('row-count').textContent =
+                    (res && res.total != null) ? res.total : rows.length;
+                document.getElementById('stat-total').textContent =
+                    (res && res.total_files) != null ? res.total_files : rows.length;
+                document.getElementById('stat-groups').textContent =
+                    (res && res.total_groups) != null ? res.total_groups : '—';
+                document.getElementById('stat-size').textContent =
+                    (res && res.reclaimable_bytes) != null ? res.reclaimable_bytes : '—';
+                document.getElementById('wm').textContent =
+                    res && res.offline ? 'وضع Offline — آخر فهرس.' : '';
+
+                if (!rows.length) {
+                    document.getElementById('table-wrap').innerHTML =
+                        '<div class="empty"><span class="material-icons">done_all</span><br>لا مكررات ✓</div>';
+                    return;
+                }
+
+                var html = '<table class="data"><thead><tr>' +
+                    '<th style="width:30px"><input type="checkbox" id="chk-all"></th>' +
+                    '<th>الملف</th><th>رقم الهوية</th><th>المكرر</th><th>الحجم</th><th>إجراءات</th>' +
+                    '</tr></thead><tbody>';
+                rows.forEach(function (r, i) {
+                    html += '<tr><td><input type="checkbox" class="row-chk" data-i="' + i + '"></td>' +
+                        '<td><span class="material-icons file-icon">description</span> ' +
+                        (r.stored_file_name || r.file_path || '—') + '</td>' +
+                        '<td>' + (r.identity_number || r.person_identity_number || '—') + '</td>' +
+                        '<td><span class="badge badge-err">' + (r.dup_count || r.occurrences || 2) + '×</span></td>' +
+                        '<td>' + (r.file_size != null ? r.file_size : '—') + '</td>' +
+                        '<td class="row-actions">' +
+                        '<button class="btn btn-sm btn-outline" data-view="' + i + '">معاينة</button>' +
+                        '<button class="btn btn-sm btn-danger" data-del="' + i + '">حذف</button>' +
+                        '</td></tr>';
+                });
+                html += '</tbody></table>';
+                document.getElementById('table-wrap').innerHTML = html;
+
+                var chkAll = document.getElementById('chk-all');
+                if (chkAll) {
+                    chkAll.addEventListener('change', function () {
+                        document.querySelectorAll('.row-chk').forEach(function (c) {
+                            c.checked = chkAll.checked;
+                            if (chkAll.checked) selected[c.dataset.i] = rows[parseInt(c.dataset.i, 10)];
+                            else delete selected[c.dataset.i];
+                        });
+                    });
+                }
+                document.querySelectorAll('.row-chk').forEach(function (c) {
+                    c.addEventListener('change', function () {
+                        if (c.checked) selected[c.dataset.i] = rows[parseInt(c.dataset.i, 10)];
+                        else delete selected[c.dataset.i];
+                    });
+                });
+
+                document.querySelectorAll('button[data-view]').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        var r = rows[parseInt(btn.dataset.view, 10)];
+                        if (r.download_url || r.preview_url) {
+                            window.open(r.preview_url || r.download_url, '_blank');
+                        } else CrudHelper.toast('يتطلب اتصالاً', 'info');
+                    });
+                });
+                document.querySelectorAll('button[data-del]').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        var r = rows[parseInt(btn.dataset.del, 10)];
+                        if (!confirm('حذف هذا الملف المكرر؟')) return;
+                        AdminAPI.deleteFile(r.id || r.file_id).then(function () {
+                            CrudHelper.toast('تم الحذف', 'success');
+                            load();
+                        }).catch(function () {
+                            CrudHelper.toast('يتطلب اتصالاً', 'error');
+                        });
+                    });
+                });
+
+                CrudHelper.renderPagination(document.getElementById('pager'), page,
+                    (res && res.total_pages) || 1, function (p) { page = p; load(); });
+            }).catch(function (e) {
+                document.getElementById('table-wrap').innerHTML =
+                    '<div class="empty">خطأ: ' + e.message + '</div>';
+            });
+        }
+
+        document.getElementById('btn-search').addEventListener('click', function () {
+            page = 1; load();
+        });
+        document.getElementById('btn-export').addEventListener('click', function () {
+            CrudHelper.toast('التصدير يتطلب اتصالاً', 'info');
+        });
+        document.getElementById('btn-bulk').addEventListener('click', function () {
+            var ids = Object.keys(selected);
+            if (!ids.length) { CrudHelper.toast('لم تختر شيئاً', 'info'); return; }
+            if (!confirm('حذف ' + ids.length + ' ملف محدد؟')) return;
+            var done = 0;
+            ids.forEach(function (k) {
+                var r = selected[k];
+                AdminAPI.deleteFile(r.id || r.file_id).then(function () {
+                    done++;
+                    if (done === ids.length) {
+                        CrudHelper.toast('تم حذف ' + done, 'success');
+                        selected = {};
+                        load();
+                    }
+                }).catch(function () { done++; });
+            });
+        });
+        document.addEventListener('DOMContentLoaded', load);
+    })();
+    </script>
+</body>
+</html>

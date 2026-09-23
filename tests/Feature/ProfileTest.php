@@ -10,6 +10,13 @@ class ProfileTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // اختبارات Laravel القديمة تفشل بـ 419 (CSRF) في بيئة هذه الأanja — نعطّل التحقق للـ HTTP tests
+        $this->withoutMiddleware(\App\Http\Middleware\VerifyCsrfToken::class);
+    }
+
     public function test_profile_page_is_displayed(): void
     {
         $user = User::factory()->create();

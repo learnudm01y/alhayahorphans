@@ -88,16 +88,16 @@ class SponsorshipSyncController extends Controller
     public function refreshToken(Request $request): JsonResponse
     {
         $request->validate(['refresh_token' => 'required|string']);
-        
+
         $refreshToken = clone DB::table('refresh_tokens')
             ->where('token', hash('sha256', $request->refresh_token))
             ->where('expires_at', '>', now())
             ->first();
-        
+
         if (!$refreshToken) {
             return response()->json(['success' => false, 'message' => 'Refresh token expired or invalid'], 401);
         }
-        
+
         $user = User::find($refreshToken->user_id);
         if (!$user) {
             return response()->json(['success' => false, 'message' => 'User not found'], 401);
@@ -105,7 +105,7 @@ class SponsorshipSyncController extends Controller
 
         $user->tokens()->where('name', 'mobile-app-token')->delete();
         $newToken = $user->createToken('mobile-app-token', ['*'])->plainTextToken;
-        
+
         return response()->json([
             'success' => true,
             'token' => $newToken,
@@ -1265,7 +1265,7 @@ class SponsorshipSyncController extends Controller
             Log::info('📸 [PHOTO METADATA SYNC] تم استلام بيانات صورة جديدة', $data);
 
             // يمكنك هنا حفظ البيانات في جدول الصور أو المرفقات إذا لزم الأمر
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'تم حفظ بيانات الصورة بنجاح',
@@ -3904,8 +3904,16 @@ class SponsorshipSyncController extends Controller
 
             // المدن
             $cities = DB::table('city')
-                ->select('id', 'city')
+                ->select('id', 'city', 'province_id')
+                ->where('city', '<>', 'Unknown')
                 ->orderBy('city')
+                ->get();
+
+            // المحافظات
+            $provinces = DB::table('provinces')
+                ->select('id', 'description')
+                ->where('description', '<>', 'Unknown')
+                ->orderBy('id')
                 ->get();
 
             // أنواع الكفالة
@@ -3913,6 +3921,17 @@ class SponsorshipSyncController extends Controller
                 ->select('id', 'description')
                 ->orderBy('id')
                 ->get();
+
+            // إضافات للتسجيل (Lookups)
+            $sections = DB::table('general_category')->select('id', 'description', 'status')->where('status', 1)->get();
+            $relations = DB::table('category_of_relations')->select('id', 'attribute')->where('attribute', '<>', 'Unknown')->get();
+            $maritalStatuses = DB::table('ci_personal_cd')->select('id', 'CI_PERSONAL_CD as description')->get();
+            $academicDegrees = DB::table('academic_degrees')->select('id', 'description')->get();
+            $employmentStatuses = DB::table('employment')->select('id', 'description')->get();
+            $displacementStatuses = DB::table('displacement_statuses')->select('id', 'description')->where('description', '<>', 'Unknown')->get();
+            $housingStatuses = DB::table('housing_status')->select('id', 'description')->get();
+            $housingTypes = DB::table('type_of_accommodation')->select('id', 'description')->get();
+            $documentTypes = DB::table('document_types')->select('id', 'pref', 'description', 'basic_enabled', 'family_enabled', 'deceased_enabled')->get();
 
             // إحصائيات الكفالات لكل جمعية وحالة
             $stats = DB::table('sponsorships')
@@ -3925,7 +3944,7 @@ class SponsorshipSyncController extends Controller
                 ->get();
 
             $totalSponsorships = DB::table('sponsorships')->count();
-            
+
             // إضافة مصفوفة بجميع المعرفات السليمة للحذف المحلي (Pruning)
             $validSponsorshipIds = DB::table('sponsorships')->pluck('id')->toArray();
 
@@ -3938,7 +3957,17 @@ class SponsorshipSyncController extends Controller
                     'bank_names' => $bankNames,
                     'health_statuses' => $healthStatuses,
                     'cities' => $cities,
+                    'provinces' => $provinces,
                     'sponsorship_types' => $sponsorshipTypes,
+                    'sections' => $sections,
+                    'relations' => $relations,
+                    'marital_statuses' => $maritalStatuses,
+                    'academic_degrees' => $academicDegrees,
+                    'employment_statuses' => $employmentStatuses,
+                    'displacement_statuses' => $displacementStatuses,
+                    'housing_statuses' => $housingStatuses,
+                    'housing_types' => $housingTypes,
+                    'document_types' => $documentTypes,
                     'valid_sponsorship_ids' => $validSponsorshipIds,
                     'statistics' => [
                         'total_sponsorships' => $totalSponsorships,
@@ -4345,6 +4374,45 @@ class SponsorshipSyncController extends Controller
         }
     }
 
+    /**
+     * GET /api/mobile/sync/additional-deceased
+     * جلب بيانات المتوفين الإضافيين
+     */
+    public function getSyncAdditionalDeceased(Request $request): JsonResponse
+    {
+        try {
+            $page = $request->get('page', 1);
+            $perPage = min($request->get('per_page', 200), 500);
+            $lastSync = $request->get('last_sync');
+
+            $query = DB::table('additional_deceased')
+                ->select(['id', 're_file_id', 'person_id', 'first_name', 'second_name', 'third_name', 'last_name', 'relationship', 'death_date', 'death_reason', 'created_at', 'updated_at']);
+
+            if ($lastSync) {
+                $query->where('updated_at', '>', $lastSync);
+            }
+
+            $total = $query->count();
+            $data = $query->orderBy('id', 'asc')
+                ->offset(($page - 1) * $perPage)
+                ->limit($perPage)
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $data,
+                'pagination' => [
+                    'current_page' => (int)$page,
+                    'per_page' => $perPage,
+                    'total' => $total,
+                    'last_page' => (int)ceil($total / $perPage)
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
     // ========================================
     // File Upload
     // ========================================
@@ -4366,10 +4434,10 @@ class SponsorshipSyncController extends Controller
             }
 
             // Extract the first file from array if it's 'files', else get 'file'
-            $file = $request->hasFile('files') 
+            $file = $request->hasFile('files')
                 ? (is_array($request->file('files')) ? $request->file('files')[0] : $request->file('files'))
                 : $request->file('file');
-                
+
             $recordNumber = $request->input('record_number');
             $personId = $request->input('person_id');
 
@@ -5000,7 +5068,7 @@ class SponsorshipSyncController extends Controller
             'changes.*.sponsorship_id' => 'required|integer',
             'changes.*.updates' => 'required|array',
         ]);
-        
+
         $allUpdates = collect($request->changes)->map(function ($change) use ($request) {
             return array_merge(
                 ['id' => $change['sponsorship_id']],
@@ -5017,10 +5085,10 @@ class SponsorshipSyncController extends Controller
                 ]
             );
         })->toArray();
-        
+
         $chunks = array_chunk($allUpdates, 5000);
         $totalUpdated = 0;
-        
+
         foreach ($chunks as $chunk) {
             DB::table('sponsorships')->upsert(
                 $chunk,
@@ -5031,7 +5099,7 @@ class SponsorshipSyncController extends Controller
             );
             $totalUpdated += count($chunk);
         }
-        
+
         return response()->json([
             'success' => true,
             'updated' => $totalUpdated

@@ -38,10 +38,19 @@ class RouteServiceProvider extends ServiceProvider
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
         });
 
+        RateLimiter::for('api-v4', function (Request $request) {
+            return Limit::perMinute(120)->by($request->user()?->id ?: $request->ip());
+        });
+
         $this->routes(function () {
             Route::middleware('api')
                 ->prefix('api')
                 ->group(base_path('routes/api.php'));
+
+            // android-v4 — مجموعة مسارات مستقلة جديدة (لا تُمس routes/api.php)
+            Route::middleware('api')
+                ->prefix('api')
+                ->group(base_path('routes/api_v4.php'));
 
             // Offline Test Development Routes - للاختبار المحلي فقط
             // بدون middleware لتسهيل الاختبار

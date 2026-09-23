@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2a8b8b">
+    <title>تفاصيل السجل - v4</title>
+    <script src="../js/config.js"></script>
+    <link rel="stylesheet" href="../css/admin.css">
+    <link rel="stylesheet" href="../css/material-icons.css">
+</head>
+<body>
+    <div class="header">
+        <h1>تفاصيل السجل</h1>
+        <div class="sub" id="sub">— · v4 · <span id="mode-badge" class="badge badge-offline">Offline</span></div>
+    </div>
+
+    <nav class="nav-tabs container" style="margin-top:12px">
+        <a href="dashboard.html">لوحة القيادة</a>
+        <a href="records.html" class="active">السجلات</a>
+        <a href="search-records.html">البحث الشامل</a>
+        <a href="files.html">الملفات</a>
+    </nav>
+
+    <div class="container">
+        <div class="toolbar">
+            <a class="btn" id="btn-edit" href="#" style="text-decoration:none">تعديل</a>
+            <button class="btn btn-outline" id="btn-pdf">تصدير PDF</button>
+            <button class="btn btn-danger" id="btn-del">حذف</button>
+            <a class="btn btn-outline" href="records.html" style="text-decoration:none">← رجوع</a>
+        </div>
+
+        <div class="rec-tabs" id="tabs">
+            <button class="active" data-tab="bw">المعيل</button>
+            <button data-tab="family">أفراد الأسرة</button>
+            <button data-tab="deceased">الوفيات</button>
+            <button data-tab="banks">الحسابات البنكية</button>
+            <button data-tab="docs">المرفقات</button>
+        </div>
+
+        <div id="pane-bw"><div class="empty" id="msg">جاري التحميل…</div></div>
+        <div id="pane-family" style="display:none"><div class="empty">—</div></div>
+        <div id="pane-deceased" style="display:none"><div class="empty">—</div></div>
+        <div id="pane-banks" style="display:none"><div class="empty">—</div></div>
+        <div id="pane-docs" style="display:none"><div class="empty">—</div></div>
+
+        <div class="watermark" id="wm"></div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="../js/admin-api.js"></script>
+    <script src="../js/crud-helper.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script>
+    AdminNav.mount('records');
+    (function () {
+        var params = new URLSearchParams(location.search);
+        var id = params.get('id');
+        var rec = null;
+
+        CrudHelper.setOnlineBadge();
+        if (!id) {
+            document.getElementById('msg').textContent = 'لا يوجد id في الرابط.';
+            return;
+        }
+        document.getElementById('btn-edit').href = 'record-form.html?id=' + encodeURIComponent(id);
+
+        var LABELS = {
+            file_id_number: 'رقم الملف', data_first_name: 'الاسم الأول',
+            data_father_name: 'اسم الأب', data_grand_father_name: 'اسم الجد',
+            data_family_name: 'اسم العائلة', data_id_number: 'رقم الهوية',
+            data_birth_date: 'تاريخ الميلاد', data_gender: 'الجنس',
+            data_phone: 'الهاتف', data_city: 'المدينة', data_province: 'المحافظة',
+            data_marital_status: 'الحالة الاجتماعية', data_health_status: 'الحالة الصحية',
+            data_employment_status_breadwinner: 'الوظيفة', data_displacement_status: 'النزوح',
+            data_housing_status: 'حالة السكن', data_number_of_individuals: 'عدد الأفراد',
+            data_description_needs: 'الاحتياجات', data_request_status: 'حالة الطلب',
+            data_section_id: 'القسم'
+        };
+
+        function detailList(obj, labels) {
+            var html = '<div class="detail-list">';
+            Object.keys(obj || {}).forEach(function (k) {
+                if (k === 'family_members' || k === 'deceased' || k === 'bank_accounts' || k === 'attachments') return;
+                if (obj[k] == null || typeof obj[k] === 'object') return;
+                html += '<div class="detail-row"><span class="k">' +
+                    (labels[k] || k) + '</span><span class="v">' +
+                    String(obj[k]) + '</span></div>';
+            });
+            return html + '</div>';
+        }
+
+        function renderTabs() {
+            document.querySelectorAll('.rec-tabs button').forEach(function (btn) {
+                btn.onclick = function () {
+                    document.querySelectorAll('.rec-tabs button').forEach(function (b) { b.classList.remove('active'); });
+                    btn.classList.add('active');
+                    ['bw', 'family', 'deceased', 'banks', 'docs'].forEach(function (t) {
+                        var p = document.getElementById('pane-' + t);
+                        if (p) p.style.display = (t === btn.dataset.tab) ? 'block' : 'none';
+                    });
+                };
+            });
+        }
+
+        function load() {
+            AdminAPI.getRecord(id).then(function (res) {
+                rec = (res && res.data) || res;
+                if (!rec || !rec.file_id_number) {
+                    document.getElementById('msg').textContent = 'السجل غير موجود أو غير متاح offline.';
+                    return;
+                }
+                document.getElementById('sub').textContent =
+                    'ملف #' + rec.file_id_number + ' · ' +
+                    (rec.data_first_name || '') + ' ' + (rec.data_family_name || '');
+                document.getElementById('pane-bw').innerHTML = detailList(rec, LABELS);
+
+                var fam = rec.family_members || [];
+                document.getElementById('pane-family').innerHTML = fam.length
+                    ? '<table class="data"><thead><tr><th>الاسم</th><th>الجنس</th><th>العمر</th><th>الصحة</th></tr></thead><tbody>' +
+                    fam.map(function (m) {
+                        return '<tr><td>' + (m.person_name || '—') + '</td><td>' + (m.person_gender || '—') +
+                            '</td><td>' + (m.person_age || '—') + '</td><td>' + (m.person_health_status || '—') + '</td></tr>';
+                    }).join('') + '</tbody></table>'
+                    : '<div class="empty">لا أفراد مسجلين.</div>';
+
+                var dead = rec.deceased || [];
+                document.getElementById('pane-deceased').innerHTML = dead.length
+                    ? '<table class="data"><thead><tr><th>الاسم</th><th>القرابة</th><th>التاريخ</th><th>السبب</th></tr></thead><tbody>' +
+                    dead.map(function (d) {
+                        return '<tr><td>' + (d.dead_name || '—') + '</td><td>' + (d.dead_relation || '—') +
+                            '</td><td>' + (d.dead_date || '—') + '</td><td>' + (d.dead_reason || '—') + '</td></tr>';
+                    }).join('') + '</tbody></table>'
+                    : '<div class="empty">لا وفيات.</div>';
+
+                var banks = rec.bank_accounts || [];
+                document.getElementById('pane-banks').innerHTML = banks.length
+                    ? '<table class="data"><thead><tr><th>IBAN شيك</th><th>IBAN دولار</th><th>البنك</th><th>معتمد</th></tr></thead><tbody>' +
+                    banks.map(function (b) {
+                        var appr = b.check_account == 1
+                            ? '<span class="badge badge-ok">نعم</span>'
+                            : '<span class="badge badge-warn">لا</span>';
+                        return '<tr><td>' + (b.iban_shekel || '—') + '</td><td>' + (b.iban_usd || '—') +
+                            '</td><td>' + (b.bank_name || '—') + '</td><td>' + appr + '</td></tr>';
+                    }).join('') + '</tbody></table>'
+                    : '<div class="empty">لا حسابات بنكية.</div>';
+
+                var docs = rec.attachments || [];
+                document.getElementById('pane-docs').innerHTML = docs.length
+                    ? '<table class="data"><thead><tr><th>الملف</th><th>النوع</th><th>إجراءات</th></tr></thead><tbody>' +
+                    docs.map(function (d) {
+                        return '<tr><td><span class="material-icons file-icon">description</span> ' +
+                            (d.stored_file_name || d.file_path || '—') + '</td><td>' + (d.file_type || '—') +
+                            '</td><td><button class="btn btn-sm btn-danger" data-del="' + (d.id || '') +
+                            '">حذف مؤجّل</button></td></tr>';
+                    }).join('') + '</tbody></table>' +
+                    '<p class="file-meta" style="margin-top:8px">الحذف يُسجَّل في طابور sync_outbox_v4 ويُنفَّذ عند عودة الاتصال.</p>'
+                    : '<div class="empty">لا مرفقات.</div>';
+
+                document.getElementById('wm').textContent =
+                    res && res.offline ? 'وضع Offline.' : '';
+                renderTabs();
+            }).catch(function (e) {
+                document.getElementById('msg').textContent = 'خطأ: ' + e.message;
+            });
+        }
+
+        document.getElementById('btn-del').addEventListener('click', function () {
+            if (!confirm('حذف هذا السجل نهائياً؟')) return;
+            AdminAPI.deleteRecord(id).then(function () {
+                CrudHelper.toast('تم الحذف', 'success');
+                setTimeout(function () { location.href = 'records.html'; }, 500);
+            }).catch(function () {
+                CrudHelper.toast('يتطلب اتصالاً', 'error');
+            });
+        });
+
+        document.getElementById('btn-pdf').addEventListener('click', function () {
+            if (window.SyncClientV4) {
+                SyncClientV4.generateReportPdf('family', 'ملف #' + id).then(function (r) {
+                    if (r && r.success) CrudHelper.toast('PDF: ' + r.path, 'success');
+                    else CrudHelper.toast('فشل التوليد', 'error');
+                }).catch(function () { CrudHelper.toast('Bridge غير متاح', 'error'); });
+            } else {
+                CrudHelper.toast('يتطلب Capacitor', 'error');
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', load);
+    })();
+    </script>
+</body>
+</html>

@@ -39,4 +39,9 @@ return [
         'root_folder' => env('RCLONE_ROOT_FOLDER', 'temp'),
     ],
 
+    // android-v4 Phase 7 — Staged Cutover flag (append-only; no existing keys touched)
+    'sync_v4' => [
+        'legacy_sync_enabled' => env('LEGACY_SYNC_ENABLED', true), // safe default = dual-run
+    ],
+
 ];

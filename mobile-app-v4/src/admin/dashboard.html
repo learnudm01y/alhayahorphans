@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2a8b8b">
+    <title>لوحة القيادة - v4</title>
+    <script src="../js/config.js"></script>
+    <link rel="stylesheet" href="../css/admin.css">
+</head>
+<body>
+    <div class="header">
+        <h1>لوحة القيادة الرئيسية</h1>
+        <div class="sub">v4 Offline Admin · <span id="mode-badge" class="badge badge-offline">Offline</span></div>
+    </div>
+
+    <nav class="nav-tabs container" style="margin-top:12px">
+        <a href="dashboard.html" class="active">لوحة القيادة</a>
+        <a href="sponsorships.html">الكفالات</a>
+        <a href="reports.html">التقارير</a>
+        <a href="permissions.html">الصلاحيات</a>
+        <a href="files.html">الملفات</a>
+        <a href="civil-registry.html">السجل المدني</a>
+        <a href="../screens/conflict-review.html">مراجعة التكرارات</a>
+        <a href="../screens/sync-health.html">صحة المزامنة</a>
+    </nav>
+
+    <div class="container">
+        <div class="cards" id="dash-cards">
+            <div class="card"><div class="num" id="c-total-files">–</div><div class="label">الملفات</div></div>
+            <div class="card"><div class="num" id="c-total-family">–</div><div class="label">أفراد الأسر</div></div>
+            <div class="card"><div class="num" id="c-total-dead">–</div><div class="label">الوفيات</div></div>
+            <div class="card"><div class="num" id="c-total-spon">–</div><div class="label">الكفالات</div></div>
+            <div class="card"><div class="num" id="c-bank">–</div><div class="label">حسابات البنوك</div></div>
+            <div class="card"><div class="num" id="c-conflicts">–</div><div class="label">تعارضات مفتوحة</div></div>
+            <div class="card"><div class="num" id="c-pending">–</div><div class="label">طلبات معلّقة</div></div>
+            <div class="card"><div class="num" id="c-devices">–</div><div class="label">أجهزة مسجّلة</div></div>
+        </div>
+        <div class="watermark" id="gen-time">آخر تحديث: –</div>
+        <div class="section-title">تنبيه</div>
+        <div class="empty" id="dash-msg">جاري التحميل…</div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="../js/sync-client-v4.js"></script>
+    <script src="../js/admin-api.js"></script>
+    <script src="../js/crud-helper.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script>
+    AdminNav.mount('dashboard');
+    (function () {
+        function toast(msg) {
+            var t = document.getElementById('toast');
+            t.textContent = msg; t.style.display = 'block';
+            setTimeout(function () { t.style.display = 'none'; }, 3000);
+        }
+        function isOnline() { return navigator.onLine; }
+        function setBadge() {
+            var b = document.getElementById('mode-badge');
+            if (isOnline()) { b.textContent = 'Online'; b.className = 'badge badge-ok'; }
+            else { b.textContent = 'Offline'; b.className = 'badge badge-offline'; }
+        }
+        window.addEventListener('online', setBadge);
+        window.addEventListener('offline', setBadge);
+        setBadge();
+
+        function render(snap) {
+            document.getElementById('c-total-files').textContent = snap.total_files != null ? snap.total_files : '–';
+            document.getElementById('c-total-family').textContent = snap.total_family_members != null ? snap.total_family_members : '–';
+            document.getElementById('c-total-dead').textContent = snap.total_dead != null ? snap.total_dead : '–';
+            document.getElementById('c-total-spon').textContent = snap.total_sponsorships != null ? snap.total_sponsorships : '–';
+            document.getElementById('c-bank').textContent = snap.total_bank_accounts != null ? snap.total_bank_accounts : '–';
+            document.getElementById('c-conflicts').textContent = snap.open_conflicts != null ? snap.open_conflicts : '–';
+            document.getElementById('c-pending').textContent = snap.pending_registrations != null ? snap.pending_registrations : '–';
+            document.getElementById('c-devices').textContent = snap.registered_devices != null ? snap.registered_devices : '–';
+            var gt = document.getElementById('gen-time');
+            if (snap.generated_at) gt.textContent = 'آخر تحديث من السيرفر: ' + snap.generated_at;
+            if (snap.fetched_at) gt.textContent += ' · مخزّن محلياً: ' + new Date(snap.fetched_at).toLocaleString('ar');
+            document.getElementById('dash-msg').textContent =
+                'تعرض الأرقام بيانات admin_offline_v4.db المخزّنة على الجهاز — تعمل بالكامل في وضع الطيران.';
+        }
+
+        function load() {
+            if (!window.SyncClientV4) {
+                document.getElementById('dash-msg').textContent = 'Bridge غير متاح — يعمل التطبيق خارج Capacitor؟';
+                return;
+            }
+            SyncClientV4.getDashboard().then(function (res) {
+                if (res && res.success && res.snapshot) {
+                    render(res.snapshot);
+                } else {
+                    document.getElementById('dash-msg').textContent =
+                        'لا يوجد لقطة بعد — يتطلب أول مزامنة (اتصال) لسحب بيانات لوحة القيادة.';
+                }
+            }).catch(function (e) {
+                document.getElementById('dash-msg').textContent = 'خطأ: ' + e.message;
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', load);
+        window.addEventListener('focus', load);
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2a8b8b">
+    <title>سجل التدقيق - v4</title>
+    <script src="../js/config.js"></script>
+    <link rel="stylesheet" href="../css/admin.css">
+    <link rel="stylesheet" href="../css/material-icons.css">
+</head>
+<body>
+    <div class="header">
+        <h1>سجل التدقيق</h1>
+        <div class="sub">Audit Trail · record_audit_log_v4 · <span id="mode-badge" class="badge badge-offline">Offline</span></div>
+    </div>
+
+    <nav class="nav-tabs container" style="margin-top:12px">
+        <a href="../admin/dashboard.html">لوحة القيادة</a>
+        <a href="../admin/records.html">السجلات</a>
+        <a href="conflict-review.html">التعارضات</a>
+        <a href="sync-health.html">صحة المزامنة</a>
+        <a href="audit.html" class="active">التدقيق</a>
+        <a href="devices.html">الأجهزة</a>
+        <a href="notifications.html">الإشعارات</a>
+    </nav>
+
+    <div class="container">
+        <div class="toolbar">
+            <input type="search" id="q-uuid" placeholder="client_uuid…" />
+            <input type="search" id="q-field" placeholder="اسم الحقل…" />
+            <select id="f-entity">
+                <option value="">كل الكيانات</option>
+                <option value="data">الملفات (data)</option>
+                <option value="re_people">أفراد الأسرة</option>
+                <option value="dead_people">الوفيات</option>
+                <option value="guardian_bank_accounts">الحسابات البنكية</option>
+                <option value="sponsorships">الكفالات</option>
+            </select>
+            <select id="f-op">
+                <option value="">كل العمليات</option>
+                <option value="create">إنشاء</option>
+                <option value="update">تحديث</option>
+                <option value="blocked_sensitive">حقل حسّاس محظور</option>
+            </select>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap">
+                <input type="checkbox" id="f-sens" /> حساس فقط
+            </label>
+            <button class="btn" id="btn-search">بحث</button>
+        </div>
+
+        <div class="stats-inline">
+            <span class="s">النتائج: <b id="total">0</b></span>
+            <span class="s">صفحة: <b id="pg">1</b></span>
+        </div>
+
+        <div id="table-wrap"><div class="empty" id="msg">جاري التحميل…</div></div>
+        <div id="pager"></div>
+        <div class="watermark">سجل غير قابل للتعديل — مصدر تاريخي موثوق لتعديلات الأجهزة على الحقول الحسّاسة.</div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="../js/admin-api.js"></script>
+    <script src="../js/crud-helper.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script>
+    AdminNav.mount('audit');
+    (function () {
+        var page = 1;
+        CrudHelper.setOnlineBadge();
+
+        var OP_MAP = {
+            create: { label: 'إنشاء', cls: 'badge-ok' },
+            update: { label: 'تحديث', cls: 'badge-info' },
+            blocked_sensitive: { label: 'حُظر', cls: 'badge-err' },
+            delete: { label: 'حذف', cls: 'badge-err' }
+        };
+
+        function load() {
+            document.getElementById('msg').textContent = 'جاري التحميل…';
+            document.getElementById('pg').textContent = page;
+            AdminAPI.getAudit({
+                client_uuid: document.getElementById('q-uuid').value.trim(),
+                field_name: document.getElementById('q-field').value.trim(),
+                entity_type: document.getElementById('f-entity').value,
+                operation: document.getElementById('f-op').value,
+                sensitive_only: document.getElementById('f-sens').checked ? 1 : 0,
+                page: page
+            }).then(function (res) {
+                var rows = (res && (res.data || res.rows)) || [];
+                document.getElementById('total').textContent =
+                    (res && res.total != null) ? res.total : rows.length;
+
+                CrudHelper.renderTable(document.getElementById('table-wrap'), [
+                    { key: 'changed_at', label: 'التاريخ', render: function (v) { return v || '—'; } },
+                    { key: 'entity_type', label: 'الكيان' },
+                    { key: 'field_name', label: 'الحقل' },
+                    {
+                        key: 'operation', label: 'العملية', render: function (v) {
+                            var op = OP_MAP[v] || { label: v, cls: 'badge-info' };
+                            return '<span class="badge ' + op.cls + '">' + op.label + '</span>';
+                        }
+                    },
+                    {
+                        key: 'old_value', label: 'القيمة القديمة', render: function (v) {
+                            if (v == null || v === '') return '—';
+                            var s = String(v);
+                            return '<span style="font-size:11px;color:var(--err)">' +
+                                (s.length > 40 ? s.substring(0, 40) + '…' : s) + '</span>';
+                        }
+                    },
+                    {
+                        key: 'new_value', label: 'القيمة الجديدة', render: function (v) {
+                            if (v == null || v === '') return '—';
+                            var s = String(v);
+                            return '<span style="font-size:11px;color:var(--ok)">' +
+                                (s.length > 40 ? s.substring(0, 40) + '…' : s) + '</span>';
+                        }
+                    },
+                    {
+                        key: 'is_sensitive', label: 'حساس', render: function (v) {
+                            return v == 1 ? '<span class="badge badge-warn">نعم</span>' : 'لا';
+                        }
+                    },
+                    { key: 'changed_by_device', label: 'الجهاز' }
+                ], rows, {
+                    emptyText: 'لا سجلات تدقيق بعد.',
+                    actions: {
+                        view: function (row) {
+                            CrudHelper.showModal('تفاصيل التدقيق #' + row.id,
+                                '<div class="detail-list">' +
+                                '<div class="detail-row"><span class="k">client_uuid</span><span class="v" style="font-size:11px">' + (row.client_uuid || '—') + '</span></div>' +
+                                '<div class="detail-row"><span class="k">record_id</span><span class="v">' + (row.record_id || '—') + '</span></div>' +
+                                '<div class="detail-row"><span class="k">العملية</span><span class="v">' + (row.operation || '—') + '</span></div>' +
+                                '<div class="detail-row"><span class="k">الحقل</span><span class="v">' + (row.field_name || '—') + '</span></div>' +
+                                '<div class="detail-row"><span class="k">القديم</span><span class="v" style="font-size:12px;color:var(--err)">' + (row.old_value != null ? row.old_value : '—') + '</span></div>' +
+                                '<div class="detail-row"><span class="k">الجديد</span><span class="v" style="font-size:12px;color:var(--ok)">' + (row.new_value != null ? row.new_value : '—') + '</span></div>' +
+                                '<div class="detail-row"><span class="k">الجهاز</span><span class="v">' + (row.changed_by_device || '—') + '</span></div>' +
+                                '<div class="detail-row"><span class="k">المصدر</span><span class="v">' + (row.source || '—') + '</span></div>' +
+                                '<div class="detail-row"><span class="k">idempotency_key</span><span class="v" style="font-size:10px">' + (row.idempotency_key || '—') + '</span></div>' +
+                                '</div>',
+                                [{ label: 'إغلاق', onClick: function (h) { h(); } }]);
+                        }
+                    }
+                });
+                CrudHelper.renderPagination(document.getElementById('pager'), page,
+                    (res && res.total_pages) || 1, function (p) { page = p; load(); });
+            }).catch(function (e) {
+                document.getElementById('table-wrap').innerHTML =
+                    '<div class="empty">خطأ: ' + e.message + '</div>';
+            });
+        }
+
+        document.getElementById('btn-search').addEventListener('click', function () {
+            page = 1; load();
+        });
+        document.querySelectorAll('#table-wrap, .toolbar').forEach(function () {});
+        document.getElementById('f-entity').addEventListener('change', function () { page = 1; load(); });
+        document.getElementById('f-op').addEventListener('change', function () { page = 1; load(); });
+        document.getElementById('f-sens').addEventListener('change', function () { page = 1; load(); });
+        document.addEventListener('DOMContentLoaded', load);
+    })();
+    </script>
+</body>
+</html>

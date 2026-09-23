@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2a8b8b">
+    <title>الأدوار والصلاحيات - v4</title>
+    <script src="../js/config.js"></script>
+    <link rel="stylesheet" href="../css/admin.css">
+    <link rel="stylesheet" href="../css/material-icons.css">
+</head>
+<body>
+    <div class="header">
+        <h1>الأدوار والصلاحيات</h1>
+        <div class="sub">Spatie Roles · v4 · <span id="mode-badge" class="badge badge-offline">Offline</span></div>
+    </div>
+
+    <nav class="nav-tabs container" style="margin-top:12px">
+        <a href="dashboard.html">لوحة القيادة</a>
+        <a href="permissions.html">Manifest</a>
+        <a href="users.html">المستخدمون</a>
+        <a href="roles.html" class="active">الأدوار</a>
+        <a href="reports.html">التقارير</a>
+    </nav>
+
+    <div class="container">
+        <div class="toolbar">
+            <button class="btn" id="btn-new">+ إنشاء دور</button>
+            <button class="btn btn-outline" id="btn-refresh">تحديث</button>
+        </div>
+
+        <div class="section-title">الأدوار <span class="badge badge-info" id="row-count">0</span></div>
+        <div id="table-wrap"><div class="empty" id="msg">جاري التحميل…</div></div>
+        <div class="watermark" id="wm"></div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="../js/admin-api.js"></script>
+    <script src="../js/crud-helper.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script>
+    AdminNav.mount('roles');
+    (function () {
+        CrudHelper.setOnlineBadge();
+
+        var columns = [
+            { key: 'id', label: '#' },
+            { key: 'name', label: 'اسم الدور' },
+            {
+                key: 'permissions', label: 'الصلاحيات', render: function (v) {
+                    if (!v) return '—';
+                    var arr = Array.isArray(v) ? v : String(v).split(',');
+                    if (!arr.length) return '—';
+                    return '<span class="badge badge-info">' + arr.length + ' صلاحية</span> ' +
+                        arr.slice(0, 3).map(function (p) {
+                            return '<span class="badge badge-ok" style="margin:1px">' + p + '</span>';
+                        }).join('') + (arr.length > 3 ? ' …' : '');
+                }
+            },
+            {
+                key: 'guard_name', label: 'المُ魁ّن', render: function (v) {
+                    return v || 'web';
+                }
+            }
+        ];
+
+        function load() {
+            AdminAPI.getRoles().then(function (res) {
+                var rows = (res && (res.data || res.rows)) || [];
+                document.getElementById('row-count').textContent = rows.length;
+                document.getElementById('wm').textContent =
+                    res && res.offline ? 'وضع Offline.' : '';
+
+                CrudHelper.renderTable(document.getElementById('table-wrap'), columns, rows, {
+                    emptyText: 'لا أدوار.',
+                    actions: {
+                        edit: function (row) { openForm(row); },
+                        delete: function (row) {
+                            AdminAPI.deleteRole(row.id).then(function () {
+                                CrudHelper.toast('تم الحذف', 'success');
+                                load();
+                            }).catch(function () {
+                                CrudHelper.toast('يتطلب اتصالاً', 'error');
+                            });
+                        }
+                    }
+                });
+            }).catch(function (e) {
+                document.getElementById('table-wrap').innerHTML =
+                    '<div class="empty">خطأ: ' + e.message + '</div>';
+            });
+        }
+
+        function openForm(existing) {
+            var host = document.createElement('div');
+            CrudHelper.renderForm(host, [
+                { name: 'name', label: 'اسم الدور', required: true },
+                { name: 'permissions', label: 'الصلاحيات (مفصولة بفاصلة)', type: 'textarea', rows: 4 }
+            ], existing ? {
+                name: existing.name,
+                permissions: Array.isArray(existing.permissions)
+                    ? existing.permissions.join(', ')
+                    : (existing.permissions || '')
+            } : {}, function (data) {
+                var payload = {
+                    name: data.name,
+                    permissions: data.permissions
+                        ? data.permissions.split(',').map(function (s) { return s.trim(); }).filter(Boolean)
+                        : []
+                };
+                var req = existing
+                    ? AdminAPI.updateRole(existing.id, payload)
+                    : AdminAPI.createRole(payload);
+                req.then(function (r) {
+                    if (r && (r.success || r.id)) {
+                        CrudHelper.toast('تم الحفظ ✓', 'success');
+                        modal.hide();
+                        load();
+                    } else {
+                        CrudHelper.toast((r && r.message) || 'فشل', 'error');
+                    }
+                }).catch(function () {
+                    CrudHelper.toast('يتطلب اتصالاً', 'error');
+                });
+            });
+            var modal = CrudHelper.showModal(
+                existing ? 'تعديل دور' : 'إنشاء دور', host,
+                [{ label: 'إلغاء', onClick: function (h) { h(); } }]
+            );
+        }
+
+        document.getElementById('btn-new').addEventListener('click', function () { openForm(null); });
+        document.getElementById('btn-refresh').addEventListener('click', load);
+        document.addEventListener('DOMContentLoaded', load);
+    })();
+    </script>
+</body>
+</html>

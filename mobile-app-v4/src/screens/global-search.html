@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2a8b8b">
+    <title>البحث الموحد - v4</title>
+    <script src="../js/config.js"></script>
+    <link rel="stylesheet" href="../css/admin.css">
+    <link rel="stylesheet" href="../css/material-icons.css">
+</head>
+<body>
+    <div class="header">
+        <h1>البحث الموحّد</h1>
+        <div class="sub">Global Search Hub · كل المصادر المحلية · <span id="mode-badge" class="badge badge-offline">Offline</span></div>
+    </div>
+
+    <nav class="nav-tabs container" style="margin-top:12px">
+        <a href="../admin/dashboard.html">لوحة القيادة</a>
+        <a href="../admin/search-records.html">البحث الشامل</a>
+        <a href="global-search.html" class="active">البحث الموحّد</a>
+        <a href="../admin/records.html">السجلات</a>
+        <a href="../admin/sponsorships.html">الكفالات</a>
+    </nav>
+
+    <div class="container">
+        <div class="toolbar">
+            <input type="search" id="q" placeholder="ابحث في كل شيء: أشخاص، كفالات، ملفات، سجل مدني…" autofocus />
+            <button class="btn" id="btn-search">بحث</button>
+        </div>
+
+        <div class="filter-chips" id="tab-chips">
+            <button class="chip active" data-src="">الكل</button>
+            <button class="chip" data-src="people">أشخاص</button>
+            <button class="chip" data-src="sponsorships">كفالات</button>
+            <button class="chip" data-src="files">ملفات</button>
+            <button class="chip" data-src="civil">سجل مدني</button>
+        </div>
+
+        <div class="stats-inline">
+            <span class="s">النتائج: <b id="total">0</b></span>
+            <span class="s">المصادر: <b id="sources">—</b></span>
+            <span class="s">الزمن: <b id="took">—</b></span>
+        </div>
+
+        <div id="results"><div class="empty" id="msg">اكتب استعلاماً للبحث في كل المصادر.</div></div>
+        <div id="pager"></div>
+        <div class="watermark">بحث موحّد عبر sync_v4.db + admin_offline_v4.db + فهرس السجل المدني (قراءة فقط).</div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="../js/admin-api.js"></script>
+    <script src="../js/crud-helper.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script>
+    AdminNav.mount('global-search');
+    (function () {
+        var source = '', page = 1;
+        CrudHelper.setOnlineBadge();
+
+        function badgeFor(src) {
+            var map = {
+                people: ['أشخاص', 'badge-info'],
+                sponsorships: ['كفالات', 'badge-ok'],
+                files: ['ملفات', 'badge-warn'],
+                civil: ['سجل مدني', 'badge-offline'],
+                data: ['ملفات', 'badge-warn']
+            };
+            var m = map[src] || ['نتيجة', 'badge-info'];
+            return '<span class="badge ' + m[1] + '">' + m[0] + '</span>';
+        }
+
+        function doSearch() {
+            var q = document.getElementById('q').value.trim();
+            if (!q) {
+                document.getElementById('results').innerHTML =
+                    '<div class="empty">اكتب كلمة للبحث.</div>';
+                return;
+            }
+            document.getElementById('msg').textContent = 'جاري البحث في كل المصادر…';
+            var t0 = performance.now();
+
+            // Try bridge multi-source query first
+            var searchPromise;
+            if (window.SyncClientV4 && SyncClientV4.globalSearch) {
+                searchPromise = SyncClientV4.globalSearch({ q: q, source: source, page: page });
+            } else {
+                searchPromise = AdminAPI.http('GET', '/mobile/v4/global-search', {
+                    q: q, source: source, page: page
+                });
+            }
+
+            searchPromise.then(function (res) {
+                var rows = (res && (res.results || res.data || res.rows)) || [];
+                var took = ((performance.now() - t0) / 1000).toFixed(2);
+                document.getElementById('took').textContent = took + ' ث';
+                document.getElementById('total').textContent =
+                    (res && res.total != null) ? res.total : rows.length;
+                document.getElementById('sources').textContent =
+                    (res && res.sources) ? res.sources.join('، ') : '—';
+
+                if (!rows.length) {
+                    document.getElementById('results').innerHTML =
+                        '<div class="empty"><span class="material-icons">search_off</span><br>لا نتائج في أي مصدر.</div>';
+                    return;
+                }
+
+                var html = '';
+                rows.forEach(function (r) {
+                    var src = r._source || r.source || r.table || '';
+                    var title = r.title || r.name || r.person_name || r.orphan_name ||
+                        r.data_first_name || r.stored_file_name || '—';
+                    var sub = r.subtitle || r.identity_number || r.data_id_number ||
+                        r.file_id_number || r.meta || '';
+                    html += '<div class="search-result">' +
+                        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
+                        '<h4 style="margin:0">' + title + '</h4>' +
+                        badgeFor(src) + '</div>' +
+                        (sub ? '<div class="meta">' + sub + '</div>' : '') +
+                        (r._snippet ? '<div class="meta" style="margin-top:4px">' + r._snippet + '</div>' : '') +
+                        '<div class="row-actions" style="margin-top:8px">';
+                    if (r.file_id_number) {
+                        html += '<a class="btn btn-sm btn-outline" href="../admin/record-show.html?id=' +
+                            encodeURIComponent(r.file_id_number) + '" style="text-decoration:none">عرض الملف</a>';
+                    }
+                    if (r.id && src === 'sponsorships') {
+                        html += '<a class="btn btn-sm btn-outline" href="../admin/sponsorships.html" style="text-decoration:none">الكفالات</a>';
+                    }
+                    html += '</div></div>';
+                });
+                document.getElementById('results').innerHTML = html;
+
+                var tp = (res && res.total_pages) || 1;
+                CrudHelper.renderPagination(document.getElementById('pager'), page, tp, function (p) {
+                    page = p; doSearch();
+                });
+            }).catch(function (e) {
+                document.getElementById('results').innerHTML =
+                    '<div class="empty">خطأ: ' + (e.message || e) + '</div>';
+            });
+        }
+
+        document.getElementById('btn-search').addEventListener('click', function () {
+            page = 1; doSearch();
+        });
+        document.getElementById('q').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { page = 1; doSearch(); }
+        });
+        document.querySelectorAll('#tab-chips .chip').forEach(function (chip) {
+            chip.addEventListener('click', function () {
+                document.querySelectorAll('#tab-chips .chip').forEach(function (c) { c.classList.remove('active'); });
+                chip.classList.add('active');
+                source = chip.dataset.src;
+                page = 1;
+                if (document.getElementById('q').value.trim()) doSearch();
+            });
+        });
+    })();
+    </script>
+</body>
+</html>

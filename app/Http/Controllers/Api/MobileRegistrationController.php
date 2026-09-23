@@ -140,19 +140,19 @@ class MobileRegistrationController extends Controller
             };
 
             $sections = $safeSelect('general_category', ['id', 'description', 'status'], 'id');
-            $provinces = $safeSelect('provinces', ['id', 'description'], 'id');
+            $provinces = $safeSelect('provinces', ['id', 'description'], 'id', ['description' => ['<>', 'Unknown']]);
             $relations = $safeSelect('category_of_relations', ['id', 'attribute'], 'id', ['attribute' => ['<>', 'Unknown']]);
-            $cities = $safeSelect('city', ['id', 'city', 'province_id'], 'city');
+            $cities = $safeSelect('city', ['id', 'city', 'province_id'], 'city', ['city' => ['<>', 'Unknown']]);
             $deathReasons = $safeSelect('death_reasons', ['id', 'description'], 'id');
             $maritalStatuses = $safeSelect('ci_personal_cd', ['id', 'CI_PERSONAL_CD'], 'id');
-            $academicQualifications = $safeSelect('academic_degree', ['id', 'description'], 'id');
-            $displacementStatuses = $safeSelect('displacement_status', ['id', 'description'], 'id', ['description' => ['<>', 'Unknown']]);
-            $healthStatuses = $safeSelect('health_status', ['id', 'description'], 'id', ['description' => ['<>', 'Unknown']]);
+            $academicQualifications = $safeSelect('academic_degrees', ['id', 'description'], 'id');
+            $displacementStatuses = $safeSelect('displacement_statuses', ['id', 'description'], 'id', ['description' => ['<>', 'Unknown']]);
+            $healthStatuses = $safeSelect('health_statuses', ['id', 'description'], 'id', ['description' => ['<>', 'Unknown']]);
             $employmentStatuses = $safeSelect('employment', ['id', 'description'], 'id');
             $housingStatuses = $safeSelect('housing_status', ['id', 'description'], 'id');
             $housingTypes = $safeSelect('type_of_accommodation', ['id', 'description'], 'id');
             $bankNames = $safeSelect('bank_names', ['id', 'description'], 'id');
-            $documentTypes = $safeSelect('document_type', ['id', 'pref', 'description', 'basic_enabled', 'basic_required', 'family_enabled', 'family_required', 'deceased_enabled', 'deceased_required'], 'id', ['description' => ['<>', 'Unknown']]);
+            $documentTypes = $safeSelect('document_types', ['id', 'pref', 'description', 'basic_enabled', 'basic_required', 'family_enabled', 'family_required', 'deceased_enabled', 'deceased_required'], 'id', ['description' => ['<>', 'Unknown']]);
 
             return response()->json([
                 'success' => true,
@@ -1134,108 +1134,58 @@ class MobileRegistrationController extends Controller
             if (!preg_match('/^\d{6,20}$/', $id)) {
                 return response()->json(['success' => false, 'message' => 'رقم هوية غير صالح'], 422);
             }
-            $type = $request->input('type', 'any');
 
-            $result = null;
-            $matchedIn = null;
+            $type = $request->input('type', 'guardian');
 
-            // 1) المعيل في data
-            if (in_array($type, ['any', 'guardian', 'breadwinner'], true)) {
-                $data = DB::table('data')
-                    ->where('data_id_number', $id)
-                    ->select('file_id_number', 'data_id_number', 'data_first_name', 'data_father_name', 'data_grand_father_name', 'data_family_name', 'data_section_id', 'data_province', 'data_request_status')
-                    ->first();
-                if ($data) {
-                    $result = $data;
-                    $matchedIn = 'data';
-                }
+            // 1) البحث أولاً في جدول المعيلين (data) - للأداء والسرعة
+            $data = DB::table('data')
+                ->where('data_id_number', $id)
+                ->select('file_id_number', 'data_id_number', 'data_first_name', 'data_father_name', 'data_grand_father_name', 'data_family_name', 'data_section_id', 'data_province', 'data_city', 'data_gender', 'data_birth_date', 'data_phone_number', 'data_alt_phone_number', 'data_marital_status', 'data_displacement_status', 'data_address_before_displacement', 'data_current_address', 'data_health_status', 'data_description_needs')
+                ->first();
+
+            if ($data) {
+                return response()->json([
+                    'success' => true,
+                    'matched_in' => 'data',
+                    'file_id_number' => str_pad((string) $data->file_id_number, 6, '0', STR_PAD_LEFT),
+                    'record' => (array) $data,
+                    'message' => 'تم العثور على سجل سابق في النظام'
+                ]);
             }
 
-            // 2) أفراد الأسرة في re_people
-            if ($result === null && in_array($type, ['any', 'family'], true)) {
-                $member = DB::table('re_people')
-                    ->where('person_id', $id)
-                    ->select('registration_id', 'first_name', 'second_name', 'third_name', 'last_name', 'person_id', 'person_birth_date', 'person_gender')
-                    ->first();
-                if ($member) {
-                    $result = $member;
-                    $matchedIn = 're_people';
+            // 2) إذا لم يوجد، البحث في السجل المدني مباشرة (fallback)
+            $person = DB::connection('civilregistry')->table('persons')
+                ->where('CI_ID_NUM', $id)
+                ->select('CI_ID_NUM', 'CI_FIRST_ARB', 'CI_FATHER_ARB', 'CI_GRAND_FATHER_ARB', 'CI_FAMILY_ARB', 'MOTHER_NAME1', 'CI_BIRTH_DT', 'CI_SEX_CD', 'CI_PERSONAL_CD', 'CI_DEAD_DT', 'CITY')
+                ->first();
 
-                    $guardian = DB::table('data')->where('file_id_number', $member->registration_id)
-                        ->select('file_id_number', 'data_id_number', 'data_first_name', 'data_father_name', 'data_grand_father_name', 'data_family_name', 'data_province', 'data_request_status')
-                        ->first();
-                    if ($guardian) {
-                        $result->guardian_file_id_number = $guardian->file_id_number;
-                    }
-                }
+            if ($person) {
+                // تحويل بيانات السجل المدني لتنسيق يفهمه النموذج
+                $mappedPerson = [
+                    'data_id_number' => $person->CI_ID_NUM,
+                    'data_first_name' => $person->CI_FIRST_ARB,
+                    'data_father_name' => $person->CI_FATHER_ARB,
+                    'data_grand_father_name' => $person->CI_GRAND_FATHER_ARB,
+                    'data_family_name' => $person->CI_FAMILY_ARB,
+                    'data_birth_date' => $person->CI_BIRTH_DT,
+                    'data_gender' => (string) $person->CI_SEX_CD,
+                    'data_marital_status' => (string) $person->CI_PERSONAL_CD,
+                    'is_deceased' => ($person->CI_DEAD_DT !== null && $person->CI_DEAD_DT !== ''),
+                ];
+
+                return response()->json([
+                    'success' => true,
+                    'matched_in' => 'civil_registry',
+                    'file_id_number' => null,
+                    'record' => $mappedPerson,
+                    'message' => 'تم جلب البيانات من السجل المدني'
+                ]);
             }
 
-            // 3) المتوفون (أب/أم) في dead_people أو المتوفون الإضافيون
-            if ($result === null && in_array($type, ['any', 'deceased'], true)) {
-                $dead = DB::table('dead_people')
-                    ->where('father_id', $id)
-                    ->orWhere('mother_id', $id)
-                    ->select('re_file_id', 'father_id', 'mother_id', 'father_first_name', 'father_last_name', 'mother_first_name', 'mother_last_name')
-                    ->first();
-                if ($dead) {
-                    $isFather = (string) $dead->father_id === $id;
-                    $result = (object) [
-                        'person_id' => $id,
-                        'first_name' => $isFather ? $dead->father_first_name : $dead->mother_first_name,
-                        'last_name' => $isFather ? $dead->father_last_name : $dead->mother_last_name,
-                        'registration_id' => $dead->re_file_id,
-                    ];
-                    $matchedIn = 'dead_people';
-                } else {
-                    $add = DB::table('additional_deceased')
-                        ->where('person_id', $id)
-                        ->select('re_file_id', 'first_name', 'last_name', 'person_id', 'relationship')
-                        ->first();
-                    if ($add) {
-                        $result = $add;
-                        $result->registration_id = $add->re_file_id;
-                        $matchedIn = 'additional_deceased';
-                    }
-                }
-            }
+            return response()->json(['success' => false, 'message' => 'رقم الهوية غير مسجل لدينا ولا يوجد في السجل المدني'], 404);
 
-            // 4) الكفالات: identity_number أو guardian_identity_number
-            $sponsorship = null;
-            if (in_array($type, ['any', 'sponsorship'], true)) {
-                $sponsorship = DB::table('sponsorships')
-                    ->where('identity_number', $id)
-                    ->orWhere('guardian_identity_number', $id)
-                    ->select('id', 'internal_file_number', 'relation_id_number', 'identity_number', 'guardian_identity_number', 'orphan_name', 'guardian_name', 'person_type', 'sponsorship_status_id')
-                    ->first();
-            }
-
-            if ($result === null && $sponsorship === null) {
-                return response()->json(['success' => false, 'message' => 'لا توجد بيانات مسجلة بهذا الرقم'], 404);
-            }
-
-            // رقم الملف الحقيقي للتسجيل (data.file_id_number)
-            $fileIdNumber = null;
-            if ($matchedIn === 'data') {
-                $fileIdNumber = $result->file_id_number;
-            } elseif ($matchedIn === 're_people' || $matchedIn === 'dead_people' || $matchedIn === 'additional_deceased') {
-                $fileIdNumber = $result->registration_id ?? null;
-            }
-            if (!$fileIdNumber && $sponsorship) {
-                $fileIdNumber = $sponsorship->relation_id_number ?? $sponsorship->internal_file_number;
-            }
-
-            return response()->json([
-                'success' => true,
-                'matched_in' => $matchedIn,
-                'file_id_number' => $fileIdNumber ? str_pad((string) $fileIdNumber, 6, '0', STR_PAD_LEFT) : null,
-                'record' => $result ? (array) $result : null,
-                'sponsorship' => $sponsorship,
-                'sponsorship_file_number' => $sponsorship ? ($sponsorship->internal_file_number ? str_pad((string) $sponsorship->internal_file_number, 6, '0', STR_PAD_LEFT) : null) : null,
-            ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json(['success' => false, 'errors' => $e->errors(), 'message' => 'بيانات غير صحيحة'], 422);
         } catch (\Exception $e) {
-            Log::error('MobileRegistration findById failed', ['error' => $e->getMessage()]);
+            Log::error('MobileRegistration findById optimized failed', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'message' => 'فشل البحث: ' . $e->getMessage()], 500);
         }
     }

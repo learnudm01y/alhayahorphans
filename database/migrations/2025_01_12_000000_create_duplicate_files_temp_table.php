@@ -20,8 +20,8 @@ return new class extends Migration
             $table->string('original_folder', 100)->nullable();
             $table->string('target_folder', 100)->nullable();
             $table->string('existing_file_name', 255)->nullable();
-            $table->timestamp('created_at');
-            $table->timestamp('expires_at');
+            $table->timestamp('created_at')->useCurrent();
+            $table->timestamp('expires_at')->useCurrent();
 
             // Indexes for performance
             $table->index(['session_id', 'expires_at']);

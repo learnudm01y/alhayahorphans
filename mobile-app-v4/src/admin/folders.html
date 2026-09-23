@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2a8b8b">
+    <title>إدارة المجلدات - v4</title>
+    <script src="../js/config.js"></script>
+    <link rel="stylesheet" href="../css/admin.css">
+    <link rel="stylesheet" href="../css/material-icons.css">
+</head>
+<body>
+    <div class="header">
+        <h1>إدارة المجلدات</h1>
+        <div class="sub">Folders · v4 · <span id="mode-badge" class="badge badge-offline">Offline</span></div>
+    </div>
+
+    <nav class="nav-tabs container" style="margin-top:12px">
+        <a href="dashboard.html">لوحة القيادة</a>
+        <a href="files.html">فهرس المرفقات</a>
+        <a href="folders.html" class="active">المجلدات</a>
+        <a href="duplicates.html">المكررات</a>
+        <a href="attachment-audit.html">التدقيق</a>
+        <a href="../upload.html">الرفع</a>
+    </nav>
+
+    <div class="container">
+        <div class="toolbar">
+            <input type="search" id="q" placeholder="بحث في المجلدات والملفات…" />
+            <button class="btn" id="btn-search">بحث</button>
+            <button class="btn btn-outline" id="btn-zip">تحميل ZIP للمحدد</button>
+        </div>
+
+        <div class="breadcrumb" id="crumb" style="font-size:13px;color:var(--ink-2);margin-bottom:10px">
+            / الجذر
+        </div>
+
+        <div class="section-title">المحتويات <span class="badge badge-info" id="row-count">0</span></div>
+        <div id="table-wrap"><div class="empty" id="msg">جاري التحميل…</div></div>
+        <div id="pager"></div>
+        <div class="watermark" id="wm"></div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="../js/admin-api.js"></script>
+    <script src="../js/crud-helper.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script>
+    AdminNav.mount('folders');
+    (function () {
+        var page = 1, path = '', history = [];
+        CrudHelper.setOnlineBadge();
+
+        function crumbHtml() {
+            var parts = ['<a href="#" data-path="" style="color:var(--brand-700)">الجذر</a>'];
+            history.forEach(function (h, i) {
+                parts.push(' / <a href="#" data-hist="' + i + '" style="color:var(--brand-700)">' + h + '</a>');
+            });
+            if (path) parts.push(' / <strong>' + path.split('/').pop() + '</strong>');
+            document.getElementById('crumb').innerHTML = parts.join('');
+            document.querySelectorAll('#crumb a[data-path]').forEach(function (a) {
+                a.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    path = ''; history = []; page = 1; load();
+                });
+            });
+            document.querySelectorAll('#crumb a[data-hist]').forEach(function (a) {
+                a.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    var idx = parseInt(a.dataset.hist, 10);
+                    history = history.slice(0, idx + 1);
+                    path = history.join('/');
+                    page = 1; load();
+                });
+            });
+        }
+
+        function load() {
+            crumbHtml();
+            document.getElementById('msg').textContent = 'جاري التحميل…';
+            AdminAPI.getFolders({
+                path: path,
+                q: document.getElementById('q').value.trim(),
+                page: page
+            }).then(function (res) {
+                var items = (res && (res.data || res.rows || res.entries)) || [];
+                document.getElementById('row-count').textContent =
+                    (res && res.total != null) ? res.total : items.length;
+                document.getElementById('wm').textContent =
+                    res && res.offline ? 'وضع Offline — فهرس محلي.' : '';
+
+                if (!items.length) {
+                    document.getElementById('table-wrap').innerHTML =
+                        '<div class="empty"><span class="material-icons">folder_off</span><br>مجلد فارغ أو غير متاح offline.</div>';
+                    return;
+                }
+
+                var selected = {};
+                var html = '<table class="data"><thead><tr>' +
+                    '<th style="width:30px"><input type="checkbox" id="chk-all"></th>' +
+                    '<th>الاسم</th><th>النوع</th><th>الحجم</th><th>إجراءات</th>' +
+                    '</tr></thead><tbody>';
+
+                items.forEach(function (it, i) {
+                    var isDir = it.is_dir || it.type === 'dir' || it.mime === 'inode/directory';
+                    var icon = isDir ? 'folder' : (String(it.name || '').match(/\.(pdf)$/i) ? 'picture_as_pdf'
+                        : String(it.name || '').match(/\.(jpe?g|png|gif|webp|heic)$/i) ? 'image'
+                            : String(it.name || '').match(/\.(xls|xlsx|csv)$/i) ? 'table_chart'
+                                : 'insert_drive_file');
+                    html += '<tr data-i="' + i + '">' +
+                        '<td><input type="checkbox" class="row-chk" data-i="' + i + '"></td>' +
+                        '<td><span class="material-icons" style="color:var(--brand-600);vertical-align:middle">' +
+                        icon + '</span> ' + (it.name || '—') + '</td>' +
+                        '<td>' + (isDir ? 'مجلد' : (it.file_type || it.mime || 'ملف')) + '</td>' +
+                        '<td>' + (it.size != null ? formatSize(it.size) : '—') + '</td>' +
+                        '<td class="row-actions">' +
+                        (isDir
+                            ? '<button class="btn btn-sm btn-outline" data-open="' + i + '">فتح</button>'
+                            : '<button class="btn btn-sm btn-outline" data-view="' + i + '">عرض</button>' +
+                            '<button class="btn btn-sm btn-outline" data-dl="' + i + '">تحميل</button>' +
+                            '<button class="btn btn-sm btn-danger" data-del="' + i + '">حذف</button>') +
+                        '</td></tr>';
+                    if (isDir) selected[i] = items[i];
+                });
+                html += '</tbody></table>';
+                document.getElementById('table-wrap').innerHTML = html;
+
+                function formatSize(b) {
+                    if (b < 1024) return b + ' B';
+                    if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+                    if (b < 1073741824) return (b / 1048576).toFixed(1) + ' MB';
+                    return (b / 1073741824).toFixed(2) + ' GB';
+                }
+
+                document.querySelectorAll('button[data-open]').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        var it = items[parseInt(btn.dataset.open, 10)];
+                        history.push(it.name);
+                        path = history.join('/');
+                        page = 1;
+                        load();
+                    });
+                });
+                document.querySelectorAll('button[data-view]').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        var it = items[parseInt(btn.dataset.view, 10)];
+                        if (it.download_url) window.open(it.download_url, '_blank');
+                        else CrudHelper.toast('يتطلب اتصالاً لعرض الملف', 'info');
+                    });
+                });
+                document.querySelectorAll('button[data-dl]').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        var it = items[parseInt(btn.dataset.dl, 10)];
+                        if (it.download_url) {
+                            var a = document.createElement('a');
+                            a.href = it.download_url;
+                            a.download = it.name;
+                            a.click();
+                        } else CrudHelper.toast('يتطلب اتصالاً', 'info');
+                    });
+                });
+                document.querySelectorAll('button[data-del]').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        var it = items[parseInt(btn.dataset.del, 10)];
+                        if (!confirm('حذف "' + it.name + '"؟')) return;
+                        if (window.SyncClientV4 && it.file_id) {
+                            SyncClientV4.queueFileDelete({
+                                file_id: it.file_id,
+                                stored_file_name: it.name
+                            }).then(function (r) {
+                                if (r && r.success) {
+                                    CrudHelper.toast('مجدول للحذف ✓', 'success');
+                                    load();
+                                }
+                            });
+                        } else if (AdminAPI.deleteFile) {
+                            AdminAPI.deleteFile(it.id || it.file_id).then(function () {
+                                CrudHelper.toast('تم', 'success');
+                                load();
+                            }).catch(function () {
+                                CrudHelper.toast('يتطلب اتصالاً', 'error');
+                            });
+                        }
+                    });
+                });
+            }).catch(function (e) {
+                document.getElementById('table-wrap').innerHTML =
+                    '<div class="empty">خطأ: ' + e.message + '</div>';
+            });
+        }
+
+        document.getElementById('btn-search').addEventListener('click', function () {
+            page = 1; load();
+        });
+        document.getElementById('q').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { page = 1; load(); }
+        });
+        document.getElementById('btn-zip').addEventListener('click', function () {
+            CrudHelper.toast('تحميل ZIP يتطلب اتصالاً بالسيرفر', 'info');
+        });
+        document.addEventListener('DOMContentLoaded', load);
+    })();
+    </script>
+</body>
+</html>

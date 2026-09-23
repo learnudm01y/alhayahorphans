@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2a8b8b">
+    <title>إدارة الأجهزة - v4</title>
+    <script src="../js/config.js"></script>
+    <link rel="stylesheet" href="../css/admin.css">
+    <link rel="stylesheet" href="../css/material-icons.css">
+</head>
+<body>
+    <div class="header">
+        <h1>إدارة الأجهزة المسجَّلة</h1>
+        <div class="sub">Device Registry · device_registry_v4 · <span id="mode-badge" class="badge badge-offline">Offline</span></div>
+    </div>
+
+    <nav class="nav-tabs container" style="margin-top:12px">
+        <a href="../admin/dashboard.html">لوحة القيادة</a>
+        <a href="conflict-review.html">التعارضات</a>
+        <a href="sync-health.html">صحة المزامنة</a>
+        <a href="audit.html">التدقيق</a>
+        <a href="devices.html" class="active">الأجهزة</a>
+        <a href="notifications.html">الإشعارات</a>
+    </nav>
+
+    <div class="container">
+        <div class="toolbar">
+            <button class="btn" id="btn-refresh">تحديث</button>
+            <span class="badge badge-info" id="total">0</span>
+            <span style="font-size:12px;color:var(--ink-3)">الحد الأقصى: 10 أجهزة</span>
+        </div>
+
+        <div id="table-wrap"><div class="empty" id="msg">جاري التحميل…</div></div>
+        <div class="watermark">إلغاء تفعيل جهاز يمنع أي مزامنة مستقبلية منه فوراً عند عودة الاتصال — مهم أمنياً عند فقدان جهاز ميداني.</div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="../js/admin-api.js"></script>
+    <script src="../js/crud-helper.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script>
+    AdminNav.mount('devices');
+    (function () {
+        CrudHelper.setOnlineBadge();
+
+        function load() {
+            document.getElementById('msg').textContent = 'جاري التحميل…';
+            var p = (window.SyncClientV4 && SyncClientV4.getDeviceHealth)
+                ? SyncClientV4.getDeviceHealth()
+                : AdminAPI.http('GET', '/mobile/v4/device/health');
+            p.then(function (res) {
+                var devices = (res && (res.devices || res.data || res.rows)) || [];
+                document.getElementById('total').textContent = devices.length;
+                if (!devices.length) {
+                    document.getElementById('table-wrap').innerHTML =
+                        '<div class="empty">لا أجهزة مسجّلة.</div>';
+                    return;
+                }
+
+                CrudHelper.renderTable(document.getElementById('table-wrap'), [
+                    {
+                        key: 'device_id', label: 'المعرّف', render: function (v) {
+                            return '<span style="font-family:monospace;font-size:11px">' +
+                                (v || '—').substring(0, 16) + '…</span>';
+                        }
+                    },
+                    { key: 'device_label', label: 'التسمية' },
+                    { key: 'user_name', label: 'المستخدم' },
+                    {
+                        key: 'last_seen_at', label: 'آخر ظهور', render: function (v) {
+                            return v ? new Date(v).toLocaleString('ar') : '—';
+                        }
+                    },
+                    {
+                        key: 'last_sync_at', label: 'آخر مزامنة', render: function (v) {
+                            return v ? new Date(v).toLocaleString('ar') : '—';
+                        }
+                    },
+                    { key: 'pending_ops', label: 'معلّق' },
+                    {
+                        key: 'is_active', label: 'الحالة', render: function (v) {
+                            return v == 1
+                                ? '<span class="badge badge-ok">مفعّل</span>'
+                                : '<span class="badge badge-err">محظور</span>';
+                        }
+                    },
+                    {
+                        key: 'health', label: 'الصحة', render: function (v) {
+                            var map = {
+                                healthy: ['سليم', 'health-healthy'],
+                                degraded: ['متأخر', 'health-degraded'],
+                                error: ['خطأ', 'health-error'],
+                                unknown: ['غير معروف', 'health-unknown']
+                            };
+                            var m = map[v] || map.unknown;
+                            return '<span class="health-dot ' + m[1] + '"></span>' + m[0];
+                        }
+                    }
+                ], devices, {
+                    emptyText: 'لا أجهزة.',
+                    actions: {
+                        edit: function (row) { renameDevice(row); },
+                        delete: function (row) {
+                            if (!confirm('إلغاء تفعيل هذا الجهاز؟ سيمنع مزامنته مستقبلاً.')) return;
+                            AdminAPI.http('POST', '/mobile/v4/device/' +
+                                encodeURIComponent(row.device_id) + '/revoke', {})
+                                .then(function (r) {
+                                    if (r && r.success) {
+                                        CrudHelper.toast('تم إلغاء التفعيل ✓', 'success');
+                                        load();
+                                    } else {
+                                        CrudHelper.toast((r && r.message) || 'فشل', 'error');
+                                    }
+                                }).catch(function () {
+                                    CrudHelper.toast('يتطلب اتصالاً', 'error');
+                                });
+                        }
+                    }
+                });
+            }).catch(function (e) {
+                document.getElementById('table-wrap').innerHTML =
+                    '<div class="empty">خطأ: ' + e.message + '</div>';
+            });
+        }
+
+        function renameDevice(row) {
+            var host = document.createElement('div');
+            CrudHelper.renderForm(host, [
+                { name: 'device_label', label: 'تسمية الجهاز', required: true }
+            ], { device_label: row.device_label || '' }, function (data) {
+                AdminAPI.http('PUT', '/mobile/v4/device/' +
+                    encodeURIComponent(row.device_id) + '/label', data)
+                    .then(function (r) {
+                        if (r && r.success) {
+                            CrudHelper.toast('تم التحديث ✓', 'success');
+                            modal.hide();
+                            load();
+                        } else {
+                            CrudHelper.toast('فشل', 'error');
+                        }
+                    }).catch(function () {
+                        CrudHelper.toast('يتطلب اتصالاً', 'error');
+                    });
+            });
+            var modal = CrudHelper.showModal('تسمية الجهاز', host, [
+                { label: 'إلغاء', onClick: function (h) { h(); } }
+            ]);
+        }
+
+        document.getElementById('btn-refresh').addEventListener('click', load);
+        document.addEventListener('DOMContentLoaded', load);
+    })();
+    </script>
+</body>
+</html>

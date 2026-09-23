@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2a8b8b">
+    <title>التصنيفات - v4</title>
+    <script src="../js/config.js"></script>
+    <link rel="stylesheet" href="../css/admin.css">
+    <link rel="stylesheet" href="../css/material-icons.css">
+</head>
+<body>
+    <div class="header">
+        <h1>إدارة التصنيفات</h1>
+        <div class="sub">22 تصنيف · v4 Offline Admin · <span id="mode-badge" class="badge badge-offline">Offline</span></div>
+    </div>
+
+    <nav class="nav-tabs container" style="margin-top:12px">
+        <a href="dashboard.html">لوحة القيادة</a>
+        <a href="records.html">السجلات</a>
+        <a href="categories.html" class="active">التصنيفات</a>
+        <a href="sponsorships.html">الكفالات</a>
+        <a href="sponsors.html">الجمعيات</a>
+        <a href="files.html">الملفات</a>
+        <a href="reports.html">التقارير</a>
+        <a href="permissions.html">الصلاحيات</a>
+    </nav>
+
+    <div class="container">
+        <div class="toolbar">
+            <input type="search" id="q" placeholder="بحث في التصنيفات…" />
+        </div>
+        <div class="section-title">اختر تصنيفاً للتعديل <span class="badge badge-info" id="count">22</span></div>
+        <div class="cards" id="cat-grid">
+            <div class="empty">جاري التحميل…</div>
+        </div>
+        <div class="watermark">اضغط أي تصنيف لفتح شاشة CRUD موحّدة (إضافة/تعديل/حذف).</div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="../js/config.js"></script>
+    <script src="../js/categories-config.js"></script>
+    <script src="../js/admin-api.js"></script>
+    <script src="../js/crud-helper.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script>
+    AdminNav.mount('categories');
+    (function () {
+        CrudHelper.setOnlineBadge();
+        var q = document.getElementById('q');
+        function render(filter) {
+            var list = (window.CATEGORIES || []).filter(function (c) {
+                if (!filter) return true;
+                return c.name.indexOf(filter) >= 0 || c.key.indexOf(filter) >= 0;
+            });
+            document.getElementById('count').textContent = list.length;
+            var grid = document.getElementById('cat-grid');
+            grid.innerHTML = '';
+            if (!list.length) {
+                grid.innerHTML = '<div class="empty">لا نتائج</div>';
+                return;
+            }
+            list.forEach(function (c) {
+                var card = document.createElement('a');
+                card.href = 'category.html?cat=' + encodeURIComponent(c.key);
+                card.style.cssText = 'display:block;text-decoration:none;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:16px;box-shadow:var(--sh-1);cursor:pointer';
+                card.innerHTML =
+                    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">' +
+                    '<span class="material-icons" style="color:var(--brand-600);font-size:28px">' + (c.icon || 'category') + '</span>' +
+                    '<strong style="font-size:14px;color:var(--ink)">' + c.name + '</strong></div>' +
+                    '<div style="font-size:11px;color:var(--ink-3);font-family:monospace">' + c.key + '</div>';
+                grid.appendChild(card);
+            });
+        }
+        q.addEventListener('input', function () { render(this.value.trim()); });
+        document.addEventListener('DOMContentLoaded', function () { render(''); });
+    })();
+    </script>
+</body>
+</html>

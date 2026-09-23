@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2a8b8b">
+    <title>الملفات - v4</title>
+    <script src="../js/config.js"></script>
+    <link rel="stylesheet" href="../css/admin.css">
+</head>
+<body>
+    <div class="header">
+        <h1>إدارة الملفات والمرفقات</h1>
+        <div class="sub">v4 Offline Admin · <span id="mode-badge" class="badge badge-offline">Offline</span> · <span class="badge badge-warn" id="pending-badge">0 قيد المزامنة</span></div>
+    </div>
+
+    <nav class="nav-tabs container" style="margin-top:12px">
+        <a href="dashboard.html">لوحة القيادة</a>
+        <a href="sponsorships.html">الكفالات</a>
+        <a href="reports.html">التقارير</a>
+        <a href="permissions.html">الصلاحيات</a>
+        <a href="files.html" class="active">الملفات</a>
+        <a href="civil-registry.html">السجل المدني</a>
+        <a href="../screens/conflict-review.html">مراجعة التكرارات</a>
+        <a href="../screens/sync-health.html">صحة المزامنة</a>
+    </nav>
+
+    <div class="container">
+        <div class="toolbar">
+            <input type="search" id="q" placeholder="بحث بالاسم أو رقم الهوية أو اسم الملف…" />
+            <button class="btn" id="btn-search">بحث</button>
+        </div>
+        <div class="section-title">فهرس المرفقات <span class="badge badge-info" id="total-badge">0</span></div>
+        <div id="table-wrap"><div class="empty" id="msg">جاري التحميل…</div></div>
+        <div class="watermark" id="wm"></div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="../js/sync-client-v4.js"></script>
+    <script src="../js/admin-api.js"></script>
+    <script src="../js/crud-helper.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script>
+    AdminNav.mount('files');
+    (function () {
+        function toast(m) {
+            var t = document.getElementById('toast');
+            t.textContent = m; t.style.display = 'block';
+            setTimeout(function () { t.style.display = 'none'; }, 3500);
+        }
+        function setBadge() {
+            var b = document.getElementById('mode-badge');
+            if (navigator.onLine) { b.textContent = 'Online'; b.className = 'badge badge-ok'; }
+            else { b.textContent = 'Offline'; b.className = 'badge badge-offline'; }
+        }
+        window.addEventListener('online', setBadge);
+        window.addEventListener('offline', setBadge);
+        setBadge();
+
+        function refreshPending() {
+            if (!window.SyncClientV4) return;
+            SyncClientV4.getSyncHealth().then(function (r) {
+                document.getElementById('pending-badge').textContent =
+                    (r.pending_file_ops || 0) + ' قيد المزامنة';
+            }).catch(function () {});
+        }
+
+        function load(search) {
+            if (!window.SyncClientV4) {
+                document.getElementById('msg').textContent = 'Bridge غير متاح.';
+                return;
+            }
+            SyncClientV4.queryFileIndex(search || '').then(function (res) {
+                var rows = (res && res.rows) || [];
+                document.getElementById('total-badge').textContent =
+                    (res && res.total != null) ? res.total : rows.length;
+                if (!rows.length) {
+                    document.getElementById('table-wrap').innerHTML =
+                        '<div class="empty">لا ملفات في الفهرس — أول مزامنة ستبنيه.</div>';
+                    return;
+                }
+                var html = '<table class="data"><thead><tr>' +
+                    '<th>#</th><th>الاسم</th><th>رقم الهوية</th><th>النوع</th>' +
+                    '<th>الملف</th><th>إجراءات</th></tr></thead><tbody>';
+                rows.forEach(function (r, i) {
+                    html += '<tr><td>' + (i + 1) + '</td>' +
+                        '<td>' + (r.person_name || '—') + '</td>' +
+                        '<td>' + (r.identity_number || '—') + '</td>' +
+                        '<td>' + (r.file_type || r.table_name || '—') + '</td>' +
+                        '<td>' + (r.stored_file_name || r.file_id || '—') + '</td>' +
+                        '<td class="row-actions">' +
+                        '<button class="btn btn-sm btn-danger" data-op="delete" data-uuid="' +
+                        (r.client_uuid || '') + '" data-fid="' + (r.file_id || '') +
+                        '" data-name="' + (r.stored_file_name || '') +
+                        '" data-idn="' + (r.identity_number || '') + '">حذف مؤجّل</button>' +
+                        '</td></tr>';
+                });
+                html += '</tbody></table>';
+                document.getElementById('table-wrap').innerHTML = html;
+                document.getElementById('wm').textContent =
+                    'عمليات الحذف/النقل تُسجَّل في طابور sync_outbox_v4 وتُنفَّذ عند عودة الاتصال (Optimistic UI).';
+
+                document.querySelectorAll('button[data-op="delete"]').forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        SyncClientV4.queueFileDelete({
+                            file_index_uuid: btn.dataset.uuid,
+                            file_id: btn.dataset.fid,
+                            stored_file_name: btn.dataset.name,
+                            identity_number: btn.dataset.idn
+                        }).then(function (r) {
+                            if (r && r.success) {
+                                toast('تمت الجدولة — قيد المزامنة (' + r.pending + ')');
+                                refreshPending();
+                            } else {
+                                toast('فشل الجدولة');
+                            }
+                        }).catch(function () { toast('Bridge غير متاح'); });
+                    });
+                });
+            }).catch(function (e) {
+                document.getElementById('table-wrap').innerHTML =
+                    '<div class="empty">خطأ: ' + e.message + '</div>';
+            });
+        }
+
+        document.getElementById('btn-search').addEventListener('click', function () {
+            load(document.getElementById('q').value.trim());
+        });
+        document.getElementById('q').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') load(this.value.trim());
+        });
+        document.addEventListener('DOMContentLoaded', function () {
+            load(''); refreshPending();
+        });
+    })();
+    </script>
+</body>
+</html>

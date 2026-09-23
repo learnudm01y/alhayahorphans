@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2a8b8b">
+    <title>السجل المدني - v4</title>
+    <script src="../js/config.js"></script>
+    <link rel="stylesheet" href="../css/admin.css">
+</head>
+<body>
+    <div class="header">
+        <h1>السجل المدني (عرض offline)</h1>
+        <div class="sub">v4 Offline Admin · <span id="mode-badge" class="badge badge-offline">Offline</span></div>
+    </div>
+
+    <nav class="nav-tabs container" style="margin-top:12px">
+        <a href="dashboard.html">لوحة القيادة</a>
+        <a href="sponsorships.html">الكفالات</a>
+        <a href="reports.html">التقارير</a>
+        <a href="permissions.html">الصلاحيات</a>
+        <a href="files.html">الملفات</a>
+        <a href="civil-registry.html" class="active">السجل المدني</a>
+        <a href="../screens/conflict-review.html">مراجعة التكرارات</a>
+        <a href="../screens/sync-health.html">صحة المزامنة</a>
+    </nav>
+
+    <div class="container">
+        <div class="section-title">ملاحظة</div>
+        <div class="card" style="margin-bottom:14px">
+            قاعدة <code>civilregistry</code> منفصلة تماماً عن <code>aso</code> وتبقى
+            <strong>للقراءة فقط</strong> من الشاشة — لا عملية كتابة/تعديل تمر من v4
+            على قاعدة السجل المدني القديمة. البيانات المعروضة أدناه مأخوذة من
+            جداول <code>data</code> / <code>re_people</code> / <code>dead_people</code>
+            المزامَنة محلياً.
+        </div>
+
+        <div class="toolbar">
+            <input type="search" id="q" placeholder="بحث بالاسم أو رقم الهوية…" />
+            <button class="btn" id="btn-search">بحث</button>
+            <select id="src">
+                <option value="files">الملفات (data)</option>
+                <option value="sponsorships">الكفالات</option>
+            </select>
+        </div>
+
+        <div class="section-title">النتائج <span class="badge badge-info" id="row-count">0</span></div>
+        <div id="table-wrap"><div class="empty" id="msg">جاري التحميل…</div></div>
+        <div class="watermark" id="wm"></div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="../js/sync-client-v4.js"></script>
+    <script src="../js/admin-api.js"></script>
+    <script src="../js/crud-helper.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script>
+    AdminNav.mount('civil-registry');
+    (function () {
+        function toast(m) {
+            var t = document.getElementById('toast');
+            t.textContent = m; t.style.display = 'block';
+            setTimeout(function () { t.style.display = 'none'; }, 3500);
+        }
+        function setBadge() {
+            var b = document.getElementById('mode-badge');
+            if (navigator.onLine) { b.textContent = 'Online'; b.className = 'badge badge-ok'; }
+            else { b.textContent = 'Offline'; b.className = 'badge badge-offline'; }
+        }
+        window.addEventListener('online', setBadge);
+        window.addEventListener('offline', setBadge);
+        setBadge();
+
+        function load() {
+            var type = document.getElementById('src').value;
+            var search = document.getElementById('q').value.trim();
+            if (!window.SyncClientV4) {
+                document.getElementById('msg').textContent = 'Bridge غير متاح.';
+                return;
+            }
+            SyncClientV4.queryReports(type, search).then(function (res) {
+                var rows = (res && res.rows) || [];
+                document.getElementById('row-count').textContent = rows.length;
+                if (!rows.length) {
+                    document.getElementById('table-wrap').innerHTML =
+                        '<div class="empty">لا نتائج — أول مزامنة ستجلب البيانات.</div>';
+                    document.getElementById('wm').textContent = '';
+                    return;
+                }
+                var html = '<table class="data"><thead><tr>' +
+                    '<th>#</th><th>الاسم</th><th>رقم الهوية</th><th>التفاصيل</th>' +
+                    '</tr></thead><tbody>';
+                rows.forEach(function (r, i) {
+                    var name = r.data_first_name ? (r.data_first_name + ' ' + (r.data_family_name || '')) :
+                        (r.orphan_name || r.person_name || '—');
+                    var idn = r.identity_number || r.data_id_number || '—';
+                    var extra = r.data_province ? ('محافظة: ' + r.data_province) :
+                        (r.sponsorship_status_id ? ('حالة: ' + r.sponsorship_status_id) : '—');
+                    html += '<tr><td>' + (i + 1) + '</td>' +
+                        '<td>' + name + '</td><td>' + idn + '</td>' +
+                        '<td>' + extra + '</td></tr>';
+                });
+                html += '</tbody></table>';
+                document.getElementById('table-wrap').innerHTML = html;
+                document.getElementById('wm').textContent =
+                    'قراءة فقط — لا تعديل على قاعدة السجل المدني من هذه الشاشة.';
+            }).catch(function (e) {
+                document.getElementById('table-wrap').innerHTML =
+                    '<div class="empty">خطأ: ' + e.message + '</div>';
+            });
+        }
+
+        document.getElementById('btn-search').addEventListener('click', load);
+        document.getElementById('src').addEventListener('change', load);
+        document.getElementById('q').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') load();
+        });
+        document.addEventListener('DOMContentLoaded', load);
+    })();
+    </script>
+</body>
+</html>

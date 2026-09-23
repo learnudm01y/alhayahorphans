@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2a8b8b">
+    <title>إدارة الجمعيات - v4</title>
+    <script src="../js/config.js"></script>
+    <link rel="stylesheet" href="../css/admin.css">
+    <link rel="stylesheet" href="../css/material-icons.css">
+</head>
+<body>
+    <div class="header">
+        <h1>إدارة الجمعيات</h1>
+        <div class="sub">Sponsors · v4 · <span id="mode-badge" class="badge badge-offline">Offline</span></div>
+    </div>
+
+    <nav class="nav-tabs container" style="margin-top:12px">
+        <a href="dashboard.html">لوحة القيادة</a>
+        <a href="records.html">السجلات</a>
+        <a href="sponsorships.html">الكفالات</a>
+        <a href="sponsors.html" class="active">الجمعيات</a>
+        <a href="files.html">الملفات</a>
+        <a href="reports.html">التقارير</a>
+        <a href="permissions.html">الصلاحيات</a>
+    </nav>
+
+    <div class="container">
+        <div class="toolbar">
+            <button class="btn" id="btn-new">+ إضافة جمعية</button>
+            <input type="search" id="q" placeholder="بحث باسم الجمعية أو رقم الملف…" />
+            <button class="btn btn-outline" id="btn-search">بحث</button>
+        </div>
+
+        <div class="section-title">الجمعيات <span class="badge badge-info" id="row-count">0</span></div>
+        <div id="table-wrap"><div class="empty" id="msg">جاري التحميل…</div></div>
+        <div id="pager"></div>
+        <div class="watermark" id="wm"></div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="../js/admin-api.js"></script>
+    <script src="../js/crud-helper.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script>
+    AdminNav.mount('sponsors');
+    (function () {
+        var page = 1;
+        CrudHelper.setOnlineBadge();
+
+        var columns = [
+            { key: 'file_id', label: 'رقم الملف' },
+            { key: 'sponsor_name', label: 'اسم الجمعية' },
+            { key: 'sponsor_short_name', label: 'الاسم المختصر' },
+            { key: 'sponsor_phone', label: 'الهاتف' },
+            { key: 'sponsor_email', label: 'البريد' },
+            {
+                key: 'google_drive_enabled', label: 'Drive', render: function (v) {
+                    return v == 1 ? '<span class="badge badge-ok">مفعّل</span>'
+                        : '<span class="badge badge-offline">معطّل</span>';
+                }
+            }
+        ];
+
+        var formFields = [
+            { name: 'sponsor_name', label: 'اسم الجمعية', required: true },
+            { name: 'sponsor_short_name', label: 'الاسم المختصر' },
+            { name: 'sponsor_phone', label: 'الهاتف' },
+            { name: 'sponsor_email', label: 'البريد الإلكتروني', type: 'email' },
+            { name: 'sponsor_address', label: 'العنوان', type: 'textarea' },
+            { name: 'bank_name_id', label: 'البنك', type: 'select', options: [] },
+            { name: 'account_number', label: 'رقم الحساب' },
+            { name: 'swift_code', label: 'SWIFT' },
+            { name: 'currency', label: 'العملة', type: 'select', options: [] },
+            { name: 'google_drive_enabled', label: 'تفعيل Google Drive', type: 'checkbox' }
+        ];
+
+        function loadRefOptions() {
+            AdminAPI.getCategories('bank_names', {}).then(function (res) {
+                var rows = (res && (res.data || res.rows)) || [];
+                var f = formFields.find(function (x) { return x.name === 'bank_name_id'; });
+                if (f) f.options = rows.map(function (r) { return { value: r.id, label: r.name }; });
+            }).catch(function () {});
+            AdminAPI.getCategories('currency_types', {}).then(function (res) {
+                var rows = (res && (res.data || res.rows)) || [];
+                var f = formFields.find(function (x) { return x.name === 'currency'; });
+                if (f) f.options = rows.map(function (r) { return { value: r.id, label: r.name }; });
+            }).catch(function () {});
+        }
+
+        function load() {
+            AdminAPI.getSponsors({
+                q: document.getElementById('q').value.trim(),
+                page: page
+            }).then(function (res) {
+                var rows = (res && (res.data || res.rows)) || [];
+                document.getElementById('row-count').textContent =
+                    (res && res.total != null) ? res.total : rows.length;
+                document.getElementById('wm').textContent =
+                    res && res.offline ? 'وضع Offline.' : '';
+
+                CrudHelper.renderTable(document.getElementById('table-wrap'), columns, rows, {
+                    emptyText: 'لا جمعيات — أضف أول جمعية.',
+                    actions: {
+                        edit: function (row) { openForm(row); },
+                        delete: function (row) {
+                            AdminAPI.deleteSponsor(row.id).then(function () {
+                                CrudHelper.toast('تم الحذف', 'success');
+                                load();
+                            }).catch(function () {
+                                CrudHelper.toast('يتطلب اتصالاً', 'error');
+                            });
+                        }
+                    }
+                });
+                CrudHelper.renderPagination(document.getElementById('pager'), page,
+                    (res && res.total_pages) || 1, function (p) { page = p; load(); });
+            }).catch(function (e) {
+                document.getElementById('table-wrap').innerHTML =
+                    '<div class="empty">خطأ: ' + e.message + '</div>';
+            });
+        }
+
+        function openForm(existing) {
+            var host = document.createElement('div');
+            CrudHelper.renderForm(host, formFields, existing || {}, function (data) {
+                var req = existing
+                    ? AdminAPI.updateSponsor(existing.id, data)
+                    : AdminAPI.createSponsor(data);
+                req.then(function (r) {
+                    if (r && (r.success || r.id)) {
+                        CrudHelper.toast('تم الحفظ ✓', 'success');
+                        modal.hide();
+                        load();
+                    } else {
+                        CrudHelper.toast((r && r.message) || 'فشل', 'error');
+                    }
+                }).catch(function () {
+                    CrudHelper.toast('يتطلب اتصالاً', 'error');
+                });
+            });
+            var modal = CrudHelper.showModal(
+                existing ? 'تعديل جمعية' : 'إضافة جمعية', host,
+                [{ label: 'إلغاء', onClick: function (h) { h(); } }]
+            );
+        }
+
+        document.getElementById('btn-new').addEventListener('click', function () { openForm(null); });
+        document.getElementById('btn-search').addEventListener('click', function () { page = 1; load(); });
+        document.getElementById('q').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { page = 1; load(); }
+        });
+        document.addEventListener('DOMContentLoaded', function () {
+            loadRefOptions();
+            load();
+        });
+    })();
+    </script>
+</body>
+</html>

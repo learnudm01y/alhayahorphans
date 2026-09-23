@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#2a8b8b">
+    <title>صحة المزامنة - v4</title>
+    <script src="../js/config.js"></script>
+    <link rel="stylesheet" href="../css/admin.css">
+</head>
+<body>
+    <div class="header">
+        <h1>لوحة صحة المزامنة</h1>
+        <div class="sub">Sync Health Dashboard · <span id="mode-badge" class="badge badge-offline">Offline</span></div>
+    </div>
+
+    <nav class="nav-tabs container" style="margin-top:12px">
+        <a href="../admin/dashboard.html">لوحة القيادة</a>
+        <a href="../admin/sponsorships.html">الكفالات</a>
+        <a href="../admin/reports.html">التقارير</a>
+        <a href="../admin/permissions.html">الصلاحيات</a>
+        <a href="../admin/files.html">الملفات</a>
+        <a href="../admin/civil-registry.html">السجل المدني</a>
+        <a href="conflict-review.html">مراجعة التكرارات</a>
+        <a href="sync-health.html" class="active">صحة المزامنة</a>
+    </nav>
+
+    <div class="container">
+        <div class="section-title">هذا الجهاز</div>
+        <div class="cards" id="local-cards">
+            <div class="card"><div class="num" id="l-outbox">–</div><div class="label">عمليات معلّقة</div></div>
+            <div class="card"><div class="num" id="l-fileops">–</div><div class="label">عمليات ملفات</div></div>
+            <div class="card"><div class="num" id="l-reg">–</div><div class="label">مُسجَّل بالسيرفر</div></div>
+            <div class="card"><div class="num" id="l-pull" style="font-size:13px">–</div><div class="label">آخر سحب admin</div></div>
+        </div>
+        <div class="watermark" id="device-id"></div>
+
+        <div class="section-title">الأجهزة العشرة <span class="badge badge-info" id="dev-count">0</span>
+            <button class="btn btn-sm" id="btn-refresh" style="margin-right:auto">تحديث</button>
+        </div>
+        <div id="dev-wrap"><div class="empty" id="msg">جاري التحميل…</div></div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="../js/sync-client-v4.js"></script>
+    <script src="../js/admin-api.js"></script>
+    <script src="../js/crud-helper.js"></script>
+    <script src="../js/admin-nav.js"></script>
+    <script>
+    AdminNav.mount('sync-health');
+    (function () {
+        function toast(m) {
+            var t = document.getElementById('toast');
+            t.textContent = m; t.style.display = 'block';
+            setTimeout(function () { t.style.display = 'none'; }, 3500);
+        }
+        function setBadge() {
+            var b = document.getElementById('mode-badge');
+            if (navigator.onLine) { b.textContent = 'Online'; b.className = 'badge badge-ok'; }
+            else { b.textContent = 'Offline'; b.className = 'badge badge-offline'; }
+        }
+        window.addEventListener('online', setBadge);
+        window.addEventListener('offline', setBadge);
+        setBadge();
+
+        function healthClass(status) {
+            if (status === 'healthy') return 'health-healthy';
+            if (status === 'degraded') return 'health-degraded';
+            if (status === 'error') return 'health-error';
+            return 'health-unknown';
+        }
+
+        function loadLocal() {
+            if (!window.SyncClientV4) {
+                document.getElementById('msg').textContent = 'Bridge غير متاح.';
+                return;
+            }
+            SyncClientV4.getSyncHealth().then(function (r) {
+                document.getElementById('l-outbox').textContent = r.pending_outbox != null ? r.pending_outbox : '–';
+                document.getElementById('l-fileops').textContent = r.pending_file_ops != null ? r.pending_file_ops : '–';
+                document.getElementById('l-reg').textContent = r.server_registered ? '✓' : '✗';
+                document.getElementById('l-pull').textContent =
+                    r.last_admin_pull ? String(r.last_admin_pull).substring(0, 16) : '—';
+                document.getElementById('device-id').textContent =
+                    'Device: ' + (r.device_id || '—');
+            }).catch(function () {});
+        }
+
+        function loadDevices() {
+            if (!window.SyncClientV4) return;
+            SyncClientV4.getDeviceHealth().then(function (res) {
+                var devices = (res && res.devices) || [];
+                document.getElementById('dev-count').textContent = devices.length;
+                if (res && res.offline) toast('Offline — عرض آخر نسخة من الأجهزة');
+                if (!devices.length) {
+                    document.getElementById('dev-wrap').innerHTML =
+                        '<div class="empty">لا أجهزة مسجّلة بعد (أو Offline بلا cache).</div>';
+                    return;
+                }
+                var html = '<table class="data"><thead><tr>' +
+                    '<th>الجهاز</th><th>آخر ظهور</th><th>آخر مزامنة</th>' +
+                    '<th>معلّق</th><th>الحالة</th><th>نسخة</th>' +
+                    '</tr></thead><tbody>';
+                devices.forEach(function (d) {
+                    html += '<tr>' +
+                        '<td>' + (d.device_label || d.device_id || '—') + '</td>' +
+                        '<td>' + (d.last_seen_at || '—') + '</td>' +
+                        '<td>' + (d.last_sync_at || '—') + '</td>' +
+                        '<td>' + (d.pending_ops_count != null ? d.pending_ops_count : 0) + '</td>' +
+                        '<td><span class="health-dot ' + healthClass(d.health_status) + '"></span>' +
+                        (d.health_status || 'unknown') + '</td>' +
+                        '<td>' + (d.app_version || '—') + '</td>' +
+                        '</tr>';
+                });
+                html += '</tbody></table>';
+                document.getElementById('dev-wrap').innerHTML = html;
+            }).catch(function (e) {
+                document.getElementById('dev-wrap').innerHTML =
+                    '<div class="empty">خطأ: ' + e.message + '</div>';
+            });
+        }
+
+        function refresh() { loadLocal(); loadDevices(); }
+        document.getElementById('btn-refresh').addEventListener('click', refresh);
+        document.addEventListener('DOMContentLoaded', refresh);
+        window.addEventListener('focus', refresh);
+    })();
+    </script>
+</body>
+</html>
