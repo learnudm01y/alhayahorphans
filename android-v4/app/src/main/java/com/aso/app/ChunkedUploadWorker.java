@@ -118,6 +118,12 @@ public class ChunkedUploadWorker extends Worker {
      */
     private boolean yieldedOnBudget;
 
+    /**
+     * الجزء الأخير أجاب أن الملف مكتمل على الخادم (uploaded_to_drive / completed).
+     * ThreadLocal: المسار المتوازي يعمل بعدة خيوط ولا يجوز أن يتزامن الحقل.
+     */
+    private static final ThreadLocal<Boolean> lastChunkSaidCompleted = ThreadLocal.withInitial(() -> false);
+
     private boolean budgetExhausted() {
         return (System.currentTimeMillis() - runStartedAt) > RUN_BUDGET_MS;
     }
@@ -332,6 +338,7 @@ public class ChunkedUploadWorker extends Worker {
                 String notificationTitle = "رفع الملفات (" + processed + "/" + Math.max(totalPending, processed) + ")";
 
                 yieldedOnBudget = false;
+                lastChunkSaidCompleted.set(false);
                 String uploadError = processFile(nextFile, uploadToken, baseUrl, notificationTitle, dbHelper);
 
                 if (uploadError == null && yieldedOnBudget) {
@@ -347,9 +354,15 @@ public class ChunkedUploadWorker extends Worker {
                 }
 
                 if (uploadError == null) {
-                    dbHelper.updateFileStatus(nextFile.id, UploadDatabaseHelper.STATUS_PROCESSING_SERVER, null);
-                    success++;
-                    Log.d(TAG, "✅ رُفع للخادم، بانتظار معالجة Drive (" + success + "/" + processed + ")");
+                    if (Boolean.TRUE.equals(lastChunkSaidCompleted.get())) {
+                        dbHelper.updateFileStatus(nextFile.id, UploadDatabaseHelper.STATUS_COMPLETED, null);
+                        success++;
+                        Log.d(TAG, "✅ الخادم أكد الاكتمال فوراً (" + success + "/" + processed + ")");
+                    } else {
+                        dbHelper.updateFileStatus(nextFile.id, UploadDatabaseHelper.STATUS_PROCESSING_SERVER, null);
+                        success++;
+                        Log.d(TAG, "✅ رُفع للخادم، بانتظار معالجة Drive (" + success + "/" + processed + ")");
+                    }
                 } else {
                     sawFailure = true;
 
@@ -407,6 +420,7 @@ public class ChunkedUploadWorker extends Worker {
                             String uploadToken2 = (nextFile.authToken != null && !nextFile.authToken.isEmpty()) ? nextFile.authToken : finalToken;
                             String notificationTitle2 = "رفع الملفات (" + cur + ") [" + workers + " workers]";
                             yieldedOnBudget = false;
+                            lastChunkSaidCompleted.set(false);
                             String uploadError2 = processFile(nextFile, uploadToken2, finalBaseUrl, notificationTitle2, dbHelper);
                             if (uploadError2 == null && yieldedOnBudget) {
                                 synchronized (dbHelper) { dbHelper.updateFileStatus(nextFile.id, UploadDatabaseHelper.STATUS_PENDING, null); }
@@ -419,7 +433,13 @@ public class ChunkedUploadWorker extends Worker {
                                 break;
                             }
                             if (uploadError2 == null) {
-                                synchronized (dbHelper) { dbHelper.updateFileStatus(nextFile.id, UploadDatabaseHelper.STATUS_PROCESSING_SERVER, null); }
+                                synchronized (dbHelper) {
+                                    if (Boolean.TRUE.equals(lastChunkSaidCompleted.get())) {
+                                        dbHelper.updateFileStatus(nextFile.id, UploadDatabaseHelper.STATUS_COMPLETED, null);
+                                    } else {
+                                        dbHelper.updateFileStatus(nextFile.id, UploadDatabaseHelper.STATUS_PROCESSING_SERVER, null);
+                                    }
+                                }
                                 success.incrementAndGet();
                                 Log.d(TAG, "✅ [Worker] رُفع للخادم (" + success.get() + "/" + cur + ")");
                             } else {
@@ -487,7 +507,7 @@ public class ChunkedUploadWorker extends Worker {
             org.json.JSONArray ackIds = new org.json.JSONArray();
 
             Request request = new Request.Builder()
-                .url(baseUrl + "/api/uploads/offline-inbox")
+                .url(baseUrl + "/api/mobile/v4/uploads/offline-inbox")
                 .header("Authorization", "Bearer " + token)
                 .header("Accept", "application/json")
                 .get()
@@ -547,7 +567,7 @@ public class ChunkedUploadWorker extends Worker {
                 RequestBody ackBody = RequestBody.create(
                     ackObj.toString(), MediaType.parse("application/json; charset=utf-8"));
                 Request ackRequest = new Request.Builder()
-                    .url(baseUrl + "/api/uploads/offline-inbox/ack")
+                    .url(baseUrl + "/api/mobile/v4/uploads/offline-inbox/ack")
                     .header("Authorization", "Bearer " + token)
                     .header("Accept", "application/json")
                     .post(ackBody)
@@ -611,8 +631,8 @@ public class ChunkedUploadWorker extends Worker {
 
             // معرّف رفع مستقر عبر المحاولات وفريد عبر الأجهزة.
             String uploadId = "u_" + getDeviceId() + "_" + item.id + "_" + chunkSize;
-            String chunkUrl = baseUrl + "/api/mobile/upload-chunk";
-            String statusUrl = baseUrl + "/api/mobile/upload-status/" + uploadId;
+            String chunkUrl = baseUrl + "/api/mobile/v4/upload-chunk";
+            String statusUrl = baseUrl + "/api/mobile/v4/upload-status/" + uploadId;
 
             java.util.Set<Integer> receivedChunks = fetchReceivedChunks(statusUrl, token);
 
@@ -831,8 +851,26 @@ public class ChunkedUploadWorker extends Worker {
 
             try (Response response = client.newCall(request).execute()) {
                 int code = response.code();
+                String responseBody = null;
+                try {
+                    if (response.body() != null) {
+                        responseBody = response.body().string();
+                    }
+                } catch (Exception ignored) {}
 
                 if (code < 400) {
+                    // الجزء الأخير قد يؤكد الاكتمال مباشرة (تم رفعه مسبقاً / uploaded_to_drive)
+                    if (isLast && responseBody != null && !responseBody.isEmpty()) {
+                        try {
+                            org.json.JSONObject json = new org.json.JSONObject(responseBody);
+                            String syncState = json.optString("sync_state", "");
+                            String status = json.optString("status", "");
+                            if ("uploaded_to_drive".equals(syncState) || "completed".equals(status)) {
+                                lastChunkSaidCompleted.set(true);
+                                Log.i(TAG, "الخادم أكد اكتمال الملف في استجابة الجزء الأخير");
+                            }
+                        } catch (Exception ignored) {}
+                    }
                     return ChunkResult.OK;
                 }
 
@@ -843,22 +881,12 @@ public class ChunkedUploadWorker extends Worker {
 
                 // ٤٢٩ و٥xx و٤٠٨ عابرة — تستحق إعادة المحاولة.
                 if (code == 408 || code == 429 || code >= 500) {
-                    String errorBody = "";
-                    try {
-                        if (response.body() != null) {
-                            errorBody = response.body().string();
-                        }
-                    } catch (Exception ignored) {}
+                    String errorBody = responseBody != null ? responseBody : "";
                     Log.w(TAG, "خطأ عابر في الجزء: HTTP " + code + " — " + errorBody);
                     return ChunkResult.TRANSIENT;
                 }
 
-                String errorBodyPermanent = "";
-                try {
-                    if (response.body() != null) {
-                        errorBodyPermanent = response.body().string();
-                    }
-                } catch (Exception ignored) {}
+                String errorBodyPermanent = responseBody != null ? responseBody : "";
                 Log.e(TAG, "خطأ دائم في الجزء: HTTP " + code + " — " + errorBodyPermanent);
                 return ChunkResult.PERMANENT;
             }

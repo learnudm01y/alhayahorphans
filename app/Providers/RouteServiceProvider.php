@@ -31,7 +31,16 @@ class RouteServiceProvider extends ServiceProvider
             // ١ ميجابايت = ٢٠٠ طلب، أي أن الجهاز يُحظر بعد أول ٦٠ جزءاً ويتلقى
             // صفحة 429 بصيغة HTML لا JSON، فيفسّرها العميل كفشل ويُعيد من الصفر.
             // مسارات الأجزاء لها حدّ خاص واسع، والباقي يبقى على ٦٠.
-            if ($request->is('api/mobile/upload-chunk', 'api/uploads/chunk', 'api/mobile/upload-status/*')) {
+            if ($request->is(
+                'api/mobile/upload-chunk',
+                'api/uploads/chunk',
+                'api/mobile/upload-status/*',
+                // نُسخ mobile/v4 من مسارات الرفع (نسخ كامل تحت v4)
+                'api/mobile/v4/upload-chunk',
+                'api/mobile/v4/uploads/chunk',
+                'api/mobile/v4/upload-status/*',
+                'api/mobile/v4/registration/upload-chunk'
+            )) {
                 return Limit::perMinute(1200)->by($request->user()?->id ?: $request->ip());
             }
 

@@ -119,9 +119,11 @@ public class SmartMediaWorker extends Worker {
             return Result.retry();
         }
 
-        // شغّل الرفع إن تحرّرت ملفات (upload_pending) للرفع المجزأ.
+        // شغّل الرفع فوراً إن تحرّرت ملفات (upload_pending).
+        // force=true: debounce كان يبتلع هذا التنبيه لأن PhotoActivity
+        // استدعت startImmediateUpload قبل ثوانٍ عند الالتقاط.
         try {
-            UploadTaskScheduler.getInstance(ctx).startImmediateUpload();
+            UploadTaskScheduler.getInstance(ctx).startImmediateUpload(true);
         } catch (Exception e) {
             Log.w(TAG, "failed to trigger upload: " + e.getMessage());
         }

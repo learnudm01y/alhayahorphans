@@ -15,15 +15,6 @@
         <div class="sub">Attachment Audit · v4 · <span id="mode-badge" class="badge badge-offline">Offline</span></div>
     </div>
 
-    <nav class="nav-tabs container" style="margin-top:12px">
-        <a href="dashboard.html">لوحة القيادة</a>
-        <a href="files.html">فهرس المرفقات</a>
-        <a href="folders.html">المجلدات</a>
-        <a href="duplicates.html">المكررات</a>
-        <a href="attachment-audit.html" class="active">التدقيق</a>
-        <a href="../upload.html">الرفع</a>
-    </nav>
-
     <div class="container">
         <div class="filter-chips" id="audit-chips">
             <button class="chip active" data-view="dupes">مكررات المحتوى</button>
@@ -135,7 +126,7 @@
             CrudHelper.toast('يتطلب اتصالاً للتصدير', 'info');
         });
         document.getElementById('btn-clean').addEventListener('click', function () {
-            CrudHelper.toast('التنظيف يتطلب مراجعة يدوية — استخدم شاشة المكررات', 'info');
+            CrudHelper.toast('التنظيف يتطلب مراجعة يدوية — استخدم شاشة ملفات مكررة', 'info');
         });
         document.getElementById('btn-refresh').addEventListener('click', load);
         document.addEventListener('DOMContentLoaded', load);

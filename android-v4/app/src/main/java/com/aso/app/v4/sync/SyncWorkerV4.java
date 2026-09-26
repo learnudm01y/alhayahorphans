@@ -44,6 +44,13 @@ public class SyncWorkerV4 extends Worker {
         String error = UnifiedSyncOrchestratorV4.runFullCycle(getApplicationContext());
 
         if (error == null) {
+            // Dual-Run bridge: orchestrator only writes sync_v4.db, but the UI
+            // reads sponsorships_data.db — mirror pulled rows after success.
+            try {
+                SponsorshipMirrorBridgeV4.mirrorSponsorships(getApplicationContext());
+            } catch (Throwable t) {
+                Log.w(TAG, "sponsorship mirror failed: " + t.getMessage());
+            }
             return Result.success();
         }
 

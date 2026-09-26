@@ -52,7 +52,7 @@ class UploadToGoogleDriveJob implements ShouldQueue
      *
      * @return void
      */
-    public function handle(GoogleDriveService $googleDriveService)
+    public function handle()
     {
         Log::info("🚀 Starting Google Drive Upload Job for File: {$this->fileName}");
 
@@ -72,29 +72,26 @@ class UploadToGoogleDriveJob implements ShouldQueue
 
             Log::info("📂 Target Drive Path: {$driveFolderPath}");
 
-            // الرفع إلى Google Drive باستخدام الخدمة المتاحة أو Rclone
+            // الرفع إلى Google Drive باستخدام Rclone (المسار الأساسي بدون credentials.json)
             $useRclone = config('services.rclone.enabled', false);
-            
+
             if ($useRclone) {
                 Log::info("🚀 Using Rclone for upload: {$fullLocalPath}");
                 $remoteName = config('services.rclone.remote_name', 'alhayahorphans');
                 $rootFolder = config('services.rclone.root_folder', 'temp');
-                
+
                 $rclonePath = config('services.rclone.path', 'rclone');
                 $rcloneConfig = config('services.rclone.config', '');
-                
-                $configFlag = $rcloneConfig ? "--config=\"{$rcloneConfig}\"" : "";
-                
+
                 $destination = "{$remoteName}:{$rootFolder}/{$driveFolderPath}";
-                
-                // نسخ الملف باستخدام rclone مع تحديد مهلة (Timeout) لتجنب تجمد طابور العمل
+
                 Log::info("🏃‍♂️ Running Rclone command", [
                     'path' => $rclonePath,
                     'config' => $rcloneConfig,
                     'local' => $fullLocalPath,
                     'destination' => $destination
                 ]);
-                
+
                 try {
                     $args = [];
                     if ($rcloneConfig) {
@@ -108,25 +105,27 @@ class UploadToGoogleDriveJob implements ShouldQueue
                     $commandString = "\"{$rclonePath}\" " . implode(' ', $args);
 
                     $result = \Illuminate\Support\Facades\Process::timeout(600)->run($commandString);
-                    
+
                     $output = $result->output() . "\n" . $result->errorOutput();
 
-                    if (!$result->successful() || strpos($output, 'Failed to') !== false || strpos($output, 'error') !== false) {
+                    if (!$result->successful() || stripos($output, 'Failed to') !== false || stripos($output, 'ERROR') !== false) {
                         throw new \Exception("Rclone upload failed: {$output}");
                     }
-                    
+
                     Log::info("✅ Rclone upload successful.", ['output' => $output]);
 
                 } catch (\Illuminate\Process\Exceptions\ProcessTimedOutException $e) {
                     throw new \Exception("Rclone upload timed out after 600 seconds.");
                 }
-                
+
             } else {
+                // المسار الاحتياطي: GoogleDriveService يتطلب credentials.json
+                $googleDriveService = app(\App\Services\GoogleDriveService::class);
                 $fileId = $googleDriveService->uploadToPath($fullLocalPath, $driveFolderPath, $this->fileName);
-                
+
                 if (!$fileId) {
                     Log::error("❌ Failed to get File ID from Google Drive Service.");
-                    $this->release(60); // إعادة المحاولة بعد 60 ثانية
+                    $this->release(60);
                     return;
                 }
                 Log::info("✅ File uploaded successfully to Google Drive. File ID: {$fileId}");

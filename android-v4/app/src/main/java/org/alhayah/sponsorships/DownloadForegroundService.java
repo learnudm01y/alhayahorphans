@@ -185,8 +185,8 @@ public class DownloadForegroundService extends Service {
             if (baseUrl == null || baseUrl.isEmpty()) { stopSelf(); return; }
             if (baseUrl.endsWith("/")) baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
 
-            String initialUrlStr = baseUrl.endsWith("/api") ? baseUrl + "/mobile/sync/initial" : baseUrl + "/api/mobile/sync/initial";
-            String urlStr = baseUrl.endsWith("/api") ? baseUrl + "/mobile/sync/sponsorships" : baseUrl + "/api/mobile/sync/sponsorships";
+            String initialUrlStr = baseUrl.endsWith("/api") ? baseUrl + "/mobile/v4/sync/initial" : baseUrl + "/api/mobile/v4/sync/initial";
+            String urlStr = baseUrl.endsWith("/api") ? baseUrl + "/mobile/v4/sync/sponsorships" : baseUrl + "/api/mobile/v4/sync/sponsorships";
 
             SponsorshipsDatabaseHelper dbHelper = SponsorshipsDatabaseHelper.getInstance(getApplicationContext());
             DataSyncDatabaseHelper syncDbHelper = DataSyncDatabaseHelper.getInstance(getApplicationContext());
@@ -387,7 +387,7 @@ public class DownloadForegroundService extends Service {
 
                 while (retries < maxRetries && !pageDone && isRunning) {
                     try {
-                        String urlStr = baseUrl + "/api/mobile/sync/" + endpoint + "?per_page=" + perPage + "&page=" + page;
+                        String urlStr = baseUrl + "/api/mobile/v4/sync/" + endpoint + "?per_page=" + perPage + "&page=" + page;
                         if (lastSync != null) {
                             urlStr += "&last_sync=" + java.net.URLEncoder.encode(lastSync, "UTF-8");
                         }

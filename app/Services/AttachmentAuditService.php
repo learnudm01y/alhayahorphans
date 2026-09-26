@@ -253,7 +253,7 @@ class AttachmentAuditService
                 try {
                     $record = DB::table('attachments')->where('id', $id)->first();
                     if ($record) {
-                        $this->deleteFileFromDiskIfNeeded($record->file_path);
+                        $this->deleteFileFromDiskIfNeeded($record->file_path, $id);
                         DB::table('attachments')->where('id', $id)->delete();
                         $deletedCount++;
                     }
@@ -270,14 +270,87 @@ class AttachmentAuditService
     }
 
     /**
-     * حذف مكرر واحد — يحذف السجل من DB + الملف من القرص إذا ما في سجل تاني يشير إليه
+     * حذف المكررات حسب اسم الملف المخزن مع الاحتفاظ بالأقدم (أقل ID).
+     *
+     * مختلف عن deleteDuplicatesKeepOldest(): تلك تجمّع حسب (الشخص + النوع) فقط،
+     * فتحذف وثائق مشروعة مختلفة لنفس النوع. هذه تلتزم بالمطابقة التامة:
+     * شخص + نوع + اسم ملف مخزن — أي نسخ فعلي من نفس الملف فقط.
+     *
+     * @param bool $dryRun عرض ما سيتم حذفه دون تنفيذ أي حذف
+     */
+    public function deleteDuplicateFilenamesKeepOldest(bool $dryRun = false): array
+    {
+        $groups = DB::table('attachments')
+            ->select(
+                'person_identity_number',
+                'file_type',
+                'stored_file_name',
+                DB::raw('MIN(id) as keep_id'),
+                DB::raw('COUNT(*) as total')
+            )
+            ->whereNotNull('stored_file_name')
+            ->where('stored_file_name', '!=', '')
+            ->whereNotNull('person_identity_number')
+            ->where('person_identity_number', '!=', '')
+            ->groupBy('person_identity_number', 'file_type', 'stored_file_name')
+            ->havingRaw('COUNT(*) > 1')
+            ->get();
+
+        $deletedCount = 0;
+        $errors = [];
+
+        foreach ($groups as $group) {
+            $keepRecord = DB::table('attachments')->where('id', $group->keep_id)->first();
+            $keepPath = $keepRecord ? $this->normalizeFilePath((string) $keepRecord->file_path) : null;
+
+            $idsToDelete = DB::table('attachments')
+                ->where('person_identity_number', $group->person_identity_number)
+                ->where('file_type', $group->file_type)
+                ->where('stored_file_name', $group->stored_file_name)
+                ->where('id', '!=', $group->keep_id)
+                ->pluck('id');
+
+            foreach ($idsToDelete as $id) {
+                if ($dryRun) {
+                    $deletedCount++;
+                    continue;
+                }
+
+                try {
+                    $record = DB::table('attachments')->where('id', $id)->first();
+                    if ($record) {
+                        // السجل المكرر يشير لنفس ملف السجل المحفوظ → لا نلمس الملف من الأصل
+                        $sameFileAsKept = $keepPath !== null
+                            && $this->normalizeFilePath((string) $record->file_path) === $keepPath;
+                        if (!$sameFileAsKept) {
+                            $this->deleteFileFromDiskIfNeeded($record->file_path, $id);
+                        }
+                        DB::table('attachments')->where('id', $id)->delete();
+                        $deletedCount++;
+                    }
+                } catch (\Exception $e) {
+                    $errors[] = ['id' => $id, 'error' => $e->getMessage()];
+                }
+            }
+        }
+
+        return [
+            'groups' => count($groups),
+            'deleted_count' => $deletedCount,
+            'dry_run' => $dryRun,
+            'errors' => $errors,
+        ];
+    }
+
+    /**
+     * حذف مرفق واحد — يحذف السجل من DB + الملف من القرص إذا ما في سجل تاني يشير إليه
      */
     public function deleteSingleDuplicate(int $id): bool
     {
         $record = DB::table('attachments')->where('id', $id)->first();
         if (!$record) return false;
 
-        $this->deleteFileFromDiskIfNeeded($record->file_path);
+        $this->deleteFileFromDiskIfNeeded($record->file_path, $id);
 
         return DB::table('attachments')->where('id', $id)->delete() > 0;
     }
@@ -286,18 +359,28 @@ class AttachmentAuditService
      * حذف ملف من القرص بشرط أمان:
      * يتأكد إنو ما في أي سجل تاني في DB يشير لنفس الملف الفعلي
      */
-    private function deleteFileFromDiskIfNeeded(?string $filePath): void
+    /**
+     * حذف الملف من القرص إذا لم يعد أي سجل آخر يشير إليه.
+     *
+     * @param int|null $excludeId معرّف السجل الذي سيُحذف — يُستثنى من عدّ الإشارات
+     *                            حتى لا يُحذف ملف لا يزال السجل المحفوظ يشير إليه
+     */
+    private function deleteFileFromDiskIfNeeded(?string $filePath, ?int $excludeId = null): void
     {
         if (empty($filePath)) return;
 
         $normalized = $this->normalizeFilePath($filePath);
 
-        $otherRecordsCount = DB::table('attachments')
-            ->where('file_path', '!=', $filePath)
-            ->whereRaw("REPLACE(file_path, 'storage/', '') = ?", [$normalized])
-            ->count();
+        $query = DB::table('attachments')
+            ->whereRaw("REPLACE(file_path, 'storage/', '') = ?", [$normalized]);
 
-        if ($otherRecordsCount > 0) return;
+        if ($excludeId !== null) {
+            $query->where('id', '!=', $excludeId);
+        } else {
+            $query->where('file_path', '!=', $filePath);
+        }
+
+        if ($query->count() > 0) return;
 
         $fullPath = storage_path('app/public/' . $normalized);
         if (file_exists($fullPath)) {
@@ -325,7 +408,7 @@ class AttachmentAuditService
         $record = DB::table('attachments')->where('id', $id)->first();
         if (!$record) return false;
 
-        $this->deleteFileFromDiskIfNeeded($record->file_path);
+        $this->deleteFileFromDiskIfNeeded($record->file_path, $id);
 
         return DB::table('attachments')->where('id', $id)->delete() > 0;
     }
@@ -411,7 +494,7 @@ class AttachmentAuditService
             try {
                 $record = DB::table('attachments')->where('id', $id)->first();
                 if ($record) {
-                    $this->deleteFileFromDiskIfNeeded($record->file_path);
+                    $this->deleteFileFromDiskIfNeeded($record->file_path, $id);
                     DB::table('attachments')->where('id', $id)->delete();
                     $deletedCount++;
                 }

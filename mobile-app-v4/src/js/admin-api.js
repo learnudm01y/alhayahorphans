@@ -14,7 +14,7 @@
     }
 
     function getToken() {
-        try { return localStorage.getItem('api_token') || ''; }
+        try { return localStorage.getItem('api_token') || localStorage.getItem('auth_token') || ''; }
         catch (e) { return ''; }
     }
 

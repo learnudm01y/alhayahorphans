@@ -15,13 +15,6 @@
         <div class="sub">Civil Import · v4 · <span id="mode-badge" class="badge badge-offline">Offline</span></div>
     </div>
 
-    <nav class="nav-tabs container" style="margin-top:12px">
-        <a href="dashboard.html">لوحة القيادة</a>
-        <a href="civil-registry.html">عرض السجل</a>
-        <a href="civil-import.html" class="active">استيراد Excel</a>
-        <a href="records.html">السجلات</a>
-    </nav>
-
     <div class="container">
         <div class="card" style="margin-bottom:14px">
             <strong>متطلبات الملف:</strong>
@@ -139,7 +132,7 @@
             picked.forEach(function (f) { fd.append('files[]', f); });
             var base = (window.APP_CONFIG && window.APP_CONFIG.API_URL) || 'https://alhayahorphans.org/api';
             var token = '';
-            try { token = localStorage.getItem('api_token') || ''; } catch (e) {}
+            try { token = localStorage.getItem('api_token') || localStorage.getItem('auth_token') || ''; } catch (e) {}
             document.getElementById('progress').style.display = 'block';
             var xhr = new XMLHttpRequest();
             xhr.open('POST', base + '/mobile/v4/civil-registry/import');

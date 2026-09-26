@@ -10,8 +10,8 @@
         {
             title: 'الرئيسية', items: [
                 { id: 'dashboard', label: 'لوحة القيادة', icon: 'dashboard', href: 'dashboard.html' },
-                { id: 'search', label: 'البحث الشامل', icon: 'search', href: 'search-records.html' },
-                { id: 'global-search', label: 'البحث الموحّد', icon: 'travel_explore', href: '../screens/global-search.html' }
+                { id: 'search', label: 'البحث المتقدم', icon: 'search', href: 'search-records.html' },
+                { id: 'global-search', label: 'البحث السريع الموحّد', icon: 'travel_explore', href: '../screens/global-search.html' }
             ]
         },
         {
@@ -23,7 +23,7 @@
         },
         {
             title: 'التصنيفات', items: [
-                { id: 'categories', label: 'إدارة التصنيفات (22)', icon: 'category', href: 'categories.html' }
+                { id: 'categories', label: 'إدارة التصنيفات (21)', icon: 'category', href: 'categories.html' }
             ]
         },
         {
@@ -38,7 +38,7 @@
             title: 'الملفات والمرفقات', items: [
                 { id: 'files', label: 'فهرس المرفقات', icon: 'folder', href: 'files.html' },
                 { id: 'folders', label: 'إدارة المجلدات', icon: 'drive_folder_upload', href: 'folders.html' },
-                { id: 'duplicates', label: 'الملفات المكررة', icon: 'copy_all', href: 'duplicates.html' },
+                { id: 'duplicates', label: 'ملفات مكررة', icon: 'copy_all', href: 'duplicates.html' },
                 { id: 'attachment-audit', label: 'تدقيق المرفقات', icon: 'fact_check', href: 'attachment-audit.html' },
                 { id: 'upload', label: 'رفع ملفات (كما هي)', icon: 'cloud_upload', href: '../upload.html', keep: true }
             ]
@@ -51,9 +51,9 @@
         },
         {
             title: 'الصلاحيات', items: [
-                { id: 'permissions', label: 'Manifest الصلاحيات', icon: 'verified_user', href: 'permissions.html' },
+                { id: 'permissions', label: 'صلاحياتي (عرض)', icon: 'verified_user', href: 'permissions.html', title: 'عرض manifest صلاحياتك الحالية — للقراءة فقط' },
                 { id: 'users', label: 'المستخدمون', icon: 'people', href: 'users.html' },
-                { id: 'roles', label: 'الأدوار والصلاحيات', icon: 'admin_panel_settings', href: 'roles.html' }
+                { id: 'roles', label: 'إدارة الأدوار (تعديل)', icon: 'admin_panel_settings', href: 'roles.html', title: 'إنشاء وتعديل الأدوار — مختلف عن عرض صلاحياتك' }
             ]
         },
         {
@@ -63,9 +63,9 @@
         },
         {
             title: 'نظام المزامنة', items: [
-                { id: 'conflicts', label: 'مراجعة التعارضات', icon: 'merge_type', href: '../screens/conflict-review.html' },
+                { id: 'conflicts', label: 'تعارضات البيانات', icon: 'merge_type', href: '../screens/conflict-review.html' },
                 { id: 'sync-health', label: 'صحة المزامنة', icon: 'monitor_heart', href: '../screens/sync-health.html' },
-                { id: 'audit', label: 'سجل التدقيق', icon: 'history', href: '../screens/audit.html' },
+                { id: 'audit', label: 'تدقيق السجلات', icon: 'history', href: '../screens/audit.html' },
                 { id: 'devices', label: 'إدارة الأجهزة', icon: 'devices', href: '../screens/devices.html' },
                 { id: 'notifications', label: 'مركز الإشعارات', icon: 'notifications', href: '../screens/notifications.html' }
             ]
@@ -98,7 +98,8 @@
         SECTIONS.forEach(function (sec) {
             html += '<div class="side-section">' + sec.title + '</div>';
             sec.items.forEach(function (it) {
-                html += '<a href="' + it.href + '" data-nav="' + it.id + '">' +
+                html += '<a href="' + it.href + '" data-nav="' + it.id + '"' +
+                    (it.title ? ' title="' + it.title + '"' : '') + '>' +
                     '<span class="material-icons" style="font-size:18px">' + it.icon + '</span>' +
                     '<span>' + it.label + '</span></a>';
             });

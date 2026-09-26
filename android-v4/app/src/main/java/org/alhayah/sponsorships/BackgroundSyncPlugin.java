@@ -484,7 +484,7 @@ public class BackgroundSyncPlugin extends Plugin {
         try {
             String dataType = call.getString("dataType", "sponsorship_update");
             JSObject data = call.getObject("data");
-            String endpoint = call.getString("endpoint", "/mobile/sync/update");
+            String endpoint = call.getString("endpoint", "/mobile/v4/sync/actions");
 
             if (data == null) {
                 call.reject("Data object is required");

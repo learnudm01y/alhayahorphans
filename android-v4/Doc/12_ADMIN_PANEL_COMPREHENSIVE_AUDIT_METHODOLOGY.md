@@ -22,29 +22,29 @@
 ```bash
 cd /var/www/html/alhayahorphans
 
-# 3.1 كل الجداول الـ22 المذكورة بالكتالوج — هل فعلياً كلها بيانات موجودة أم فاضية؟
+# 3.1 كل الجداول الـ21 المذكورة بالكتالوج — هل فعلياً كلها بيانات موجودة أم فاضية؟
 mysql -u root -p -e "
 SELECT 'academic_degrees' t, COUNT(*) c FROM academic_degrees
 UNION SELECT 'category_of_relations', COUNT(*) FROM category_of_relations
-UNION SELECT 'aid_statuses', COUNT(*) FROM aid_statuses
+UNION SELECT 'aid_status', COUNT(*) FROM aid_status
 UNION SELECT 'bank_names', COUNT(*) FROM bank_names
 UNION SELECT 'city', COUNT(*) FROM city
 UNION SELECT 'currency_types', COUNT(*) FROM currency_types
 UNION SELECT 'death_reasons', COUNT(*) FROM death_reasons
 UNION SELECT 'displacement_statuses', COUNT(*) FROM displacement_statuses
 UNION SELECT 'document_types', COUNT(*) FROM document_types
-UNION SELECT 'employments', COUNT(*) FROM employments
-UNION SELECT 'general_categories', COUNT(*) FROM general_categories
+UNION SELECT 'employment', COUNT(*) FROM employment
+UNION SELECT 'general_category', COUNT(*) FROM general_category
 UNION SELECT 'health_statuses', COUNT(*) FROM health_statuses
 UNION SELECT 'orphan_needs', COUNT(*) FROM orphan_needs
 UNION SELECT 'creativity_aspects', COUNT(*) FROM creativity_aspects
-UNION SELECT 'housing_statuses', COUNT(*) FROM housing_statuses
-UNION SELECT 'marital_statuses', COUNT(*) FROM marital_statuses
+UNION SELECT 'housing_status', COUNT(*) FROM housing_status
+UNION SELECT 'marital_status', COUNT(*) FROM marital_status
 UNION SELECT 'provinces', COUNT(*) FROM provinces
-UNION SELECT 'request_statuses', COUNT(*) FROM request_statuses
+UNION SELECT 'request_status', COUNT(*) FROM request_status
 UNION SELECT 'sponsorship_statuses', COUNT(*) FROM sponsorship_statuses
-UNION SELECT 'type_of_accommodations', COUNT(*) FROM type_of_accommodations
-UNION SELECT 'type_of_guarantees', COUNT(*) FROM type_of_guarantees
+UNION SELECT 'type_of_accommodation', COUNT(*) FROM type_of_accommodation
+UNION SELECT 'type_of_guarantee', COUNT(*) FROM type_of_guarantee
 ORDER BY c ASC;
 "
 # أي جدول برجع 0 = تصنيف فاضي بالكامل، الشاشة "مبنية" لكن فعلياً بدون بيانات حقيقية للمستخدم
@@ -70,7 +70,7 @@ adb logcat | grep -i "chromium\|console\|error" &
 
 | البند | طريقة الفحص |
 |-------|---------------|
-| هل شاشة `admin/category.html` الديناميكية (`?cat=`) فعلاً بتشتغل CRUD كامل على **كل** الـ22 جدول ولا بس على بعضها؟ | افتح `?cat=` لكل جدول من الـ22 وجرّب Add/Edit/Delete فعلياً |
+| هل شاشة `admin/category.html` الديناميكية (`?cat=`) فعلاً بتشتغل CRUD كامل على **كل** الـ21 جدول ولا بس على بعضها؟ | افتح `?cat=` لكل جدول من الـ21 وجرّب Add/Edit/Delete فعلياً |
 | هل `admin/search-records.html` (البحث الشامل) بيرجع نتائج صحيحة أوفلاين من `sync_v4.db` المحلي؟ | بحث بالاسم / رقم الهوية بوضع Airplane Mode |
 | هل `admin/user-requests.html` (طلبات المستخدمين) مربوطة فعلياً بجدول حقيقي، ولا شاشة واجهة بدون خلفية backend كاملة؟ | تحقق من وجود Controller/Route حقيقي يخدمها في `AdminCrudControllerV4` |
 | هل تصدير Excel بشاشة الكفالات (المذكور بالكتالوج) شغّال فعلياً أم مجرد زر بدون تنفيذ؟ | اضغط زر التصدير وتحقق من الملف الناتج |

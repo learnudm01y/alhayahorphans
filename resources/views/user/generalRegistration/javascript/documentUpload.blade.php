@@ -1675,6 +1675,23 @@
             });
         });
 
+        // 🔑 مفتاح فريد للمرفق — يعتمد على id إن وُجد، وإلا على بصمة محتوى الملف
+        // كثير من الأصناف المضافة عبر manageForm ليس لها id، فكان الاعتماد على id وحده
+        // يجعل مجموعة currentIds تجاهلها خطأً أو تسمح بإعادة إضافتها مكررة.
+        function attachmentDocKey(doc) {
+            if (doc && doc.id) return 'id:' + doc.id;
+            // بعض الأصناف تحمل processedFile=true (بلا كائن ملف) والملف في حقل file
+            const candidates = [doc && doc.originalFile, doc && doc.processedFile, doc && doc.file];
+            let f = null;
+            for (let i = 0; i < candidates.length; i++) {
+                const c = candidates[i];
+                if (c && typeof c === 'object' && (c.name || typeof c.size === 'number')) { f = c; break; }
+            }
+            const name = (f && f.name) || '';
+            const size = (f && typeof f.size === 'number') ? f.size : 0;
+            return ['c', (doc && doc.personId) || (doc && doc.personKey) || '', (doc && (doc.type || doc.docType)) || '', name, size, (doc && doc.tempPath) || ''].join('|');
+        }
+
         // إضافة دالة خاصة للتأكد من حفظ مرفقات البوابات الأساسية والمتوفين
         function preserveMainAndDeceasedAttachments() {
             if (!window.allDocs) return;
@@ -1689,9 +1706,13 @@
                     // عمل نسخة عميقة من المصفوفة مع الاحتفاظ بالخصائص المهمة
                     const deepCopy = value.map(task => ({
                         id: task.id,
+                        // type مطلوب: بعض الأصناف تحمل type فقط وليس docType، وفقدانه يجعل
+                        // المرفق يُرسل بدون نوع وثيقة فيُرفض في الخادم
+                        type: task.type || task.docType,
                         personKey: task.personKey,
                         docType: task.docType,
                         personId: task.personId,
+                        fileId: task.fileId,
                         fileIdNumber: task.fileIdNumber || '',
                         status: task.status,
                         // نسخ الملفات ومراجع البيانات المهمة
@@ -1760,12 +1781,16 @@
                         console.log(`🔄 استعادة البوابة المفقودة بالكامل: ${key} (${preservedDocs.length} مرفق)`);
                     } else {
                         // إذا كانت البوابة موجودة، أضف المرفقات المفقودة فقط
+                        // المقارنة بمفتاح المحتوى (attachmentDocKey) وليس id وحده،
+                        // لأن كثيراً من الأصناف ليس لها id فكان التحقق يُخفي التكرار أو يسمح به.
                         const currentDocs = window.allDocs.get(key);
-                        const currentIds = new Set(currentDocs.map(doc => doc.id));
+                        const currentKeys = new Set(currentDocs.map(attachmentDocKey));
 
                         let addedCount = 0;
                         preservedDocs.forEach(doc => {
-                            if (!currentIds.has(doc.id)) {
+                            const docKey = attachmentDocKey(doc);
+                            if (!currentKeys.has(docKey)) {
+                                currentKeys.add(docKey);
                                 currentDocs.push(doc);
                                 addedCount++;
                                 restoredCount++;

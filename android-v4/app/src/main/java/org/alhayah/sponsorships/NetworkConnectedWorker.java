@@ -61,6 +61,15 @@ public class NetworkConnectedWorker extends Worker {
             Log.d(TAG, "📦 Scheduling Unified Master Sync Chain on network reconnect");
             com.aso.app.SyncOrchestrator.scheduleMasterSyncOnReconnect(context);
 
+            // ⚡ رفع فوري قسري عند عودة الإنترنت (بلا debounce) —
+            // work هذا ينتظر NetworkType.CONNECTED فيُطلق آنياً لحظة الاتصال.
+            try {
+                com.aso.app.UploadTaskScheduler.getInstance(context).startImmediateUpload(true);
+                Log.d(TAG, "✅ UploadTaskScheduler.startImmediateUpload(force) on reconnect");
+            } catch (Exception e) {
+                Log.w(TAG, "force upload failed: " + e.getMessage());
+            }
+
             Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
             Log.d(TAG, "✅ NetworkConnectedWorker unified sync scheduled successfully");
             Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");

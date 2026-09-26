@@ -68,6 +68,36 @@ class ChunkedUploadController extends Controller
     }
 
     /**
+     * يُدرج إشعار «مكتمل» في صندوق الوارد لتنبيه الجهاز دون تكرار
+     * داخل نافذة زمنية قصيرة.
+     */
+    private function notifyDeviceCompleted(string $fileName, $uploadRecord): void
+    {
+        try {
+            $already = DB::table('offline_upload_statuses')
+                ->where('file_name', $fileName)
+                ->where('status', 'completed')
+                ->where('created_at', '>=', now()->subMinutes(10))
+                ->exists();
+
+            if ($already) {
+                return;
+            }
+
+            DB::table('offline_upload_statuses')->insert([
+                'user_id' => $uploadRecord ? ($uploadRecord->uploaded_by ?? null) : null,
+                'file_name' => $fileName,
+                'status' => 'completed',
+                'google_drive_file_id' => $uploadRecord->google_drive_file_id ?? null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('notifyDeviceCompleted failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Handle incoming octet-stream chunk from the mobile app.
      * The app sends chunks directly without init/complete steps.
      */
@@ -300,34 +330,48 @@ class ChunkedUploadController extends Controller
                 }
 
                 if ($existingUpload->upload_status === 'completed') {
+                    // ⚠️ بدون إشعار هنا يبقى الجهاز في processing_server إلى الأبد:
+                    // الاستجابة "تم رفعه مسبقاً" لا تُدرَج في صندوق الوارد، فلا يعلم
+                    // الهاتف أن العمل انتهى — ثم يُسترد بعد ٤٥ دقيقة ويعيد الرفع بلا فائدة.
+                    $this->notifyDeviceCompleted($fileName, $existingUpload);
                     return response()->json([
                         'success' => true,
                         'message' => 'تم رفعه مسبقاً',
                         'file_id' => $existingUpload->google_drive_file_id,
+                        'status' => 'completed',
                         'sync_state' => 'uploaded_to_drive'
                     ]);
                 } else {
                     // It's in 'failed', 'uploading', or 'pending' state.
-                    // If the mobile app is re-uploading it, it means it's stuck. Let's force a retry!
-                    $existingUpload->update([
-                        'upload_status' => 'uploading',
-                        'upload_progress' => 100,
-                        'retry_count' => 0
-                    ]);
+                    // ⚠️ لا نُعيد dispatch إذا كانت المهمة قيد التنفيذ فعلاً —
+                    // وإلىئذ يجري rclone مرتين لنفس الملف في آنٍ واحد (تكرار على Drive).
+                    $alreadyRunning = $existingUpload->upload_status === 'uploading'
+                        && $existingUpload->updated_at
+                        && $existingUpload->updated_at->gt(now()->subMinutes(10));
 
-                    \App\Jobs\ProcessRcloneUploadJob::dispatch(
-                        $existingUpload->server_attachment_id,
-                        $existingUpload->id,
-                        $existingUpload->local_file_path,
-                        $associationName,
-                        $orphanName,
-                        $documentTypeName,
-                        $extension
-                    );
+                    if (!$alreadyRunning) {
+                        $existingUpload->update([
+                            'upload_status' => 'uploading',
+                            'upload_progress' => 100,
+                            'retry_count' => 0
+                        ]);
+
+                        \App\Jobs\ProcessRcloneUploadJob::dispatch(
+                            $existingUpload->server_attachment_id,
+                            $existingUpload->id,
+                            $existingUpload->local_file_path,
+                            $associationName,
+                            $orphanName,
+                            $documentTypeName,
+                            $extension
+                        );
+                    }
 
                     return response()->json([
                         'success' => true,
-                        'message' => 'تم إعادة جدولة رفع الملف',
+                        'message' => $alreadyRunning
+                            ? 'الرفع قيد التنفيذ على الخادم'
+                            : 'تم إعادة جدولة رفع الملف',
                         'sync_state' => 'processing'
                     ]);
                 }

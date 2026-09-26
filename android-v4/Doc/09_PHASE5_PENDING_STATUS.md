@@ -8,7 +8,7 @@
 ### 1. الخلفية (Backend) — إضافة فقط
 | الملف | الوصف |
 |-------|-------|
-| `app/Http/Controllers/Api/V4/AdminCrudControllerV4.php` | وحدة تحكم CRUD موحدة: records + 22 تصنيف (whitelist) + بحث + كفالات/جمعيات + مستخدمين/أدوار + ملفات/مجلدات/مكررات/تدقيق + سجل مدني + طلبات + ملف شخصي + إشعارات + بحث موحّد |
+| `app/Http/Controllers/Api/V4/AdminCrudControllerV4.php` | وحدة تحكم CRUD موحدة: records + 21 تصنيف (whitelist — مؤكَّد 2026-09-24) + بحث + كفالات/جمعيات + مستخدمين/أدوار + ملفات/مجلدات/مكررات/تدقيق + سجل مدني + طلبات + ملف شخصي + إشعارات + بحث موحّد |
 | `routes/api_v4.php` | **Append فقط** — 45 مسار جديد تحت `api/mobile/v4/*` بـ `auth:sanctum` + `throttle:api-v4` + أسماء `api.v4.*` |
 
 **التحقق:** `php artisan route:list --path=api/mobile/v4` → **59 مساراً** مسجَّلاً؛ `php -l` نظيف على الملفين.
@@ -47,7 +47,7 @@ Copy → android-v4/app/src/main/assets/public/{admin|screens|js|css}/
 1. اختبار ميداني 10 أجهزة (لاستعادة Airplane Mode + مزامنة التكرار).
 2. ترقية `versionCode=200` / `versionName=4.0` (المرحلة 8).
 3. تعطيل المزامنة القديمة `legacy_sync_enabled=false` (المرحلة 7).
-4. تعبئة أي بيانات تشغيل ناقصة (22 جدول تصنيف + 22 شاشة CRUD جاهزة للربط).
+4. تعبئة أي بيانات تشغيل ناقصة (21 جدول تصنيف + 22 شاشة CRUD جاهزة للربط).
 
 ## مرجع التحقق النهائي
 ```bash

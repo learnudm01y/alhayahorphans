@@ -41,14 +41,14 @@
 | 15 | عرض تفاصيل سجل | ✅ | `admin/record-show.html` |
 | 16 | البحث الشامل + فلاتر + اقتراحات | ✅ | `admin/search-records.html` |
 
-### ب. إدارة التصنيفات (22 — شاشتان ديناميتكيتان)
+### ب. إدارة التصنيفات (21 — شاشتان ديناميتكيتان)
 
 | # | الشاشة | الحالة | ملف |
 |---|--------|--------|-----|
-| 17 | فهرس التصنيفات الـ22 | ✅ | `admin/categories.html` |
+| 17 | فهرس التصنيفات الـ21 | ✅ | `admin/categories.html` |
 | 18 | CRUD ديناميكي لكل تصنيف `?cat=` | ✅ | `admin/category.html` |
 
-الجداول المدعومة (whitelist في `AdminCrudControllerV4`): `academic_degrees`, `category_of_relations`, `aid_statuses`, `bank_names`, `city`, `currency_types`, `death_reasons`, `displacement_statuses`, `document_types`, `employment`, `general_category`, `health_statuses`, `orphan_needs`, `creativity_aspects`, `housing_status`, `marital_status`, `provinces`, `request_status`, `sponsorship_statuses`, `type_of_accommodation`, `type_of_guarantee`, `data_request_status`.
+الجداول المدعومة (whitelist في `AdminCrudControllerV4` — **21**، مؤكَّدة 2026-09-24): `academic_degrees`, `category_of_relations`, `aid_status`, `bank_names`, `city`, `currency_types`, `death_reasons`, `displacement_statuses`, `document_types`, `employment`, `general_category`, `health_statuses`, `orphan_needs`, `creativity_aspects`, `housing_status`, `marital_status`, `provinces`, `request_status`, `sponsorship_statuses`, `type_of_accommodation`, `type_of_guarantee`.
 
 ### ج. الكفالات (Sponsorships)
 
@@ -78,7 +78,7 @@
 |-------|-------|
 | `src/js/admin-api.js` | طبقة API موحدة online/offline + cache |
 | `src/js/crud-helper.js` | جداول/نماذج/modal/pagination/toast |
-| `src/js/categories-config.js` | خريطة الـ22 تصنيف |
+| `src/js/categories-config.js` | خريطة الـ21 تصنيف |
 | `src/js/admin-nav.js` | Sidebar/hamburger + `AdminNav.mount()` |
 | `src/css/admin.css` | توسعة التصميم (RTL) |
 | `app/Http/Controllers/Api/V4/AdminCrudControllerV4.php` | CRUD موحّد + بحث + ملفات + بروفايل… |

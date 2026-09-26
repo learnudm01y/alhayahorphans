@@ -171,6 +171,15 @@ public class UnifiedNetworkMonitor {
             // بدء سلسلة المزامنة الرئيسية (رفع ملفات + تنزيل كفالات)
             SyncOrchestrator.scheduleMasterSyncOnReconnect(context);
             Log.d(TAG, "✅ SyncOrchestrator.scheduleMasterSyncOnReconnect() تم استدعاؤه");
+
+            // ⚡ رفع فوري قسري: لا debounce عند عودة الشبكة —
+            // إن كان هناك upload_pending يجب أن يبدأ الآن لا بعد 10 ثوانٍ أو 15 دقيقة.
+            try {
+                UploadTaskScheduler.getInstance(context).startImmediateUpload(true);
+                Log.d(TAG, "✅ UploadTaskScheduler.startImmediateUpload(force) تم استدعاؤه");
+            } catch (Exception e) {
+                Log.w(TAG, "تعذّر الرفع الفوري عند عودة الشبكة: " + e.getMessage());
+            }
         } catch (Exception e) {
             Log.e(TAG, "❌ خطأ في معالجة عودة الإنترنت: " + e.getMessage(), e);
         }

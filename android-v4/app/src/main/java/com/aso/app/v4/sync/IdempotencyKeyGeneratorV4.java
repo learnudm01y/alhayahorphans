@@ -1,7 +1,5 @@
 package com.aso.app.v4.sync;
 
-import android.util.Log;
-
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 
@@ -15,7 +13,6 @@ import java.security.MessageDigest;
  * returns the cached response without a second INSERT.
  */
 public final class IdempotencyKeyGeneratorV4 {
-    private static final String TAG = "IdempotencyKeyV4";
 
     private IdempotencyKeyGeneratorV4() {}
 
@@ -36,9 +33,9 @@ public final class IdempotencyKeyGeneratorV4 {
             }
             return hex.toString();
         } catch (Exception e) {
-            Log.e(TAG, "SHA-256 unavailable", e);
-            // Deterministic fallback keeps idempotency stable across retries.
-            return Integer.toHexString(input.hashCode());
+            // SHA-256 is guaranteed on every standard Android/JVM. Rethrow rather than
+            // fall back to a weak key that could collide and break idempotency.
+            throw new IllegalStateException("SHA-256 unavailable", e);
         }
     }
 }

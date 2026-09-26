@@ -35,16 +35,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // استرجاع المرفقات بعد الانتقال
             setTimeout(() => {
-                // محاولتان للاسترجاع للتأكد
                 if (typeof window.restoreMainAndDeceasedAttachments === 'function') {
                     window.restoreMainAndDeceasedAttachments();
                 }
-
-                setTimeout(() => {
-                    if (typeof window.restoreMainAndDeceasedAttachments === 'function') {
-                        window.restoreMainAndDeceasedAttachments();
-                    }
-                }, 300);
+                // لم تعد هناك حاجة لاستدعاء ثانٍ بعد 300ms: الاسترجاع يقارن الآن
+                // بمفتاح محتوى فريد (attachmentDocKey) فهو آمن من التكرار،
+                // والاستدعاء المزدوج كان قد يعيد إضافة مرفق قد يحذفه المستخدم للتو.
             }, 100);
         });
     });

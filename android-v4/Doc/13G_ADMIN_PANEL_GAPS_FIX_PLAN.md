@@ -6,15 +6,17 @@
 
 ## 1. نتائج الفحص الآلي (Backend)
 
-### 1.1 جداول التصنيفات الـ22 ( whitelist `AdminCrudControllerV4::CATEGORY_TABLES` )
+### 1.1 جداول التصنيفات الـ21 ( whitelist `AdminCrudControllerV4::CATEGORY_TABLES` — بعد إصلاح 2026-09-24 )
+
+> **سجل التدقيق الأصلي (2026-09-23) كان 22 مدخلاً خاطئاً:** `aid_statuses` (الجدول الصحيح `aid_status` مفرد) و`data_request_status` (عمود على `data` وليس جدولاً). أُصلح P0 #6 و #7 → القائمة الآن 21 تصنيفاً صحيحاً بالكامل.
 
 | الجدول | موجود؟ | الصفوف | ملاحظة |
 |--------|--------|--------|--------|
 | academic_degrees | ✅ | 0 | فارغ — CRUD يعمل، لا بيانات seed |
-| category_of_relations | ✅ | 0 | فارغ |
-| aid_statuses | ❌ | — | **مفقود** — أي `?cat=aid_statuses` سيعطي 500/404 |
+| category_of_relations | ✅ | 0 | فارغ — عمود الملصق `attribute` |
+| aid_status | ✅ | 0 | **مُصلَّح 2026-09-24** — كان مُسجَّلاً خطاً `aid_statuses` |
 | bank_names | ✅ | 0 | فارغ |
-| city | ✅ | 0 | فارغ |
+| city | ✅ | 0 | فارغ — عمود الملصق `city` |
 | currency_types | ✅ | 0 | فارغ |
 | death_reasons | ✅ | 0 | فارغ |
 | displacement_statuses | ✅ | 0 | فارغ |
@@ -31,9 +33,8 @@
 | sponsorship_statuses | ✅ | 0 | فارغ |
 | type_of_accommodation | ✅ | 0 | فارغ |
 | type_of_guarantee | ✅ | 0 | فارغ |
-| data_request_status | ❌ | — | **مفقود** — ملاحظة: `AdminOfflineExportControllerV4` يستخدم `data_request_status` كعمود على جدول `data` وليس كجدول مستقل — تعارض naming في الـ whitelist |
 
-**النتيجة:** 20/22 موجودة، **2 مفقودة** (`aid_statuses`, `data_request_status`)، **20 فارغة أو شبه فارغة**.
+**النتيجة بعد الإصلاح:** 21/21 موجودة وصحيحة، **19 فارغة أو شبه فارغة** (بيانات فقط).
 
 ### 1.2 مسارات v4
 
@@ -94,21 +95,25 @@
 | 3 | صور شخصية لا تُحمَّل محلياً | migration `000004` + `ProfilePhotoSyncManagerV4` + ربط بـ `runFullCycle` | ✅ |
 | 4 | فهرسة متأخرة بعد رفع الملفات | استدعاء `upsertFileIndexEntry` فور `STATUS_COMPLETED` في `ChunkedUploadWorker` + `DriveStatusWorker` | ✅ |
 | 5 | أعمدة cache_priority محلياً | `AdminOfflineDatabaseHelperV4` v1→v2 ALTER + overload upsert | ✅ |
+| 6 | whitelist `aid_statuses` خاطئ (الجدول الفعلي `aid_status` مفرد) | تغيير whitelist + `categories-config.js` إلى `aid_status` | ✅ 2026-09-24 |
+| 7 | `data_request_status` ليس جدولاً (عمود على `data` يشير لـ `request_status`) | إزالته من whitelist + `categories-config.js` (21 فئة بدل 22) | ✅ 2026-09-24 |
+| 8 | CRUD التصنيفات يبحث/يُدرج بعمود `name` والجداول القديمة تستخدم `description`/`attribute`/`city` → فشل الإدراج | `labelColumn()` في `AdminCrudControllerV4` + alias `name` في الاستجابات + map عند Store/Update | ✅ 2026-09-24 |
+| 9 | `tests/Feature/SecureFileSystemTest.php` فارغ (0 سطر) → Class not found EXIT=1 | كتابة اختبار فعلي لـ `BlockSuspiciousStoragePaths` (6 حالات) | ✅ 2026-09-24 |
 
 ### P1 — يحتاج قرار صاحب المشروع / بيانات حقيقية
 
 | # | الفجوة | التفاصيل المقترحة | الحالة |
 |---|--------|-------------------|--------|
-| 1 | جدول `aid_statuses` مفقود | إنشاء migration `create_aid_statuses_table` بنفس نمط جداول التصنيفات الأخرى **أو** إزالته من whitelist (يحتاج موافقة — تغيير whitelist = تعديل كود) | ⏸ بانتظار قرار |
-| 2 | جدول `data_request_status` مفقود كجدول | هل هو عمود على `data` فقط (كما في export) أم جدول مستقل مطلوب لشاشات `?cat=`؟ يُفحص ميدانياً بفتح `categories.html?cat=data_request_status` | ⏸ بانتظار فحص ميداني |
-| 3 | 20 جدول تصنيف فارغ/شبه فارغ | ليست فجوة برمجية — شاشات CRUD تعمل، فقط لا seed data. تُملأ بإدخال المستخدم أو استيراد من الإنتاج | ⏸ بيانات |
+| 1 | ~~جدول `aid_statuses` مفقود~~ | أُصلح — الجدول الصحيح `aid_status` موجود ومُفعَّل في whitelist (بند P0 #6) | ✅ 2026-09-24 |
+| 2 | ~~جدول `data_request_status` مفقود كجدول~~ | أُصلح — أُزيل من whitelist لأنه عمود على `data` وليس جدولاً؛ الحالة تُدار عبر `request_status` (بند P0 #7) | ✅ 2026-09-24 |
+| 3 | 19 جدول تصنيف فارغ/شبه فارغ | ليست فجوة برمجية — شاشات CRUD تعمل، فقط لا seed data. تُملأ بإدخال المستخدم أو استيراد من الإنتاج | ⏸ بيانات |
 | 4 | `file_index_v4` فارغ (0 صف) | متوقع — لم يُبنى source بعد. يمتلئ تلقائياً بعد أول مزامنة كاملة + رفعات فعلية على أجهزة المرحلة 6 | ⏸ طبيعي |
 
 ### P2 — فحوصات ميدانية إلزامية (المرحلة 6 — 10 أجهزة)
 
 | البند | طريقة |
 |-------|-------|
-| فتح كل `?cat=` × 22 والتحقق CRUD | يدوي على جهاز |
+| فتح كل `?cat=` × 21 والتحقق CRUD | يدوي على جهاز |
 | بحث `search-records.html` أوفلاين | Airplane Mode |
 | `user-requests.html` → controller حقيقي؟ | `AdminCrudControllerV4` routes موجودة ✅ |
 | تصدير Excel بالكفالات | ضغط زر فعلي |

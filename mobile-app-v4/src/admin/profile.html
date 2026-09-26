@@ -15,13 +15,6 @@
         <div class="sub">Profile · v4 · <span id="mode-badge" class="badge badge-offline">Offline</span></div>
     </div>
 
-    <nav class="nav-tabs container" style="margin-top:12px">
-        <a href="dashboard.html">لوحة القيادة</a>
-        <a href="profile.html" class="active">الملف الشخصي</a>
-        <a href="settings.html">الإعدادات</a>
-        <a href="users.html">المستخدمون</a>
-    </nav>
-
     <div class="container">
         <div class="card" style="text-align:center;margin-bottom:16px">
             <div style="width:80px;height:80px;border-radius:50%;background:var(--brand-100);margin:0 auto 10px;display:flex;align-items:center;justify-content:center">
@@ -34,9 +27,6 @@
 
         <div class="section-title">البيانات الشخصية</div>
         <div id="profile-form"></div>
-
-        <div class="section-title" style="margin-top:20px">تغيير كلمة المرور</div>
-        <div id="pw-form"></div>
 
         <div class="watermark" id="wm"></div>
     </div>
@@ -56,12 +46,6 @@
             { name: 'phone', label: 'الهاتف' },
             { name: 'phone2', label: 'هاتف بديل' },
             { name: 'country', label: 'الدولة' }
-        ];
-
-        var pwFields = [
-            { name: 'current_password', label: 'كلمة المرور الحالية', type: 'password', required: true },
-            { name: 'password', label: 'كلمة المرور الجديدة', type: 'password', required: true },
-            { name: 'password_confirmation', label: 'تأكيد كلمة المرور', type: 'password', required: true }
         ];
 
         function load() {
@@ -93,22 +77,6 @@
                 AdminAPI.updateProfile(data).then(function (r) {
                     if (r && r.success) CrudHelper.toast('تم التحديث ✓', 'success');
                     else CrudHelper.toast((r && r.message) || 'فشل', 'error');
-                }).catch(function () {
-                    CrudHelper.toast('يتطلب اتصالاً', 'error');
-                });
-            });
-
-            CrudHelper.renderForm(document.getElementById('pw-form'), pwFields, {}, function (data) {
-                if (data.password !== data.password_confirmation) {
-                    CrudHelper.toast('كلمتا المرور غير متطابقتين', 'error');
-                    return;
-                }
-                AdminAPI.updatePassword(data).then(function (r) {
-                    if (r && r.success) {
-                        CrudHelper.toast('تم تغيير كلمة المرور ✓', 'success');
-                    } else {
-                        CrudHelper.toast((r && r.message) || 'فشل', 'error');
-                    }
                 }).catch(function () {
                     CrudHelper.toast('يتطلب اتصالاً', 'error');
                 });

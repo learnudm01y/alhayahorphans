@@ -68,7 +68,7 @@
                     || 'https://alhayahorphans.org/api';
                 var token = '';
                 try {
-                    token = localStorage.getItem('api_token') || '';
+                    token = localStorage.getItem('api_token') || localStorage.getItem('auth_token') || '';
                 } catch (e) {}
                 fetch(base + '/mobile/v4/conflicts?status=' + encodeURIComponent(status || 'open'), {
                     headers: {
@@ -92,7 +92,7 @@
             var base = (window.APP_CONFIG && window.APP_CONFIG.API_URL)
                 || 'https://alhayahorphans.org/api';
             var token = '';
-            try { token = localStorage.getItem('api_token') || ''; } catch (e) {}
+            try { token = localStorage.getItem('api_token') || localStorage.getItem('auth_token') || ''; } catch (e) {}
             return fetch(base + '/mobile/v4/conflicts/' + id + '/resolve', {
                 method: 'POST',
                 headers: {
@@ -107,7 +107,7 @@
             var base = (window.APP_CONFIG && window.APP_CONFIG.API_URL)
                 || 'https://alhayahorphans.org/api';
             var token = '';
-            try { token = localStorage.getItem('api_token') || ''; } catch (e) {}
+            try { token = localStorage.getItem('api_token') || localStorage.getItem('auth_token') || ''; } catch (e) {}
             return fetch(base + '/mobile/v4/device/health', {
                 headers: {
                     'Authorization': 'Bearer ' + token,

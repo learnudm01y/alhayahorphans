@@ -47,8 +47,8 @@ public class SponsorshipSyncWorker extends Worker {
             }
             if (baseUrl.endsWith("/")) baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
 
-            String initialUrlStr = baseUrl.endsWith("/api") ? baseUrl + "/mobile/sync/initial" : baseUrl + "/api/mobile/sync/initial";
-            String urlStr = baseUrl.endsWith("/api") ? baseUrl + "/mobile/sync/sponsorships" : baseUrl + "/api/mobile/sync/sponsorships";
+            String initialUrlStr = baseUrl.endsWith("/api") ? baseUrl + "/mobile/v4/sync/initial" : baseUrl + "/api/mobile/v4/sync/initial";
+            String urlStr = baseUrl.endsWith("/api") ? baseUrl + "/mobile/v4/sync/sponsorships" : baseUrl + "/api/mobile/v4/sync/sponsorships";
 
             SponsorshipsDatabaseHelper dbHelper = SponsorshipsDatabaseHelper.getInstance(getApplicationContext());
             org.alhayah.sponsorships.DataSyncDatabaseHelper syncDbHelper = org.alhayah.sponsorships.DataSyncDatabaseHelper.getInstance(getApplicationContext());
@@ -95,7 +95,7 @@ public class SponsorshipSyncWorker extends Worker {
             // 2. Fetch Server Stats
             Log.i(TAG, "Fetching server sync stats");
             int serverTotalCount = -1;
-            String statsUrlStr = baseUrl.endsWith("/api") ? baseUrl + "/mobile/sync/stats" : baseUrl + "/api/mobile/sync/stats";
+            String statsUrlStr = baseUrl.endsWith("/api") ? baseUrl + "/mobile/v4/sync/stats" : baseUrl + "/api/mobile/v4/sync/stats";
             try {
                 String statsResp = fetchUrl(statsUrlStr, token);
                 JSONObject statsJson = new JSONObject(statsResp);
@@ -292,7 +292,7 @@ public class SponsorshipSyncWorker extends Worker {
 
             while (page <= lastPage) {
                 try {
-                    String urlStr = baseUrl + "/api/mobile/sync/" + endpoint + "?per_page=" + perPage + "&page=" + page;
+                    String urlStr = baseUrl + "/api/mobile/v4/sync/" + endpoint + "?per_page=" + perPage + "&page=" + page;
                     if (lastSync != null) urlStr += "&last_sync=" + java.net.URLEncoder.encode(lastSync, "UTF-8");
                     String resp = fetchUrl(urlStr, token);
                     JSONObject json = new JSONObject(resp);

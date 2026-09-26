@@ -1,5 +1,5 @@
 /**
- * categories-config.js — تعريفات التصنيفات الـ22 لشاشة موحدة
+ * categories-config.js — تعريفات التصنيفات الـ21 لشاشة موحدة
  */
 (function () {
     'use strict';
@@ -7,7 +7,7 @@
     window.CATEGORIES = [
         { key: 'academic_degrees', name: 'الدرجة العلمية', icon: 'school', fields: [{ name: 'name', label: 'اسم الدرجة', required: true }] },
         { key: 'category_of_relations', name: 'صلة القرابة', icon: 'group', fields: [{ name: 'name', label: 'اسم صلة القرابة', required: true }] },
-        { key: 'aid_statuses', name: 'حالة المساعدة', icon: 'volunteer_activism', fields: [{ name: 'name', label: 'اسم الحالة', required: true }] },
+        { key: 'aid_status', name: 'حالة المساعدة', icon: 'volunteer_activism', fields: [{ name: 'name', label: 'اسم الحالة', required: true }] },
         { key: 'bank_names', name: 'أسماء البنوك', icon: 'account_balance', fields: [{ name: 'name', label: 'اسم البنك', required: true }] },
         { key: 'city', name: 'أسماء المدن', icon: 'location_city', fields: [{ name: 'name', label: 'اسم المدينة', required: true }, { name: 'province_id', label: 'المحافظة', type: 'select', options: [] }] },
         { key: 'currency_types', name: 'العملات', icon: 'currency_exchange', fields: [{ name: 'name', label: 'اسم العملة', required: true }, { name: 'code', label: 'الرمز', required: true }] },
@@ -25,8 +25,7 @@
         { key: 'request_status', name: 'حالة الطلب', icon: 'pending_actions', fields: [{ name: 'name', label: 'حالة الطلب', required: true }] },
         { key: 'sponsorship_statuses', name: 'حالة الكفالة', icon: 'handshake', fields: [{ name: 'name', label: 'حالة الكفالة', required: true }] },
         { key: 'type_of_accommodation', name: 'نوع السكن', icon: 'apartment', fields: [{ name: 'name', label: 'نوع السكن', required: true }] },
-        { key: 'type_of_guarantee', name: 'نوع الكفالة', icon: 'card_giftcard', fields: [{ name: 'name', label: 'نوع الكفالة', required: true }] },
-        { key: 'data_request_status', name: 'حالة طلب المستخدم', icon: 'assignment', fields: [{ name: 'name', label: 'حالة الطلب', required: true }] }
+        { key: 'type_of_guarantee', name: 'نوع الكفالة', icon: 'card_giftcard', fields: [{ name: 'name', label: 'نوع الكفالة', required: true }] }
     ];
 
     window.getCatByKey = function (key) {

@@ -245,7 +245,7 @@ public class CameraActivity extends AppCompatActivity {
         try {
             UploadDatabaseHelper dbHelper = UploadDatabaseHelper.getInstance(this);
 
-            // حفظ في قاعدة البيانات — مع الضغط الذكي قبل طابور الرفع
+            // حفظ في قاعدة البيانات — الضغط الذكي قبل طابور الرفع
             long fileId = SmartMediaProcessor.queueForUpload(
                 this,
                 dbHelper,

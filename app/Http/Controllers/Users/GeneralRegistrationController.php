@@ -677,6 +677,12 @@ class GeneralRegistrationController extends Controller
                     return is_object($f) && method_exists($f, 'getClientOriginalName') ? $f->getClientOriginalName() : 'NOT_FILE_OBJECT';
                 }, $allFiles)
             ]);
+            // 🛡️ هل أُضيف عمود file_hash إلى جدول attachments؟ (حماية من ترتيب الـ migrations)
+            $attachmentsHasFileHash = \Illuminate\Support\Facades\Schema::hasColumn('attachments', 'file_hash');
+
+            // 🛡️ منع التكرار داخل نفس الطلب: مفتاح فريد = شخص + نوع الوثيقة + بصمة المحتوى
+            $seenAttachments = [];
+
             foreach ($attachmentsData as $index => $data) {
                 // استقبال الملف بشكل صحيح
                 $file = $request->hasFile("attachments.$index.file") ? $request->file("attachments.$index.file") : null;
@@ -762,8 +768,51 @@ class GeneralRegistrationController extends Controller
                         }
                     }
 
-                    // اسم الملف: نوع الوثيقة _ رقم الملف الخاص بالشخص _ رقم هوية الشخص _ تاريخ ووقت اليوم
-                    $newFileName = "{$fileType}_{$fileIdNumberAttach}_{$realPersonId}_" . date('Ymd_His') . ".{$extension}";
+                    // 🔒 بصمة محتوى الملف (SHA-1) — تُستخدم لمنع إدخال نفس الملف مرتين لنفس الشخص ونوع الوثيقة
+                    $fileHash = null;
+                    try {
+                        if ($file) {
+                            $fileHash = @hash_file('sha1', $file->getRealPath()) ?: null;
+                        } elseif ($tempPath && \Storage::disk('public')->exists($tempPath)) {
+                            $fileHash = @hash_file('sha1', \Storage::disk('public')->path($tempPath)) ?: null;
+                        }
+                    } catch (\Throwable $hashError) {
+                        $fileHash = null;
+                    }
+
+                    // 🛡️ (1) منع التكرار داخل نفس الطلب — قد تصل الواجهة بنفس الملف أكثر من مرة
+                    $dedupKey = $realPersonId . '|' . $fileType . '|' . ($fileHash ?? ($storedFileName . '|' . $fileSize));
+                    if (isset($seenAttachments[$dedupKey])) {
+                        Log::warning('⚠️ تم تجاهل مرفق مكرر داخل نفس الطلب', [
+                            'index' => $index,
+                            'person_identity_number' => $realPersonId,
+                            'file_type' => $fileType,
+                            'file_hash' => $fileHash,
+                            'stored_file_name' => $storedFileName,
+                        ]);
+                        continue;
+                    }
+
+                    // 🛡️ (2) منع التكرار مع ما هو مسجل مسبقاً في قاعدة البيانات (طلبات مكررة/متداخلة)
+                    if ($attachmentsHasFileHash && $fileHash && Attachment::where('person_identity_number', $realPersonId)
+                            ->where('file_type', $fileType)
+                            ->where('file_hash', $fileHash)
+                            ->exists()) {
+                        Log::warning('⚠️ تم تجاهل مرفق مكرر مسجل مسبقاً في قاعدة البيانات', [
+                            'index' => $index,
+                            'person_identity_number' => $realPersonId,
+                            'file_type' => $fileType,
+                            'file_hash' => $fileHash,
+                        ]);
+                        continue;
+                    }
+
+                    $seenAttachments[$dedupKey] = true;
+
+                    // اسم الملف: نوع الوثيقة _ رقم الملف الخاص بالشخص _ رقم هوية الشخص _ تاريخ ووقت اليوم + مُعرّف فريد
+                    // المعرّف الفريد ضروري: الطابع الزمني دقيقته الثانية فقط، فكانت محاولات متعددة داخل نفس الثانية
+                    // تُنشئ نفس الاسم وتكتب فوق الملف الفعلي على القرص مع بقاء سجلات مكررة في قاعدة البيانات.
+                    $newFileName = "{$fileType}_{$fileIdNumberAttach}_{$realPersonId}_" . date('Ymd_His') . '_' . uniqid() . ".{$extension}";
                     $folder = 'uploads/' . $fileIdNumberAttach;
                     if ($folder === 'public' || $folder === 'public/') {
                         throw new \Exception('خطأ في مسار التخزين: يجب تحديد مجلد فرعي داخل uploads');
@@ -794,14 +843,34 @@ class GeneralRegistrationController extends Controller
                         }
                     }
 
-                    Attachment::create([
+                    $attachmentPayload = [
                         'person_identity_number' => $realPersonId,
                         'stored_file_name' => $newFileName,
                         'file_path' => 'storage/' . $path,
                         'file_type' => $fileType,
                         'file_size' => $fileSize,
-                    ]);
-                    Log::info('🟢 تم تخزين مرفق بنجاح', ['index' => $index, 'file' => $file, 'tempPath' => $tempPath, 'data' => $data, 'newFileName' => $newFileName]);
+                    ];
+                    if ($attachmentsHasFileHash) {
+                        $attachmentPayload['file_hash'] = $fileHash;
+                    }
+
+                    try {
+                        Attachment::create($attachmentPayload);
+                    } catch (\Illuminate\Database\QueryException $queryException) {
+                        // فهرس الفريدة uniq_person_type_hash رفض سجلاً مكرراً (سباق بين طلبين) — لا نُفشل التسجيل كاملاً
+                        if ((string) $queryException->getCode() === '23000') {
+                            Log::warning('⚠️ رفض مرفق مكرر بواسطة فهرس الفريدة', [
+                                'index' => $index,
+                                'person_identity_number' => $realPersonId,
+                                'file_type' => $fileType,
+                                'file_hash' => $fileHash,
+                                'stored_file_name' => $newFileName,
+                            ]);
+                            continue;
+                        }
+                        throw $queryException;
+                    }
+                    Log::info('🟢 تم تخزين مرفق بنجاح', ['index' => $index, 'file' => $file, 'tempPath' => $tempPath, 'data' => $data, 'newFileName' => $newFileName, 'file_hash' => $fileHash]);
                 } else {
                     Log::error('🔴 تجاهل مرفق بسبب شرط تحقق نهائي', ['index' => $index, 'file' => $file, 'tempPath' => $tempPath, 'data' => $data]);
                 }

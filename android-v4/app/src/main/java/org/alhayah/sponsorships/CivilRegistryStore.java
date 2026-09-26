@@ -130,7 +130,7 @@ public class CivilRegistryStore {
             Helper helper = null;
             SQLiteDatabase db = null;
             try {
-                JSONObject manifest = fetchJson(apiBase + "/api/mobile/civil-registry/manifest", token);
+                JSONObject manifest = fetchJson(apiBase + "/api/mobile/v4/civil-registry/manifest", token);
                 if (manifest == null || !manifest.optBoolean("success", false)) {
                     running = false;
                     if (listener != null) listener.onFinished(false, "Failed to fetch manifest");
@@ -226,7 +226,7 @@ public class CivilRegistryStore {
                             try {
                                 JSONObject chunk = chunks.getJSONObject(idx);
                                 String fileName = chunk.optString("file");
-                                String url = apiBase + "/api/mobile/civil-registry/file/" + java.net.URLEncoder.encode(fileName, "UTF-8");
+                                String url = apiBase + "/api/mobile/v4/civil-registry/file/" + java.net.URLEncoder.encode(fileName, "UTF-8");
                                 conn = openConn(url, token);
                                 int status = conn.getResponseCode();
                                 if (status != 200) {

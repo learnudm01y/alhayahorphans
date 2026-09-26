@@ -134,26 +134,34 @@ public class UploadTaskScheduler {
     /**
      * بدء فوري للرفع - تشغيل BackgroundUploadWorker مباشرة
      * يعتمد الآن على WorkManager لضمان عدم إغلاق النظام للمهمة عند الخروج من التطبيق
+     *
+     * @param force تجاهل debounce — تُستخدم بعد انتهاء الضغط وعند عودة الشبكة
+     *              حتى لا يبتلع التنبيه التالي المُشغّل خلال 10 ثوانٍ.
      */
     public void startImmediateUpload() {
+        startImmediateUpload(false);
+    }
+
+    public void startImmediateUpload(boolean force) {
         long now = System.currentTimeMillis();
-        if (now - lastImmediateUploadAt < IMMEDIATE_UPLOAD_DEBOUNCE_MS) {
+        if (!force && now - lastImmediateUploadAt < IMMEDIATE_UPLOAD_DEBOUNCE_MS) {
             Log.d(TAG, "⚡ startImmediateUpload متخطى — debounce (منذ " + (now - lastImmediateUploadAt) + "ms)");
             return;
         }
-        lastImmediateUploadAt = now;
-
-        Log.d(TAG, "");
-        Log.d(TAG, "⚡⚡⚡ startImmediateUpload تم استدعاؤها! ⚡⚡⚡");
 
         try {
             int pendingCount = dbHelper.getPendingFilesCount();
-            Log.d(TAG, "📊 فحص الملفات المعلقة: " + pendingCount);
+            Log.d(TAG, "📊 فحص الملفات المعلقة: " + pendingCount + (force ? " (force)" : ""));
 
             if (pendingCount == 0) {
                 Log.d(TAG, "⚠️ لا توجد ملفات للرفع الفوري");
                 return;
             }
+
+            // ⚠️ debounce يُضبط هنا فقط — بعد التأكد من وجود عمل.
+            // كان يُضبط أولاً حتى مع pending=0، فالتالي (بعد الضغط بثوانٍ)
+            // يتخطّى فيبقى الملف في upload_pending إلى أن مهمة الـ15 دقيقة.
+            lastImmediateUploadAt = now;
 
             Log.d(TAG, "");
             Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");

@@ -241,7 +241,12 @@ public class DataSyncForegroundService extends Service {
             // الحصول على API URL و Token من SharedPreferences
             SharedPreferences prefs = getSharedPreferences("auth_prefs", Context.MODE_PRIVATE);
             String token = prefs.getString("api_token", "");
-            String baseUrl = prefs.getString("api_base_url", com.aso.app.ApiConfig.BASE_URL);
+            // CRITICAL: auth_prefs لا يخزّن api_base_url دائماً — نستخدم ApiConfig
+            // (api_config prefs) لتطابق ChunkedUploadWorker وإلا نذهب للإنتاج → 401
+            String baseUrl = com.aso.app.ApiConfig.getBaseUrl(getApplicationContext());
+            if (baseUrl == null || baseUrl.isEmpty()) {
+                baseUrl = prefs.getString("api_base_url", com.aso.app.ApiConfig.BASE_URL);
+            }
 
             if (token.isEmpty()) {
                 Log.e(TAG, "❌ No API token - user not logged in");
@@ -257,8 +262,8 @@ public class DataSyncForegroundService extends Service {
                 baseUrl = baseUrl + "/api";
             }
 
-            // بناء URL
-            String fullUrl = baseUrl + item.endpoint;
+            // بناء URL — إعادة توجيه نقاط نهاية الطابور القديمة إلى نسخة mobile/v4
+            String fullUrl = baseUrl + com.aso.app.ApiConfig.toV4(item.endpoint);
             Log.d(TAG, "🌐 POST " + fullUrl);
 
             // إرسال البيانات

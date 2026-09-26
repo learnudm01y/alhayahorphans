@@ -15,15 +15,6 @@
         <div class="sub">Folders · v4 · <span id="mode-badge" class="badge badge-offline">Offline</span></div>
     </div>
 
-    <nav class="nav-tabs container" style="margin-top:12px">
-        <a href="dashboard.html">لوحة القيادة</a>
-        <a href="files.html">فهرس المرفقات</a>
-        <a href="folders.html" class="active">المجلدات</a>
-        <a href="duplicates.html">المكررات</a>
-        <a href="attachment-audit.html">التدقيق</a>
-        <a href="../upload.html">الرفع</a>
-    </nav>
-
     <div class="container">
         <div class="toolbar">
             <input type="search" id="q" placeholder="بحث في المجلدات والملفات…" />
@@ -117,8 +108,7 @@
                         (isDir
                             ? '<button class="btn btn-sm btn-outline" data-open="' + i + '">فتح</button>'
                             : '<button class="btn btn-sm btn-outline" data-view="' + i + '">عرض</button>' +
-                            '<button class="btn btn-sm btn-outline" data-dl="' + i + '">تحميل</button>' +
-                            '<button class="btn btn-sm btn-danger" data-del="' + i + '">حذف</button>') +
+                            '<button class="btn btn-sm btn-outline" data-dl="' + i + '">تحميل</button>') +
                         '</td></tr>';
                     if (isDir) selected[i] = items[i];
                 });
@@ -157,30 +147,6 @@
                             a.download = it.name;
                             a.click();
                         } else CrudHelper.toast('يتطلب اتصالاً', 'info');
-                    });
-                });
-                document.querySelectorAll('button[data-del]').forEach(function (btn) {
-                    btn.addEventListener('click', function () {
-                        var it = items[parseInt(btn.dataset.del, 10)];
-                        if (!confirm('حذف "' + it.name + '"؟')) return;
-                        if (window.SyncClientV4 && it.file_id) {
-                            SyncClientV4.queueFileDelete({
-                                file_id: it.file_id,
-                                stored_file_name: it.name
-                            }).then(function (r) {
-                                if (r && r.success) {
-                                    CrudHelper.toast('مجدول للحذف ✓', 'success');
-                                    load();
-                                }
-                            });
-                        } else if (AdminAPI.deleteFile) {
-                            AdminAPI.deleteFile(it.id || it.file_id).then(function () {
-                                CrudHelper.toast('تم', 'success');
-                                load();
-                            }).catch(function () {
-                                CrudHelper.toast('يتطلب اتصالاً', 'error');
-                            });
-                        }
                     });
                 });
             }).catch(function (e) {

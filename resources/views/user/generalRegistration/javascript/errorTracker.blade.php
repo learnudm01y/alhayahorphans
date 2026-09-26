@@ -162,7 +162,22 @@
                             // منطق إضافة الوثيقة الجديدة إلى allDocs
                             // دعم المتوفين: إذا كان الشخص متوفى (deceased_...)، استخدم رقم الهوية كـ key إضافي
                             let arr = window.allDocs.get(selectedPerson) || [];
+
+                            // 🛡️ منع دفع نفس الوثيقة مرتين لنفس الشخص ونوع الوثيقة
+                            // (قد يُستدعى هذا المسار أكثر من مرة لنفس الملف)
+                            const docSignature = `${idNumber}|${docType}|${file.name}|${file.size}|${file.lastModified || 0}`;
+                            const alreadyAdded = arr.some(existing => {
+                                const exFile = (existing && (existing.originalFile || existing.file)) || null;
+                                return `${existing.personId || existing.personKey || ''}|${existing.type || existing.docType || ''}|${(exFile && exFile.name) || ''}|${(exFile && exFile.size) || ''}|${(exFile && exFile.lastModified) || 0}` === docSignature;
+                            });
+                            if (alreadyAdded) {
+                                console.warn('⛔ الوثيقة مسجلة مسبقاً لهذه البوابة، تم منع التكرار:', docSignature);
+                                return;
+                            }
+
                             let docObj = {
+                                // id ثابت يُستخدم في الاسترجاع بين التبويبات (كان غائباً فيتسرب التكرار)
+                                id: `doc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
                                 type: docType,
                                 docType: docType, // توحيد الحقل
                                 processedFile: true,

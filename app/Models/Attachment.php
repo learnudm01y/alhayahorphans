@@ -14,6 +14,8 @@ class Attachment extends Model
         'stored_file_name',
         'file_path',
         'file_type',
+        'file_size',
+        'file_hash',
     ];
 
     protected $table = 'attachments';

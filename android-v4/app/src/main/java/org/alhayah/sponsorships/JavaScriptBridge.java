@@ -25,7 +25,7 @@ public class JavaScriptBridge {
      * window.AndroidBridge.onDataSaved(JSON.stringify({
      *   dataType: 'sponsorship',
      *   dataJson: {...},
-     *   endpoint: '/api/mobile/sponsorships/sync'
+     *   endpoint: '/api/mobile/v4/sponsorships/sync-updates'
      * }));
      */
     @JavascriptInterface
@@ -41,7 +41,7 @@ public class JavaScriptBridge {
             JSONObject data = new JSONObject(jsonData);
             String dataType = data.optString("dataType", "unknown");
             String dataJson = data.optString("dataJson", "{}");
-            String endpoint = data.optString("endpoint", "/api/mobile/sync");
+            String endpoint = data.optString("endpoint", "/api/mobile/v4/sponsorships/sync-updates");
 
             Log.d(TAG, "📋 Data Type: " + dataType);
             Log.d(TAG, "🌐 Endpoint: " + endpoint);

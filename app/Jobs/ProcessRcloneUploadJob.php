@@ -55,6 +55,15 @@ class ProcessRcloneUploadJob implements ShouldQueue
     {
         Log::info("🚀 Starting async Rclone upload for attachment ID: {$this->attachmentId}");
 
+        // حارس ضد التكرار: مهمة سابقة أنهت الرفع بالفعل — لا نعيد rclone
+        // لنفس الملف (كان ينتج نسختين على Drive عند إعادة الجدولة المتزامنة).
+        $guard = GoogleDriveUpload::find($this->googleDriveUploadId);
+        if ($guard && $guard->upload_status === 'completed') {
+            Log::info("⏭️ GoogleDriveUpload #{$this->googleDriveUploadId} already completed — skip duplicate job");
+            $this->notifyCompletedIfMissing($guard->file_name, $guard->google_drive_file_id, $guard->uploaded_by);
+            return;
+        }
+
         if (!file_exists($this->finalPath)) {
             Log::error("❌ Local file not found for async Rclone upload: {$this->finalPath}");
             GoogleDriveUpload::where('id', $this->googleDriveUploadId)->update([
@@ -262,6 +271,40 @@ class ProcessRcloneUploadJob implements ShouldQueue
             }
         } catch (\Throwable $t) {
             Log::error("❌ failed() handler itself failed: " . $t->getMessage());
+        }
+    }
+
+    /**
+     * يضمن وجود إشعار «مكتمل» في صندوق الوارد إن كان الرفع انتهى
+     * لكن الإشعار فُقد (أو أُقرّ من قبل عامل آخر قبل التحديث).
+     */
+    private function notifyCompletedIfMissing(?string $fileName, ?string $fileId, ?int $userId): void
+    {
+        if (!$fileName) {
+            return;
+        }
+
+        try {
+            $already = \Illuminate\Support\Facades\DB::table('offline_upload_statuses')
+                ->where('file_name', $fileName)
+                ->where('status', 'completed')
+                ->where('created_at', '>=', now()->subMinutes(10))
+                ->exists();
+
+            if ($already) {
+                return;
+            }
+
+            \Illuminate\Support\Facades\DB::table('offline_upload_statuses')->insert([
+                'user_id' => $userId,
+                'file_name' => $fileName,
+                'status' => 'completed',
+                'google_drive_file_id' => $fileId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } catch (\Throwable $t) {
+            Log::warning('notifyCompletedIfMissing failed: ' . $t->getMessage());
         }
     }
 }

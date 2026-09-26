@@ -48,7 +48,7 @@ public class ConsoleMessageInterceptor extends WebChromeClient {
                 JSONObject data = new JSONObject(jsonData);
                 String dataType = data.optString("dataType", "sponsorship");
                 String dataJson = data.optString("dataJson", "{}");
-                String endpoint = data.optString("endpoint", "/api/mobile/sponsorships/sync");
+                String endpoint = data.optString("endpoint", "/api/mobile/v4/sponsorships/sync-updates");
 
                 // إضافة للـ queue
                 DataSyncDatabaseHelper dbHelper = DataSyncDatabaseHelper.getInstance(context);

@@ -19,7 +19,7 @@
 | لوحة التحكم Offline | 8/8 شاشات تعمل في وضع الطيران + تقارير PDF محلياً |
 | التحوّل التدريجي (Cutover) | مُثبت ميدانياً: `legacy_sync_enabled=false` يُلغي مهام v3 وقت التنفيذ فقط |
 | التراجع (Rollback) | فوري خلال دقائق بإعادة العلم `true` — بدون فقدان بيانات |
-| الاختبارات | **33/33** (28 v4 + 5 ProfileTest مُصلَّحة) |
+| الاختبارات | **43/43** (34 v4 + 6 SecureFileSystem + 9 CategoriesV4 + 5 ProfileTest مُصلَّحة) |
 | إثبات ميداني | جهاز SM-A346E: Online + Airplane Mode + Cutover + لقطات |
 
 **المتبقي بقرار/وصول صاحب المشروع فقط:**
@@ -292,7 +292,7 @@ RemoteConfigV4: legacy_sync_enabled=false — v3 unique works cancelled (runtime
 
 ### 5. جودة الاختبار (Quality & Testing)
 
-#### 5.1 اختبارات الخادم (PHPUnit) — 28/28 ✅
+#### 5.1 اختبارات الخادم (PHPUnit) — 43/43 ✅
 
 | ملف الاختبار | التغطية | النتيجة |
 |--------------|---------|---------|
@@ -301,8 +301,16 @@ RemoteConfigV4: legacy_sync_enabled=false — v3 unique works cancelled (runtime
 | `ConflictDetectionV4Test` | جهازان → تعارض، فهرس/حل، device register | 6/6 |
 | `RecordAuditLogV4Test` | migration، تدقيق، حقول حساسة، API | 6/6 |
 | `AdminOfflineV4Test` | تصدير Offline + صلاحيات + dashboard | 8/8 |
+| `SecureFileSystemTest` | `BlockSuspiciousStoragePaths` (مسارات محظورة + عادية) | 6/6 |
+| `CategoriesV4Test` | whitelist + alias `name`↔`description`/`attribute`/`city` + Store/Update/Search | 9/9 |
 
-**ملاحظة:** تشغيل `tests/Feature/` بالكامل يُظهر 21 فشلًا في اختبارات **قديمة غير v4** (مثل `ProfileTest` بسبب FK `country_code` → `ci_birth_cd`) — **ليست من نطاق v4** ولا علاقة لها بهذا المشروع.
+**ملاحظة:** تشغيل `tests/Feature/` بالكامل يُظهر 11 فشلاً في اختبارات **قديمة غير v4** (مثل `RegistrationTest` / `LivingMotherRegistrationTest`) — **ليست من نطاق v4** ولا علاقة لها بهذا المشروع.
+
+**إصلاحات 2026-09-24:**
+
+1. **تصنيفات التصنيفات (P0 13G #6/#7/#8):** whitelist `aid_statuses`→`aid_status` · إزالة `data_request_status` (ليس جدولاً) · `labelColumn()` في `AdminCrudControllerV4` لربط `name` بـ `description`/`attribute`/`city` عند Index/Store/Update + alias في الاستجابات · تحديث `categories-config.js` (21 مفتاحاً) و`categories.html` و`admin-nav.js`.
+2. **SecureFileSystemTest:** ملف فارغ (0 سطر) → 6 حالات فعلية لـ `BlockSuspiciousStoragePaths` (ملاحظة: middleware يستخدم `stripos` حرفياً وليس `preg_match` — الأنماط `.*` لا تعمل كـ regex — موثّق في الاختبار).
+3. **زر لوحة التحكم + توافق موبايل:** إزالة nav-tabs من 27 شاشة · إعادة تسمية 5 شاشات · إزالة `pw-form`/`data-del` · responsive overrides في `admin.css` · زر «لوحة التحكم» في `index.html`.
 
 #### 5.2 الاختبارات الميدانية (Field Testing)
 
@@ -418,7 +426,7 @@ Phase 8  ██████████ 100%  ✅
 - `routes/api_v4.php`
 - `app/Http/Controllers/Api/V4/*.php` (6)
 - `database/migrations/2026_09_23_*.php` (4 — تشمل `000004` cache_priority)
-- `tests/Feature/*V4Test.php` (5 → 28 اختبار) + `ProfileTest` (5 مُصلَّحة)
+- `tests/Feature/*V4Test.php` (5 → 28 اختبار) + `CategoriesV4Test` (9) + `SecureFileSystemTest` (6) + `ProfileTest` (5 مُصلَّحة) = **43**
 - `config/services.php` + `.env`
 
 **كود هاتف:**
@@ -427,7 +435,7 @@ Phase 8  ██████████ 100%  ✅
 - `android-v4/app/src/main/java/com/aso/app/{ChunkedUploadWorker,DriveStatusWorker}.java` (فهرسة فورية)
 - `android-v4/app/src/main/AndroidManifest.xml` + `res/xml/network_security_config.xml`
 - `android-v4/app/build.gradle` (versionCode 200)
-- APK: `android-v4/app/build/outputs/apk/debug/app-debug.apk` (55.8MB · 2026-09-23 14:47)
+- APK: `android-v4/app/build/outputs/apk/debug/app-debug.apk` (55.7MB · 2026-09-24 10:10)
 
 **لقطات ميدانية** (`%TEMP%\opencode\`):
 
@@ -438,8 +446,8 @@ Phase 8  ██████████ 100%  ✅
 
 **البرنامج مُنفَّذ هندسياً بالكامل** ضمن حدود الموارد المتاحة:
 
-- ✅ جودة: **33/33** اختبار (28 v4 + 5 ProfileTest) · بناء APK ناجح · إثبات ميداني متعدد السيناريوهات.
-- ✅ إضافات ما بعد cutover مكتملة: تكرار شاشات (10) + صور always-local (11) + تدقيق فجوات (12/13G) + تشخيص registration (13).
+- ✅ جودة: **43/43** اختبار (34 v4 + 6 SecureFile + 9 Categories + 5 ProfileTest) · بناء APK ناجح · إثبات ميداني متعدد السيناريوهات.
+- ✅ إضافات ما بعد cutover مكتملة: تكرار شاشات (10) + صور always-local (11) + تدقيق فجوات (12/13G) + تشخيص registration (13) + إصلاح تصنيفات (P0 13G #6–#8) + SecureFileSystemTest.
 - ✅ سلامة البيانات: Dual-Run · لا حذف · Rollback فوري.
 - ✅ جاهزية إنتاجية **مشروطة** بتفعيل العلم + 72 ساعة مراقبة + توقيع صاحب المشروع.
 
@@ -452,4 +460,4 @@ Phase 8  ██████████ 100%  ✅
 
 ---
 
-*انتهى التقرير — android-v4 · versionName 4.0 · versionCode 200 · 2026-09-23*
+*انتهى التقرير — android-v4 · versionName 4.0 · versionCode 200 · 2026-09-24 (محدَّث)*

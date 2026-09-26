@@ -55,7 +55,7 @@ public class DriveStatusWorker extends Worker {
 
             // 1. Fetch the Offline Inbox
             Request request = new Request.Builder()
-                    .url(baseUrl + "/api/uploads/offline-inbox")
+                    .url(baseUrl + "/api/mobile/v4/uploads/offline-inbox")
                     .header("Authorization", "Bearer " + token)
                     .header("Accept", "application/json")
                     .get()
@@ -83,15 +83,17 @@ public class DriveStatusWorker extends Worker {
                             String fileName = fileObj.optString("file_name");
                             String status = fileObj.optString("status");
                             String errorMessage = fileObj.optString("error_message", null);
-                            
+
                             Log.d(TAG, "📥 Processing Inbox Item: " + fileName + " -> " + status);
-                            
+
                             // Find local file item by name to get its internal ID
                             UploadDatabaseHelper.UploadItem localItem = dbHelper.getFileByName(fileName);
-                            
+
+                            boolean applied = false;
                             if (localItem != null) {
                                 if ("completed".equals(status)) {
                                     dbHelper.updateFileStatus(localItem.id, UploadDatabaseHelper.STATUS_COMPLETED, null);
+                                    applied = true;
                                     try {
                                         UploadServicePlugin.notifyUploadStatusChanged(localItem.id, UploadDatabaseHelper.STATUS_COMPLETED, null);
                                     } catch(Exception ignored){}
@@ -109,6 +111,7 @@ public class DriveStatusWorker extends Worker {
                                     } catch (Exception ignored) {}
                                 } else if ("failed".equals(status)) {
                                     dbHelper.updateFileStatus(localItem.id, UploadDatabaseHelper.STATUS_FAILED, errorMessage != null ? errorMessage : "Failed on server side.");
+                                    applied = true;
                                     try {
                                         UploadServicePlugin.notifyUploadStatusChanged(localItem.id, UploadDatabaseHelper.STATUS_FAILED, errorMessage != null ? errorMessage : "Failed on server side.");
                                     } catch(Exception ignored){}
@@ -116,9 +119,13 @@ public class DriveStatusWorker extends Worker {
                             } else {
                                 Log.w(TAG, "⚠️ Received status for unknown file: " + fileName);
                             }
-                            
-                            // Collect ID to ACK regardless of if we found it locally
-                            ackIds.put(id);
+
+                            // لا نُقرّ إلا بما طبّقناه فعلاً.
+                            // ACK أعمى كان يحذف الإشعار قبل تطبيقه (أو لملف مجهول)
+                            // فيبقى الصف في processing_server إلى الأبد بانتظار خبر محذوف.
+                            if (applied) {
+                                ackIds.put(id);
+                            }
                         }
                     } else {
                         Log.d(TAG, "ℹ️ No offline updates found in inbox.");
@@ -138,7 +145,7 @@ public class DriveStatusWorker extends Worker {
                 );
                 
                 Request ackRequest = new Request.Builder()
-                        .url(baseUrl + "/api/uploads/offline-inbox/ack")
+                        .url(baseUrl + "/api/mobile/v4/uploads/offline-inbox/ack")
                         .header("Authorization", "Bearer " + token)
                         .header("Accept", "application/json")
                         .post(ackBody)
@@ -153,11 +160,77 @@ public class DriveStatusWorker extends Worker {
                 }
             }
 
-            // 3. Fallback Check: Are there any files still stuck on processing locally for too long?
-            // Optional: Reschedule check if we still have processing files
-            List<UploadDatabaseHelper.UploadItem> remaining = dbHelper.getFilesByStatus(UploadDatabaseHelper.STATUS_PROCESSING_SERVER);
+            // 3. Fallback: صندوق الوارد قد يكون فارغاً (أُقرّ بإهمال أو فُقد)
+            // والصف لا يزال processing_server محلياً. نسأل الخادم مباشرةً
+            // عن حالة الملفات العالقة قبل أن تنتهي مهلة الاسترداد (٧٥ دقيقة).
+            List<UploadDatabaseHelper.UploadItem> remaining =
+                    dbHelper.getFilesByStatus(UploadDatabaseHelper.STATUS_PROCESSING_SERVER);
             if (!remaining.isEmpty()) {
-                Log.d(TAG, "⏳ Still " + remaining.size() + " files processing on server...");
+                Log.d(TAG, "⏳ Still " + remaining.size() + " files processing on server — querying drive-status…");
+                try {
+                    JSONArray names = new JSONArray();
+                    for (UploadDatabaseHelper.UploadItem item : remaining) {
+                        names.put(item.fileName);
+                    }
+                    JSONObject body = new JSONObject();
+                    body.put("file_names", names);
+
+                    Request statusRequest = new Request.Builder()
+                            .url(baseUrl + "/api/mobile/v4/uploads/drive-status")
+                            .header("Authorization", "Bearer " + token)
+                            .header("Accept", "application/json")
+                            .header("Content-Type", "application/json")
+                            .post(RequestBody.create(
+                                    body.toString(),
+                                    MediaType.parse("application/json; charset=utf-8")))
+                            .build();
+
+                    try (Response statusResponse = client.newCall(statusRequest).execute()) {
+                        if (statusResponse.isSuccessful() && statusResponse.body() != null) {
+                            JSONObject json = new JSONObject(statusResponse.body().string());
+                            JSONArray rows = json.optJSONArray("data");
+                            if (rows != null) {
+                                for (int i = 0; i < rows.length(); i++) {
+                                    JSONObject row = rows.getJSONObject(i);
+                                    String fileName = row.optString("file_name");
+                                    String uploadStatus = row.optString("upload_status");
+                                    if (!"completed".equals(uploadStatus) && !"failed".equals(uploadStatus)) {
+                                        continue;
+                                    }
+                                    UploadDatabaseHelper.UploadItem item = dbHelper.getFileByName(fileName);
+                                    if (item == null
+                                            || !UploadDatabaseHelper.STATUS_PROCESSING_SERVER.equals(item.status)) {
+                                        continue;
+                                    }
+                                    if ("completed".equals(uploadStatus)) {
+                                        dbHelper.updateFileStatus(item.id, UploadDatabaseHelper.STATUS_COMPLETED, null);
+                                        Log.i(TAG, "✅ drive-status: completed → " + fileName);
+                                        try {
+                                            UploadServicePlugin.notifyUploadStatusChanged(
+                                                    item.id, UploadDatabaseHelper.STATUS_COMPLETED, null);
+                                        } catch (Exception ignored) {}
+                                    } else {
+                                        dbHelper.updateFileStatus(item.id, UploadDatabaseHelper.STATUS_PENDING,
+                                                row.optString("error_message", "فشلت المعالجة على الخادم"));
+                                        Log.i(TAG, "🔁 drive-status: failed → pending " + fileName);
+                                        try {
+                                            UploadServicePlugin.notifyUploadStatusChanged(
+                                                    item.id, UploadDatabaseHelper.STATUS_PENDING,
+                                                    row.optString("error_message", null));
+                                        } catch (Exception ignored) {}
+                                    }
+                                }
+                            }
+                        } else {
+                            Log.w(TAG, "drive-status query HTTP " + statusResponse.code());
+                        }
+                    }
+                } catch (Exception ex) {
+                    Log.w(TAG, "drive-status fallback failed", ex);
+                }
+
+                remaining = dbHelper.getFilesByStatus(UploadDatabaseHelper.STATUS_PROCESSING_SERVER);
+                Log.d(TAG, "⏳ After drive-status: " + remaining.size() + " still processing…");
             }
 
             return Result.success();

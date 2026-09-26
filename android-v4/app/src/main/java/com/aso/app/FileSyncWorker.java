@@ -542,9 +542,12 @@ public class FileSyncWorker extends Worker {
             // ✅ CRITICAL FIX: Ignore wrong URLs from old DB queue and force the correct endpoint
             String finalApiUrl = item.apiUrl;
             if (finalApiUrl != null && finalApiUrl.contains("/sponsorships/") && finalApiUrl.endsWith("/files")) {
-                int index = finalApiUrl.indexOf("/mobile/sponsorships/");
+                int index = finalApiUrl.indexOf("/mobile/v4/sponsorships/");
+                if (index == -1) {
+                    index = finalApiUrl.indexOf("/mobile/sponsorships/");
+                }
                 if (index != -1) {
-                    finalApiUrl = finalApiUrl.substring(0, index) + "/mobile/upload-file";
+                    finalApiUrl = finalApiUrl.substring(0, index) + "/mobile/v4/upload-file";
                 }
             }
 

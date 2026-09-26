@@ -1063,9 +1063,25 @@
         document.addEventListener('DOMContentLoaded', function() {
             const mainForm = document.getElementById('main_form');
             if (!mainForm) return;
+
+            // 🔒 تحرير قفل الإرسال — يُستدعى في جميع مسارات الخطأ للسماح بمحاولة جديدة
+            const releaseSubmitLock = function() {
+                mainForm.dataset.inflight = '';
+                if (typeof window.isSubmitting !== 'undefined') {
+                    window.isSubmitting = false;
+                }
+            };
+
             mainForm.addEventListener('submit', function(e) {
                 // منع الإرسال الافتراضي
                 e.preventDefault();
+
+                // 🛑 طلب سابق ما يزال قيد التنفيذ — تجاهل النقرات المتكررة (منع الإرسال المزدوج)
+                if (mainForm.dataset.inflight === '1') {
+                    console.warn('⛔ تجاهل محاولة إرسال مكررة: يوجد طلب قيد التنفيذ');
+                    return;
+                }
+                mainForm.dataset.inflight = '1';
                 // جمع جميع البيانات في FormData
                 const formData = new FormData(mainForm);
 
@@ -1131,46 +1147,70 @@
                 // جمع جميع المرفقات من window.allDocs بشكل ديناميكي لأي شخص أو بوابة
                 let attachIndex = 0;
                 let attachmentsDebug = [];
+                // 🛡️ منع التكرار: نفس المستند قد يظهر في أكثر من مفتاح (بوابة + رقم الهوية)
+                // أو يتكرر بعد عمليات الحفظ/الاسترجاع بين التبويبات.
+                const seenAttachments = new Set();
                 if (window.allDocs && window.allDocs instanceof Map) {
                     window.allDocs.forEach((docsArr, personKey) => {
                         docsArr.forEach(doc => {
+                            if (!doc || typeof doc !== 'object' || !doc.processedFile) {
+                                return;
+                            }
                             // استخدم doc.type أو doc.docType
                             const docTypeVal = doc.type || doc.docType;
                             if (!docTypeVal || docTypeVal === 'undefined') {
                                 console.error('❌ مرفق بدون نوع وثيقة (type):', doc);
                             }
-                            if (doc && typeof doc === 'object' && doc.processedFile) {
-                                if (doc.tempPath) {
-                                    formData.append(`attachments[${attachIndex}][temp_path]`, doc.tempPath);
-                                    const originalName = (doc.originalFile && doc.originalFile.name) || (doc.processedFile && doc.processedFile.name) || 'file';
-                                    formData.append(`attachments[${attachIndex}][stored_file_name]`, originalName);
-                                } else {
-                                    formData.append(`attachments[${attachIndex}][file]`, doc.processedFile);
-                                    formData.append(`attachments[${attachIndex}][stored_file_name]`, doc.processedFile.name);
-                                }
-                                formData.append(`attachments[${attachIndex}][person_identity_number]`, doc.personId);
-                                formData.append(`attachments[${attachIndex}][file_type]`, docTypeVal);
-                                formData.append(`attachments[${attachIndex}][file_id_number]`, doc.fileId || '');
-                                attachmentsDebug.push({
-                                    idx: attachIndex,
-                                    name: doc.processedFile.name,
-                                    type: docTypeVal,
-                                    personId: doc.personId,
-                                    fileId: doc.fileId,
-                                    isImage: doc.processedFile.type && doc
-                                        .processedFile.type.startsWith('image/')
-                                });
-                                console.log('🟡 سيتم إرسال هذا المرفق:', {
-                                    idx: attachIndex,
-                                    name: doc.processedFile.name,
-                                    type: docTypeVal,
-                                    personId: doc.personId,
-                                    fileId: doc.fileId,
-                                    isImage: doc.processedFile.type && doc
-                                        .processedFile.type.startsWith('image/')
-                                });
-                                attachIndex++;
+
+                            const processedFile = doc.processedFile;
+                            const isRealFile = (typeof Blob !== 'undefined' && processedFile instanceof Blob);
+
+                            // تجاهل أي مرفق ليس ملفاً فعلياً ولا يملك مساراً مؤقتاً (قيمة منطقية مثل true)
+                            if (!doc.tempPath && !isRealFile) {
+                                console.warn('⚠️ تجاهل مرفق غير صالح (ليس ملفاً فعلياً):', doc);
+                                return;
                             }
+
+                            // مفتاح التوقيع: الشخص + نوع الوثيقة + هوية الملف (الاسم + الحجم) أو المسار المؤقت
+                            const dupFileName = (doc.originalFile && doc.originalFile.name) || (isRealFile && processedFile.name) || '';
+                            const dupFileSize = (isRealFile && processedFile.size) || 0;
+                            const dedupKey = `${doc.personId || ''}|${docTypeVal}|${dupFileName}|${dupFileSize}|${doc.tempPath || ''}`;
+                            if (seenAttachments.has(dedupKey)) {
+                                console.warn('⛔ تم استبعاد مرفق مكرر قبل الإرسال:', { personKey, dedupKey });
+                                return;
+                            }
+                            seenAttachments.add(dedupKey);
+
+                            if (doc.tempPath) {
+                                formData.append(`attachments[${attachIndex}][temp_path]`, doc.tempPath);
+                                const originalName = (doc.originalFile && doc.originalFile.name) || (doc.processedFile && doc.processedFile.name) || 'file';
+                                formData.append(`attachments[${attachIndex}][stored_file_name]`, originalName);
+                            } else {
+                                formData.append(`attachments[${attachIndex}][file]`, doc.processedFile);
+                                formData.append(`attachments[${attachIndex}][stored_file_name]`, doc.processedFile.name);
+                            }
+                            formData.append(`attachments[${attachIndex}][person_identity_number]`, doc.personId);
+                            formData.append(`attachments[${attachIndex}][file_type]`, docTypeVal);
+                            formData.append(`attachments[${attachIndex}][file_id_number]`, doc.fileId || '');
+                            attachmentsDebug.push({
+                                idx: attachIndex,
+                                name: doc.processedFile.name,
+                                type: docTypeVal,
+                                personId: doc.personId,
+                                fileId: doc.fileId,
+                                isImage: doc.processedFile.type && doc
+                                    .processedFile.type.startsWith('image/')
+                            });
+                            console.log('🟡 سيتم إرسال هذا المرفق:', {
+                                idx: attachIndex,
+                                name: doc.processedFile.name,
+                                type: docTypeVal,
+                                personId: doc.personId,
+                                fileId: doc.fileId,
+                                isImage: doc.processedFile.type && doc
+                                    .processedFile.type.startsWith('image/')
+                            });
+                            attachIndex++;
                         });
                     });
                 }
@@ -1238,9 +1278,7 @@
                                 }
                             });
 
-                            if (typeof window.isSubmitting !== 'undefined') {
-                                window.isSubmitting = false;
-                            }
+                            releaseSubmitLock();
                             return;
                         }
 
@@ -1278,9 +1316,7 @@
                             });
 
                             // إعادة تعيين isSubmitting للسماح بإعادة المحاولة
-                            if (typeof window.isSubmitting !== 'undefined') {
-                                window.isSubmitting = false;
-                            }
+                            releaseSubmitLock();
                             return;
                         }
 
@@ -1301,9 +1337,7 @@
                             });
 
                             // إعادة تعيين isSubmitting للسماح بإعادة المحاولة
-                            if (typeof window.isSubmitting !== 'undefined') {
-                                window.isSubmitting = false;
-                            }
+                            releaseSubmitLock();
                             return;
                         }
 
@@ -1329,9 +1363,7 @@
                             });
 
                             // إعادة تعيين isSubmitting للسماح بإعادة المحاولة
-                            if (typeof window.isSubmitting !== 'undefined') {
-                                window.isSubmitting = false;
-                            }
+                            releaseSubmitLock();
                         } else {
                             // اطبع الاستجابة في الـ console لتسهيل التشخيص
                             console.error('استجابة غير متوقعة من السيرفر:', data);
@@ -1342,9 +1374,7 @@
                             });
 
                             // إعادة تعيين isSubmitting للسماح بإعادة المحاولة
-                            if (typeof window.isSubmitting !== 'undefined') {
-                                window.isSubmitting = false;
-                            }
+                            releaseSubmitLock();
                         }
                     })
                     .catch(err => {
@@ -1357,9 +1387,7 @@
                         });
 
                         // إعادة تعيين isSubmitting للسماح بإعادة المحاولة
-                        if (typeof window.isSubmitting !== 'undefined') {
-                            window.isSubmitting = false;
-                        }
+                        releaseSubmitLock();
                     });
             });
         });

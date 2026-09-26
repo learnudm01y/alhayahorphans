@@ -574,8 +574,10 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
 
     /** يُعتبر الصف عالقاً إذا لم يُلمس updated_at خلال هذه المدة. */
     public static final long STALE_UPLOAD_TIMEOUT_MS = 10 * 60 * 1000L;      // ١٠ دقائق
-    /** مهلة انتظار المعالجة على الخادم قبل إعادة الملف للطابور. */
-    public static final long STALE_PROCESSING_TIMEOUT_MS = 45 * 60 * 1000L;  // ٤٥ دقيقة
+    /** مهلة انتظار المعالجة على الخادم قبل إعادة الملف للطابور.
+     *  يجب أن تتجاوز $timeout=3600s (٦٠ دقيقة) لـ ProcessRcloneUploadJob
+     *  بفارق مريح، وإلا سيُسترد ملف ما زال قيد الرفع فيتكرر الرفع بلا فائدة. */
+    public static final long STALE_PROCESSING_TIMEOUT_MS = 75 * 60 * 1000L;  // ٧٥ دقيقة
 
     /**
      * يحجز أول ملف معلق ذرّياً: ينقله من pending إلى uploading داخل معاملة

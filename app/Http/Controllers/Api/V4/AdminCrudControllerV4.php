@@ -19,11 +19,11 @@ class AdminCrudControllerV4 extends Controller
 {
     protected AuditLoggerV4 $audit;
 
-    /** جداول التصنيفات المسموح بها فقط (22 تصنيف). */
+    /** جداول التصنيفات المسموح بها فقط (21 تصنيف). */
     protected const CATEGORY_TABLES = [
         'academic_degrees',
         'category_of_relations',
-        'aid_statuses',
+        'aid_status',
         'bank_names',
         'city',
         'currency_types',
@@ -42,7 +42,6 @@ class AdminCrudControllerV4 extends Controller
         'sponsorship_statuses',
         'type_of_accommodation',
         'type_of_guarantee',
-        'data_request_status',
     ];
 
     public function __construct(AuditLoggerV4 $audit)
@@ -238,14 +237,23 @@ class AdminCrudControllerV4 extends Controller
             return response()->json(['success' => false, 'message' => 'Forbidden table'], 403);
         }
 
+        $label = $this->labelColumn($table);
         $q = trim((string) $request->query('q', ''));
         $query = DB::table($table);
-        if ($q !== '' && SchemaHasColumn($table, 'name')) {
-            $query->where('name', 'like', "%{$q}%");
+        if ($q !== '' && $label !== null) {
+            $query->where($label, 'like', "%{$q}%");
         }
         $query->orderBy('id');
 
-        return response()->json(['success' => true] + $this->pageMeta($request, $query));
+        $page = $this->pageMeta($request, $query);
+        // وحّد اسم الحقل الظاهر للواجهة: name مهما كان العمود الفعلي
+        if ($label !== null && $label !== 'name') {
+            foreach ($page['data'] as $row) {
+                $row->name = $row->{$label} ?? null;
+            }
+        }
+
+        return response()->json(['success' => true] + $page);
     }
 
     public function categoriesStore(Request $request, string $table): JsonResponse
@@ -258,6 +266,11 @@ class AdminCrudControllerV4 extends Controller
             array_diff_key($request->all(), ['name' => 1]);
 
         $allowed = $this->columns($table);
+        $label = $this->labelColumn($table) ?? 'name';
+        if ($label !== 'name' && isset($data['name'])) {
+            $data[$label] = $data['name'];
+            unset($data['name']);
+        }
         $insert = array_intersect_key($data, array_flip($allowed));
         $insert['created_at'] = now();
         $insert['updated_at'] = now();
@@ -279,7 +292,13 @@ class AdminCrudControllerV4 extends Controller
         }
 
         $allowed = $this->columns($table);
-        $update = array_intersect_key($request->all(), array_flip($allowed));
+        $payload = $request->all();
+        $label = $this->labelColumn($table);
+        if ($label !== null && $label !== 'name' && isset($payload['name'])) {
+            $payload[$label] = $payload['name'];
+            unset($payload['name']);
+        }
+        $update = array_intersect_key($payload, array_flip($allowed));
         unset($update['id'], $update['created_at']);
         $update['updated_at'] = now();
 
@@ -314,6 +333,21 @@ class AdminCrudControllerV4 extends Controller
     private function columns(string $table): array
     {
         return collect(DB::getSchemaBuilder()->getColumnListing($table))->all();
+    }
+
+    /**
+     * الحقل الفعلي الذي يحمل الاسم الظاهر للتصنيف.
+     * الجداول القديمة تستخدم description / attribute / city بدل name.
+     */
+    private function labelColumn(string $table): ?string
+    {
+        $cols = $this->columns($table);
+        foreach (['name', 'description', 'attribute', 'city', 'title'] as $candidate) {
+            if (in_array($candidate, $cols, true)) {
+                return $candidate;
+            }
+        }
+        return null;
     }
 
     // ------------------------------------------------------------------

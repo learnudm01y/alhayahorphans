@@ -79,6 +79,13 @@ class SyncControllerV4 extends Controller
      */
     public function actions(Request $request): JsonResponse
     {
+        // صيغة التطبيق القديم v3: إجراء مفرد بدون مصفوفة actions
+        // (طابور DataSyncForegroundService يستهدف /mobile/v4/sync/actions الآن)
+        // → نُحوّله إلى كنترولر الإجراءات القديم نفسه.
+        if (!$request->has('actions')) {
+            return app(\App\Http\Controllers\Api\ActionSyncController::class)->syncAction($request);
+        }
+
         $deviceId = $request->header('X-Device-Id', 'unknown');
 
         $validated = $request->validate([
