@@ -1299,8 +1299,10 @@ class SponsorshipSyncController extends Controller
                     $photoIdentityNumbers[(string) $idNum] = true;
                 });
 
-            $photoBase = url('/api/mobile/registration/photo');
-            $pathBase = url('/api/mobile/photos');
+            // نسخ v4 من مسارَي الصور: تربطان حركة bulk الصور بمحدِّد throttle واحد
+            // وواسع (api-v4) بدل المحدِّد القديم 'api' المشترك مع كل مسارات التطبيق.
+            $photoBase = url('/api/mobile/v4/registration/photo');
+            $pathBase = url('/api/mobile/v4/photos');
 
             // Optimized: Only fetch sponsorships that actually have photo data
             $rows = DB::table('sponsorships')

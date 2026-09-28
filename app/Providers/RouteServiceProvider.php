@@ -26,6 +26,17 @@ class RouteServiceProvider extends ServiceProvider
     public function boot(): void
     {
         RateLimiter::for('api', function (Request $request) {
+            // صور الكفالات: تنزيل دفعة واحدة للشاشة يطلب مئات الصور في دقائق.
+            // حدّ ٦٠/دقيقة كان يُرجع 429 في منتصف التنزيل والعميل يبتلع الفشل بصمت.
+            if ($request->is(
+                'api/mobile/registration/photo/*',
+                'api/mobile/registration/photo/*/exists',
+                'api/mobile/photos/*',
+                'api/mobile/photos/*/exists'
+            )) {
+                return Limit::perMinute(600)->by($request->user()?->id ?: $request->ip());
+            }
+
             // ⚠️ حدّ ٦٠ طلباً/دقيقة كان يجعل رفع أي ملف كبير مستحيلاً.
             // الرفع المُجزَّأ يُرسل طلباً لكل جزء: فيديو ٢٠٠ ميجابايت بأجزاء
             // ١ ميجابايت = ٢٠٠ طلب، أي أن الجهاز يُحظر بعد أول ٦٠ جزءاً ويتلقى
@@ -48,6 +59,16 @@ class RouteServiceProvider extends ServiceProvider
         });
 
         RateLimiter::for('api-v4', function (Request $request) {
+            // نفس منطق محدِّد 'api' — التنزيل الجماعي للصور يحتاج سقفاً واسعاً.
+            if ($request->is(
+                'api/mobile/v4/registration/photo/*',
+                'api/mobile/v4/registration/photo/*/exists',
+                'api/mobile/v4/photos/*',
+                'api/mobile/v4/photos/*/exists'
+            )) {
+                return Limit::perMinute(600)->by($request->user()?->id ?: $request->ip());
+            }
+
             return Limit::perMinute(120)->by($request->user()?->id ?: $request->ip());
         });
 

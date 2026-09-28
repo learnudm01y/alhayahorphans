@@ -290,6 +290,14 @@
                             تصدير تسجيل دخول
                         </button>
 
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#bulkStatusModal">
+                            <i class="ki-duotone ki-refresh fs-2">
+                                <span class="path1"></span>
+                                <span class="path2"></span>
+                            </i>
+                            تغيير حالة الكفالات
+                        </button>
+
                         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#sponsorshipModal">
                             <i class="ki-duotone ki-plus fs-2"></i>
                             إضافة كفالة جديدة
@@ -518,6 +526,120 @@
                             <span class="path2"></span>
                         </i>
                         تنفيذ الاستيراد
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Bulk Status Change -->
+<div class="modal fade" id="bulkStatusModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="fw-bold">تغيير حالة الكفالات</h2>
+                <div class="btn btn-icon btn-sm btn-active-icon-primary" data-bs-dismiss="modal">
+                    <i class="ki-duotone ki-cross fs-1">
+                        <span class="path1"></span>
+                        <span class="path2"></span>
+                    </i>
+                </div>
+            </div>
+
+            <form id="bulkStatusForm">
+                @csrf
+                <div class="modal-body py-10 px-lg-17">
+
+                    <!--begin::نطاق التغيير-->
+                    <div class="mb-6">
+                        <h3 class="fw-bold text-gray-900 mb-4">نطاق التغيير</h3>
+                        <ul class="nav nav-tabs nav-line-tabs nav-line-tabs-2x mb-5 fs-6 fw-bold" id="bulkScopeTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="bulk_scope_filtered_tab" data-bs-toggle="tab"
+                                        data-bs-target="#bulk_scope_filtered" type="button" role="tab"
+                                        aria-controls="bulk_scope_filtered" aria-selected="true">
+                                    المعروضون في الشاشة
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="bulk_scope_sponsor_tab" data-bs-toggle="tab"
+                                        data-bs-target="#bulk_scope_sponsor" type="button" role="tab"
+                                        aria-controls="bulk_scope_sponsor" aria-selected="false">
+                                    مؤسسة محددة
+                                </button>
+                            </li>
+                        </ul>
+
+                        <div class="tab-content" id="bulkScopeContent">
+                            <!--begin::المعروضون في الشاشة-->
+                            <div class="tab-pane fade show active" id="bulk_scope_filtered" role="tabpanel"
+                                 aria-labelledby="bulk_scope_filtered_tab">
+                                <div class="alert alert-light py-4 mb-0">
+                                    <div class="fw-semibold mb-3">سيتم تغيير حالة جميع الكفالات المطابقة لفلاتر الجدول الحالية:</div>
+                                    <div id="bulk_scope_filters" class="d-flex flex-wrap gap-2"></div>
+                                    <small class="text-muted d-block mt-3">
+                                        الفلاتر المطبَّقة على الجدول الآن فقط (لا يشمل نص البحث).
+                                        غيّر الفلاتر في الصفحة ثم أعد فتح النافذة لتحديث النطاق.
+                                    </small>
+                                </div>
+                            </div>
+                            <!--end::المعروضون في الشاشة-->
+
+                            <!--begin::مؤسسة محددة-->
+                            <div class="tab-pane fade" id="bulk_scope_sponsor" role="tabpanel"
+                                 aria-labelledby="bulk_scope_sponsor_tab">
+                                <div class="fv-row">
+                                    <label class="fs-6 fw-semibold mb-2 required">المؤسسة الكافلة</label>
+                                    <select class="form-select form-select-solid" id="bulk_sponsor_id">
+                                        <option value="">اختر المؤسسة</option>
+                                        @foreach($sponsors as $sponsor)
+                                            <option value="{{ $sponsor->id }}">{{ $sponsor->sponsor_name }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            </div>
+                            <!--end::مؤسسة محددة-->
+                        </div>
+                    </div>
+                    <!--end::نطاق التغيير-->
+
+                    <div class="fv-row mb-7">
+                        <label class="fs-6 fw-semibold mb-2 required">الحالة الجديدة</label>
+                        <select class="form-select form-select-solid" id="bulk_status_id">
+                            <option value="">اختر الحالة</option>
+                            @foreach($sponsorshipStatuses as $status)
+                                <option value="{{ $status->id }}">{{ $status->description }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <!--begin::معاينة-->
+                    <div class="alert alert-light py-4 d-none" id="bulk_status_preview">
+                        <div class="d-flex align-items-center">
+                            <i class="ki-duotone ki-information-2 fs-2x text-primary me-3">
+                                <span class="path1"></span>
+                                <span class="path2"></span>
+                                <span class="path3"></span>
+                            </i>
+                            <div>
+                                <div id="bulk_status_preview_text" class="fw-semibold"></div>
+                                <small class="text-muted" id="bulk_status_preview_note"></small>
+                            </div>
+                        </div>
+                    </div>
+                    <!--end::معاينة-->
+
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="submit" class="btn btn-primary" id="bulk_status_submit_btn" disabled>
+                        <i class="ki-duotone ki-refresh fs-2">
+                            <span class="path1"></span>
+                            <span class="path2"></span>
+                        </i>
+                        تغيير الحالة
                     </button>
                 </div>
             </form>
@@ -1634,62 +1756,315 @@
                 const newStatusId = select.val();
                 const oldValue = select.data('old-value') || select.val();
 
+                // حفظ القيمة القديمة
+                select.data('old-value', newStatusId);
+
+                $.ajax({
+                    url: `/admin/sponsorships/${sponsorshipId}/update-status`,
+                    type: 'POST',
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        sponsorship_status_id: newStatusId
+                    },
+                    success: function(response) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'تم التحديث',
+                            text: response.message || 'تم تحديث حالة الكفالة بنجاح',
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+
+                        // إعادة تحميل الجدول
+                        if ($.fn.DataTable.isDataTable('#sponsorships-table')) {
+                            $('#sponsorships-table').DataTable().ajax.reload(null, false);
+                        }
+                    },
+                    error: function(xhr) {
+                        // إرجاع القيمة القديمة
+                        select.val(oldValue);
+                        select.data('old-value', oldValue);
+
+                        let errorMessage = 'حدث خطأ أثناء تحديث حالة الكفالة';
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            errorMessage = xhr.responseJSON.message;
+                        }
+
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'خطأ!',
+                            text: errorMessage,
+                            confirmButtonText: 'حسناً'
+                        });
+                    }
+                });
+            });
+
+            // ============================================
+            // تغيير حالة كفالات مؤسسة بالجملة
+            // ============================================
+            $('#bulk_sponsor_id, #bulk_status_id').select2({
+                dir: 'rtl',
+                width: '100%',
+                dropdownParent: $('#bulkStatusModal')
+            });
+
+            function resetBulkStatusPreview() {
+                $('#bulk_status_preview').addClass('d-none');
+                $('#bulk_status_preview_text').text('');
+                $('#bulk_status_preview_note').text('');
+                $('#bulk_status_submit_btn').prop('disabled', true);
+            }
+
+            // النطاق الحالي: 'filtered' (المعروضون في الشاشة) أو 'sponsor' (مؤسسة محددة)
+            function getBulkScope() {
+                const target = $('#bulkScopeTabs .nav-link.active').data('bs-target');
+                return target === '#bulk_scope_sponsor' ? 'sponsor' : 'filtered';
+            }
+
+            function getBulkScopeLabel() {
+                return getBulkScope() === 'sponsor'
+                    ? 'المؤسسة: <strong>' + $('#bulk_sponsor_id option:selected').text() + '</strong>'
+                    : 'النطاق: <strong>المعروضون في الشاشة</strong>';
+            }
+
+            // بناء بيانات الطلب حسب النطاق المحدد
+            function buildBulkRequest(preview) {
+                const data = {
+                    _token: '{{ csrf_token() }}',
+                    url: getBulkScope() === 'sponsor'
+                        ? '{{ route("admin.sponsorships.bulkUpdateStatus") }}'
+                        : '{{ route("admin.sponsorships.bulkUpdateStatusFiltered") }}'
+                };
+
+                if (getBulkScope() === 'sponsor') {
+                    data.sponsor_id = $('#bulk_sponsor_id').val();
+                    data.sponsorship_status_id = $('#bulk_status_id').val();
+                } else {
+                    data.new_status_id = $('#bulk_status_id').val();
+                    data.sponsor_id = $('#filter_sponsor').val() || '';
+                    data.sponsorship_type_id = $('#filter_sponsorship_type').val() || '';
+                    data.sponsorship_status_id = $('#filter_sponsorship_status').val() || '';
+                }
+
+                if (preview) {
+                    data.preview = 1;
+                }
+
+                return data;
+            }
+
+            function loadBulkStatusPreview() {
+                const requestData = buildBulkRequest(true);
+                const url = requestData.url;
+                delete requestData.url;
+
+                const statusId = requestData.new_status_id || requestData.sponsorship_status_id;
+                const missingSponsor = getBulkScope() === 'sponsor' && !requestData.sponsor_id;
+
+                if (!statusId || missingSponsor) {
+                    resetBulkStatusPreview();
+                    return;
+                }
+
+                $('#bulk_status_preview').removeClass('d-none');
+                $('#bulk_status_preview_text').text('جاري حساب السجلات المتأثرة...');
+                $('#bulk_status_preview_note').text('');
+                $('#bulk_status_submit_btn').prop('disabled', true);
+
+                $.ajax({
+                    url: url,
+                    type: 'POST',
+                    data: requestData,
+                    success: function(response) {
+                        if (!response.success) {
+                            resetBulkStatusPreview();
+                            return;
+                        }
+
+                        const statusName = $('#bulk_status_id option:selected').text();
+
+                        $('#bulk_status_preview_text').html(
+                            getBulkScopeLabel() + ' — الحالة الجديدة: <strong>' + statusName + '</strong>'
+                        );
+
+                        if (response.to_update > 0) {
+                            $('#bulk_status_preview_note').html(
+                                'سيتم تحديث <strong>' + response.to_update + '</strong> كفالة من أصل <strong>' +
+                                response.total + '</strong> — و<strong>' + response.unchanged +
+                                '</strong> سجل بدون تغيير.'
+                            );
+                            $('#bulk_status_submit_btn').prop('disabled', false);
+                        } else {
+                            $('#bulk_status_preview_note').html(
+                                'جميع السجلات (<strong>' + response.total +
+                                '</strong>) بالحالة المحددة بالفعل — لا يوجد ما يُحدَّث.'
+                            );
+                            $('#bulk_status_submit_btn').prop('disabled', true);
+                        }
+                    },
+                    error: function() {
+                        resetBulkStatusPreview();
+                        $('#bulk_status_preview').removeClass('d-none');
+                        $('#bulk_status_preview_text').text('تعذر حساب السجلات المتأثرة');
+                    }
+                });
+            }
+
+            $('#bulk_sponsor_id, #bulk_status_id').on('change', loadBulkStatusPreview);
+
+            // عرض فلاتر الشاشة الحالية كشرائح داخل نطاق "المعروضون في الشاشة"
+            function renderScreenFilterChips() {
+                const filters = [
+                    { label: 'المؤسسة', el: '#filter_sponsor', all: 'جميع المؤسسات' },
+                    { label: 'نوع الكفالة', el: '#filter_sponsorship_type', all: 'جميع الأنواع' },
+                    { label: 'الحالة', el: '#filter_sponsorship_status', all: 'جميع الحالات' }
+                ];
+
+                const chips = [];
+                let activeCount = 0;
+
+                filters.forEach(function(filter) {
+                    const value = $(filter.el).val();
+
+                    if (value) {
+                        activeCount++;
+                        chips.push('<span class="badge badge-light-primary fs-7">' + filter.label + ': ' +
+                            $(filter.el).find('option:selected').text() + '</span>');
+                    } else {
+                        chips.push('<span class="badge badge-light-secondary fs-7">' + filter.label + ': ' +
+                            filter.all + '</span>');
+                    }
+                });
+
+                if (activeCount === 0) {
+                    chips.push('<span class="badge badge-warning fs-7">جميع السجلات (بدون فلاتر)</span>');
+                }
+
+                $('#bulk_scope_filters').html(chips.join(''));
+            }
+
+            // تغيير النطاق (تبويب) → إعادة المعاينة
+            $('#bulkScopeTabs .nav-link').on('shown.bs.tab', function() {
+                resetBulkStatusPreview();
+
+                if ($('#bulk_status_id').val()) {
+                    loadBulkStatusPreview();
+                }
+            });
+
+            $('#bulkStatusModal').on('show.bs.modal', function() {
+                resetBulkStatusPreview();
+                renderScreenFilterChips();
+
+                // النطاق الافتراضي: المعروضون في الشاشة
+                $('#bulkScopeTabs .nav-link').removeClass('active').attr('aria-selected', 'false');
+                $('#bulk_scope_filtered_tab').addClass('active').attr('aria-selected', 'true');
+                $('#bulkScopeContent .tab-pane').removeClass('show active');
+                $('#bulk_scope_filtered').addClass('show active');
+
+                // ملء تلقائي من فلتر "المؤسسات الكافلة" الحالي في الصفحة (لنطاق المؤسسة المحددة)
+                const filterSponsor = $('#filter_sponsor').val();
+                if (filterSponsor && $('#bulk_sponsor_id option[value="' + filterSponsor + '"]').length) {
+                    $('#bulk_sponsor_id').val(filterSponsor).trigger('change.select2');
+                }
+            });
+
+            $('#bulkStatusModal').on('hidden.bs.modal', function() {
+                $('#bulkStatusForm')[0].reset();
+                $('#bulk_sponsor_id, #bulk_status_id').val('').trigger('change.select2');
+                resetBulkStatusPreview();
+            });
+
+            $('#bulkStatusForm').on('submit', function(e) {
+                e.preventDefault();
+
+                const requestData = buildBulkRequest(false);
+                const url = requestData.url;
+                delete requestData.url;
+
+                const statusId = requestData.new_status_id || requestData.sponsorship_status_id;
+                const missingSponsor = getBulkScope() === 'sponsor' && !requestData.sponsor_id;
+
+                if (!statusId || missingSponsor) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'تنبيه',
+                        text: 'يرجى اختيار المؤسسة الكافلة (إذا كان النطاق مؤسسة محددة) والحالة الجديدة'
+                    });
+                    return;
+                }
+
+                const statusName = $('#bulk_status_id option:selected').text();
+                const previewNote = $('#bulk_status_preview_note').html() || '';
+
                 Swal.fire({
-                    title: 'تأكيد التغيير',
-                    text: 'هل أنت متأكد من تغيير حالة الكفالة؟',
+                    title: 'تغيير حالة الكفالات',
+                    html: getBulkScopeLabel() + '<br>الحالة الجديدة: <strong>' + statusName +
+                        '</strong>.<br><br>' + previewNote,
                     icon: 'question',
                     showCancelButton: true,
                     confirmButtonColor: '#3085d6',
                     cancelButtonColor: '#d33',
-                    confirmButtonText: 'نعم، غير الحالة',
+                    confirmButtonText: 'نعم، غيّر الحالة',
                     cancelButtonText: 'إلغاء'
                 }).then((result) => {
-                    if (result.isConfirmed) {
-                        // حفظ القيمة القديمة
-                        select.data('old-value', newStatusId);
+                    if (!result.isConfirmed) {
+                        return;
+                    }
 
-                        $.ajax({
-                            url: `/admin/sponsorships/${sponsorshipId}/update-status`,
-                            type: 'POST',
-                            data: {
-                                _token: '{{ csrf_token() }}',
-                                sponsorship_status_id: newStatusId
-                            },
-                            success: function(response) {
+                    const $btn = $('#bulk_status_submit_btn');
+                    const originalHtml = $btn.html();
+                    $btn.prop('disabled', true).html(
+                        '<span class="spinner-border spinner-border-sm align-middle me-2"></span> جاري التحديث...'
+                    );
+
+                    $.ajax({
+                        url: url,
+                        type: 'POST',
+                        data: requestData,
+                        success: function(response) {
+                            $btn.html(originalHtml).prop('disabled', false);
+
+                            if (response.success) {
+                                const summary = response.summary || {};
+                                $('#bulkStatusModal').modal('hide');
+
                                 Swal.fire({
                                     icon: 'success',
                                     title: 'تم التحديث',
-                                    text: response.message || 'تم تحديث حالة الكفالة بنجاح',
-                                    timer: 2000,
+                                    html: response.message +
+                                        '<br><br>السجلات المتأثرة: <strong>' + (summary.updated || 0) + '</strong>' +
+                                        '<br>بدون تغيير: <strong>' + (summary.unchanged || 0) + '</strong>',
+                                    timer: 3000,
                                     showConfirmButton: false
+                                }).then(() => {
+                                    // إزالة ظلّ Bootstrap المتبقي بعد إغلاق SweetAlert (تعارض backdrop)
+                                    cleanupModalBackdrop();
                                 });
 
-                                // إعادة تحميل الجدول
                                 if ($.fn.DataTable.isDataTable('#sponsorships-table')) {
                                     $('#sponsorships-table').DataTable().ajax.reload(null, false);
                                 }
-                            },
-                            error: function(xhr) {
-                                // إرجاع القيمة القديمة
-                                select.val(oldValue);
-
-                                let errorMessage = 'حدث خطأ أثناء تحديث حالة الكفالة';
-                                if (xhr.responseJSON && xhr.responseJSON.message) {
-                                    errorMessage = xhr.responseJSON.message;
-                                }
-
+                            } else {
                                 Swal.fire({
                                     icon: 'error',
                                     title: 'خطأ!',
-                                    text: errorMessage,
-                                    confirmButtonText: 'حسناً'
+                                    text: response.message || 'حدث خطأ أثناء تغيير الحالة'
                                 });
                             }
-                        });
-                    } else {
-                        // إرجاع القيمة القديمة إذا ألغى المستخدم
-                        select.val(oldValue);
-                    }
+                        },
+                        error: function(xhr) {
+                            $btn.html(originalHtml).prop('disabled', false);
+
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'خطأ!',
+                                text: (xhr.responseJSON && xhr.responseJSON.message) ||
+                                    'حدث خطأ أثناء تغيير الحالة'
+                            });
+                        }
+                    });
                 });
             });
 
@@ -3504,6 +3879,7 @@
                 if (response.validation.duplicates_in_database && response.validation.duplicates_in_database.length > 0) {
                     // لا نمنع الاستيراد - سيتم تخطي السجلات المكررة فقط
                     const duplicatesDb = response.validation.duplicates_in_database;
+                    const selectedStatusText = $('#import_sponsorship_status_id option:selected').text() || '-';
 
                     let duplicatesDbHtml = `
                         <div class="alert alert-warning mb-5">
@@ -3517,7 +3893,9 @@
                                     <h5 class="mb-2">⚠️ سجلات مكررة سيتم تخطيها (${duplicatesDb.length})</h5>
                                     <p class="mb-3">
                                         هؤلاء الأشخاص <strong class="text-warning">مسجلون مسبقاً مع نفس الجمعية</strong>.
-                                        <strong>سيتم تخطيهم تلقائياً</strong> وإدخال باقي السجلات الصحيحة:
+                                        <strong>سيتم تخطيهم تلقائياً</strong> وتحديث حالتهم إلى
+                                        <span class="badge badge-light-warning fs-7">${selectedStatusText}</span>
+                                        وإدخال باقي السجلات الصحيحة:
                                     </p>
                                 </div>
                             </div>
@@ -3540,7 +3918,8 @@
                                     <span class="path2"></span>
                                     <span class="path3"></span>
                                 </i>
-                                <strong>ملاحظة:</strong> سيتم تخطي هذه السجلات المكررة وإدخال باقي البيانات الصحيحة.
+                                <strong>ملاحظة:</strong> سيتم تخطي هذه السجلات المكررة، وتحديث حالتها إلى
+                                <strong>${selectedStatusText}</strong>، وإدخال باقي البيانات الصحيحة.
                             </div>
                         </div>
                     `;
@@ -3948,6 +4327,7 @@
                             // ⏭️ كفالات تم تخطيها (موجودة مسبقاً)
                             const skippedCount = response.summary.skipped || 0;
                             const bankAccountsAdded = response.summary.bank_accounts_added_for_skipped || 0;
+                            const statusUpdatedCount = response.summary.status_updated || 0;
 
                             if (skippedCount > 0) {
                                 resultHtml += `
@@ -3955,6 +4335,14 @@
                                         <p class="mb-1"><strong>⏭️ كفالات موجودة مسبقاً (تم تخطيها):</strong> ${skippedCount}</p>
                                         <small>هذه الكفالات مسجلة مسبقاً مع نفس الجمعية</small>
                                 `;
+
+                                if (statusUpdatedCount > 0) {
+                                    resultHtml += `
+                                        <hr class="my-2">
+                                        <p class="mb-0 text-success"><strong>🔄 كفالات تم تحديث حالتها:</strong> ${statusUpdatedCount}</p>
+                                        <small class="text-muted">تم تطبيق الحالة المحددة أثناء الرفع على هذه الكفالات</small>
+                                    `;
+                                }
 
                                 if (bankAccountsAdded > 0) {
                                     resultHtml += `
@@ -3981,6 +4369,7 @@
                                 resultHtml += `
                                     <div class="alert alert-info py-2 mt-2">
                                         <strong>ℹ️ ملخص:</strong> جميع الكفالات في هذا الملف موجودة مسبقاً في النظام.
+                                        ${statusUpdatedCount > 0 ? `<br>تم تحديث الحالة لـ ${statusUpdatedCount} كفالة.` : ''}
                                         ${bankAccountsAdded > 0 ? '<br>تم إضافة البيانات البنكية الجديدة فقط.' : ''}
                                     </div>
                                 `;

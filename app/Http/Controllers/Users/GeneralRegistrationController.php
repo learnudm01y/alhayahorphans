@@ -137,6 +137,27 @@ class GeneralRegistrationController extends Controller
 
         while (true) {
             try {
+                // 🔹 استبعاد بطاقات أفراد الأسرة الفارغة تماماً (بلا هوية ولا أسماء)
+                //    مع الحفاظ على أرقامها الأصلية حتى لا تتغير مطابقة مرفقات family_{idx}
+                $rawFamilyMembers = $request->input('family_members');
+                if (is_array($rawFamilyMembers)) {
+                    $rawFamilyMembers = array_filter($rawFamilyMembers, function ($member) {
+                        if (!is_array($member)) {
+                            return false;
+                        }
+                        return !empty($member['person_id'])
+                            || !empty($member['first_name'])
+                            || !empty($member['second_name'])
+                            || !empty($member['third_name'])
+                            || !empty($member['last_name']);
+                    });
+                    $request->merge(['family_members' => $rawFamilyMembers]);
+                }
+
+                // عدّادات ملخص التسجيل (تُسجَّل بعد commit للتأكد من دخول جميع الأقسام)
+                $attachmentsSaved = 0;
+                $userCreated = false;
+
                 // 1. Validate basic data and attachments
                 $request->validate([
                 'file_id_number' => 'required|string',
@@ -182,8 +203,8 @@ class GeneralRegistrationController extends Controller
                 'deceased_mother_second_name' => 'nullable|string|max:255',
                 'deceased_mother_third_name' => 'nullable|string|max:255',
                 'deceased_mother_last_name' => 'nullable|string|max:255',
-                // Family members (if any)
-                'family_members' => 'sometimes|array',
+                // Family members (required — at least one)
+                'family_members' => 'required|array|min:1',
                 // Attachments
                 'document_file.*' => 'required|file|mimes:jpg,jpeg,png,pdf,heic|max:5120',
             ], [
@@ -194,10 +215,10 @@ class GeneralRegistrationController extends Controller
                 'deceased_mother_id.digits' => 'رقم هوية الأم المتوفية يجب أن يكون 9 أرقام بالضبط.',
                 'document_file.*.mimes' => 'يجب أن تكون صيغة الملف jpg أو jpeg أو png أو pdf أو heic.',
                 'document_file.*.max' => 'حجم الملف لا يجوز أن يتجاوز 5 ميغابايت.',
+                'family_members.required' => 'يجب إضافة فرد أسرة واحد على الأقل قبل الحفظ.',
+                'family_members.min' => 'يجب إضافة فرد أسرة واحد على الأقل قبل الحفظ.',
             ]);
 
-
-            DB::beginTransaction();
 
             // استخدم رقم الملف مع الأصفار البادئة دائماً
             $fileIdNumber = str_pad($request->input('file_id_number'), 6, '0', STR_PAD_LEFT);
@@ -261,6 +282,78 @@ class GeneralRegistrationController extends Controller
                     ->withInput()
                     ->with('error', 'رقم الملف العام مستخدم مسبقاً. يرجى تحديث الصفحة أو استخدام رقم جديد.');
             }
+
+            // 1️⃣ التحقق من أفراد الأسرة قبل فتح المعاملة
+            //    (أي فشل هنا يعيد الرد قبل أي كتابة في القاعدة، فلا تبقى معاملة مفتوحة)
+            $familyMembers = $request->input('family_members');
+
+            if (is_array($familyMembers) && count($familyMembers) > 0) {
+                // منع تكرار نفس رقم الهوية داخل الطلب الواحد
+                $seenFamilyIdentities = [];
+
+                // التحقق من صحة أرقام الهوية لأفراد الأسرة ومنع التكرار
+                foreach ($familyMembers as $index => $member) {
+                    if (!empty($member['person_id'])) {
+                        // التحقق من أن رقم الهوية 9 أرقام
+                        if (!preg_match('/^\d{9}$/', $member['person_id'])) {
+                            if ($request->ajax() || $request->wantsJson()) {
+                                return response()->json([
+                                    'success' => false,
+                                    'errors' => [
+                                        "family_members.{$index}.person_id" => [
+                                            "رقم هوية فرد الأسرة رقم " . ($index + 1) . " يجب أن يكون 9 أرقام بالضبط"
+                                        ]
+                                    ]
+                                ], 422);
+                            }
+                            throw new \Exception("رقم هوية فرد الأسرة رقم " . ($index + 1) . " يجب أن يكون 9 أرقام بالضبط");
+                        }
+
+                        // 🆕 التحقق من أن الشخص ليس مرتبطاً بمعيل آخر
+                        $existingInData = Data::where('data_id_number', $member['person_id'])->first();
+                        if ($existingInData && $existingInData->file_id_number != $fileIdNumber) {
+                            $errorMsg = "الشخص برقم هوية " . $member['person_id'] . " مسجل مسبقاً في النظام ومرتبط بمعيل آخر. لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.";
+                            if ($request->ajax() || $request->wantsJson()) {
+                                return response()->json([
+                                    'success' => false,
+                                    'message' => $errorMsg
+                                ], 422);
+                            }
+                            throw new \Exception($errorMsg);
+                        }
+
+                        $existingInRePeople = RePeople::where('person_id', $member['person_id'])
+                            ->where('registration_id', '!=', $fileIdNumber)
+                            ->first();
+                        if ($existingInRePeople) {
+                            $errorMsg = "الشخص برقم هوية " . $member['person_id'] . " مسجل مسبقاً في النظام ومرتبط بمعيل آخر. لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.";
+                            if ($request->ajax() || $request->wantsJson()) {
+                                return response()->json([
+                                    'success' => false,
+                                    'message' => $errorMsg
+                                ], 422);
+                            }
+                            throw new \Exception($errorMsg);
+                        }
+
+                        // 🆕 منع تكرار نفس الرقم داخل الطلب الواحد (وإلا ضاع فرد بصمت)
+                        $memberIdentityKey = (string) $member['person_id'];
+                        if (isset($seenFamilyIdentities[$memberIdentityKey])) {
+                            $errorMsg = "الشخص برقم هوية " . $memberIdentityKey . " مُدخل أكثر من مرة في أفراد الأسرة. يرجى تصحيح التكرار قبل الحفظ.";
+                            if ($request->ajax() || $request->wantsJson()) {
+                                return response()->json([
+                                    'success' => false,
+                                    'message' => $errorMsg
+                                ], 422);
+                            }
+                            throw new \Exception($errorMsg);
+                        }
+                        $seenFamilyIdentities[$memberIdentityKey] = true;
+                    }
+                }
+            }
+
+            DB::beginTransaction();
 
             // 2. Store main Data record أو استخدام المعيل الموجود
             $data = null;
@@ -580,54 +673,14 @@ class GeneralRegistrationController extends Controller
             // 4. Store family members
             $familyMembers = $request->input('family_members');
 
-            if (is_array($familyMembers)) {
-                // التحقق من صحة أرقام الهوية لأفراد الأسرة ومنع التكرار
-                foreach ($familyMembers as $index => $member) {
-                    if (!empty($member['person_id'])) {
-                        // التحقق من أن رقم الهوية 9 أرقام
-                        if (!preg_match('/^\d{9}$/', $member['person_id'])) {
-                            if ($request->ajax() || $request->wantsJson()) {
-                                return response()->json([
-                                    'success' => false,
-                                    'errors' => [
-                                        "family_members.{$index}.person_id" => [
-                                            "رقم هوية فرد الأسرة رقم " . ($index + 1) . " يجب أن يكون 9 أرقام بالضبط"
-                                        ]
-                                    ]
-                                ], 422);
-                            }
-                            throw new \Exception("رقم هوية فرد الأسرة رقم " . ($index + 1) . " يجب أن يكون 9 أرقام بالضبط");
-                        }
+            // 🔎 توثيق فقط (بدون أي تغيير بالمنطق أو بقواعد التحقق): حالة family_members كما وصلت
+            Log::info('🔎 حالة family_members عند الحفظ', [
+                'file_id_number' => $fileIdNumber,
+                'family_members_state' => $familyMembers === null ? 'غير موجودة' : (!is_array($familyMembers) ? 'غير صالحة' : (count($familyMembers) === 0 ? 'فارغة' : 'موجودة')),
+                'family_members_count' => is_array($familyMembers) ? count($familyMembers) : 0,
+            ]);
 
-                        // 🆕 التحقق من أن الشخص ليس مرتبطاً بمعيل آخر
-                        $existingInData = Data::where('data_id_number', $member['person_id'])->first();
-                        if ($existingInData && $existingInData->file_id_number != $fileIdNumber) {
-                            $errorMsg = "الشخص برقم هوية " . $member['person_id'] . " مسجل مسبقاً في النظام ومرتبط بمعيل آخر. لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.";
-                            if ($request->ajax() || $request->wantsJson()) {
-                                return response()->json([
-                                    'success' => false,
-                                    'message' => $errorMsg
-                                ], 422);
-                            }
-                            throw new \Exception($errorMsg);
-                        }
-
-                        $existingInRePeople = RePeople::where('person_id', $member['person_id'])
-                            ->where('registration_id', '!=', $fileIdNumber)
-                            ->first();
-                        if ($existingInRePeople) {
-                            $errorMsg = "الشخص برقم هوية " . $member['person_id'] . " مسجل مسبقاً في النظام ومرتبط بمعيل آخر. لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.";
-                            if ($request->ajax() || $request->wantsJson()) {
-                                return response()->json([
-                                    'success' => false,
-                                    'message' => $errorMsg
-                                ], 422);
-                            }
-                            throw new \Exception($errorMsg);
-                        }
-                    }
-                }
-
+            if (is_array($familyMembers) && count($familyMembers) > 0) {
                 // حفظ أفراد الأسرة (تحديث أو إنشاء)
                 foreach ($familyMembers as $member) {
                     $memberData = [
@@ -870,6 +923,7 @@ class GeneralRegistrationController extends Controller
                         }
                         throw $queryException;
                     }
+                    $attachmentsSaved++;
                     Log::info('🟢 تم تخزين مرفق بنجاح', ['index' => $index, 'file' => $file, 'tempPath' => $tempPath, 'data' => $data, 'newFileName' => $newFileName, 'file_hash' => $fileHash]);
                 } else {
                     Log::error('🔴 تجاهل مرفق بسبب شرط تحقق نهائي', ['index' => $index, 'file' => $file, 'tempPath' => $tempPath, 'data' => $data]);
@@ -890,11 +944,47 @@ class GeneralRegistrationController extends Controller
                     'role' => 'user',
                 ]);
                 Log::info('ℹ️ تم إنشاء حساب مستخدم جديد', ['identity' => $request->input('data_id_number')]);
+                $userCreated = true;
             } else {
                 Log::info('ℹ️ المستخدم مسجل مسبقاً، تخطي إنشاء حساب جديد', ['identity' => $request->input('data_id_number')]);
             }
 
             DB::commit();
+
+            // 📋 ملخص التسجيل — للتأكد من دخول جميع الأقسام (قراءة فقط بعد الحفظ)
+            try {
+                $summaryFamilyMembers = RePeople::where('registration_id', $fileIdNumber)->count();
+                $summaryBankAccounts = GuardianBankAccount::where('guardian_registration', $fileIdNumber)->count();
+                $summaryHasDeadPeople = DeadPepole::where('re_file_id', $fileIdNumber)->exists();
+
+                $emptySections = [];
+                if ($summaryFamilyMembers === 0) {
+                    $emptySections[] = 'family_members';
+                }
+                if ($summaryBankAccounts === 0) {
+                    $emptySections[] = 'bank_accounts';
+                }
+                if (!$summaryHasDeadPeople) {
+                    $emptySections[] = 'dead_people';
+                }
+                if ($attachmentsSaved === 0) {
+                    $emptySections[] = 'attachments';
+                }
+
+                Log::info('📋 ملخص التسجيل العام', [
+                    'file_id_number' => $fileIdNumber,
+                    'mode' => $useExistingGuardian ? 'update' : 'create',
+                    'guardian_identity' => $guardianIdentity,
+                    'family_members_total' => $summaryFamilyMembers,
+                    'bank_accounts_total' => $summaryBankAccounts,
+                    'has_dead_people' => $summaryHasDeadPeople,
+                    'attachments_saved_this_request' => $attachmentsSaved,
+                    'user_created' => $userCreated,
+                    'empty_sections' => $emptySections,
+                ]);
+            } catch (\Throwable $summaryError) {
+                Log::warning('تعذر تسجيل ملخص التسجيل العام: ' . $summaryError->getMessage());
+            }
 
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json(['success' => true, 'redirect' => route('user.thank.you.page')]);

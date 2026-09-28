@@ -537,7 +537,7 @@
             if (familyNextBtn) {
                 familyNextBtn.addEventListener('click', function(e) {
                     let invalid = null;
-                    document.querySelectorAll('.family-member-form:not(.d-none)').forEach(function(form) {
+                    window.getActiveFamilyMemberForms().forEach(function(form) {
                         if (invalid) return;
                         const requiredFields = [{
                             name: 'first_name'
@@ -751,7 +751,7 @@
             if (familyNextBtn) {
                 familyNextBtn.addEventListener('click', function(e) {
                     let invalid = null;
-                    document.querySelectorAll('.family-member-form:not(.d-none)').forEach(function(form) {
+                    window.getActiveFamilyMemberForms().forEach(function(form) {
                         if (invalid) return;
                         const requiredFields = [{
                             name: 'first_name'
@@ -1092,8 +1092,8 @@
                     }
                 });
 
-                // جمع بيانات أفراد الأسرة من النماذج الظاهرة فقط
-                document.querySelectorAll('.family-member-form:not(.d-none)').forEach(function(form, idx) {
+                // جمع بيانات أفراد الأسرة من الصفوف الفعّالة (مصدر الحالة: window.activeFamilyMemberIndexes)
+                window.getActiveFamilyMemberForms().forEach(function(form, idx) {
                     form.querySelectorAll('[name]').forEach(function(input) {
                         const name = input.name;
                         const value = input.value;

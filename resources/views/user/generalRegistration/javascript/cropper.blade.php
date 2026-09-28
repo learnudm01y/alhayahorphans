@@ -522,6 +522,63 @@ window.showCropperModal = async function(file, callback) {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // ترميم الصورة على الخادم عند فشل الفحص (الصور الشخصية file_type = 12)
+  // يعيد canvas جاهز لإعادة الفحص في المتصفح عبر checkFaceOnCanvas
+  // ═══════════════════════════════════════════════════════════════════
+  async function restoreFaceOnServer(sourceCanvas, fileType) {
+    try {
+      const blob = await new Promise((resolve, reject) => {
+        sourceCanvas.toBlob((b) => (b ? resolve(b) : reject(new Error('toBlob failed'))), 'image/jpeg', 0.95);
+      });
+      if (!blob) return null;
+
+      const form = new FormData();
+      form.append('image', blob, 'face_restore_input.jpg');
+      form.append('file_type', String(fileType));
+
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 130000);
+      const response = await fetch('/api/face/restore', {
+        method: 'POST',
+        body: form,
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+
+      if (!response.ok) {
+        console.warn('[FaceRestore] استجابة غير ناجحة:', response.status);
+        return null;
+      }
+
+      const data = await response.json();
+      if (!data || data.ok !== true || !data.image) {
+        console.warn('[FaceRestore] لم يتم الترميم:', data && data.reason);
+        return null;
+      }
+
+      const img = await new Promise((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = () => reject(new Error('image load failed'));
+        el.src = data.image;
+      });
+
+      const outCanvas = document.createElement('canvas');
+      outCanvas.width = img.naturalWidth || img.width;
+      outCanvas.height = img.naturalHeight || img.height;
+      const ctx = outCanvas.getContext('2d');
+      if (!ctx) return null;
+      ctx.drawImage(img, 0, 0);
+
+      console.log('[FaceRestore] ✅ تم استلام صورة مرمّمة:', outCanvas.width + 'x' + outCanvas.height, data.restore);
+      return outCanvas;
+    } catch (e) {
+      console.warn('[FaceRestore] فشل الترميم:', e && (e.name === 'AbortError' ? 'timeout' : e.message));
+      return null;
+    }
+  }
+
   // معالج زر القص - النسخة المصححة
   elements.cropBtn.onclick = async function() {
     if (!cropperReady || !cropper) {
@@ -566,7 +623,7 @@ window.showCropperModal = async function(file, callback) {
         statusText.innerHTML = '<small>جاري قص الصورة...</small>';
       }
 
-      const canvas = cropper.getCroppedCanvas({
+      let canvas = cropper.getCroppedCanvas({
         imageSmoothingQuality: 'high',
         fillColor: '#ffffff'
       });
@@ -594,41 +651,68 @@ window.showCropperModal = async function(file, callback) {
         if (modelsLoaded) {
           const faceResult = await checkFaceOnCanvas(canvas);
           if (!faceResult.valid) {
-            Swal.close();
-            Swal.fire({
-              icon: 'warning',
-              title: 'صورة غير مقبولة',
-              text: faceResult.reason,
-              confirmButtonText: 'اختر صورة أخرى',
-              allowOutsideClick: false
-            }).then(() => {
-              cleanup();
-              // فتح حوار اختيار ملف جديد عبر مودال النظام المخصص بدل نافذة أندرويد
-              if (window.DeviceImageSource && typeof window.DeviceImageSource.showModal === 'function') {
-                window.DeviceImageSource.showModal(function(newFile) {
-                  if (newFile) {
-                    newFile._fileType = fileType;
-                    window.showCropperModal(newFile, callback);
-                  }
-                });
+            // محاولة ترميم الصورة على الخادم ثم إعادة الفحص هنا
+            // (file_type = 12 تخرج 400x600، وبقية الأنواع تخرج بمقاسها الأصلي)
+            let restoredCanvas = null;
+            if (progressBar && statusText) {
+              progressBar.style.width = '45%';
+              progressBar.textContent = '45%';
+              statusText.innerHTML = '<small>جاري تحسين الصورة وإعادة الفحص...</small>';
+            }
+
+            restoredCanvas = await restoreFaceOnServer(canvas, fileType);
+            if (restoredCanvas) {
+              const modelsAgain = await loadFaceModels();
+              const retryResult = modelsAgain
+                ? await checkFaceOnCanvas(restoredCanvas)
+                : { valid: false, reason: 'تعذر إعادة تحميل نظام فحص الوجه' };
+
+              if (retryResult.valid) {
+                canvas = restoredCanvas;
+                console.log('[FaceCheck] ✅ تم قبول الصورة بعد الترميم');
               } else {
-                const fileInput = document.createElement('input');
-                fileInput.type = 'file';
-                fileInput.accept = 'image/*';
-                fileInput.style.display = 'none';
-                fileInput.onchange = (e) => {
-                  const newFile = e.target.files[0];
-                  fileInput.remove();
-                  if (newFile) {
-                    newFile._fileType = fileType;
-                    window.showCropperModal(newFile, callback);
-                  }
-                };
-                document.body.appendChild(fileInput);
-                fileInput.click();
+                console.warn('[FaceCheck] ⚠️ الصورة المرمّمة لم تجتز الفحص:', retryResult.reason);
+                restoredCanvas = null;
               }
-            });
-            return;
+            }
+
+            if (!restoredCanvas) {
+              Swal.close();
+              Swal.fire({
+                icon: 'warning',
+                title: 'صورة غير مقبولة',
+                text: faceResult.reason,
+                confirmButtonText: 'اختر صورة أخرى',
+                allowOutsideClick: false
+              }).then(() => {
+                cleanup();
+                // فتح حوار اختيار ملف جديد عبر مودال النظام المخصص بدل نافذة أندرويد
+                if (window.DeviceImageSource && typeof window.DeviceImageSource.showModal === 'function') {
+                  window.DeviceImageSource.showModal(function(newFile) {
+                    if (newFile) {
+                      newFile._fileType = fileType;
+                      window.showCropperModal(newFile, callback);
+                    }
+                  });
+                } else {
+                  const fileInput = document.createElement('input');
+                  fileInput.type = 'file';
+                  fileInput.accept = 'image/*';
+                  fileInput.style.display = 'none';
+                  fileInput.onchange = (e) => {
+                    const newFile = e.target.files[0];
+                    fileInput.remove();
+                    if (newFile) {
+                      newFile._fileType = fileType;
+                      window.showCropperModal(newFile, callback);
+                    }
+                  };
+                  document.body.appendChild(fileInput);
+                  fileInput.click();
+                }
+              });
+              return;
+            }
           }
           console.log('[FaceCheck] ✅ تم التحقق من الوجه بنجاح');
         } else {

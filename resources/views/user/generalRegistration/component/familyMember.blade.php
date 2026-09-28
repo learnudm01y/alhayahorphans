@@ -27,66 +27,105 @@
 
                 <!-- سكريبتات التحقق من البيانات -->
                 <script>
+                    // ✅ الحالة الصريحة لصفوف أفراد الأسرة الفعّالة (بديل عن اعتماد class d-none)
+                    // تُحدَّث فوراً ومتزامناً عند الإضافة/الحذف/إعادة الترقيم — بدون أي setTimeout
+                    window.activeFamilyMemberIndexes = new Set();
+
+                    // اختيار الصفوف الفعّالة: كل .family-member-form رقم صفه موجود في الحالة
+                    window.getActiveFamilyMemberForms = function getActiveFamilyMemberForms() {
+                        if (!(window.activeFamilyMemberIndexes instanceof Set)) {
+                            window.activeFamilyMemberIndexes = new Set();
+                        }
+                        const active = window.activeFamilyMemberIndexes;
+                        return Array.from(document.querySelectorAll('#familyMembersContainer .family-member-form'))
+                            .filter(function(form) {
+                                const raw = form.getAttribute('data-member-index');
+                                if (!raw || raw === 'template') return false;
+                                const idx = Number(raw);
+                                return Number.isInteger(idx) && active.has(idx);
+                            });
+                    };
+
+                    // تهيئة الحالة بأي صفوف موجودة مسبقاً عند تحميل الصفحة
+                    document.addEventListener('DOMContentLoaded', function() {
+                        document.querySelectorAll('#familyMembersContainer .family-member-form').forEach(function(form) {
+                            const raw = form.getAttribute('data-member-index');
+                            if (raw && raw !== 'template') {
+                                window.activeFamilyMemberIndexes.add(Number(raw));
+                            }
+                        });
+                    });
+
+                    // ✅ دالة مشتركة للتحقق من صحة صفوف أفراد الأسرة الفعّالة
+                    // تُستخدم من زر "التالي" ومن بوابة التنقل بين التبويبات بدل تكرار نفس الكود
+                    window.findInvalidFamilyMemberField = function findInvalidFamilyMemberField() {
+                        let invalid = null;
+                        window.getActiveFamilyMemberForms().forEach(function(form) {
+                            if (invalid) return;
+                            const requiredFields = [
+                                { selector: 'input[name$="[first_name]"]', label: 'الاسم الأول' },
+                                { selector: 'input[name$="[last_name]"]', label: 'اسم العائلة' },
+                                { selector: 'input[name$="[person_id]"]', label: 'رقم هوية اليتيم' },
+                                { selector: 'input[name$="[person_birth_date]"]', label: 'تاريخ الميلاد' },
+                                { selector: 'select[name$="[person_gender]"]', label: 'الجنس' },
+                            ];
+                            for (const field of requiredFields) {
+                                const el = form.querySelector(field.selector);
+                                if (el && !el.value) {
+                                    invalid = { field: el, label: field.label };
+                                    break;
+                                }
+                            }
+                            // تحقق من رفع ملف أو اختيار نوع الوثيقة
+                            if (!invalid) {
+                                // التحقق من وجود وثائق معالجة للعضو
+                                const uploadZone = form.querySelector('[data-upload-zone]');
+                                const personKey = uploadZone ? uploadZone.getAttribute('data-upload-zone') : null;
+
+                                let hasProcessedDocument = false;
+
+                                // التحقق من window.allDocs أولاً
+                                if (window.allDocs && window.allDocs instanceof Map && personKey) {
+                                    const memberDocs = window.allDocs.get(personKey);
+                                    hasProcessedDocument = memberDocs && memberDocs.length > 0;
+                                }
+
+                                // التحقق من منطقة المعاينة كبديل
+                                if (!hasProcessedDocument) {
+                                    const preview = form.querySelector('.mainDocumentPreview');
+                                    const hasVisibleDocument = preview && preview.style.display !== 'none' &&
+                                                             preview.innerHTML.trim() !== '' &&
+                                                             preview.innerHTML.includes('attachment-card');
+                                    hasProcessedDocument = hasVisibleDocument;
+                                }
+
+                                // إذا لم توجد وثائق معالجة، تحقق من حالة الإدخال الحالية
+                                if (!hasProcessedDocument) {
+                                    const docType = form.querySelector('.mainDocumentTypeSelect');
+                                    const fileInput = form.querySelector('.mainDocumentFileInput');
+                                    const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
+
+                                    if (docType && !docType.value && !hasFile) {
+                                        invalid = { field: docType, label: 'نوع الوثيقة أو رفع الملف' };
+                                    }
+                                }
+                            }
+                        });
+                        return invalid;
+                    };
+
                     document.addEventListener('DOMContentLoaded', function() {
                         const reviewBtn = document.getElementById('goToReviewTabBtn');
                         if (reviewBtn) {
                             reviewBtn.addEventListener('click', async function(e) {
                                 let invalidField = null;
                                 let invalidLabel = '';
-                                // تحقق فقط من النماذج الظاهرة
-                                document.querySelectorAll('.family-member-form:not(.d-none)').forEach(function(form) {
-                                    if (invalidField) return;
-                                    const requiredFields = [
-                                        { selector: 'input[name$="[first_name]"]', label: 'الاسم الأول' },
-                                        { selector: 'input[name$="[last_name]"]', label: 'اسم العائلة' },
-                                        { selector: 'input[name$="[person_id]"]', label: 'رقم هوية اليتيم' },
-                                        { selector: 'input[name$="[person_birth_date]"]', label: 'تاريخ الميلاد' },
-                                        { selector: 'select[name$="[person_gender]"]', label: 'الجنس' },
-                                    ];
-                                    for (const field of requiredFields) {
-                                        const el = form.querySelector(field.selector);
-                                        if (el && !el.value) {
-                                            invalidField = el;
-                                            invalidLabel = field.label;
-                                            break;
-                                        }
-                                    }
-                                    // تحقق من رفع ملف أو اختيار نوع الوثيقة
-                                    if (!invalidField) {
-                                        // التحقق من وجود وثائق معالجة للعضو
-                                        const uploadZone = form.querySelector('[data-upload-zone]');
-                                        const personKey = uploadZone ? uploadZone.getAttribute('data-upload-zone') : null;
-
-                                        let hasProcessedDocument = false;
-
-                                        // التحقق من window.allDocs أولاً
-                                        if (window.allDocs && window.allDocs instanceof Map && personKey) {
-                                            const memberDocs = window.allDocs.get(personKey);
-                                            hasProcessedDocument = memberDocs && memberDocs.length > 0;
-                                        }
-
-                                        // التحقق من منطقة المعاينة كبديل
-                                        if (!hasProcessedDocument) {
-                                            const preview = form.querySelector('.mainDocumentPreview');
-                                            const hasVisibleDocument = preview && preview.style.display !== 'none' &&
-                                                                     preview.innerHTML.trim() !== '' &&
-                                                                     preview.innerHTML.includes('attachment-card');
-                                            hasProcessedDocument = hasVisibleDocument;
-                                        }
-
-                                        // إذا لم توجد وثائق معالجة، تحقق من حالة الإدخال الحالية
-                                        if (!hasProcessedDocument) {
-                                            const docType = form.querySelector('.mainDocumentTypeSelect');
-                                            const fileInput = form.querySelector('.mainDocumentFileInput');
-                                            const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
-
-                                            if (docType && !docType.value && !hasFile) {
-                                                invalidField = docType;
-                                                invalidLabel = 'نوع الوثيقة أو رفع الملف';
-                                            }
-                                        }
-                                    }
-                                });
+                                // تحقق فقط من النماذج الفعّالة (مصدر الحالة: window.activeFamilyMemberIndexes)
+                                const invalidFamilyMember = window.findInvalidFamilyMemberField();
+                                if (invalidFamilyMember) {
+                                    invalidField = invalidFamilyMember.field;
+                                    invalidLabel = invalidFamilyMember.label;
+                                }
                                 if (invalidField) {
                                     e.preventDefault();
                                     if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
@@ -126,72 +165,11 @@
                                 // تحقق من جميع أفراد الأسرة
                                 let invalidField = null;
                                 let invalidLabel = '';
-                                document.querySelectorAll('.family-member-form:not(.d-none)').forEach(function(form) {
-                                    if (invalidField) return;
-                                    const requiredFields = [{
-                                            selector: 'input[name$="[first_name]"]',
-                                            label: 'الاسم الأول'
-                                        },
-                                        {
-                                            selector: 'input[name$="[last_name]"]',
-                                            label: 'اسم العائلة'
-                                        },
-                                        {
-                                            selector: 'input[name$="[person_id]"]',
-                                            label: 'رقم هوية اليتيم'
-                                        },
-                                        {
-                                            selector: 'input[name$="[person_birth_date]"]',
-                                            label: 'تاريخ الميلاد'
-                                        },
-                                        {
-                                            selector: 'select[name$="[person_gender]"]',
-                                            label: 'الجنس'
-                                        },
-                                    ];
-                                    for (const field of requiredFields) {
-                                        const el = form.querySelector(field.selector);
-                                        if (el && !el.value) {
-                                            invalidField = el;
-                                            invalidLabel = field.label;
-                                            break;
-                                        }
-                                    }
-                                    if (!invalidField) {
-                                        // التحقق من وجود وثائق معالجة للعضو
-                                        const uploadZone = form.querySelector('[data-upload-zone]');
-                                        const personKey = uploadZone ? uploadZone.getAttribute('data-upload-zone') : null;
-
-                                        let hasProcessedDocument = false;
-
-                                        // التحقق من window.allDocs أولاً
-                                        if (window.allDocs && window.allDocs instanceof Map && personKey) {
-                                            const memberDocs = window.allDocs.get(personKey);
-                                            hasProcessedDocument = memberDocs && memberDocs.length > 0;
-                                        }
-
-                                        // التحقق من منطقة المعاينة كبديل
-                                        if (!hasProcessedDocument) {
-                                            const preview = form.querySelector('.mainDocumentPreview');
-                                            const hasVisibleDocument = preview && preview.style.display !== 'none' &&
-                                                                     preview.innerHTML.trim() !== '' &&
-                                                                     preview.innerHTML.includes('attachment-card');
-                                            hasProcessedDocument = hasVisibleDocument;
-                                        }
-
-                                        // إذا لم توجد وثائق معالجة، تحقق من حالة الإدخال الحالية
-                                        if (!hasProcessedDocument) {
-                                            const docType = form.querySelector('.mainDocumentTypeSelect');
-                                            const fileInput = form.querySelector('.mainDocumentFileInput');
-                                            const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
-
-                                            if (docType && !docType.value && !hasFile) {
-                                                invalidField = docType;
-                                                invalidLabel = 'نوع الوثيقة أو رفع الملف';
-                                            }
-                                        }
-                                    }
-                                });
+                                const invalidFamilyMember = window.findInvalidFamilyMemberField();
+                                if (invalidFamilyMember) {
+                                    invalidField = invalidFamilyMember.field;
+                                    invalidLabel = invalidFamilyMember.label;
+                                }
                                 if (invalidField) {
                                     e.preventDefault();
                                     if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
@@ -209,102 +187,6 @@
                     });
                 </script>
 
-                <!-- سكريبت عام لمنع التنقل -->
-                <script>
-                    document.addEventListener('DOMContentLoaded', function() {
-                        // منع التنقل بين التبويبات إلا بعد تحقق شروط validation لكل بوابة
-                        const navLinks = document.querySelectorAll('#formTabs .nav-link');
-                        navLinks.forEach(function(link) {
-                            link.addEventListener('click', function(e) {
-                                const activeTab = document.querySelector('.tab-pane.active');
-                                if (!activeTab) return;
-                                let invalidField = null;
-                                let invalidLabel = '';
-                                // بوابة أفراد الأسرة
-                                if (activeTab.id === 'family-members') {
-                                    document.querySelectorAll('.family-member-form:not(.d-none)').forEach(function(form) {
-                                        if (invalidField) return;
-                                        const requiredFields = [{
-                                                selector: 'input[name$="[first_name]"]',
-                                                label: 'الاسم الأول'
-                                            },
-                                            {
-                                                selector: 'input[name$="[last_name]"]',
-                                                label: 'اسم العائلة'
-                                            },
-                                            {
-                                                selector: 'input[name$="[person_id]"]',
-                                                label: 'رقم هوية اليتيم'
-                                            },
-                                            {
-                                                selector: 'input[name$="[person_birth_date]"]',
-                                                label: 'تاريخ الميلاد'
-                                            },
-                                            {
-                                                selector: 'select[name$="[person_gender]"]',
-                                                label: 'الجنس'
-                                            },
-                                        ];
-                                        for (const field of requiredFields) {
-                                            const el = form.querySelector(field.selector);
-                                            if (el && !el.value) {
-                                                invalidField = el;
-                                                invalidLabel = field.label;
-                                                break;
-                                            }
-                                        }
-                                        if (!invalidField) {
-                                            // التحقق من وجود وثائق معالجة للعضو
-                                            const uploadZone = form.querySelector('[data-upload-zone]');
-                                            const personKey = uploadZone ? uploadZone.getAttribute('data-upload-zone') : null;
-
-                                            let hasProcessedDocument = false;
-
-                                            // التحقق من window.allDocs أولاً
-                                            if (window.allDocs && window.allDocs instanceof Map && personKey) {
-                                                const memberDocs = window.allDocs.get(personKey);
-                                                hasProcessedDocument = memberDocs && memberDocs.length > 0;
-                                            }
-
-                                            // التحقق من منطقة المعاينة كبديل
-                                            if (!hasProcessedDocument) {
-                                                const preview = form.querySelector('.mainDocumentPreview');
-                                                const hasVisibleDocument = preview && preview.style.display !== 'none' &&
-                                                                         preview.innerHTML.trim() !== '' &&
-                                                                         preview.innerHTML.includes('attachment-card');
-                                                hasProcessedDocument = hasVisibleDocument;
-                                            }
-
-                                            // إذا لم توجد وثائق معالجة، تحقق من حالة الإدخال الحالية
-                                            if (!hasProcessedDocument) {
-                                                const docType = form.querySelector('.mainDocumentTypeSelect');
-                                                const fileInput = form.querySelector('.mainDocumentFileInput');
-                                                const hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
-
-                                                if (docType && !docType.value && !hasFile) {
-                                                    invalidField = docType;
-                                                    invalidLabel = 'نوع الوثيقة أو رفع الملف';
-                                                }
-                                            }
-                                        }
-                                    });
-                                }
-                                if (invalidField) {
-                                    e.preventDefault();
-                                    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-                                    Swal.fire({
-                                        icon: 'warning',
-                                        title: 'تنبيه',
-                                        text: `يرجى إدخال ${invalidLabel} قبل المتابعة!`,
-                                        confirmButtonText: 'حسنًا'
-                                    });
-                                    if (invalidField.focus) invalidField.focus();
-                                    return false;
-                                }
-                            });
-                        });
-                    });
-                </script>
             </div>
         </div>
     </div>
@@ -643,7 +525,7 @@
                     return;
                 }
 
-                let forms = container.querySelectorAll('.family-member-form:not(.d-none)');
+                let forms = window.getActiveFamilyMemberForms();
                 let template = document.getElementById('familyMemberTemplate');
 
                 if (!template) {
@@ -781,7 +663,12 @@
                             clone.style.opacity = '0';
                             clone.style.transform = 'scale(0.9)';
                             setTimeout(() => {
+                                const removedIndex = Number(clone.getAttribute('data-member-index'));
                                 clone.remove();
+                                // إزالة الفهرس المقابل من الحالة الصريحة في نفس لحظة الحذف
+                                if (Number.isInteger(removedIndex)) {
+                                    window.activeFamilyMemberIndexes.delete(removedIndex);
+                                }
                                 window.reindexFamilyMembers();
 
                                 // رسالة نجاح
@@ -798,15 +685,9 @@
                 };
 
                 container.appendChild(clone);
+                // تحديث الحالة الصريحة للصف الجديد فوراً وبشكل متزامن (بدون أي setTimeout)
+                window.activeFamilyMemberIndexes.add(newIndex);
                 console.log(`✅ تم توليد نموذج ${newIndex}: data-upload-zone = family_${newIndex}`);
-
-                // تأكيد أن النموذج أصبح مرئياً
-                setTimeout(() => {
-                    if (clone.classList.contains('d-none')) {
-                        clone.classList.remove('d-none');
-                        console.log('🔧 إزالة d-none من النموذج المُنشأ');
-                    }
-                }, 100);
 
                 window.reindexFamilyMembers();
 
@@ -842,7 +723,7 @@
 
         // دالة إعادة الفهرسة مع تحديث window.allDocs
         window.reindexFamilyMembers = function reindexFamilyMembers() {
-            const forms = document.querySelectorAll('#familyMembersContainer .family-member-form:not(.d-none)');
+            const forms = window.getActiveFamilyMemberForms();
 
             console.log(`🔄 [reindexFamilyMembers] بدء إعادة الفهرسة:`, {
                 formsCount: forms.length,
@@ -917,6 +798,11 @@
                 }
             });
 
+            // إعادة بناء الحالة الصريحة بالفهارس الجديدة — متزامنة مباشرة بدون أي تأخير
+            window.activeFamilyMemberIndexes = new Set(forms.map(function(form, idx) {
+                return idx;
+            }));
+
             // تحديث window.allDocs بالخريطة الجديدة
             if (window.allDocs && window.allDocs instanceof Map) {
                 window.allDocs.clear();
@@ -932,18 +818,20 @@
 
             // إعادة ربط حساب العمر
             setTimeout(function() {
-                document.querySelectorAll('.family-member-form:not(.d-none) input[name$="[person_birth_date]"]').forEach(function(input) {
-                    // تم حذف الربط اليدوي هنا لأن سكريبت ageCalculating.blade.php يربط الحدث بشكل عام
-                    // input.oninput = function() {
-                    //     window.calculateAge(this);
-                    // };
+                window.getActiveFamilyMemberForms().forEach(function(form) {
+                    form.querySelectorAll('input[name$="[person_birth_date]"]').forEach(function(input) {
+                        // تم حذف الربط اليدوي هنا لأن سكريبت ageCalculating.blade.php يربط الحدث بشكل عام
+                        // input.oninput = function() {
+                        //     window.calculateAge(this);
+                        // };
+                    });
                 });
             }, 100);
 
             // إعادة تفعيل معالجات رفع الملفات
             setTimeout(function() {
                 if (typeof window.setupDocumentUploadHandlersForMember === 'function') {
-                    document.querySelectorAll('.family-member-form:not(.d-none)').forEach(function(form, idx) {
+                    window.getActiveFamilyMemberForms().forEach(function(form, idx) {
                         window.setupDocumentUploadHandlersForMember(form, idx);
                     });
                 }
@@ -1137,7 +1025,7 @@
             });
 
             // معالجة النماذج الموجودة حالياً
-            document.querySelectorAll('.family-member-form:not(.d-none)').forEach(function(form) {
+            window.getActiveFamilyMemberForms().forEach(function(form) {
                 window.validateIdAndToggleSelect(form);
             });
         }

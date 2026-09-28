@@ -35,6 +35,10 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 // TEST ROUTE WITHOUT AUTH
 Route::post('/chunked-upload-test', [\App\Http\Controllers\Api\ChunkedUploadController::class, 'handleChunk']);
 
+// ترميم صور الوجه عند فشل فحص الوجه (يُستدعى من cropper.blade.php) — الصور الشخصية فقط
+Route::post('/face/restore', [\App\Http\Controllers\Users\FaceRestoreController::class, 'restore'])
+    ->middleware('auth');
+
 // Ultra Fast Search API - بدون middleware للحصول على أقصى سرعة
 Route::get('/search/ultra-fast', function (Request $request) {
     $query = $request->get('q', '');

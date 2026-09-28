@@ -1761,6 +1761,264 @@ class SponsorshipController extends Controller
     }
 
     /**
+     * تغيير حالة جميع كفالات مؤسسة كافلة محددة إلى حالة جديدة (دفعة واحدة)
+     *
+     * - النطاق مطابق لفلتر "المؤسسات الكافلة" في الصفحة (علاقة sponsors)
+     * - السجلات التي حالتها مساوية للحالة الجديدة لا تُكتب وتُعد في "بدون تغيير"
+     * - التحديث مجمّع (استعلامات قليلة) + مزامنة جدولي data و re_people
+     */
+    public function bulkUpdateStatus(Request $request)
+    {
+        try {
+            $request->validate([
+                'sponsor_id' => 'required|exists:sponsors,id',
+                'sponsorship_status_id' => 'required|exists:sponsorship_statuses,id',
+                'preview' => 'nullable|boolean',
+            ]);
+
+            $sponsorId = (int) $request->sponsor_id;
+            $newStatusId = (int) $request->sponsorship_status_id;
+
+            $scopeQuery = function () use ($sponsorId) {
+                return Sponsorship::query()->whereHas('sponsors', function ($q) use ($sponsorId) {
+                    $q->where('sponsors.id', $sponsorId);
+                });
+            };
+
+            $needsUpdateQuery = function () use ($scopeQuery, $newStatusId) {
+                return $scopeQuery()->where(function ($q) use ($newStatusId) {
+                    $q->whereNull('sponsorship_status_id')
+                        ->orWhere('sponsorship_status_id', '!=', $newStatusId);
+                });
+            };
+
+            $total = $scopeQuery()->count();
+            $unchanged = $scopeQuery()->where('sponsorship_status_id', $newStatusId)->count();
+            $toUpdate = $total - $unchanged;
+
+            // معاينة فقط: عدد السجلات المتأثرة قبل التنفيذ
+            if ($request->filled('preview')) {
+                return response()->json([
+                    'success' => true,
+                    'preview' => true,
+                    'total' => $total,
+                    'to_update' => $toUpdate,
+                    'unchanged' => $unchanged,
+                ]);
+            }
+
+            $sponsorName = optional(Sponsor::find($sponsorId))->sponsor_name ?: "المؤسسة #{$sponsorId}";
+            $newStatusName = optional(SponsorshipStatus::find($newStatusId))->description ?: "الحالة #{$newStatusId}";
+
+            $summary = $this->runBulkStatusUpdate($needsUpdateQuery, $newStatusId);
+            $updatedCount = $summary['updated'];
+            $dataSynced = $summary['data_synced'];
+            $rePeopleSynced = $summary['re_people_synced'];
+
+            Log::info('🔄 تم تغيير حالة كفالات مؤسسة بالجملة', [
+                'sponsor_id' => $sponsorId,
+                'sponsor_name' => $sponsorName,
+                'new_status_id' => $newStatusId,
+                'new_status_name' => $newStatusName,
+                'total' => $total,
+                'updated' => $updatedCount,
+                'unchanged' => $unchanged,
+                'data_synced' => $dataSynced,
+                're_people_synced' => $rePeopleSynced,
+                'user_id' => auth()->id(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "تم تغيير حالة {$updatedCount} كفالة في «{$sponsorName}» إلى «{$newStatusName}»",
+                'summary' => [
+                    'total' => $total,
+                    'updated' => $updatedCount,
+                    'unchanged' => $unchanged,
+                    'data_synced' => $dataSynced,
+                    're_people_synced' => $rePeopleSynced,
+                ],
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('❌ خطأ في تغيير حالة كفالات المؤسسة بالجملة:', [
+                'message' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'sponsor_id' => $request->sponsor_id,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء تغيير الحالة: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * تغيير حالة جميع الكفالات المعروضة حالياً في الشاشة إلى حالة جديدة
+     *
+     * - النطاق = نفس فلاتر الجدول عبر SponsorshipsDataTable::applyRequestFilters()
+     *   (sponsor_id + sponsorship_type_id + sponsorship_status_id) — بدون البحث النصي
+     * - الحالة الجديدة تُرسل في new_status_id حتى لا تتصادم مع فلتر حالة الشاشة
+     * - السجلات التي حالتها مساوية للحالة الجديدة لا تُكتب وتُعد في "بدون تغيير"
+     */
+    public function bulkUpdateStatusFiltered(Request $request)
+    {
+        try {
+            $request->validate([
+                'new_status_id' => 'required|exists:sponsorship_statuses,id',
+                'preview' => 'nullable|boolean',
+            ]);
+
+            $newStatusId = (int) $request->new_status_id;
+
+            $scopeQuery = function () {
+                $query = Sponsorship::query();
+                SponsorshipsDataTable::applyRequestFilters($query);
+
+                return $query;
+            };
+
+            $needsUpdateQuery = function () use ($scopeQuery, $newStatusId) {
+                return $scopeQuery()->where(function ($q) use ($newStatusId) {
+                    $q->whereNull('sponsorship_status_id')
+                        ->orWhere('sponsorship_status_id', '!=', $newStatusId);
+                });
+            };
+
+            $total = $scopeQuery()->count();
+            $unchanged = $scopeQuery()->where('sponsorship_status_id', $newStatusId)->count();
+            $toUpdate = $total - $unchanged;
+
+            // معاينة فقط: عدد السجلات المتأثرة قبل التنفيذ
+            if ($request->filled('preview')) {
+                return response()->json([
+                    'success' => true,
+                    'preview' => true,
+                    'total' => $total,
+                    'to_update' => $toUpdate,
+                    'unchanged' => $unchanged,
+                    'filters' => $this->screenFiltersSummary(),
+                ]);
+            }
+
+            $newStatusName = optional(SponsorshipStatus::find($newStatusId))->description ?: "الحالة #{$newStatusId}";
+
+            $summary = $this->runBulkStatusUpdate($needsUpdateQuery, $newStatusId);
+            $updatedCount = $summary['updated'];
+
+            Log::info('🔄 تم تغيير حالة الكفالات المعروضة في الشاشة بالجملة', [
+                'filters' => $this->screenFiltersSummary(),
+                'new_status_id' => $newStatusId,
+                'new_status_name' => $newStatusName,
+                'total' => $total,
+                'updated' => $updatedCount,
+                'unchanged' => $unchanged,
+                'data_synced' => $summary['data_synced'],
+                're_people_synced' => $summary['re_people_synced'],
+                'user_id' => auth()->id(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => "تم تغيير حالة {$updatedCount} كفالة معروضة إلى «{$newStatusName}»",
+                'summary' => array_merge([
+                    'total' => $total,
+                    'unchanged' => $unchanged,
+                ], $summary),
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('❌ خطأ في تغيير حالة الكفالات المعروضة بالجملة:', [
+                'message' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'filters' => $request->only(['sponsor_id', 'sponsorship_type_id', 'sponsorship_status_id', 'new_status_id']),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء تغيير الحالة: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * تنفيذ التحديث المجمّع داخل معاملة واحدة:
+     * جمع الهويات ← تحديث sponsorships ← مزامنة جدولي data و re_people
+     */
+    private function runBulkStatusUpdate(callable $needsUpdateQuery, int $newStatusId): array
+    {
+        $affectedIdentities = [];
+        $summary = [
+            'updated' => 0,
+            'data_synced' => 0,
+            're_people_synced' => 0,
+        ];
+
+        DB::transaction(function () use ($needsUpdateQuery, $newStatusId, &$affectedIdentities, &$summary) {
+            // 1) جمع هويات السجلات التي سيتم تحديثها (قبل التحديث)
+            $needsUpdateQuery()
+                ->select('id', 'identity_number')
+                ->chunkById(500, function ($rows) use (&$affectedIdentities) {
+                    foreach ($rows as $row) {
+                        $identity = trim((string) ($row->identity_number ?? ''));
+                        if ($identity !== '') {
+                            $affectedIdentities[$identity] = true;
+                        }
+                    }
+                });
+
+            // 2) تحديث الحالة في جدول sponsorships (استعلام واحد)
+            $summary['updated'] = $needsUpdateQuery()
+                ->update(['sponsorship_status_id' => $newStatusId]);
+
+            // 3) مزامنة جدولي data و re_people (الـ Observer لا يعمل مع التحديث المجمّع)
+            foreach (array_chunk(array_keys($affectedIdentities), 1000) as $identityChunk) {
+                $summary['data_synced'] += DB::table('data')
+                    ->whereIn('data_id_number', $identityChunk)
+                    ->update(['sponsorship_status' => $newStatusId]);
+
+                $summary['re_people_synced'] += DB::table('re_people')
+                    ->whereIn('person_id', $identityChunk)
+                    ->update(['sponsorship_status' => $newStatusId]);
+            }
+        });
+
+        return $summary;
+    }
+
+    /**
+     * ملخص فلاتر الشاشة الحالية (لعرضها في المعاينة والتأكيد)
+     */
+    private function screenFiltersSummary(): array
+    {
+        $filters = [];
+
+        if (!empty(request('sponsor_id'))) {
+            $filters[] = [
+                'label' => 'المؤسسة',
+                'value' => optional(Sponsor::find(request('sponsor_id')))->sponsor_name ?: request('sponsor_id'),
+            ];
+        }
+
+        if (!empty(request('sponsorship_type_id'))) {
+            $filters[] = [
+                'label' => 'نوع الكفالة',
+                'value' => optional(TypeOfGuarantee::find(request('sponsorship_type_id')))->description ?: request('sponsorship_type_id'),
+            ];
+        }
+
+        if (!empty(request('sponsorship_status_id'))) {
+            $filters[] = [
+                'label' => 'الحالة',
+                'value' => optional(SponsorshipStatus::find(request('sponsorship_status_id')))->description ?: request('sponsorship_status_id'),
+            ];
+        }
+
+        return $filters;
+    }
+
+    /**
      * إعادة توليد رقم الملف الداخلي لكفالة
      */
     public function regenerateFileNumber(Request $request, $id)
@@ -3501,6 +3759,41 @@ class SponsorshipController extends Controller
             $bankAccountsAddedForSkipped = 0; // 🆕 عداد للحسابات البنكية المضافة للكفالات المكررة
             $errors = [];
 
+            // 🆕 هويات موجودة مسبقاً لنفس الجمعية قبل بدء الاستيراد
+            // (لتفريق "الكفالة القديمة المكررة" عن "صف ثانٍ لنفس الهوية داخل نفس الملف")
+            $preExistingDuplicateIdentities = [];
+            $statusUpdatedCount = 0; // 🆕 عداد الكفالات التي تم تحديث حالتها
+            $statusUpdatedRows = []; // 🆕 تفاصيل الكفالات التي تم تحديث حالتها
+
+            // توحيد مفتاح الهوية لتفادي اختلاف النوع (int/string) أو الأصفار البادئة بين الملف وقاعدة البيانات
+            $normalizeIdentityKey = function ($value): string {
+                $value = trim((string) $value);
+                if ($value !== '' && ctype_digit($value)) {
+                    $value = ltrim($value, '0');
+                    return $value === '' ? '0' : $value;
+                }
+                return $value;
+            };
+
+            $sponsoredIdentityColumnIndex = $columnMap[$requiredColumns['sponsored_identity']] ?? null;
+            if ($sponsoredIdentityColumnIndex !== null && !empty($request->sponsor_id)) {
+                $fileIdentities = [];
+                foreach ($rows as $row) {
+                    $rowIdentity = trim($row[$sponsoredIdentityColumnIndex] ?? '');
+                    if ($rowIdentity !== '') {
+                        $fileIdentities[$rowIdentity] = true;
+                    }
+                }
+
+                if (!empty($fileIdentities)) {
+                    foreach (Sponsorship::whereIn('identity_number', array_keys($fileIdentities))
+                                 ->where('sponsor_id', $request->sponsor_id)
+                                 ->pluck('identity_number') as $existingIdentity) {
+                        $preExistingDuplicateIdentities[$normalizeIdentityKey($existingIdentity)] = true;
+                    }
+                }
+            }
+
             foreach ($rows as $index => $row) {
                 $rowNumber = $index + 2;
 
@@ -3806,6 +4099,39 @@ class SponsorshipController extends Controller
                     $isPersonAsGuardian = $isGuardianType || $isDeceasedType;
 
                     if ($duplicateSponsorship) {
+                        // 🆕 تحديث حالة الكفالة للسجلات الموجودة مسبقاً فقط (عند اختلاف الحالة المحددة)
+                        $statusChanged = false;
+                        $requestedStatusId = (int) $request->sponsorship_status_id;
+
+                        if ($requestedStatusId > 0
+                            && isset($preExistingDuplicateIdentities[$normalizeIdentityKey($sponsoredIdentity)])
+                            && (int) $duplicateSponsorship->sponsorship_status_id !== $requestedStatusId) {
+                            $previousStatusId = (int) $duplicateSponsorship->sponsorship_status_id;
+
+                            $duplicateSponsorship->sponsorship_status_id = $requestedStatusId;
+                            $duplicateSponsorship->save(); // الـ Observer يزامن جدولي data و re_people لحظياً
+
+                            $statusChanged = true;
+                            $statusUpdatedCount++;
+
+                            $statusUpdatedRows[] = [
+                                'row' => $rowNumber,
+                                'identity' => $sponsoredIdentity,
+                                'name' => $sponsoredName,
+                                'from_status_id' => $previousStatusId,
+                                'to_status_id' => $requestedStatusId,
+                            ];
+
+                            Log::info('🔄 تم تحديث حالة كفالة موجودة مسبقاً أثناء الاستيراد', [
+                                'row' => $rowNumber,
+                                'identity_number' => $sponsoredIdentity,
+                                'sponsor_id' => $request->sponsor_id,
+                                'from_status_id' => $previousStatusId,
+                                'to_status_id' => $requestedStatusId,
+                                'existing_sponsorship_id' => $duplicateSponsorship->id,
+                            ]);
+                        }
+
                         Log::warning('⚠️ الكفالة موجودة مسبقاً - سيتم تخطي إنشاء كفالة جديدة ومحاولة إدخال البيانات البنكية', [
                             'row' => $rowNumber,
                             'identity_number' => $sponsoredIdentity,
@@ -3814,8 +4140,11 @@ class SponsorshipController extends Controller
                         ]);
                         $skippedRows[] = [
                             'row' => $rowNumber,
-                            'reason' => 'كفالة مكررة - تم محاولة إدخال البيانات البنكية فقط',
-                            'identity' => $sponsoredIdentity
+                            'reason' => $statusChanged
+                                ? 'كفالة مكررة - تم تحديث الحالة وإدخال البيانات البنكية'
+                                : 'كفالة مكررة - تم محاولة إدخال البيانات البنكية فقط',
+                            'identity' => $sponsoredIdentity,
+                            'status_updated' => $statusChanged,
                         ];
                         $skippedCount++;
                         $sponsorshipSkipped = true;
@@ -4216,10 +4545,12 @@ class SponsorshipController extends Controller
                     'errors' => $errorCount,
                     'skipped' => $skippedCount, // 🆕 عدد السجلات المتخطية (مكررة)
                     'bank_accounts_added_for_skipped' => $bankAccountsAddedForSkipped, // 🆕 حسابات بنكية مضافة للكفالات المكررة
+                    'status_updated' => $statusUpdatedCount, // 🆕 عدد الكفالات التي تم تحديث حالتها
                     'linked' => $linkedCount, // 🆕 عدد السجلات المرتبطة
                     'unlinked' => $unlinkedCount, // 🆕 عدد السجلات غير المرتبطة
                 ],
                 'skipped_rows' => $skippedRows, // 🆕 تفاصيل الصفوف المتخطية
+                'status_updated_rows' => $statusUpdatedRows, // 🆕 تفاصيل الكفالات التي تم تحديث حالتها
                 'errors' => $errors,
             ];
 
@@ -4229,6 +4560,7 @@ class SponsorshipController extends Controller
                 'errors' => $errorCount,
                 'skipped' => $skippedCount,
                 'bank_accounts_added_for_skipped' => $bankAccountsAddedForSkipped,
+                'status_updated' => $statusUpdatedCount,
                 'linked_with_relation_id' => $linkedCount,
                 'without_relation_id' => $unlinkedCount
             ]);

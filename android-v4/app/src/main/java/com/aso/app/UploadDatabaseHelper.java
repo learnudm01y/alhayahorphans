@@ -673,6 +673,41 @@ public class UploadDatabaseHelper extends SQLiteOpenHelper {
         return reclaimStale(STATUS_PROCESSING_SERVER, STALE_PROCESSING_TIMEOUT_MS, "انتهت مهلة المعالجة على الخادم");
     }
 
+    /**
+     * يجدّد التوكن المخزَّن في كل ملف معلّق بآخر توكن صالح في الإعدادات.
+     * بدون هذا تستعمل الصفوف توكناً منتهي الصلاحية بعد إعادة تسجيل الدخول
+     * فيرجع الخادم 401 للأبد حتى لو كان جلسة التطبيق سليمة.
+     *
+     * @return عدد الصفوف التي جُدِّد توكنها
+     */
+    public int refreshAuthTokens(String currentToken) {
+        if (currentToken == null || currentToken.isEmpty()) {
+            return 0;
+        }
+        try {
+            SQLiteDatabase db = this.getWritableDatabase();
+
+            ContentValues values = new ContentValues();
+            values.put(COLUMN_AUTH_TOKEN, currentToken);
+            values.put(COLUMN_UPDATED_AT, System.currentTimeMillis());
+
+            int rows = db.update(
+                TABLE_UPLOAD_QUEUE,
+                values,
+                COLUMN_STATUS + " <> ? AND (" + COLUMN_AUTH_TOKEN + " IS NULL OR " + COLUMN_AUTH_TOKEN + " <> ?)",
+                new String[]{STATUS_COMPLETED, currentToken}
+            );
+
+            if (rows > 0) {
+                Log.w(TAG, "🔄 جُدِّد توكن " + rows + " ملفاً معلّقاً بالتوكن الحالي");
+            }
+            return rows;
+        } catch (Exception e) {
+            Log.e(TAG, "refreshAuthTokens failed", e);
+            return 0;
+        }
+    }
+
     private int reclaimStale(String status, long timeoutMs, String reason) {
         try {
             SQLiteDatabase db = this.getWritableDatabase();

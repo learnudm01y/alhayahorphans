@@ -299,6 +299,10 @@ public class ChunkedUploadWorker extends Worker {
             final String finalToken = token;
             final String finalBaseUrl = baseUrl;
 
+            // تجديد التوكن في الطابور أولاً: الصفوف المخزَّنة قبل إعادة
+            // تسجيل الدخول تحمل توكناً منتهي الصلاحية فيرفضها الخادم 401.
+            dbHelper.refreshAuthTokens(token);
+
             drainOfflineInbox(dbHelper, baseUrl, token);
 
             int workers = getUploadWorkers();

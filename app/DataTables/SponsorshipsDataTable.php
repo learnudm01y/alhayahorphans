@@ -351,7 +351,17 @@ class SponsorshipsDataTable extends DataTable
             })
             ->rawColumns(['sponsor_name', 'sponsorship_status', 'sponsorship_status_dropdown', 'remaining_days', 'bank_account_numbers', 'actions'])
             ->filter(function ($query) {
-                try {
+                self::applyRequestFilters($query);
+            });
+    }
+
+    /**
+     * تطبيق فلاتر الصفحة الحالية على أي استعلام (نفس منطق عرض جدول الكفالات)
+     * يقرأ من request: sponsor_id, sponsorship_type_id, sponsorship_status_id, search[value]
+     */
+    public static function applyRequestFilters($query): void
+    {
+        try {
                     // ============================================
                     // فلاتر المؤسسة الكافلة
                     // ============================================
@@ -505,7 +515,6 @@ class SponsorshipsDataTable extends DataTable
                         'line' => $e->getLine()
                     ]);
                 }
-            });
     }
 
     public function query(Sponsorship $model): QueryBuilder
