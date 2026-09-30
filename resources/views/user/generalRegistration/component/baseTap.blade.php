@@ -733,12 +733,56 @@
 
             const result = await response.json();
 
+            if (result.success && result.data && result.source === 'data') {
+                // يوجد ملف سابق للمعيل: ملء الحقول + استخدام رقم ملفه الموجود
+                fillFieldsFromCivilRegistry(result.data);
+                setFormFileNumber(result.file_id_number);
+
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        toast: true,
+                        position: 'top-start',
+                        icon: 'info',
+                        title: 'يوجد ملف سابق للمعيل - رقم الملف: ' + result.file_id_number,
+                        showConfirmButton: false,
+                        timer: 3500
+                    });
+                }
+                return;
+            }
+
+            // لا يوجد ملف سابق: استخدام رقم الملف المولَّد لهذه الصفحة
+            restoreFormFileNumber();
+
             if (result.success && result.data && result.source === 'civil_registry') {
                 fillFieldsFromCivilRegistry(result.data);
             }
         } catch (error) {
             console.error('خطأ في التحقق من المعيل:', error);
             Swal.close();
+        }
+    }
+
+    /**
+     * تعيين رقم الملف في الحقل المخفي وفي شاشة العرض
+     */
+    function setFormFileNumber(fileIdNumber) {
+        if (!fileIdNumber) return;
+
+        const hiddenInput = document.querySelector('[name="file_id_number"]');
+        if (hiddenInput) hiddenInput.value = fileIdNumber;
+
+        const displayInput = document.getElementById('display_file_id_number');
+        if (displayInput) displayInput.value = fileIdNumber;
+    }
+
+    /**
+     * إعادة رقم الملف إلى الرقم المولَّد لهذه الصفحة
+     */
+    function restoreFormFileNumber() {
+        const originalInput = document.querySelector('[name="original_file_id_number"]');
+        if (originalInput && originalInput.value) {
+            setFormFileNumber(originalInput.value);
         }
     }
 

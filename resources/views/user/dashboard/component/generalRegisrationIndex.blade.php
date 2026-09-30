@@ -616,28 +616,22 @@
                                                 pattern="[0-9]{9,10}"
                                                 maxlength="10"
                                                 {{ $fieldRequired ? 'required' : '' }}
-                                                @if($guardianNeedsCivilSearch)
-                                                    oninput="handleGuardianIdentityInput(this)"
-                                                @endif
+                                                oninput="handleGuardianIdentityInput(this)"
                                             >
-                                            @if($guardianNeedsCivilSearch)
-                                                <button type="button" class="btn btn-outline-primary" onclick="searchGuardianInCivilRegistry()" id="searchGuardianBtn">
-                                                    <i class="bi bi-search"></i>
-                                                </button>
-                                            @endif
+                                            <button type="button" class="btn btn-outline-primary" onclick="searchGuardianInCivilRegistry()" id="searchGuardianBtn">
+                                                <i class="bi bi-search"></i>
+                                            </button>
                                         </div>
-                                        @if($guardianNeedsCivilSearch)
-                                            <div id="guardianSearchStatus" class="mt-1" style="display: none;">
-                                                <small class="text-info">
-                                                    <i class="bi bi-hourglass-split me-1"></i>
-                                                    <span id="searchStatusText">جاري البحث عن بيانات المعيل...</span>
-                                                </small>
-                                            </div>
-                                            <small class="text-muted d-block mt-1">
-                                                <i class="bi bi-info-circle me-1"></i>
-                                               أدخل رقم الهوية بشكل دقيق
+                                        <div id="guardianSearchStatus" class="mt-1" style="display: none;">
+                                            <small class="text-info">
+                                                <i class="bi bi-hourglass-split me-1"></i>
+                                                <span id="searchStatusText">جاري البحث عن بيانات المعيل...</span>
                                             </small>
-                                        @endif
+                                        </div>
+                                        <small class="text-muted d-block mt-1">
+                                            <i class="bi bi-info-circle me-1"></i>
+                                           أدخل رقم الهوية بشكل دقيق
+                                        </small>
                                     @elseif($field['db_column'] == 'field_mother_status')
                                         {{-- Mother Status Dropdown - حالة الأم --}}
                                         <select
@@ -1873,8 +1867,8 @@
             }
 
             // إظهار حالة البحث
-            statusDiv.style.display = 'block';
-            statusText.textContent = 'جاري البحث عن بيانات المعيل في قاعدة البيانات المركزية...';
+            if (statusDiv) statusDiv.style.display = 'block';
+            if (statusText) statusText.textContent = 'جاري البحث عن بيانات المعيل في قاعدة البيانات المركزية...';
             identityInput.classList.remove('search-success', 'search-error');
             if (searchBtn) searchBtn.disabled = true;
 
@@ -1895,29 +1889,31 @@
 
                 if (data.success) {
                     identityInput.classList.add('search-success');
-                    statusText.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>تم العثور على البيانات وتعبئة الحقول</span>';
+                    if (statusText) statusText.innerHTML = data.source === 'data'
+                        ? '<span class="text-success"><i class="bi bi-check-circle me-1"></i>تم العثور على ملف سابق للمعيل وتعبئة الحقول</span>'
+                        : '<span class="text-success"><i class="bi bi-check-circle me-1"></i>تم العثور على البيانات وتعبئة الحقول</span>';
 
-                    // ملء حقول المعيل
-                    fillGuardianFieldsFromCivilRegistry(data.data);
+                    // ملء حقول المعيل مع جميع البيانات المرتبطة بملفه
+                    fillGuardianFieldsFromCivilRegistry(data.data, data.linked);
 
                     setTimeout(function() {
-                        statusDiv.style.display = 'none';
+                        if (statusDiv) statusDiv.style.display = 'none';
                     }, 3000);
                 } else {
                     identityInput.classList.add('search-error');
-                    statusText.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>' + (data.message || 'لم يتم العثور على بيانات') + '</span>';
+                    if (statusText) statusText.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>' + (data.message || 'لم يتم العثور على بيانات') + '</span>';
                 }
             })
             .catch(error => {
                 if (searchBtn) searchBtn.disabled = false;
                 identityInput.classList.add('search-error');
-                statusText.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>حدث خطأ أثناء البحث</span>';
+                if (statusText) statusText.innerHTML = '<span class="text-danger"><i class="bi bi-x-circle me-1"></i>حدث خطأ أثناء البحث</span>';
                 console.error('خطأ في البحث:', error);
             });
         }
 
         // ملء حقول المعيل من قاعدة البيانات المركزية
-        function fillGuardianFieldsFromCivilRegistry(data) {
+        function fillGuardianFieldsFromCivilRegistry(data, linked) {
             // حقول الاسم
             setInputValueWithHighlight('fields[field_data_first_name]', data.first_name);
             setInputValueWithHighlight('fields[field_data_father_name]', data.second_name);
@@ -1934,13 +1930,131 @@
                 setSelectValueWithHighlight('fields[field_data_city]', data.city);
             }
 
+            // صلة قابة المعيل (يوجد فقط عند الجلب من جدول data)
+            if (data.relationship) {
+                setSelectValueWithHighlight('fields[field_data_relationship]', data.relationship);
+            }
+
+            // رقم الهاتف والعنوان الحالي
+            if (data.phone_number) {
+                setInputValueWithHighlight('fields[field_data_phone_number]', data.phone_number);
+            }
+            if (data.current_address) {
+                setInputValueWithHighlight('fields[field_housing_address_detail]', data.current_address);
+            }
+
+            // جميع البيانات المرتبطة بملف المعيل
+            const summary = applyLinkedFileData(linked);
+
+            let summaryText = data.source === 'data'
+                ? 'تم العثور على ملف سابق للمعيل وتعبئة الحقول'
+                : 'تم جلب بيانات الشخص';
+            if (summary.family || summary.dead || summary.bank || summary.portal) {
+                const parts = [];
+                if (summary.family) parts.push(summary.family + ' فرد أسرة');
+                if (summary.dead) parts.push('بيانات المتوفين');
+                if (summary.bank) parts.push('الحساب البنكي');
+                if (summary.portal) parts.push(summary.portal + ' حفظ سابق');
+                summaryText += ' — تم استرجاع: ' + parts.join('، ');
+            }
+
             Swal.fire({
                 icon: 'success',
                 title: 'تم جلب البيانات',
-                text: 'تم جلب بيانات الشخص',
-                timer: 2500,
+                text: summaryText,
+                timer: 3000,
                 showConfirmButton: false
             });
+        }
+
+        // تطبيق جميع البيانات المرتبطة بملف المعيل (أفراد الأسرة، المتوفون، الحساب البنكي، حقول البوابة)
+        function applyLinkedFileData(linked) {
+            const summary = { family: 0, dead: 0, bank: 0, portal: 0 };
+            if (!linked) return summary;
+
+            // 1) أفراد الأسرة
+            const members = Array.isArray(linked.family_members) ? linked.family_members : [];
+            const container = document.getElementById('family-members-container');
+            if (container && members.length) {
+                const existing = new Set();
+                container.querySelectorAll('input[name$="[identity_number]"]').forEach(function(el) {
+                    const v = (el.value || '').trim();
+                    if (v) existing.add(v);
+                });
+
+                members.forEach(function(member) {
+                    const personId = String(member.person_id || '').trim();
+                    if (!personId || existing.has(personId)) return;
+
+                    addFamilyMember();
+                    const idx = familyMemberIndex - 1;
+                    setInputValueWithHighlight('family_members[' + idx + '][identity_number]', personId);
+                    setInputValueWithHighlight('family_members[' + idx + '][first_name]', member.first_name);
+                    setInputValueWithHighlight('family_members[' + idx + '][second_name]', member.second_name);
+                    setInputValueWithHighlight('family_members[' + idx + '][third_name]', member.third_name);
+                    setInputValueWithHighlight('family_members[' + idx + '][last_name]', member.last_name);
+                    setInputValueWithHighlight('family_members[' + idx + '][birthdate]', member.birth_date);
+                    setSelectValueWithHighlight('family_members[' + idx + '][gender]', member.gender ? String(member.gender) : '');
+                    setInputValueWithHighlight('family_members[' + idx + '][notes]', member.notes);
+
+                    existing.add(personId);
+                    summary.family++;
+                });
+            }
+
+            // 2) المتوفون (الأب والأم)
+            const dead = Array.isArray(linked.dead_people) ? linked.dead_people : [];
+            if (dead.length) {
+                const d = dead[0];
+                if (d.father_id || d.father_first_name || d.father_death_date) {
+                    setInputValueWithHighlight('fields[field_father_id]', d.father_id);
+                    setInputValueWithHighlight('fields[field_father_first_name]', d.father_first_name);
+                    setInputValueWithHighlight('fields[field_father_death_date]', d.father_death_date);
+                    setInputValueWithHighlight('fields[field_father_death_reason]', d.father_death_reason);
+                    summary.dead++;
+                }
+                if (d.mother_id || d.mother_first_name || d.mother_death_date) {
+                    setInputValueWithHighlight('fields[field_mother_id]', d.mother_id);
+                    setInputValueWithHighlight('fields[field_mother_first_name]', d.mother_first_name);
+                    setInputValueWithHighlight('fields[field_mother_death_date]', d.mother_death_date);
+                    setInputValueWithHighlight('fields[field_mother_death_reason]', d.mother_death_reason);
+                    if (d.mother_death_date) {
+                        setSelectValueWithHighlight('fields[field_mother_status]', 'متوفية');
+                    }
+                    summary.dead++;
+                }
+            }
+
+            // 3) الحساب البنكي المعتمد
+            const accounts = Array.isArray(linked.bank_accounts) ? linked.bank_accounts : [];
+            if (accounts.length) {
+                const account = accounts.find(function(a) { return Number(a.check_account) === 1; }) || accounts[0];
+                setSelectValueWithHighlight('fields[field_guardian_bank_name]', account.bank_name !== null && account.bank_name !== undefined ? String(account.bank_name) : '');
+                setInputValueWithHighlight('fields[field_guardian_account_owner_name]', account.account_owner_name);
+                setInputValueWithHighlight('fields[field_guardian_id_owner]', account.person_owner_identity_number);
+                setInputValueWithHighlight('fields[field_guardian_phone_number]', account.phone_number);
+                setInputValueWithHighlight('fields[field_guardian_iban_usd]', account.iban_usd);
+                setInputValueWithHighlight('fields[field_guardian_iban_shekel]', account.iban_shekel);
+                summary.bank = 1;
+            }
+
+            // 4) حقول البوابة المحفوظة سابقاً (تعبئة الحقول الفارغة فقط)
+            const portalFields = linked.portal_fields || {};
+            Object.keys(portalFields).forEach(function(key) {
+                if (!key) return;
+                const el = document.querySelector('[name="fields[' + key + ']"]');
+                if (!el) return;
+                const value = portalFields[key];
+                if (value === null || value === undefined || value === '') return;
+                if (el.tagName === 'SELECT') {
+                    if (!el.value) setSelectValueWithHighlight('fields[' + key + ']', String(value));
+                } else if (!el.value) {
+                    setInputValueWithHighlight('fields[' + key + ']', value);
+                    summary.portal++;
+                }
+            });
+
+            return summary;
         }
 
         // متغير لتتبع عملية البحث التلقائي للمتوفين
@@ -2071,13 +2185,19 @@
         // دالة مساعدة لتعيين قيمة حقل مع تأثير التمييز
         function setInputValueWithHighlight(name, value) {
             const input = document.querySelector('[name="' + name + '"]');
-            if (input && value) {
-                input.value = value;
-                input.classList.add('field-updated');
-                setTimeout(function() {
-                    input.classList.remove('field-updated');
-                }, 1000);
+            if (!input || !value) return;
+
+            // القوائم المنسدلة تُعبأ عبر دالة مخصصة لضمان مطابقة الخيارات
+            if (input.tagName === 'SELECT') {
+                setSelectValueWithHighlight(name, value);
+                return;
             }
+
+            input.value = value;
+            input.classList.add('field-updated');
+            setTimeout(function() {
+                input.classList.remove('field-updated');
+            }, 1000);
         }
 
         // دالة مساعدة لتعيين قيمة select مع تأثير التمييز
@@ -2085,8 +2205,9 @@
             const select = document.querySelector('[name="' + name + '"]');
             if (select && value) {
                 // البحث عن الخيار المطابق
+                const expected = String(value);
                 for (let option of select.options) {
-                    if (option.value === value || option.text === value) {
+                    if (String(option.value) === expected || option.text === expected) {
                         select.value = option.value;
                         select.classList.add('field-updated');
                         setTimeout(function() {

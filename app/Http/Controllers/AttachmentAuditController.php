@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\AttachmentAuditService;
+use App\Services\GuardianDuplicateMergeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -14,9 +15,12 @@ class AttachmentAuditController extends Controller
 {
     protected $auditService;
 
-    public function __construct(AttachmentAuditService $auditService)
+    protected $mergeService;
+
+    public function __construct(AttachmentAuditService $auditService, GuardianDuplicateMergeService $mergeService)
     {
         $this->auditService = $auditService;
+        $this->mergeService = $mergeService;
     }
 
     /**
@@ -287,6 +291,89 @@ class AttachmentAuditController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'حدث خطأ أثناء التصدير: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * كشف المعيلين الذين يملكون أكثر من ملف
+     */
+    public function findDuplicateGuardians()
+    {
+        try {
+            $results = $this->mergeService->scan();
+
+            return response()->json([
+                'success' => true,
+                'data' => $results,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('AttachmentAudit: Error scanning duplicate guardians', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء فحص المعيلين المكررين: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * دمج ملفات معيل مكرر في ملف واحد
+     */
+    public function mergeDuplicateGuardian(Request $request)
+    {
+        try {
+            $identity = trim((string) $request->input('identity'));
+
+            if ($identity === '') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'رقم الهوية مطلوب',
+                ], 400);
+            }
+
+            $report = $this->mergeService->mergeGroup($identity, $request->input('keep_file_id_number'));
+
+            return response()->json([
+                'success' => !empty($report['merged']),
+                'message' => $report['message'] ?? null,
+                'data' => $report,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('AttachmentAudit: Error merging duplicate guardian', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء الدمج: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * دمج جميع المعيلين المكررين
+     */
+    public function mergeAllDuplicateGuardians()
+    {
+        try {
+            $results = $this->mergeService->mergeAll();
+
+            return response()->json([
+                'success' => true,
+                'message' => "تم دمج {$results['merged_groups']} مجموعة، وفشل {$results['failed_groups']}",
+                'data' => $results,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('AttachmentAudit: Error merging all duplicate guardians', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء الدمج: ' . $e->getMessage(),
             ], 500);
         }
     }

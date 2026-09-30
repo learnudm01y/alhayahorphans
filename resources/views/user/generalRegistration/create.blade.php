@@ -13,6 +13,7 @@
                         <div class="d-flex align-items-center" style="margin-top: 1.5rem;">
                             <label class="form-label mb-0 me-2 fs-5" style="color: #222;">رقم الملف:</label>
                             <input type="text"
+                                id="display_file_id_number"
                                 class="form-control bg-secondary bg-opacity-25 border-0 text-center fs-3 fw-bold"
                                 style="width: 180px; height: 55px; box-shadow: none;" value="{{ $file_id_number ?? '' }}"
                                 readonly>
@@ -28,6 +29,9 @@
                             enctype="multipart/form-data" autocomplete="off" id="main_form" novalidate>
                             @csrf
                             <input type="hidden" name="file_id_number" value="{{ $file_id_number ?? '' }}">
+                            {{-- الرقم الذي وُلِّد لهذه الصفحة: يُستخدم في الخادم لإعادة ربط أي سجلات
+                                 سابقة مرتبطة به برقم ملف المعيل الموجود فعلياً --}}
+                            <input type="hidden" name="original_file_id_number" value="{{ $file_id_number ?? '' }}">
 
                         <div class="tab-content" id="formTabsContent">
 

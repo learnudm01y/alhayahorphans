@@ -17,6 +17,7 @@ use App\Models\Attachment;
 use App\Models\PortalGeneralRegistrationFieldValue;
 use App\Services\GoogleDriveService;
 use App\Services\RcloneGoogleDriveService;
+use App\Services\GuardianFileService;
 use Illuminate\Support\Facades\Log;
 
 
@@ -335,7 +336,16 @@ class ShowGeneralRegisrationController extends Controller
         }
 
         // ترتيب الفئات حسب الترتيب
-        ksort($groupedFields);
+        $groupedFields += array_diff_key($groupedFields, []);
+$orderedCategoryIds = [1, 8, 13, 13.5, 14, 15, 16, 2, 3, 4, 5, 6, 7, 9, 10, 17];
+$sorted = [];
+foreach ($orderedCategoryIds as $id) {
+    if (isset($groupedFields[$id])) $sorted[$id] = $groupedFields[$id];
+}
+foreach ($groupedFields as $id => $data) {
+    if (!isset($sorted[$id])) $sorted[$id] = $data;
+}
+$groupedFields = $sorted;
 
         // Prepare field values from all sources
         $fieldValues = $this->extractFieldValues($sponsorship);
@@ -1343,6 +1353,51 @@ class ShowGeneralRegisrationController extends Controller
             $fieldsData = $request->input('fields', []);
             $personType = $sponsorship->person_type;
 
+            // ================================================
+            // 🆕 البحث عن المعيل في قاعدة البيانات أولاً
+            // عند العثور على ملف للمعيل يتم إعادة ربط كل السجلات
+            // التابعة بالكفالة (الأفراد، المتوفون، الكفالات، البنك، البوابة)
+            // برقم ملف المعيل الموجود - وبصمت دون إخطار المستخدم
+            // ================================================
+            $isDeceasedPerson = in_array($personType, ['deceased_father', 'deceased_mother']);
+
+            // هوية المعيل المأخوذة من النموذج (تُستخدم للربط وللإنشاء معاً)
+            $guardianIdentityForLink = trim((string) ($fieldsData['field_data_id_number'] ?? ''));
+            $existingGuardianFile = null;
+
+            if (!$isDeceasedPerson) {
+                if ($guardianIdentityForLink === '') {
+                    $guardianIdentityForLink = trim((string) ($sponsorship->guardian_identity_number ?? ''));
+                }
+
+                if ($guardianIdentityForLink === '' && $personType === 'breadwinner') {
+                    $guardianIdentityForLink = trim((string) ($sponsorship->identity_number ?? ''));
+                }
+
+                if ($guardianIdentityForLink !== '') {
+                    $guardianFileService = app(GuardianFileService::class);
+                    $existingGuardianFile = $guardianFileService->findFileByIdentity($guardianIdentityForLink);
+
+                    if ($existingGuardianFile) {
+                        $guardianFileService->relinkSponsorship(
+                            $sponsorship,
+                            $existingGuardianFile,
+                            $guardianIdentityForLink
+                        );
+
+                        // إعادة تحميل الكفالة وعلاقاتها بعد إعادة الربط
+                        $sponsorship->refresh();
+                        $sponsorship->load(['relationData', 'sponsor']);
+                    } else {
+                        Log::info('GUARDIAN_NOT_FOUND_IN_DATA', [
+                            'sponsorship_id' => $sponsorship->id,
+                            'guardian_identity' => $guardianIdentityForLink,
+                            'note' => 'لا يوجد ملف سابق للمعيل - يتم إنشاء سجل جديد كالمعتاد',
+                        ]);
+                    }
+                }
+            }
+
             $needsCentralDataCreation = !$sponsorship->relation_id_number;
 
             // 🆕 التحقق بناءً على نوع الشخص
@@ -1380,6 +1435,24 @@ class ShowGeneralRegisrationController extends Controller
                     if (!$existingData) {
                         $needsCentralDataCreation = true;
                     }
+
+                    // 🆕 لفرد العائلة: يجب أن يوجد أيضاً سجله في re_people
+                    // (ملف المعيل قد يكون موجوداً بينما فرد العائلة لم يُنشأ بعد)
+                    if (!$needsCentralDataCreation && $personType === 'family_member') {
+                        $existingRePeople = DB::table('re_people')
+                            ->where('person_id', $sponsorship->identity_number)
+                            ->where('registration_id', $sponsorship->relation_id_number)
+                            ->exists();
+
+                        if (!$existingRePeople) {
+                            $needsCentralDataCreation = true;
+                            Log::info('FAMILY_MEMBER_RE_PEOPLE_MISSING', [
+                                'sponsorship_id' => $sponsorship->id,
+                                'identity_number' => $sponsorship->identity_number,
+                                'relation_id_number' => $sponsorship->relation_id_number,
+                            ]);
+                        }
+                    }
                 }
             }
 
@@ -1391,7 +1464,14 @@ class ShowGeneralRegisrationController extends Controller
                 ]);
 
                 // إنشاء السجلات المركزية
-                $newFileNumber = $this->createCentralDataRecords($sponsorship, $namesData, $fieldsData);
+                // تُمرَّر هوية المعيل وملفه الموجود لمنع إنشاء ملف مكرر للمعيل
+                $newFileNumber = $this->createCentralDataRecords(
+                    $sponsorship,
+                    $namesData,
+                    $fieldsData,
+                    $existingGuardianFile,
+                    $guardianIdentityForLink
+                );
 
                 // إعادة تحميل الكفالة مع العلاقات الجديدة
                 $sponsorship->refresh();
@@ -3348,6 +3428,30 @@ class ShowGeneralRegisrationController extends Controller
             return response()->json(['success' => false, 'message' => 'رقم الهوية مطلوب']);
         }
 
+        // ================================================
+        // 🆕 أولاً: البحث عن المعيل في قاعدة البيانات المركزية (جدول data)
+        // عند وجود ملف للمعيل تُجلب بياناته وجميع المرتبطين بالملف
+        // ================================================
+        if ($personType === 'guardian') {
+            $guardianFileService = app(GuardianFileService::class);
+            $guardianRecord = $guardianFileService->findLatestDataByIdentity((string) $identityNumber);
+
+            if ($guardianRecord) {
+                Log::info('GUARDIAN_FETCHED_FROM_DATA_TABLE', [
+                    'identity' => $identityNumber,
+                    'file_id_number' => $guardianRecord->file_id_number,
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'source' => 'data',
+                    'data' => $guardianFileService->buildGuardianPayload($guardianRecord),
+                    'linked' => $guardianFileService->buildLinkedFilePayload((string) $guardianRecord->file_id_number),
+                ]);
+            }
+        }
+
+        // غير ذلك: البحث في السجل المدني كالمعتاد (بدون أي تغيير)
         $civilData = $this->searchCivilRegistry($identityNumber);
 
         if (!$civilData) {
@@ -3356,6 +3460,7 @@ class ShowGeneralRegisrationController extends Controller
 
         return response()->json([
             'success' => true,
+            'source' => 'civil_registry',
             'data' => [
                 'first_name' => $civilData['first_name'],
                 'second_name' => $civilData['second_name'],
@@ -3494,6 +3599,95 @@ class ShowGeneralRegisrationController extends Controller
     }
 
     /**
+     * 🆕 إدراج سجل في جدول data أو تحديث السجل الموجود بنفس رقم الملف
+     * يُستخدم عند إعادة استخدام ملف معيل موجود بدلاً من توليد رقم جديد
+     * لتفادي انتهاك فهرس file_id_number الفريد ومنع تكرار المعيل
+     */
+    private function insertOrUpdateDataRecord(array $dataRecord, ?string $reusedFileNumber): int
+    {
+        $fileIdNumber = (string) ($dataRecord['file_id_number'] ?? '');
+
+        if (!empty($reusedFileNumber) && $fileIdNumber !== '' && $fileIdNumber === $reusedFileNumber) {
+            $existing = DB::table('data')->where('file_id_number', $fileIdNumber)->first();
+
+            if ($existing) {
+                $recordIdentity = trim((string) ($dataRecord['data_id_number'] ?? ''));
+                $existingIdentity = trim((string) ($existing->data_id_number ?? ''));
+
+                // حماية: لا نمحو هوية المعيل المخزنة إذا كانت هوية الطلب فارغة
+                if ($recordIdentity === '' && $existingIdentity !== '') {
+                    unset($dataRecord['data_id_number']);
+                    $recordIdentity = $existingIdentity;
+                }
+
+                $identitiesMismatch = $recordIdentity !== ''
+                    && $existingIdentity !== ''
+                    && $recordIdentity !== $existingIdentity;
+
+                if ($identitiesMismatch) {
+                    // حماية: الملف يخص هوية أخرى - لا ن overwritten، نُنشئ ملفاً جديداً
+                    Log::warning('DATA_RECORD_IDENTITY_MISMATCH', [
+                        'file_id_number' => $fileIdNumber,
+                        'existing_identity' => $existingIdentity,
+                        'record_identity' => $recordIdentity,
+                    ]);
+
+                    $dataRecord['file_id_number'] = $this->generateNewFileNumber();
+                } else {
+                    $updates = $dataRecord;
+                    unset($updates['created_at']);
+                    $updates['updated_at'] = now();
+
+                    DB::table('data')->where('id', $existing->id)->update($updates);
+
+                    Log::info('UPDATED_EXISTING_DATA_RECORD', [
+                        'data_id' => $existing->id,
+                        'file_id_number' => $fileIdNumber,
+                    ]);
+
+                    return (int) $existing->id;
+                }
+            }
+        }
+
+        return (int) DB::table('data')->insertGetId($dataRecord);
+    }
+
+    /**
+     * 🆕 إدراج فرد أسرة في re_people أو تحديث السجل الموجود بنفس الملف والهوية
+     */
+    private function insertOrUpdateRePeopleRecord(array $rePeopleRecord, ?string $reusedFileNumber): int
+    {
+        $fileIdNumber = (string) ($rePeopleRecord['registration_id'] ?? '');
+        $personId = trim((string) ($rePeopleRecord['person_id'] ?? ''));
+
+        if (!empty($reusedFileNumber) && $fileIdNumber === $reusedFileNumber && $personId !== '') {
+            $existing = DB::table('re_people')
+                ->where('registration_id', $fileIdNumber)
+                ->where('person_id', $personId)
+                ->first();
+
+            if ($existing) {
+                $updates = $rePeopleRecord;
+                unset($updates['created_at']);
+                $updates['updated_at'] = now();
+
+                DB::table('re_people')->where('id', $existing->id)->update($updates);
+
+                Log::info('UPDATED_EXISTING_RE_PEOPLE_RECORD', [
+                    're_people_id' => $existing->id,
+                    'registration_id' => $fileIdNumber,
+                    'person_id' => $personId,
+                ]);
+
+                return (int) $existing->id;
+            }
+        }
+
+        return (int) DB::table('re_people')->insertGetId($rePeopleRecord);
+    }
+
+    /**
      * إنشاء السجلات المركزية للمكفول الجديد
      * 🆕 يتم الآن إنشاء السجل في الجدول الصحيح فقط بناءً على person_type:
      * - breadwinner: جدول data
@@ -3505,17 +3699,60 @@ class ShowGeneralRegisrationController extends Controller
      * @param array $fieldsData بيانات الحقول الأخرى
      * @return string رقم الملف الجديد
      */
-    private function createCentralDataRecords(Sponsorship $sponsorship, array $namesData, array $fieldsData): string
-    {
-        // توليد رقم ملف جديد
-        $newFileNumber = $this->generateNewFileNumber();
-        $identityNumber = $sponsorship->identity_number;
+    private function createCentralDataRecords(
+        Sponsorship $sponsorship,
+        array $namesData,
+        array $fieldsData,
+        ?string $knownGuardianFile = null,
+        ?string $knownGuardianIdentity = null
+    ): string {
         $personType = $sponsorship->person_type;
+        $identityNumber = $sponsorship->identity_number;
+
+        // ================================================
+        // 🆕 تحديد هوية المعيل بشكل صحيح قبل أي إنشاء
+        // الأهم: لـ family_member هو identity_number المكفول وليس المعيل،
+        // فلا يجوز استخدامه أبداً للبحث عن ملف المعيل
+        // ================================================
+        $guardianIdentityCandidates = [];
+
+        if ($knownGuardianIdentity !== null && trim($knownGuardianIdentity) !== '') {
+            $guardianIdentityCandidates[] = trim($knownGuardianIdentity);
+        }
+
+        if ($personType === 'breadwinner' && trim((string) $identityNumber) !== '') {
+            $guardianIdentityCandidates[] = trim((string) $identityNumber);
+        }
+
+        if (trim((string) ($sponsorship->guardian_identity_number ?? '')) !== '') {
+            $guardianIdentityCandidates[] = trim((string) $sponsorship->guardian_identity_number);
+        }
+
+        $guardianIdentityForRecord = $guardianIdentityCandidates[0] ?? '';
+
+        // ================================================
+        // 🆕 البحث عن ملف المعيل الموجود مسبقاً قبل توليد رقم جديد
+        // عند وجود ملف للمعيل يتم إعادة استخدامه بدل إنشاء ملف مكرر
+        // ================================================
+        $reusedGuardianFile = null;
+
+        if (in_array($personType, ['breadwinner', 'family_member'], true)) {
+            if ($knownGuardianFile !== null && $knownGuardianFile !== '') {
+                $reusedGuardianFile = $knownGuardianFile;
+            } elseif ($guardianIdentityForRecord !== '') {
+                $reusedGuardianFile = app(GuardianFileService::class)->findFileByIdentity($guardianIdentityForRecord);
+            }
+        }
+
+        // توليد رقم ملف جديد فقط إذا لم يتوفر ملف للمعيل
+        $newFileNumber = $reusedGuardianFile ?: $this->generateNewFileNumber();
 
         Log::info('CREATING_CENTRAL_DATA_RECORDS', [
             'sponsorship_id' => $sponsorship->id,
             'identity_number' => $identityNumber,
             'new_file_number' => $newFileNumber,
+            'reused_guardian_file' => $reusedGuardianFile,
+            'guardian_identity_for_record' => $guardianIdentityForRecord,
             'person_type' => $personType,
             'names_data_keys' => array_keys($namesData),
         ]);
@@ -3602,7 +3839,7 @@ class ShowGeneralRegisrationController extends Controller
                 }
             }
 
-            $dataId = DB::table('data')->insertGetId($dataRecord);
+            $dataId = $this->insertOrUpdateDataRecord($dataRecord, $reusedGuardianFile);
 
             Log::info('CREATED_DATA_RECORD_FOR_BREADWINNER', [
                 'data_id' => $dataId,
@@ -3613,7 +3850,11 @@ class ShowGeneralRegisrationController extends Controller
             // === فرد عائلة: إنشاء سجل في جدول data (للمعيل) + re_people (للفرد) ===
 
             // 1. إنشاء سجل المعيل في data
-            $guardianIdNumber = $sponsorship->guardian_identity_number;
+            // هوية المعيل المحفوظة في الكفالة قد تكون فارغة - نعتمد هوية النموذج أولاً
+            $guardianIdNumber = $guardianIdentityForRecord !== ''
+                ? $guardianIdentityForRecord
+                : $sponsorship->guardian_identity_number;
+
             // التحقق من أن رقم هوية المعيل ليس فارغًا
             if (empty($guardianIdNumber)) {
                 $guardianIdNumber = null;
@@ -3690,7 +3931,7 @@ class ShowGeneralRegisrationController extends Controller
                 }
             }
 
-            $dataId = DB::table('data')->insertGetId($dataRecord);
+            $dataId = $this->insertOrUpdateDataRecord($dataRecord, $reusedGuardianFile);
 
             // 2. إنشاء سجل فرد العائلة في re_people
             $rePeopleRecord = [
@@ -3749,7 +3990,7 @@ class ShowGeneralRegisrationController extends Controller
                 }
             }
 
-            $rePeopleId = DB::table('re_people')->insertGetId($rePeopleRecord);
+            $rePeopleId = $this->insertOrUpdateRePeopleRecord($rePeopleRecord, $reusedGuardianFile);
 
             Log::info('CREATED_RECORDS_FOR_FAMILY_MEMBER', [
                 'data_id' => $dataId,
@@ -3933,7 +4174,7 @@ class ShowGeneralRegisrationController extends Controller
                 }
             }
 
-            $dataId = DB::table('data')->insertGetId($dataRecord);
+            $dataId = $this->insertOrUpdateDataRecord($dataRecord, $reusedGuardianFile);
 
             Log::info('CREATED_DATA_RECORD_LEGACY', [
                 'data_id' => $dataId,

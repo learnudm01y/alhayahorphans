@@ -31,6 +31,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\GuardianBankAccount;
 use App\Services\BankAccountValidationService;
+use App\Services\GuardianFileService;
 
 class GeneralRegistrationController extends Controller
 {
@@ -227,10 +228,16 @@ class GeneralRegistrationController extends Controller
             $useExistingGuardian = false;
             $existingGuardianData = null;
             $existingFileIdNumber = null;
+            // رقم الملف الذي وُلِّد لهذه الصفحة قبل أي استبدال
+            // (يُستخدم لإعادة ربط السجلات التابعة له بملف المعيل الموجود)
+            $originalPageFileId = $request->input('original_file_id_number');
+            $requestedFileIdNumber = $originalPageFileId !== null && $originalPageFileId !== ''
+                ? str_pad($originalPageFileId, 6, '0', STR_PAD_LEFT)
+                : $fileIdNumber;
 
-            // 1️⃣ أولاً: البحث عن معيل موجود في قاعدة البيانات
+            // 1️⃣ أولاً: البحث عن معيل موجود في قاعدة البيانات (أحدث سجل عند تكرار الهوية)
             if (!empty($guardianIdentity)) {
-                $existingGuardianData = Data::where('data_id_number', $guardianIdentity)->first();
+                $existingGuardianData = app(GuardianFileService::class)->findLatestDataByIdentity((string) $guardianIdentity);
 
                 if ($existingGuardianData) {
                     $useExistingGuardian = true;
@@ -241,6 +248,12 @@ class GeneralRegistrationController extends Controller
                         'identity' => $guardianIdentity
                     ]);
                 }
+            }
+
+            // لم يُعثر على ملف للمعيل: استخدام رقم الملف المولَّد لهذه الصفحة
+            // (يُلغي أي تعديل قد تسببت به الواجهة عند وجود ملف سابق)
+            if (!$useExistingGuardian && $requestedFileIdNumber !== $fileIdNumber) {
+                $fileIdNumber = $requestedFileIdNumber;
             }
 
             // 2️⃣ ثانياً: التحقق من عدم ارتباط المعيل بمعيل آخر
@@ -354,6 +367,32 @@ class GeneralRegistrationController extends Controller
             }
 
             DB::beginTransaction();
+
+            // ================================================
+            // 🆕 عند العثور على معيل له ملف في قاعدة البيانات:
+            // إعادة ربط كل السجلات التابعة للملف المطلوب برقم ملف
+            // المعيل الموجود (الأفراد، المتوفون، الكفالات، البنك، البوابة)
+            // ================================================
+            if ($useExistingGuardian && $existingFileIdNumber !== null) {
+                $requestedNorm = ltrim((string) $requestedFileIdNumber, '0');
+                $existingNorm = ltrim((string) $existingFileIdNumber, '0');
+
+                if ($requestedNorm !== $existingNorm) {
+                    $relinkCounts = app(GuardianFileService::class)->relinkFile(
+                        (string) $requestedFileIdNumber,
+                        (string) $existingFileIdNumber,
+                        null,
+                        (string) $guardianIdentity
+                    );
+
+                    Log::info('🔗 تم إعادة ربط سجلات الملف المطلوب بملف المعيل الموجود', [
+                        'requested_file' => $requestedFileIdNumber,
+                        'existing_file' => $existingFileIdNumber,
+                        'guardian_identity' => $guardianIdentity,
+                        'counts' => $relinkCounts,
+                    ]);
+                }
+            }
 
             // 2. Store main Data record أو استخدام المعيل الموجود
             $data = null;
@@ -1565,8 +1604,8 @@ class GeneralRegistrationController extends Controller
                 'message' => ''
             ];
 
-            // 1️⃣ البحث في جدول data (المعيلين)
-            $dataRecord = Data::where('data_id_number', $identityNumber)->first();
+            // 1️⃣ البحث في جدول data (المعيلين) - أحدث سجل عند تكرار الهوية
+            $dataRecord = app(GuardianFileService::class)->findLatestDataByIdentity($identityNumber);
 
             if ($dataRecord) {
                 $result['exists'] = true;
@@ -1597,7 +1636,10 @@ class GeneralRegistrationController extends Controller
                 ];
 
                 // جلب الحسابات البنكية
-                $bankAccounts = GuardianBankAccount::where('guardian_registration', $dataRecord->file_id_number)->get();
+                $bankAccounts = GuardianBankAccount::whereIn(
+                    'guardian_registration',
+                    app(GuardianFileService::class)->fileCandidates((string) $dataRecord->file_id_number)
+                )->get();
                 $result['bank_accounts'] = $bankAccounts->map(function($account) {
                     return [
                         'id' => $account->id,
@@ -1734,6 +1776,22 @@ class GeneralRegistrationController extends Controller
                 ]);
             }
 
+            // 🆕 أولاً: البحث عن ملف المعيل في قاعدة البيانات المركزية (جدول data)
+            $guardianFileService = app(GuardianFileService::class);
+            $existingGuardian = $guardianFileService->findLatestDataByIdentity((string) $identityNumber);
+
+            if ($existingGuardian) {
+                return response()->json([
+                    'success' => true,
+                    'source' => 'data',
+                    'exists' => true,
+                    'file_id_number' => str_pad((string) $existingGuardian->file_id_number, 6, '0', STR_PAD_LEFT),
+                    'data' => $guardianFileService->buildGuardianPayload($existingGuardian),
+                    'linked' => $guardianFileService->buildLinkedFilePayload((string) $existingGuardian->file_id_number),
+                    'message' => 'تم العثور على ملف سابق للمعيل وسيتم ربط السجلات برقم ملفه الموجود.',
+                ]);
+            }
+
             // البحث في السجل المدني فقط
             $normalizedSearchService = app(\App\Services\NormalizedSearchService::class);
             $civilResults = $normalizedSearchService->searchCivilRegistry($identityNumber, 1);
@@ -1860,8 +1918,8 @@ class GeneralRegistrationController extends Controller
                 ]);
             }
 
-            // فحص في جدول data (هل هو معيل لملف آخر؟)
-            $dataRecord = Data::where('data_id_number', $identityNumber)->first();
+            // فحص في جدول data (هل هو معيل لملف آخر؟) - أحدث سجل عند تكرار الهوية
+            $dataRecord = app(GuardianFileService::class)->findLatestDataByIdentity($identityNumber);
             if ($dataRecord && $dataRecord->file_id_number != $currentFileId) {
                 return response()->json([
                     'success' => true,
@@ -1921,7 +1979,7 @@ class GeneralRegistrationController extends Controller
             }
 
             if (!$guardian && !empty($identityNumber)) {
-                $guardian = Data::where('data_id_number', $identityNumber)->first();
+                $guardian = app(GuardianFileService::class)->findLatestDataByIdentity((string) $identityNumber);
             }
 
             if (!$guardian) {
@@ -1932,7 +1990,10 @@ class GeneralRegistrationController extends Controller
             }
 
             // جلب الحسابات البنكية
-            $bankAccounts = GuardianBankAccount::where('guardian_registration', $guardian->file_id_number)
+            $bankAccounts = GuardianBankAccount::whereIn(
+                'guardian_registration',
+                app(GuardianFileService::class)->fileCandidates((string) $guardian->file_id_number)
+            )
                 ->with(['bankNameRelation'])
                 ->get();
 

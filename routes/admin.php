@@ -415,6 +415,9 @@ Route::prefix('admin')->group(function () {
     Route::get('attachment-audit/orphan-files', [AttachmentAuditController::class, 'initOrphanScan'])->name('attachment-audit.orphan-files');
     Route::get('attachment-audit/orphan-files-page', [AttachmentAuditController::class, 'getOrphanFilesPage'])->name('attachment-audit.orphan-files-page');
     Route::post('attachment-audit/add-orphan-files', [AttachmentAuditController::class, 'addOrphanFiles'])->name('attachment-audit.add-orphan-files');
+    Route::get('attachment-audit/duplicate-guardians', [AttachmentAuditController::class, 'findDuplicateGuardians'])->name('attachment-audit.duplicate-guardians');
+    Route::post('attachment-audit/duplicate-guardians/merge', [AttachmentAuditController::class, 'mergeDuplicateGuardian'])->name('attachment-audit.duplicate-guardians.merge');
+    Route::post('attachment-audit/duplicate-guardians/merge-all', [AttachmentAuditController::class, 'mergeAllDuplicateGuardians'])->name('attachment-audit.duplicate-guardians.merge-all');
 });
 
 // Admin Routes Group - Additional Testing Routes

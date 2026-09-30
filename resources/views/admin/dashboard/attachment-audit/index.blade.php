@@ -34,6 +34,11 @@
             </button>
         </li>
         <li class="nav-item" role="presentation">
+            <button class="nav-link fw-bold" data-bs-toggle="tab" data-bs-target="#dup-guardians-tab" type="button" role="tab">
+                <i class="fas fa-user-friends me-2"></i>المعيلون المكررون
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
             <button class="nav-link fw-bold" data-bs-toggle="tab" data-bs-target="#orphan-tab" type="button" role="tab">
                 <i class="fas fa-file-upload me-2"></i>ملفات بدون سجل
             </button>
@@ -366,6 +371,82 @@
                         <button class="btn btn-outline-primary" id="btn-load-more-persons">
                             <i class="fas fa-arrow-down me-2"></i>تحميل المزيد
                         </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- ===== تبويب المعيلين المكررين ===== --}}
+        <div class="tab-pane fade" id="dup-guardians-tab" role="tabpanel">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h5 class="fw-bold mb-0">
+                        <i class="fas fa-user-friends me-2 text-danger"></i>
+                        كشف ودمج ملفات المعيلين المكررة
+                    </h5>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button class="btn btn-primary" id="btn-find-dup-guardians">
+                            <i class="fas fa-search me-2"></i>بدء الفحص
+                        </button>
+                        <button class="btn btn-danger" id="btn-merge-all-guardians" style="display:none;">
+                            <i class="fas fa-object-union me-2"></i>دمج الكل
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning py-2 px-3 mb-4">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        الدمج ينقل كل السجلات المرتبطة بالملفات المكررة (الكفالات، الأفراد، المتوفون، الحسابات البنكية، حقول البوابة، المرفقات)
+                        إلى الملف المختار، ثم يحذف بقية ملفات المعيل. لا يمكن التراجع عن العملية.
+                    </div>
+
+                    <div id="dupg-loading" class="text-center py-10" style="display:none;">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-3 text-muted" id="dupg-loading-text">جاري فحص المعيلين...</p>
+                    </div>
+
+                    <div id="dupg-stats" style="display:none;">
+                        <div class="row g-4 mb-4">
+                            <div class="col-md-3">
+                                <div class="card border-danger border-2">
+                                    <div class="card-body text-center py-3">
+                                        <h3 class="fw-bold text-danger mb-0" id="dupg-total-groups">0</h3>
+                                        <small class="text-muted">معيل مكرر</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card border-warning border-2">
+                                    <div class="card-body text-center py-3">
+                                        <h3 class="fw-bold text-warning mb-0" id="dupg-total-rows">0</h3>
+                                        <small class="text-muted">إجمالي الملفات</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card border-primary border-2">
+                                    <div class="card-body text-center py-3">
+                                        <h3 class="fw-bold text-primary mb-0" id="dupg-total-merge">0</h3>
+                                        <small class="text-muted">ملفات سيتم دمجها</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card border-info border-2">
+                                    <div class="card-body text-center py-3">
+                                        <h3 class="fw-bold text-info mb-0" id="dupg-total-links">0</h3>
+                                        <small class="text-muted">سجلات مرتبطة</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="dupg-container"></div>
+                    </div>
+
+                    <div id="dupg-empty" class="text-center py-10 text-muted">
+                        <i class="fas fa-user-friends text-muted" style="font-size: 3rem;"></i>
+                        <p class="mt-3">اضغط "بدء الفحص" لاكتشاف المعيلين الذين يملكون أكثر من ملف</p>
                     </div>
                 </div>
             </div>
@@ -1707,6 +1788,243 @@ $(document).ready(function() {
             }
         });
     }
+
+    // =====================================================================
+    // تبويب المعيلين المكررين
+    // =====================================================================
+    let dupGuardiansGroups = [];
+
+    const DUPG_LINK_LABELS = {
+        sponsorships: 'كفالات',
+        re_people: 'أفراد',
+        dead_people: 'متوفون',
+        additional_deceased: 'متوفون إضافيون',
+        guardian_bank_accounts: 'حسابات بنكية',
+        portal_fields: 'حقول البوابة',
+        google_drive_uploads: 'جوجل درايف',
+        sync_progress: 'مزامنة',
+        enhanced_attachments: 'مرفقات متقدمة',
+        aid_management: 'مساعدات',
+        attachments: 'مرفقات'
+    };
+
+    function countDupGuardianLinks(group) {
+        let total = 0;
+        (group.files || []).forEach(function(file) {
+            Object.keys(file.counts || {}).forEach(function(key) {
+                total += file.counts[key] || 0;
+            });
+        });
+        return total;
+    }
+
+    function renderDupGuardianCounts(counts) {
+        const parts = [];
+        Object.keys(counts || {}).forEach(function(key) {
+            const value = counts[key] || 0;
+            if (value > 0) {
+                parts.push('<span class="badge bg-info text-dark me-1">' + (DUPG_LINK_LABELS[key] || key) + ': ' + value + '</span>');
+            }
+        });
+        return parts.length ? parts.join('') : '<span class="text-muted">لا توجد سجلات مرتبطة</span>';
+    }
+
+    function buildDupGuardianGroup(group, index) {
+        let rows = '';
+
+        (group.files || []).forEach(function(file) {
+            const isRecommended = String(file.file_id_number) === String(group.recommended_keep);
+            rows += '<tr class="' + (isRecommended ? 'table-success' : '') + '">' +
+                '<td class="text-center"><input type="radio" name="dupg-keep-' + index + '" class="form-check-input dupg-keep" value="' + file.file_id_number + '"' + (isRecommended ? ' checked' : '') + '></td>' +
+                '<td><span class="fw-bold">' + file.file_id_number + '</span></td>' +
+                '<td>' + (file.full_name || '<span class="text-muted">—</span>') + '</td>' +
+                '<td>' + (file.phone || '<span class="text-muted">—</span>') + '</td>' +
+                '<td>' + (file.created_at || '—') + '</td>' +
+                '<td>' + (file.source ? '<span class="badge bg-secondary">' + file.source + '</span>' : '<span class="text-muted">—</span>') + '</td>' +
+                '<td>' + renderDupGuardianCounts(file.counts) + '</td>' +
+                '</tr>';
+        });
+
+        return '<div class="dup-group-card" id="dupg-group-' + index + '">' +
+            '<div class="dup-group-header">' +
+            '<div>' +
+            '<span class="fw-bold fs-5">' + group.identity + '</span>' +
+            '<span class="badge bg-danger mx-2">' + group.total + ' ملفات</span>' +
+            '<small class="text-muted">الملف المقترح للاحتفاظ به: ' + group.recommended_keep + '</small>' +
+            '</div>' +
+            '<button class="btn btn-danger btn-sm dupg-merge-group" data-group="' + index + '">' +
+            '<i class="fas fa-object-union me-1"></i>دمج هذه المجموعة' +
+            '</button>' +
+            '</div>' +
+            '<div class="dup-group-body table-responsive">' +
+            '<table class="table table-sm table-hover mb-0 align-middle">' +
+            '<thead class="table-light">' +
+            '<tr>' +
+            '<th class="text-center" style="width:70px;">احتفاظ</th>' +
+            '<th>رقم الملف</th>' +
+            '<th>الاسم</th>' +
+            '<th>الهاتف</th>' +
+            '<th>تاريخ الإنشاء</th>' +
+            '<th>المصدر</th>' +
+            '<th>السجلات المرتبطة</th>' +
+            '</tr>' +
+            '</thead>' +
+            '<tbody>' + rows + '</tbody>' +
+            '</table>' +
+            '</div>' +
+            '</div>';
+    }
+
+    function renderDupGuardians(data) {
+        dupGuardiansGroups = data.groups || [];
+
+        if (!data.total_groups) {
+            $('#dupg-empty').show().html(
+                '<i class="fas fa-check-circle text-success" style="font-size: 3rem;"></i>' +
+                '<p class="mt-3 fw-bold text-success">لا توجد معيلين مكررين</p>'
+            );
+            return;
+        }
+
+        $('#dupg-total-groups').text(data.total_groups);
+        $('#dupg-total-rows').text(data.total_rows);
+        $('#dupg-total-merge').text(data.rows_to_merge);
+
+        let links = 0;
+        dupGuardiansGroups.forEach(function(group) {
+            links += countDupGuardianLinks(group);
+        });
+        $('#dupg-total-links').text(links);
+
+        let html = '';
+        dupGuardiansGroups.forEach(function(group, index) {
+            html += buildDupGuardianGroup(group, index);
+        });
+
+        $('#dupg-container').html(html);
+        $('#dupg-stats').show();
+        $('#btn-merge-all-guardians').show();
+    }
+
+    function mergeDupGuardian(identity, keepFile, $btn, $groupBtn) {
+        const original = $groupBtn.html();
+
+        $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>');
+
+        $.ajax({
+            url: '{{ route("attachment-audit.duplicate-guardians.merge") }}',
+            method: 'POST',
+            data: { identity: identity, keep_file_id_number: keepFile },
+            success: function(response) {
+                if (response.success) {
+                    Swal.fire('تم', response.message || 'تم الدمج بنجاح', 'success').then(function() {
+                        $('#btn-find-dup-guardians').trigger('click');
+                    });
+                } else {
+                    Swal.fire('خطأ', response.message || 'فشل الدمج', 'error');
+                    $btn.prop('disabled', false).html(original);
+                }
+            },
+            error: function(xhr) {
+                Swal.fire('خطأ', (xhr.responseJSON && xhr.responseJSON.message) || 'حدث خطأ أثناء الدمج', 'error');
+                $btn.prop('disabled', false).html(original);
+            }
+        });
+    }
+
+    $('#btn-find-dup-guardians').on('click', function() {
+        const $btn = $(this);
+        $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>جاري الفحص...');
+        $('#dupg-loading-text').text('جاري فحص المعيلين...');
+        $('#dupg-loading').show();
+        $('#dupg-stats').hide();
+        $('#dupg-empty').hide();
+        $('#btn-merge-all-guardians').hide();
+        $('#dupg-container').empty();
+
+        $.ajax({
+            url: '{{ route("attachment-audit.duplicate-guardians") }}',
+            method: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    renderDupGuardians(response.data);
+                } else {
+                    Swal.fire('خطأ', response.message || 'تعذر الفحص', 'error');
+                }
+            },
+            error: function() {
+                Swal.fire('خطأ', 'حدث خطأ أثناء فحص المعيلين المكررين', 'error');
+            },
+            complete: function() {
+                resetBtnSearch($btn);
+                $('#dupg-loading').hide();
+            }
+        });
+    });
+
+    $('#dupg-container').on('click', '.dupg-merge-group', function() {
+        const $groupBtn = $(this);
+        const index = $groupBtn.data('group');
+        const group = dupGuardiansGroups[index];
+        const keep = $('input[name="dupg-keep-' + index + '"]:checked').val() || group.recommended_keep;
+
+        Swal.fire({
+            title: 'تأكيد دمج المجموعة',
+            html: 'سيتم دمج ملفات المعيل <b>' + group.identity + '</b> في الملف <b>' + keep + '</b>' +
+                '<br>وسيتم حذف الملفات الأخرى نهائياً بعد نقل كل سجلاتها المرتبطة.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، ادمج',
+            cancelButtonText: 'إلغاء'
+        }).then(function(result) {
+            if (result.isConfirmed) {
+                mergeDupGuardian(group.identity, keep, $groupBtn, $groupBtn);
+            }
+        });
+    });
+
+    $('#btn-merge-all-guardians').on('click', function() {
+        const $btn = $(this);
+
+        Swal.fire({
+            title: 'دمج جميع المعيلين المكررين',
+            html: 'سيتم دمج <b>' + dupGuardiansGroups.length + '</b> مجموعة. لا يمكن التراجع عن العملية.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، ادمج الكل',
+            cancelButtonText: 'إلغاء'
+        }).then(function(result) {
+            if (!result.isConfirmed) return;
+
+            $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>جاري الدمج...');
+            $('#dupg-loading-text').text('جاري دجميع المعيلين المكررين...');
+            $('#dupg-loading').show();
+            $('#dupg-stats').hide();
+
+            $.ajax({
+                url: '{{ route("attachment-audit.duplicate-guardians.merge-all") }}',
+                method: 'POST',
+                success: function(response) {
+                    if (response.success) {
+                        Swal.fire('تم', response.message || 'اكتمل الدمج', 'success').then(function() {
+                            $('#btn-find-dup-guardians').trigger('click');
+                        });
+                    } else {
+                        Swal.fire('خطأ', response.message || 'فشل الدمج', 'error');
+                    }
+                },
+                error: function(xhr) {
+                    Swal.fire('خطأ', (xhr.responseJSON && xhr.responseJSON.message) || 'حدث خطأ أثناء الدمج', 'error');
+                },
+                complete: function() {
+                    $btn.prop('disabled', false)
+                        .html('<i class="fas fa-object-union me-2"></i>دمج الكل')
+                        .show();
+                    $('#dupg-loading').hide();
+                }
+            });
+        });
+    });
 
 });
 </script>
