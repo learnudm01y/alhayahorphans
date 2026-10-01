@@ -73,6 +73,36 @@ class GeneralRegistrationController extends Controller
         ];
     }
 
+    /**
+     * سياسة العمل: هل هذا الشخص (معيل أو فرد أسرة) مرتبط حالياً بملف معيل آخر؟
+     *
+     * يفحص جدول data (معيلون) وجدول re_people (أفراد الأسرة) بالهوية ورقم الملف.
+     *
+     * @return string|null رقم ملف المعيل الآخر عند وجود ارتباط، أو null إذا لم يوجد
+     */
+    private function findOtherFileForIdentity(string $identity, string $fileIdNumber): ?string
+    {
+        $identity = trim($identity);
+
+        if ($identity === '') {
+            return null;
+        }
+
+        $linkedData = Data::where('data_id_number', $identity)->first();
+        if ($linkedData && $linkedData->file_id_number != $fileIdNumber) {
+            return (string) $linkedData->file_id_number;
+        }
+
+        $linkedRePeople = RePeople::where('person_id', $identity)
+            ->where('registration_id', '!=', $fileIdNumber)
+            ->first();
+        if ($linkedRePeople) {
+            return (string) $linkedRePeople->registration_id;
+        }
+
+        return null;
+    }
+
     public function index(): View
     {
         $generalSection = GeneralCategory::all();
@@ -258,21 +288,7 @@ class GeneralRegistrationController extends Controller
 
             // 2️⃣ ثانياً: التحقق من عدم ارتباط المعيل بمعيل آخر
             if (!$useExistingGuardian && !empty($guardianIdentity)) {
-                $linkedData = Data::where('data_id_number', $guardianIdentity)->first();
-                if ($linkedData && $linkedData->file_id_number != $fileIdNumber) {
-                    DB::rollBack();
-                    $errorMsg = 'هذا الشخص مسجل مسبقاً في النظام ومرتبط بمعيل آخر. لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.';
-                    if ($request->ajax() || $request->wantsJson()) {
-                        return response()->json(['success' => false, 'message' => $errorMsg], 422);
-                    }
-                    return redirect()->back()->withInput()->with('error', $errorMsg);
-                }
-
-                $linkedRePeople = RePeople::where('person_id', $guardianIdentity)
-                    ->where('registration_id', '!=', $fileIdNumber)
-                    ->first();
-                if ($linkedRePeople) {
-                    DB::rollBack();
+                if ($this->findOtherFileForIdentity((string) $guardianIdentity, $fileIdNumber) !== null) {
                     $errorMsg = 'هذا الشخص مسجل مسبقاً في النظام ومرتبط بمعيل آخر. لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.';
                     if ($request->ajax() || $request->wantsJson()) {
                         return response()->json(['success' => false, 'message' => $errorMsg], 422);
@@ -281,19 +297,26 @@ class GeneralRegistrationController extends Controller
                 }
             }
 
-            // تحقق من عدم تكرار رقم الملف العام (إلا إذا كنا نستخدم معيل موجود)
+            // تحقق من تكرار رقم الملف العام
+            // سياسة العمل: عند وجود بيانات قديمة لنفس رقم الملف يتم تحديثها فقط دون حذف أي سجل
+            //              (بدلاً من رفض الحفظ برسالة خطأ)
             if (!$useExistingGuardian && \App\Models\Data::where('file_id_number', $fileIdNumber)->exists()) {
-                // إذا كان الطلب AJAX أرجع رسالة واضحة
-                if ($request->ajax() || $request->wantsJson()) {
-                    return response()->json([
-                        'success' => false,
-                        'error' => 'رقم الملف العام مستخدم مسبقاً. يرجى تحديث الصفحة أو استخدام رقم جديد.'
-                    ], 422);
+                $conflictingFileData = \App\Models\Data::where('file_id_number', $fileIdNumber)
+                    ->orderByDesc('created_at')
+                    ->orderByDesc('id')
+                    ->first();
+
+                if ($conflictingFileData) {
+                    $useExistingGuardian = true;
+                    $existingGuardianData = $conflictingFileData;
+                    $existingFileIdNumber = $conflictingFileData->file_id_number;
+
+                    Log::info('ℹ️ رقم الملف موجود مسبقاً - سيتم تحديث السجل الموجود بدلاً من إنشاء سجل جديد', [
+                        'file_id_number' => $fileIdNumber,
+                        'existing_identity' => $conflictingFileData->data_id_number,
+                        'submitted_identity' => $guardianIdentity,
+                    ]);
                 }
-                // إذا كان الطلب عادي
-                return redirect()->back()
-                    ->withInput()
-                    ->with('error', 'رقم الملف العام مستخدم مسبقاً. يرجى تحديث الصفحة أو استخدام رقم جديد.');
             }
 
             // 1️⃣ التحقق من أفراد الأسرة قبل فتح المعاملة
@@ -319,12 +342,13 @@ class GeneralRegistrationController extends Controller
                                     ]
                                 ], 422);
                             }
-                            throw new \Exception("رقم هوية فرد الأسرة رقم " . ($index + 1) . " يجب أن يكون 9 أرقام بالضبط");
+                            return redirect()->back()
+                                ->withInput()
+                                ->with('error', "رقم هوية فرد الأسرة رقم " . ($index + 1) . " يجب أن يكون 9 أرقام بالضبط");
                         }
 
                         // 🆕 التحقق من أن الشخص ليس مرتبطاً بمعيل آخر
-                        $existingInData = Data::where('data_id_number', $member['person_id'])->first();
-                        if ($existingInData && $existingInData->file_id_number != $fileIdNumber) {
+                        if ($this->findOtherFileForIdentity((string) $member['person_id'], $fileIdNumber) !== null) {
                             $errorMsg = "الشخص برقم هوية " . $member['person_id'] . " مسجل مسبقاً في النظام ومرتبط بمعيل آخر. لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.";
                             if ($request->ajax() || $request->wantsJson()) {
                                 return response()->json([
@@ -332,21 +356,7 @@ class GeneralRegistrationController extends Controller
                                     'message' => $errorMsg
                                 ], 422);
                             }
-                            throw new \Exception($errorMsg);
-                        }
-
-                        $existingInRePeople = RePeople::where('person_id', $member['person_id'])
-                            ->where('registration_id', '!=', $fileIdNumber)
-                            ->first();
-                        if ($existingInRePeople) {
-                            $errorMsg = "الشخص برقم هوية " . $member['person_id'] . " مسجل مسبقاً في النظام ومرتبط بمعيل آخر. لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.";
-                            if ($request->ajax() || $request->wantsJson()) {
-                                return response()->json([
-                                    'success' => false,
-                                    'message' => $errorMsg
-                                ], 422);
-                            }
-                            throw new \Exception($errorMsg);
+                            return redirect()->back()->withInput()->with('error', $errorMsg);
                         }
 
                         // 🆕 منع تكرار نفس الرقم داخل الطلب الواحد (وإلا ضاع فرد بصمت)
@@ -359,7 +369,7 @@ class GeneralRegistrationController extends Controller
                                     'message' => $errorMsg
                                 ], 422);
                             }
-                            throw new \Exception($errorMsg);
+                            return redirect()->back()->withInput()->with('error', $errorMsg);
                         }
                         $seenFamilyIdentities[$memberIdentityKey] = true;
                     }
@@ -367,6 +377,41 @@ class GeneralRegistrationController extends Controller
             }
 
             DB::beginTransaction();
+
+            // ================================================
+            // 🔒 إعادة فحص الارتباط بملف آخر داخل المعاملة
+            //    (يُغلق سباق التزامن: قد يُدخل طلب آخر نفس الشخص بين الفحص السابق والكتابة)
+            //    سياسة العمل: أي فرد (معيل أو فرد أسرة) مرتبط بملف معيل آخر ⇒ إيقاف العملية
+            //                  تماماً مع رسالة تنبيه، دون أي كتابة في القاعدة
+            // ================================================
+            $inTransactionConflictMsg = null;
+
+            if (!$useExistingGuardian && !empty($guardianIdentity)) {
+                if ($this->findOtherFileForIdentity((string) $guardianIdentity, $fileIdNumber) !== null) {
+                    $inTransactionConflictMsg = 'هذا الشخص مسجل مسبقاً في النظام ومرتبط بمعيل آخر. لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.';
+                }
+            }
+
+            if ($inTransactionConflictMsg === null && is_array($familyMembers)) {
+                foreach ($familyMembers as $member) {
+                    $memberIdentity = trim((string) ($member['person_id'] ?? ''));
+                    if ($memberIdentity === '') {
+                        continue;
+                    }
+                    if ($this->findOtherFileForIdentity($memberIdentity, $fileIdNumber) !== null) {
+                        $inTransactionConflictMsg = "الشخص برقم هوية " . $memberIdentity . " مسجل مسبقاً في النظام ومرتبط بمعيل آخر. لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.";
+                        break;
+                    }
+                }
+            }
+
+            if ($inTransactionConflictMsg !== null) {
+                DB::rollBack();
+                if ($request->ajax() || $request->wantsJson()) {
+                    return response()->json(['success' => false, 'message' => $inTransactionConflictMsg], 422);
+                }
+                return redirect()->back()->withInput()->with('error', $inTransactionConflictMsg);
+            }
 
             // ================================================
             // 🆕 عند العثور على معيل له ملف في قاعدة البيانات:
@@ -1030,6 +1075,23 @@ class GeneralRegistrationController extends Controller
             }
             return redirect()->route('user.thank.you.page');
 
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                // فشل تحقق (ValidationException) ليس عطلاً في الخادم:
+                // يُعاد بـ 422 مع أخطاء الحقول الصحيحة بدل 500
+                DB::rollBack();
+                Log::warning('⚠️ فشل تحقق أثناء حفظ السجل العام: ' . $e->getMessage());
+
+                if ($request->ajax() || $request->wantsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $e->getMessage(),
+                        'errors' => $e->errors(),
+                    ], 422);
+                }
+                return redirect()->back()
+                    ->withInput()
+                    ->withErrors($e->errors())
+                    ->with('error', $e->getMessage());
             } catch (\Exception $e) {
                 DB::rollBack();
 
@@ -1653,7 +1715,7 @@ class GeneralRegistrationController extends Controller
                     ];
                 })->toArray();
 
-                $result['message'] = 'تم العثور على المعيل في قاعدة البيانات. سيتم ربط الشخص المكفول به.';
+                $result['message'] = ''; // سياسة العمل: لا نكشف للمستخدم وجود بيانات قديمة
 
                 Log::info('✅ تم العثور على معيل موجود في جدول data', [
                     'identity' => $identityNumber,
@@ -1730,7 +1792,7 @@ class GeneralRegistrationController extends Controller
                     ];
                 })->toArray();
 
-                $result['message'] = 'تم العثور على الشخص في سجل المتوفين. سيتم الربط بالملف الموجود.';
+                $result['message'] = ''; // سياسة العمل: لا نكشف للمستخدم وجود بيانات قديمة
 
                 Log::info('✅ تم العثور على شخص في جدول dead_people', [
                     'identity' => $identityNumber,
@@ -1743,7 +1805,7 @@ class GeneralRegistrationController extends Controller
             }
 
             // 3️⃣ لم يتم العثور على الشخص
-            $result['message'] = 'لم يتم العثور على الشخص في قاعدة البيانات. سيتم إنشاء سجل جديد.';
+            $result['message'] = ''; // سياسة العمل: لا نكشف للمستخدم وجود بيانات قديمة أو عدمها
 
             return response()->json($result);
 
@@ -1788,7 +1850,7 @@ class GeneralRegistrationController extends Controller
                     'file_id_number' => str_pad((string) $existingGuardian->file_id_number, 6, '0', STR_PAD_LEFT),
                     'data' => $guardianFileService->buildGuardianPayload($existingGuardian),
                     'linked' => $guardianFileService->buildLinkedFilePayload((string) $existingGuardian->file_id_number),
-                    'message' => 'تم العثور على ملف سابق للمعيل وسيتم ربط السجلات برقم ملفه الموجود.',
+                    'message' => '', // سياسة العمل: لا نكشف للمستخدم وجود بيانات قديمة
                 ]);
             }
 
@@ -1985,7 +2047,7 @@ class GeneralRegistrationController extends Controller
             if (!$guardian) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'لم يتم العثور على المعيل'
+                    'message' => '', // سياسة العمل: لا نكشف للمستخدم وجود بيانات قديمة أو عدمها
                 ]);
             }
 

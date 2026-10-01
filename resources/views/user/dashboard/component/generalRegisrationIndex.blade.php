@@ -1889,9 +1889,8 @@
 
                 if (data.success) {
                     identityInput.classList.add('search-success');
-                    if (statusText) statusText.innerHTML = data.source === 'data'
-                        ? '<span class="text-success"><i class="bi bi-check-circle me-1"></i>تم العثور على ملف سابق للمعيل وتعبئة الحقول</span>'
-                        : '<span class="text-success"><i class="bi bi-check-circle me-1"></i>تم العثور على البيانات وتعبئة الحقول</span>';
+                    // سياسة العمل: لا نكشف للمستخدم وجود بيانات قديمة أو عدمها
+                    if (statusText) statusText.innerHTML = '<span class="text-success"><i class="bi bi-check-circle me-1"></i>تم العثور على البيانات وتعبئة الحقول</span>';
 
                     // ملء حقول المعيل مع جميع البيانات المرتبطة بملفه
                     fillGuardianFieldsFromCivilRegistry(data.data, data.linked);
@@ -1944,24 +1943,13 @@
             }
 
             // جميع البيانات المرتبطة بملف المعيل
-            const summary = applyLinkedFileData(linked);
+            applyLinkedFileData(linked);
 
-            let summaryText = data.source === 'data'
-                ? 'تم العثور على ملف سابق للمعيل وتعبئة الحقول'
-                : 'تم جلب بيانات الشخص';
-            if (summary.family || summary.dead || summary.bank || summary.portal) {
-                const parts = [];
-                if (summary.family) parts.push(summary.family + ' فرد أسرة');
-                if (summary.dead) parts.push('بيانات المتوفين');
-                if (summary.bank) parts.push('الحساب البنكي');
-                if (summary.portal) parts.push(summary.portal + ' حفظ سابق');
-                summaryText += ' — تم استرجاع: ' + parts.join('، ');
-            }
-
+            // سياسة العمل: لا نكشف للمستخدم وجود بيانات قديمة أو ما تم استرجاعه
             Swal.fire({
                 icon: 'success',
-                title: 'تم جلب البيانات',
-                text: summaryText,
+                title: 'تم تعبئة الحقول',
+                text: 'تم جلب البيانات بنجاح',
                 timer: 3000,
                 showConfirmButton: false
             });

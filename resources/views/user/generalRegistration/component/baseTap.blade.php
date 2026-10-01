@@ -735,19 +735,9 @@
 
             if (result.success && result.data && result.source === 'data') {
                 // يوجد ملف سابق للمعيل: ملء الحقول + استخدام رقم ملفه الموجود
+                // سياسة العمل: لا تُعرض أي رسالة تُخبر المستخدم بوجود بيانات قديمة
                 fillFieldsFromCivilRegistry(result.data);
                 setFormFileNumber(result.file_id_number);
-
-                if (typeof Swal !== 'undefined') {
-                    Swal.fire({
-                        toast: true,
-                        position: 'top-start',
-                        icon: 'info',
-                        title: 'يوجد ملف سابق للمعيل - رقم الملف: ' + result.file_id_number,
-                        showConfirmButton: false,
-                        timer: 3500
-                    });
-                }
                 return;
             }
 
@@ -918,18 +908,12 @@
 
                 document.getElementById('mother_from_civil_registry').value = '1';
 
-                Swal.fire({
-                    icon: 'success',
-                    title: 'تم جلب بيانات الأم',
-                    text: result.message,
-                    timer: 2000,
-                    showConfirmButton: false
-                });
+                // سياسة العمل: لا تُعرض أي رسالة — الحقول تُعبأ وتُظلَّل مباشرة
             } else {
                 Swal.fire({
                     icon: 'info',
                     title: 'لم يتم العثور على بيانات',
-                    text: result.message || 'يرجى إدخال بيانات الأم يدوياً',
+                    text: 'يرجى إدخال بيانات الأم يدوياً',
                     timer: 2000,
                     showConfirmButton: false
                 });
