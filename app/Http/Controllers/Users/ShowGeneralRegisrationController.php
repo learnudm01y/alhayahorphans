@@ -153,18 +153,31 @@ class ShowGeneralRegisrationController extends Controller
 
         $enabledColumn = $portal . '_enabled';
 
-        // 🆕 جمع معرفات الوثائق المرفوعة حالياً (من الطلب الحالي فقط)
-        $uploadedDocTypeIds = array_keys($validAttachments);
+        // 🆕 جمع معرفات الوثائق المرفوعة حالياً (من الطلب الحالي)
+        $uploadedDocTypeIds = array_map('strval', array_keys($validAttachments));
 
-        // 🆕 التحقق من كل وثيقة مفعلة في البوابة (يجب رفع ملف جديد واحد على الأقل)
+        // 🆕 البند 8: الوثائق المحفوظة مسبقاً لهذه الشخص تكفي أيضاً
+        $existingDocTypeIds = [];
+        if ($sponsorship->identity_number) {
+            $existingDocTypeIds = Attachment::where('person_identity_number', $sponsorship->identity_number)
+                ->whereIn('file_type', $enabledDocumentIds)
+                ->pluck('file_type')
+                ->map(static fn ($value) => (string) $value)
+                ->unique()
+                ->all();
+        }
+
+        // 🆕 التحقق من كل وثيقة مفعلة في البوابة (ملف جديد أو ملف موجود مسبقاً)
         foreach ($documentTypes as $docType) {
             // التحقق من أن الوثيقة مفعلة في البوابة الحالية
             if (!$docType->{$enabledColumn}) {
                 continue;
             }
 
-            // التحقق من أن الملف الجديد مرفوع لهذا النوع
-            if (!in_array((string) $docType->id, $uploadedDocTypeIds)) {
+            $docTypeId = (string) $docType->id;
+
+            if (!in_array($docTypeId, $uploadedDocTypeIds, true)
+                && !in_array($docTypeId, $existingDocTypeIds, true)) {
                 $missingDocs[] = $docType->description;
             }
         }
@@ -176,6 +189,7 @@ class ShowGeneralRegisrationController extends Controller
                 'person_type' => $personType,
                 'missing_documents' => $missingDocs,
                 'new_uploads' => $uploadedDocTypeIds,
+                'already_saved_documents' => $existingDocTypeIds,
             ]);
         }
 
