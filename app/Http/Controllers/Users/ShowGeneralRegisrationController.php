@@ -1391,25 +1391,36 @@ $groupedFields = $sorted;
                 'php_max_file_uploads' => ini_get('max_file_uploads'),
             ]);
 
+            // ✅ التحقق من ملكية الكفالة قبل أي فحص آخر (ownership / authorization)
+            // المستخدم → الكفالة النشطة في الجلسة → مطابقة sponsorship_id المطلوب
+            $sponsorship = $this->authorizeSponsorshipForUpdate($sponsorshipId, $user);
+
             if ($fieldsIncomingCount === 0) {
-                Log::error('UPDATE_SPONSORSHIP_NO_FIELDS_RECEIVED', [
+                // 🆕 البند 13: لا نجعل غياب الحقول خطأً عالمياً إذا كانت الجمعية
+                // لا تدير أي حقل بيانات أصلاً (عندها لا يرسل النموذج fields[] إطلاقاً)
+                if ($this->sponsorHasEnabledFields($sponsorship)) {
+                    Log::error('UPDATE_SPONSORSHIP_NO_FIELDS_RECEIVED', [
+                        'user_id' => $user?->id,
+                        'sponsorship_id' => $sponsorshipId,
+                        'note' => 'لم تصل أي حقول ضمن fields[]. تحقق من name="fields[...]" داخل form ومن عدم وجود عناصر disabled/عدم وجود JS يمنع الإرسال.',
+                    ]);
+
+                    // نوقف العملية برسالة واضحة بدل المتابعة والنجاح الصامت دون حفظ أي بيانات
+                    throw new \Exception('لم يتم استقبال أي حقول بيانات من النموذج (fields[])، لذا لم يتم الحفظ. يرجى إعادة تحميل الصفحة وحاول مرة أخرى.');
+                }
+
+                Log::warning('UPDATE_SPONSORSHIP_NO_FIELDS_RECEIVED_SPONSOR_HAS_NONE', [
                     'user_id' => $user?->id,
                     'sponsorship_id' => $sponsorshipId,
-                    'note' => 'لم تصل أي حقول ضمن fields[]. تحقق من name="fields[...]" داخل form ومن عدم وجود عناصر disabled/عدم وجود JS يمنع الإرسال.',
+                    'sponsor_id' => $sponsorship->sponsor_id,
+                    'fields_count' => $fieldsIncomingCount,
                 ]);
-
-                // نوقف العملية برسالة واضحة بدل المتابعة والنجاح الصامت دون حفظ أي بيانات
-                throw new \Exception('لم يتم استقبال أي حقول بيانات من النموذج (fields[])، لذا لم يتم الحفظ. يرجى إعادة تحميل الصفحة وحاول مرة أخرى.');
             }
 
             // إذا تم اختيار ملفات ولكن لم يصل أي ملف صالح، نوقف العملية برسالة واضحة
             if ($attachmentsTotal > 0 && $attachmentsValidTotal === 0) {
                 throw new \Exception('تم اختيار ملفات ولكن لم تصل للسيرفر كملفات صالحة (قد تكون أكبر من upload_max_filesize/post_max_size أو حدث خطأ أثناء الرفع).');
             }
-
-            // ✅ التحقق من ملكية الكفالة قبل أي تعديل (ownership / authorization)
-            // المستخدم → الكفالة النشطة في الجلسة → مطابقة sponsorship_id المطلوب
-            $sponsorship = $this->authorizeSponsorshipForUpdate($sponsorshipId, $user);
 
             // التحقق من البيانات
             $request->validate([
@@ -3211,6 +3222,47 @@ $groupedFields = $sorted;
         }
 
         return 'حدث خطأ غير متوقع أثناء حفظ البيانات ولم يتم حفظ أي تغييرات. يرجى المحاولة مرة أخرى.';
+    }
+
+    /**
+     * 🆕 البند 13: هل تدير جمعية الكفالة أي حقل بيانات مفعّل؟
+     * يُستخدم فقط للتمييز بين "النموذج لم يرسل fields" (عطل حقيقي)
+     * و"الجمعية لا تدير أي حقل" (سلوك صحيح وليس خطأ).
+     */
+    private function sponsorHasEnabledFields($sponsorship): bool
+    {
+        if (!$sponsorship || !$sponsorship->sponsor_id) {
+            // لا توجد إعدادات مخصصة => النموذج يعرض كل الحقول
+            return true;
+        }
+
+        $fieldSettings = \App\Models\SponsorFieldSetting::where('sponsor_id', $sponsorship->sponsor_id)->first();
+        if (!$fieldSettings) {
+            return true;
+        }
+
+        $legacyUnmanagedFields = [
+            'field_re_guardian_name',
+            'field_re_guardian_phone',
+            'field_re_guardian_id',
+            'field_family_members_count',
+            'field_mother_name',
+        ];
+
+        foreach ($fieldSettings->getAttributes() as $key => $value) {
+            // أقسام المرفقات/أفراد الأسرة والحقول القديمة غير المعروضة لا تُحسب
+            if (!str_starts_with($key, 'field_')
+                || str_ends_with($key, '_section')
+                || in_array($key, $legacyUnmanagedFields, true)) {
+                continue;
+            }
+
+            if ($value == 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
