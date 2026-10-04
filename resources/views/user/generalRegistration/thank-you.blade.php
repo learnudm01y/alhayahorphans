@@ -84,6 +84,18 @@
             line-height: 1.8;
         }
 
+        .flash-success {
+            font-size: 26px;
+            font-weight: 700;
+            color: #059669;
+            background: #ecfdf5;
+            border: 1px solid #a7f3d0;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin: 0 auto 25px;
+            line-height: 1.8;
+        }
+
         .success-icon {
             width: 120px;
             height: 120px;
@@ -173,6 +185,10 @@
 
         <h1 class="message">شكراً لحسن تعاونكم</h1>
         <h2 class="sub-message">بوابة تسجيل الأيتام والمستفيدين</h2>
+
+        @if(session('success'))
+            <div class="flash-success">{{ session('success') }}</div>
+        @endif
 
         <div class="footer">
             <p>تم استلام طلبكم بنجاح</p>
