@@ -794,11 +794,7 @@ $groupedFields = $sorted;
         // حالة السكن ونوع السكن
         if ($isDeceased) {
             // 🆕 للمتوفين: جلب بيانات السكن من portal_general_registration_field_values
-            // ⚠️ نفس تسلسل المفتاح المستخدم عند الحفظ
-            $fileIdForHousing = (string) ($sponsorship->relationData?->file_id_number
-                ?: $sponsorship->relation_id_number
-                ?: $sponsorship->internal_file_number
-                ?: '');
+            $fileIdForHousing = $sponsorship->relation_id_number ?: $sponsorship->internal_file_number;
             $housingFieldKeys = [
                 'field_housing_status', 'field_housing_type', 'field_data_address',
                 'field_data_province', 'field_data_city', 'field_data_neighborhood',
@@ -807,25 +803,12 @@ $groupedFields = $sorted;
             ];
 
             $storedHousingValues = PortalGeneralRegistrationFieldValue::query()
-                ->where(function ($query) use ($fileIdForHousing, $sponsorship) {
-                    $query->where('sponsorship_id', $sponsorship->id);
-                    if ($fileIdForHousing !== '') {
-                        $query->orWhere('file_id_number', $fileIdForHousing);
-                    }
-                })
-                ->orderByDesc('updated_at')
+                ->where('file_id_number', (string) $fileIdForHousing)
                 ->whereIn('field_key', $housingFieldKeys)
-                ->get(['field_key', 'field_value']);
-
-            $storedHousingMap = [];
-            foreach ($storedHousingValues as $housingRow) {
-                if (!array_key_exists($housingRow->field_key, $storedHousingMap)) {
-                    $storedHousingMap[$housingRow->field_key] = $housingRow->field_value;
-                }
-            }
+                ->pluck('field_value', 'field_key');
 
             foreach ($housingFieldKeys as $fieldKey) {
-                $values[$fieldKey] = $storedHousingMap[$fieldKey] ?? '';
+                $values[$fieldKey] = $storedHousingValues[$fieldKey] ?? '';
             }
 
             Log::info('DECEASED_HOUSING_DATA_EXTRACTED', [
@@ -1225,34 +1208,18 @@ $groupedFields = $sorted;
         ]);
 
         // تحميل قيم الحقول العامة من جدول مخصص للبوابة (Key/Value)
-        // ⚠️ يجب أن يطابق هذا المفتاح تماماً المفتاح المستخدم عند الحفظ داخل updateSponsorshipData()
         try {
-            $fileIdNumber = (string) ($sponsorship->relationData?->file_id_number
-                ?: $sponsorship->relation_id_number
-                ?: $sponsorship->internal_file_number
-                ?: '');
+            $fileIdNumber = $sponsorship->relationData?->file_id_number;
+            if ($fileIdNumber) {
+                $stored = PortalGeneralRegistrationFieldValue::query()
+                    ->where('file_id_number', (string) $fileIdNumber)
+                    ->pluck('field_value', 'field_key');
 
-            $portalRows = PortalGeneralRegistrationFieldValue::query()
-                ->where(function ($query) use ($fileIdNumber, $sponsorship) {
-                    $query->where('sponsorship_id', $sponsorship->id);
-                    if ($fileIdNumber !== '') {
-                        $query->orWhere('file_id_number', $fileIdNumber);
+                foreach ($stored as $k => $v) {
+                    // لا نكسر القيم المحسوبة إن كانت موجودة، لكن نملأ القيم التي لا نعرف مصدرها
+                    if (!array_key_exists($k, $values) || $values[$k] === null || $values[$k] === '') {
+                        $values[$k] = $v;
                     }
-                })
-                ->orderByDesc('updated_at')
-                ->get(['field_key', 'field_value']);
-
-            $stored = [];
-            foreach ($portalRows as $portalRow) {
-                if (!array_key_exists($portalRow->field_key, $stored)) {
-                    $stored[$portalRow->field_key] = $portalRow->field_value;
-                }
-            }
-
-            foreach ($stored as $k => $v) {
-                // لا نكسر القيم المحسوبة إن كانت موجودة، لكن نملأ القيم التي لا نعرف مصدرها
-                if (!array_key_exists($k, $values) || $values[$k] === null || $values[$k] === '') {
-                    $values[$k] = $v;
                 }
             }
         } catch (\Throwable $e) {
@@ -1341,14 +1308,11 @@ $groupedFields = $sorted;
             ]);
 
             if ($fieldsIncomingCount === 0) {
-                Log::error('UPDATE_SPONSORSHIP_NO_FIELDS_RECEIVED', [
+                Log::warning('UPDATE_SPONSORSHIP_NO_FIELDS_RECEIVED', [
                     'user_id' => $user?->id,
                     'sponsorship_id' => $sponsorshipId,
                     'note' => 'لم تصل أي حقول ضمن fields[]. تحقق من name="fields[...]" داخل form ومن عدم وجود عناصر disabled/عدم وجود JS يمنع الإرسال.',
                 ]);
-
-                // نوقف العملية برسالة واضحة بدل المتابعة والنجاح الصامت دون حفظ أي بيانات
-                throw new \Exception('لم يتم استقبال أي حقول بيانات من النموذج (fields[])، لذا لم يتم الحفظ. يرجى إعادة تحميل الصفحة وحاول مرة أخرى.');
             }
 
             // إذا تم اختيار ملفات ولكن لم يصل أي ملف صالح، نوقف العملية برسالة واضحة
@@ -1535,90 +1499,117 @@ $groupedFields = $sorted;
 
             // تحديث الحقول الأساسية في جدول sponsorships
             // ملاحظة: guardian_relationship غير موجود في جدول sponsorships - يتم تخزينه في portal_general_registration_field_values
-            // ⚠️ يجب ألا يحتوي هذا القائمة إلا على أعمدة موجودة فعلاً في جدول sponsorships
-            //    (أي عمود غير موجود هنا يسبب خطأ SQL عند save() ويرجّع المعاملة كاملة)
-            $sponsorshipFields = ['orphan_name', 'identity_number', 'internal_file_number', 'guardian_name'];
+            $sponsorshipFields = ['orphan_name', 'identity_number', 'birth_date', 'internal_file_number',
+                                 'guardian_name', 'guardian_phone'];
 
             // $fieldsData تم تعريفه مسبقاً
 
-            // ⚠️ أصبحت جميع الحقول الواردة تُحفظ في portal_general_registration_field_values
-            // بدون أي استثناء: portal هو ضمانة ألّا يضيع أي حقل يصل من الفورم،
-            // بالإضافة إلى الحفظ في جداولها المخصصة (data / re_people / dead_people / bank).
-            // الحقول المحفوظة في جداول مخصصة تظل تُقرأ من هناك أولاً عند العرض،
-            // وportal يُستخدم كبديل عندما لا تتوفر قيمة في المصدر.
-            $fileIdNumberForPortal = (string) ($sponsorship->relationData?->file_id_number ?: $sponsorship->relation_id_number ?: $sponsorship->internal_file_number ?: '');
-            $identityForPortal = (string) ($sponsorship->identity_number ?: '');
-            $storedCount = 0;
+            // 🆕 قائمة الحقول التي يجب أن لا تُحفظ في portal_general_registration_field_values
+            // لأنها تُحفظ في جدول data أو جداول أخرى
+            $excludedFromPortalFields = [
+                // الحقول الأساسية الموجودة في جدول data
+                'field_data_id_number',
+                'field_data_first_name',
+                'field_data_father_name',
+                'field_data_grand_father_name',
+                'field_data_family_name',
+                'field_data_birth_date',
+                'field_data_phone_number',
+                'field_guardian_health',
+                'field_guardian_job', // data_employment_status_breadwinner
+                'field_dependents_female', // data_number_female
+                'field_dependents_male', // data_number_mail
+                // حقول السكن التي تُحفظ في جدول data
+                'field_housing_status',
+                'field_housing_type',
+                'field_housing_address_detail',
+                'field_data_city',
+                'field_data_province',
+                // حقول الوفاة التي تُحفظ في جدول dead_people
+                'field_father_id',
+                'field_father_death_date',
+                'field_father_death_reason',
+                'field_mother_id',
+                'field_mother_death_date',
+                'field_mother_death_reason',
+                // حقول تُحفظ في re_people
+                'field_health_status', // person_health_status
+                'field_person_birth_date', // person_birth_date في re_people
+                'field_identity_number', // person_id في re_people
+            ];
 
-            if (!is_array($fieldsData) || count($fieldsData) === 0) {
-                throw new \Exception('حقل fields[] فارغ أو غير مصفوفة، تم إيقاف الحفظ.');
-            }
+            // تخزين جميع الحقول الواردة في جدول مخصص (حتى لو لم يكن لها عمود/جدول بعد)
+            // مع استثناء الحقول المحددة أعلاه
+            try {
+                $fileIdNumberForPortal = (string) ($sponsorship->relationData?->file_id_number ?: $sponsorship->relation_id_number ?: $sponsorship->internal_file_number ?: '');
+                $identityForPortal = (string) ($sponsorship->identity_number ?: '');
+                $storedCount = 0;
 
-            if ($fileIdNumberForPortal === '') {
-                Log::error('PORTAL_FIELDS_NO_FILE_NUMBER', [
-                    'sponsorship_id' => $sponsorship->id,
-                    'relation_id_number' => $sponsorship->relation_id_number,
-                    'internal_file_number' => $sponsorship->internal_file_number,
-                ]);
-                throw new \Exception('تعذّر تحديد رقم ملف الكفالة لحفظ بيانات البوابة، تم إيقاف الحفظ.');
-            }
+                if (is_array($fieldsData) && $fileIdNumberForPortal !== '') {
+                    foreach ($fieldsData as $fieldKey => $fieldValue) {
+                        // 🆕 تخطي الحقول المستثناة من الحفظ في portal
+                        if (in_array($fieldKey, $excludedFromPortalFields)) {
+                            continue;
+                        }
 
-            foreach ($fieldsData as $fieldKey => $fieldValue) {
-                // 🆕 تحديد identity_number بناءً على نوع الحقل
-                $targetIdentityNumber = $identityForPortal;
+                        // 🆕 تحديد identity_number بناءً على نوع الحقل
+                        $targetIdentityNumber = $identityForPortal;
 
-                // حقول الأم الحية - استخدام رقم هوية الأم
-                $livingMotherFields = [
-                    'field_living_mother_first_name',
-                    'field_living_mother_second_name',
-                    'field_living_mother_third_name',
-                    'field_living_mother_last_name',
-                    'field_living_mother_id',
-                ];
+                        // حقول الأم الحية - استخدام رقم هوية الأم
+                        $livingMotherFields = [
+                            'field_living_mother_first_name',
+                            'field_living_mother_second_name',
+                            'field_living_mother_third_name',
+                            'field_living_mother_last_name',
+                            'field_living_mother_id',
+                        ];
 
-                if (in_array($fieldKey, $livingMotherFields)) {
-                    // استخدام رقم هوية الأم من field_living_mother_id
-                    $motherIdNumber = $fieldsData['field_living_mother_id'] ?? '';
-                    if (!empty($motherIdNumber)) {
-                        $targetIdentityNumber = (string) $motherIdNumber;
+                        if (in_array($fieldKey, $livingMotherFields)) {
+                            // استخدام رقم هوية الأم من field_living_mother_id
+                            $motherIdNumber = $fieldsData['field_living_mother_id'] ?? '';
+                            if (!empty($motherIdNumber)) {
+                                $targetIdentityNumber = (string) $motherIdNumber;
+                            }
+                        }
+
+                        // نخزن القيم كسلسلة أو JSON إذا كانت مصفوفة
+                        if (is_array($fieldValue)) {
+                            $fieldValue = json_encode($fieldValue, JSON_UNESCAPED_UNICODE);
+                        } elseif (is_bool($fieldValue)) {
+                            $fieldValue = $fieldValue ? '1' : '0';
+                        } elseif ($fieldValue !== null) {
+                            $fieldValue = (string) $fieldValue;
+                        }
+
+                        PortalGeneralRegistrationFieldValue::query()->updateOrCreate(
+                            [
+                                'file_id_number' => $fileIdNumberForPortal,
+                                'field_key' => (string) $fieldKey,
+                            ],
+                            [
+                                'sponsorship_id' => $sponsorship->id,
+                                'identity_number' => $targetIdentityNumber,
+                                'field_value' => $fieldValue,
+                                'updated_by_user_id' => $user?->id,
+                            ]
+                        );
+
+                        $storedCount++;
                     }
                 }
 
-                // نخزن القيم كسلسلة أو JSON إذا كانت مصفوفة
-                if (is_array($fieldValue)) {
-                    $fieldValue = json_encode($fieldValue, JSON_UNESCAPED_UNICODE);
-                } elseif (is_bool($fieldValue)) {
-                    $fieldValue = $fieldValue ? '1' : '0';
-                } elseif ($fieldValue !== null) {
-                    $fieldValue = (string) $fieldValue;
-                }
-
-                PortalGeneralRegistrationFieldValue::query()->updateOrCreate(
-                    [
-                        'file_id_number' => $fileIdNumberForPortal,
-                        'field_key' => (string) $fieldKey,
-                    ],
-                    [
-                        'sponsorship_id' => $sponsorship->id,
-                        'identity_number' => $targetIdentityNumber,
-                        'field_value' => $fieldValue,
-                        'updated_by_user_id' => $user?->id,
-                    ]
-                );
-
-                $storedCount++;
-            }
-
-            Log::info('PORTAL_FIELDS_STORED', [
-                'sponsorship_id' => $sponsorship->id,
-                'file_id_number' => $fileIdNumberForPortal,
-                'stored_count' => $storedCount,
-                'fields_received_count' => count($fieldsData),
-            ]);
-
-            // 🛡️ ضمانة إضافية: لو لم يُحفظ أي حقل فلا يجوز المتابعة للنجاح
-            if ($storedCount === 0) {
-                throw new \Exception('لم يتم حفظ أي حقل في portal_general_registration_field_values، تم إيقاف الحفظ.');
+                Log::info('PORTAL_FIELDS_STORED', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'file_id_number' => $fileIdNumberForPortal,
+                    'stored_count' => $storedCount,
+                    'fields_received_count' => is_array($fieldsData) ? count($fieldsData) : 0,
+                    'excluded_fields_count' => count($excludedFromPortalFields),
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('PORTAL_FIELDS_STORE_FAILED', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'error' => $e->getMessage(),
+                ]);
             }
 
             // حقول البنك الجديدة
@@ -1632,28 +1623,6 @@ $groupedFields = $sorted;
             $unmappedFieldKeys = [];
             $mappedToSponsorship = [];
             $mappedToData = [];
-            $mappedToRePeople = [];
-
-            // 🔒 مفاتيح لا يجوز تفريغها مهما كانت قيمتها الفارغة (مفاتيح بحث/ربط أساسية)
-            $neverClearKeys = [
-                'field_identity_number',
-                'field_sponsor_name',
-                'field_data_id_number',
-                'field_internal_file_number',
-                'field_external_file_number',
-            ];
-
-            // 🧹 قرار القيمة: null = تفريغ العمود فعلاً، $SKIP = لا تغيير
-            $SKIP = '__SKIP__';
-            $fieldOrClear = function ($value, string $key) use ($neverClearKeys, $SKIP) {
-                if ($value === null) {
-                    return $SKIP;
-                }
-                if ($value === '' || $value === []) {
-                    return in_array($key, $neverClearKeys, true) ? $SKIP : null;
-                }
-                return $value;
-            };
 
             // 🆕 تحديد ما إذا كان الشخص متوفي
             $isDeceased = in_array($sponsorship->person_type, ['deceased_father', 'deceased_mother']);
@@ -1671,123 +1640,93 @@ $groupedFields = $sorted;
 
                 // 🆕 للمتوفين: تخزين حقول السكن في portal_general_registration_field_values
                 if ($isDeceased && in_array($fieldKey, $housingFieldKeys)) {
-                    if ($fieldValue !== null) {
+                    if ($fieldValue !== null && $fieldValue !== '') {
                         $housingFieldsForDeceased[$fieldKey] = $fieldValue;
                     }
                     continue;
                 }
 
                 // 🆕 معالجة field_guardian_health -> data_health_status
-                if ($fieldKey === 'field_guardian_health' && $sponsorship->relationData) {
-                    $healthValue = $fieldOrClear($fieldValue, $fieldKey);
-                    if ($healthValue !== $SKIP) {
-                        if ($healthValue !== null) {
-                            $resolvedHealthId = $this->resolveLookupIdByDescription('health_statuses', (string) $healthValue);
-                            if ($resolvedHealthId === null) {
-                                Log::warning('LOOKUP_ID_NOT_FOUND', [
-                                    'field' => 'field_guardian_health',
-                                    'value' => (string) $healthValue,
-                                    'sponsorship_id' => $sponsorship->id,
-                                ]);
-                                $healthValue = $SKIP;
-                            } else {
-                                $healthValue = $resolvedHealthId;
-                            }
-                        }
-                        if ($healthValue !== $SKIP) {
-                            $sponsorship->relationData->data_health_status = $healthValue;
-                            $mappedToData[] = $fieldKey;
-                        }
+                if ($fieldKey === 'field_guardian_health' && $fieldValue !== null && $fieldValue !== '' && $sponsorship->relationData) {
+                    $healthStatusId = $this->resolveLookupIdByDescription('health_statuses', (string) $fieldValue);
+                    if ($healthStatusId !== null) {
+                        $sponsorship->relationData->data_health_status = $healthStatusId;
+                        $mappedToData[] = $fieldKey;
+                    } else {
+                        Log::warning('LOOKUP_ID_NOT_FOUND', [
+                            'field' => 'field_guardian_health',
+                            'value' => (string) $fieldValue,
+                            'sponsorship_id' => $sponsorship->id,
+                        ]);
                     }
                     continue;
                 }
 
                 // 🆕 معالجة field_data_relationship -> data_relationship
-                if ($fieldKey === 'field_data_relationship' && $sponsorship->relationData) {
-                    $relationshipValue = $fieldOrClear($fieldValue, $fieldKey);
-                    if ($relationshipValue !== $SKIP) {
-                        if ($relationshipValue === null) {
-                            $sponsorship->relationData->data_relationship = null;
-                            $mappedToData[] = $fieldKey;
-                        } elseif (is_numeric($relationshipValue)) {
-                            $sponsorship->relationData->data_relationship = (int) $relationshipValue;
-                            $mappedToData[] = $fieldKey;
+                if ($fieldKey === 'field_data_relationship' && $fieldValue !== null && $fieldValue !== '' && $sponsorship->relationData) {
+                    // يمكن أن يكون ID أو نص
+                    if (is_numeric($fieldValue)) {
+                        $sponsorship->relationData->data_relationship = (int) $fieldValue;
+                    } else {
+                        $relationId = DB::table('category_of_relations')->where('attribute', $fieldValue)->value('id');
+                        if ($relationId) {
+                            $sponsorship->relationData->data_relationship = (int) $relationId;
                         } else {
-                            $relationId = DB::table('category_of_relations')->where('attribute', $relationshipValue)->value('id');
-                            if ($relationId) {
-                                $sponsorship->relationData->data_relationship = (int) $relationId;
-                                $mappedToData[] = $fieldKey;
-                            } else {
-                                Log::warning('LOOKUP_ID_NOT_FOUND', [
-                                    'field' => 'field_data_relationship',
-                                    'value' => (string) $relationshipValue,
-                                    'sponsorship_id' => $sponsorship->id,
-                                ]);
-                            }
+                            Log::warning('LOOKUP_ID_NOT_FOUND', [
+                                'field' => 'field_data_relationship',
+                                'value' => (string) $fieldValue,
+                                'sponsorship_id' => $sponsorship->id,
+                            ]);
                         }
                     }
+                    $mappedToData[] = $fieldKey;
                     continue;
                 }
 
                 // 🆕 معالجة field_guardian_job -> data_employment_status_breadwinner
-                if ($fieldKey === 'field_guardian_job' && $sponsorship->relationData) {
-                    $employmentValue = $fieldOrClear($fieldValue, $fieldKey);
-                    if ($employmentValue !== $SKIP) {
-                        if ($employmentValue === null) {
-                            $sponsorship->relationData->data_employment_status_breadwinner = null;
-                            $mappedToData[] = $fieldKey;
-                        } elseif (is_numeric($employmentValue)) {
-                            $sponsorship->relationData->data_employment_status_breadwinner = (int) $employmentValue;
-                            $mappedToData[] = $fieldKey;
+                if ($fieldKey === 'field_guardian_job' && $fieldValue !== null && $fieldValue !== '' && $sponsorship->relationData) {
+                    // يمكن أن يكون ID أو نص
+                    if (is_numeric($fieldValue)) {
+                        $sponsorship->relationData->data_employment_status_breadwinner = (int) $fieldValue;
+                    } else {
+                        $employmentId = DB::table('employment')->where('description', $fieldValue)->value('id');
+                        if ($employmentId) {
+                            $sponsorship->relationData->data_employment_status_breadwinner = (int) $employmentId;
                         } else {
-                            $employmentId = DB::table('employment')->where('description', $employmentValue)->value('id');
-                            if ($employmentId) {
-                                $sponsorship->relationData->data_employment_status_breadwinner = (int) $employmentId;
-                                $mappedToData[] = $fieldKey;
-                            } else {
-                                Log::warning('LOOKUP_ID_NOT_FOUND', [
-                                    'field' => 'field_guardian_job',
-                                    'value' => (string) $employmentValue,
-                                    'sponsorship_id' => $sponsorship->id,
-                                ]);
-                            }
+                            Log::warning('LOOKUP_ID_NOT_FOUND', [
+                                'field' => 'field_guardian_job',
+                                'value' => (string) $fieldValue,
+                                'sponsorship_id' => $sponsorship->id,
+                            ]);
                         }
                     }
+                    $mappedToData[] = $fieldKey;
                     continue;
                 }
 
                 // 🆕 معالجة field_dependents_female -> data_number_female
-                if ($fieldKey === 'field_dependents_female' && $sponsorship->relationData) {
-                    $femaleValue = $fieldOrClear($fieldValue, $fieldKey);
-                    if ($femaleValue !== $SKIP) {
-                        $sponsorship->relationData->data_number_female = $femaleValue === null ? null : (int) $femaleValue;
-                        $mappedToData[] = $fieldKey;
-                    }
+                if ($fieldKey === 'field_dependents_female' && $fieldValue !== null && $fieldValue !== '' && $sponsorship->relationData) {
+                    $sponsorship->relationData->data_number_female = (int) $fieldValue;
+                    $mappedToData[] = $fieldKey;
                     continue;
                 }
 
                 // 🆕 معالجة field_dependents_male -> data_number_mail
-                if ($fieldKey === 'field_dependents_male' && $sponsorship->relationData) {
-                    $maleValue = $fieldOrClear($fieldValue, $fieldKey);
-                    if ($maleValue !== $SKIP) {
-                        $sponsorship->relationData->data_number_mail = $maleValue === null ? null : (int) $maleValue;
-                        $mappedToData[] = $fieldKey;
-                    }
+                if ($fieldKey === 'field_dependents_male' && $fieldValue !== null && $fieldValue !== '' && $sponsorship->relationData) {
+                    $sponsorship->relationData->data_number_mail = (int) $fieldValue;
+                    $mappedToData[] = $fieldKey;
                     continue;
                 }
 
                 // 🆕 معالجة field_housing_address_detail -> data_current_address
-                if ($fieldKey === 'field_housing_address_detail' && $sponsorship->relationData) {
-                    $addressValue = $fieldOrClear($fieldValue, $fieldKey);
-                    if ($addressValue !== $SKIP) {
-                        $sponsorship->relationData->data_current_address = $addressValue;
-                        $mappedToData[] = $fieldKey;
-                    }
+                if ($fieldKey === 'field_housing_address_detail' && $fieldValue !== null && $fieldValue !== '' && $sponsorship->relationData) {
+                    $sponsorship->relationData->data_current_address = $fieldValue;
+                    $mappedToData[] = $fieldKey;
                     continue;
                 }
 
                 // 🆕 معالجة الحقول الأساسية في جدول data
-                if ($sponsorship->relationData) {
+                if ($sponsorship->relationData && $fieldValue !== null && $fieldValue !== '') {
                     $basicFieldsMapping = [
                         'field_data_id_number' => 'data_id_number',
                         'field_data_first_name' => 'data_first_name',
@@ -1799,11 +1738,8 @@ $groupedFields = $sorted;
                     ];
 
                     if (isset($basicFieldsMapping[$fieldKey])) {
-                        $basicValue = $fieldOrClear($fieldValue, $fieldKey);
-                        if ($basicValue !== $SKIP) {
-                            $sponsorship->relationData->{$basicFieldsMapping[$fieldKey]} = $basicValue;
-                            $mappedToData[] = $fieldKey;
-                        }
+                        $sponsorship->relationData->{$basicFieldsMapping[$fieldKey]} = $fieldValue;
+                        $mappedToData[] = $fieldKey;
                         continue;
                     }
                 }
@@ -1818,109 +1754,94 @@ $groupedFields = $sorted;
                 }
 
                 // 🆕 حقل تاريخ ميلاد المكفول - يتم حفظه في re_people إذا كان فرد عائلة
-                if ($fieldKey === 'field_person_birth_date') {
-                    $birthDateValue = $fieldOrClear($fieldValue, $fieldKey);
-                    if ($birthDateValue !== $SKIP) {
-                        // إذا كان الشخص المكفول فرد عائلة، نحفظ التاريخ في re_people
-                        if ($sponsorship->person_type === 'family_member') {
-                            // البحث عن سجل الشخص في re_people
-                            $rePerson = DB::table('re_people')
-                                ->where('person_id', $sponsorship->identity_number)
-                                ->first();
+                if ($fieldKey === 'field_person_birth_date' && $fieldValue !== null && $fieldValue !== '') {
+                    // إذا كان الشخص المكفول فرد عائلة، نحفظ التاريخ في re_people
+                    if ($sponsorship->person_type === 'family_member') {
+                        // البحث عن سجل الشخص في re_people
+                        $rePerson = DB::table('re_people')
+                            ->where('person_id', $sponsorship->identity_number)
+                            ->first();
 
-                            if ($rePerson) {
-                                // تحديث تاريخ الميلاد في re_people
-                                DB::table('re_people')
-                                    ->where('id', $rePerson->id)
-                                    ->update([
-                                        'person_birth_date' => $birthDateValue,
-                                        'updated_at' => now(),
-                                    ]);
+                        if ($rePerson) {
+                            // تحديث تاريخ الميلاد في re_people
+                            DB::table('re_people')
+                                ->where('id', $rePerson->id)
+                                ->update([
+                                    'person_birth_date' => $fieldValue,
+                                    'updated_at' => now(),
+                                ]);
 
-                                Log::info('FAMILY_MEMBER_BIRTH_DATE_UPDATED', [
-                                    'sponsorship_id' => $sponsorship->id,
-                                    'person_id' => $sponsorship->identity_number,
-                                    're_people_id' => $rePerson->id,
-                                    'birth_date' => $birthDateValue,
-                                ]);
-                            } else {
-                                Log::warning('RE_PEOPLE_NOT_FOUND_FOR_BIRTH_DATE', [
-                                    'sponsorship_id' => $sponsorship->id,
-                                    'person_id' => $sponsorship->identity_number,
-                                    'birth_date' => $birthDateValue,
-                                ]);
-                            }
+                            Log::info('FAMILY_MEMBER_BIRTH_DATE_UPDATED', [
+                                'sponsorship_id' => $sponsorship->id,
+                                'person_id' => $sponsorship->identity_number,
+                                're_people_id' => $rePerson->id,
+                                'birth_date' => $fieldValue,
+                            ]);
+                        } else {
+                            Log::warning('RE_PEOPLE_NOT_FOUND_FOR_BIRTH_DATE', [
+                                'sponsorship_id' => $sponsorship->id,
+                                'person_id' => $sponsorship->identity_number,
+                                'birth_date' => $fieldValue,
+                            ]);
                         }
 
-                        // تحديث أيضاً في sponsorship (جميع الأنواع)
-                        $sponsorship->sponsored_birth_date = $birthDateValue;
+                        // تحديث أيضاً في sponsorship
+                        $sponsorship->sponsored_birth_date = $fieldValue;
+                        $mappedToSponsorship[] = $fieldKey;
+                    } else {
+                        // للأنواع الأخرى (معيل، متوفي)، نحفظ في sponsorship فقط
+                        $sponsorship->sponsored_birth_date = $fieldValue;
                         $mappedToSponsorship[] = $fieldKey;
                         Log::info('BIRTH_DATE_SAVED_TO_SPONSORSHIP', [
                             'sponsorship_id' => $sponsorship->id,
                             'person_type' => $sponsorship->person_type,
-                            'birth_date' => $birthDateValue,
+                            'birth_date' => $fieldValue,
                         ]);
                     }
                     continue;
                 }
 
-                // ✅ حقل الحالة الصحية - يعمل لجميع أنواع الأشخاص (فرد عائلة / معيل / متوفي)
-                if ($fieldKey === 'field_health_status') {
-                    $healthFieldValue = $fieldOrClear($fieldValue, $fieldKey);
-                    if ($healthFieldValue !== $SKIP) {
-                        $healthStatusId = $healthFieldValue === null
-                            ? null
-                            : $this->resolveLookupIdByDescription('health_statuses', (string) $healthFieldValue);
+                // ✅ حقل الحالة الصحية - تحديث في re_people لفرد العائلة
+                if ($fieldKey === 'field_health_status' && $fieldValue !== null && $fieldValue !== '') {
+                    if ($sponsorship->person_type === 'family_member') {
+                        // فرد عائلة: تحديث في re_people.person_health_status
+                        $healthStatusId = $this->resolveLookupIdByDescription('health_statuses', $fieldValue);
 
-                        if ($healthFieldValue !== null && $healthStatusId === null) {
-                            Log::warning('HEALTH_STATUS_ID_NOT_FOUND', [
-                                'field_value' => $healthFieldValue,
-                                'sponsorship_id' => $sponsorship->id,
-                            ]);
-                        } else {
-                            if ($sponsorship->person_type === 'family_member') {
-                                // فرد عائلة: تحديث في re_people.person_health_status
-                                $rePerson = DB::table('re_people')
-                                    ->where('person_id', $sponsorship->identity_number)
-                                    ->first();
+                        if ($healthStatusId !== null) {
+                            $rePerson = DB::table('re_people')
+                                ->where('person_id', $sponsorship->identity_number)
+                                ->first();
 
-                                if ($rePerson) {
-                                    DB::table('re_people')
-                                        ->where('id', $rePerson->id)
-                                        ->update([
-                                            'person_health_status' => $healthStatusId,
-                                            'updated_at' => now(),
-                                        ]);
-
-                                    Log::info('FAMILY_MEMBER_HEALTH_STATUS_UPDATED', [
-                                        'sponsorship_id' => $sponsorship->id,
-                                        'person_id' => $sponsorship->identity_number,
-                                        're_people_id' => $rePerson->id,
-                                        'health_status_id' => $healthStatusId,
-                                        'health_status_text' => $healthFieldValue,
+                            if ($rePerson) {
+                                DB::table('re_people')
+                                    ->where('id', $rePerson->id)
+                                    ->update([
+                                        'person_health_status' => $healthStatusId,
+                                        'updated_at' => now(),
                                     ]);
-                                } else {
-                                    Log::warning('RE_PEOPLE_NOT_FOUND_FOR_HEALTH_STATUS', [
-                                        'sponsorship_id' => $sponsorship->id,
-                                        'person_id' => $sponsorship->identity_number,
-                                        'health_status' => $healthFieldValue,
-                                    ]);
-                                }
-                            } elseif ($sponsorship->relationData) {
-                                // المعيل: تحديث في data.data_health_status
-                                $sponsorship->relationData->data_health_status = $healthStatusId;
-                                $mappedToData[] = $fieldKey;
-                            } elseif ($isDeceased) {
-                                // المتوفى: لا يوجد صف في data/re_people - القيمة تبقى في portal فقط
-                                Log::info('HEALTH_STATUS_STORED_IN_PORTAL_ONLY', [
+
+                                Log::info('✅ FAMILY_MEMBER_HEALTH_STATUS_UPDATED', [
                                     'sponsorship_id' => $sponsorship->id,
-                                    'person_type' => $sponsorship->person_type,
+                                    'person_id' => $sponsorship->identity_number,
+                                    're_people_id' => $rePerson->id,
                                     'health_status_id' => $healthStatusId,
+                                    'health_status_text' => $fieldValue,
+                                ]);
+                            } else {
+                                Log::warning('RE_PEOPLE_NOT_FOUND_FOR_HEALTH_STATUS', [
+                                    'sponsorship_id' => $sponsorship->id,
+                                    'person_id' => $sponsorship->identity_number,
+                                    'health_status' => $fieldValue,
                                 ]);
                             }
-
-                            $mappedToRePeople[] = $fieldKey;
+                        } else {
+                            Log::warning('HEALTH_STATUS_ID_NOT_FOUND', [
+                                'field_value' => $fieldValue,
+                                'sponsorship_id' => $sponsorship->id,
+                            ]);
                         }
+
+                        $mappedToRePeople[] = $fieldKey;
                     }
                     continue;
                 }
@@ -1975,34 +1896,26 @@ $groupedFields = $sorted;
                 }
 
                 // بعض الحقول يتم إرسالها كنص (description) من الـ UI بينما تُحفظ كـ ID في جدول data
-                if ($sponsorship->relationData) {
+                if ($sponsorship->relationData && $fieldValue !== null && $fieldValue !== '') {
                     // provinces.description -> data_province (INT)
                     if ($cleanFieldKey === 'data_province') {
-                        $provinceValue = $fieldOrClear($fieldValue, $fieldKey);
-                        if ($provinceValue !== $SKIP && $provinceValue === null) {
-                            $sponsorship->relationData->data_province = null;
-                            $mappedToData[] = $fieldKey;
-                        } elseif ($provinceValue !== $SKIP) {
-                            $raw = trim((string) $provinceValue);
-                            if ($raw !== '') {
-                                if (is_numeric($raw)) {
-                                    $sponsorship->relationData->data_province = (int) $raw;
+                        $raw = trim((string) $fieldValue);
+                        if ($raw !== '') {
+                            if (is_numeric($raw)) {
+                                $sponsorship->relationData->data_province = (int) $raw;
+                            } else {
+                                $resolved = (int) (DB::table('provinces')->where('description', $raw)->value('id') ?? 0);
+                                if ($resolved > 0) {
+                                    $sponsorship->relationData->data_province = $resolved;
                                 } else {
-                                    $resolved = (int) (DB::table('provinces')->where('description', $raw)->value('id') ?? 0);
-                                    if ($resolved > 0) {
-                                        $sponsorship->relationData->data_province = $resolved;
-                                    } else {
-                                        Log::warning('LOOKUP_ID_NOT_FOUND', [
-                                            'field' => 'data_province',
-                                            'value' => $raw,
-                                            'sponsorship_id' => $sponsorship->id,
-                                            'table' => 'provinces',
-                                            'column' => 'description',
-                                        ]);
-                                        continue;
-                                    }
+                                    Log::warning('LOOKUP_ID_NOT_FOUND', [
+                                        'field' => 'data_province',
+                                        'value' => $raw,
+                                        'sponsorship_id' => $sponsorship->id,
+                                        'table' => 'provinces',
+                                        'column' => 'description',
+                                    ]);
                                 }
-                                $mappedToData[] = $fieldKey;
                             }
                         }
                         continue;
@@ -2010,35 +1923,27 @@ $groupedFields = $sorted;
 
                     // city.city -> data_city (INT)
                     if ($cleanFieldKey === 'data_city') {
-                        $cityValue = $fieldOrClear($fieldValue, $fieldKey);
-                        if ($cityValue !== $SKIP && $cityValue === null) {
-                            $sponsorship->relationData->data_city = null;
-                            $mappedToData[] = $fieldKey;
-                        } elseif ($cityValue !== $SKIP) {
-                            $raw = trim((string) $cityValue);
-                            if ($raw !== '') {
-                                if (is_numeric($raw)) {
-                                    $sponsorship->relationData->data_city = (int) $raw;
-                                } else {
-                                    $resolved = (int) (DB::table('city')->where('city', $raw)->value('id') ?? 0);
-                                    if ($resolved <= 0) {
-                                        // بعض قواعد البيانات تستخدم description بدل city
-                                        $resolved = (int) (DB::table('city')->where('description', $raw)->value('id') ?? 0);
-                                    }
-                                    if ($resolved > 0) {
-                                        $sponsorship->relationData->data_city = $resolved;
-                                    } else {
-                                        Log::warning('LOOKUP_ID_NOT_FOUND', [
-                                            'field' => 'data_city',
-                                            'value' => $raw,
-                                            'sponsorship_id' => $sponsorship->id,
-                                            'table' => 'city',
-                                            'columns_tried' => ['city', 'description'],
-                                        ]);
-                                        continue;
-                                    }
+                        $raw = trim((string) $fieldValue);
+                        if ($raw !== '') {
+                            if (is_numeric($raw)) {
+                                $sponsorship->relationData->data_city = (int) $raw;
+                            } else {
+                                $resolved = (int) (DB::table('city')->where('city', $raw)->value('id') ?? 0);
+                                if ($resolved <= 0) {
+                                    // بعض قواعد البيانات تستخدم description بدل city
+                                    $resolved = (int) (DB::table('city')->where('description', $raw)->value('id') ?? 0);
                                 }
-                                $mappedToData[] = $fieldKey;
+                                if ($resolved > 0) {
+                                    $sponsorship->relationData->data_city = $resolved;
+                                } else {
+                                    Log::warning('LOOKUP_ID_NOT_FOUND', [
+                                        'field' => 'data_city',
+                                        'value' => $raw,
+                                        'sponsorship_id' => $sponsorship->id,
+                                        'table' => 'city',
+                                        'columns_tried' => ['city', 'description'],
+                                    ]);
+                                }
                             }
                         }
                         continue;
@@ -2046,66 +1951,46 @@ $groupedFields = $sorted;
 
                     // health_statuses.description -> data_health_status
                     if ($cleanFieldKey === 'health_status') {
-                        $healthLookupValue = $fieldOrClear($fieldValue, $fieldKey);
-                        if ($healthLookupValue !== $SKIP && $healthLookupValue === null) {
-                            $sponsorship->relationData->data_health_status = null;
-                            $mappedToData[] = $fieldKey;
-                        } elseif ($healthLookupValue !== $SKIP) {
-                            $resolved = $this->resolveLookupIdByDescription('health_statuses', (string) $healthLookupValue);
-                            if ($resolved !== null) {
-                                $sponsorship->relationData->data_health_status = $resolved;
-                                $mappedToData[] = $fieldKey;
-                            } else {
-                                Log::warning('LOOKUP_ID_NOT_FOUND', [
-                                    'field' => 'health_status',
-                                    'value' => (string) $healthLookupValue,
-                                    'sponsorship_id' => $sponsorship->id,
-                                ]);
-                            }
+                        $resolved = $this->resolveLookupIdByDescription('health_statuses', (string) $fieldValue);
+                        if ($resolved !== null) {
+                            $sponsorship->relationData->data_health_status = $resolved;
+                        } else {
+                            Log::warning('LOOKUP_ID_NOT_FOUND', [
+                                'field' => 'health_status',
+                                'value' => (string) $fieldValue,
+                                'sponsorship_id' => $sponsorship->id,
+                            ]);
                         }
                         continue;
                     }
 
                     // housing_status.description -> data_housing_status
                     if ($cleanFieldKey === 'housing_status') {
-                        $housingStatusValue = $fieldOrClear($fieldValue, $fieldKey);
-                        if ($housingStatusValue !== $SKIP && $housingStatusValue === null) {
-                            $sponsorship->relationData->data_housing_status = null;
-                            $mappedToData[] = $fieldKey;
-                        } elseif ($housingStatusValue !== $SKIP) {
-                            $resolved = $this->resolveLookupIdByDescription('housing_status', (string) $housingStatusValue);
-                            if ($resolved !== null) {
-                                $sponsorship->relationData->data_housing_status = $resolved;
-                                $mappedToData[] = $fieldKey;
-                            } else {
-                                Log::warning('LOOKUP_ID_NOT_FOUND', [
-                                    'field' => 'housing_status',
-                                    'value' => (string) $housingStatusValue,
-                                    'sponsorship_id' => $sponsorship->id,
-                                ]);
-                            }
+                        $resolved = $this->resolveLookupIdByDescription('housing_status', (string) $fieldValue);
+                        if ($resolved !== null) {
+                            $sponsorship->relationData->data_housing_status = $resolved;
+                        } else {
+                            Log::warning('LOOKUP_ID_NOT_FOUND', [
+                                'field' => 'housing_status',
+                                'value' => (string) $fieldValue,
+                                'sponsorship_id' => $sponsorship->id,
+                            ]);
                         }
                         continue;
                     }
 
                     // type_of_accommodation.description -> data_current_housing_type
                     if ($cleanFieldKey === 'housing_type') {
-                        $housingTypeValue = $fieldOrClear($fieldValue, $fieldKey);
-                        if ($housingTypeValue !== $SKIP && $housingTypeValue === null) {
-                            $sponsorship->relationData->data_current_housing_type = null;
+                        $resolved = $this->resolveLookupIdByDescription('type_of_accommodation', (string) $fieldValue);
+                        if ($resolved !== null) {
+                            $sponsorship->relationData->data_current_housing_type = $resolved;
                             $mappedToData[] = $fieldKey;
-                        } elseif ($housingTypeValue !== $SKIP) {
-                            $resolved = $this->resolveLookupIdByDescription('type_of_accommodation', (string) $housingTypeValue);
-                            if ($resolved !== null) {
-                                $sponsorship->relationData->data_current_housing_type = $resolved;
-                                $mappedToData[] = $fieldKey;
-                            } else {
-                                Log::warning('LOOKUP_ID_NOT_FOUND', [
-                                    'field' => 'housing_type',
-                                    'value' => (string) $housingTypeValue,
-                                    'sponsorship_id' => $sponsorship->id,
-                                ]);
-                            }
+                        } else {
+                            Log::warning('LOOKUP_ID_NOT_FOUND', [
+                                'field' => 'housing_type',
+                                'value' => (string) $fieldValue,
+                                'sponsorship_id' => $sponsorship->id,
+                            ]);
                         }
                         continue;
                     }
@@ -2175,19 +2060,11 @@ $groupedFields = $sorted;
 
                 // تحديث في جدول sponsorships
                 if (in_array($cleanFieldKey, $sponsorshipFields)) {
-                    $sponsorshipValue = $fieldOrClear($fieldValue, $fieldKey);
-                    if ($sponsorshipValue !== $SKIP) {
-                        $sponsorship->$cleanFieldKey = $sponsorshipValue;
-                        $mappedToSponsorship[] = $fieldKey;
-                    }
+                    $sponsorship->$cleanFieldKey = $fieldValue;
+                    $mappedToSponsorship[] = $fieldKey;
                 }
                 // تحديث في جدول data (relationData)
                 else if ($sponsorship->relationData) {
-                    $dataValue = $fieldOrClear($fieldValue, $fieldKey);
-                    if ($dataValue === $SKIP) {
-                        continue;
-                    }
-
                     // بعض الحقول تأتي بالفعل بصيغة data_xxx (مثال: field_data_city)
                     // لذا لا نضيف data_ مرة ثانية.
                     $candidateColumns = [];
@@ -2197,23 +2074,33 @@ $groupedFields = $sorted;
                         $candidateColumns[] = 'data_' . $cleanFieldKey;
                     }
 
-                    $assignedColumn = null;
                     foreach ($candidateColumns as $dataColumn) {
                         $exists = !empty($dataColumnMap)
                             ? isset($dataColumnMap[$dataColumn])
                             : Schema::hasColumn('data', $dataColumn);
 
                         if ($exists) {
-                            $sponsorship->relationData->$dataColumn = $dataValue;
-                            $assignedColumn = $dataColumn;
+                            $sponsorship->relationData->$dataColumn = $fieldValue;
+                            $mappedToData[] = $fieldKey;
                             break;
                         }
                     }
 
-                    if ($assignedColumn !== null) {
-                        $mappedToData[] = $fieldKey;
-                    } else {
+                    // إذا لم يتم إيجاد أي عمود مناسب
+                    if (empty($candidateColumns)) {
                         $unmappedFieldKeys[] = $fieldKey;
+                    } else {
+                        $found = false;
+                        foreach ($candidateColumns as $col) {
+                            $exists = !empty($dataColumnMap) ? isset($dataColumnMap[$col]) : Schema::hasColumn('data', $col);
+                            if ($exists) {
+                                $found = true;
+                                break;
+                            }
+                        }
+                        if (!$found) {
+                            $unmappedFieldKeys[] = $fieldKey;
+                        }
                     }
                 }
             }
@@ -2266,12 +2153,6 @@ $groupedFields = $sorted;
                 ]);
 
                 if ($guardianFileNumber) {
-                    // bank_name عمود NOT NULL (bigint) - لا يجوز إدخال قيمة فارغة
-                    $incomingBankName = trim((string) ($bankFields['field_guardian_bank_name'] ?? ''));
-                    if ($incomingBankName === '' || !is_numeric($incomingBankName)) {
-                        unset($bankFields['field_guardian_bank_name']);
-                    }
-
                     // البحث عن الحساب المعتمد أولاً
                     $bankAccount = DB::table('guardian_bank_accounts')
                         ->where('guardian_registration', $guardianFileNumber)
@@ -2383,48 +2264,32 @@ $groupedFields = $sorted;
 
                     $deadPeopleUpdates = [];
 
-                    // 🧹 تحويل القيم الفارغة إلى null (الأعمدة nullable) ومنع ''
-                    // في الأعمدة الرقمية/التاريخية التي ترفض MySQL قيم '' في الوضع الصارم
-                    $deadOrNull = function ($raw) {
-                        if ($raw === null || $raw === '' || $raw === []) {
-                            return null;
-                        }
-                        return is_string($raw) ? trim($raw) : $raw;
-                    };
-
                     // حقول الأب المتوفى
                     if (isset($deadPeopleFields['field_father_first_name'])) {
-                        $deadPeopleUpdates['father_first_name'] = $deadOrNull($deadPeopleFields['field_father_first_name']);
+                        $deadPeopleUpdates['father_first_name'] = $deadPeopleFields['field_father_first_name'];
                     }
                     if (isset($deadPeopleFields['field_father_second_name'])) {
-                        $deadPeopleUpdates['father_second_name'] = $deadOrNull($deadPeopleFields['field_father_second_name']);
+                        $deadPeopleUpdates['father_second_name'] = $deadPeopleFields['field_father_second_name'];
                     }
                     if (isset($deadPeopleFields['field_father_third_name'])) {
-                        $deadPeopleUpdates['father_third_name'] = $deadOrNull($deadPeopleFields['field_father_third_name']);
+                        $deadPeopleUpdates['father_third_name'] = $deadPeopleFields['field_father_third_name'];
                     }
                     if (isset($deadPeopleFields['field_father_last_name'])) {
-                        $deadPeopleUpdates['father_last_name'] = $deadOrNull($deadPeopleFields['field_father_last_name']);
+                        $deadPeopleUpdates['father_last_name'] = $deadPeopleFields['field_father_last_name'];
                     }
                     if (isset($deadPeopleFields['field_father_id'])) {
-                        $deadPeopleUpdates['father_id'] = $deadOrNull($deadPeopleFields['field_father_id']);
+                        $deadPeopleUpdates['father_id'] = $deadPeopleFields['field_father_id'];
                     }
                     if (isset($deadPeopleFields['field_father_death_date'])) {
-                        $deadPeopleUpdates['father_death_date'] = $deadOrNull($deadPeopleFields['field_father_death_date']);
+                        $deadPeopleUpdates['father_death_date'] = $deadPeopleFields['field_father_death_date'];
                     }
                     // سبب وفاة الأب - تحويل من نص إلى ID
                     if (isset($deadPeopleFields['field_father_death_reason'])) {
-                        $deathReason = $deadOrNull($deadPeopleFields['field_father_death_reason']);
-                        if ($deathReason !== null && !is_numeric($deathReason)) {
+                        $deathReason = $deadPeopleFields['field_father_death_reason'];
+                        if (!is_numeric($deathReason)) {
                             $reason = DB::table('death_reasons')->where('description', $deathReason)->first();
                             if ($reason) {
                                 $deathReason = $reason->id;
-                            } else {
-                                Log::warning('DEATH_REASON_NOT_FOUND', [
-                                    'field' => 'field_father_death_reason',
-                                    'value' => $deathReason,
-                                    'sponsorship_id' => $sponsorship->id,
-                                ]);
-                                $deathReason = null;
                             }
                         }
                         $deadPeopleUpdates['father_death_reason'] = $deathReason;
@@ -2432,37 +2297,30 @@ $groupedFields = $sorted;
 
                     // حقول الأم المتوفية
                     if (isset($deadPeopleFields['field_mother_first_name'])) {
-                        $deadPeopleUpdates['mother_first_name'] = $deadOrNull($deadPeopleFields['field_mother_first_name']);
+                        $deadPeopleUpdates['mother_first_name'] = $deadPeopleFields['field_mother_first_name'];
                     }
                     if (isset($deadPeopleFields['field_mother_second_name'])) {
-                        $deadPeopleUpdates['mother_second_name'] = $deadOrNull($deadPeopleFields['field_mother_second_name']);
+                        $deadPeopleUpdates['mother_second_name'] = $deadPeopleFields['field_mother_second_name'];
                     }
                     if (isset($deadPeopleFields['field_mother_third_name'])) {
-                        $deadPeopleUpdates['mother_third_name'] = $deadOrNull($deadPeopleFields['field_mother_third_name']);
+                        $deadPeopleUpdates['mother_third_name'] = $deadPeopleFields['field_mother_third_name'];
                     }
                     if (isset($deadPeopleFields['field_mother_last_name'])) {
-                        $deadPeopleUpdates['mother_last_name'] = $deadOrNull($deadPeopleFields['field_mother_last_name']);
+                        $deadPeopleUpdates['mother_last_name'] = $deadPeopleFields['field_mother_last_name'];
                     }
                     if (isset($deadPeopleFields['field_mother_id'])) {
-                        $deadPeopleUpdates['mother_id'] = $deadOrNull($deadPeopleFields['field_mother_id']);
+                        $deadPeopleUpdates['mother_id'] = $deadPeopleFields['field_mother_id'];
                     }
                     if (isset($deadPeopleFields['field_mother_death_date'])) {
-                        $deadPeopleUpdates['mother_death_date'] = $deadOrNull($deadPeopleFields['field_mother_death_date']);
+                        $deadPeopleUpdates['mother_death_date'] = $deadPeopleFields['field_mother_death_date'];
                     }
                     // سبب وفاة الأم - تحويل من نص إلى ID
                     if (isset($deadPeopleFields['field_mother_death_reason'])) {
-                        $deathReason = $deadOrNull($deadPeopleFields['field_mother_death_reason']);
-                        if ($deathReason !== null && !is_numeric($deathReason)) {
+                        $deathReason = $deadPeopleFields['field_mother_death_reason'];
+                        if (!is_numeric($deathReason)) {
                             $reason = DB::table('death_reasons')->where('description', $deathReason)->first();
                             if ($reason) {
                                 $deathReason = $reason->id;
-                            } else {
-                                Log::warning('DEATH_REASON_NOT_FOUND', [
-                                    'field' => 'field_mother_death_reason',
-                                    'value' => $deathReason,
-                                    'sponsorship_id' => $sponsorship->id,
-                                ]);
-                                $deathReason = null;
                             }
                         }
                         $deadPeopleUpdates['mother_death_reason'] = $deathReason;
@@ -2528,133 +2386,58 @@ $groupedFields = $sorted;
                     ?: $sponsorship->relation_id_number
                     ?: null;
 
-                $skippedFamilyMembers = [];
-
-                // أسماء حقول الفورم -> أعمدة جدول re_people
-                $familyColumnMap = [
-                    'first_name' => 'first_name',
-                    'second_name' => 'second_name',
-                    'third_name' => 'third_name',
-                    'last_name' => 'last_name',
-                    'birthdate' => 'person_birth_date',
-                    'gender' => 'person_gender',
-                    'notes' => 'person_note',
-                ];
-
-                foreach ($familyMembers as $memberIndex => $memberData) {
+                foreach ($familyMembers as $memberData) {
                     // تحقق إذا كان فرد موجود أو جديد
                     if (isset($memberData['is_new']) && $memberData['is_new'] == 1) {
                         // إضافة فرد جديد - استخدام الحقول الأربعة المنفصلة
-                        if (!$fileIdForFamilyMembers) {
-                            $skippedFamilyMembers[] = [
-                                'index' => $memberIndex,
-                                'reason' => 'no_file_number',
-                            ];
-                            Log::warning('FAMILY_MEMBER_SKIPPED_NO_FILE', [
-                                'sponsorship_id' => $sponsorship->id,
-                                'member_index' => $memberIndex,
-                                'person_type' => $sponsorship->person_type,
-                            ]);
-                            continue;
-                        }
+                        if ($fileIdForFamilyMembers) {
+                            $hasName = !empty($memberData['first_name']) || !empty($memberData['second_name']) ||
+                                       !empty($memberData['third_name']) || !empty($memberData['last_name']);
 
-                        $hasName = !empty($memberData['first_name']) || !empty($memberData['second_name']) ||
-                                   !empty($memberData['third_name']) || !empty($memberData['last_name']);
-
-                        $personId = trim($memberData['person_id'] ?? $memberData['identity_number'] ?? '');
-                        if (!preg_match('/^\d{9}$/', $personId)) {
-                            $skippedFamilyMembers[] = [
-                                'index' => $memberIndex,
-                                'reason' => 'invalid_person_id',
-                                'person_id' => $personId,
-                            ];
-                            Log::warning('FAMILY_MEMBER_SKIPPED_INVALID_ID', [
-                                'sponsorship_id' => $sponsorship->id,
-                                'member_index' => $memberIndex,
-                                'person_id' => $personId,
-                                'note' => 'رقم الهوية غير صالح (يجب أن يكون 9 أرقام) - لم يتم إضافة الفرد.',
-                            ]);
-                            continue;
-                        }
-
-                        if (!$hasName) {
-                            $skippedFamilyMembers[] = [
-                                'index' => $memberIndex,
-                                'reason' => 'missing_name',
-                                'person_id' => $personId,
-                            ];
-                            Log::warning('FAMILY_MEMBER_SKIPPED_NO_NAME', [
-                                'sponsorship_id' => $sponsorship->id,
-                                'member_index' => $memberIndex,
-                                'person_id' => $personId,
-                            ]);
-                            continue;
-                        }
-
-                        DB::table('re_people')->insert([
-                            'registration_id' => $fileIdForFamilyMembers,
-                            'person_id' => $personId,
-                            'first_name' => $memberData['first_name'] ?? '',
-                            'second_name' => $memberData['second_name'] ?? '',
-                            'third_name' => $memberData['third_name'] ?? '',
-                            'last_name' => $memberData['last_name'] ?? '',
-                            'person_birth_date' => ($memberData['birthdate'] ?? '') !== '' ? $memberData['birthdate'] : null,
-                            'person_gender' => ($memberData['gender'] ?? '') !== '' ? $memberData['gender'] : null,
-                            'person_note' => ($memberData['notes'] ?? '') !== '' ? $memberData['notes'] : null,
-                            'created_at' => now(),
-                            'updated_at' => now(),
-                        ]);
-
-                        Log::info('FAMILY_MEMBER_ADDED', [
-                            'sponsorship_id' => $sponsorship->id,
-                            'person_type' => $sponsorship->person_type,
-                            'file_id_number' => $fileIdForFamilyMembers,
-                            'person_id' => $personId,
-                            'member_name' => trim("{$memberData['first_name']} {$memberData['last_name']}"),
-                        ]);
-                    } elseif (isset($memberData['id']) && $memberData['id']) {
-                        // تحديث فرد موجود
-                        // 🧠 لا نصفّر الحقول غير المرسلة: نحدّث فقط الحقول الموجودة فعلياً في الطلب
-                        $memberUpdates = [];
-                        foreach ($familyColumnMap as $inputKey => $dbColumn) {
-                            if (!array_key_exists($inputKey, $memberData)) {
+                            $personId = trim($memberData['person_id'] ?? $memberData['identity_number'] ?? '');
+                            if (!preg_match('/^\d{9}$/', $personId)) {
                                 continue;
                             }
 
-                            $newValue = $memberData[$inputKey];
-                            if ($newValue === '' || $newValue === null) {
-                                $newValue = in_array($dbColumn, ['person_birth_date', 'person_gender'], true)
-                                    ? null
-                                    : ($newValue === null ? null : $newValue);
+                            if ($hasName) {
+                                DB::table('re_people')->insert([
+                                    'registration_id' => $fileIdForFamilyMembers,
+                                    'person_id' => $personId,
+                                    'first_name' => $memberData['first_name'] ?? '',
+                                    'second_name' => $memberData['second_name'] ?? '',
+                                    'third_name' => $memberData['third_name'] ?? '',
+                                    'last_name' => $memberData['last_name'] ?? '',
+                                    'person_birth_date' => $memberData['birthdate'] ?? null,
+                                    'person_gender' => $memberData['gender'] ?? null,
+                                    'person_note' => $memberData['notes'] ?? null,
+                                    'created_at' => now(),
+                                    'updated_at' => now(),
+                                ]);
+
+                                Log::info('FAMILY_MEMBER_ADDED', [
+                                    'sponsorship_id' => $sponsorship->id,
+                                    'person_type' => $sponsorship->person_type,
+                                    'file_id_number' => $fileIdForFamilyMembers,
+                                    'person_id' => $personId,
+                                    'member_name' => trim("{$memberData['first_name']} {$memberData['last_name']}"),
+                                ]);
                             }
-
-                            $memberUpdates[$dbColumn] = $newValue;
                         }
-
-                        if (empty($memberUpdates)) {
-                            continue;
-                        }
-
-                        $memberUpdates['updated_at'] = now();
-
+                    } elseif (isset($memberData['id']) && $memberData['id']) {
+                        // تحديث فرد موجود - استخدام الحقول الأربعة المنفصلة
                         DB::table('re_people')
                             ->where('id', $memberData['id'])
-                            ->update($memberUpdates);
-
-                        Log::info('FAMILY_MEMBER_UPDATED', [
-                            'sponsorship_id' => $sponsorship->id,
-                            're_people_id' => $memberData['id'],
-                            'updated_columns' => array_keys($memberUpdates),
-                        ]);
+                            ->update([
+                                'first_name' => $memberData['first_name'] ?? '',
+                                'second_name' => $memberData['second_name'] ?? '',
+                                'third_name' => $memberData['third_name'] ?? '',
+                                'last_name' => $memberData['last_name'] ?? '',
+                                'person_birth_date' => $memberData['birthdate'] ?? null,
+                                'person_gender' => $memberData['gender'] ?? null,
+                                'person_note' => $memberData['notes'] ?? null,
+                                'updated_at' => now(),
+                            ]);
                     }
-                }
-
-                if (!empty($skippedFamilyMembers)) {
-                    Log::warning('FAMILY_MEMBERS_PARTIALLY_SKIPPED', [
-                        'sponsorship_id' => $sponsorship->id,
-                        'skipped_count' => count($skippedFamilyMembers),
-                        'skipped' => $skippedFamilyMembers,
-                    ]);
                 }
             }
 
@@ -3045,19 +2828,14 @@ $groupedFields = $sorted;
                 ]);
             }
 
-            // ✅ تحديث حالة الكفالة بعد حفظ البيانات
-            // لا نصل إلى هنا إلا إذا تم حفظ بيانات فعلاً (fields_count > 0 و storedCount > 0)
+            // ✅ تحديث حالة الكفالة إلى "محدث" (ID = 3) بعد حفظ البيانات
             $sponsorship->sponsorship_status_id = 2; // 2 = تدقيق
             $sponsorship->save();
 
             Log::info('SPONSORSHIP_STATUS_UPDATED', [
                 'sponsorship_id' => $sponsorship->id,
-                'new_status_id' => 2,
-                'status_name' => 'تدقيق',
-                'portal_fields_stored' => $storedCount,
-                'mapped_sponsorship' => count($mappedToSponsorship),
-                'mapped_data' => count($mappedToData),
-                'mapped_re_people' => count($mappedToRePeople),
+                'new_status_id' => 3,
+                'status_name' => 'محدث'
             ]);
 
             DB::commit();
@@ -3079,12 +2857,10 @@ $groupedFields = $sorted;
                 ->route('user.thank.you.page')
                 ->with('success', 'تم حفظ التغييرات بنجاح');
 
-        } catch (\Throwable $e) {
+        } catch (\Exception $e) {
             DB::rollBack();
             Log::error('UPDATE_SPONSORSHIP_ERROR', [
                 'error' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
                 'user_id' => Auth::id(),
                 'sponsorship_id' => $request->input('sponsorship_id')
             ]);

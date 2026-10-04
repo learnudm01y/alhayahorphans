@@ -12,7 +12,7 @@ class CitiesSeeder extends Seeder
         // يمكنك استخدام truncate() لمسح البيانات القديمة إذا رغبت
         // DB::table('city')->truncate();
 
-        DB::table('city')->insert([
+        DB::table('city')->upsert([
             ['id' => 1,  'city' => 'جباليا'],
             ['id' => 2,  'city' => 'خان يونس'],
             ['id' => 3,  'city' => 'دير البلح'],
@@ -58,6 +58,6 @@ class CitiesSeeder extends Seeder
             ['id' => 48, 'city' => 'مصبح'],
             ['id' => 49, 'city' => 'وادي السلقه'],
             ['id' => 50, 'city' => 'وادي غزة'],
-        ]);
+        ], ['id'], ['city']);
     }
 }

@@ -1221,7 +1221,7 @@
                                                        name="family_members[{{ $index }}][identity_number]"
                                                        id="family_member_identity_{{ $index }}"
                                                        class="form-control"
-                                                       value="{{ $member->person_id ?? '' }}"
+                                                       value="{{ old("family_members.$index.identity_number", $member->person_id ?? '') }}"
                                                        placeholder="أدخل رقم الهوية (9 أرقام) "
                                                        pattern="[0-9]{9,10}"
                                                        maxlength="10"
@@ -1247,7 +1247,7 @@
                                                     <input type="text" name="family_members[{{ $index }}][first_name]"
                                                            id="family_member_first_name_{{ $index }}"
                                                            class="form-control"
-                                                           value="{{ $member->first_name ?? '' }}"
+                                                           value="{{ old("family_members.$index.first_name", $member->first_name ?? '') }}"
                                                            placeholder="الاسم الأول">
                                                 </div>
                                                 <div class="col-md-3 col-6">
@@ -1255,7 +1255,7 @@
                                                     <input type="text" name="family_members[{{ $index }}][second_name]"
                                                            id="family_member_second_name_{{ $index }}"
                                                            class="form-control"
-                                                           value="{{ $member->second_name ?? '' }}"
+                                                           value="{{ old("family_members.$index.second_name", $member->second_name ?? '') }}"
                                                            placeholder="اسم الأب">
                                                 </div>
                                                 <div class="col-md-3 col-6">
@@ -1263,7 +1263,7 @@
                                                     <input type="text" name="family_members[{{ $index }}][third_name]"
                                                            id="family_member_third_name_{{ $index }}"
                                                            class="form-control"
-                                                           value="{{ $member->third_name ?? '' }}"
+                                                           value="{{ old("family_members.$index.third_name", $member->third_name ?? '') }}"
                                                            placeholder="اسم الجد">
                                                 </div>
                                                 <div class="col-md-3 col-6">
@@ -1271,7 +1271,7 @@
                                                     <input type="text" name="family_members[{{ $index }}][last_name]"
                                                            id="family_member_last_name_{{ $index }}"
                                                            class="form-control"
-                                                           value="{{ $member->last_name ?? '' }}"
+                                                           value="{{ old("family_members.$index.last_name", $member->last_name ?? '') }}"
                                                            placeholder="اسم العائلة">
                                                 </div>
                                             </div>
@@ -1282,7 +1282,7 @@
                                             <input type="date" name="family_members[{{ $index }}][birthdate]"
                                                    id="family_member_birthdate_{{ $index }}"
                                                    class="form-control"
-                                                   value="{{ $member->person_birth_date }}">
+                                                   value="{{ old("family_members.$index.birthdate", $member->person_birth_date) }}">
                                         </div>
 
                                         <div class="col-md-6 mb-3">
@@ -1291,8 +1291,8 @@
                                                     id="family_member_gender_{{ $index }}"
                                                     class="form-select">
                                                 <option value="">اختر الجنس</option>
-                                                <option value="1" {{ $member->person_gender == 1 ? 'selected' : '' }}>ذكر</option>
-                                                <option value="2" {{ $member->person_gender == 2 ? 'selected' : '' }}>أنثى</option>
+                                                <option value="1" {{ old("family_members.$index.gender", $member->person_gender) == 1 ? 'selected' : '' }}>ذكر</option>
+                                                <option value="2" {{ old("family_members.$index.gender", $member->person_gender) == 2 ? 'selected' : '' }}>أنثى</option>
                                             </select>
                                         </div>
 
@@ -1301,7 +1301,7 @@
                                             <textarea name="family_members[{{ $index }}][notes]"
                                                       class="form-control"
                                                       rows="3"
-                                                      placeholder="أدخل ملاحظات (الحالة الصحية والإجتماعية)">{{ $member->person_note ?? '' }}</textarea>
+                                                      placeholder="أدخل ملاحظات (الحالة الصحية والإجتماعية)">{{ old("family_members.$index.notes", $member->person_note ?? '') }}</textarea>
                                         </div>
                                     </div>
                                 </div>

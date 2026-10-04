@@ -9,11 +9,11 @@ class CiBirthSeeder extends Seeder
 {
     public function run()
     {
-        DB::table('ci_birth_tb_cd')->insert([
+        DB::table('ci_birth_tb_cd')->upsert([
             ['id' => 1, 'CI_BIRTH_TB_CD' => 'أقاليم'],
             ['id' => 2, 'CI_BIRTH_TB_CD' => 'دول'],
             ['id' => 3, 'CI_BIRTH_TB_CD' => 'مدن - أراضي فلسطينية'],
             ['id' => 4, 'CI_BIRTH_TB_CD' => 'مناطق 48'],
-        ]);
+        ], ['id'], ['CI_BIRTH_TB_CD']);
     }
 }

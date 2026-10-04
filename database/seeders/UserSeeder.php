@@ -13,7 +13,7 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
-        User::insert([
+        $users = [
             [
                 'name'=>'Admin',
                 'email'=>'admin@gmail.com',
@@ -22,7 +22,6 @@ class UserSeeder extends Seeder
                 'phone'=>'970598888888',
                 'alt_phone'=>'970598888888',
                 'country_code'=>'PS-G',
-
             ],
             [
                 'name'=>'User',
@@ -32,8 +31,11 @@ class UserSeeder extends Seeder
                 'phone'=>'970598888888',
                 'alt_phone'=>'970598888888',
                 'country_code'=>'PS-G',
-
             ],
-        ]);
+        ];
+
+        foreach ($users as $user) {
+            User::firstOrCreate(['email' => $user['email']], $user);
+        }
     }
 }
