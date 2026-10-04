@@ -113,8 +113,8 @@ class ShowGeneralRegisrationController extends Controller
 
     /**
      * 🆕 التحقق من المرفقات الإجبارية
-     * يتحقق من أن كل حقل مرفق ظاهر في الصفحة يحتوي على ملف جديد واحد على الأقل
-     * لا يتحقق من الملفات المحفوظة مسبقاً في قاعدة البيانات
+     * يتحقق من أن كل وثيقة مفعلة في البوابة يغطيها ملف واحد على الأقل
+     * (ملف رُفع في هذه الجلسة، أو ملف موجود مسبقاً في قاعدة البيانات)
      */
     private function validateRequiredAttachments($sponsorship, array $validAttachments): array
     {
