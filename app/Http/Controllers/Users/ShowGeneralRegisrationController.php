@@ -2497,6 +2497,14 @@ $groupedFields = $sorted;
                 }
             }
 
+            // ✅ إصلاح: منع إرسال '' أو null إلى أعمدة لا تسمح بها (integer/bigint/date...)
+            // "" → NULL فقط إذا كان العمود nullable، وإلا تُسقط القيمة وتبقى القيمة القديمة
+            $this->dropUnsafeDirtyAttributes($sponsorship, 'sponsorships');
+
+            if ($sponsorship->relationData) {
+                $this->dropUnsafeDirtyAttributes($sponsorship->relationData, 'data');
+            }
+
             $sponsorship->save();
 
             if ($sponsorship->relationData) {
@@ -3880,12 +3888,137 @@ $groupedFields = $sorted;
     }
 
     /**
+     * ✅ إسقاط القيم غير الآمنة من الحقول المعدَّلة قبل الحفظ (البند 6).
+     *
+     * القواعد:
+     *   - عمود نصّي (char/text/enum/json...) : '' مسموح، وnull مسموح فقط إذا كان العمود nullable.
+     *   - عمود رقمي أو تاريخي (int/bigint/date/datetime...) :
+     *       '' → NULL إذا كان العمود nullable، وإلا تُسقط القيمة وتبقى القيمة القديمة.
+     *
+     * لا يغيّر بنية القاعدة ولا نوع أي عمود - فقط يمنع فشل الحفظ بخطأ SQL.
+     */
+    private function dropUnsafeDirtyAttributes($model, string $table): void
+    {
+        static $columnsMeta = [];
+
+        if (!array_key_exists($table, $columnsMeta)) {
+            $meta = [];
+
+            try {
+                foreach (Schema::getColumns($table) as $column) {
+                    $name = (string) ($column['name'] ?? '');
+                    if ($name === '') {
+                        continue;
+                    }
+
+                    $typeName = strtolower((string) ($column['type_name'] ?? ''));
+                    $nullableRaw = $column['nullable'] ?? false;
+                    // Schema::getColumns() يعيد nullable كـ bool، وقد يكون نص YES/NO في بعض الإصدارات
+                    $isNullable = is_bool($nullableRaw)
+                        ? $nullableRaw
+                        : strtoupper((string) $nullableRaw) === 'YES';
+                    $isNumericOrTemporal = (bool) preg_match(
+                        '/^(tinyint|smallint|mediumint|bigint|int|integer|decimal|numeric|float|double|bit|date|time|datetime|timestamp|year)$/',
+                        $typeName
+                    );
+
+                    $meta[$name] = [
+                        'nullable' => $isNullable,
+                        'is_string' => !$isNumericOrTemporal,
+                    ];
+                }
+            } catch (\Throwable $e) {
+                // تعذّرت قراءة بنية الجدول: لا نغيّر السلوك الحالي
+                $meta = [];
+                Log::warning('COLUMN_META_UNAVAILABLE', [
+                    'table' => $table,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            $columnsMeta[$table] = $meta;
+        }
+
+        $meta = $columnsMeta[$table];
+
+        if ($meta === [] || !$model->isDirty()) {
+            return;
+        }
+
+        $attributes = $model->getAttributes();
+        $dropped = [];
+        $converted = [];
+
+        foreach ($model->getDirty() as $column => $value) {
+            if (!isset($meta[$column])) {
+                continue;
+            }
+
+            $isNullable = $meta[$column]['nullable'];
+            $isString = $meta[$column]['is_string'];
+
+            if ($value === null) {
+                if ($isNullable) {
+                    continue;
+                }
+
+                $dropped[$column] = 'null';
+            } elseif ($value === '') {
+                if ($isString) {
+                    continue; // '' صالح داخل الأعمدة النصية
+                }
+
+                if ($isNullable) {
+                    $attributes[$column] = null;
+                    $converted[$column] = "''→NULL";
+                    continue;
+                }
+
+                $dropped[$column] = "''";
+            } else {
+                continue;
+            }
+
+            unset($attributes[$column]);
+        }
+
+        if ($dropped === [] && $converted === []) {
+            return;
+        }
+
+        $model->setRawAttributes($attributes, false);
+
+        if ($dropped !== []) {
+            Log::warning('UNSAFE_COLUMN_VALUE_DROPPED', [
+                'table' => $table,
+                'columns' => $dropped,
+                'note' => 'العمود لا يسمح بالقيمة الفارغة - تم إبقاء القيمة القديمة بدل فشل الحفظ',
+            ]);
+        }
+
+        if ($converted !== []) {
+            Log::info('EMPTY_STRING_CONVERTED_TO_NULL', [
+                'table' => $table,
+                'columns' => $converted,
+            ]);
+        }
+    }
+
+    /**
      * 🆕 إدراج سجل في جدول data أو تحديث السجل الموجود بنفس رقم الملف
      * يُستخدم عند إعادة استخدام ملف معيل موجود بدلاً من توليد رقم جديد
      * لتفادي انتهاك فهرس file_id_number الفريد ومنع تكرار المعيل
      */
     private function insertOrUpdateDataRecord(array $dataRecord, ?string $reusedFileNumber): int
     {
+        // ✅ إصلاح 1364: data_section_id عمود NOT NULL بدون default في جدول data،
+        // وغيابه يمنع إنشاء أي سجل جديد. نفس المنطق المعتمد في المسارات الصحيحة:
+        //   Admin\SponsorshipController      => 'data_section_id' => 1
+        //   General/Mobile Registration      => من الطلب إن وُجد (required|integer) وإلا 1
+        if (!isset($dataRecord['data_section_id']) || $dataRecord['data_section_id'] === null || $dataRecord['data_section_id'] === '') {
+            $dataRecord['data_section_id'] = 1;
+        }
+
         $fileIdNumber = (string) ($dataRecord['file_id_number'] ?? '');
 
         if (!empty($reusedFileNumber) && $fileIdNumber !== '' && $fileIdNumber === $reusedFileNumber) {
