@@ -1356,12 +1356,9 @@ $groupedFields = $sorted;
                 throw new \Exception('تم اختيار ملفات ولكن لم تصل للسيرفر كملفات صالحة (قد تكون أكبر من upload_max_filesize/post_max_size أو حدث خطأ أثناء الرفع).');
             }
 
-            // التحقق من أن المستخدم يملك هذه الكفالة
-            // 🆕 استخدام sponsorship_id فقط لتجنب مشكلة تغيير رقم الهوية
-            // التحقق من الصلاحية يتم من خلال الجلسة - sponsorship_id مخزن في الجلسة
-            $sponsorship = Sponsorship::with(['relationData', 'sponsor'])
-                ->where('id', $sponsorshipId)
-                ->firstOrFail();
+            // ✅ التحقق من ملكية الكفالة قبل أي تعديل (ownership / authorization)
+            // المستخدم → الكفالة النشطة في الجلسة → مطابقة sponsorship_id المطلوب
+            $sponsorship = $this->authorizeSponsorshipForUpdate($sponsorshipId, $user);
 
             // التحقق من البيانات
             $request->validate([
@@ -3080,6 +3077,12 @@ $groupedFields = $sorted;
                 ->with('success', 'تم حفظ التغييرات بنجاح');
 
         } catch (\Throwable $e) {
+            // ✅ رسائل HTTP (403/404/422) يجب أن تصل للعميل كما هي
+            // بدل تحويلها إلى رسالة خطأ عام داخل الجلسة
+            if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpExceptionInterface) {
+                throw $e;
+            }
+
             DB::rollBack();
             Log::error('UPDATE_SPONSORSHIP_ERROR', [
                 'error' => $e->getMessage(),
@@ -3094,6 +3097,60 @@ $groupedFields = $sorted;
                 ->withInput()
                 ->with('error', 'حدث خطأ أثناء حفظ البيانات: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * ✅ التحقق من أن الكفالة المطلوب تعديلها تخص المستخدم الحالي.
+     *
+     * القاعدة:
+     *   Current User → Current Session (active_sponsorship_id) → Verify requested sponsorship_id → Allow
+     *
+     * يعيد الكفالة عند الصلاحية، ويوقف الطلب بـ 403 عند عدم الصلاحية.
+     * لا يغيّر Authentication ولا Session architecture ولا العلاقات.
+     */
+    private function authorizeSponsorshipForUpdate($sponsorshipId, $user)
+    {
+        if (!$user) {
+            abort(403, 'غير مصرح لك بتعديل بيانات الكفالة');
+        }
+
+        if ($sponsorshipId === null || $sponsorshipId === '' || !is_numeric($sponsorshipId)) {
+            Log::warning('SPONSORSHIP_UPDATE_BAD_REQUEST', [
+                'user_id' => $user->id,
+                'requested_sponsorship_id' => $sponsorshipId,
+            ]);
+
+            abort(403, 'طلب التعديل غير صالح: معرّف الكفالة غير صحيح');
+        }
+
+        $sponsorship = Sponsorship::with(['relationData', 'sponsor'])
+            ->where('id', $sponsorshipId)
+            ->firstOrFail();
+
+        // 1) الكفالة النشطة في الجلسة (تُخزَّن عند تسجيل الدخول)
+        $activeSponsorshipId = session('active_sponsorship_id');
+        if ($activeSponsorshipId && (int) $activeSponsorshipId === (int) $sponsorship->id) {
+            return $sponsorship;
+        }
+
+        // 2) بدون كفالة نشطة في الجلسة: مطابقة هوية المستخدم (نفس مصادر index())
+        $userIdNumber = trim((string) ($user->email ?? ''));
+        if ($userIdNumber !== ''
+            && (
+                (string) $sponsorship->identity_number === $userIdNumber
+                || (string) $sponsorship->internal_file_number === $userIdNumber
+            )
+        ) {
+            return $sponsorship;
+        }
+
+        Log::warning('SPONSORSHIP_UPDATE_FORBIDDEN', [
+            'user_id' => $user->id,
+            'requested_sponsorship_id' => $sponsorship->id,
+            'session_active_sponsorship_id' => $activeSponsorshipId,
+        ]);
+
+        abort(403, 'غير مصرح لك بتعديل هذه الكفالة');
     }
 
     private function sanitizeDriveName(string $name): string
