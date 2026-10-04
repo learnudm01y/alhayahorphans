@@ -1423,11 +1423,22 @@ $groupedFields = $sorted;
             // 🆕 التحقق من رفع ملف واحد على الأقل لكل حقل مرفق ظاهر في الصفحة
             $missingRequiredDocs = $this->validateRequiredAttachments($sponsorship, $validAttachments);
             if (!empty($missingRequiredDocs)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'يجب رفع ملف واحد على الأقل لكل نوع وثيقة. الوثائق الناقصة: ' . implode('، ', $missingRequiredDocs),
-                    'missing_documents' => $missingRequiredDocs,
-                ], 422);
+                $missingDocsMessage = 'يجب رفع ملف واحد على الأقل لكل نوع وثيقة. الوثائق الناقصة: ' . implode('، ', $missingRequiredDocs);
+
+                // 🆕 البند 10: النموذج يُرسل كصفحة عادية (form.submit) وليس كطلب JSON،
+                // لذا نعيد التوجيه برسالة عربية مع الحفاظ على المدخلات بدل عرض JSON خام
+                if ($request->expectsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $missingDocsMessage,
+                        'missing_documents' => $missingRequiredDocs,
+                    ], 422);
+                }
+
+                return redirect()
+                    ->back()
+                    ->withInput()
+                    ->with('error', $missingDocsMessage);
             }
 
             DB::beginTransaction();
@@ -3142,7 +3153,11 @@ $groupedFields = $sorted;
                 throw $e;
             }
 
-            DB::rollBack();
+            // 🆕 البند 12: لا نلغي معاملة غير موجودة أصلاً (الخطأ قد يقع قبل beginTransaction)
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
+
             Log::error('UPDATE_SPONSORSHIP_ERROR', [
                 'error' => $e->getMessage(),
                 'file' => $e->getFile(),
@@ -3151,11 +3166,51 @@ $groupedFields = $sorted;
                 'sponsorship_id' => $request->input('sponsorship_id')
             ]);
 
+            // 🆕 البنود 11 و20: رسالة عربية واضحة بدون SQL أو stack trace
+            if ($e instanceof \Illuminate\Validation\ValidationException) {
+                $friendlyMessage = 'تعذر حفظ البيانات: ' . implode(
+                    '، ',
+                    collect($e->errors())->flatten()->unique()->values()->all()
+                );
+            } else {
+                $friendlyMessage = $this->friendlyErrorMessage($e);
+            }
+
             return redirect()
                 ->back()
                 ->withInput()
-                ->with('error', 'حدث خطأ أثناء حفظ البيانات: ' . $e->getMessage());
+                ->with('error', $friendlyMessage);
         }
+    }
+
+    /**
+     * 🆕 البنود 11 و20: تحويل أي استثناء إلى رسالة عربية ودّية قابلة للعرض للمستخدم.
+     * التفاصيل التقنية (SQL، الملف، السطر) تبقى مسجَّلة في Log::error أعلاه.
+     */
+    private function friendlyErrorMessage(\Throwable $e): string
+    {
+        $message = trim($e->getMessage());
+
+        $isRawTechnicalError = $e instanceof \Illuminate\Database\QueryException
+            || $e instanceof \PDOException
+            || $e->getPrevious() instanceof \PDOException
+            || str_contains($message, 'SQLSTATE')
+            || str_contains($message, 'SQL[');
+
+        if ($isRawTechnicalError) {
+            return 'حدث خطأ أثناء حفظ البيانات في قاعدة البيانات ولم يتم حفظ أي تغييرات. يرجى المحاولة مرة أخرى.';
+        }
+
+        if ($e instanceof \Illuminate\Database\Eloquent\ModelNotFoundException) {
+            return 'لم يتم العثور على السجل المطلوب. يرجى العودة والمحاولة مرة أخرى.';
+        }
+
+        // رسائلنا العربية (المرمية عبر throw) نعرضها للمستخدم كما هي
+        if ($message !== '' && preg_match('/\p{Arabic}/u', $message) === 1) {
+            return $message;
+        }
+
+        return 'حدث خطأ غير متوقع أثناء حفظ البيانات ولم يتم حفظ أي تغييرات. يرجى المحاولة مرة أخرى.';
     }
 
     /**
