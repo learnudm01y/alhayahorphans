@@ -22,9 +22,12 @@ class Kernel extends ConsoleKernel
                  });
 
         // تنظيف الأكواد القديمة غير المستخدمة كل 5 دقائق (تقليل التنافس مع طلبات الويب)
+        // ⏳ عتبة الاحتفاظ: 24 ساعة بدل 5 دقائق — الأكواد المحجوزة لصفحات
+        //    مفتوحة قد لا تُحفظ خلال دقائق، وحذفها المبكر يسمح بإعادة إصدار
+        //    رقم محجوز لطلب آخر فيتكرر الرقم عند الحفظ.
         $schedule->call(function () {
             if (function_exists('cleanupOldReservedCodes')) {
-                cleanupOldReservedCodes(5);
+                cleanupOldReservedCodes(1440);
             }
         })->everyFiveMinutes()
           ->name('cleanup-old-reserved-codes')
@@ -62,6 +65,22 @@ class Kernel extends ConsoleKernel
         $schedule->call(function () {
             file_put_contents(storage_path('logs/scheduler-test.log'), now() . "\n", FILE_APPEND);
         })->everyMinute();
+
+        // تنظيف ملفات استيراد Excel المؤقتة (sms_imports/*.json) الأقدم من يوم
+        $schedule->call(function () {
+            $dir = storage_path('app/sms_imports');
+            if (!is_dir($dir)) {
+                return;
+            }
+            $cutoff = now()->subDay()->getTimestamp();
+            foreach ((array) glob($dir . '/*.json') as $file) {
+                if (@filemtime($file) !== false && filemtime($file) < $cutoff) {
+                    @unlink($file);
+                }
+            }
+        })->dailyAt('03:30')
+          ->name('cleanup-sms-imports')
+          ->withoutOverlapping();
     }
 
     /**

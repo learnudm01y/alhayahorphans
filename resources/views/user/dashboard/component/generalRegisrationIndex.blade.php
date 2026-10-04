@@ -1420,6 +1420,7 @@
                                                        id="file-{{ $docType->id }}"
                                                        name="attachments[{{ $docType->id }}][]"
                                                        class="d-none"
+                                                       data-file-type="{{ $docType->file_type ?? '' }}"
                                                        accept="image/*,video/*,.pdf,.heic,.heif"
                                                        multiple
                                                        onchange="handleFileSelectWithCropper(this, {{ $docType->id }}, {{ json_encode($compressAttachments ?? true) }})">
@@ -2892,7 +2893,10 @@ function handleFileSelectWithCropper(input, docTypeId, compressEnabled) {
     const files = Array.from(input.files);
     
     if (files.length === 0) return;
-    
+
+    // نوع الوثيقة المحدد في لوحة التحكم (document / image)
+    const docFileType = (input.getAttribute('data-file-type') || '').trim();
+
     // معالجة كل ملف
     let processedCount = 0;
     
@@ -2903,6 +2907,10 @@ function handleFileSelectWithCropper(input, docTypeId, compressEnabled) {
                         file.name.toLowerCase().endsWith('.heif');
 
         if (isImage) {
+            // تمرير نوع الوثيقة لأداة القص حتى لا تُعامَل الوثيقة كصورة شخصية
+            if (docFileType) {
+                file._fileType = docFileType;
+            }
             // صورة → فتح Cropper
             showCropperModal(file, function(croppedFile) {
                 if (croppedFile) {

@@ -44,4 +44,11 @@ return [
         'legacy_sync_enabled' => env('LEGACY_SYNC_ENABLED', true), // safe default = dual-run
     ],
 
+    'nsms' => [
+        'base_url'     => env('NSMS_BASE_URL'),
+        'token'        => env('NSMS_TOKEN'),
+        'sender'       => env('NSMS_SENDER'),
+        'country_code' => env('NSMS_COUNTRY_CODE', '970'),
+    ],
+
 ];

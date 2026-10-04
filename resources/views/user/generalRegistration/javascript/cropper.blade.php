@@ -263,8 +263,12 @@ window.showCropperModal = async function(file, callback) {
   }
 
   // تحويل HEIC إلى JPEG إذا لزم الأمر
+  const preservedFileType = file._fileType;
   try {
     file = await convertHeicToJpeg(file);
+    if (preservedFileType && !file._fileType) {
+      file._fileType = preservedFileType;
+    }
   } catch (heicError) {
     console.error('[showCropperModal] خطأ في تحويل HEIC:', heicError);
     if (callback) callback(null, 'فشل في تحويل صورة HEIC');

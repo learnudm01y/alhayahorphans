@@ -44,6 +44,9 @@ use App\Http\Controllers\AttachmentAuditController;
 use App\Http\Controllers\DuplicateFileController;
 use App\Http\Controllers\CivilRegistrySearchController;
 use App\Http\Controllers\Admin\CivilRegistryController;
+use App\Http\Controllers\Admin\SmsController;
+use App\Http\Controllers\Admin\SmsGroupController;
+use App\Http\Controllers\Admin\SmsTemplateController;
 Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     // إدارة طلبات المستخدمين (عرض وتغيير حالة الطلب)
     Route::get('manage-user-requests', [ManageTheUserRequestController::class, 'index'])
@@ -639,3 +642,49 @@ Route::get('sponsors/{sponsor}/field-settings-check', [App\Http\Controllers\Admi
 
 // Test Documents Display
 Route::get('/test-documents-direct', function() { return view('test-documents-direct'); });
+
+/* ============================================================
+ * الرسائل النصية (NSMS REST v2)
+ * المسار: /admin/sms — أسماء المسارات: admin.sms.*
+ * ============================================================ */
+Route::group(['prefix' => 'admin/sms', 'as' => 'admin.sms.'], function () {
+    Route::get('/', [SmsController::class, 'index'])
+        ->middleware('permission:عرض قسم الرسائل النصية|إرسال رسائل نصية')
+        ->name('index');
+
+    Route::get('logs', [SmsController::class, 'logs'])
+        ->middleware('permission:عرض قسم الرسائل النصية|عرض سجل الرسائل')
+        ->name('logs');
+
+    Route::post('single', [SmsController::class, 'single'])
+        ->middleware('permission:إرسال رسائل نصية')
+        ->name('single');
+
+    Route::post('bulk/summary', [SmsController::class, 'bulkSummary'])
+        ->middleware('permission:إرسال رسائل نصية')
+        ->name('bulk.summary');
+
+    Route::post('bulk/send', [SmsController::class, 'bulkSend'])
+        ->middleware('permission:إرسال رسائل نصية')
+        ->name('bulk.send');
+
+    Route::post('excel/upload', [SmsController::class, 'excelUpload'])
+        ->middleware('permission:إرسال رسائل نصية')
+        ->name('excel.upload');
+
+    Route::post('excel/summary', [SmsController::class, 'excelSummary'])
+        ->middleware('permission:إرسال رسائل نصية')
+        ->name('excel.summary');
+
+    Route::post('excel/send', [SmsController::class, 'excelSend'])
+        ->middleware('permission:إرسال رسائل نصية')
+        ->name('excel.send');
+
+    Route::resource('templates', SmsTemplateController::class)
+        ->only(['index', 'store', 'update', 'destroy'])
+        ->middleware('permission:عرض قسم الرسائل النصية|إدارة قوالب الرسائل');
+
+    Route::resource('groups', SmsGroupController::class)
+        ->only(['index', 'store', 'update', 'destroy'])
+        ->middleware('permission:عرض قسم الرسائل النصية|إدارة مجموعات الأرقام');
+});

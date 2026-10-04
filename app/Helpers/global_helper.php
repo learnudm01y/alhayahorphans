@@ -70,7 +70,7 @@ if (!function_exists('findSmallestGap')) {
                         UNION
                         SELECT CAST(registration_id AS UNSIGNED) as num FROM re_people WHERE LENGTH(registration_id) = 6 AND registration_id REGEXP '^[0-9]+$'
                         UNION
-                        SELECT CAST(code AS UNSIGNED) as num FROM reserved_codes WHERE LENGTH(code) = 6 AND code REGEXP '^[0-9]+$' AND (used = 1 OR reserved_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR))
+                        SELECT CAST(code AS UNSIGNED) as num FROM reserved_codes WHERE LENGTH(code) = 6 AND code REGEXP '^[0-9]+$'
                     ) t1
                     LEFT JOIN (
                         SELECT CAST(file_id_number AS UNSIGNED) as num FROM data WHERE LENGTH(file_id_number) = 6 AND file_id_number REGEXP '^[0-9]+$'
@@ -83,7 +83,7 @@ if (!function_exists('findSmallestGap')) {
                         UNION
                         SELECT CAST(registration_id AS UNSIGNED) as num FROM re_people WHERE LENGTH(registration_id) = 6 AND registration_id REGEXP '^[0-9]+$'
                         UNION
-                        SELECT CAST(code AS UNSIGNED) as num FROM reserved_codes WHERE LENGTH(code) = 6 AND code REGEXP '^[0-9]+$' AND (used = 1 OR reserved_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR))
+                        SELECT CAST(code AS UNSIGNED) as num FROM reserved_codes WHERE LENGTH(code) = 6 AND code REGEXP '^[0-9]+$'
                     ) t2 ON t1.num + 1 = t2.num
                     WHERE t2.num IS NULL AND t1.num + 1 < 999999
                 ) gaps
@@ -112,7 +112,7 @@ if (!function_exists('findSmallestGap')) {
                     UNION SELECT 1 FROM sponsorships WHERE relation_id_number = '000001'
                     UNION SELECT 1 FROM dead_people WHERE re_file_id = '000001'
                     UNION SELECT 1 FROM re_people WHERE registration_id = '000001'
-                    UNION SELECT 1 FROM reserved_codes WHERE code = '000001' AND (used = 1 OR reserved_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR))
+                    UNION SELECT 1 FROM reserved_codes WHERE code = '000001'
                 )
             ");
 

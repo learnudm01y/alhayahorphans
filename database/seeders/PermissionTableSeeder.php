@@ -125,6 +125,13 @@ class PermissionTableSeeder extends Seeder
               'تشغيل اختبار السرعة',
               'عرض إحصائيات السرعة',
               'تنزيل نتائج الاختبار',
+
+              // الرسائل النصية (NSMS)
+              'عرض قسم الرسائل النصية',
+              'إرسال رسائل نصية',
+              'إدارة قوالب الرسائل',
+              'إدارة مجموعات الأرقام',
+              'عرض سجل الرسائل',
         ];
         foreach ($permissions as $permission) {
             Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);

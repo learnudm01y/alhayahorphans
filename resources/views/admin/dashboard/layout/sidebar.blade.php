@@ -72,6 +72,14 @@
             'اختبار سرعة الإنترنت',
             'OpenSpeedTest',
         ];
+
+        $smsSectionPermissions = [
+            'عرض قسم الرسائل النصية',
+            'إرسال رسائل نصية',
+            'إدارة قوالب الرسائل',
+            'إدارة مجموعات الأرقام',
+            'عرض سجل الرسائل',
+        ];
     @endphp
     <!--begin::Menu-->
     <div class="menu menu-column menu-rounded menu-sub-indention fw-semibold fs-6" id="#kt_app_sidebar_menu" data-kt-menu="true" data-kt-menu-expand="false">
@@ -766,6 +774,18 @@
                 </div>
                 @endcanany
             </div>
+        </div>
+        @endcanany
+        <!--end:Menu item-->
+        <!--begin:Menu item-->
+        @canany($smsSectionPermissions)
+        <div class="menu-item">
+            <a class="menu-link" href="{{ route('admin.sms.index') }}">
+                <span class="menu-icon">
+                    <i class="fas fa-envelope"></i>
+                </span>
+                <span class="menu-title"> الرسائل النصية </span>
+            </a>
         </div>
         @endcanany
         <!--end:Menu item-->

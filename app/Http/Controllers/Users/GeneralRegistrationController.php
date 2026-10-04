@@ -103,6 +103,43 @@ class GeneralRegistrationController extends Controller
         return null;
     }
 
+    /**
+     * سياسة العمل: هل رقم الملف محجوز أو مستخدم فعلاً في أحد الجداول الحاملة لرقم الملف؟
+     *
+     * يفحص data (معيلون) و re_people (أفراد الأسرة) و dead_people (المتوفون)
+     * و sponsorships (الكفالة). يُستخدم داخل المعاملة قبل الكتابة، وعند وجود
+     * تكرار يُولَّد رقم بديل فوراً بدل كتابة سجلات فوق ملف آخر.
+     *
+     * @return string|null اسم الجدول المتعارض مع الرقم، أو null إذا كان الرقم حراً
+     */
+    private function findFileNumberConflict(string $fileIdNumber): ?string
+    {
+        $fileIdNumber = trim($fileIdNumber);
+
+        if ($fileIdNumber === '') {
+            return null;
+        }
+
+        if (Data::where('file_id_number', $fileIdNumber)->exists()) {
+            return 'data';
+        }
+
+        if (RePeople::where('registration_id', $fileIdNumber)->exists()) {
+            return 're_people';
+        }
+
+        if (DeadPepole::where('re_file_id', $fileIdNumber)->exists()) {
+            return 'dead_people';
+        }
+
+        if (\App\Models\Sponsorship::where('internal_file_number', $fileIdNumber)->exists()
+            || \App\Models\Sponsorship::where('relation_id_number', $fileIdNumber)->exists()) {
+            return 'sponsorships';
+        }
+
+        return null;
+    }
+
     public function index(): View
     {
         $generalSection = GeneralCategory::all();
@@ -191,7 +228,8 @@ class GeneralRegistrationController extends Controller
 
                 // 1. Validate basic data and attachments
                 $request->validate([
-                'file_id_number' => 'required|string',
+                'file_id_number' => 'required|string|regex:/^[0-9]{6}$/',
+                'original_file_id_number' => 'nullable|string|regex:/^[0-9]{6}$/',
                 'data_section_id' => 'required|integer',
                 'data_id_number' => 'required|string|digits:9',
                 'data_first_name' => 'required|string|max:255',
@@ -240,6 +278,8 @@ class GeneralRegistrationController extends Controller
                 'document_file.*' => 'required|file|mimes:jpg,jpeg,png,pdf,heic|max:5120',
             ], [
                 'file_id_number.required' => 'رقم الملف الموحد مطلوب.',
+                'file_id_number.regex' => 'رقم الملف يجب أن يتكون من 6 أرقام فقط (لا يقبل TEMP- أو أي رمز آخر). يرجى إعادة تحميل الصفحة ثم المحاولة مرة أخرى.',
+                'original_file_id_number.regex' => 'رقم الملف الأصلي يجب أن يتكون من 6 أرقام فقط. يرجى إعادة تحميل الصفحة ثم المحاولة مرة أخرى.',
                 'data_id_number.required' => 'رقم الهوية مطلوب.',
                 'data_id_number.digits' => 'رقم الهوية يجب أن يكون 9 أرقام بالضبط.',
                 'mother_id.digits' => 'رقم هوية الأم يجب أن يكون 9 أرقام بالضبط.',
@@ -377,6 +417,41 @@ class GeneralRegistrationController extends Controller
             }
 
             DB::beginTransaction();
+
+            // ================================================
+            // 🔄 إعادة فحص تكرار رقم الملف نفسه داخل المعاملة
+            //    قد كتب طلب متزامن هذا الرقم في data / re_people /
+            //    dead_people / sponsorships بين الفحص السابق والكتابة.
+            //    عند التكرار يُولَّد رقم بديل فوراً ويُستبدل في كل ما بعده
+            //    (سجل المعيل، الأفراد، المتوفون، البنك، المرفقات، الملخص).
+            // ================================================
+            if (!$useExistingGuardian) {
+                $fileNumberConflictTable = $this->findFileNumberConflict($fileIdNumber);
+
+                if ($fileNumberConflictTable !== null) {
+                    $regeneratedFileIdNumber = generateUniqueReservedCode('data', 'file_id_number');
+
+                    if (empty($regeneratedFileIdNumber) || $regeneratedFileIdNumber === $fileIdNumber) {
+                        DB::rollBack();
+                        $errorMsg = 'تعذر حفظ الطلب: رقم الملف مستخدم في سجل آخر ولم ينجح توليد رقم بديل. يرجى إعادة تحميل الصفحة والمحاولة مرة أخرى.';
+                        if ($request->ajax() || $request->wantsJson()) {
+                            return response()->json(['success' => false, 'message' => $errorMsg], 422);
+                        }
+                        return redirect()->back()->withInput()->with('error', $errorMsg);
+                    }
+
+                    Log::warning('♻️ رقم ملف مكرر داخل المعاملة - تم توليد رقم بديل', [
+                        'old_file_id' => $fileIdNumber,
+                        'new_file_id' => $regeneratedFileIdNumber,
+                        'conflict_table' => $fileNumberConflictTable,
+                        'guardian_identity' => $guardianIdentity,
+                    ]);
+
+                    $fileIdNumber = $regeneratedFileIdNumber;
+                    $requestedFileIdNumber = $regeneratedFileIdNumber;
+                    $originalPageFileId = $regeneratedFileIdNumber;
+                }
+            }
 
             // ================================================
             // 🔒 إعادة فحص الارتباط بملف آخر داخل المعاملة
@@ -846,9 +921,17 @@ class GeneralRegistrationController extends Controller
                 Log::info('🟠 معالجة مرفق فرد أسرة', ['index' => $index, 'data' => $data, 'file' => $file, 'tempPath' => $tempPath]);
                 $personType = $data['person_identity_number'] ?? null;
                 $fileType = $data['file_type'] ?? null;
-                $fileIdNumberAttach = isset($data['file_id_number']) && $data['file_id_number'] && $data['file_id_number'] !== 'undefined' && preg_match('/^\d+$/', $data['file_id_number'])
-                    ? str_pad($data['file_id_number'], 6, '0', STR_PAD_LEFT)
-                    : $fileIdNumber;
+                // 📎 رقم المرفق يُوحَّد دائماً مع رقم الملف النهائي لهذه المعاملة
+                //    (الرقم القادم من الواجهة قد يكون قديماً إذا استُبدل الرقم
+                //    عند إعادة التوليد أو عند اعتماد ملف معيل موجود)
+                $fileIdNumberAttach = $fileIdNumber;
+                if (isset($data['file_id_number']) && $data['file_id_number'] && $data['file_id_number'] !== $fileIdNumber) {
+                    Log::info('📎 توحيد رقم ملف المرفق مع رقم الملف النهائي', [
+                        'index' => $index,
+                        'attachment_file_id' => $data['file_id_number'],
+                        'final_file_id' => $fileIdNumber,
+                    ]);
+                }
                 if (!$fileIdNumberAttach || $fileIdNumberAttach === 'undefined') {
                     Log::warning('🚫 تجاهل مرفق بسبب عدم وجود رقم ملف عام صالح', ['index' => $index, 'data' => $data]);
                     continue;
