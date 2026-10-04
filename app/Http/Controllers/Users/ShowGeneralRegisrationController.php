@@ -219,6 +219,7 @@ class ShowGeneralRegisrationController extends Controller
 
         if (!$sponsorship) {
             Log::error('SPONSORSHIP NOT FOUND', ['identity' => $userIdNumber]);
+            session()->now('error', 'لم يتم العثور على بيانات الكفالة');
             return view('user.dashboard.component.generalRegisrationIndex', [
                 'sponsorship' => null,
                 'error' => 'لم يتم العثور على بيانات الكفالة'
@@ -232,6 +233,7 @@ class ShowGeneralRegisrationController extends Controller
                 'status_id' => $sponsorship->sponsorship_status_id,
                 'user_id' => $user->id
             ]);
+            session()->now('error', 'تم تحديث البيانات مسبقاً وإغلاق الملف');
             return view('user.dashboard.component.generalRegisrationIndex', [
                 'sponsorship' => null,
                 'error' => 'تم تحديث البيانات مسبقاً وإغلاق الملف'
@@ -349,6 +351,8 @@ $groupedFields = $sorted;
 
         // Prepare field values from all sources
         $fieldValues = $this->extractFieldValues($sponsorship);
+        // البند 7: إبقاء ما كتبه المستخدم عند إعادة العرض بعد فشل الحفظ
+        $fieldValues = $this->mergeOldInputFields($fieldValues);
 
         // جلب قوائم السكن
         $housingStatuses = \App\Models\HousingStatus::all();
@@ -498,6 +502,39 @@ $groupedFields = $sorted;
             'showAttachmentsSection',
             'compressAttachments'
         ));
+    }
+
+    /**
+     * البند 7: إعادة أي قيمة كتبها المستخدم قبل إعادة عرض النموذج بعد الخطأ
+     * (يغطي الحقول التي لا تستخدم old() في القالب نفسها)
+     */
+    private function mergeOldInputFields(array $fieldValues): array
+    {
+        $oldFields = old('fields', []);
+
+        if (!is_array($oldFields)) {
+            return $fieldValues;
+        }
+
+        foreach ($oldFields as $key => $value) {
+            if (!is_string($key) || $value === null) {
+                continue;
+            }
+
+            // لا نسمح بتغيير المفاتيح الداخلية (مثل نوع الشخص المخزَّن)
+            if (str_starts_with($key, '_')) {
+                continue;
+            }
+
+            // لا نسمح بتغيير القيم غير المكدّسة
+            if (isset($fieldValues[$key]) && !is_scalar($fieldValues[$key])) {
+                continue;
+            }
+
+            $fieldValues[$key] = $value;
+        }
+
+        return $fieldValues;
     }
 
     /**
