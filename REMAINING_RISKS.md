@@ -1,8 +1,9 @@
 # المخاطر المتبقية بعد إصلاحات التسجيل (REMAINING_RISKS)
 
-> إعداد: فرع `adndoid-v2-edited` — commits `18f47eb` .. `10d2d70`.
+> إعداد: فرع `adndoid-v2-edited` — commits `18f47eb` .. `d463e93`.
 > **التحديث الأخير:** استُبدلت قاعدة `aso` بـ `C:\Users\mfarr\Downloads\aso.sql` (طلب المستخدم)
-> — أنظر R1 الذي يتحدث إلى «حُلّ»، وR9 الجديد.
+> — أنظر R1 الذي يتحدث إلى «حُلّ»، وR9 الجديد. ثم جولة لاحقة: إصلاح اسم المتوفى وأفراد
+> الأسرة (`7c78ac8`) + تحقّق «جميع الحقول الظاهرة» (`d463e93`) → R10 وR11.
 
 ---
 
@@ -116,3 +117,41 @@ FOREIGN KEY (`re_file_id`) REFERENCES `data` (`file_id_number`)
   الاستيراد نجح رغم صغر الحجم.
 - لا `php artisan migrate` / لا تغيير schema يدوياً / لا تعديل على Google Drive أو Rclone
   أو Chunked Upload أو Android.
+
+### بيئة التشغيل بعد نقل المشروع (مُبلَّغ به للمستخدم)
+
+| العنصر | القيمة |
+|---|---|
+| مسار المشروع | **`E:\laragon\www\alhayahorphans`** (المستودع والـ git هنا؛ `C:\xampp\htdocs\alhayahorphans` بقي فيه `node_modules` فقط) |
+| الويب | Apache عبر **Laragon** — vhost `auto.alhayahorphans.test` و`DocumentRoot E:/laragon/www/alhayahorphans` |
+| PHP (CLI) | `C:\xampp\php\php.exe` (PHP 8.2.12) — `php artisan` يعمل |
+| قاعدة البيانات | **ما زالت MariaDB 10.4 الخاصة بـ XAMPP** على `127.0.0.1:3306` (datadir `C:\xampp\mysql\data`، قاعدتا `aso` + `aso_testing`) |
+| تحذير | تشغيل MySQL الخاص بـ Laragon (8.4 على 3306) سيتعارض ولن يحوي `aso` → يُترك موقوفاً |
+| الإقلاع | MySQL **ليس خدمة**؛ بعد أي إعادة تشغيل يُعاد تشغيله يدوياً: `Start-Process 'C:\xampp\mysql\bin\mysqld.exe' -ArgumentList '--defaults-file=C:\xampp\mysql\bin\my.ini'` |
+| إصلاح 4 أكتوبر | `mysql\innodb_table_stats.ibd` كان مُصفَّر الترويسة فأُعيدت النسخة السليمة من `C:\xampp\mysql\backup\mysql\innodb_table_stats.{frm,ibd}` (space id = 1) — راجع `data_backup_*`/`data_corrupt_*` داخل `C:\xampp\mysql` ونسخ `…\Temp\opencode\mysql-datadir-mysql-backup\` قبل أي حذف |
+
+---
+
+## R10 — تحقّق ملء الحقول من جهة المتصفح فقط (البند 30)
+
+`validateVisibleFieldsBeforeSubmit()` في `generalRegisrationIndex.blade.php` تمنع الإرسال ما لم
+يُعبَّأ كل حقل مرئي، لكنها **تعتمد على JavaScript** فقط (بقرار المستخدم: لا قواعد سيرفرية):
+
+- من يرسل الطلب مباشرة (`curl`/سكربت) يتجاوز الفحص تماماً — `$request->validate` الحالي يشترط
+  `'fields' => 'array'` و`'family_members' => 'array'` و`'attachments*'` فقط.
+- الإلزام يشمل **كل** ما هو مرئي، بما فيها ملاحظات/سبب الوفاة؛ الاستثناء الوحيد هو `data-optional="1"`.
+- حقول `readonly`/`disabled`/`hidden`/`file`/`checkbox`/`radio` لا تُفحص (تعطّلها كان سيعطّل الحفظ).
+- الفحص يسبق فحص المرفقات، والتحقق من المرفقات يبقى كما هو في السيرفر.
+
+---
+
+## R11 — صفوف أفراد الأسرة لا تُرسم من الخادم
+
+`FAMILY_MEMBERS_SUBMIT {"in_request":false,"rows_received":0}` مسجَّل حتى بعد الإصلاح:
+السبب أن `index()` يضبط `$familyMembers = collect()` عند غياب `relationData`، فلا توجد صفوف في الـ DOM
+وَلا شيء يُرسَل (صفوف JS تُبنى حصراً بزر «إضافة فرد»). الإصلاح في `7c78ac8` جعل الكونترولر
+**يستقبل** الصفوف ويتعامل مع `is_new`/`id` الفارغ، لكنه **لا يضمن** وصولها.
+
+- المطلوب للتأكد: كفالة لديها أفراد أسرة مسجَّلون → فتح الصفحة → التأكد من رسم الصفوف → `rows_received > 0`.
+- إن ظل `false` على كفالة كهذه فالمشكلة في تمرير `relationData` إلى `index()` وتستحق تحقيقاً مستقلاً
+  (لم يُلمس `index()` في هذه الجلسة عمداً).

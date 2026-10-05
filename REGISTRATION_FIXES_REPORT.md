@@ -2,8 +2,8 @@
 
 **الفرع:** `adndoid-v2-edited`
 **النقطة الآمنة:** `18f47eb chore: checkpoint before safe registration fixes`
-**المدى:** `18f47eb` → `24e8b17` (9 commits)
-**الملفات المتغيّرة:** `app/Http/Controllers/Users/ShowGeneralRegisrationController.php` + `resources/views/user/generalRegistration/thank-you.blade.php`
+**المدى:** `18f47eb` → `d463e93` (11 commits)
+**الملفات المتغيّرة:** `app/Http/Controllers/Users/ShowGeneralRegisrationController.php` + `resources/views/user/generalRegistration/thank-you.blade.php` + `resources/views/user/dashboard/component/generalRegisrationIndex.blade.php`
 **قاعدة الاختبارات:** `aso_testing` (أنشئت أثناء المهمة لأنها كانت مفقودة)
 
 ---
@@ -54,6 +54,8 @@
 | 25 | commits صغيرة + فحص بعد كل واحدة | ✅ جدول 3 أدناه |
 | 22, 23, 24, 26 | مُتجاوزة بقرار المستخدم | — |
 | 27 | هذا التقرير + `REMAINING_RISKS.md` | `a1bf658` |
+| 28 | **اسم المتوفى وأفراد الأسرة لا يُحفظان** (تحقيق بعد بند 27، هوية `445570054`): السببان موثّقان أدناه في قسم 7 | `7c78ac8` |
+| 30 | **منع الحفظ حتى تعبئة جميع الحقول الظاهرة** (طلب المستخدم): فحص `validateVisibleFieldsBeforeSubmit()` قبل فحص المرفقات | `d463e93` |
 
 ---
 
@@ -70,9 +72,12 @@
 | 7 | `85eaec6` البنود 10+11+12+20 | ✅ | — |
 | 8 | `91b6709` البند 13 | ✅ | — |
 | 9 | `24e8b17` البند 19 | ✅ `view:clear` | **91/2/5** ✅ (بعد `optimize:clear`) |
+| 10 | `7c78ac8` البند 28 | ✅ `php -l` | **91/2/5** ✅ |
+| 11 | `d463e93` البند 30 | ✅ `node --check` + `view:cache` | **91/2/5** ✅ |
 
 > **ملاحظة صريحة:** حزمة الاختبارات الكاملة أُجريت عند خط الأساس، وبعد `cf2bb27`،
-> وبعد `fb8ed46`، وبعد آخر commit (`24e8b17`) — والنتيجة متطابقة في الأربعة.
+> وبعد `fb8ed46`، وبعد `24e8b17`، وبعد `7c78ac8`، وبعد آخر commit (`d463e93`)
+> — والنتيجة متطابقة في كل مرة (`91 passed / 2 failed / 5 skipped`).
 > الفحص البيني لبقية الـ commits اقتصر على `php -l` وفحوصات الوظائف أدناه.
 > لأن النتيجة النهائية = خط الأساس تماماً، لا يوجد انحسار مُخفي بين commits.
 
@@ -117,6 +122,12 @@
 6. إرسال `sponsorship_id` غير مملوك → `403`.
 7. حفظ ناجح → صفحة الشكر تعرض «تم حفظ التغييرات بنجاح».
 8. (إن كان ملفك «معيل» وتُرسَل بلا `fields[]` على الإطلاق) → تنبيه في اللوج بدل رفض صارم.
+9. **اسم المتوفى** بعد الحفظ: `father_first_name` … `mother_last_name` ممتلئة في `dead_people`
+   (وليس `NULL`)، واللوج يحوي `DEAD_PEOPLE_NAMES_FROM_NAMES_INPUT`.
+10. **أفراد الأسرة**: اللوج يحوي `FAMILY_MEMBERS_SUBMIT` مع `rows_received > 0` عند وجود صفوف
+    في الصفحة، ويظهر السجل بعد إعادة التحميل.
+11. **تحقّق الحقول**: اترك حقل مرئياً فارغاً واضغط حفظ → يظهر `Swal` بقائمة الحقول الناقصة،
+    الحقول بإطار أحمر، ولا يُرسَل الطلب. أضف `data-optional="1"` لأي حقل اختياري يجب عدم إلزامه.
 
 ---
 
@@ -127,3 +138,59 @@
   (المشكلة الأصلية حُلّت بالمخطط المستورد، انظر `REMAINING_RISKS.md` R1 وفقرة 6 أعلاه).
 - الأصفار البادئة (17) والمراجعة الأمنية الشاملة (21) → تقرير فقط.
 - بنود الترقيم غير المذكورة في سجل العمل (9, 14, 15, 16, 22, 23, 24, 26) → R7.
+- **تحقّق السيرفر لحالة ملء الحقول** (بند 30) → بقرار المستخدم: **من جهة المتصفح فقط**،
+  دون قواعد `$request->validate` جديدة (انظر `REMAINING_RISKS.md` R10).
+
+---
+
+## 7. جولة لاحقة (بعد التقرير الأصلي): اسم المتوفى وأفراد الأسرة + تحقّق الحقول
+
+### 7.1 التحقيق — هوية `445570054`
+
+| الملاحظة | الدليل من `storage/logs/laravel.log` |
+|---|---|
+| حُفظ على كفالة أخرى | كفيلتان بنفس الهوية: `3472` و`3769`؛ الاتجاه كان إلى **3769** (ملف `025795`) |
+| اسم المتوفى يبقى `NULL` | `DEAD_PEOPLE_CREATED … created_fields: [father_id, father_death_date]` — بلا أي `*_name` |
+| أفراد الأسرة لا يصلون أصلاً | لا يوجد أي لوج `FAMILY_MEMBER_*` إطلاقاً |
+
+### 7.2 السبب الأول — اسم المتوفى (`7c78ac8`)
+
+- الفورم يرسل الأسماء في **`names[father][first_name…]`** وليس `fields[field_father_first_name]`.
+- `updateSeparateNameFields()` (يقرأ `names[]`) يُستدعى **فقط** داخل فرع `else` (السطر 1591-1596)،
+  وقد تُخطَّى لأن `$needsCentralDataCreation = true`.
+- فرع `family_member` في `createCentralDataRecords()` ينشئ `data` + `re_people` فقط.
+- الكتلة العامة لـ `dead_people` كانت تقرأ `$deadPeopleFields` من `fields[]` فقط ← كل `father_*_name` = `NULL`.
+
+**الإصلاح:** شرط الإنشاء صار `if (!empty($deadPeopleFields) || $hasDeadParentNames)`، وطُبِّقت حلقة
+تكتب `names[father]`/`names[mother]` بعد `mother_death_reason` مع لوج `DEAD_PEOPLE_NAMES_FROM_NAMES_INPUT`.
+
+> ⚠️ أثناء التنفيذ بُني اسم عمود خاطئ `father_first_name_name` → `SQLSTATE[42S22]` → ارتداد المعاملة
+> ورسالة عامة للمستخدم؛ صُحِّح إلى `$deadNamePrefix . '_' . $deadNamePart` **قبل** الالتزام بالcommit
+> (تجربة SQL داخل معاملة تُلغى + `php -l`).
+
+### 7.3 السبب الثاني — أفراد الأسرة (`7c78ac8`)
+
+`family_members` **لم تكن موجودة في الطلب أصلاً** (`FAMILY_MEMBERS_SUBMIT {"in_request":false,"rows_received":0}`):
+`index()` يضبط `$familyMembers = collect()` عند غياب `relationData` فلا تُرسم صفوف من الخادم، وصفوف JS
+تُبنى حصراً بزر `addFamilyMember()`، ولا restore عبر `old()` بعد إعادة التوجيه.
+
+**الإصلاح (يستقبل الصفوف إن وصلت):** لوج غير مشروط `FAMILY_MEMBERS_SUBMIT`، شرط
+`is_array(...) && !empty(...)`، و`$isNewFamilyMember = is_new || empty($memberData['id'])` بدل السقوط
+الصامت، مع `FAMILY_MEMBER_SKIPPED_INVALID_ROW`.
+**ما لم يُعالَج:** لماذا لا تُرسم الصفوف من الخادم أصلاً → `REMAINING_RISKS.md` R11.
+
+### 7.4 التأكيد بعد الإصلاح (07:14:38 — sponsorship `3768`، هوية `444072730`، ملف `025796`)
+
+- `DEAD_PEOPLE_NAMES_FROM_NAMES_INPUT` بالأعمدة الصحيحة، ثم
+  `DEAD_PEOPLE_CREATED … created_fields` يحوي `father_first_name … mother_last_name` ✅
+- `FAMILY_MEMBERS_SUBMIT {"in_request":false,"rows_received":0}` — مؤكِّد لسبب 7.3 ✅
+- الحفظ نجح (لا `UPDATE_SPONSORSHIP_ERROR`) ✅
+
+### 7.5 البند 30 — تحقّق «جميع الحقول الظاهرة» (`d463e93`)
+
+- `validateVisibleFieldsBeforeSubmit(form)` تُستدعى فور `e.preventDefault()` **قبل** فحص المرفقات.
+- تتجاوز: المخفي (`isElementVisible()` الموجودة أصلاً)، `readonly`، `disabled`،
+  `type = hidden|file|checkbox|radio|button`، وأي حقل عليه `data-optional="1"`.
+- عند النقص: إطار أحمر + قائمة مسمّاة في `Swal` (حتى 15 ثم «… وN حقلاً آخر») + تمرير وتركيز على أول حقل،
+  ويزول الأحمر تلقائياً عند الكتابة.
+- فُحص بـ `node --check` على الكتلة المضافة + `view:cache` على كامل القوالب + اختبارات 91/2/5.
