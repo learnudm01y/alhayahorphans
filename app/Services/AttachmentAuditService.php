@@ -129,6 +129,154 @@ class AttachmentAuditService
     }
 
     /**
+     * فحص الأفراد المكررين في جدول re_people
+     * التجميع على رقم الهوية person_id فقط، ويعرض جميع الملفات التي يظهر فيها هذا الهوية
+     * فحص للقراءة فقط: يعرض المجموعات والصفوف دون أي تعديل
+     */
+    public function findDuplicatePersons(): array
+    {
+        $duplicates = DB::table('re_people')
+            ->select(
+                'person_id',
+                DB::raw('COUNT(*) as count'),
+                DB::raw('MIN(id) as keep_id')
+            )
+            ->whereNotNull('person_id')
+            ->where('person_id', '!=', '')
+            ->groupBy('person_id')
+            ->having('count', '>', 1)
+            ->orderByDesc('count')
+            ->get();
+
+        $results = [];
+        $allFiles = [];
+
+        foreach ($duplicates as $dup) {
+            $rows = DB::table('re_people')
+                ->where('person_id', $dup->person_id)
+                ->orderBy('id', 'asc')
+                ->get();
+
+            $records = [];
+            $files = [];
+
+            foreach ($rows as $record) {
+                $records[] = [
+                    'id' => (int) $record->id,
+                    'registration_id' => (string) $record->registration_id,
+                    'full_name' => trim(implode(' ', array_filter([
+                        $record->first_name,
+                        $record->second_name,
+                        $record->third_name,
+                        $record->last_name,
+                    ]))),
+                    'person_birth_date' => $record->person_birth_date,
+                    'person_gender' => $record->person_gender,
+                    'person_health_status' => $record->person_health_status,
+                    'sponsorship_status' => $record->sponsorship_status,
+                    'person_note' => $record->person_note,
+                    'created_at' => $record->created_at,
+                    'updated_at' => $record->updated_at,
+                ];
+
+                $fileNumber = (string) $record->registration_id;
+
+                if (!isset($files[$fileNumber])) {
+                    $files[$fileNumber] = [
+                        'registration_id' => $fileNumber,
+                        'count' => 0,
+                        'row_ids' => [],
+                    ];
+                }
+
+                $files[$fileNumber]['count']++;
+                $files[$fileNumber]['row_ids'][] = (int) $record->id;
+                $allFiles[$fileNumber] = true;
+            }
+
+            $results[] = [
+                'person_id' => $dup->person_id,
+                'full_name' => $records[0]['full_name'] ?? null,
+                'count' => (int) $dup->count,
+                'keep_id' => (int) $dup->keep_id,
+                'files' => array_values($files),
+                'records' => $records,
+            ];
+        }
+
+        $totalRows = collect($results)->sum('count');
+
+        return [
+            'total_groups' => count($results),
+            'total_rows' => (int) $totalRows,
+            'total_extra_rows' => (int) ($totalRows - count($results)),
+            'total_files' => count($allFiles),
+            'groups' => $results,
+        ];
+    }
+
+    /**
+     * حذف صف فرد مكرر من re_people مع الحفاظ على المرفقات
+     * المرفقات والكفالات مرتبطة برقم الهوية person_id (وليس بمعرّف الصف)،
+     * لذا يُحذف صف re_people فقط دون أي مساس بجداول المرفقات أو الملفات.
+     */
+    public function deleteDuplicatePersonRow(int $rowId, ?string $expectedPersonId = null): array
+    {
+        $row = DB::table('re_people')->where('id', $rowId)->first();
+
+        if (!$row) {
+            return ['deleted' => false, 'message' => 'السجل غير موجود'];
+        }
+
+        $personId = trim((string) $row->person_id);
+
+        if ($personId === '') {
+            return ['deleted' => false, 'message' => 'لا يمكن حذف سجل بدون رقم هوية'];
+        }
+
+        if ($expectedPersonId !== null && trim($expectedPersonId) !== '' && trim($expectedPersonId) !== $personId) {
+            return ['deleted' => false, 'message' => 'رقم الهوية لا يطابق السجل المطلوب حذفه'];
+        }
+
+        $group = DB::table('re_people')
+            ->where('person_id', $personId)
+            ->orderBy('id', 'asc')
+            ->get();
+
+        if ($group->count() < 2) {
+            return ['deleted' => false, 'message' => 'لا يمكن الحذف: هذا الهوية له سجل واحد فقط'];
+        }
+
+        $deletedRows = DB::table('re_people')->where('id', $rowId)->delete();
+
+        if (!$deletedRows) {
+            return ['deleted' => false, 'message' => 'تعذر حذف السجل'];
+        }
+
+        $remaining = DB::table('re_people')
+            ->where('person_id', $personId)
+            ->orderBy('id', 'asc')
+            ->get()
+            ->map(fn ($record) => [
+                'id' => (int) $record->id,
+                'registration_id' => (string) $record->registration_id,
+                'created_at' => (string) $record->created_at,
+            ])
+            ->values()
+            ->toArray();
+
+        return [
+            'deleted' => true,
+            'message' => 'تم حذف السجل (رقم الملف ' . (string) $row->registration_id . ') مع الحفاظ على المرفقات',
+            'person_id' => $personId,
+            'deleted_row_id' => $rowId,
+            'deleted_file' => (string) $row->registration_id,
+            'remaining_count' => count($remaining),
+            'remaining' => $remaining,
+        ];
+    }
+
+    /**
      * فحص المكررات حسب المسار (نفس الملف مسجل أكثر من مرة)
      * يستخدم REPLACE للتوافق مع storage/attachments/ و attachments/
      */

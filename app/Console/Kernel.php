@@ -81,6 +81,15 @@ class Kernel extends ConsoleKernel
         })->dailyAt('03:30')
           ->name('cleanup-sms-imports')
           ->withoutOverlapping();
+
+        // النسخ الاحتياطي اليومي (مطفأ افتراضياً — فعّله بـ BACKUP_SCHEDULE_ENABLED=true)
+        // يستخدم نفس backup:run مع قفل يمنع التشغيل المتزامن
+        if (config('backup.schedule_enabled')) {
+            $schedule->command('backup:run')
+                ->dailyAt(config('backup.schedule_time', '02:00'))
+                ->withoutOverlapping(180)
+                ->name('backup-run');
+        }
     }
 
     /**

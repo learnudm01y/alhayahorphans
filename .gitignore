@@ -71,3 +71,4 @@ yarn-error.log
 *.ps1
 /wkhtmltopdf
 /.opencode
+sms-feature.zip

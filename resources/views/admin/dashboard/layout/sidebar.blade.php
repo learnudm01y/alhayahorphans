@@ -773,6 +773,25 @@
                     </a>
                 </div>
                 @endcanany
+                <!--begin:Backup-->
+                <div class="menu-item">
+                    <a class="menu-link" href="{{ route('admin.backup.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-database"></i>
+                        </span>
+                        <span class="menu-title"> لوحة النسخ الاحتياطي </span>
+                    </a>
+                </div>
+                <div class="menu-item">
+                    <button type="button" class="menu-link sidebar-run-backup" id="sidebar-run-backup-btn">
+                        <span class="menu-bullet">
+                            <i class="fas fa-play" id="sidebar-run-backup-icon"></i>
+                        </span>
+                        <span class="menu-title"> تشغيل النسخ الاحتياطي </span>
+                    </button>
+                    <div id="sidebar-backup-status" class="sidebar-backup-status d-none"></div>
+                </div>
+                <!--end:Backup-->
             </div>
         </div>
         @endcanany
@@ -792,3 +811,150 @@
     </div>
     <!--end::Menu-->
 </div>
+
+<style>
+    .sidebar-run-backup {
+        width: 100%;
+        background: none;
+        border: 0;
+        text-align: start;
+        cursor: pointer;
+    }
+
+    .sidebar-run-backup[disabled] {
+        opacity: .6;
+        cursor: not-allowed;
+    }
+
+    .sidebar-backup-status {
+        padding: 0 1.25rem .5rem;
+        font-size: .75rem;
+        line-height: 1.4;
+    }
+</style>
+
+<script>
+    (function () {
+        const btn = document.getElementById('sidebar-run-backup-btn');
+        const statusBox = document.getElementById('sidebar-backup-status');
+        const icon = document.getElementById('sidebar-run-backup-icon');
+        if (!btn || !statusBox) return;
+
+        const RUN_URL = @json(route('admin.backup.run'));
+        const STATUS_URL = @json(route('admin.backup.status'));
+        const TOKEN = @json(csrf_token());
+        const INDEX_URL = @json(route('admin.backup.index'));
+
+        let polling = null;
+        let startedAt = 0;
+        let pendingLaunch = false;
+
+        function show(html, cls) {
+            statusBox.className = 'sidebar-backup-status ' + (cls || 'text-info');
+            statusBox.classList.remove('d-none');
+            statusBox.innerHTML = html;
+        }
+
+        function setBusy(busy) {
+            btn.disabled = busy;
+            if (icon) icon.className = busy ? 'fas fa-spinner fa-spin' : 'fas fa-play';
+        }
+
+        function stopPolling() {
+            if (polling) { clearInterval(polling); polling = null; }
+        }
+
+        function finish(last) {
+            stopPolling();
+            setBusy(false);
+
+            if (!last) {
+                show('اكتملت العملية — <a href="' + INDEX_URL + '">عرض التفاصيل</a>.', 'text-success');
+            } else if (last.status === 'success') {
+                show('اكتمل النسخ الاحتياطي بنجاح.', 'text-success');
+            } else if (last.status === 'partial') {
+                show('اكتمل جزئيًا — <a href="' + INDEX_URL + '">راجع التفاصيل</a>.', 'text-warning');
+            } else {
+                show('فشل النسخ: ' + (last.error_message || '—') + ' <a href="' + INDEX_URL + '">التفاصيل</a>', 'text-danger');
+            }
+        }
+
+        function tick() {
+            fetch(STATUS_URL, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    const elapsed = Math.round((Date.now() - startedAt) / 1000);
+
+                    if (data.running) {
+                        pendingLaunch = false;
+                        const step = (data.current && data.current.current_step) ? data.current.current_step : 'جاري التنفيذ';
+                        show('<i class="fas fa-spinner fa-spin"></i> ' + step + ' — ' + elapsed + ' ثانية', 'text-info');
+                        return;
+                    }
+
+                    if (pendingLaunch) {
+                        // العملية الخلفية قد لا تكون أنشأت القفل بعد (مهلة 30 ثانية)
+                        if (Date.now() - startedAt < 30000) return;
+                        pendingLaunch = false;
+                        stopPolling();
+                        setBusy(false);
+                        show('لم تظهر العملية بعد — <a href="' + INDEX_URL + '">افتح لوحة النسخ</a>.', 'text-warning');
+                        return;
+                    }
+
+                    finish(data.last);
+                })
+                .catch(function () {});
+        }
+
+        function startPolling() {
+            startedAt = Date.now();
+            pendingLaunch = true;
+            setBusy(true);
+            show('<i class="fas fa-spinner fa-spin"></i> جاري التجهيز...', 'text-info');
+            stopPolling();
+            polling = setInterval(tick, 3000);
+        }
+
+        btn.addEventListener('click', function () {
+            if (btn.disabled) return;
+            if (!confirm('تشغيل النسخ الاحتياطي الآن؟ (قاعدة البيانات + ملفات المشروع + أرشفة الوسائط)')) return;
+
+            setBusy(true);
+            show('<i class="fas fa-spinner fa-spin"></i> جاري بدء العملية...', 'text-info');
+
+            fetch(RUN_URL, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': TOKEN,
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                }
+            })
+                .then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); })
+                .then(function (res) {
+                    if (res.ok) { startPolling(); return; }
+                    setBusy(false);
+                    show(res.body.message || 'تعذر بدء العملية.', 'text-danger');
+                })
+                .catch(function () {
+                    setBusy(false);
+                    show('تعذر الاتصال بالخادم.', 'text-danger');
+                });
+        });
+
+        // الحالة الأولية: هل توجد عملية تعمل الآن؟
+        fetch(STATUS_URL, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (!data.running) return;
+                startedAt = Date.now();
+                pendingLaunch = false;
+                setBusy(true);
+                show('<i class="fas fa-spinner fa-spin"></i> عملية نسخ احتياطي تعمل الآن...', 'text-info');
+                stopPolling();
+                polling = setInterval(tick, 3000);
+            })
+            .catch(function () {});
+    })();
+</script>

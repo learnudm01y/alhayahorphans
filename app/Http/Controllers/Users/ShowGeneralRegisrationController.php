@@ -2728,6 +2728,65 @@ $groupedFields = $sorted;
                         continue;
                     }
 
+                    // 🔄 الهوية موجودة في ملف آخر: ننقل صفها إلى الملف الحالي
+                    //    بدلاً من إنشاء نسخة مكررة (هوية واحدة = صف واحد = ملف واحد)
+                    $otherFileMembers = collect();
+                    if ($fileIdForFamilyMembers && preg_match('/^\d{9}$/', $memberPersonId)) {
+                        $otherFileMembers = DB::table('re_people')
+                            ->where('person_id', $memberPersonId)
+                            ->where('registration_id', '!=', $fileIdForFamilyMembers)
+                            ->orderBy('id', 'asc')
+                            ->get();
+                    }
+
+                    if ($otherFileMembers->isNotEmpty()) {
+                        $movedMember = $otherFileMembers->first();
+
+                        if ($otherFileMembers->count() > 1) {
+                            Log::warning('FAMILY_MEMBER_MULTIPLE_EXISTING_ROWS', [
+                                'sponsorship_id' => $sponsorship->id,
+                                'person_id' => $memberPersonId,
+                                'rows' => $otherFileMembers->map(fn ($r) => [
+                                    'id' => $r->id,
+                                    'registration_id' => $r->registration_id,
+                                ])->values()->all(),
+                                'note' => 'تم نقل أقدم صف إلى الملف الحالي وبقيت بقية الصفوف كما هي.',
+                            ]);
+                        }
+
+                        // نُحدّث الحقول المُرسلة غير الفارغة فقط (لا نُصفّر بيانات الملف السابق)
+                        $memberUpdates = [];
+                        foreach ($familyColumnMap as $inputKey => $dbColumn) {
+                            if (!array_key_exists($inputKey, $memberData)) {
+                                continue;
+                            }
+
+                            $newValue = $memberData[$inputKey];
+                            if ($newValue === '' || $newValue === null) {
+                                continue;
+                            }
+
+                            $memberUpdates[$dbColumn] = $newValue;
+                        }
+
+                        $memberUpdates['registration_id'] = $fileIdForFamilyMembers;
+                        $memberUpdates['updated_at'] = now();
+
+                        DB::table('re_people')
+                            ->where('id', $movedMember->id)
+                            ->update($memberUpdates);
+
+                        Log::info('FAMILY_MEMBER_MOVED_TO_FILE', [
+                            'sponsorship_id' => $sponsorship->id,
+                            're_people_id' => $movedMember->id,
+                            'person_id' => $memberPersonId,
+                            'old_file_id_number' => $movedMember->registration_id,
+                            'new_file_id_number' => $fileIdForFamilyMembers,
+                            'updated_columns' => array_keys($memberUpdates),
+                        ]);
+                        continue;
+                    }
+
                     // تحقق إذا كان فرد موجود أو جديد
                     if ($isNewFamilyMember) {
                         // إضافة فرد جديد - استخدام الحقول الأربعة المنفصلة

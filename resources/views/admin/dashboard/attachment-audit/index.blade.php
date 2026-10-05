@@ -39,6 +39,11 @@
             </button>
         </li>
         <li class="nav-item" role="presentation">
+            <button class="nav-link fw-bold" data-bs-toggle="tab" data-bs-target="#dup-persons-tab" type="button" role="tab">
+                <i class="fas fa-users me-2"></i>الأفراد المكررون
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
             <button class="nav-link fw-bold" data-bs-toggle="tab" data-bs-target="#orphan-tab" type="button" role="tab">
                 <i class="fas fa-file-upload me-2"></i>ملفات بدون سجل
             </button>
@@ -447,6 +452,78 @@
                     <div id="dupg-empty" class="text-center py-10 text-muted">
                         <i class="fas fa-user-friends text-muted" style="font-size: 3rem;"></i>
                         <p class="mt-3">اضغط "بدء الفحص" لاكتشاف المعيلين الذين يملكون أكثر من ملف</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- ===== تبويب الأفراد المكررين (re_people) ===== --}}
+        <div class="tab-pane fade" id="dup-persons-tab" role="tabpanel">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h5 class="fw-bold mb-0">
+                        <i class="fas fa-users me-2 text-danger"></i>
+                        كشف الأفراد المكررين (جدول re_people)
+                    </h5>
+                    <button class="btn btn-primary" id="btn-find-dup-persons">
+                        <i class="fas fa-search me-2"></i>بدء الفحص
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info py-2 px-3 mb-4">
+                        <i class="fas fa-info-circle me-2"></i>
+                        الفحص يجمّع حسب رقم الهوية فقط ويعرض جميع الملفات التي يظهر فيها هذا الهوية.
+                        الحذف يزيل صف الأفراد المكرر فقط مع <b>الحفاظ على المرفقات</b> (المرفقات والكفالات مرتبطة برقم الهوية لا بمعرّف الصف)،
+                        ويُبقي دائماً الصف الأقدم في كل هوية.
+                    </div>
+
+                    <div id="dupp-loading" class="text-center py-10" style="display:none;">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-3 text-muted">جاري فحص الأفراد المكررين...</p>
+                    </div>
+
+                    <div id="dupp-stats" style="display:none;">
+                        <div class="row g-4 mb-4">
+                            <div class="col-md-3">
+                                <div class="card border-danger border-2">
+                                    <div class="card-body text-center py-3">
+                                        <h3 class="fw-bold text-danger mb-0" id="dupp-total-groups">0</h3>
+                                        <small class="text-muted">فرد مكرر</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card border-warning border-2">
+                                    <div class="card-body text-center py-3">
+                                        <h3 class="fw-bold text-warning mb-0" id="dupp-total-rows">0</h3>
+                                        <small class="text-muted">إجمالي الصفوف</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card border-primary border-2">
+                                    <div class="card-body text-center py-3">
+                                        <h3 class="fw-bold text-primary mb-0" id="dupp-total-extra">0</h3>
+                                        <small class="text-muted">صفوف زائدة</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card border-info border-2">
+                                    <div class="card-body text-center py-3">
+                                        <h3 class="fw-bold text-info mb-0" id="dupp-total-files">0</h3>
+                                        <small class="text-muted">ملفات متأثرة</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="dupp-container"></div>
+                    </div>
+
+                    <div id="dupp-empty" class="text-center py-10 text-muted">
+                        <i class="fas fa-users text-muted" style="font-size: 3rem;"></i>
+                        <p class="mt-3">اضغط "بدء الفحص" لاكتشاف الأفراد المسجلين أكثر من مرة بنفس الملف والهوية</p>
                     </div>
                 </div>
             </div>
@@ -2022,6 +2099,219 @@ $(document).ready(function() {
                         .show();
                     $('#dupg-loading').hide();
                 }
+            });
+        });
+    });
+
+    // =====================================================================
+    // تبويب الأفراد المكررين (re_people) - فحص + حذف مع الحفاظ على المرفقات
+    // =====================================================================
+    let dupPersonsGroups = [];
+
+    function buildDupPersonGroup(group, index) {
+        let rows = '';
+
+        (group.records || []).forEach(function(record) {
+            const isKeep = record.id === group.keep_id;
+            rows += '<tr class="' + (isKeep ? 'table-success' : '') + '">' +
+                '<td class="text-center"><span class="fw-bold">' + record.id + '</span>' +
+                (isKeep ? ' <span class="badge bg-success">الأقدم</span>' : '') + '</td>' +
+                '<td class="text-center"><span class="badge bg-secondary">' + record.registration_id + '</span></td>' +
+                '<td>' + (record.full_name || '<span class="text-muted">—</span>') + '</td>' +
+                '<td>' + (record.person_birth_date || '—') + '</td>' +
+                '<td>' + (record.person_gender !== null && record.person_gender !== undefined && record.person_gender !== '' ? record.person_gender : '—') + '</td>' +
+                '<td>' + (record.person_health_status || '<span class="text-muted">—</span>') + '</td>' +
+                '<td>' + (record.person_note || '<span class="text-muted">—</span>') + '</td>' +
+                '<td>' + (record.created_at || '—') + '</td>' +
+                '<td>' + (record.updated_at || '—') + '</td>' +
+                '<td class="text-center">' +
+                '<button class="btn btn-outline-danger btn-sm dupp-delete-row" data-row="' + record.id + '" data-person="' + group.person_id + '" data-file="' + record.registration_id + '" title="حذف السجل مع الحفاظ على المرفقات">' +
+                '<i class="fas fa-trash"></i>' +
+                '</button>' +
+                '</td>' +
+                '</tr>';
+        });
+
+        const hasExtra = (group.records || []).length > 1;
+
+        return '<div class="dup-group-card" id="dupp-group-' + index + '">' +
+            '<div class="dup-group-header">' +
+            '<div>' +
+            '<span class="fw-bold fs-5">الهوية: ' + group.person_id + '</span>' +
+            '<span class="badge bg-danger mx-2">' + group.count + ' صفوف</span>' +
+            '<small class="text-muted me-2">الملفات: ' +
+            (group.files || []).map(function(f) {
+                return f.registration_id + ' (' + f.count + ')';
+            }).join('، ') +
+            '</small>' +
+            '<small class="text-muted">' + (group.full_name || '—') + '</small>' +
+            '</div>' +
+            (hasExtra ?
+                '<button class="btn btn-danger btn-sm dupp-delete-group" data-group="' + index + '">' +
+                '<i class="fas fa-trash-alt me-1"></i>حذف الصفوف الزائدة' +
+                '</button>' : '') +
+            '</div>' +
+            '<div class="dup-group-body table-responsive">' +
+            '<table class="table table-sm table-hover mb-0 align-middle">' +
+            '<thead class="table-light">' +
+            '<tr>' +
+            '<th class="text-center" style="width:130px;">معرّف الصف</th>' +
+            '<th class="text-center">رقم الملف</th>' +
+            '<th>الاسم</th>' +
+            '<th>تاريخ الميلاد</th>' +
+            '<th>الجنس</th>' +
+            '<th>الحالة الصحية</th>' +
+            '<th>ملاحظات</th>' +
+            '<th>تاريخ الإنشاء</th>' +
+            '<th>آخر تحديث</th>' +
+            '<th class="text-center" style="width:90px;">حذف</th>' +
+            '</tr>' +
+            '</thead>' +
+            '<tbody>' + rows + '</tbody>' +
+            '</table>' +
+            '</div>' +
+            '</div>';
+    }
+
+    function renderDupPersons(data) {
+        dupPersonsGroups = data.groups || [];
+
+        if (!data.total_groups) {
+            $('#dupp-empty').show().html(
+                '<i class="fas fa-check-circle text-success" style="font-size: 3rem;"></i>' +
+                '<p class="mt-3 fw-bold text-success">لا توجد أفراد مكررين</p>'
+            );
+            return;
+        }
+
+        $('#dupp-total-groups').text(data.total_groups);
+        $('#dupp-total-rows').text(data.total_rows);
+        $('#dupp-total-extra').text(data.total_extra_rows);
+        $('#dupp-total-files').text(data.total_files);
+
+        let html = '';
+        (data.groups || []).forEach(function(group, index) {
+            html += buildDupPersonGroup(group, index);
+        });
+
+        $('#dupp-container').html(html);
+        $('#dupp-stats').show();
+    }
+
+    $('#btn-find-dup-persons').on('click', function() {
+        const $btn = $(this);
+        $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>جاري الفحص...');
+        $('#dupp-loading').show();
+        $('#dupp-stats').hide();
+        $('#dupp-empty').hide();
+        $('#dupp-container').empty();
+
+        $.ajax({
+            url: '{{ route("attachment-audit.duplicate-persons") }}',
+            method: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    renderDupPersons(response.data);
+                } else {
+                    Swal.fire('خطأ', response.message || 'تعذر الفحص', 'error');
+                }
+            },
+            error: function() {
+                Swal.fire('خطأ', 'حدث خطأ أثناء فحص الأفراد المكررين', 'error');
+            },
+            complete: function() {
+                resetBtnSearch($btn);
+                $('#dupp-loading').hide();
+            }
+        });
+    });
+
+    function deleteDupPersonRow(rowId, personId) {
+        return new Promise(function(resolve) {
+            $.ajax({
+                url: '{{ route("attachment-audit.duplicate-persons.delete") }}',
+                method: 'POST',
+                data: { row_id: rowId, person_id: String(personId) },
+                success: function(response) {
+                    resolve(response.success === true);
+                },
+                error: function() {
+                    resolve(false);
+                }
+            });
+        });
+    }
+
+    $('#dupp-container').on('click', '.dupp-delete-row', function() {
+        const $btn = $(this);
+        const rowId = $btn.data('row');
+        const personId = String($btn.data('person'));
+        const fileName = String($btn.data('file'));
+
+        Swal.fire({
+            title: 'حذف سجل فرد مكرر',
+            html: 'سيتم حذف الصف <b>' + rowId + '</b> من الملف <b>' + fileName + '</b> للهوية <b>' + personId + '</b>' +
+                '<br><span class="text-success">المرفقات محفوظة</span> (مرتبطة برقم الهوية لا بمعرّف الصف).',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، احذف',
+            cancelButtonText: 'إلغاء'
+        }).then(function(result) {
+            if (!result.isConfirmed) return;
+
+            $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>');
+
+            deleteDupPersonRow(rowId, personId).then(function(ok) {
+                if (ok) {
+                    Swal.fire('تم', 'تم حذف السجل مع الحفاظ على المرفقات', 'success').then(function() {
+                        $('#btn-find-dup-persons').trigger('click');
+                    });
+                } else {
+                    Swal.fire('خطأ', 'تعذر حذف السجل', 'error');
+                    $btn.prop('disabled', false).html('<i class="fas fa-trash"></i>');
+                }
+            });
+        });
+    });
+
+    $('#dupp-container').on('click', '.dupp-delete-group', function() {
+        const $btn = $(this);
+        const group = dupPersonsGroups[$btn.data('group')];
+
+        if (!group) return;
+
+        const rows = (group.records || []).filter(function(record) {
+            return record.id !== group.keep_id;
+        });
+
+        if (!rows.length) return;
+
+        Swal.fire({
+            title: 'حذف الصفوف الزائدة',
+            html: 'سيتم حذف <b>' + rows.length + '</b> صف للهوية <b>' + group.person_id + '</b>' +
+                ' مع الاحتفاظ بالصف الأقدم <b>' + group.keep_id + '</b>' +
+                '<br><span class="text-success">المرفقات محفوظة</span>.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، احذف',
+            cancelButtonText: 'إلغاء'
+        }).then(async function(result) {
+            if (!result.isConfirmed) return;
+
+            $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>');
+
+            let deleted = 0;
+            for (const record of rows) {
+                const ok = await deleteDupPersonRow(record.id, group.person_id);
+                if (ok) {
+                    deleted++;
+                } else {
+                    break;
+                }
+            }
+
+            Swal.fire('تم', 'تم حذف ' + deleted + ' من ' + rows.length + ' صفوف مع الحفاظ على المرفقات', 'success').then(function() {
+                $('#btn-find-dup-persons').trigger('click');
             });
         });
     });

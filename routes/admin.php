@@ -41,6 +41,7 @@ use App\Http\Controllers\Admin\SpeedTestController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Admin\ManageTheUserRequestController;
 use App\Http\Controllers\AttachmentAuditController;
+use App\Http\Controllers\Admin\BackupController;
 use App\Http\Controllers\DuplicateFileController;
 use App\Http\Controllers\CivilRegistrySearchController;
 use App\Http\Controllers\Admin\CivilRegistryController;
@@ -421,6 +422,8 @@ Route::prefix('admin')->group(function () {
     Route::get('attachment-audit/duplicate-guardians', [AttachmentAuditController::class, 'findDuplicateGuardians'])->name('attachment-audit.duplicate-guardians');
     Route::post('attachment-audit/duplicate-guardians/merge', [AttachmentAuditController::class, 'mergeDuplicateGuardian'])->name('attachment-audit.duplicate-guardians.merge');
     Route::post('attachment-audit/duplicate-guardians/merge-all', [AttachmentAuditController::class, 'mergeAllDuplicateGuardians'])->name('attachment-audit.duplicate-guardians.merge-all');
+    Route::get('attachment-audit/duplicate-persons', [AttachmentAuditController::class, 'findDuplicatePersons'])->name('attachment-audit.duplicate-persons');
+    Route::post('attachment-audit/duplicate-persons/delete', [AttachmentAuditController::class, 'deleteDuplicatePerson'])->name('attachment-audit.duplicate-persons.delete');
 });
 
 // Admin Routes Group - Additional Testing Routes
@@ -687,4 +690,13 @@ Route::group(['prefix' => 'admin/sms', 'as' => 'admin.sms.'], function () {
     Route::resource('groups', SmsGroupController::class)
         ->only(['index', 'store', 'update', 'destroy'])
         ->middleware('permission:عرض قسم الرسائل النصية|إدارة مجموعات الأرقام');
+});
+
+/* ============================================================
+ * ����� ��������� � /admin/backup � ����� ��������: admin.backup.*
+ * ============================================================ */
+Route::group(['prefix' => 'admin/backup', 'as' => 'admin.backup.'], function () {
+    Route::get('/', [BackupController::class, 'index'])->name('index');
+    Route::post('run', [BackupController::class, 'run'])->name('run');
+    Route::get('status', [BackupController::class, 'status'])->name('status');
 });

@@ -56,6 +56,64 @@ class AttachmentAuditController extends Controller
     }
 
     /**
+     * كشف الأفراد المكررين في جدول re_people (للقراءة فقط)
+     */
+    public function findDuplicatePersons()
+    {
+        try {
+            $results = $this->auditService->findDuplicatePersons();
+
+            return response()->json([
+                'success' => true,
+                'data' => $results,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('AttachmentAudit: Error finding duplicate persons', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء فحص الأفراد المكررين: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * حذف صف فرد مكرر من re_people مع الحفاظ على المرفقات
+     */
+    public function deleteDuplicatePerson(Request $request)
+    {
+        $data = $request->validate([
+            'row_id' => 'required|integer|min:1',
+            'person_id' => 'nullable|string',
+        ]);
+
+        try {
+            $result = $this->auditService->deleteDuplicatePersonRow(
+                (int) $data['row_id'],
+                $data['person_id'] ?? null
+            );
+
+            return response()->json([
+                'success' => $result['deleted'],
+                'message' => $result['message'],
+                'data' => $result,
+            ], $result['deleted'] ? 200 : 422);
+        } catch (\Exception $e) {
+            Log::error('AttachmentAudit: Error deleting duplicate person row', [
+                'error' => $e->getMessage(),
+                'row_id' => $data['row_id'] ?? null,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء حذف السجل: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * كشف المكررات حسب المسار
      */
     public function findDuplicatePaths()
