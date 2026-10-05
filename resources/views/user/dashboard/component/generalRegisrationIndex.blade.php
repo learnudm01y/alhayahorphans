@@ -2208,12 +2208,107 @@
             }
         }
 
+        // ============================================================
+        // ✅ تحقق قبل الحفظ: جميع الحقول الظاهرة يجب أن تكون معبأة
+        // ============================================================
+        const FIELDS_TO_SKIP_ON_VALIDATE = ['hidden', 'file', 'checkbox', 'radio', 'submit', 'button', 'image', 'reset'];
+
+        function getFieldLabelForValidation(el) {
+            var label = '';
+            if (el.labels && el.labels.length > 0) {
+                label = el.labels[0].textContent || '';
+            }
+            if (!label) {
+                var container = el.closest('.col, .mb-3, .form-group, .border, .input-group');
+                var containerLabel = container ? container.querySelector('label') : null;
+                if (containerLabel) label = containerLabel.textContent || '';
+            }
+            if (!label) label = el.placeholder || '';
+            if (!label) label = el.name || '';
+            return label.replace(/[*\n\r\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+        }
+
+        function collectEmptyVisibleFields(form) {
+            var empty = [];
+            if (!form) return empty;
+            form.querySelectorAll('input[name], select[name], textarea[name]').forEach(function(el) {
+                if (el.disabled || el.readOnly || el.dataset.optional === '1') return;
+                var type = (el.type || '').toLowerCase();
+                if (FIELDS_TO_SKIP_ON_VALIDATE.indexOf(type) !== -1) return;
+                if (typeof isElementVisible === 'function' && !isElementVisible(el)) return;
+                if ((el.value || '').trim() === '') empty.push(el);
+            });
+            return empty;
+        }
+
+        function markFieldAsMissing(el) {
+            el.style.border = '2px solid red';
+            if (el.dataset.missingListener !== '1') {
+                el.dataset.missingListener = '1';
+                var clearIfFilled = function() {
+                    if ((el.value || '').trim() !== '') {
+                        el.style.border = '';
+                        el.removeEventListener('input', clearIfFilled);
+                        el.removeEventListener('change', clearIfFilled);
+                        delete el.dataset.missingListener;
+                    }
+                };
+                el.addEventListener('input', clearIfFilled);
+                el.addEventListener('change', clearIfFilled);
+            }
+        }
+
+        function validateVisibleFieldsBeforeSubmit(form) {
+            var missing = collectEmptyVisibleFields(form);
+            if (missing.length === 0) return true;
+
+            missing.forEach(markFieldAsMissing);
+
+            var labels = missing.map(getFieldLabelForValidation);
+            var shown = labels.slice(0, 15);
+            var html = '<div style="text-align: right; line-height: 1.9;">';
+            html += '<p style="margin-bottom: 8px;">يجب إدخال جميع الحقول الظاهرة قبل الحفظ. الحقول الناقصة (<b>' + missing.length + '</b>):</p>';
+            html += '<ul style="padding-right: 18px; margin: 0;">';
+            shown.forEach(function(t) { html += '<li>' + t + '</li>'; });
+            if (labels.length > shown.length) {
+                html += '<li>... و' + (labels.length - shown.length) + ' حقلاً آخر</li>';
+            }
+            html += '</ul></div>';
+
+            if (typeof Swal !== 'undefined' && Swal && typeof Swal.fire === 'function') {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'حقول غير معبأة',
+                    html: html,
+                    confirmButtonText: 'حسناً',
+                    customClass: { htmlContainer: 'text-start' }
+                });
+            } else {
+                alert('يجب إدخال جميع الحقول الظاهرة قبل الحفظ. الحقول الناقصة: ' + labels.join('، '));
+            }
+
+            var first = missing[0];
+            setTimeout(function() {
+                if (first && typeof first.scrollIntoView === 'function') {
+                    first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+                if (first && typeof first.focus === 'function') first.focus({ preventScroll: true });
+            }, 350);
+
+            return false;
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
             const form = document.getElementById('sponsorshipForm');
 
             if (form) {
                 form.addEventListener('submit', function(e) {
                     e.preventDefault();
+
+                    // ✅ منع الحفظ ما لم تُعبَّأ جميع الحقول الظاهرة
+                    if (!validateVisibleFieldsBeforeSubmit(form)) {
+                        return;
+                    }
 
                     var missingDocs = [];
                     var missingWithOld = [];
