@@ -2679,6 +2679,55 @@ $groupedFields = $sorted;
                     $isNewFamilyMember = (isset($memberData['is_new']) && $memberData['is_new'] == 1)
                         || empty($memberData['id']);
 
+                    // ✅ قاعدة عدم التكرار: نفس الملف + نفس الهوية = الفرد نفسه
+                    // (يغطي الحالة التي يضيف فيها المستخدم صفاً جديداً بهوية موجودة مسبقاً)
+                    $memberPersonId = trim((string) ($memberData['person_id'] ?? $memberData['identity_number'] ?? ''));
+                    $existingFamilyMember = null;
+                    if ($fileIdForFamilyMembers && preg_match('/^\d{9}$/', $memberPersonId)) {
+                        $existingFamilyMember = DB::table('re_people')
+                            ->where('registration_id', $fileIdForFamilyMembers)
+                            ->where('person_id', $memberPersonId)
+                            ->first();
+                    }
+
+                    if ($existingFamilyMember) {
+                        // موجود مسبقاً ← تحديث بياناته فقط، ولا يُضاف نسخة ثانية
+                        $memberUpdates = [];
+                        foreach ($familyColumnMap as $inputKey => $dbColumn) {
+                            if (!array_key_exists($inputKey, $memberData)) {
+                                continue;
+                            }
+
+                            $newValue = $memberData[$inputKey];
+                            if ($newValue === '' || $newValue === null) {
+                                $newValue = in_array($dbColumn, ['person_birth_date', 'person_gender'], true)
+                                    ? null
+                                    : ($newValue === null ? null : $newValue);
+                            }
+
+                            $memberUpdates[$dbColumn] = $newValue;
+                        }
+
+                        if (!empty($memberUpdates)) {
+                            $memberUpdates['updated_at'] = now();
+
+                            DB::table('re_people')
+                                ->where('id', $existingFamilyMember->id)
+                                ->update($memberUpdates);
+                        }
+
+                        Log::info('FAMILY_MEMBER_UPDATED_EXISTING', [
+                            'sponsorship_id' => $sponsorship->id,
+                            're_people_id' => $existingFamilyMember->id,
+                            'file_id_number' => $fileIdForFamilyMembers,
+                            'person_id' => $memberPersonId,
+                            'submitted_row_id' => $memberData['id'] ?? null,
+                            'is_new_flag' => $memberData['is_new'] ?? null,
+                            'updated_columns' => array_keys($memberUpdates),
+                        ]);
+                        continue;
+                    }
+
                     // تحقق إذا كان فرد موجود أو جديد
                     if ($isNewFamilyMember) {
                         // إضافة فرد جديد - استخدام الحقول الأربعة المنفصلة
@@ -4292,7 +4341,10 @@ $groupedFields = $sorted;
         $fileIdNumber = (string) ($rePeopleRecord['registration_id'] ?? '');
         $personId = trim((string) ($rePeopleRecord['person_id'] ?? ''));
 
-        if (!empty($reusedFileNumber) && $fileIdNumber === $reusedFileNumber && $personId !== '') {
+        // ✅ قاعدة عدم التكرار: الفرد الموجود بنفس الملف والهوية يُحدَّث ولا يُضاف من جديد
+        // (سابقاً كان الفحص مشروطاً بتطابق الملف مع $reusedFileNumber، فتُنشَأ نسخة ثانية
+        //  عند توليد رقم ملف جديد ثم إعادة ربطه لاحقاً عبر GUARDIAN_FILE_RELINK)
+        if ($fileIdNumber !== '' && $personId !== '') {
             $existing = DB::table('re_people')
                 ->where('registration_id', $fileIdNumber)
                 ->where('person_id', $personId)
@@ -4316,6 +4368,55 @@ $groupedFields = $sorted;
         }
 
         return (int) DB::table('re_people')->insertGetId($rePeopleRecord);
+    }
+
+    /**
+     * ✅ قاعدة عدم التكرار لسجل المتوفى (dead_people)
+     *
+     * يبحث أولاً عن سجل لنفس رقم الملف، ثم عن سجل للملف المرتبط بالكفالة
+     * ($fallbackRelationFile)؛ فإن وجد ← تحديثه بمحتوى السجل الجديد، وإلا ← إنشاء سجل.
+     * نفس منطق المساعدات القائمة (تحديث/إنشاء حسب re_file_id) لكن بلا إنشاء ثانٍ
+     * عند توليد رقم ملف جديد ثم إعادة ربطه لاحقاً.
+     */
+    private function upsertDeadPeopleForFile(array $deadPeopleRecord, ?string $fallbackRelationFile): int
+    {
+        $fileIdNumber = trim((string) ($deadPeopleRecord['re_file_id'] ?? ''));
+
+        $existing = null;
+
+        if ($fileIdNumber !== '') {
+            $existing = DB::table('dead_people')
+                ->where('re_file_id', $fileIdNumber)
+                ->first();
+        }
+
+        $fallback = trim((string) ($fallbackRelationFile ?? ''));
+
+        if (!$existing && $fallback !== '' && $fallback !== $fileIdNumber) {
+            $existing = DB::table('dead_people')
+                ->where('re_file_id', $fallback)
+                ->first();
+        }
+
+        if (!$existing) {
+            return (int) DB::table('dead_people')->insertGetId($deadPeopleRecord);
+        }
+
+        $updates = $deadPeopleRecord;
+        unset($updates['re_file_id'], $updates['created_at']);
+        $updates['updated_at'] = now();
+
+        DB::table('dead_people')->where('id', $existing->id)->update($updates);
+
+        Log::info('DEAD_PEOPLE_UPDATED_EXISTING', [
+            'dead_people_id' => $existing->id,
+            'existing_re_file_id' => $existing->re_file_id,
+            'submitted_re_file_id' => $fileIdNumber,
+            'fallback_relation_file' => $fallback,
+            'updated_fields' => array_keys($updates),
+        ]);
+
+        return (int) $existing->id;
     }
 
     /**
@@ -4685,7 +4786,8 @@ $groupedFields = $sorted;
                 $deadPeopleRecord[$prefix . '_death_reason'] = $deathReason;
             }
 
-            $deadPeopleId = DB::table('dead_people')->insertGetId($deadPeopleRecord);
+            // ✅ قاعدة عدم التكرار: سجل متوفٍ موجود للملف يُحدَّث ولا يُضاف من جديد
+            $deadPeopleId = $this->upsertDeadPeopleForFile($deadPeopleRecord, $sponsorship->relation_id_number);
 
             // 2. 🆕 تخزين بيانات السكن في portal_general_registration_field_values
             $housingFields = [
@@ -4853,7 +4955,8 @@ $groupedFields = $sorted;
                 }
             }
 
-            $rePeopleId = DB::table('re_people')->insertGetId($rePeopleRecord);
+            // ✅ قاعدة عدم التكرار: الفرد موجود بنفس الملف والهوية ⇒ تحديث فقط
+            $rePeopleId = $this->insertOrUpdateRePeopleRecord($rePeopleRecord, $reusedGuardianFile);
 
             Log::info('CREATED_RE_PEOPLE_RECORD_LEGACY', [
                 're_people_id' => $rePeopleId,
@@ -4908,7 +5011,8 @@ $groupedFields = $sorted;
                 }
             }
 
-            $deadPeopleId = DB::table('dead_people')->insertGetId($deadPeopleRecord);
+            // ✅ قاعدة عدم التكرار: سجل متوفٍ موجود للملف يُحدَّث ولا يُضاف من جديد
+            $deadPeopleId = $this->upsertDeadPeopleForFile($deadPeopleRecord, $sponsorship->relation_id_number);
 
             Log::info('CREATED_DEAD_PEOPLE_RECORD_LEGACY', [
                 'dead_people_id' => $deadPeopleId,
