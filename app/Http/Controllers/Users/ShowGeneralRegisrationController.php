@@ -2438,7 +2438,10 @@ $groupedFields = $sorted;
 
             // 🆕 معالجة بيانات المتوفين (dead_people) - CRUD كامل
             // يجب معالجتها باستخدام relation_id_number مباشرة من sponsorship
-            if (!empty($deadPeopleFields)) {
+            // ⚠️ أسماء الأب/الأم المتوفين لا تصل أبداً في fields[] بل في names[father]/names[mother]
+            //   (البليد يرسمها باسم names[...] وليس fields[field_father_first_name])
+            $hasDeadParentNames = isset($namesData['father']) || isset($namesData['mother']);
+            if (!empty($deadPeopleFields) || $hasDeadParentNames) {
                 $relationIdNumber = $sponsorship->relation_id_number;
 
                 // إذا لا يوجد relation_id_number، نستخدم file_id_number من relationData
@@ -2538,6 +2541,35 @@ $groupedFields = $sorted;
                         $deadPeopleUpdates['mother_death_reason'] = $deathReason;
                     }
 
+                    // ✅ أسماء الأب والأم المتوفين من names[father]/names[mother]
+                    // تُطبَّق بعد حقول fields[] لتصبح هي المعتمدة عندما يرسلها الفورم
+                    foreach (['father', 'mother'] as $deadNamePrefix) {
+                        if (!isset($namesData[$deadNamePrefix]) || !is_array($namesData[$deadNamePrefix])) {
+                            continue;
+                        }
+
+                        $deadNames = $namesData[$deadNamePrefix];
+                        $deadNameColumns = [];
+                        foreach (['first_name', 'second_name', 'third_name', 'last_name'] as $deadNamePart) {
+                            if (!array_key_exists($deadNamePart, $deadNames)) {
+                                continue;
+                            }
+                            // الأعمدة هي father_first_name وليس father_first_name_name
+                            $deadPeopleUpdates[$deadNamePrefix . '_' . $deadNamePart] = $deadOrNull($deadNames[$deadNamePart]);
+                            $deadNameColumns[] = $deadNamePrefix . '_' . $deadNamePart;
+                        }
+
+                        if (!empty($deadNameColumns)) {
+                            Log::info('DEAD_PEOPLE_NAMES_FROM_NAMES_INPUT', [
+                                'sponsorship_id' => $sponsorship->id,
+                                'relation_id_number' => $relationIdNumber,
+                                'prefix' => $deadNamePrefix,
+                                'columns' => $deadNameColumns,
+                                'has_record' => !empty($deadPeopleRecord),
+                            ]);
+                        }
+                    }
+
                     if (!empty($deadPeopleUpdates)) {
                         if ($deadPeopleRecord) {
                             // تحديث السجل الموجود
@@ -2598,8 +2630,18 @@ $groupedFields = $sorted;
             ]);
 
             // تحديث أفراد الأسرة من جدول re_people
-            if ($request->has('family_members')) {
-                $familyMembers = $request->input('family_members');
+            // 📌 نسجّل دائماً ما وصل من الفورم: غياب family_members في الطلب يعني أن
+            //    لا توجد صفوف في DOM وقت الحفظ (صفوف JS لا تُستعاد عبر old() عند أي redirect)
+            $familyMembersInput = $request->input('family_members');
+            Log::info('FAMILY_MEMBERS_SUBMIT', [
+                'sponsorship_id' => $sponsorship->id,
+                'in_request' => $request->has('family_members'),
+                'rows_received' => is_array($familyMembersInput) ? count($familyMembersInput) : 0,
+                'person_type' => $sponsorship->person_type,
+            ]);
+
+            if (is_array($familyMembersInput) && !empty($familyMembersInput)) {
+                $familyMembers = $familyMembersInput;
 
                 // 🆕 تحديد رقم الملف للربط - يعمل مع جميع أنواع الأشخاص بما فيهم المتوفين
                 $fileIdForFamilyMembers = $sponsorship->relationData?->file_id_number
@@ -2620,8 +2662,25 @@ $groupedFields = $sorted;
                 ];
 
                 foreach ($familyMembers as $memberIndex => $memberData) {
+                    if (!is_array($memberData)) {
+                        $skippedFamilyMembers[] = [
+                            'index' => $memberIndex,
+                            'reason' => 'invalid_row',
+                        ];
+                        Log::warning('FAMILY_MEMBER_SKIPPED_INVALID_ROW', [
+                            'sponsorship_id' => $sponsorship->id,
+                            'member_index' => $memberIndex,
+                        ]);
+                        continue;
+                    }
+
+                    // 🆕 صف جديد: موسوم بـ is_new أو بلا id أصلاً
+                    // (صفوف المتصفح قد تُبنى بدون is_new - كانت تُسقط صامتاً قبل هذا الإصلاح)
+                    $isNewFamilyMember = (isset($memberData['is_new']) && $memberData['is_new'] == 1)
+                        || empty($memberData['id']);
+
                     // تحقق إذا كان فرد موجود أو جديد
-                    if (isset($memberData['is_new']) && $memberData['is_new'] == 1) {
+                    if ($isNewFamilyMember) {
                         // إضافة فرد جديد - استخدام الحقول الأربعة المنفصلة
                         if (!$fileIdForFamilyMembers) {
                             $skippedFamilyMembers[] = [
