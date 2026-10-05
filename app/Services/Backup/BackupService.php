@@ -427,8 +427,9 @@ class BackupService
             "{$key}_size"  => $size,
         ])->save();
 
-        // الوجهة: قد تكون مساراً محلياً أو rclone remote (onedrive:uploades)
-        $destination = rtrim((string) config('backup.onedrive_path'), '/\\') . '/' . $key;
+        // الوجهة: مجلد واحد يضم محتوى uploads و attachments مدمجاً (بلا مجلدات فرعية)
+        // rclone copy: إضافة/تحديث فقط — لا حذف ولا نقل لأي ملف موجود هناك
+        $destination = rtrim((string) config('backup.onedrive_path'), '/\\');
 
         $unavailable = $this->destinationProblem();
         if ($unavailable !== null) {
@@ -509,7 +510,8 @@ class BackupService
             $remote = explode(':', $destination, 2)[0];
             $result = $this->runRclone(['lsd', $remote . ':']);
             if (!$result['success']) {
-                return 'OneDrive archive directory unavailable: ' . $this->tail($result['output'], 300);
+                return 'OneDrive archive directory unavailable: ' . $this->tail($result['output'], 300)
+                    . $this->rcloneDiagnostics();
             }
             return null;
         }
@@ -519,6 +521,35 @@ class BackupService
         }
 
         return null;
+    }
+
+    /**
+     * تشخيص ذاتي عند فشل rclone: أي ملف إعدادات قرأ، وremotes المكتشفة فيه.
+     * (الفرق بين بيئة artisan والطرفية يظهر مباشرة في الرسالة.)
+     */
+    private function rcloneDiagnostics(): string
+    {
+        $info = [];
+
+        $cfg = $this->runRclone(['config', 'file']);
+        foreach (explode("\n", $cfg['output']) as $line) {
+            $line = trim($line);
+            // الصياغة: "Configuration file is stored at:" ثم المسار في السطر التالي
+            if ($line !== '' && !str_ends_with($line, ':')) {
+                $info[] = 'config: ' . $line;
+                break;
+            }
+        }
+
+        $list = $this->runRclone(['listremotes']);
+        if ($list['success']) {
+            $remotes = array_values(array_filter(array_map('trim', explode("\n", trim($list['output'])))));
+            $info[] = 'remotes: [' . ($remotes ? implode(', ', $remotes) : 'none') . ']';
+        } else {
+            $info[] = 'listremotes: ' . $this->tail($list['output'], 200);
+        }
+
+        return $info ? ' [' . implode(' | ', $info) . ']' : '';
     }
 
     /** هل الوجهة rclone remote (ون) وليس مساراً محلياً؟ */
@@ -611,7 +642,8 @@ class BackupService
         $stamp = date('Y-m-d_His');
         $zipPath = $dir . DIRECTORY_SEPARATOR . 'backup_laravel_' . $stamp . '.zip';
 
-        $excludes = $this->buildExcludes();
+        $excludes  = $this->buildExcludes();
+        $gitignore = $this->gitignorePatterns();
         $base = base_path();
         $baseLen = strlen(rtrim($base, DIRECTORY_SEPARATOR));
 
@@ -621,17 +653,12 @@ class BackupService
         }
 
         $directory = new RecursiveDirectoryIterator($base, RecursiveDirectoryIterator::SKIP_DOTS);
-        $filtered = new RecursiveCallbackFilterIterator($directory, function (SplFileInfo $current) use ($excludes, $base, $baseLen) {
+        $filtered = new RecursiveCallbackFilterIterator($directory, function (SplFileInfo $current) use ($excludes, $gitignore, $baseLen) {
             $relative = str_replace('\\', '/', substr($current->getPathname(), $baseLen));
             $relative = ltrim($relative, '/');
 
-            foreach ($excludes as $exclude) {
-                if ($relative === $exclude || str_starts_with($relative, $exclude . '/')) {
-                    return false; // استبعاد الملف أو تقليم الشجرة كاملة
-                }
-            }
-
-            return true;
+            // false يقص الشجرة كاملة (أسرع من المرور على كل الأبناء)
+            return !$this->excludedFromZip($relative, $excludes, $gitignore);
         });
 
         $iterator = new RecursiveIteratorIterator($filtered);
@@ -682,6 +709,83 @@ class BackupService
         return array_values(array_unique(array_filter($excludes)));
     }
 
+    /**
+     * قواعد .gitignore (تُقرأ وقت التشغيل) لاستثناءها من نسخة ZIP.
+     * أرشيف الوسائط عبر rclone لا علاقة له بهذا — يبقى كما هو.
+     */
+    private function gitignorePatterns(): array
+    {
+        if (!config('backup.exclude_gitignore', true)) {
+            return [];
+        }
+
+        $file = base_path('.gitignore');
+        if (!is_file($file)) {
+            return [];
+        }
+
+        $patterns = [];
+        foreach ((array) @file($file, FILE_IGNORE_NEW_LINES) as $line) {
+            $line = trim($line);
+            if ($line === '' || str_starts_with($line, '#')) {
+                continue;
+            }
+            $patterns[] = $line;
+        }
+
+        return $patterns;
+    }
+
+    /** هل يُستبعد هذا المسار من ZIP (استثناءات صريحة أو قواعد .gitignore)؟ */
+    private function excludedFromZip(string $relative, array $excludes, array $gitignore): bool
+    {
+        foreach ($excludes as $exclude) {
+            if ($relative === $exclude || str_starts_with($relative, $exclude . '/')) {
+                return true;
+            }
+
+            // اسم بلا شرطة مائلة (node_modules) يُطبَّق في أي عمق — كسلوك git
+            if (!str_contains($exclude, '/') && str_contains('/' . $relative . '/', '/' . $exclude . '/')) {
+                return true;
+            }
+        }
+
+        return $this->matchesGitignore($relative, $gitignore);
+    }
+
+    /** مطابقة مسار نسبي مع قواعد .gitignore (بادئات وأنماط بجlobs). */
+    private function matchesGitignore(string $relative, array $patterns): bool
+    {
+        foreach ($patterns as $pattern) {
+            $anchored = str_starts_with($pattern, '/');
+            $clean = trim(rtrim($pattern, '/'), '/');
+
+            if ($clean === '') {
+                continue;
+            }
+
+            if (strpbrk($clean, '*?[') === false) {
+                // بدون wildcard: بادئة ( /vendor ) أو اسم يظهر في أي مستوى (node_modules )
+                if ($relative === $clean || str_starts_with($relative, $clean . '/')) {
+                    return true;
+                }
+
+                if (!$anchored && str_contains('/' . $relative . '/', '/' . $clean . '/')) {
+                    return true;
+                }
+
+                continue;
+            }
+
+            // wildcard: *.log / storage/*.key / emulator_*.png
+            if (fnmatch($clean, $relative) || fnmatch($pattern, $relative)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     // ═══════════════════════════════════════════════════════════
     //  التحقق
     // ═══════════════════════════════════════════════════════════
@@ -704,7 +808,12 @@ class BackupService
         }
 
         $zips = $this->generatedFiles('backup_laravel_*.zip');
-        $zipFile = $zips ? max($zips, fn ($a, $b) => filemtime($a) <=> filemtime($b)) : null;
+        $zipFile = null;
+
+        if ($zips) {
+            usort($zips, fn ($a, $b) => filemtime($b) <=> filemtime($a));
+            $zipFile = $zips[0];
+        }
 
         if (!$zipFile || @filesize($zipFile) === 0) {
             $this->markCoreFailure($run, 'laravel', 'Laravel backup zip missing or empty');
