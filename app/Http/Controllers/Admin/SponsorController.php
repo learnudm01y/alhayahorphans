@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\DataTables\SponsorDataTable;
 use App\Http\Controllers\Controller;
 use App\Models\Sponsor;
+use App\Services\ExportStatus;
 use App\Models\CI_BIRTH_CD;
 use App\Models\BankName;
 use App\Models\CurrencyType;
@@ -867,6 +868,15 @@ class SponsorController extends Controller
             }
 
             // إرسال Job للمعالجة في الخلفية
+            $statusKey = ExportStatus::key(ExportStatus::TYPE_FORMS, (int) $sponsorId, $sponsorshipStatusId ? (int) $sponsorshipStatusId : null, $updatedOnly);
+
+            ExportStatus::start($statusKey, [
+                'label'        => 'تصدير الاستمارات',
+                'sponsor_name' => $sponsor->sponsor_name,
+                'total'        => $count,
+                'message'      => 'في انتظار عامل الطابور...',
+            ]);
+
             \App\Jobs\BulkExportSponsorshipForms::dispatch($sponsorId, $sponsorshipStatusId, $updatedOnly);
 
             Log::info('Bulk export forms job dispatched', [
@@ -883,7 +893,9 @@ class SponsorController extends Controller
                 'sponsor_name' => $sponsor->sponsor_name,
                 'count' => $count,
                 'updated_only' => $updatedOnly,
-                'status_filter' => $sponsorshipStatusId ? \App\Models\SponsorshipStatus::find($sponsorshipStatusId)->description : 'جميع الحالات'
+                'status_filter' => $sponsorshipStatusId ? \App\Models\SponsorshipStatus::find($sponsorshipStatusId)->description : 'جميع الحالات',
+                'status_type' => ExportStatus::TYPE_FORMS,
+                'status_key' => $statusKey,
             ]);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
@@ -924,6 +936,8 @@ class SponsorController extends Controller
             $sponsor   = \App\Models\Sponsor::findOrFail($sponsorId);
             $hasDesign = \App\Models\SponsorReportDesign::where('sponsor_id', $sponsorId)->exists();
 
+            // ملاحظة: عدد الأشخاص هنا ليس مقصوراً على الجمعية المحددة،
+            // بل هو إجمالي الأشخاص في الموقع (الجمعية تُستخدم للتصميم ورفع Google Drive فقط).
             $count = DB::table('re_people')
                 ->whereNotNull('sponsorship_status')
                 ->whereNotNull('person_id')
@@ -931,9 +945,23 @@ class SponsorController extends Controller
                 ->when($sponsorshipStatusId, fn($q) => $q->where('sponsorship_status', $sponsorshipStatusId))
                 ->count();
 
+            // للتمييز: عدد الكفالات الفعلي الخاصة بالجمعية المختارة
+            $sponsorshipsCount = \App\Models\Sponsorship::where('sponsor_id', $sponsorId)
+                ->when($sponsorshipStatusId, fn($q) => $q->where('sponsorship_status_id', $sponsorshipStatusId))
+                ->count();
+
             if ($count === 0) {
                 return response()->json(['success' => false, 'message' => 'لا توجد بيانات مطابقة للمعايير المحددة'], 404);
             }
+
+            $statusKey = ExportStatus::key(ExportStatus::TYPE_FAMILY, $sponsorId, $sponsorshipStatusId);
+
+            ExportStatus::start($statusKey, [
+                'label'        => 'تصدير التقارير الشاملة',
+                'sponsor_name' => $sponsor->sponsor_name,
+                'total'        => $count,
+                'message'      => 'في انتظار عامل الطابور...',
+            ]);
 
             \App\Jobs\BulkExportFamilyReportsJob::dispatch($sponsorId, $sponsorshipStatusId);
 
@@ -952,8 +980,13 @@ class SponsorController extends Controller
                 'message'        => 'تم بدء عملية التصدير بنجاح',
                 'design_sponsor' => $sponsor->sponsor_name,
                 'count'          => $count,
+                'count_scope'    => 'all_site_people',
+                'count_note'     => 'العدد هو إجمالي الأشخاص في الموقع — الجمعية تُستخدم للتصميم ورفع Google Drive فقط.',
+                'sponsorship_count' => $sponsorshipsCount,
                 'status_filter'  => $statusLabel,
                 'has_design'     => $hasDesign,
+                'status_type'    => ExportStatus::TYPE_FAMILY,
+                'status_key'     => $statusKey,
             ]);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
@@ -961,6 +994,50 @@ class SponsorController extends Controller
         } catch (\Exception $e) {
             Log::error('BulkExportFamilyReports: Error', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'message' => 'حدث خطأ: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * قراءة حالة عملية تصدير جماعية (استمارات أو تقارير شاملة).
+     *
+     * يستخدمها الواجهة للتحديث الدوري (polling) دون التأثير على أي وظيفة أخرى.
+     */
+    public function exportStatus(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'type'                  => 'required|in:' . ExportStatus::TYPE_FORMS . ',' . ExportStatus::TYPE_FAMILY,
+                'sponsor_id'            => 'required|integer',
+                'sponsorship_status_id' => 'nullable|integer',
+                'updated_only'          => 'nullable|boolean',
+            ]);
+
+            $statusKey = ExportStatus::key(
+                $validated['type'],
+                (int) $validated['sponsor_id'],
+                isset($validated['sponsorship_status_id']) ? (int) $validated['sponsorship_status_id'] : null,
+                (bool) ($validated['updated_only'] ?? false)
+            );
+
+            return response()->json([
+                'success'   => true,
+                'status_key' => $statusKey,
+                'status'    => ExportStatus::get($statusKey),
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'البيانات المدخلة غير صحيحة',
+                'errors'  => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Error reading export status', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'تعذّر قراءة حالة التصدير: ' . $e->getMessage()
+            ], 500);
         }
     }
 

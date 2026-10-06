@@ -2906,8 +2906,8 @@ $groupedFields = $sorted;
             // معالجة المرفقات الجديدة
             if ($attachmentsValidTotal > 0) {
                 // التحقق من استخدام Rclone أو Google Drive API أو التخزين المحلي
-                $useRclone = config('services.rclone.enabled', env('USE_RCLONE_FOR_UPLOADS', false));
-                $useLocalStorage = env('USE_LOCAL_STORAGE_FOR_UPLOADS', false);
+                $useRclone = config('services.rclone.enabled', false);
+                $useLocalStorage = (bool) config('services.rclone.local_storage', false);
 
                 // 🆕 إذا كان Google Drive معطّل للجمعية، نحفظ محلياً فقط
                 $googleDriveEnabled = $sponsorship->sponsor?->google_drive_enabled ?? false;
@@ -3146,7 +3146,7 @@ $groupedFields = $sorted;
 
                 } else {
                     // ===== استخدام Google Drive API (الطريقة القديمة) =====
-                    $driveParentInput = (string) env('GOOGLE_DRIVE_GENERAL_REGISTRATION_PARENT_ID', '');
+                    $driveParentInput = (string) (config('services.google.general_registration_parent_id') ?? '');
                     if ($driveParentInput === '') {
                         throw new \Exception('إعداد GOOGLE_DRIVE_GENERAL_REGISTRATION_PARENT_ID غير موجود في .env');
                     }

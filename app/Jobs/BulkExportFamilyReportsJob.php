@@ -14,6 +14,7 @@ use Illuminate\Support\Str;
 use App\Models\Data;
 use App\Models\Sponsorship;
 use App\Models\Sponsor;
+use App\Services\ExportStatus;
 
 /**
  * Job لتصدير التقارير الشاملة (Family Reports) بشكل جماعي عبر Chromium.
@@ -56,8 +57,15 @@ class BulkExportFamilyReportsJob implements ShouldQueue
         $lockKey = "bulk_family_reports_{$this->sponsorId}_{$this->sponsorshipStatusId}";
         $lock    = Cache::lock($lockKey, 7200);
 
+        $statusKey = ExportStatus::key(
+            ExportStatus::TYPE_FAMILY,
+            $this->sponsorId,
+            $this->sponsorshipStatusId
+        );
+
         if (!$lock->get()) {
             Log::warning('BulkExportFamilyReportsJob: already running', ['sponsor_id' => $this->sponsorId]);
+            ExportStatus::running($statusKey, ['message' => 'تصدير تقارير لهذه الجمعية قيد التشغيل بالفعل']);
             return;
         }
 
@@ -65,6 +73,7 @@ class BulkExportFamilyReportsJob implements ShouldQueue
             $sponsor = Sponsor::find($this->sponsorId);
             if (!$sponsor) {
                 Log::error('BulkExportFamilyReportsJob: Sponsor not found', ['sponsor_id' => $this->sponsorId]);
+                ExportStatus::fail($statusKey, 'الجمعية غير موجودة');
                 return;
             }
 
@@ -89,8 +98,9 @@ class BulkExportFamilyReportsJob implements ShouldQueue
 
             // ===========================================================
             // أفراد re_people
+            // يُقرأ الاستعلام على دفعات (chunk) بدل تحميله كاملاً في الذاكرة
             // ===========================================================
-            $persons = DB::table('re_people')
+            $personsQuery = DB::table('re_people')
                 ->whereNotNull('sponsorship_status')
                 ->whereNotNull('person_id')
                 ->whereNotNull('registration_id')
@@ -99,16 +109,23 @@ class BulkExportFamilyReportsJob implements ShouldQueue
                          'first_name', 'second_name', 'third_name', 'last_name',
                          'person_birth_date', 'person_age', 'person_gender',
                          'person_health_status', 'person_note', 'sponsorship_status')
-                ->get();
+                ->orderBy('id');
+
+            $totalPersons = (clone $personsQuery)->count();
 
             Log::info('BulkExportFamilyReportsJob: Starting', [
                 'design_sponsor'  => $sponsor->sponsor_name,
                 'status'          => $statusName,
-                'total_re_people' => $persons->count(),
+                'total_re_people' => $totalPersons,
                 'dir'             => $outputDir,
             ]);
 
-            foreach ($persons->chunk($this->batchSize) as $batch) {
+            ExportStatus::running($statusKey, [
+                'total'   => $totalPersons,
+                'message' => 'جارٍ توليد التقارير الشاملة...',
+            ]);
+
+            $personsQuery->chunk($this->batchSize, function ($batch) use ($reportDesign, $outputDir, $statusKey, $totalPersons, &$success, &$failed, &$excelRows) {
                 $this->familyCache = [];
                 $batchFileIds = $batch->pluck('registration_id')->unique()->filter()->values();
                 $batchFamilies = Data::with([
@@ -136,8 +153,10 @@ class BulkExportFamilyReportsJob implements ShouldQueue
                         Log::error('BulkExport: failed', ['person_id' => $person->person_id, 'error' => $e->getMessage()]);
                     }
                 }
+
+                ExportStatus::progress($statusKey, $success + $failed, $success, $failed, $totalPersons);
                 usleep(200000);
-            }
+            });
 
             // توليد CSV حتى لو بعض الأشخاص فشلوا — نُدرج ما نجح
             $excelPath = null;
@@ -154,10 +173,24 @@ class BulkExportFamilyReportsJob implements ShouldQueue
                 'excel'   => $excelPath, 'dir' => $outputDir,
             ]);
 
-            $this->uploadToGoogleDrive($sponsor, $outputDir, $safeOperationName, $success);
+            $uploaded = $this->uploadToGoogleDrive($sponsor, $outputDir, $safeOperationName, $success);
+
+            ExportStatus::finish($statusKey, [
+                'total'     => $totalPersons,
+                'processed' => $success + $failed,
+                'success'   => $success,
+                'failed'    => $failed,
+                'drive'     => $uploaded ? 'uploaded' : 'skipped_drive_disabled',
+                'dir'       => $outputDir,
+                'message'   => sprintf('اكتمل التصدير: %d نجح، %d فشل من %d — ', $success, $failed, $totalPersons)
+                    . ($uploaded
+                        ? 'تم الرفع إلى Google Drive'
+                        : 'Google Drive غير مفعّل لهذه الجمعية، الملفات محفوظة محلياً'),
+            ]);
 
         } catch (\Throwable $e) {
             Log::error('BulkExportFamilyReportsJob: Critical', ['sponsor_id' => $this->sponsorId, 'error' => $e->getMessage()]);
+            ExportStatus::fail($statusKey, $e->getMessage());
             throw $e;
         } finally {
             $lock->release();
@@ -449,10 +482,24 @@ class BulkExportFamilyReportsJob implements ShouldQueue
         return $filePath;
     }
 
-    private function uploadToGoogleDrive(Sponsor $sponsor, string $outputDir, string $operationName, int $fileCount): void
+    /**
+     * رفع مجلد العملية إلى Google Drive.
+     *
+     * @return bool true إذا تم الرفع، false إذا تم التخطّي (Google Drive غير مفعّل)
+     * @throws \RuntimeException عند غياب إعدادات rclone أو فشل الرفع الفعلي
+     */
+    private function uploadToGoogleDrive(Sponsor $sponsor, string $outputDir, string $operationName, int $fileCount): bool
     {
         if (!$sponsor->google_drive_enabled) {
-            throw new \RuntimeException("Google Drive غير مفعّل للجمعية [{$sponsor->sponsor_name}] — لا يُسمح بالحفظ المحلي.");
+            // مواءمة BulkExportSponsorshipForms: لا نُسقط العملية كلها،
+            // بل نكمل مع إبقاء الملفات محفوظة محلياً مع تحذير في السجل.
+            Log::warning('BulkExportFamilyReportsJob: Google Drive not enabled for sponsor — local folder kept', [
+                'sponsor_id'   => $sponsor->id,
+                'sponsor_name' => $sponsor->sponsor_name,
+                'dir'          => $outputDir,
+            ]);
+
+            return false;
         }
 
         $rclonePath   = config('services.rclone.path',        env('RCLONE_PATH'));
@@ -481,6 +528,8 @@ class BulkExportFamilyReportsJob implements ShouldQueue
         // حذف المجلد المؤقت المحلي بعد الرفع الناجح
         $this->deleteLocalFolder($outputDir);
         Log::info('BulkExport: Local temp folder deleted', ['dir' => $outputDir]);
+
+        return true;
     }
 
     private function deleteLocalFolder(string $dir): void
@@ -504,5 +553,10 @@ class BulkExportFamilyReportsJob implements ShouldQueue
     public function failed(\Throwable $exception): void
     {
         Log::error('BulkExportFamilyReportsJob: Job failed', ['sponsor_id' => $this->sponsorId, 'error' => $exception->getMessage()]);
+
+        ExportStatus::fail(
+            ExportStatus::key(ExportStatus::TYPE_FAMILY, $this->sponsorId, $this->sponsorshipStatusId),
+            $exception->getMessage()
+        );
     }
 }

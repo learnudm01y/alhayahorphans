@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use App\Models\Sponsorship;
 use App\Models\Sponsor;
+use App\Services\ExportStatus;
 
 /**
  * Job لتصدير استمارات التحديث بشكل جماعي
@@ -65,6 +66,14 @@ class BulkExportSponsorshipForms implements ShouldQueue
         // إنشاء مفتاح قفل فريد لهذه العملية
         $lockKey = "export_forms_{$this->sponsorId}_{$this->sponsorshipStatusId}_" . ($this->updatedOnly ? 'updated' : 'all');
 
+        // مفتاح حالة التصدير لعرض التقدّم في الواجهة
+        $statusKey = ExportStatus::key(
+            ExportStatus::TYPE_FORMS,
+            (int) $this->sponsorId,
+            $this->sponsorshipStatusId ? (int) $this->sponsorshipStatusId : null,
+            (bool) $this->updatedOnly
+        );
+
         // محاولة الحصول على القفل (timeout: 7200 ثانية = 2 ساعة)
         $lock = Cache::lock($lockKey, 7200);
 
@@ -74,6 +83,7 @@ class BulkExportSponsorshipForms implements ShouldQueue
                 'sponsorship_status_id' => $this->sponsorshipStatusId,
                 'lock_key' => $lockKey
             ]);
+            ExportStatus::running($statusKey, ['message' => 'تصدير آخر لهذه الجمعية قيد التشغيل بالفعل']);
             return; // عملية أخرى قيد التنفيذ، نتجاهل هذه المحاولة
         }
 
@@ -91,11 +101,13 @@ class BulkExportSponsorshipForms implements ShouldQueue
                 Log::error('BulkExportSponsorshipForms: Sponsor not found', [
                     'sponsor_id' => $this->sponsorId
                 ]);
+                ExportStatus::fail($statusKey, 'الجمعية غير موجودة');
                 return;
             }
 
             // التحقق من تفعيل Google Drive للجمعية
-            if (!$sponsor->google_drive_enabled) {
+            $driveEnabled = (bool) $sponsor->google_drive_enabled;
+            if (!$driveEnabled) {
                 Log::warning('BulkExportSponsorshipForms: Google Drive not enabled for sponsor', [
                     'sponsor_id' => $this->sponsorId,
                     'sponsor_name' => $sponsor->sponsor_name
@@ -139,8 +151,18 @@ class BulkExportSponsorshipForms implements ShouldQueue
 
             if ($totalCount === 0) {
                 Log::info('BulkExportSponsorshipForms: No sponsorships found to export');
+                ExportStatus::finish($statusKey, [
+                    'total'   => 0,
+                    'message' => 'لا توجد كفالات مطابقة للمعايير المحددة',
+                    'drive'   => $driveEnabled ? 'enabled' : 'disabled',
+                ]);
                 return;
             }
+
+            ExportStatus::running($statusKey, [
+                'total'   => $totalCount,
+                'message' => 'جارٍ معالجة الاستمارات...',
+            ]);
 
             // معالجة الكفالات على دفعات (بدون dispatch منفصل لكل ملف)
             $processedCount = 0;
@@ -148,7 +170,7 @@ class BulkExportSponsorshipForms implements ShouldQueue
             $failedCount = 0;
 
             // معالجة جميع الملفات في نفس الـ job (بدلاً من إنشاء jobs منفصلة)
-            $query->chunk($this->batchSize, function ($sponsorships) use (&$processedCount, &$successCount, &$failedCount, $totalCount) {
+            $query->chunk($this->batchSize, function ($sponsorships) use (&$processedCount, &$successCount, &$failedCount, $totalCount, $statusKey) {
                 foreach ($sponsorships as $sponsorship) {
                     try {
                         $processedCount++;
@@ -185,6 +207,9 @@ class BulkExportSponsorshipForms implements ShouldQueue
 
                 // إضافة تأخير صغير بين الدفعات لتجنب الضغط على النظام
                 usleep(200000); // 0.2 ثانية
+
+                // تحديث حالة التقدّم لعرضها في الواجهة
+                ExportStatus::progress($statusKey, $processedCount, $successCount, $failedCount, $totalCount);
             });
 
             Log::info('BulkExportSponsorshipForms: Bulk export completed', [
@@ -196,12 +221,28 @@ class BulkExportSponsorshipForms implements ShouldQueue
                 'updated_only' => $this->updatedOnly
             ]);
 
+            ExportStatus::finish($statusKey, [
+                'total'     => $totalCount,
+                'processed' => $processedCount,
+                'success'   => $successCount,
+                'failed'    => $failedCount,
+                'drive'     => $driveEnabled ? 'enabled' : 'disabled',
+                'message'   => sprintf(
+                    'اكتملت المعالجة: %d نجح، %d فشل من %d',
+                    $successCount,
+                    $failedCount,
+                    $totalCount
+                ) . ($driveEnabled ? '' : ' — Google Drive غير مفعّل لهذه الجمعية، الملفات محفوظة محلياً'),
+            ]);
+
         } catch (\Exception $e) {
             Log::error('BulkExportSponsorshipForms: Critical error during bulk export', [
                 'sponsor_id' => $this->sponsorId,
                 'message' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
+
+            ExportStatus::fail($statusKey, $e->getMessage());
 
             throw $e; // Re-throw to mark job as failed
         } finally {
@@ -224,6 +265,16 @@ class BulkExportSponsorshipForms implements ShouldQueue
             'updated_only' => $this->updatedOnly,
             'error' => $exception->getMessage()
         ]);
+
+        ExportStatus::fail(
+            ExportStatus::key(
+                ExportStatus::TYPE_FORMS,
+                (int) $this->sponsorId,
+                $this->sponsorshipStatusId ? (int) $this->sponsorshipStatusId : null,
+                (bool) $this->updatedOnly
+            ),
+            $exception->getMessage()
+        );
 
         // يمكن إضافة إشعار للمسؤول هنا
     }

@@ -1,6 +1,20 @@
 @extends('admin.dashboard.toolbars.index')
 
 @section('content')
+<!--begin:: صندوق متابعة حالة التصدير الجماعي -->
+<div id="exportStatusBox" class="export-status-box" dir="rtl" style="display:none;">
+    <div class="export-status-header">
+        <span id="exportStatusTitle"><i class="fas fa-spinner fa-spin me-1"></i> حالة التصدير</span>
+        <button type="button" class="export-status-close" id="exportStatusClose" title="إغلاق">&times;</button>
+    </div>
+    <div class="export-status-body">
+        <div id="exportStatusStage" class="export-status-stage">—</div>
+        <div id="exportStatusProgress" class="export-status-progress"></div>
+        <div id="exportStatusMessage" class="export-status-message"></div>
+    </div>
+    <div class="export-status-bar"><span id="exportStatusBarFill"></span></div>
+</div>
+<!--end:: صندوق متابعة حالة التصدير الجماعي -->
 <!--begin::Content-->
 <div id="kt_app_content" class="app-content flex-column-fluid">
     <div id="kt_app_content_container" class="app-container container-xxl">
@@ -587,6 +601,81 @@
     .nav-tabs .nav-link:hover {
         color: #009ef7;
     }
+
+    /* صندوق متابعة حالة التصدير الجماعي */
+    .export-status-box {
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        z-index: 9999;
+        width: 340px;
+        background: #fff;
+        border: 1px solid #e1e3ef;
+        border-radius: 10px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, .18);
+        overflow: hidden;
+        font-size: 13px;
+    }
+
+    .export-status-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #009ef7;
+        color: #fff;
+        padding: 8px 12px;
+        font-weight: 600;
+    }
+
+    .export-status-close {
+        background: transparent;
+        border: 0;
+        color: #fff;
+        font-size: 18px;
+        line-height: 1;
+        cursor: pointer;
+        padding: 0 4px;
+    }
+
+    .export-status-body {
+        padding: 10px 12px;
+        color: #3f4254;
+    }
+
+    .export-status-stage {
+        font-weight: 700;
+        margin-bottom: 4px;
+    }
+
+    .export-status-progress {
+        margin-bottom: 4px;
+        color: #5e6278;
+    }
+
+    .export-status-message {
+        color: #7e8299;
+        word-break: break-word;
+        max-height: 90px;
+        overflow-y: auto;
+    }
+
+    .export-status-bar {
+        height: 6px;
+        background: #f1f1f4;
+    }
+
+    .export-status-bar span {
+        display: block;
+        height: 100%;
+        width: 0;
+        background: #009ef7;
+        transition: width .4s ease;
+    }
+
+    .export-status-box.is-done .export-status-header { background: #50cd89; }
+    .export-status-box.is-failed .export-status-header { background: #f1416c; }
+    .export-status-box.is-done .export-status-bar span { background: #50cd89; width: 100% !important; }
+    .export-status-box.is-failed .export-status-bar span { background: #f1416c; }
 </style>
 @endpush
 
@@ -611,6 +700,137 @@ $(document).ready(function() {
             console.log('✅ تم تنظيف الـ backdrop');
         }, 300);
     }
+
+    // =====================================================
+    // متابعة حالة التصدير الجماعي (polling مستقل)
+    // =====================================================
+    const EXPORT_STATUS_URL     = '{{ route("admin.sponsors.export-status") }}';
+    const EXPORT_STATUS_STORAGE = 'alhayah_active_export_status';
+    const EXPORT_STAGE_LABELS   = {
+        queued:    'في الانتظار',
+        running:   'قيد التشغيل',
+        completed: 'اكتمل',
+        failed:    'فشل'
+    };
+
+    let exportStatusTimer     = null;
+    let exportStatusTicks     = 0;
+    let exportStatusDismissed = false;
+
+    function renderExportStatus(status) {
+        if (!status) return;
+
+        const stage = status.stage || 'queued';
+        const $box  = $('#exportStatusBox');
+
+        if (exportStatusDismissed && (stage === 'queued' || stage === 'running')) return;
+
+        $box.show().removeClass('is-done is-failed');
+        if (stage === 'completed') $box.addClass('is-done');
+        if (stage === 'failed')    $box.addClass('is-failed');
+
+        const spinIcon = '<i class="fas fa-spinner fa-spin me-1"></i>';
+        const doneIcon = stage === 'completed'
+            ? '<i class="fas fa-check-circle me-1"></i>'
+            : (stage === 'failed' ? '<i class="fas fa-exclamation-circle me-1"></i>' : spinIcon);
+
+        $('#exportStatusTitle').html(doneIcon + (status.label || 'حالة التصدير'));
+        $('#exportStatusStage').text(EXPORT_STAGE_LABELS[stage] || stage);
+
+        const total     = parseInt(status.total || 0, 10);
+        const processed = parseInt(status.processed || 0, 10);
+        const success   = parseInt(status.success || 0, 10);
+        const failed    = parseInt(status.failed || 0, 10);
+
+        if (total > 0) {
+            const pct = Math.min(100, Math.round((processed / total) * 100));
+            $('#exportStatusProgress').html(
+                'المُعالَج: <strong>' + processed + '</strong> / ' + total +
+                ' &nbsp;|&nbsp; ناجح: <strong>' + success + '</strong>' +
+                ' &nbsp;|&nbsp; فاشل: <strong>' + failed + '</strong>'
+            );
+            $('#exportStatusBarFill').css('width', pct + '%');
+        } else {
+            $('#exportStatusProgress').html(
+                'ناجح: <strong>' + success + '</strong> &nbsp;|&nbsp; فاشل: <strong>' + failed + '</strong>'
+            );
+            $('#exportStatusBarFill').css('width', '0%');
+        }
+
+        let msg = status.message || '';
+        if (status.updated_at) {
+            msg += (msg ? ' — ' : '') + 'آخر تحديث: ' + status.updated_at;
+        }
+        $('#exportStatusMessage').text(msg);
+    }
+
+    function stopExportStatusPolling() {
+        if (exportStatusTimer) {
+            clearInterval(exportStatusTimer);
+            exportStatusTimer = null;
+        }
+        exportStatusTicks = 0;
+    }
+
+    function pollExportStatus(params) {
+        $.ajax({
+            url: EXPORT_STATUS_URL,
+            method: 'GET',
+            data: params,
+            success: function (res) {
+                if (!res || !res.success) return;
+
+                renderExportStatus(res.status);
+
+                if (res.status && (res.status.stage === 'completed' || res.status.stage === 'failed')) {
+                    stopExportStatusPolling();
+                    try { localStorage.removeItem(EXPORT_STATUS_STORAGE); } catch (e) {}
+                }
+            },
+            error: function () {
+                // نتجاهل أعطال الشبكة المؤقتة ونكمل المحاولة في الدورة التالية
+            }
+        });
+    }
+
+    function startExportStatusPolling(params) {
+        stopExportStatusPolling();
+        exportStatusDismissed = false;
+        $('#exportStatusBox').show();
+
+        try { localStorage.setItem(EXPORT_STATUS_STORAGE, JSON.stringify(params)); } catch (e) {}
+
+        pollExportStatus(params);
+
+        exportStatusTimer = setInterval(function () {
+            exportStatusTicks++;
+            if (exportStatusTicks > 1440) { // حد أقصى ~ ساعتان
+                stopExportStatusPolling();
+                return;
+            }
+            pollExportStatus(params);
+        }, 5000);
+    }
+
+    function restoreExportStatusPolling() {
+        try {
+            const raw = localStorage.getItem(EXPORT_STATUS_STORAGE);
+            if (!raw) return;
+
+            const params = JSON.parse(raw);
+            if (params && params.type && params.sponsor_id) {
+                startExportStatusPolling(params);
+            }
+        } catch (e) {}
+    }
+
+    $('#exportStatusClose').on('click', function () {
+        exportStatusDismissed = true;
+        $('#exportStatusBox').hide();
+    });
+
+    // استئناف متابعة أي عملية تصدير كانت قيد التشغيل قبل إعادة تحميل الصفحة
+    restoreExportStatusPolling();
 
     // عند اكتمال إغلاق المودال - تنظيف كامل
     $('#exportFormsModal').on('hidden.bs.modal', function() {
@@ -713,9 +933,17 @@ $(document).ready(function() {
                             icon: 'success',
                             title: 'تم بدء التصدير',
                             html: `<p>${response.message || 'سيتم معالجة التقارير في الخلفية.'}</p>
-                                   <p class="text-muted">العدد المقدَّر: <strong>${response.count || 0}</strong></p>`,
+                                   <p class="text-muted">العدد المقدَّر: <strong>${response.count || 0}</strong></p>
+                                   <p class="text-muted small">${response.count_note || ''}</p>`,
                             confirmButtonText: 'حسناً'
                         });
+
+                        const statusParams = {
+                            type: '{{ \App\Services\ExportStatus::TYPE_FAMILY }}',
+                            sponsor_id: sponsorId
+                        };
+                        if (statusId) { statusParams.sponsorship_status_id = statusId; }
+                        startExportStatusPolling(statusParams);
                     },
                     error: function(xhr) {
                         $btn.prop('disabled', false).html(originalHtml);
@@ -771,6 +999,14 @@ $(document).ready(function() {
                     `,
                     confirmButtonText: 'حسناً'
                 });
+
+                const statusParams = {
+                    type: '{{ \App\Services\ExportStatus::TYPE_FORMS }}',
+                    sponsor_id: sponsorId
+                };
+                if (sponsorshipStatusId) { statusParams.sponsorship_status_id = sponsorshipStatusId; }
+                if (updatedOnly) { statusParams.updated_only = updatedOnly; }
+                startExportStatusPolling(statusParams);
             },
             error: function(xhr) {
                 $btn.prop('disabled', false).html(originalText);

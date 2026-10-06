@@ -185,6 +185,7 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::get('sponsors/fields-management/data', [SponsorController::class, 'getSponsorsForFieldsManagement'])->name('sponsors.fields-management.data');
     Route::post('sponsors/export-forms', [SponsorController::class, 'exportForms'])->name('sponsors.export-forms');
     Route::post('sponsors/bulk-export-family-reports', [SponsorController::class, 'bulkExportFamilyReports'])->name('sponsors.bulk-export-family-reports');
+    Route::get('sponsors/export-status', [SponsorController::class, 'exportStatus'])->name('sponsors.export-status');
     Route::post('sponsors/sync-sponsorship-status', [SponsorController::class, 'syncSponsorshipStatus'])->name('sponsors.sync-sponsorship-status');
     Route::get('sponsors/{sponsor}/fields', [SponsorController::class, 'getSponsorFields'])->name('sponsors.get-fields');
     Route::post('sponsors/{sponsor}/fields', [SponsorController::class, 'saveSponsorFields'])->name('sponsors.save-fields');

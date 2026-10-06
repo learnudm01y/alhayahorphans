@@ -33,10 +33,19 @@ return [
 
     'rclone' => [
         'enabled' => env('USE_RCLONE_FOR_UPLOADS', false),
+        'local_storage' => env('USE_LOCAL_STORAGE_FOR_UPLOADS', false),
         'path' => env('RCLONE_PATH', '/usr/bin/rclone'),
         'config' => env('RCLONE_CONFIG', null),
         'remote_name' => env('RCLONE_REMOTE_NAME', 'alhayahorphans'),
         'root_folder' => env('RCLONE_ROOT_FOLDER', 'temp'),
+    ],
+
+    'google' => [
+        'use_rclone' => env('USE_RCLONE_FOR_UPLOADS', false),
+        'rclone_remote_name' => env('RCLONE_REMOTE_NAME', 'alhayahorphans'),
+        'rclone_root_folder' => env('RCLONE_ROOT_FOLDER', 'temp'),
+        'general_registration_parent_id' => env('GOOGLE_DRIVE_GENERAL_REGISTRATION_PARENT_ID'),
+        'drive_folder_id' => env('GOOGLE_DRIVE_FOLDER_ID'),
     ],
 
     // android-v4 Phase 7 — Staged Cutover flag (append-only; no existing keys touched)
