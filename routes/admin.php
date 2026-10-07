@@ -664,6 +664,10 @@ Route::group(['prefix' => 'admin/sms', 'as' => 'admin.sms.'], function () {
         ->middleware('permission:إرسال رسائل نصية')
         ->name('single');
 
+    Route::get('composer-data', [SmsController::class, 'composerData'])
+        ->middleware('permission:عرض قسم الرسائل النصية|إرسال رسائل نصية')
+        ->name('composerData');
+
     Route::post('bulk/summary', [SmsController::class, 'bulkSummary'])
         ->middleware('permission:إرسال رسائل نصية')
         ->name('bulk.summary');

@@ -18,6 +18,18 @@
         </i>
     </button>
 
+    @can('إرسال رسائل نصية')
+        <button class="btn btn-icon btn-light-success btn-sm send-sms-sponsorship"
+                data-id="{{ $row->id }}"
+                data-name="{{ $row->orphan_name }}"
+                title="إرسال رسالة للمكفول">
+            <i class="ki-duotone ki-message-text fs-4">
+                <span class="path1"></span>
+                <span class="path2"></span>
+            </i>
+        </button>
+    @endcan
+
     <button class="btn btn-icon btn-light-warning btn-sm regenerate-file-number"
             data-id="{{ $row->id }}"
             data-current="{{ $row->internal_file_number ?: '-' }}"

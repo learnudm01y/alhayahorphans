@@ -917,6 +917,23 @@ class SponsorshipController extends Controller
                 $sponsorship->guardian_file_id = null;
             }
 
+            // 📞 إن لم يتوفر رقم هاتف المعيل، نبحث عنه من بقية المصادر (data / البوابة)
+            if (empty($sponsorship->guardian_phone)) {
+                $sponsorship->guardian_phone = $this->getGuardianPhone($sponsorship->guardian_identity_number);
+            }
+            if (empty($sponsorship->guardian_phone)) {
+                foreach ([$sponsorship->relation_id_number, $sponsorship->internal_file_number] as $fileIdNumber) {
+                    if (empty($fileIdNumber)) {
+                        continue;
+                    }
+                    $phoneSource = Data::where('file_id_number', $fileIdNumber)->first();
+                    if ($phoneSource && !empty($phoneSource->data_phone_number)) {
+                        $sponsorship->guardian_phone = $phoneSource->data_phone_number;
+                        break;
+                    }
+                }
+            }
+
             // تحويل إلى مصفوفة
             $sponsorshipData = $sponsorship->toArray();
 

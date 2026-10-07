@@ -43,6 +43,17 @@ class SmsController extends Controller
 
     /* ===================== فردي ===================== */
 
+    /** بيانات مكوّن الرسائل: القوالب النشطة وأسماء المرسلين (تُستخدم في مودال الكفالات) */
+    public function composerData(): JsonResponse
+    {
+        return response()->json([
+            'templates' => SmsTemplate::where('is_active', true)
+                ->orderBy('title')
+                ->get(['id', 'title', 'body']),
+            'senders' => $this->senders(),
+        ]);
+    }
+
     public function single(Request $request): JsonResponse
     {
         $data = $request->validate([

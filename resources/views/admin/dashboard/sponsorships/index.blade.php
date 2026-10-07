@@ -380,6 +380,8 @@
     </div>
 </div>
 
+@include('admin.dashboard.sponsorships.partials.sms-quick-send')
+
 @endsection
 
 @push('scriptsCode')

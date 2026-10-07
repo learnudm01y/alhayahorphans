@@ -584,7 +584,7 @@ class SponsorshipsDataTable extends DataTable
                 ->exportable(false)
                 ->printable(false)
                 ->addClass('no-export')
-                ->width(120),
+                ->width(150),
             // ✅ تم حذف عمود المحافظة والحفاظ على عمودي المدينة والعنوان
             Column::computed('city')->title('المدينة')->orderable(false)->searchable(false),
             Column::computed('address')->title('العنوان')->orderable(false)->searchable(false),
