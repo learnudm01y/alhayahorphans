@@ -33,6 +33,12 @@ class BackupRun extends Model
         'attachments_skipped',
         'attachments_failed',
         'attachments_status',
+        'backups_files',
+        'backups_size',
+        'backups_copied',
+        'backups_skipped',
+        'backups_failed',
+        'backups_status',
         'error_message',
     ];
 
@@ -52,6 +58,11 @@ class BackupRun extends Model
         'attachments_copied' => 'integer',
         'attachments_skipped'=> 'integer',
         'attachments_failed' => 'integer',
+        'backups_files'      => 'integer',
+        'backups_size'       => 'integer',
+        'backups_copied'     => 'integer',
+        'backups_skipped'    => 'integer',
+        'backups_failed'     => 'integer',
     ];
 
     public function isRunning(): bool

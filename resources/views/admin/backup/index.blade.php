@@ -51,7 +51,7 @@
                     </div>
 
                     <div class="row">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
                             <div class="border rounded p-3 h-100">
                                 <h6 class="border-bottom pb-2"><i class="fas fa-images me-2 text-primary"></i>أرشيف الصور (Uploads)</h6>
                                 <ul class="list-unstyled mb-0 small">
@@ -62,7 +62,7 @@
                                 </ul>
                             </div>
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
                             <div class="border rounded p-3 h-100">
                                 <h6 class="border-bottom pb-2"><i class="fas fa-paperclip me-2 text-primary"></i>أرشيف المرفقات (Attachments)</h6>
                                 <ul class="list-unstyled mb-0 small">
@@ -70,6 +70,17 @@
                                     <li>الملفات: <span id="attachments-files">—</span></li>
                                     <li>الحجم: <span id="attachments-size">—</span></li>
                                     <li>آخر أرشفة: <span id="attachments-last">—</span></li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="border rounded p-3 h-100">
+                                <h6 class="border-bottom pb-2"><i class="fas fa-cloud-upload-alt me-2 text-primary"></i>رفع النسخ إلى OneDrive (.backups)</h6>
+                                <ul class="list-unstyled mb-0 small">
+                                    <li>الحالة: <span class="fw-bold" id="backups-status">—</span></li>
+                                    <li>الملفات: <span id="backups-files">—</span></li>
+                                    <li>الحجم: <span id="backups-size">—</span></li>
+                                    <li>آخر رفع: <span id="backups-last">—</span></li>
                                 </ul>
                             </div>
                         </div>
@@ -101,6 +112,7 @@
                                 <th>ملفات المشروع</th>
                                 <th>Uploads</th>
                                 <th>Attachments</th>
+                                <th>رفع OneDrive</th>
                                 <th>الخطأ</th>
                             </tr>
                         </thead>
@@ -117,10 +129,11 @@
                                 <td data-bytes="{{ $run->laravel_size }}">{{ $run->laravel_status }} —</td>
                                 <td>{{ $run->uploads_status }} ({{ $run->uploads_copied ?? 0 }} نُسخ / {{ $run->uploads_files ?? 0 }})</td>
                                 <td>{{ $run->attachments_status }} ({{ $run->attachments_copied ?? 0 }} نُسخ / {{ $run->attachments_files ?? 0 }})</td>
+                                <td data-bytes="{{ $run->backups_size }}">{{ $run->backups_status }} (رُفع {{ $run->backups_copied ?? 0 }} / سابق {{ $run->backups_skipped ?? 0 }} / فشل {{ $run->backups_failed ?? 0 }}) —</td>
                                 <td class="text-end small" style="max-width:260px">{{ \Illuminate\Support\Str::limit($run->error_message, 80) }}</td>
                             </tr>
                             @empty
-                            <tr><td colspan="11">لا توجد عمليات نسخ احتياطي بعد</td></tr>
+                            <tr><td colspan="12">لا توجد عمليات نسخ احتياطي بعد</td></tr>
                             @endforelse
                         </tbody>
                     </table>
@@ -134,15 +147,16 @@
 @push('scriptsCode')
 <script>
 (function () {
-    const STATUS_LABELS = { running: 'قيد التنفيذ', success: 'ناجح', partial: 'جزئي', failed: 'فشل' };
+    const STATUS_LABELS = { running: 'قيد التنفيذ', success: 'ناجح', partial: 'جزئي', failed: 'فشل', disabled: 'معطّل', skipped: 'لا يوجد' };
     const STEP_LABELS = {
         'Preparing': 'جاري التجهيز...',
         'Archiving Uploads': 'أرشفة مجلد uploads إلى OneDrive...',
         'Archiving Attachments': 'أرشفة مجلد attachments إلى OneDrive...',
         'Backing up Database': 'نسخ قاعدة البيانات (MySQL)...',
         'Backing up Laravel': 'نسخ ملفات المشروع (ZIP)...',
-        'Verifying': 'التحقق من الملفات المنتجة...',
-        'Cleaning Old Backups': 'تنظيف النسخ القديمة...',
+                        'Verifying': 'التحقق من الملفات المنتجة...',
+                        'Cleaning Old Backups': 'تنظيف النسخ القديمة...',
+                        'Archiving Backups': 'رفع نسخ SQL و ZIP إلى OneDrive...',
         'Completed': 'اكتملت العملية', 'Partial': 'اكتملت جزئيًا', 'Failed': 'فشلت العملية'
     };
 
@@ -177,11 +191,15 @@
         document.getElementById('card-db').textContent = bytes(run.database_size);
         document.getElementById('card-laravel').textContent = bytes(run.laravel_size);
 
-        ['uploads', 'attachments'].forEach(function (prefix) {
+        ['uploads', 'attachments', 'backups'].forEach(function (prefix) {
             document.getElementById(prefix + '-status').innerHTML = statusBadge(run[prefix + '_status']);
             document.getElementById(prefix + '-files').textContent =
                 (run[prefix + '_files'] !== null ? run[prefix + '_files'] : '—') +
-                (run[prefix + '_copied'] !== null ? ' (نُسخ ' + run[prefix + '_copied'] + '، تُرك ' + (run[prefix + '_skipped'] ?? 0) + '، فشل ' + (run[prefix + '_failed'] ?? 0) + ')' : '');
+                (run[prefix + '_copied'] !== null
+                    ? (prefix === 'backups'
+                        ? ' (رُفع ' + run[prefix + '_copied'] + '، محفوظ ' + (run[prefix + '_skipped'] ?? 0) + '، فشل ' + (run[prefix + '_failed'] ?? 0) + ')'
+                        : ' (نُسخ ' + run[prefix + '_copied'] + '، تُرك ' + (run[prefix + '_skipped'] ?? 0) + '، فشل ' + (run[prefix + '_failed'] ?? 0) + ')')
+                    : '');
             document.getElementById(prefix + '-size').textContent = bytes(run[prefix + '_size']);
             document.getElementById(prefix + '-last').textContent = lastArchive(prefix);
         });
@@ -230,6 +248,7 @@
                     if (!data.running) {
                         stopPolling();
                         fillSummary(data.last);
+                        renderRunRow(data.last);
                         if (data.last && data.last.status === 'success') showAlert('success', 'اكتمل النسخ الاحتياطي بنجاح.');
                         else if (data.last && data.last.status === 'partial') showAlert('warning', 'اكتمل النسخ الاحتياطي جزئيًا — راجع التفاصيل.');
                         else if (data.last && data.last.status === 'failed') showAlert('danger', 'فشل النسخ الاحتياطي: ' + (data.last.error_message || ''));
@@ -237,6 +256,53 @@
                 })
                 .catch(function () {});
         }, 3000);
+    }
+
+    function esc(value) {
+        if (value === null || value === undefined || value === '') return '—';
+        return String(value).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+
+    // إضافة/تحديث صف العملية في الجدول فورًا (الجدول يُبنى من الخادم عند التحميل فقط)
+    function renderRunRow(run) {
+        const tbody = document.getElementById('runs-body');
+        if (!tbody || !run || !run.id) return;
+
+        const empty = tbody.querySelector('td[colspan]');
+        if (empty && empty.parentElement) empty.parentElement.remove();
+
+        const existing = tbody.querySelector('tr[data-run-id="' + run.id + '"]');
+        if (existing) existing.remove();
+
+        const tr = document.createElement('tr');
+        tr.setAttribute('data-run-id', run.id);
+
+        const add = function (text) {
+            const td = document.createElement('td');
+            td.textContent = text;
+            tr.appendChild(td);
+        };
+
+        add(run.id);
+        add('');
+        tr.lastChild.innerHTML = statusBadge(run.status);
+        add(run.current_step);
+        add(run.started_at);
+        add(run.completed_at);
+        add(run.duration_seconds ? run.duration_seconds + ' ث' : '—');
+        add((run.database_status || '—') + ' — ' + bytes(run.database_size));
+        add((run.laravel_status || '—') + ' — ' + bytes(run.laravel_size));
+        add((run.uploads_status || '—') + ' (' + (run.uploads_copied ?? 0) + ' نُسخ / ' + (run.uploads_files ?? 0) + ')');
+        add((run.attachments_status || '—') + ' (' + (run.attachments_copied ?? 0) + ' نُسخ / ' + (run.attachments_files ?? 0) + ')');
+        add((run.backups_status || '—') + ' (رُفع ' + (run.backups_copied ?? 0) + ' / سابق ' + (run.backups_skipped ?? 0) + ' / فشل ' + (run.backups_failed ?? 0) + ') — ' + bytes(run.backups_size));
+        add(run.error_message ? String(run.error_message).substring(0, 80) : '');
+
+        tr.children[11].className = 'text-end small';
+        tr.children[11].style.maxWidth = '260px';
+
+        tbody.insertBefore(tr, tbody.firstChild);
     }
 
     document.getElementById('run-backup-btn').addEventListener('click', function () {
@@ -255,13 +321,15 @@
         })
             .then(function (r) { return r.json().then(function (body) { return { ok: r.ok, body: body }; }); })
             .then(function (res) {
-                stopPolling();
                 if (res.ok) {
-                    showAlert('success', res.body.message || 'اكتملت العملية.');
-                    fillSummary(res.body.run);
-                } else {
-                    showAlert('danger', res.body.message || 'فشل تنفيذ النسخ الاحتياطي.');
+                    // لا نوقف المتابعة: العملية ما زالت تعمل في الخلفية
+                    showAlert('info', res.body.message || 'بدأت عملية النسخ الاحتياطي...');
+                    fillSummary(res.body.run || null);
+                    return;
                 }
+
+                stopPolling();
+                showAlert('danger', res.body.message || 'فشل تنفيذ النسخ الاحتياطي.');
             })
             .catch(function (e) {
                 stopPolling();

@@ -893,6 +893,17 @@
                     }
 
                     if (pendingLaunch) {
+                        // اكتملت العملية فعلًا (تشغيل متزامن أو خلفية أنهت عملها) — لا ننتظر 30 ث
+                        const doneAt = data.last && data.last.completed_at
+                            ? Date.parse(data.last.completed_at)
+                            : NaN;
+
+                        if (!isNaN(doneAt) && doneAt >= startedAt - 2000) {
+                            pendingLaunch = false;
+                            finish(data.last);
+                            return;
+                        }
+
                         // العملية الخلفية قد لا تكون أنشأت القفل بعد (مهلة 30 ثانية)
                         if (Date.now() - startedAt < 30000) return;
                         pendingLaunch = false;

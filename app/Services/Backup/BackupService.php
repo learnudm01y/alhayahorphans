@@ -30,6 +30,9 @@ class BackupService
     /** هل نملك القفل الآن؟ */
     private bool $lockAcquired = false;
 
+    /** هل أعمدة الأرشيف السحابي موجودة في backup_runs؟ (يُفحص مرة واحدة) */
+    private static ?bool $cloudColumns = null;
+
     /** هل توجد عملية نسخ احتياطي تعمل الآن؟ (تُزيل القفل المهجور تلقائيًا) */
     public function isRunning(): bool
     {
@@ -251,6 +254,10 @@ class BackupService
 
             $this->step($run, 'Cleaning Old Backups');
             $this->cleanupOldBackups();
+
+            $this->step($run, 'Archiving Backups');
+            Log::info('Cloud backup archive started');
+            $this->archiveBackupsToCloud($run);
 
             $status = $this->resolveStatus($run);
 
@@ -492,18 +499,293 @@ class BackupService
     }
 
     /**
+     * رفع ملفات النسخ الاحتياطي من .backups إلى الوجهة (OneDrive) عبر rclone.
+     *
+     * يُرفع ما ينتج فقط: backup_db_*.sql و backup_laravel_*.zip — لا تُرفع المجلدات
+     * الأخرى داخل .backups (نسخ يدوية/باردة قد تتجاوز مساحة الحساب).
+     * الأرشيف السحابي مستقل: لا تخضع ملفاته لسياسة BACKUP_KEEP_COUNT المحلية.
+     *
+     * التسلسل لكل ملف:
+     *  1) مسجَّل في قائمة التتبّع بنفس الحجم → يُتخطّى (لا استدعاء لـ rclone)
+     *  2) rclone copyto للجديد فقط
+     *  3) قراءة الحجم من الوجهة (lsjson --stat) والتأكد من التطابق قبل الاعتماد
+     * أي ملف لا يتحقق حجمه لا يُسجَّل، فيُعاد رفعه في التشغيل التالي.
+     */
+    private function archiveBackupsToCloud(BackupRun $run): void
+    {
+        $destinationConfigured = (string) config('backup.cloud_path') !== ''
+            || (string) config('backup.onedrive_path') !== '';
+
+        if (!config('backup.archive_backups') || !$destinationConfigured) {
+            $this->saveCloudStatus($run, ['backups_status' => 'disabled']);
+            return;
+        }
+
+        $files = array_merge(
+            $this->generatedFiles('backup_db_*.sql'),
+            $this->generatedFiles('backup_laravel_*.zip')
+        );
+
+        if (!$files) {
+            $this->saveCloudStatus($run, [
+                'backups_status' => 'skipped',
+                'backups_files'  => 0,
+                'backups_size'   => 0,
+            ]);
+            Log::info('Cloud backup archive skipped', ['reason' => 'no generated backup files']);
+            return;
+        }
+
+        $totalSize = 0;
+        foreach ($files as $file) {
+            $totalSize += (int) @filesize($file);
+        }
+
+        $context = [
+            'files'       => count($files),
+            'size'        => $totalSize,
+            'destination' => $this->cloudBackupDestination(),
+        ];
+
+        try {
+            $destination = $this->cloudBackupDestination();
+
+            $problem = $this->destinationProblem($destination);
+            if ($problem !== null) {
+                throw new RuntimeException($problem);
+            }
+
+            $manifest = $this->loadUploadManifest($destination);
+            $uploaded = 0;
+            $skipped = 0;
+            $failures = [];
+
+            foreach ($files as $file) {
+                $name = basename($file);
+                $size = (int) @filesize($file);
+
+                // 1) مرفوع ومُتحقَّق منه سابقًا (اسم + حجم مطابقان)
+                //    → لا نستدعي rclone إطلاقًا (لا فحص ولا نقل)
+                if ($size > 0 && (int) ($manifest[$name] ?? -1) === $size) {
+                    $skipped++;
+                    continue;
+                }
+
+                // 2) رفع الملف الجديد فقط
+                $result = $this->runRclone(['copyto', $file, $destination . '/' . $name]);
+
+                if (!$result['success']) {
+                    $failures[] = $name . ': ' . $this->tail($result['output'], 300);
+                    continue;
+                }
+
+                // 3) التحقق من حجم الملف على الوجهة قبل اعتماده في قائمة التتبّع
+                $remoteSize = $this->remoteFileSize($destination . '/' . $name);
+
+                if ($remoteSize !== $size) {
+                    $failures[] = $name . ': size mismatch (local ' . $size . ' / remote '
+                        . ($remoteSize === null ? 'unknown' : $remoteSize) . ')';
+                    continue;
+                }
+
+                $manifest[$name] = $size;
+                $uploaded++;
+            }
+
+            if ($uploaded > 0) {
+                $this->saveUploadManifest($destination, $manifest);
+            }
+
+            $failed = count($failures);
+
+            $this->saveCloudStatus($run, [
+                'backups_status'  => $failed === 0 ? 'success' : 'failed',
+                'backups_files'   => count($files),
+                'backups_size'    => $totalSize,
+                'backups_copied'  => $uploaded,
+                'backups_skipped' => $skipped,
+                'backups_failed'  => $failed,
+            ], $failures ? ('رفع غير مكتمل إلى OneDrive — ' . implode(' | ', $failures)) : null);
+
+            if ($failed) {
+                Log::error('Backup cloud archive failed', $context + ['failed' => $failures]);
+            } else {
+                Log::info('Backup cloud archive completed', $context + [
+                    'uploaded' => $uploaded,
+                    'skipped'  => $skipped,
+                ]);
+            }
+        } catch (Throwable $e) {
+            // فشل الأرشيف السحابي لا يُسقط عملية النسخ — تُسجَّل وتُحوَّل إلى partial
+            Log::error('Backup cloud archive failed', $context + ['reason' => $e->getMessage()]);
+
+            $this->saveCloudStatus($run, [
+                'backups_status'  => 'failed',
+                'backups_files'   => count($files),
+                'backups_size'    => $totalSize,
+                'backups_copied'  => 0,
+                'backups_skipped' => 0,
+                'backups_failed'  => count($files),
+            ], $e->getMessage());
+        }
+    }
+
+    /**
+     * وجهة ملفات النسخ الاحتياطي على الدرايف.
+     *
+     * BACKUP_CLOUD_PATH مضبوط  → تُستخدم كما هي (مجلد مستقل عن الوسائط)
+     * BACKUP_CLOUD_PATH فارغ   → BACKUP_ONEDRIVE_PATH/BACKUP_BACKUPS_SUBDIR
+     *
+     * (rclone copyto يُنشئ المجلدات على الوجهة تلقائيًا)
+     */
+    private function cloudBackupDestination(): string
+    {
+        $configured = (string) config('backup.cloud_path');
+
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        $destination = rtrim((string) config('backup.onedrive_path'), '/\\');
+        $subdir = trim((string) config('backup.backups_subdir'), '/');
+
+        return $subdir === '' ? $destination : $destination . '/' . $subdir;
+    }
+
+    /**
+     * قائمة تتبّع الملفات المرفوع ومُتحقَّق منها على الوجهة: [اسم الملف => الحجم].
+     * طالما الحجم المحلي ما زال مطابقًا لما هو مسجَّل لا يُستدعى rclone إطلاقًا.
+     *
+     * القائمة مقيّدة بالوجهة: تغيير BACKUP_CLOUD_PATH يبدأ قائمة جديدة،
+     * حتى لا نتخطّى ملفات غير موجودة في الوجهة الجديدة.
+     * (لإجبار إعادة التحقق الكامل: احذف هذا الملف.)
+     */
+    private function uploadManifestPath(): string
+    {
+        return storage_path('framework/backup-uploads.json');
+    }
+
+    private function loadUploadManifest(string $destination): array
+    {
+        $file = $this->uploadManifestPath();
+
+        if (!is_file($file)) {
+            return [];
+        }
+
+        $data = json_decode((string) @file_get_contents($file), true);
+
+        if (!is_array($data)
+            || ($data['destination'] ?? null) !== $destination
+            || !is_array($data['files'] ?? null)) {
+            return [];
+        }
+
+        return $data['files'];
+    }
+
+    private function saveUploadManifest(string $destination, array $manifest): void
+    {
+        $file = $this->uploadManifestPath();
+        $dir = dirname($file);
+
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0755, true);
+        }
+
+        @file_put_contents(
+            $file,
+            json_encode(
+                ['destination' => $destination, 'files' => $manifest],
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
+            ),
+            LOCK_EX
+        );
+    }
+
+    /**
+     * حجم الملف على الوجهة عبر `rclone lsjson --stat` — يقرأ بيانات الكائن فقط
+     * دون نقل محتواه. null إذا تعذّرت القراءة (وتعتبر عدم تطابقًا).
+     */
+    private function remoteFileSize(string $remotePath): ?int
+    {
+        $result = $this->runRclone(['lsjson', $remotePath, '--stat']);
+
+        if (!$result['success']) {
+            return null;
+        }
+
+        $raw = trim($result['output']);
+        $data = json_decode($raw, true);
+
+        if (!is_array($data)) {
+            // rclone قد يطبع تنبيهات على stderr قبل JSON — نعزل الكائن
+            $start = strpos($raw, '{');
+            $end = strrpos($raw, '}');
+
+            if ($start === false || $end === false || $end <= $start) {
+                return null;
+            }
+
+            $data = json_decode(substr($raw, $start, $end - $start + 1), true);
+        }
+
+        if (!is_array($data) || ($data['IsDir'] ?? false) === true) {
+            return null;
+        }
+
+        return isset($data['Size']) && is_numeric($data['Size']) ? (int) $data['Size'] : null;
+    }
+
+    /**
+     * حفظ نتيجة الأرشيف السحابي — يتجاهل أعمدة backup_runs الجديدة إذا لم
+     * يُطبَّق migration بعد، حتى لا تفشل عملية النسخ كاملة بسبب عمود ناقص.
+     */
+    private function saveCloudStatus(BackupRun $run, array $attributes, ?string $message = null): void
+    {
+        if ($message !== null) {
+            $attributes['error_message'] = $this->appendMessage($run->error_message, $message);
+        }
+
+        if (!$this->cloudColumnsExist($run)) {
+            Log::warning('backup_runs cloud columns missing — run php artisan migrate', [
+                'attempted' => implode(',', array_keys($attributes)),
+            ]);
+
+            foreach (['backups_files', 'backups_size', 'backups_copied', 'backups_skipped', 'backups_failed', 'backups_status'] as $column) {
+                unset($attributes[$column]);
+            }
+        }
+
+        $run->fill($attributes)->save();
+    }
+
+    /** هل أعمدة الأرشيف السحابي موجودة فعلًا في الجدول؟ */
+    private function cloudColumnsExist(BackupRun $run): bool
+    {
+        if (self::$cloudColumns === null) {
+            self::$cloudColumns = $run->getConnection()
+                ->getSchemaBuilder()
+                ->hasColumn('backup_runs', 'backups_status');
+        }
+
+        return self::$cloudColumns;
+    }
+
+    /**
      * فحص توفّر الوجهة قبل النسخ.
      * مسار محلي: يجب أن يكون موجوداً أصلاً (وإذا أنشأناه يدوياً فلن يتزامن مع OneDrive = نجاح كاذب).
      * remote: يجب أن يستجيب rclone له.
      *
+     * @param string|null $destination الوجهة المطلوب فحصها — افتراضي وجهة أرشفة الوسائط
      * @return string|null رسالة المشكلة أو null إذا كانت الوجهة سليمة
      */
-    private function destinationProblem(): ?string
+    private function destinationProblem(?string $destination = null): ?string
     {
-        $destination = (string) config('backup.onedrive_path');
+        $destination = $destination ?? (string) config('backup.onedrive_path');
 
         if ($destination === '') {
-            return 'Backup destination is not configured (BACKUP_ONEDRIVE_PATH)';
+            return 'Backup destination is not configured (BACKUP_ONEDRIVE_PATH / BACKUP_CLOUD_PATH)';
         }
 
         if ($this->isRcloneRemote($destination)) {
@@ -892,7 +1174,8 @@ class BackupService
     {
         $coreFailed = $run->database_status === 'failed' || $run->laravel_status === 'failed';
         $partial = $run->uploads_status === 'failed'
-            || $run->attachments_status === 'failed';
+            || $run->attachments_status === 'failed'
+            || $run->backups_status === 'failed';
 
         if ($coreFailed) {
             return BackupRun::STATUS_FAILED;

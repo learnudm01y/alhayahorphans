@@ -46,6 +46,14 @@ class BackupRunCommand extends Command
             ['Laravel', $run->laravel_status . ' (' . $this->bytes($run->laravel_size) . ')'],
             ['Uploads', $this->media($run, 'uploads')],
             ['Attachments', $this->media($run, 'attachments')],
+            ['OneDrive', sprintf(
+                '%s | uploaded %s | already-uploaded %s | failed %s | %s',
+                $run->backups_status ?? '-',
+                $run->backups_copied ?? 0,
+                $run->backups_skipped ?? 0,
+                $run->backups_failed ?? 0,
+                $this->bytes($run->backups_size ?? 0)
+            )],
             ['Error', $run->error_message ?: '-'],
         ]);
 

@@ -7,6 +7,7 @@ use App\Models\BackupRun;
 use App\Services\Backup\BackupService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Throwable;
 
@@ -88,12 +89,12 @@ class BackupController extends Controller
      */
     private function startBackgroundRun(): ?string
     {
-        $php     = PHP_BINARY;
+        $php     = $this->phpCliBinary();
         $artisan = base_path('artisan');
         $log     = storage_path('logs/backup-cli.log');
 
         if ($php === '' || !is_file($artisan)) {
-            return 'تعذر العثور على PHP أو artisan.';
+            return 'تعذر العثور على PHP CLI أو artisan.';
         }
 
         $command = sprintf('%s %s backup:run', escapeshellarg($php), escapeshellarg($artisan));
@@ -107,11 +108,78 @@ class BackupController extends Controller
         $code = 0;
         exec($line, $output, $code);
 
+        Log::info('Backup background launch', [
+            'sapi'       => PHP_SAPI,
+            'php_binary' => PHP_BINARY,
+            'resolved'   => $php,
+            'exit_code'  => $code,
+        ]);
+
         if ($code !== 0) {
             return 'تعذر بدء العملية في الخلفية (رمز الخروج: ' . $code . ').';
         }
 
+        // exit code 0 لا يثبت شيئًا: `nohup ... &` يرجع 0 دائمًا حتى لو مات الأمر
+        if (!$this->waitForLaunch()) {
+            return 'انطلقت الأوامر لكن العملية لم تبدأ — راجع storage/logs/backup-cli.log';
+        }
+
         return null;
+    }
+
+    /**
+     * مترجم PHP CLI الفعلي.
+     *
+     * PHP_BINARY تحت الويب (fpm/apache/cgi) يشير إلى مترجم الخادم لا إلى CLI،
+     * فأمر `php-fpm artisan backup:run` يفشل فورًا مع بقاء رمز الخروج 0.
+     */
+    private function phpCliBinary(): string
+    {
+        $configured = trim((string) config('backup.php_binary'));
+
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        if (PHP_SAPI === 'cli' || PHP_SAPI === 'phpdbg') {
+            return PHP_BINARY;
+        }
+
+        $command = strncasecmp(PHP_OS_FAMILY, 'Windows', 7) === 0 ? 'where php' : 'command -v php';
+        $output = [];
+        $code = 0;
+        @exec($command, $output, $code);
+
+        foreach ($output as $candidate) {
+            $candidate = trim($candidate);
+
+            if ($candidate !== '' && is_file($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return PHP_BINARY;
+    }
+
+    /**
+     * انتظار انطلاق العملية الخلفية فعلًا (ظهور قفل التشغيل).
+     *
+     * @return bool true إذا أنشأت العملية قفلها خلال المهلة
+     */
+    private function waitForLaunch(int $timeoutSeconds = 15): bool
+    {
+        $lock = (string) config('backup.lock.file');
+        $deadline = microtime(true) + $timeoutSeconds;
+
+        while (microtime(true) < $deadline) {
+            if (is_file($lock)) {
+                return true;
+            }
+
+            usleep(300000);
+        }
+
+        return false;
     }
 
     /**
