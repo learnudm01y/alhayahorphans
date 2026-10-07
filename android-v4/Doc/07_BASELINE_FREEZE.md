@@ -9,7 +9,7 @@
 
 | البند | القيمة | المصدر |
 |-------|--------|--------|
-| المسار | `C:\xampp\htdocs\alhayahorphans\android-v3\` | — |
+| المسار | `E:\laragon\www\alhayahorphans\android-v3\` | — |
 | **versionCode** | **110** | `android-v3/app/build.gradle` سطر 16 |
 | **versionName** | **3.2** | `android-v3/app/build.gradle` سطر 17 |
 | **applicationId** | **`com.aso.app`** | `android-v3/app/build.gradle` سطر 13 (ونفس `namespace`) |
@@ -52,7 +52,7 @@
 
 ## 4. حالة النسخ الاحتياطي لقواعد MySQL
 
-**التاريخ:** 2026-09-23 | **المجلد:** `C:\xampp\htdocs\alhayahorphans\.backups\v4_baseline\`
+**التاريخ:** 2026-09-23 | **المجلد:** `E:\laragon\www\alhayahorphans\.backups\v4_baseline\`
 
 | قاعدة البيانات | الملف | الحجم | الحالة |
 |----------------|-------|-------|--------|

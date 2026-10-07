@@ -221,6 +221,7 @@
 
     let polling = null;
     let startedAt = null;
+    let launchPending = false; // الـ POST ما زال ينتظر إطلاق العملية الخلفية
 
     function stopPolling() {
         if (polling) { clearInterval(polling); polling = null; }
@@ -246,6 +247,9 @@
                     }
 
                     if (!data.running) {
+                        // لا نعلن النتيجة قبل أن يؤكد الـ POST إطلاق العملية
+                        if (launchPending) return;
+
                         stopPolling();
                         fillSummary(data.last);
                         renderRunRow(data.last);
@@ -309,6 +313,7 @@
         if (!confirm('تشغيل النسخ الاحتياطي الآن؟ (قاعدة البيانات + ملفات المشروع + أرشفة الوسائط)')) return;
 
         document.getElementById('backup-alerts').innerHTML = '';
+        launchPending = true;
         startPolling();
 
         fetch('{{ route('admin.backup.run') }}', {
@@ -321,6 +326,8 @@
         })
             .then(function (r) { return r.json().then(function (body) { return { ok: r.ok, body: body }; }); })
             .then(function (res) {
+                launchPending = false;
+
                 if (res.ok) {
                     // لا نوقف المتابعة: العملية ما زالت تعمل في الخلفية
                     showAlert('info', res.body.message || 'بدأت عملية النسخ الاحتياطي...');
@@ -332,6 +339,7 @@
                 showAlert('danger', res.body.message || 'فشل تنفيذ النسخ الاحتياطي.');
             })
             .catch(function (e) {
+                launchPending = false;
                 stopPolling();
                 showAlert('danger', 'تعذر الاتصال بالخادم أثناء تنفيذ النسخ الاحتياطي.');
             });

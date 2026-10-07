@@ -7,18 +7,18 @@
 
 | # | الملف | نوع التعديل |
 |---|-------|------------|
-| 1 | [generalRegistration/javascript/cropper.blade.php](file:///c:/xampp/htdocs/alhayahorphans/resources/views/user/generalRegistration/javascript/cropper.blade.php) | MODIFY - إصلاحات فحص الوجه + cleanup + dead code |
-| 2 | [admin/dashboard/javascript/cropper.blade.php](file:///c:/xampp/htdocs/alhayahorphans/resources/views/admin/dashboard/javascript/cropper.blade.php) | MODIFY - إصلاح ترتيب التحقق + HTTP error + disable button |
-| 3 | [user/dashboard/javascript/cropper.blade.php](file:///c:/xampp/htdocs/alhayahorphans/resources/views/user/dashboard/javascript/cropper.blade.php) | MODIFY - نفس إصلاحات Admin + validation |
+| 1 | [generalRegistration/javascript/cropper.blade.php](file:///e:/laragon/www/alhayahorphans/resources/views/user/generalRegistration/javascript/cropper.blade.php) | MODIFY - إصلاحات فحص الوجه + cleanup + dead code |
+| 2 | [admin/dashboard/javascript/cropper.blade.php](file:///e:/laragon/www/alhayahorphans/resources/views/admin/dashboard/javascript/cropper.blade.php) | MODIFY - إصلاح ترتيب التحقق + HTTP error + disable button |
+| 3 | [user/dashboard/javascript/cropper.blade.php](file:///e:/laragon/www/alhayahorphans/resources/views/user/dashboard/javascript/cropper.blade.php) | MODIFY - نفس إصلاحات Admin + validation |
 
 > [!NOTE]
-> ملفات HTML ([cropperHtml.blade.php](file:///c:/xampp/htdocs/alhayahorphans/resources/views/user/generalRegistration/layout/cropperHtml.blade.php)) و CSS ([cropperStyle.blade.php](file:///c:/xampp/htdocs/alhayahorphans/resources/views/user/generalRegistration/layout/cropperStyle.blade.php)) وملفات component للأدمن/يوزر لن تتغير - لا يوجد فيها bugs فعلية.
+> ملفات HTML ([cropperHtml.blade.php](file:///e:/laragon/www/alhayahorphans/resources/views/user/generalRegistration/layout/cropperHtml.blade.php)) و CSS ([cropperStyle.blade.php](file:///e:/laragon/www/alhayahorphans/resources/views/user/generalRegistration/layout/cropperStyle.blade.php)) وملفات component للأدمن/يوزر لن تتغير - لا يوجد فيها bugs فعلية.
 
 ---
 
 ## المرحلة 1: إصلاح ملف التسجيل العام (الأكبر والأهم)
 
-#### [MODIFY] [cropper.blade.php](file:///c:/xampp/htdocs/alhayahorphans/resources/views/user/generalRegistration/javascript/cropper.blade.php)
+#### [MODIFY] [cropper.blade.php](file:///e:/laragon/www/alhayahorphans/resources/views/user/generalRegistration/javascript/cropper.blade.php)
 
 ---
 
@@ -291,8 +291,8 @@ if (!detailed) {
 
 ## المرحلة 2: إصلاح ملفات Admin/User Dashboard
 
-#### [MODIFY] [admin/javascript/cropper.blade.php](file:///c:/xampp/htdocs/alhayahorphans/resources/views/admin/dashboard/javascript/cropper.blade.php)
-#### [MODIFY] [user/javascript/cropper.blade.php](file:///c:/xampp/htdocs/alhayahorphans/resources/views/user/dashboard/javascript/cropper.blade.php)
+#### [MODIFY] [admin/javascript/cropper.blade.php](file:///e:/laragon/www/alhayahorphans/resources/views/admin/dashboard/javascript/cropper.blade.php)
+#### [MODIFY] [user/javascript/cropper.blade.php](file:///e:/laragon/www/alhayahorphans/resources/views/user/dashboard/javascript/cropper.blade.php)
 
 ---
 
@@ -366,7 +366,7 @@ saveBtn.textContent = 'جاري الرفع...';
 
 ### 2.4 إضافة تحقق من حجم الملف في نسخة User Dashboard
 
-**إضافة في [user/javascript/cropper.blade.php](file:///c:/xampp/htdocs/alhayahorphans/resources/views/user/dashboard/javascript/cropper.blade.php) بعد سطر 18:**
+**إضافة في [user/javascript/cropper.blade.php](file:///e:/laragon/www/alhayahorphans/resources/views/user/dashboard/javascript/cropper.blade.php) بعد سطر 18:**
 ```javascript
 if (file.size > 10 * 1024 * 1024) {
     Swal.fire({
@@ -385,7 +385,7 @@ if (file.size > 10 * 1024 * 1024) {
 
 ### 3.1 ملف `public/js/cropper.js` الفارغ
 
-هذا الملف يُحمّل ديناميكياً في [generalRegisrationIndex.blade.php سطر 2838](file:///c:/xampp/htdocs/alhayahorphans/resources/views/user/dashboard/component/generalRegisrationIndex.blade.php#L2838) لكنه **فارغ**. هناك احتمالان:
+هذا الملف يُحمّل ديناميكياً في [generalRegisrationIndex.blade.php سطر 2838](file:///e:/laragon/www/alhayahorphans/resources/views/user/dashboard/component/generalRegisrationIndex.blade.php#L2838) لكنه **فارغ**. هناك احتمالان:
 
 > [!WARNING]
 > **سؤال للمستخدم**: هل يُفترض أن يحتوي `public/js/cropper.js` على كود؟ أم أن المشروع يعتمد فقط على `cropper.min.js` و `cropper.bundle.js`؟ إذا كان الاعتماد على `cropper.min.js` فقط، فالملف الفارغ لا يسبب مشكلة عملية (يُحمّل بصمت). يمكنني تركه كما هو.

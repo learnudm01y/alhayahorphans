@@ -92,6 +92,7 @@ class BackupController extends Controller
         $php     = $this->phpCliBinary();
         $artisan = base_path('artisan');
         $log     = storage_path('logs/backup-cli.log');
+        $lock    = (string) config('backup.lock.file');
 
         if ($php === '' || !is_file($artisan)) {
             return 'تعذر العثور على PHP CLI أو artisan.';
@@ -106,6 +107,7 @@ class BackupController extends Controller
 
         $output = [];
         $code = 0;
+        $lockBefore = is_file($lock) ? (int) @filemtime($lock) : -1;
         exec($line, $output, $code);
 
         Log::info('Backup background launch', [
@@ -120,7 +122,7 @@ class BackupController extends Controller
         }
 
         // exit code 0 لا يثبت شيئًا: `nohup ... &` يرجع 0 دائمًا حتى لو مات الأمر
-        if (!$this->waitForLaunch()) {
+        if (!$this->waitForLaunch($lockBefore)) {
             return 'انطلقت الأوامر لكن العملية لم تبدأ — راجع storage/logs/backup-cli.log';
         }
 
@@ -162,17 +164,21 @@ class BackupController extends Controller
     }
 
     /**
-     * انتظار انطلاق العملية الخلفية فعلًا (ظهور قفل التشغيل).
+     * انتظار انطلاق العملية الخلفية فعلًا (ظهور قفل تشغيل جديد).
      *
-     * @return bool true إذا أنشأت العملية قفلها خلال المهلة
+     * @param int $lockBefore مtime القفل قبل الإطلاق (-1 إن لم يكن موجودًا)
+     * @return bool true إذا أنشأت العملية قفلها جديدًا خلال المهلة
      */
-    private function waitForLaunch(int $timeoutSeconds = 15): bool
+    private function waitForLaunch(int $lockBefore = -1, int $timeoutSeconds = 15): bool
     {
         $lock = (string) config('backup.lock.file');
         $deadline = microtime(true) + $timeoutSeconds;
 
         while (microtime(true) < $deadline) {
-            if (is_file($lock)) {
+            clearstatcache(true, $lock);
+
+            // قفل قديم لا يثبت شيئًا — ننتظر قفلًا كُتب بعد الإطلاق
+            if (is_file($lock) && (int) @filemtime($lock) > $lockBefore) {
                 return true;
             }
 

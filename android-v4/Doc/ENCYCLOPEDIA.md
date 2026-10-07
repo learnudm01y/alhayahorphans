@@ -67,7 +67,7 @@
 
 منظومة واحدة تجمع ثلاثة مستويات:
 
-1. **موقع Laravel 10** (`C:\xampp\htdocs\alhayahorphans`) — لوحة الإدارة + بوابة التسجيل + API.
+1. **موقع Laravel 10** (`E:\laragon\www\alhayahorphans`) — لوحة الإدارة + بوابة التسجيل + API.
 2. **تطبيق Android** (`android-v3/`) — Capacitor 8 hybrid، واجهة محلية + Java backend خلفي.
 3. **قاعدة بيانات MySQL** — قاعدتان: `aso` (الافتراضية) + `civilregistry` (السجل المدني).
 

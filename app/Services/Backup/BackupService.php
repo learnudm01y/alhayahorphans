@@ -386,6 +386,15 @@ class BackupService
             @mkdir($dir, 0755, true);
         }
 
+        // صلاحية الكتابة أولًا — وإلا فشل mysqldump و ZipArchive مع رسائل غامضة (Errcode 13)
+        if (!is_dir($dir) || !is_writable($dir)) {
+            throw new RuntimeException(sprintf(
+                'Backup directory is not writable: %s — امنح مستخدم الويب صلاحية الكتابة: chown -R www-data %s',
+                $dir,
+                $dir
+            ));
+        }
+
         $free = @disk_free_space($dir);
         $required = ((int) config('backup.min_free_space_mb')) * 1024 * 1024;
 

@@ -36,7 +36,17 @@ yarn-error.log
 /.backups/
 *.log
 
+# ===== Local-only files that must never be pushed to GitHub =====
+.envbak
+rclone.conf.old*
+# مجلدات اختبار السرعة كانت مسجّلة كـ submodule (gitlink) بدون .gitmodules
+# فحذفها من الـ index؛ أصولها إن وُجدت توضع محلياً فقط
+/public/openspeedtest/
+/public/speedtest/
+
 # ===== Dev/test scratch files =====
+/scratch/
+/temp_check/
 /check_all_ids.php
 /check_all_nulls.php
 /check_api.php
@@ -72,3 +82,8 @@ yarn-error.log
 /wkhtmltopdf
 /.opencode
 sms-feature.zip
+/scratch
+rclone.conf.old1827361534
+temp_check/check_db.js
+/temp_check
+.envbak
