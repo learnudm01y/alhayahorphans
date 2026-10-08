@@ -87,3 +87,5 @@ rclone.conf.old1827361534
 temp_check/check_db.js
 /temp_check
 .envbak
+tests/Feature/WhatsAppAdminPanelTest.php
+/tests

@@ -26,6 +26,13 @@ class RouteServiceProvider extends ServiceProvider
     public function boot(): void
     {
         RateLimiter::for('api', function (Request $request) {
+            // استثناء مُعلن: webhook الواتساب محمي بمصادقة apikey + throttle مخصص
+            // (throttle:300,1 على المسار نفسه)، وحدّ api العام (60/دقيقة) كان سيرفض
+            // دفعات Meta المتزامنة (رسائل + تحديثات حالة) بأرقام وصلات مختلفة.
+            if ($request->is('api/whatsapp/webhook')) {
+                return Limit::none();
+            }
+
             // صور الكفالات: تنزيل دفعة واحدة للشاشة يطلب مئات الصور في دقائق.
             // حدّ ٦٠/دقيقة كان يُرجع 429 في منتصف التنزيل والعميل يبتلع الفشل بصمت.
             if ($request->is(

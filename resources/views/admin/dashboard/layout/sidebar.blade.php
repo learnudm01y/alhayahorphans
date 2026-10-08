@@ -80,6 +80,10 @@
             'إدارة مجموعات الأرقام',
             'عرض سجل الرسائل',
         ];
+
+        $whatsappSectionPermissions = [
+            'عرض طلبات الواتساب',
+        ];
     @endphp
     <!--begin::Menu-->
     <div class="menu menu-column menu-rounded menu-sub-indention fw-semibold fs-6" id="#kt_app_sidebar_menu" data-kt-menu="true" data-kt-menu-expand="false">
@@ -804,6 +808,18 @@
                     <i class="fas fa-envelope"></i>
                 </span>
                 <span class="menu-title"> الرسائل النصية </span>
+            </a>
+        </div>
+        @endcanany
+        <!--end:Menu item-->
+        <!--begin:Menu item-->
+        @canany($whatsappSectionPermissions)
+        <div class="menu-item">
+            <a class="menu-link" href="{{ route('admin.whatsapp.index') }}">
+                <span class="menu-icon">
+                    <i class="fas fa-comment-dots"></i>
+                </span>
+                <span class="menu-title"> طلبات الواتساب </span>
             </a>
         </div>
         @endcanany

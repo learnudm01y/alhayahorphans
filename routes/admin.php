@@ -48,6 +48,7 @@ use App\Http\Controllers\Admin\CivilRegistryController;
 use App\Http\Controllers\Admin\SmsController;
 use App\Http\Controllers\Admin\SmsGroupController;
 use App\Http\Controllers\Admin\SmsTemplateController;
+use App\Http\Controllers\Admin\WhatsAppApplicationsController;
 Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     // إدارة طلبات المستخدمين (عرض وتغيير حالة الطلب)
     Route::get('manage-user-requests', [ManageTheUserRequestController::class, 'index'])
@@ -695,6 +696,20 @@ Route::group(['prefix' => 'admin/sms', 'as' => 'admin.sms.'], function () {
     Route::resource('groups', SmsGroupController::class)
         ->only(['index', 'store', 'update', 'destroy'])
         ->middleware('permission:عرض قسم الرسائل النصية|إدارة مجموعات الأرقام');
+});
+
+/* ============================================================
+ * طلبات التسجيل عبر واتساب
+ * المسار: /admin/whatsapp — أسماء المسارات: admin.whatsapp.*
+ * ============================================================ */
+Route::group(['prefix' => 'admin/whatsapp', 'as' => 'admin.whatsapp.'], function () {
+    Route::get('/', [WhatsAppApplicationsController::class, 'index'])
+        ->middleware('permission:عرض طلبات الواتساب')
+        ->name('index');
+
+    Route::get('{phone}', [WhatsAppApplicationsController::class, 'show'])
+        ->middleware('permission:عرض طلبات الواتساب')
+        ->name('show');
 });
 
 /* ============================================================

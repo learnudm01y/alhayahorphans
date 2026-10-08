@@ -28,6 +28,7 @@ return new class extends Migration
             $table->string('mother_third_name')->nullable();
             $table->string('mother_last_name')->nullable();
             $table->integer('mother_id')->nullable();
+            $table->date('mother_death_date')->nullable();
             $table->unsignedBigInteger('mother_death_reason')->nullable();
             $table->timestamps();
 

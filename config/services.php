@@ -60,4 +60,15 @@ return [
         'country_code' => env('NSMS_COUNTRY_CODE', '970'),
     ],
 
+    'whatsapp' => [
+        'base_url' => env('WHATSAPP_API_URL', 'http://localhost:8080'),
+        'api_key'  => env('WHATSAPP_API_KEY'),
+        'instance' => env('WHATSAPP_INSTANCE'),
+    ],
+
+    'gemini' => [
+        'key'   => env('GEMINI_API_KEY'),
+        'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
+    ],
+
 ];

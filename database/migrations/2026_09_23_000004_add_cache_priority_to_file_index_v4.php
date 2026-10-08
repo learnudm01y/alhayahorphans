@@ -51,20 +51,20 @@ return new class extends Migration
         ");
 
         // fallback: أول صورة jpg/png/jpeg لكل هوية مرتبة بـ created_at تصاعدياً
+        // (self-join بدل NOT EXISTS subquery — MySQL يرفض تحديد الجدول المستهدف داخل subquery بخطأ 1093)
         DB::statement("
             UPDATE file_index_v4 f
+            LEFT JOIN file_index_v4 f2
+                ON f2.identity_number = f.identity_number
+                AND f2.file_type IN ('jpg','jpeg','png','image/jpeg','image/png')
+                AND (f2.created_at < f.created_at
+                     OR (f2.created_at = f.created_at AND f2.id < f.id))
             SET f.cache_priority = 'profile_photo'
             WHERE f.file_type IN ('jpg','jpeg','png','image/jpeg','image/png')
               AND f.cache_priority = 'on_demand'
               AND f.local_cache_path IS NULL
               AND f.identity_number IS NOT NULL
-              AND NOT EXISTS (
-                  SELECT 1 FROM file_index_v4 f2
-                  WHERE f2.identity_number = f.identity_number
-                    AND f2.file_type IN ('jpg','jpeg','png','image/jpeg','image/png')
-                    AND (f2.created_at < f.created_at
-                         OR (f2.created_at = f.created_at AND f2.id < f.id))
-              )
+              AND f2.id IS NULL
         ");
     }
 
