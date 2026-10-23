@@ -48,6 +48,11 @@
                 <i class="fas fa-file-upload me-2"></i>ملفات بدون سجل
             </button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link fw-bold" data-bs-toggle="tab" data-bs-target="#missing-guardians-tab" type="button" role="tab">
+                <i class="fas fa-user-shield me-2"></i>بيانات المعيلين
+            </button>
+        </li>
     </ul>
 
     <div class="tab-content">
@@ -114,6 +119,9 @@
                             </button>
                             <button class="btn btn-outline-warning" id="btn-delete-keep-oldest">
                                 <i class="fas fa-history me-2"></i>حذف الجديد (الاحتفاظ بالأقدم)
+                            </button>
+                            <button class="btn btn-outline-danger" id="btn-delete-keep-newest-doc">
+                                <i class="fas fa-file-alt me-2"></i>حذف مكررات «وثيقة» (الاحتفاظ بالأحدث)
                             </button>
                             <button class="btn btn-outline-secondary ms-auto" id="btn-select-none">
                                 <i class="fas fa-times me-2"></i>إلغاء التحديد
@@ -631,6 +639,129 @@
                 </div>
             </div>
         </div>
+
+        {{-- ===== تبويب بيانات المعيلين (كشف الكفالات بدون معيل متطابق) ===== --}}
+        <div class="tab-pane fade" id="missing-guardians-tab" role="tabpanel">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h5 class="fw-bold mb-0">
+                        <i class="fas fa-user-shield me-2 text-primary"></i>
+                        كشف الكفالات بدون بيانات معيل متطابقة
+                    </h5>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button class="btn btn-primary" id="btn-find-missing-guardians">
+                            <i class="fas fa-search me-2"></i>فحص المعيلين
+                        </button>
+                        <button class="btn btn-warning" id="btn-fix-all-guardians" style="display:none;">
+                            <i class="fas fa-tools me-2"></i>إصلاح الكل
+                        </button>
+                        <button class="btn btn-secondary" id="btn-fix-empty-guardians" style="display:none;">
+                            <i class="fas fa-user-slash me-2"></i>إصلاح الهويات الفارغة فقط
+                        </button>
+                        <button class="btn btn-warning" id="btn-fix-not-found-guardians" style="display:none;">
+                            <i class="fas fa-user-question me-2"></i>إصلاح هوية المعيل غير الموجودة
+                        </button>
+                        <button class="btn btn-danger" id="btn-fix-other-file-guardians" style="display:none;">
+                            <i class="fas fa-people-arrows me-2"></i>إصلاح الهويات التي تخص ملفاً آخر
+                        </button>
+                        <button class="btn btn-danger" id="btn-fix-file-mismatch-guardians" style="display:none;">
+                            <i class="fas fa-link me-2"></i>إصلاح جميع حالات تعارض ملف المعيل
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info py-2 px-3 mb-4">
+                        <i class="fas fa-info-circle me-2"></i>
+                        يُفحص هذا القسم الكفالات التي يكون فيها <b>رقم هوية المعيل فارغاً</b> أو
+                        <b>غير موجود في جدول المعيلين (data)</b>.
+                        كما يتحقق من <b>تطابق رقم ملف المعيل</b> مع ملف المعيل المسجّل لهذا الفرد في سجل الأسرة
+                        (<code>re_people</code>) ومع رقم ملف صاحب هوية المعيل في <code>data</code>، ويكشف:
+                        تعارض ملف المعيل، هوية معيل تخص ملفاً آخر، أو غياب رقم ملف المعيل.
+                        عند تعذّر إيجاد المعيل في <code>data</code> يُبحث عن <b>هوية المكفول في جدول المتوفين</b>
+                        (<code>dead_people</code>) ثم يُطابق <b>رقم ملف المتوفى</b> مع رقم الملف في <code>data</code>؛
+                        فإن عُثر على معيل تتم إضافته، وإلا يتم تخطي الكفالة.
+                        زر الإصلاح يعيد ربط الكفالة بأحدث ملف للمعيل
+                        ويحدّث الهوية والاسم، وإن لم يُعثر على معيل تلقائياً سيُطلب منك إدخال هوية المعيل يدوياً.
+                    </div>
+
+                    <div id="mg-loading" class="text-center py-10" style="display:none;">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-3 text-muted" id="mg-loading-text">جاري فحص بيانات المعيلين...</p>
+                    </div>
+
+                    <div id="mg-stats" style="display:none;">
+                        <div class="row g-4 mb-4">
+                            <div class="col-md-3">
+                                <div class="card border-danger border-2">
+                                    <div class="card-body text-center py-3">
+                                        <h3 class="fw-bold text-danger mb-0" id="mg-total">0</h3>
+                                        <small class="text-muted">كفالة بدون معيل متطابق</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card border-warning border-2">
+                                    <div class="card-body text-center py-3">
+                                        <h3 class="fw-bold text-warning mb-0" id="mg-empty-identity">0</h3>
+                                        <small class="text-muted">هوية المعيل فارغة</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card border-secondary border-2">
+                                    <div class="card-body text-center py-3">
+                                        <h3 class="fw-bold text-secondary mb-0" id="mg-not-found">0</h3>
+                                        <small class="text-muted">هوية غير موجودة في جدول data</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card border-success border-2">
+                                    <div class="card-body text-center py-3">
+                                        <h3 class="fw-bold text-success mb-0" id="mg-auto-fixable">0</h3>
+                                        <small class="text-muted">قابل للإصلاح التلقائي</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-4 mb-4">
+                            <div class="col-md-4">
+                                <div class="card border-danger border-2">
+                                    <div class="card-body text-center py-3">
+                                        <h3 class="fw-bold text-danger mb-0" id="mg-file-mismatch">0</h3>
+                                        <small class="text-muted">ملف المعيل في سجل الأسرة يخالف رابط الكفالة</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card border-danger border-2">
+                                    <div class="card-body text-center py-3">
+                                        <h3 class="fw-bold text-danger mb-0" id="mg-other-file">0</h3>
+                                        <small class="text-muted">هوية المعيل تخص ملفاً آخر في data</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card border-warning border-2">
+                                    <div class="card-body text-center py-3">
+                                        <h3 class="fw-bold text-warning mb-0" id="mg-file-missing">0</h3>
+                                        <small class="text-muted">لا يوجد رقم ملف معيل في الكفالة</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="mg-container"></div>
+                    </div>
+
+                    <div id="mg-empty" class="text-center py-10 text-muted">
+                        <i class="fas fa-user-shield text-muted" style="font-size: 3rem;"></i>
+                        <p class="mt-3">اضغط "فحص المعيلين" للكشف عن الكفالات بدون بيانات معيل متطابقة</p>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -1051,6 +1182,35 @@ $(document).ready(function() {
         }).then(result => {
             if (result.isConfirmed) {
                 deleteMultiple(allNewIds);
+            }
+        });
+    });
+
+    // 🆕 حذف مكررات الأنواع ذات طبيعة «وثيقة» (document) فقط مع الاحتفاظ بالأحدث (أكبر id)
+    $('#btn-delete-keep-newest-doc').on('click', function() {
+        const DOC_TYPE_NATURE = 'document';
+        const idsToDelete = [];
+        let groupsCount = 0;
+        duplicatesData.forEach(function(g) {
+            if ((g.file_type_nature || '') !== DOC_TYPE_NATURE) return;
+            groupsCount++;
+            for (let i = 0; i < g.records.length - 1; i++) {
+                idsToDelete.push(g.records[i].id);
+            }
+        });
+        if (idsToDelete.length === 0) {
+            Swal.fire('تنبيه', 'لا توجد مكررات لأنواع وثائق طبيعتها «وثيقة»', 'info');
+            return;
+        }
+        Swal.fire({
+            title: 'حذف مكررات «وثيقة»؟',
+            html: `سيتم حذف <strong>${idsToDelete.length}</strong> ملف قديم من <strong>${groupsCount}</strong> مجموعة من أنواع طبيعتها «وثيقة»، والاحتفاظ بالأحدث في كل مجموعة`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، احذف القديم',
+        }).then(result => {
+            if (result.isConfirmed) {
+                deleteMultiple(idsToDelete);
             }
         });
     });
@@ -2314,6 +2474,389 @@ $(document).ready(function() {
                 $('#btn-find-dup-persons').trigger('click');
             });
         });
+    });
+
+    // =====================================================================
+    // تبويب بيانات المعيلين - فحص الكفالات بدون معيل متطابق + إصلاح
+    // =====================================================================
+    let missingGuardiansItems = [];
+
+    function mgEscape(value) {
+        return $('<span>').text(value == null ? '' : String(value)).html();
+    }
+
+    function buildMissingGuardianRow(item, index) {
+        const statusBadges = {
+            empty_identity: '<span class="badge bg-warning text-dark">هوية فارغة</span>',
+            identity_not_found: '<span class="badge bg-danger">هوية غير موجودة</span>',
+            file_mismatch: '<span class="badge bg-danger">تعارض ملف المعيل</span>',
+            identity_belongs_to_other_file: '<span class="badge bg-danger">هوية تخص ملفاً آخر</span>',
+            guardian_file_missing: '<span class="badge bg-warning text-dark">بلا رقم ملف معيل</span>'
+        };
+        const statusBadge = statusBadges[item.status] || '<span class="badge bg-secondary">' + mgEscape(item.status_ar || item.status) + '</span>';
+
+        const sourceLabels = {
+            re_people: 'من سجل الأسرة (re_people)',
+            identity_file: 'من ملف صاحب هوية المعيل (data)',
+            file_number: 'من رقم الملف في الكفالة',
+            guardian_identity: 'من هوية المعيل',
+            dead_people: 'عبر هوية المكفول في جدول المتوفين'
+        };
+
+        const suggestedGuardian = item.suggested_guardian;
+        const suggestedFile = suggestedGuardian && suggestedGuardian.file_id_number
+            ? String(suggestedGuardian.file_id_number).trim()
+            : '';
+
+        const suggested = suggestedGuardian
+            ? '<div class="small">' +
+              (suggestedFile !== ''
+                  ? '<span class="fw-bold text-success">' + mgEscape(suggestedFile) + '</span><br>'
+                  : '') +
+              '<span class="text-muted">' + mgEscape(suggestedGuardian.full_name || '—') + '</span>' +
+              (suggestedGuardian.data_id_number
+                  ? '<br><small class="text-muted">' + mgEscape(suggestedGuardian.data_id_number) + '</small>'
+                  : '') +
+              (item.suggested_source
+                  ? '<br><small class="text-muted">' + mgEscape(sourceLabels[item.suggested_source] || '') + '</small>'
+                  : '') +
+              '</div>'
+            : '<span class="text-muted small">لا يوجد مقترح - يتطلب إدخالاً يدوياً</span>';
+
+        const linkFile = item.link_source === 'internal'
+            ? (item.internal_file_number || '')
+            : (item.relation_id_number || '');
+
+        const matchCell = '<div class="small">' +
+            '<div>رابط الكفالة: <span class="fw-bold">' + (mgEscape(linkFile) || '—') + '</span>' +
+            (item.link_source === 'internal' ? ' <small class="text-muted">(داخلي)</small>' : '') + '</div>' +
+            '<div>ملف سجل الأسرة: <span class="fw-bold">' + (mgEscape(item.orphan_re_people_guardian_file) || '—') + '</span></div>' +
+            '<div>ملف صاحب الهوية: <span class="fw-bold">' + (mgEscape(item.guardian_data_file) || '—') + '</span></div>' +
+            (item.orphan_in_re_people === false
+                ? '<div class="text-muted"><i class="fas fa-info-circle me-1"></i>المكفول غير موجود في re_people</div>'
+                : '') +
+            '</div>';
+
+        const fixBtn = '<button class="btn btn-success btn-sm mg-fix" data-index="' + index + '">' +
+            '<i class="fas fa-wrench me-1"></i>إصلاح</button>';
+
+        return '<tr id="mg-row-' + item.sponsorship_id + '">' +
+            '<td class="text-center fw-bold">' + item.sponsorship_id + '</td>' +
+            '<td>' + (mgEscape(item.orphan_name) || '<span class="text-muted">—</span>') +
+            '<br><small class="text-muted">' + (mgEscape(item.identity_number) || '—') + '</small></td>' +
+            '<td class="text-center">' + (mgEscape(item.guardian_identity_number) || '<span class="text-muted">—</span>') + '</td>' +
+            '<td>' + (mgEscape(item.guardian_name) || '<span class="text-muted">—</span>') + '</td>' +
+            '<td>' + matchCell + '</td>' +
+            '<td class="text-center">' + statusBadge + '</td>' +
+            '<td>' + suggested + '</td>' +
+            '<td class="text-center">' + fixBtn + '</td>' +
+            '</tr>';
+    }
+
+    function renderMissingGuardians(data) {
+        missingGuardiansItems = data.items || [];
+
+        if (!data.total) {
+            $('#mg-empty').show().html(
+                '<i class="fas fa-check-circle text-success" style="font-size: 3rem;"></i>' +
+                '<p class="mt-3 fw-bold text-success">جميع الكفالات لديها بيانات معيل متطابقة</p>'
+            );
+            return;
+        }
+
+        $('#mg-total').text(data.total);
+        $('#mg-empty-identity').text(data.empty_identity);
+        $('#mg-not-found').text(data.identity_not_found);
+        $('#mg-auto-fixable').text(data.auto_fixable);
+        $('#mg-file-mismatch').text(data.file_mismatch || 0);
+        $('#mg-other-file').text(data.identity_belongs_to_other_file || 0);
+        $('#mg-file-missing').text(data.guardian_file_missing || 0);
+
+        if ((data.identity_belongs_to_other_file || 0) > 0) {
+            $('#btn-fix-other-file-guardians').show();
+        } else {
+            $('#btn-fix-other-file-guardians').hide();
+        }
+
+        if ((data.file_mismatch || 0) > 0) {
+            $('#btn-fix-file-mismatch-guardians').show();
+        } else {
+            $('#btn-fix-file-mismatch-guardians').hide();
+        }
+
+        if ((data.identity_not_found || 0) > 0) {
+            $('#btn-fix-not-found-guardians').show();
+        } else {
+            $('#btn-fix-not-found-guardians').hide();
+        }
+
+        let html = '<div class="table-responsive"><table class="table table-hover table-striped align-middle">' +
+            '<thead class="table-dark"><tr>' +
+            '<th class="text-center" style="width:60px;">#</th>' +
+            '<th>المكفول</th>' +
+            '<th class="text-center">هوية المعيل</th>' +
+            '<th>اسم المعيل</th>' +
+            '<th style="min-width:200px;">مطابقة رقم الملف</th>' +
+            '<th class="text-center">الحالة</th>' +
+            '<th>المعيل المقترح</th>' +
+            '<th class="text-center" style="width:110px;">الإجراء</th>' +
+            '</tr></thead><tbody>';
+
+        missingGuardiansItems.forEach(function(item, index) {
+            html += buildMissingGuardianRow(item, index);
+        });
+
+        html += '</tbody></table></div>';
+
+        $('#mg-container').html(html);
+        $('#mg-stats').show();
+        $('#btn-fix-all-guardians').show();
+        $('#btn-fix-empty-guardians').show();
+    }
+
+    function fixMissingGuardian(sponsorshipId, newIdentity, $btn, index) {
+        const original = $btn.html();
+
+        $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>');
+
+        $.ajax({
+            url: '{{ route("attachment-audit.missing-guardians.fix") }}',
+            method: 'POST',
+            data: { sponsorship_id: sponsorshipId, new_guardian_identity: newIdentity },
+            success: function(response) {
+                if (response.success) {
+                    Swal.fire('تم', response.message || 'تم إصلاح بيانات المعيل بنجاح', 'success').then(function() {
+                        $('#btn-find-missing-guardians').trigger('click');
+                    });
+                } else if (response.needs_manual) {
+                    Swal.fire({
+                        title: 'إدخال هوية المعيل',
+                        html: (response.message || 'تعذر إيجاد معيل تلقائياً') + '<br><small class="text-muted">أدخل رقم هوية المعيل الصحيح من جدول المعيلين</small>',
+                        input: 'text',
+                        inputLabel: 'رقم هوية المعيل',
+                        inputPlaceholder: 'مثال: 1234567890',
+                        showCancelButton: true,
+                        confirmButtonText: 'إصلاح',
+                        cancelButtonText: 'إلغاء',
+                        inputValidator: function(value) {
+                            if (!value || !value.trim()) {
+                                return 'الرجاء إدخال رقم هوية المعيل';
+                            }
+                        }
+                    }).then(function(result) {
+                        if (result.isConfirmed) {
+                            fixMissingGuardian(sponsorshipId, result.value.trim(), $btn, index);
+                        } else {
+                            $btn.prop('disabled', false).html(original);
+                        }
+                    });
+                } else {
+                    Swal.fire('خطأ', response.message || 'فشل الإصلاح', 'error');
+                    $btn.prop('disabled', false).html(original);
+                }
+            },
+            error: function(xhr) {
+                Swal.fire('خطأ', (xhr.responseJSON && xhr.responseJSON.message) || 'حدث خطأ أثناء الإصلاح', 'error');
+                $btn.prop('disabled', false).html(original);
+            }
+        });
+    }
+
+    $('#btn-find-missing-guardians').on('click', function() {
+        const $btn = $(this);
+        $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>جاري الفحص...');
+        $('#mg-loading-text').text('جاري فحص بيانات المعيلين...');
+        $('#mg-loading').show();
+        $('#mg-stats').hide();
+        $('#mg-empty').hide();
+        $('#btn-fix-all-guardians').hide();
+        $('#btn-fix-empty-guardians').hide();
+        $('#btn-fix-other-file-guardians').hide();
+        $('#btn-fix-file-mismatch-guardians').hide();
+        $('#btn-fix-not-found-guardians').hide();
+        $('#mg-container').empty();
+
+        $.ajax({
+            url: '{{ route("attachment-audit.missing-guardians") }}',
+            method: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    renderMissingGuardians(response.data);
+                } else {
+                    Swal.fire('خطأ', response.message || 'تعذر الفحص', 'error');
+                }
+            },
+            error: function() {
+                Swal.fire('خطأ', 'حدث خطأ أثناء فحص بيانات المعيلين', 'error');
+            },
+            complete: function() {
+                resetBtnSearch($btn);
+                $('#mg-loading').hide();
+            }
+        });
+    });
+
+    $('#mg-container').on('click', '.mg-fix', function() {
+        const $btn = $(this);
+        const index = $btn.data('index');
+        const item = missingGuardiansItems[index];
+
+        if (!item) return;
+
+        fixMissingGuardian(item.sponsorship_id, '', $btn, index);
+    });
+
+    function runFixAllGuardians(statusFilter, count, title, confirmText, $btn, btnHtml, loadingText, note) {
+        Swal.fire({
+            title: title,
+            html: 'سيتم محاولة الإصلاح التلقائي لـ <b>' + count + '</b> كفالة.' +
+                (note ? '<br><small>' + note + '</small>' : '') +
+                '<br><small>عند تعذّر إيجاد المعيل يتم تخطي الكفالة دون تعديلها.</small>',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: confirmText,
+            cancelButtonText: 'إلغاء'
+        }).then(function(result) {
+            if (!result.isConfirmed) return;
+
+            $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>جاري الإصلاح...');
+            $('#mg-loading-text').text(loadingText);
+            $('#mg-loading').show();
+            $('#mg-stats').hide();
+
+            $.ajax({
+                url: '{{ route("attachment-audit.missing-guardians.fix-all") }}',
+                method: 'POST',
+                data: statusFilter ? { status: statusFilter } : {},
+                success: function(response) {
+                    if (response.success) {
+                        let html = response.message || 'اكتمل الإصلاح';
+                        if (response.data && response.data.manual_items && response.data.manual_items.length) {
+                            html += '<br><small class="text-muted">كفالات تحتاج إدخالاً يدوياً: ' + mgEscape(response.data.manual_items.join('، ')) + '</small>';
+                        }
+                        Swal.fire('اكتمل', html, 'success').then(function() {
+                            $('#btn-find-missing-guardians').trigger('click');
+                        });
+                    } else {
+                        Swal.fire('خطأ', response.message || 'فشل الإصلاح', 'error');
+                    }
+                },
+                error: function(xhr) {
+                    Swal.fire('خطأ', (xhr.responseJSON && xhr.responseJSON.message) || 'حدث خطأ أثناء الإصلاح الجماعي', 'error');
+                },
+                complete: function() {
+                    $btn.prop('disabled', false)
+                        .html(btnHtml)
+                        .show();
+                    $('#mg-loading').hide();
+                }
+            });
+        });
+    }
+
+    $('#btn-fix-all-guardians').on('click', function() {
+        const $btn = $(this);
+
+        runFixAllGuardians(
+            '',
+            missingGuardiansItems.length,
+            'إصلاح جميع بيانات المعيلين',
+            'نعم، أصلح الكل',
+            $btn,
+            '<i class="fas fa-tools me-2"></i>إصلاح الكل',
+            'جاري إصلاح بيانات المعيلين...'
+        );
+    });
+
+    $('#btn-fix-other-file-guardians').on('click', function() {
+        const $btn = $(this);
+        const otherFileCount = missingGuardiansItems.filter(function(item) {
+            return item.status === 'identity_belongs_to_other_file';
+        }).length;
+
+        if (!otherFileCount) {
+            Swal.fire('ملاحظة', 'لا توجد كفالات بهوية معيل تخص ملفاً آخر في النتائج الحالية', 'info');
+            return;
+        }
+
+        runFixAllGuardians(
+            'identity_belongs_to_other_file',
+            otherFileCount,
+            'إصلاح الهويات التي تخص ملفاً آخر',
+            'نعم، أصلحها',
+            $btn,
+            '<i class="fas fa-people-arrows me-2"></i>إصلاح الهويات التي تخص ملفاً آخر',
+            'جاري إصلاح الهويات التي تخص ملفاً آخر...'
+        );
+    });
+
+    $('#btn-fix-not-found-guardians').on('click', function() {
+        const $btn = $(this);
+        const notFoundCount = missingGuardiansItems.filter(function(item) {
+            return item.status === 'identity_not_found';
+        }).length;
+
+        if (!notFoundCount) {
+            Swal.fire('ملاحظة', 'لا توجد كفالات بهوية معيل غير موجودة في النتائج الحالية', 'info');
+            return;
+        }
+
+        runFixAllGuardians(
+            'identity_not_found',
+            notFoundCount,
+            'إصلاح هويات المعيل غير الموجودة',
+            'نعم، أصلحها',
+            $btn,
+            '<i class="fas fa-user-question me-2"></i>إصلاح هوية المعيل غير الموجودة',
+            'جاري إصلاح هويات المعيل غير الموجودة...',
+            'سيتم البحث عن المكفول بهويته في جدول المتوفين، ثم مطابقة رقم ملف المتوفى مع جدول المعيلين وإضافة المعيل إن وُجد، وإلا تُتخطى الكفالة.'
+        );
+    });
+
+    $('#btn-fix-file-mismatch-guardians').on('click', function() {
+        const $btn = $(this);
+        const mismatchCount = missingGuardiansItems.filter(function(item) {
+            return item.status === 'file_mismatch';
+        }).length;
+
+        if (!mismatchCount) {
+            Swal.fire('ملاحظة', 'لا توجد كفالات بتعارض ملف المعيل في النتائج الحالية', 'info');
+            return;
+        }
+
+        runFixAllGuardians(
+            'file_mismatch',
+            mismatchCount,
+            'إصلاح تعارض ملف المعيل',
+            'نعم، أصلحها',
+            $btn,
+            '<i class="fas fa-link me-2"></i>إصلاح جميع حالات تعارض ملف المعيل',
+            'جاري إصلاح تعارض ملف المعيل...',
+            'سيتم ربط كل كفالة بملف المعيل المسجّل في سجل الأسرة (re_people) وتحديث الهوية والاسم من جدول المعيلين.'
+        );
+    });
+
+    $('#btn-fix-empty-guardians').on('click', function() {
+        const $btn = $(this);
+        const emptyCount = missingGuardiansItems.filter(function(item) {
+            return item.status === 'empty_identity';
+        }).length;
+
+        if (!emptyCount) {
+            Swal.fire('ملاحظة', 'لا توجد كفالات بهوية معيل فارغة في النتائج الحالية', 'info');
+            return;
+        }
+
+        runFixAllGuardians(
+            'empty_identity',
+            emptyCount,
+            'إصلاح الهويات الفارغة فقط',
+            'نعم، أصلح الفارغات',
+            $btn,
+            '<i class="fas fa-user-slash me-2"></i>إصلاح الهويات الفارغة فقط',
+            'جاري إصلاح الهويات الفارغة...',
+            'سيتم البحث عن المكفول بهويته في جدول المتوفين، ثم مطابقة رقم ملف المتوفى مع جدول المعيلين وتعبئة هوية المعيل واسمه إن وُجد، وإلا تُتخطى الكفالة.'
+        );
     });
 
 });

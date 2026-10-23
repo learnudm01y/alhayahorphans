@@ -413,6 +413,10 @@
                     <i class="fas fa-play me-2"></i>
                     بدء التصدير
                 </button>
+                <button type="button" class="btn btn-success" id="export_excel_btn">
+                    <i class="fas fa-file-excel me-2"></i>
+                    تصدير إكسل بيانات التحديث
+                </button>
             </div>
         </div>
     </div>
@@ -761,7 +765,18 @@ $(document).ready(function() {
         if (status.updated_at) {
             msg += (msg ? ' — ' : '') + 'آخر تحديث: ' + status.updated_at;
         }
-        $('#exportStatusMessage').text(msg);
+
+        // عرض رابط تحميل ملف الإكسل عند اكتمال التصدير
+        if (stage === 'completed' && status.download_url) {
+            $('#exportStatusMessage').empty().text(msg + ' ');
+            $('<a/>', {
+                href: status.download_url,
+                'class': 'fw-bold text-success',
+                download: ''
+            }).html('<i class="fas fa-download me-1"></i>تحميل ملف الإكسل').appendTo('#exportStatusMessage');
+        } else {
+            $('#exportStatusMessage').text(msg);
+        }
     }
 
     function stopExportStatusPolling() {
@@ -884,6 +899,103 @@ $(document).ready(function() {
             }
         });
     });
+
+    // معالجة زر تصدير إكسل بيانات التحديث
+    $('#export_excel_btn').on('click', function() {
+        const sponsorId = $('#export_sponsor_id').val();
+        const sponsorshipStatusId = $('#export_sponsorship_status_id').val();
+        const updatedOnly = $('#export_updated_only').is(':checked') ? 1 : 0;
+
+        if (!sponsorId) {
+            Swal.fire({
+                icon: 'error',
+                title: 'خطأ',
+                text: 'يرجى اختيار الجمعية أولاً',
+                confirmButtonText: 'حسناً'
+            });
+            return;
+        }
+
+        Swal.fire({
+            title: 'تصدير إكسل بيانات التحديث',
+            html: `
+                <p>يشمل: بيانات الكفالة + بيانات المعيل + بيانات الوفيات + حقول البويرتال المفعّلة للجمعية.</p>
+                <p class="text-muted">سيتم إنشاء الملف في الخلفية وستجد رابط التحميل في صندوق حالة التصدير.</p>
+            `,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، ابدأ التصدير',
+            cancelButtonText: 'إلغاء',
+            confirmButtonColor: '#50cd89',
+            cancelButtonColor: '#f1416c'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                startUpdateDataExcelExport(sponsorId, sponsorshipStatusId, updatedOnly);
+            }
+        });
+    });
+
+    /**
+     * بدء عملية تصدير إكسل بيانات التحديث في الخلفية
+     */
+    function startUpdateDataExcelExport(sponsorId, sponsorshipStatusId, updatedOnly) {
+        const $btn = $('#export_excel_btn');
+        const originalText = $btn.html();
+
+        $btn.prop('disabled', true)
+            .html('<span class="spinner-border spinner-border-sm me-2"></span>جاري بدء التصدير...');
+
+        $.ajax({
+            url: '{{ route("admin.sponsors.export-update-data-excel") }}',
+            method: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}',
+                sponsor_id: sponsorId,
+                sponsorship_status_id: sponsorshipStatusId,
+                updated_only: updatedOnly
+            },
+            success: function(response) {
+                $btn.prop('disabled', false).html(originalText);
+
+                $('#exportFormsModal').modal('hide');
+                $('#exportFormsForm')[0].reset();
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'تم بدء التصدير',
+                    html: `
+                        <p>${response.message}</p>
+                        <p class="text-muted">عدد السجلات: ${response.count || 0}</p>
+                        <p class="text-muted">سيتم إنشاء الملف في الخلفية — تجد رابط التحميل في صندوق حالة التصدير</p>
+                    `,
+                    confirmButtonText: 'حسناً'
+                });
+
+                const statusParams = {
+                    type: '{{ \App\Services\ExportStatus::TYPE_UPDATE_DATA }}',
+                    sponsor_id: sponsorId
+                };
+                if (sponsorshipStatusId) { statusParams.sponsorship_status_id = sponsorshipStatusId; }
+                if (updatedOnly) { statusParams.updated_only = updatedOnly; }
+                startExportStatusPolling(statusParams);
+            },
+            error: function(xhr) {
+                $btn.prop('disabled', false).html(originalText);
+
+                let errorMessage = 'حدث خطأ أثناء بدء عملية التصدير';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                }
+
+                Swal.fire({
+                    icon: 'error',
+                    title: 'خطأ',
+                    text: errorMessage,
+                    confirmButtonText: 'حسناً'
+                });
+            }
+        });
+    }
 
     // =====================================================
     // تصدير التقارير الشاملة (Bulk Family Reports)

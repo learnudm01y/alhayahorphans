@@ -12,8 +12,9 @@ use Illuminate\Support\Facades\Cache;
  */
 class ExportStatus
 {
-    public const TYPE_FORMS  = 'forms';
-    public const TYPE_FAMILY = 'family';
+    public const TYPE_FORMS        = 'forms';
+    public const TYPE_FAMILY       = 'family';
+    public const TYPE_UPDATE_DATA  = 'update_data';
 
     public const STAGE_QUEUED    = 'queued';
     public const STAGE_RUNNING   = 'running';

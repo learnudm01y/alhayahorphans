@@ -496,4 +496,75 @@ class GuardianFileService
 
         return $candidates;
     }
+
+    /**
+     * البحث عن المعيل انطلاقاً من هوية الفرد المكفول في جدول المتوفين:
+     * 1) هوية المكفول → سجل dead_people حيث father_id أو mother_id
+     * 2) رقم ملف المتوفى (re_file_id) → جدول data (file_id_number)
+     *
+     * @return array{file_id_number:string, data_id_number:string, full_name:string, deceased_file:string}|null
+     */
+    public function findGuardianViaDeceasedIdentity(string $orphanIdentity): ?array
+    {
+        $orphanIdentity = trim($orphanIdentity);
+
+        if ($orphanIdentity === '') {
+            return null;
+        }
+
+        $deadRecord = DB::table('dead_people')
+            ->where(function ($query) use ($orphanIdentity) {
+                $query->where('father_id', $orphanIdentity)
+                    ->orWhere('mother_id', $orphanIdentity);
+            })
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$deadRecord) {
+            return null;
+        }
+
+        $deceasedFile = trim((string) ($deadRecord->re_file_id ?? ''));
+
+        if ($deceasedFile === '') {
+            return null;
+        }
+
+        $guardian = DB::table('data')
+            ->select(
+                'file_id_number',
+                'data_id_number',
+                'data_first_name',
+                'data_father_name',
+                'data_grand_father_name',
+                'data_family_name'
+            )
+            ->whereIn('file_id_number', $this->fileCandidates($deceasedFile))
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$guardian) {
+            return null;
+        }
+
+        return [
+            'file_id_number' => trim((string) ($guardian->file_id_number ?? '')),
+            'data_id_number' => trim((string) ($guardian->data_id_number ?? '')),
+            'full_name' => $this->formatPersonName([
+                $guardian->data_first_name ?? '',
+                $guardian->data_father_name ?? '',
+                $guardian->data_grand_father_name ?? '',
+                $guardian->data_family_name ?? '',
+            ]),
+            'deceased_file' => $deceasedFile,
+        ];
+    }
+
+    private function formatPersonName(array $parts): string
+    {
+        return trim(implode(' ', array_filter(array_map(
+            fn($part) => trim((string) $part),
+            $parts
+        ))));
+    }
 }

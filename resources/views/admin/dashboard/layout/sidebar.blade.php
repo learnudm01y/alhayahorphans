@@ -822,6 +822,22 @@
                 <span class="menu-title"> طلبات الواتساب </span>
             </a>
         </div>
+        <div class="menu-item">
+            <a class="menu-link" href="{{ route('admin.whatsapp.settings') }}">
+                <span class="menu-icon">
+                    <i class="fas fa-cog"></i>
+                </span>
+                <span class="menu-title"> إعدادات الواتساب </span>
+            </a>
+        </div>
+        <div class="menu-item">
+            <a class="menu-link" href="{{ route('admin.whatsapp.knowledge') }}">
+                <span class="menu-icon">
+                    <i class="fas fa-book"></i>
+                </span>
+                <span class="menu-title"> معرفة الواتساب </span>
+            </a>
+        </div>
         @endcanany
         <!--end:Menu item-->
     </div>

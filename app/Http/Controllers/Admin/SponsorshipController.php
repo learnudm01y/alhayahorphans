@@ -591,6 +591,14 @@ class SponsorshipController extends Controller
                 $sponsorship->sponsors()->sync($sponsorIds);
             }
 
+            // 📞 حفظ رقم هاتف المعيل المُدخل من النموذج في جدول data (الخيار أ)
+            $this->syncGuardianPhoneToData(
+                $request,
+                $validatedData['guardian_identity_number'] ?? null,
+                $validatedData['relation_id_number'] ?? ($validatedData['internal_file_number'] ?? null),
+                (($validatedData['person_type'] ?? null) === 'breadwinner') ? ($validatedData['identity_number'] ?? null) : null
+            );
+
             // 🏦 حفظ الحسابات البنكية مع التحقق من التكرار
             if ($request->has('bank_accounts') && !empty($request->bank_accounts)) {
                 $bankValidationService = app(BankAccountValidationService::class);
@@ -1362,6 +1370,14 @@ class SponsorshipController extends Controller
                     ]);
                 }
             }
+
+            // 📞 حفظ رقم هاتف المعيل المُدخل من النموذج في جدول data (الخيار أ)
+            $this->syncGuardianPhoneToData(
+                $request,
+                $sponsorship->guardian_identity_number,
+                $sponsorship->relation_id_number ?: $sponsorship->internal_file_number,
+                ($sponsorship->person_type === 'breadwinner') ? $sponsorship->identity_number : null
+            );
 
             DB::commit();
 
@@ -5355,6 +5371,81 @@ class SponsorshipController extends Controller
             ]);
             return null;
         }
+    }
+
+    /**
+     * 📞 حفظ رقم هاتف المعيل المُدخل من نموذج الكفالة في جدول data
+     * (الخيار أ: أرقام الهاتف تُخزَّن في سجل المعيل داخل جدول data وليس في sponsorships)
+     *
+     * @param Request $request
+     * @param string|null $guardianIdentity رقم هوية المعيل
+     * @param string|null $guardianFileId رقم ملف المعيل (بديل للبحث)
+     * @param string|null $fallbackIdentity رقم هوية بديل (حالة المعيل / breadwinner)
+     */
+    private function syncGuardianPhoneToData(Request $request, $guardianIdentity = null, $guardianFileId = null, $fallbackIdentity = null)
+    {
+        $phone = $request->input('guardian_phone');
+        $altPhone = $request->input('guardian_alt_phone');
+
+        $hasPhone = !empty(trim((string) $phone)) && trim((string) $phone) !== '-';
+        $hasAltPhone = !empty(trim((string) $altPhone)) && trim((string) $altPhone) !== '-';
+
+        if (!$hasPhone && !$hasAltPhone) {
+            return;
+        }
+
+        $guardianData = null;
+
+        foreach (array_filter([$guardianIdentity, $fallbackIdentity]) as $identity) {
+            $guardianData = Data::where('data_id_number', $identity)->first();
+            if ($guardianData) {
+                break;
+            }
+        }
+
+        if (!$guardianData && !empty($guardianFileId)) {
+            $guardianData = Data::where('file_id_number', $guardianFileId)->first();
+        }
+
+        if (!$guardianData) {
+            Log::warning('⚠️ تعذّر العثور على سجل المعيل لحفظ رقم الهاتف', [
+                'guardian_identity' => $guardianIdentity,
+                'fallback_identity' => $fallbackIdentity,
+                'guardian_file_id' => $guardianFileId
+            ]);
+            return;
+        }
+
+        $updates = [];
+
+        foreach (['guardian_phone' => 'data_phone_number', 'guardian_alt_phone' => 'data_alt_phone_number'] as $inputKey => $column) {
+            $value = trim((string) $request->input($inputKey));
+
+            if ($value === '' || $value === '-') {
+                continue;
+            }
+
+            $digits = preg_replace('/\D+/', '', $value);
+
+            if ($digits === '') {
+                Log::warning('⚠️ رقم هاتف غير صالح (لا يحتوي أرقاماً) — تم تجاهله', [$inputKey => $value]);
+                continue;
+            }
+
+            $updates[$column] = (int) $digits;
+        }
+
+        if (empty($updates)) {
+            return;
+        }
+
+        $guardianData->update($updates);
+
+        Log::info('📞 تم حفظ رقم هاتف المعيل المُدخل في جدول data', [
+            'data_id' => $guardianData->id,
+            'file_id_number' => $guardianData->file_id_number,
+            'updates' => $updates
+        ]);
     }
 
     /**

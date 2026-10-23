@@ -120,6 +120,24 @@ class AttachmentAuditService
         }
         unset($item);
 
+        // جلب طبيعة كل نوع وثيقة (file_type → document/image) لتصفية المجموعات
+        // ملاحظة: attachments.file_type يخزّن document_types.id، ونطابق طبيعته (document = وثيقة)
+        $fileTypeIds = array_values(array_unique(array_map(
+            fn ($r) => $r['file_type'],
+            $results
+        )));
+        $fileTypeNatures = [];
+        if (!empty($fileTypeIds)) {
+            $fileTypeNatures = DB::table('document_types')
+                ->whereIn('id', $fileTypeIds)
+                ->pluck('file_type', 'id')
+                ->toArray();
+        }
+        foreach ($results as &$item) {
+            $item['file_type_nature'] = $fileTypeNatures[$item['file_type']] ?? null;
+        }
+        unset($item);
+
         return [
             'total_groups' => count($results),
             'total_duplicates' => $totalDuplicates,
@@ -1106,5 +1124,370 @@ class AttachmentAuditService
             'added_count' => $added,
             'errors' => $errors,
         ];
+    }
+
+    /**
+     * الكشف عن كفالات لا يملك فيها المعيل هوية متطابقة في جدول data:
+     * - هوية المعيل فارغة (empty_identity)
+     * - هوية المعيل غير موجودة في جدول data (identity_not_found)
+     *
+     * يحاول إيجاد معيل مقترح عبر رقم الملف (relation_id_number ثم internal_file_number)
+     * للسماح بالإصلاح التلقائي (إعادة الربط).
+     */
+    public function findMissingGuardians(): array
+    {
+        // 1) خريطة: هوية المعيل → أحدث سجل في جدول data (لجلب رقم الملف والاسم)
+        $latestDataIds = DB::table('data')
+            ->select('data_id_number', DB::raw('MAX(id) as max_id'))
+            ->whereNotNull('data_id_number')
+            ->where('data_id_number', '!=', '')
+            ->groupBy('data_id_number')
+            ->pluck('max_id');
+
+        $dataByIdentity = [];
+        foreach (array_chunk($latestDataIds->all(), 1000) as $chunk) {
+            $rows = DB::table('data')
+                ->select(
+                    'id',
+                    'data_id_number',
+                    'file_id_number',
+                    'data_first_name',
+                    'data_father_name',
+                    'data_grand_father_name',
+                    'data_family_name'
+                )
+                ->whereIn('id', $chunk)
+                ->get();
+
+            foreach ($rows as $row) {
+                $key = trim((string) $row->data_id_number);
+                if ($key !== '') {
+                    $dataByIdentity[$key] = $row;
+                }
+            }
+        }
+
+        $sponsorships = DB::table('sponsorships')
+            ->select(
+                'id',
+                'orphan_name',
+                'identity_number',
+                'guardian_name',
+                'guardian_identity_number',
+                'internal_file_number',
+                'relation_id_number',
+                'person_type'
+            )
+            ->orderBy('id')
+            ->get();
+
+        // 2) خريطة: هوية المكفول → ملف المعيل المسجّل في re_people
+        $orphanIdentities = $sponsorships
+            ->map(fn($s) => trim((string) ($s->identity_number ?? '')))
+            ->filter(fn($identity) => $identity !== '' && ctype_digit($identity))
+            ->unique()
+            ->values();
+
+        $rePeopleLinks = [];
+        foreach (array_chunk($orphanIdentities->all(), 1000) as $chunk) {
+            $rows = DB::table('re_people')
+                ->select('id', 'person_id', 'registration_id')
+                ->whereIn('person_id', $chunk)
+                ->orderBy('id')
+                ->get();
+
+            foreach ($rows as $row) {
+                $personKey = trim((string) $row->person_id);
+                $guardianFile = trim((string) $row->registration_id);
+                $isLinked = $guardianFile !== '' && $guardianFile !== '0';
+
+                if ($personKey === '') {
+                    continue;
+                }
+
+                if (!isset($rePeopleLinks[$personKey]) || ($isLinked && !$rePeopleLinks[$personKey]['linked'])) {
+                    $rePeopleLinks[$personKey] = [
+                        'registration_id' => $guardianFile,
+                        'linked' => $isLinked,
+                    ];
+                }
+            }
+        }
+
+        $items = [];
+        $counters = [
+            'empty_identity' => 0,
+            'identity_not_found' => 0,
+            'file_mismatch' => 0,
+            'identity_belongs_to_other_file' => 0,
+            'guardian_file_missing' => 0,
+        ];
+        $autoFixable = 0;
+        $suggestionCache = [];
+        $deadSuggestionCache = [];
+        $guardianFileService = app(GuardianFileService::class);
+
+        $lookupGuardianFile = function (string $file) use (&$suggestionCache): ?array {
+            $cacheKey = $this->fileKey($file);
+
+            if ($cacheKey === '') {
+                return null;
+            }
+
+            if (!array_key_exists($cacheKey, $suggestionCache)) {
+                $suggestionCache[$cacheKey] = $this->findGuardianDataByFile($file);
+            }
+
+            return $suggestionCache[$cacheKey];
+        };
+
+        foreach ($sponsorships as $s) {
+            $guardianIdentity = trim((string) ($s->guardian_identity_number ?? ''));
+            $orphanIdentity = trim((string) ($s->identity_number ?? ''));
+            $relationFile = trim((string) ($s->relation_id_number ?? ''));
+            $internalFile = trim((string) ($s->internal_file_number ?? ''));
+
+            $relationKey = $this->fileKey($relationFile);
+            $internalKey = $this->fileKey($internalFile);
+
+            $dataGuardian = $guardianIdentity !== '' ? ($dataByIdentity[$guardianIdentity] ?? null) : null;
+            $dataGuardianFile = $dataGuardian ? trim((string) $dataGuardian->file_id_number) : '';
+
+            $rePeopleEntry = $orphanIdentity !== '' ? ($rePeopleLinks[$orphanIdentity] ?? null) : null;
+            $rePeopleGuardianFile = !empty($rePeopleEntry['linked'])
+                ? trim((string) $rePeopleEntry['registration_id'])
+                : '';
+            $rePeopleKey = $this->fileKey($rePeopleGuardianFile);
+
+            $status = null;
+            $statusAr = '';
+
+            if ($guardianIdentity === '') {
+                $status = 'empty_identity';
+                $statusAr = 'هوية المعيل فارغة';
+            } elseif ($dataGuardian === null) {
+                $status = 'identity_not_found';
+                $statusAr = 'هوية المعيل غير موجودة في جدول المعيلين';
+            } else {
+                $currentKeys = array_values(array_filter(
+                    array_unique([$relationKey, $internalKey]),
+                    fn($key) => $key !== '' && $key !== '0'
+                ));
+
+                $dataGuardianKey = $this->fileKey($dataGuardianFile);
+
+                if (empty($currentKeys)) {
+                    $status = 'guardian_file_missing';
+                    $statusAr = 'لا يوجد رقم ملف معيل في الكفالة';
+                } elseif ($rePeopleKey !== '' && !in_array($rePeopleKey, $currentKeys, true)) {
+                    $status = 'file_mismatch';
+                    $statusAr = 'ملف المعيل في سجل الأسرة يخالف رابط الكفالة';
+                } elseif ($dataGuardianKey !== '' && $dataGuardianKey !== '0' && !in_array($dataGuardianKey, $currentKeys, true)) {
+                    $status = 'identity_belongs_to_other_file';
+                    $statusAr = 'هوية المعيل تخص ملفاً آخر في جدول data';
+                }
+            }
+
+            if ($status === null) {
+                // لا مشكلة في بيانات المعيل
+                continue;
+            }
+
+            $counters[$status]++;
+
+            // مصدر بديل: البحث عن الفرد المكفول في جدول المتوفين بهويته،
+            // ثم مطابقة رقم ملف المتوفى (re_file_id) مع جدول المعيلين (data).
+            $deadSuggestion = null;
+            if ($dataGuardian === null && $orphanIdentity !== '') {
+                if (!array_key_exists($orphanIdentity, $deadSuggestionCache)) {
+                    $deadSuggestionCache[$orphanIdentity] = $guardianFileService->findGuardianViaDeceasedIdentity($orphanIdentity);
+                }
+
+                $deadGuardian = $deadSuggestionCache[$orphanIdentity];
+
+                if ($deadGuardian !== null && trim((string) $deadGuardian['data_id_number']) !== '') {
+                    $deadSuggestion = [
+                        'file_id_number' => trim((string) $deadGuardian['file_id_number']),
+                        'data_id_number' => trim((string) $deadGuardian['data_id_number']),
+                        'full_name' => trim((string) $deadGuardian['full_name']),
+                    ];
+                }
+            }
+
+            // المعيل المقترح حسب مصدر المطابقة (re_people ثم ملف هوية المعيل)
+            $preferredCandidates = [];
+            if ($rePeopleGuardianFile !== '') {
+                $preferredCandidates[] = ['file' => $rePeopleGuardianFile, 'source' => 're_people'];
+            }
+            if ($dataGuardianFile !== '') {
+                $preferredCandidates[] = ['file' => $dataGuardianFile, 'source' => 'identity_file'];
+            }
+            if ($status === 'identity_belongs_to_other_file') {
+                // ملف صاحب الهوية هو الأدق في هذه الحالة
+                $preferredCandidates = array_reverse($preferredCandidates);
+            }
+
+            $suggested = null;
+            $suggestedSource = null;
+            foreach ($preferredCandidates as $candidate) {
+                $row = $lookupGuardianFile($candidate['file']);
+                if ($row !== null) {
+                    $suggested = $row;
+                    $suggestedSource = $candidate['source'];
+                    break;
+                }
+            }
+
+            // الاقتراح القديم عبر رقم الملف (relation ثم internal)
+            $fileSuggestion = $this->findGuardianByFile($s);
+            if ($suggested === null && $fileSuggestion !== null) {
+                $suggested = $fileSuggestion;
+                $suggestedSource = 'file_number';
+            }
+
+            if ($suggested === null && $dataGuardian !== null) {
+                $suggested = $this->formatGuardianSuggestion($dataGuardian);
+                $suggestedSource = 'guardian_identity';
+            }
+
+            if ($suggested === null && $deadSuggestion !== null) {
+                $suggested = $deadSuggestion;
+                $suggestedSource = 'dead_people';
+            }
+
+            // قابلية الإصلاح التلقائي تُحسب بمنطق الإصلاح الحالي فقط
+            $isAutoFixable = $dataGuardian !== null || $fileSuggestion !== null || $deadSuggestion !== null;
+            if ($isAutoFixable) {
+                $autoFixable++;
+            }
+
+            $items[] = [
+                'sponsorship_id' => (int) $s->id,
+                'orphan_name' => trim((string) $s->orphan_name),
+                'identity_number' => $orphanIdentity,
+                'guardian_name' => trim((string) $s->guardian_name),
+                'guardian_identity_number' => $guardianIdentity,
+                'internal_file_number' => $internalFile,
+                'relation_id_number' => $relationFile,
+                'person_type' => trim((string) $s->person_type),
+                'status' => $status,
+                'status_ar' => $statusAr,
+                'link_source' => $relationKey !== '' ? 'relation' : ($internalKey !== '' ? 'internal' : 'none'),
+                'guardian_data_file' => $dataGuardianFile,
+                'orphan_re_people_guardian_file' => $rePeopleGuardianFile,
+                'orphan_in_re_people' => $rePeopleEntry !== null,
+                'orphan_re_people_linked' => $rePeopleGuardianFile !== '',
+                'auto_fixable' => $isAutoFixable,
+                'suggested_source' => $suggestedSource,
+                'suggested_guardian' => $suggested,
+            ];
+        }
+
+        return [
+            'total' => count($items),
+            'empty_identity' => $counters['empty_identity'],
+            'identity_not_found' => $counters['identity_not_found'],
+            'file_mismatch' => $counters['file_mismatch'],
+            'identity_belongs_to_other_file' => $counters['identity_belongs_to_other_file'],
+            'guardian_file_missing' => $counters['guardian_file_missing'],
+            'auto_fixable' => $autoFixable,
+            'needs_manual' => count($items) - $autoFixable,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * توحيد رقم الملف للمقارنة (إزالة الأصفار البادئة مع الحفاظ على الصفر المفرد).
+     */
+    private function fileKey(string $file): string
+    {
+        $file = trim($file);
+
+        if ($file === '') {
+            return '';
+        }
+
+        if (ctype_digit($file)) {
+            $unpadded = ltrim($file, '0');
+
+            return $unpadded === '' ? '0' : $unpadded;
+        }
+
+        return $file;
+    }
+
+    /**
+     * إيجاد أحدث سجل معيل في جدول data عبر رقم الملف (مع صيغ الأصفار).
+     */
+    private function findGuardianDataByFile(string $file): ?array
+    {
+        $file = trim($file);
+
+        if ($file === '') {
+            return null;
+        }
+
+        $candidates = [$file];
+
+        if (ctype_digit($file)) {
+            $unpadded = ltrim($file, '0');
+            $unpadded = $unpadded === '' ? '0' : $unpadded;
+            $candidates = array_values(array_unique([
+                $file,
+                $unpadded,
+                str_pad($unpadded, 6, '0', STR_PAD_LEFT),
+            ]));
+        }
+
+        $row = DB::table('data')
+            ->whereIn('file_id_number', $candidates)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->first();
+
+        return $row ? $this->formatGuardianSuggestion($row) : null;
+    }
+
+    /**
+     * تجهيز بيانات المعيل المقترح للعرض.
+     */
+    private function formatGuardianSuggestion(object $row): array
+    {
+        return [
+            'file_id_number' => trim((string) ($row->file_id_number ?? '')),
+            'data_id_number' => trim((string) ($row->data_id_number ?? '')),
+            'full_name' => trim(implode(' ', array_filter([
+                $row->data_first_name ?? '',
+                $row->data_father_name ?? '',
+                $row->data_grand_father_name ?? '',
+                $row->data_family_name ?? '',
+            ]))),
+        ];
+    }
+
+    /**
+     * إيجاد معيل مقترح من جدول data عبر رقم الملف (relation ثم internal).
+     */
+    private function findGuardianByFile(object $sponsorship): ?array
+    {
+        foreach ([(string) $sponsorship->relation_id_number, (string) $sponsorship->internal_file_number] as $fileCandidate) {
+            $fileCandidate = trim($fileCandidate);
+
+            if ($fileCandidate === '') {
+                continue;
+            }
+
+            $row = DB::table('data')
+                ->where('file_id_number', $fileCandidate)
+                ->orderByDesc('created_at')
+                ->orderByDesc('id')
+                ->first();
+
+            if ($row) {
+                return $this->formatGuardianSuggestion($row);
+            }
+        }
+
+        return null;
     }
 }

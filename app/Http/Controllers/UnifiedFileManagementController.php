@@ -5591,6 +5591,8 @@ class UnifiedFileManagementController extends Controller
 
             $insertedCount = 0;
             $failedInserts = [];
+            $linkedCount = 0;
+            $skippedExistingCount = 0;
 
             foreach ($validRows as $rowInfo) {
                 try {
@@ -5599,6 +5601,45 @@ class UnifiedFileManagementController extends Controller
 
                     // تطبيق المعالجة الخاصة بالموديل (تحويل القيم المفقودة، تنظيف البيانات، إلخ)
                     $rowData = $this->excelImportService->processRowData($rowData, $targetTable);
+
+                    // 🆕 معالجة تكرار أفراد الأسرة (re_people):
+                    // موجود ومربوط بمعيل → تجاوز | موجود وغير مرتبط → ربطه بالمعيل فقط
+                    if ($targetTable === 're_people' && !empty($rowData['person_id'])) {
+                        $existingPerson = DB::table('re_people')
+                            ->where('person_id', $rowData['person_id'])
+                            ->first();
+
+                        if ($existingPerson) {
+                            $isLinkedToGuardian = !empty($existingPerson->registration_id)
+                                && $existingPerson->registration_id != 0;
+
+                            if ($isLinkedToGuardian) {
+                                $skippedExistingCount++;
+
+                                Log::info('⏭️ تجاوز فرد موجود ومربوط بمعيل عند الإدخال', [
+                                    'person_id' => $rowData['person_id'],
+                                    'existing_id' => $existingPerson->id,
+                                ]);
+
+                                continue;
+                            }
+
+                            // غير مرتبط بمعيل → تعبئة registration_id فقط دون تعديل أي حقل آخر
+                            DB::table('re_people')
+                                ->where('id', $existingPerson->id)
+                                ->update(['registration_id' => $rowData['registration_id']]);
+
+                            $linkedCount++;
+
+                            Log::info('🔗 ربط فرد موجود بمعيل', [
+                                'person_id' => $rowData['person_id'],
+                                'existing_id' => $existingPerson->id,
+                                'registration_id' => $rowData['registration_id'],
+                            ]);
+
+                            continue;
+                        }
+                    }
 
                     DB::table($targetTable)->insert($rowData);
                     $insertedCount++;
@@ -5617,7 +5658,7 @@ class UnifiedFileManagementController extends Controller
             }
 
             // إذا نجح الإدخال، نحفظ الملف بشكل دائم
-            if ($insertedCount > 0) {
+            if ($insertedCount > 0 || $linkedCount > 0) {
                 // نقل الملف من temp إلى المجلد الدائم
                 $permanentPath = 'excel_files/' . basename($tempPath);
                 Storage::disk('public')->move($tempPath, $permanentPath);
@@ -5636,15 +5677,21 @@ class UnifiedFileManagementController extends Controller
 
                 Log::info('✅ تم الإدخال بنجاح', [
                     'imported_rows' => $insertedCount,
+                    'linked_rows' => $linkedCount,
+                    'skipped_existing_rows' => $skippedExistingCount,
                     'failed_rows' => count($failedInserts),
                     'performance' => 'تم تجنب إعادة التحقق - توفير ~50% من الوقت'
                 ]);
 
                 return response()->json([
                     'success' => true,
-                    'message' => "تم إدخال {$insertedCount} صف بنجاح",
+                    'message' => "تم إدخال {$insertedCount} صف بنجاح"
+                        . ($linkedCount > 0 ? "، وربط {$linkedCount} فرد بمعيل" : '')
+                        . ($skippedExistingCount > 0 ? "، وتجاوز {$skippedExistingCount} فرد مكرر مربوط بمعيل" : ''),
                     'import_result' => [
                         'imported_rows' => $insertedCount,
+                        'linked_rows' => $linkedCount,
+                        'skipped_existing_rows' => $skippedExistingCount,
                         'failed_count' => count($failedInserts),
                         'duplicate_count' => $validationResult['statistics']['duplicate_rows'] ?? 0,
                         'total_rows' => $validationResult['statistics']['total_rows'] ?? 0,

@@ -49,6 +49,8 @@ use App\Http\Controllers\Admin\SmsController;
 use App\Http\Controllers\Admin\SmsGroupController;
 use App\Http\Controllers\Admin\SmsTemplateController;
 use App\Http\Controllers\Admin\WhatsAppApplicationsController;
+use App\Http\Controllers\Admin\WhatsAppKnowledgeController;
+use App\Http\Controllers\Admin\WhatsAppSettingsController;
 Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     // إدارة طلبات المستخدمين (عرض وتغيير حالة الطلب)
     Route::get('manage-user-requests', [ManageTheUserRequestController::class, 'index'])
@@ -187,6 +189,8 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::post('sponsors/export-forms', [SponsorController::class, 'exportForms'])->name('sponsors.export-forms');
     Route::post('sponsors/bulk-export-family-reports', [SponsorController::class, 'bulkExportFamilyReports'])->name('sponsors.bulk-export-family-reports');
     Route::get('sponsors/export-status', [SponsorController::class, 'exportStatus'])->name('sponsors.export-status');
+    Route::post('sponsors/export-update-data-excel', [SponsorController::class, 'exportUpdateDataExcel'])->name('sponsors.export-update-data-excel');
+    Route::get('sponsors/export-update-data-excel/download', [SponsorController::class, 'downloadUpdateDataExcel'])->name('sponsors.export-update-data-excel.download');
     Route::post('sponsors/sync-sponsorship-status', [SponsorController::class, 'syncSponsorshipStatus'])->name('sponsors.sync-sponsorship-status');
     Route::get('sponsors/{sponsor}/fields', [SponsorController::class, 'getSponsorFields'])->name('sponsors.get-fields');
     Route::post('sponsors/{sponsor}/fields', [SponsorController::class, 'saveSponsorFields'])->name('sponsors.save-fields');
@@ -426,6 +430,9 @@ Route::prefix('admin')->group(function () {
     Route::post('attachment-audit/duplicate-guardians/merge-all', [AttachmentAuditController::class, 'mergeAllDuplicateGuardians'])->name('attachment-audit.duplicate-guardians.merge-all');
     Route::get('attachment-audit/duplicate-persons', [AttachmentAuditController::class, 'findDuplicatePersons'])->name('attachment-audit.duplicate-persons');
     Route::post('attachment-audit/duplicate-persons/delete', [AttachmentAuditController::class, 'deleteDuplicatePerson'])->name('attachment-audit.duplicate-persons.delete');
+    Route::get('attachment-audit/missing-guardians', [AttachmentAuditController::class, 'findMissingGuardians'])->name('attachment-audit.missing-guardians');
+    Route::post('attachment-audit/missing-guardians/fix', [AttachmentAuditController::class, 'fixGuardian'])->name('attachment-audit.missing-guardians.fix');
+    Route::post('attachment-audit/missing-guardians/fix-all', [AttachmentAuditController::class, 'fixAllGuardians'])->name('attachment-audit.missing-guardians.fix-all');
 });
 
 // Admin Routes Group - Additional Testing Routes
@@ -706,6 +713,46 @@ Route::group(['prefix' => 'admin/whatsapp', 'as' => 'admin.whatsapp.'], function
     Route::get('/', [WhatsAppApplicationsController::class, 'index'])
         ->middleware('permission:عرض طلبات الواتساب')
         ->name('index');
+
+    Route::get('settings', [WhatsAppSettingsController::class, 'index'])
+        ->middleware('permission:عرض طلبات الواتساب')
+        ->name('settings');
+
+    Route::post('settings', [WhatsAppSettingsController::class, 'update'])
+        ->middleware('permission:عرض طلبات الواتساب')
+        ->name('settings.update');
+
+    Route::post('settings/check', [WhatsAppSettingsController::class, 'check'])
+        ->middleware('permission:عرض طلبات الواتساب')
+        ->name('settings.check');
+
+    Route::post('settings/qr', [WhatsAppSettingsController::class, 'qr'])
+        ->middleware('permission:عرض طلبات الواتساب')
+        ->name('settings.qr');
+
+    Route::post('settings/logout', [WhatsAppSettingsController::class, 'logout'])
+        ->middleware('permission:عرض طلبات الواتساب')
+        ->name('settings.logout');
+
+    Route::get('knowledge', [WhatsAppKnowledgeController::class, 'index'])
+        ->middleware('permission:عرض طلبات الواتساب')
+        ->name('knowledge');
+
+    Route::post('knowledge', [WhatsAppKnowledgeController::class, 'store'])
+        ->middleware('permission:عرض طلبات الواتساب')
+        ->name('knowledge.store');
+
+    Route::post('knowledge/general', [WhatsAppKnowledgeController::class, 'saveGeneral'])
+        ->middleware('permission:عرض طلبات الواتساب')
+        ->name('knowledge.general');
+
+    Route::post('knowledge/{faq}', [WhatsAppKnowledgeController::class, 'update'])
+        ->middleware('permission:عرض طلبات الواتساب')
+        ->name('knowledge.update');
+
+    Route::delete('knowledge/{faq}', [WhatsAppKnowledgeController::class, 'destroy'])
+        ->middleware('permission:عرض طلبات الواتساب')
+        ->name('knowledge.destroy');
 
     Route::get('{phone}', [WhatsAppApplicationsController::class, 'show'])
         ->middleware('permission:عرض طلبات الواتساب')

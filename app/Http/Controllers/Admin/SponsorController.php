@@ -919,6 +919,140 @@ class SponsorController extends Controller
     }
 
     /**
+     * تصدير بيانات تحديث الكفالات إلى ملف إكسل في الخلفية.
+     *
+     * يشمل: بيانات الكفالة الأساسية + بيانات المعيل + بيانات الوفيات
+     * + حقول البويرتال المفعّلة للجمعية في sponsor_field_settings.
+     */
+    public function exportUpdateDataExcel(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'sponsor_id'            => 'required|exists:sponsors,id',
+                'sponsorship_status_id' => 'nullable|exists:sponsorship_statuses,id',
+                'updated_only'          => 'nullable|boolean',
+            ]);
+
+            $sponsorId            = (int) $validated['sponsor_id'];
+            // عند عدم اختيار حالة (قيمة فارغة) → null، ويُصدَّر كل كفالات الجمعية المختارة
+            $sponsorshipStatusId  = !empty($validated['sponsorship_status_id'] ?? null) ? (int) $validated['sponsorship_status_id'] : null;
+            $updatedOnly          = (bool) ($validated['updated_only'] ?? false);
+
+            $sponsor = Sponsor::findOrFail($sponsorId);
+
+            $query = \App\Models\Sponsorship::where('sponsor_id', $sponsorId);
+
+            if ($sponsorshipStatusId) {
+                $query->where('sponsorship_status_id', $sponsorshipStatusId);
+            }
+
+            if ($updatedOnly) {
+                $query->where(function ($q) {
+                    $q->whereExists(function ($sub) {
+                        $sub->select('id')
+                            ->from('portal_general_registration_field_values as pgv')
+                            ->whereColumn('pgv.sponsorship_id', 'sponsorships.id');
+                    })->orWhereExists(function ($sub) {
+                        $sub->select('id')
+                            ->from('portal_general_registration_field_values as pgv')
+                            ->whereColumn('pgv.identity_number', 'sponsorships.identity_number');
+                    });
+                });
+            }
+
+            $count = $query->count();
+
+            if ($count === 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لا توجد كفالات مطابقة للمعايير المحددة',
+                ], 404);
+            }
+
+            $statusKey = ExportStatus::key(
+                ExportStatus::TYPE_UPDATE_DATA,
+                $sponsorId,
+                $sponsorshipStatusId,
+                $updatedOnly
+            );
+
+            ExportStatus::start($statusKey, [
+                'label'        => 'تصدير إكسل بيانات التحديث',
+                'sponsor_name' => $sponsor->sponsor_name,
+                'total'        => $count,
+                'message'      => 'في انتظار عامل الطابور...',
+            ]);
+
+            \App\Jobs\BulkExportUpdateDataExcel::dispatch($sponsorId, $sponsorshipStatusId, $updatedOnly);
+
+            Log::info('Bulk export update-data excel job dispatched', [
+                'sponsor_id'           => $sponsorId,
+                'sponsor_name'         => $sponsor->sponsor_name,
+                'sponsorship_status_id' => $sponsorshipStatusId,
+                'updated_only'         => $updatedOnly,
+                'estimated_count'      => $count,
+            ]);
+
+            return response()->json([
+                'success'        => true,
+                'message'        => 'تم بدء عملية تصدير الإكسل بنجاح',
+                'sponsor_name'   => $sponsor->sponsor_name,
+                'count'          => $count,
+                'updated_only'   => $updatedOnly,
+                'status_filter'  => $sponsorshipStatusId ? \App\Models\SponsorshipStatus::find($sponsorshipStatusId)->description : 'جميع الحالات',
+                'status_type'    => ExportStatus::TYPE_UPDATE_DATA,
+                'status_key'     => $statusKey,
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'البيانات المدخلة غير صحيحة',
+                'errors'  => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Error starting update-data excel export', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء بدء عملية التصدير: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * تحميل ملف إكسل بيانات التحديث الناتج عن التصدير في الخلفية.
+     */
+    public function downloadUpdateDataExcel(Request $request)
+    {
+        $validated = $request->validate([
+            'file' => 'required|string',
+        ]);
+
+        // منع أي محاولة اجتياز مسار (path traversal)
+        $fileName = basename($validated['file']);
+
+        if (!preg_match('/^update_data_\d+_[\w\-]+\.xlsx$/', $fileName)) {
+            abort(404);
+        }
+
+        $relativePath = 'public/uploads/exports/update_data/' . $fileName;
+
+        if (!\Illuminate\Support\Facades\Storage::exists($relativePath)) {
+            abort(404, 'الملف غير موجود أو انتهت صلاحيته');
+        }
+
+        return \Illuminate\Support\Facades\Storage::download(
+            $relativePath,
+            $fileName,
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']
+        );
+    }
+
+    /**
      * تصدير التقارير الشاملة (Family Reports) بشكل جماعي عبر Chromium.
      * يُصدّر تقرير الأسرة لكل مكفول بتصميم الجمعية المحددة.
      */
@@ -1006,7 +1140,7 @@ class SponsorController extends Controller
     {
         try {
             $validated = $request->validate([
-                'type'                  => 'required|in:' . ExportStatus::TYPE_FORMS . ',' . ExportStatus::TYPE_FAMILY,
+                'type'                  => 'required|in:' . ExportStatus::TYPE_FORMS . ',' . ExportStatus::TYPE_FAMILY . ',' . ExportStatus::TYPE_UPDATE_DATA,
                 'sponsor_id'            => 'required|integer',
                 'sponsorship_status_id' => 'nullable|integer',
                 'updated_only'          => 'nullable|boolean',

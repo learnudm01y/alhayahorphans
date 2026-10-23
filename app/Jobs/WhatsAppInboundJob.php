@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\WhatsAppLog;
+use App\Models\WhatsAppSetting;
 use App\Services\WhatsAppFlowService;
 use App\Services\WhatsAppMediaService;
 use App\Services\WhatsAppService;
@@ -105,6 +106,12 @@ class WhatsAppInboundJob implements ShouldQueue
                 'status' => 'received',
                 'payload' => $message,
             ]);
+
+            if (!WhatsAppSetting::enabled('auto_replies', true)) {
+                Cache::put($doneKey, 1, now()->addDays(7));
+
+                return;
+            }
 
             $reply = null;
 

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\WhatsAppLog;
+use App\Models\WhatsAppSetting;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -22,9 +23,93 @@ class WhatsAppService
 
     public function isConfigured(): bool
     {
-        return filled(config('services.whatsapp.base_url'))
-            && filled(config('services.whatsapp.api_key'))
-            && filled(config('services.whatsapp.instance'));
+        return filled($this->setting('api_url', (string) config('services.whatsapp.base_url')))
+            && filled($this->setting('api_key', (string) config('services.whatsapp.api_key')))
+            && filled($this->setting('instance', (string) config('services.whatsapp.instance')));
+    }
+
+    /** حالة اتصال الرقم بالـInstance في Evolution (مفتوح/مغلق/...). */
+    public function connectionState(): array
+    {
+        if (!$this->isConfigured()) {
+            return ['ok' => false, 'state' => null, 'error' => 'خدمة واتساب غير مهيأة: أكمل إعدادات الربط أولاً.'];
+        }
+
+        try {
+            $response = $this->client()->timeout(10)->get(
+                $this->endpoint('/instance/connectionState/' . $this->instance())
+            );
+
+            if (!$response->successful()) {
+                return ['ok' => false, 'state' => null, 'error' => 'تعذر جلب حالة الاتصال من خادم Evolution.'];
+            }
+
+            $state = (string) ($response->json('state') ?? $response->json('instance.state') ?? '');
+
+            return ['ok' => true, 'state' => $state !== '' ? $state : 'unknown', 'error' => null];
+        } catch (\Throwable $e) {
+            Log::error('فشل جلب حالة واتساب', ['error' => $e->getMessage()]);
+
+            return ['ok' => false, 'state' => null, 'error' => 'انقطع الاتصال بخادم Evolution. تحقق من العنوان والخادم.'];
+        }
+    }
+
+    /** جلب QR لربط الرقم (يُعرض مرة واحدة وينتهي بمسحه). */
+    public function connectQr(): array
+    {
+        if (!$this->isConfigured()) {
+            return ['ok' => false, 'qr' => null, 'error' => 'خدمة واتساب غير مهيأة: أكمل إعدادات الربط أولاً.'];
+        }
+
+        try {
+            $response = $this->client()->timeout(30)->get(
+                $this->endpoint('/instance/connect/' . $this->instance())
+            );
+
+            if (!$response->successful()) {
+                return ['ok' => false, 'qr' => null, 'error' => 'تعذر جلب رمز QR من خادم Evolution.'];
+            }
+
+            $qr = (string) ($response->json('base64') ?? $response->json('qrcode.base64') ?? '');
+
+            if ($qr === '') {
+                return ['ok' => false, 'qr' => null, 'error' => 'لم يُرجع خادم Evolution رمز QR. تحقق من حالة الـInstance.'];
+            }
+
+            if (!str_starts_with($qr, 'data:image')) {
+                $qr = 'data:image/png;base64,' . $qr;
+            }
+
+            return ['ok' => true, 'qr' => $qr, 'error' => null];
+        } catch (\Throwable $e) {
+            Log::error('فشل جلب QR واتساب', ['error' => $e->getMessage()]);
+
+            return ['ok' => false, 'qr' => null, 'error' => 'انقطع الاتصال بخادم Evolution أثناء جلب QR.'];
+        }
+    }
+
+    /** فصل الرقم عن الـInstance (تسجيل خروج). */
+    public function logoutInstance(): array
+    {
+        if (!$this->isConfigured()) {
+            return ['ok' => false, 'error' => 'خدمة واتساب غير مهيأة: أكمل إعدادات الربط أولاً.'];
+        }
+
+        try {
+            $response = $this->client()->timeout(15)->delete(
+                $this->endpoint('/instance/logout/' . $this->instance())
+            );
+
+            if (!$response->successful()) {
+                return ['ok' => false, 'error' => 'تعذر فصل الرقم من خادم Evolution.'];
+            }
+
+            return ['ok' => true, 'error' => null];
+        } catch (\Throwable $e) {
+            Log::error('فشل فصل واتساب', ['error' => $e->getMessage()]);
+
+            return ['ok' => false, 'error' => 'انقطع الاتصال بخادم Evolution أثناء الفصل.'];
+        }
     }
 
     public function sendText(string $phone, string $text): array
@@ -143,19 +228,25 @@ class WhatsAppService
     private function client()
     {
         return Http::withHeaders([
-            'apikey' => (string) config('services.whatsapp.api_key'),
+            'apikey' => (string) $this->setting('api_key', (string) config('services.whatsapp.api_key')),
             'Content-Type' => 'application/json',
         ]);
     }
 
     private function instance(): string
     {
-        return (string) config('services.whatsapp.instance');
+        return (string) $this->setting('instance', (string) config('services.whatsapp.instance'));
     }
 
     private function endpoint(string $path): string
     {
-        return rtrim((string) config('services.whatsapp.base_url'), '/') . $path;
+        return rtrim((string) $this->setting('api_url', (string) config('services.whatsapp.base_url')), '/') . $path;
+    }
+
+    /** قيمة الإعداد من لوحة التحكم (DB) مع احتياطي من .env. */
+    private function setting(string $key, ?string $default = null): ?string
+    {
+        return WhatsAppSetting::get($key, $default);
     }
 
     private function sniffMime(string $content): string

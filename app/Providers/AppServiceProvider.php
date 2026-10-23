@@ -50,11 +50,38 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // ضمان وجود مجلدات التخزين الأساسية (الكاش/المجلس/القوالب) لتفادي
+        // خطأ file_put_contents: Failed to open stream عند كتابة حالة التصدير
+        $this->ensureStorageDirectories();
+
         // مزامنة لحظية لحالة الكفالة عند أي تغيير في جدول sponsorships
         Sponsorship::observe(SponsorshipObserver::class);
 
         // تحميل إعدادات الملفات الكبيرة
         $this->loadLargeFileSettings();
+    }
+
+    /**
+     * إنشاء مجلدات storage المولَّدة تلقائياً إن كانت مفقودة
+     * (هي مجلدات لا تُرفع عادةً مع الكود على خوادم النشر).
+     */
+    private function ensureStorageDirectories(): void
+    {
+        $directories = [
+            'framework/cache/data',
+            'framework/cache',
+            'framework/sessions',
+            'framework/views',
+            'logs',
+        ];
+
+        foreach ($directories as $directory) {
+            $path = storage_path($directory);
+
+            if (!is_dir($path)) {
+                @mkdir($path, 0755, true);
+            }
+        }
     }
 
     /**

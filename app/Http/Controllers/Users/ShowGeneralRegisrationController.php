@@ -2602,6 +2602,59 @@ $groupedFields = $sorted;
                 }
             }
 
+            // ✅ مزامنة إضافية (لا تحذف ولا تستبدل أي بيانات قائمـة):
+            //    شاشة «الأشخاص المكفولين» تقرأ guardian_name / guardian_identity_number
+            //    مباشرة من جدول sponsorships، بينما التحديث يحفظ في portal + جدول data فقط.
+            //    هنا نعيد كتابة قيم المعيل والعنوان في sponsorships / data لتظهر في شاشة العرض.
+            try {
+                // 1) اسم المعيل: إعادة بناء الاسم الكامل من حقول الأسماء المنفصلة إن وصلت
+                if (isset($namesData['guardian']) && is_array($namesData['guardian'])) {
+                    $g = $namesData['guardian'];
+                    $fullGuardianName = trim(implode(' ', array_filter([
+                        $g['first_name'] ?? '',
+                        $g['second_name'] ?? '',
+                        $g['third_name'] ?? '',
+                        $g['last_name'] ?? '',
+                    ])));
+                    if ($fullGuardianName !== '') {
+                        $sponsorship->guardian_name = $fullGuardianName;
+                    }
+                } elseif (!empty($fieldsData)) {
+                    // 1.b) بديل: من حقول «معلومات المعيل التفصيلية» (field_data_*) عندما لا يُرسل
+                    //      الحقل الموحّد names[guardian] (الأسماء مصدرها جدول data)
+                    $guardianDetailName = trim(implode(' ', array_filter([
+                        trim((string) ($fieldsData['field_data_first_name'] ?? '')),
+                        trim((string) ($fieldsData['field_data_father_name'] ?? '')),
+                        trim((string) ($fieldsData['field_data_grand_father_name'] ?? '')),
+                        trim((string) ($fieldsData['field_data_family_name'] ?? '')),
+                    ])));
+                    if ($guardianDetailName !== '') {
+                        $sponsorship->guardian_name = $guardianDetailName;
+                    }
+                }
+
+                // 2) هوية المعيل: من حقلي field_data_id_number أو field_guardian_identity_number
+                $guardianIdValue = trim((string) ($fieldsData['field_data_id_number']
+                    ?? $fieldsData['field_guardian_identity_number']
+                    ?? ''));
+                if ($guardianIdValue !== '') {
+                    $sponsorship->guardian_identity_number = $guardianIdValue;
+                }
+
+                // 3) العنوان: مزامنة field_data_address إلى data_current_address في جدول data
+                //    (يُضاف فقط إذا لم يُحدَّث العنوان مسبقاً عبر field_housing_address_detail)
+                if ($sponsorship->relationData
+                    && !$sponsorship->relationData->isDirty('data_current_address')
+                    && !empty($fieldsData['field_data_address'])) {
+                    $sponsorship->relationData->data_current_address = $fieldsData['field_data_address'];
+                }
+            } catch (\Throwable $e) {
+                Log::warning('GUARDIAN_ADDRESS_SYNC_SKIPPED', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'error'          => $e->getMessage(),
+                ]);
+            }
+
             // ✅ إصلاح: منع إرسال '' أو null إلى أعمدة لا تسمح بها (integer/bigint/date...)
             // "" → NULL فقط إذا كان العمود nullable، وإلا تُسقط القيمة وتبقى القيمة القديمة
             $this->dropUnsafeDirtyAttributes($sponsorship, 'sponsorships');

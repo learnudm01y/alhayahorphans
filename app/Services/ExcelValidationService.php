@@ -14,11 +14,13 @@ class ExcelValidationService
     protected $warnings = [];
     protected $validRows = [];
     protected $invalidRows = [];
+    protected $skippedRows = [];
     protected $statistics = [
         'total_rows' => 0,
         'valid_rows' => 0,
         'invalid_rows' => 0,
-        'duplicate_rows' => 0
+        'duplicate_rows' => 0,
+        'skipped_rows' => 0
     ];
 
     /**
@@ -376,7 +378,35 @@ class ExcelValidationService
 
         // التحقق من القيود الفريدة
         $uniqueErrors = $this->validateUniqueConstraints($rowData, $tableName, $rowNumber);
-        $rowErrors = array_merge($rowErrors, $uniqueErrors);
+
+        // 🆕 معالجة خاصة: تكرار أفراد الأسرة المرتبطين بمعيل → تجاوز مباشر
+        $skipExisting = false;
+        $filteredUniqueErrors = [];
+        foreach ($uniqueErrors as $uniqueError) {
+            if (($uniqueError['type'] ?? null) === 'skip_existing_person') {
+                $skipExisting = true;
+                continue;
+            }
+            $filteredUniqueErrors[] = $uniqueError;
+        }
+        $rowErrors = array_merge($rowErrors, $filteredUniqueErrors);
+
+        if ($skipExisting) {
+            $this->skippedRows[] = [
+                'row_number' => $rowNumber,
+                'data' => $rowData,
+                'reason' => 'already_linked_to_guardian',
+                'person_id' => $rowData['person_id'] ?? null,
+            ];
+            $this->statistics['skipped_rows']++;
+
+            Log::info('⏭️ تجاوز فرد مكرر مرتبط بمعيل مسبقاً', [
+                'row_number' => $rowNumber,
+                'person_id' => $rowData['person_id'] ?? null,
+            ]);
+
+            return;
+        }
 
         if (empty($rowErrors)) {
             $this->validRows[] = [
@@ -616,6 +646,31 @@ class ExcelValidationService
             if (isset($rowData[$field]) && !empty($rowData[$field])) {
                 $exists = DB::table($tableName)->where($field, $rowData[$field])->exists();
                 if ($exists) {
+                    // 🆕 معالجة تكرار أفراد الأسرة (re_people / person_id)
+                    if ($tableName === 're_people' && $field === 'person_id') {
+                        $existingPerson = DB::table('re_people')
+                            ->where('person_id', $rowData[$field])
+                            ->first();
+
+                        $isLinkedToGuardian = $existingPerson
+                            && !empty($existingPerson->registration_id)
+                            && $existingPerson->registration_id != 0;
+
+                        if ($isLinkedToGuardian) {
+                            // مرتبط بمعيل مسبقاً → إشارة للتجاوز المباشر
+                            $errors[] = [
+                                'valid' => true,
+                                'column' => $field,
+                                'value' => $rowData[$field],
+                                'row' => $rowNumber,
+                                'type' => 'skip_existing_person',
+                                'existing_id' => $existingPerson->id,
+                            ];
+                        }
+                        // غير مرتبط بمعيل → إبقاء الصف صالحاً ليتم ربطه بالمعيل عند الإدخال
+                        continue;
+                    }
+
                     $fieldNameAr = $fieldNames[$field] ?? $field;
                     $errors[] = [
                         'valid' => false,
@@ -685,6 +740,28 @@ class ExcelValidationService
                     $value = $row['data'][$field];
 
                     if (isset($seen[$field][$value])) {
+                        // 🆕 تكرار أفراد الأسرة داخل نفس الملف → تجاوز الصف اللاحق
+                        if ($tableName === 're_people' && $field === 'person_id') {
+                            $this->skippedRows[] = [
+                                'row_number' => $row['row_number'],
+                                'data' => $row['data'],
+                                'reason' => 'duplicate_in_file',
+                                'person_id' => $value,
+                                'first_seen_row' => $seen[$field][$value],
+                            ];
+                            $this->statistics['skipped_rows']++;
+                            unset($this->validRows[$index]);
+                            $this->statistics['valid_rows']--;
+
+                            Log::info('⏭️ تجاوز تكرار داخل الملف لجدول أفراد الأسرة', [
+                                'person_id' => $value,
+                                'current_row' => $row['row_number'],
+                                'first_seen_row' => $seen[$field][$value],
+                            ]);
+
+                            continue;
+                        }
+
                         $fieldNameAr = $fieldNames[$field] ?? $field;
 
                         Log::warning('🔴 اكتشاف تكرار', [
@@ -784,6 +861,7 @@ class ExcelValidationService
             'statistics' => $this->statistics,
             'valid_rows' => $this->validRows,
             'invalid_rows' => $invalidRowsToReturn,
+            'skipped_rows' => $this->skippedRows,
             'errors' => $this->errors,
             'warnings' => $warningsToReturn,
             'has_more_errors' => $hasMoreErrors,
@@ -795,6 +873,7 @@ class ExcelValidationService
                 'valid' => $this->statistics['valid_rows'],
                 'invalid' => $this->statistics['invalid_rows'],
                 'duplicate' => $this->statistics['duplicate_rows'],
+                'skipped' => $this->statistics['skipped_rows'],
                 'success_rate' => $this->statistics['total_rows'] > 0
                     ? round(($this->statistics['valid_rows'] / $this->statistics['total_rows']) * 100, 2)
                     : 0
@@ -811,13 +890,19 @@ class ExcelValidationService
         $total = $this->statistics['total_rows'];
         $valid = $this->statistics['valid_rows'];
         $invalid = $this->statistics['invalid_rows'];
+        $skipped = $this->statistics['skipped_rows'] ?? 0;
 
         if ($valid === 0) {
+            if ($skipped > 0 && $invalid === 0) {
+                return "⏭️ جميع الصفوف ({$total}) تم تجاوزها: الأفراد مسجّلون ومرتبطون بمعيل مسبقاً أو مكررون داخل الملف.";
+            }
             return "❌ جميع الصفوف ({$total}) تحتوي على أخطاء ولا يمكن إدخالها. يرجى مراجعة التفاصيل أدناه.";
         }
 
         if ($invalid === 0) {
-            return "✅ جميع الصفوف ({$total}) صالحة للإدخال. يمكن المتابعة بأمان.";
+            return $skipped > 0
+                ? "✅ {$valid} صف صالح للإدخال، وتم تجاوز {$skipped} صف مرتبط بمعيل مسبقاً."
+                : "✅ جميع الصفوف ({$total}) صالحة للإدخال. يمكن المتابعة بأمان.";
         }
 
         return "⚠️ الملف يحتوي على {$valid} صف صحيح و {$invalid} صف يحتوي على أخطاء. سيتم إدخال الصفوف الصحيحة فقط.";

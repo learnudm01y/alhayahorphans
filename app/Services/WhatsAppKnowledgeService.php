@@ -2,8 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\WhatsAppFaq;
+use App\Models\WhatsAppSetting;
 use App\Models\WhatsAppUnansweredQuestion;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -13,6 +14,8 @@ use Throwable;
 class WhatsAppKnowledgeService
 {
     public const NO_ANSWER = 'NO_ANSWER';
+
+    private const AI_DISABLED = 'الأسئلة بالذكاء الاصطناعي متوقفة حالياً. يمكنك التواصل مع الجمعية مباشرة، أو أرسل (0) للعودة للقائمة.';
 
     private const FALLBACK = 'عذراً، لم أجد إجابة لسؤالك عندي. يمكنك التواصل مع الجمعية مباشرة، أو أرسل (0) للعودة للقائمة.';
     private const PRIVACY_REFUSAL = 'لا يمكنني مناقشة الأرقام أو البيانات الشخصية في هذه المحادثة. للتسجيل استخدم القائمة الرئيسية (1)، أو تواصل مع الجمعية مباشرة.';
@@ -35,6 +38,10 @@ class WhatsAppKnowledgeService
 
         if ($this->containsPersonalNumbers($question)) {
             return self::PRIVACY_REFUSAL;
+        }
+
+        if (!WhatsAppSetting::enabled('ai_enabled', true)) {
+            return self::AI_DISABLED;
         }
 
         $kb = $this->knowledge();
@@ -112,11 +119,23 @@ TXT;
     {
         $path = storage_path('app/knowledge/faq.md');
 
-        if (!File::exists($path)) {
-            return '';
+        $kb = File::exists($path) ? trim(File::get($path)) : '';
+
+        $faqs = WhatsAppFaq::query()
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('id')
+            ->get(['question', 'answer']);
+
+        if ($faqs->isNotEmpty()) {
+            $section = "## أسئلة وأجوبة\n\n" . $faqs
+                ->map(fn (WhatsAppFaq $faq) => '- س: ' . $faq->question . "\n- ج: " . $faq->answer)
+                ->implode("\n\n");
+
+            $kb = trim($kb . "\n\n" . $section);
         }
 
-        return Cache::remember('kb_' . filemtime($path), 86400, fn () => File::get($path));
+        return $kb;
     }
 
     private function record(string $phone, string $question): void

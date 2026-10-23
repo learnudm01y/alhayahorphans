@@ -846,6 +846,12 @@
                                         <div style="font-size: 18px; font-weight: 600; color: #ff9800;" id="val-warnings">
                                             0</div>
                                     </div>
+                                    <div
+                                        style="background: #e0f2f1; padding: 8px; border-radius: 4px; text-align: center; grid-column: span 2;">
+                                        <div style="font-size: 11px; color: #666;">متجاوَزة (مرتبطة بمعيل مسبقاً)</div>
+                                        <div style="font-size: 18px; font-weight: 600; color: #00897b;"
+                                            id="val-skipped-rows">0</div>
+                                    </div>
                                 </div>
 
                                 <!-- Message -->
@@ -1704,6 +1710,10 @@
             const warningsCount = (report.warnings && Array.isArray(report.warnings)) ? report.warnings.length : 0;
             document.getElementById('val-warnings').textContent = warningsCount;
 
+            // الصفوف المتجاوَزة (أفراد مرتبطون بمعيل مسبقاً / مكررون داخل الملف)
+            const skippedRows = statistics.skipped_rows || 0;
+            document.getElementById('val-skipped-rows').textContent = skippedRows;
+
             // Determine message type and content
             const validRows = statistics.valid_rows || 0;
             const invalidRows = statistics.invalid_rows || 0;
@@ -1726,6 +1736,9 @@
             if (invalidRows === 0 && validRows > 0) {
                 messageDiv.style.cssText = 'background: #e8f5e9; color: #2e7d32; border-right: 3px solid #4caf50;';
                 let message = `✅ جميع الصفوف صحيحة! يمكنك المتابعة بإدخال ${validRows} صف.`;
+                if (skippedRows > 0) {
+                    message += ` (تم تجاوز ${skippedRows} صف مرتبط بمعيل مسبقاً)`;
+                }
                 if (warningsCount > 0) {
                     message += ` (${warningsCount} تحذير)`;
                 }
@@ -1740,6 +1753,9 @@
             } else if (validRows > 0 && invalidRows > 0) {
                 messageDiv.style.cssText = 'background: #fff3e0; color: #e65100; border-right: 3px solid #ff9800;';
                 let message = `⚠️ ${validRows} صف صحيح، ${invalidRows} صف خاطئ.`;
+                if (skippedRows > 0) {
+                    message += ` تم تجاوز ${skippedRows} صف مرتبط بمعيل مسبقاً.`;
+                }
                 if (hasCriticalErrors) {
                     message += ` (${criticalErrorsCount} صف بأخطاء حرجة)`;
                 }
@@ -1747,6 +1763,10 @@
                     message += ` (${warningsCount} تحذير)`;
                 }
                 messageDiv.textContent = message;
+            } else if (validRows === 0 && invalidRows === 0 && skippedRows > 0) {
+                messageDiv.style.cssText = 'background: #e0f2f1; color: #00695c; border-right: 3px solid #00897b;';
+                messageDiv.textContent =
+                    `⏭️ لا توجد بيانات جديدة للإدخال: تم تجاوز ${skippedRows} صفاً لأن هؤلاء الأفراد مسجّلون ومرتبطون بمعيل مسبقاً.`;
             } else {
                 messageDiv.style.cssText = 'background: #ffebee; color: #c62828; border-right: 3px solid #f44336;';
                 messageDiv.textContent = `❌ لا توجد بيانات صحيحة للإدخال`;
