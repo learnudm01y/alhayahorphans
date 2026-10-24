@@ -1665,10 +1665,11 @@ $groupedFields = $sorted;
 
                 PortalGeneralRegistrationFieldValue::query()->updateOrCreate(
                     [
-                        'file_id_number' => $fileIdNumberForPortal,
+                        'identity_number' => $targetIdentityNumber,
                         'field_key' => (string) $fieldKey,
                     ],
                     [
+                        'file_id_number' => $fileIdNumberForPortal,
                         'sponsorship_id' => $sponsorship->id,
                         'identity_number' => $targetIdentityNumber,
                         'field_value' => $fieldValue,
@@ -2186,23 +2187,22 @@ $groupedFields = $sorted;
                     // في حالة فرد عائلة، نربط الحقول برقم هوية المعيل (guardian)
                     // وليس برقم هوية المكفول
                     $targetFileNumber = $fileIdNumberForPortal;
-                    $targetIdentity = $identityForPortal;
 
                     // إذا كان الشخص فرد عائلة، نستخدم رقم ملف المعيل
                     if ($sponsorship->person_type === 'family_member' && $sponsorship->relationData) {
                         $targetFileNumber = (string) $sponsorship->relationData->file_id_number;
-                        $targetIdentity = (string) ($sponsorship->guardian_identity_number ?: $sponsorship->relationData->data_id_number);
                     }
 
-                    // حفظ في portal_general_registration_field_values مرتبط برقم المعيل
+                    // حفظ قيمة الحقل لهوية المكفول مع الاحتفاظ برقم ملف الأسرة
                     PortalGeneralRegistrationFieldValue::query()->updateOrCreate(
                         [
-                            'file_id_number' => $targetFileNumber,
+                            'identity_number' => $identityForPortal,
                             'field_key' => (string) $fieldKey,
                         ],
                         [
+                            'file_id_number' => $targetFileNumber,
                             'sponsorship_id' => $sponsorship->id,
-                            'identity_number' => $targetIdentity,
+                            'identity_number' => $identityForPortal,
                             'field_value' => is_array($fieldValue) ? json_encode($fieldValue, JSON_UNESCAPED_UNICODE) : (string) $fieldValue,
                             'updated_by_user_id' => $user?->id,
                         ]
@@ -2213,7 +2213,7 @@ $groupedFields = $sorted;
                         'field_key' => $fieldKey,
                         'person_type' => $sponsorship->person_type,
                         'target_file_number' => $targetFileNumber,
-                        'target_identity' => $targetIdentity,
+                        'target_identity' => $identityForPortal,
                     ]);
 
                     continue;
@@ -3323,10 +3323,11 @@ $groupedFields = $sorted;
                 foreach ($housingFieldsForDeceased as $fieldKey => $fieldValue) {
                     PortalGeneralRegistrationFieldValue::query()->updateOrCreate(
                         [
-                            'file_id_number' => $fileIdNumberForHousing,
+                            'identity_number' => $identityForHousing,
                             'field_key' => (string) $fieldKey,
                         ],
                         [
+                            'file_id_number' => $fileIdNumberForHousing,
                             'sponsorship_id' => $sponsorship->id,
                             'identity_number' => $identityForHousing,
                             'field_value' => is_array($fieldValue) ? json_encode($fieldValue, JSON_UNESCAPED_UNICODE) : (string) $fieldValue,
@@ -3360,13 +3361,23 @@ $groupedFields = $sorted;
 
             DB::commit();
 
-            // 🆕 إضافة Job لإنشاء تقرير PDF إلى الطابور بعد حفظ البيانات
-            \App\Jobs\GenerateOrphanReportPdf::dispatch($sponsorship->id);
+            // فشل إنشاء التقرير بعد اعتماد المعاملة لا يعني فشل حفظ البيانات.
+            try {
+                \App\Jobs\GenerateOrphanReportPdf::dispatch($sponsorship->id);
 
-            Log::info('PDF_REPORT_JOB_DISPATCHED', [
-                'sponsorship_id' => $sponsorship->id,
-                'relation_id_number' => $sponsorship->relation_id_number,
-            ]);
+                Log::info('PDF_REPORT_JOB_DISPATCHED', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'relation_id_number' => $sponsorship->relation_id_number,
+                ]);
+            } catch (\Throwable $e) {
+                Log::error('PDF_REPORT_JOB_FAILED_AFTER_SAVE', [
+                    'sponsorship_id' => $sponsorship->id,
+                    'error' => $e->getMessage(),
+                    'exception' => get_class($e),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ]);
+            }
 
             // ✅ تسجيل خروج مباشرة بعد الحفظ
             Auth::logout();
@@ -3391,6 +3402,7 @@ $groupedFields = $sorted;
 
             Log::error('UPDATE_SPONSORSHIP_ERROR', [
                 'error' => $e->getMessage(),
+                'exception' => get_class($e),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
                 'user_id' => Auth::id(),
@@ -4919,10 +4931,11 @@ $groupedFields = $sorted;
                 if (isset($fieldsData[$fieldKey]) && $fieldsData[$fieldKey] !== '') {
                     PortalGeneralRegistrationFieldValue::query()->updateOrCreate(
                         [
-                            'file_id_number' => (string) $newFileNumber,
+                            'identity_number' => (string) $identityNumber,
                             'field_key' => (string) $fieldKey,
                         ],
                         [
+                            'file_id_number' => (string) $newFileNumber,
                             'sponsorship_id' => $sponsorship->id,
                             'identity_number' => (string) $identityNumber,
                             'field_value' => is_array($fieldsData[$fieldKey]) ? json_encode($fieldsData[$fieldKey], JSON_UNESCAPED_UNICODE) : (string) $fieldsData[$fieldKey],

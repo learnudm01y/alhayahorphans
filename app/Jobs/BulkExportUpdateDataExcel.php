@@ -56,6 +56,29 @@ class BulkExportUpdateDataExcel implements ShouldQueue
         'field_attachments',
     ];
 
+    private const SHARED_GUARDIAN_FIELDS = [
+        'field_data_id_number',
+        'field_data_first_name',
+        'field_data_father_name',
+        'field_data_grand_father_name',
+        'field_data_family_name',
+        'field_data_birth_date',
+        'field_data_phone_number',
+        'field_data_alt_phone_number',
+        'field_data_address',
+        'field_data_province',
+        'field_data_city',
+        'field_data_relationship',
+        'field_relationship',
+        'field_guardian_health',
+        'field_guardian_job',
+        'field_guardian_job_text',
+        'field_dependents_male',
+        'field_dependents_female',
+        'field_family_members_count',
+        'field_phone',
+    ];
+
     public function __construct(int $sponsorId, ?int $sponsorshipStatusId = null, bool $updatedOnly = false)
     {
         $this->sponsorId = $sponsorId;
@@ -228,30 +251,6 @@ class BulkExportUpdateDataExcel implements ShouldQueue
             ->map(fn ($s) => $s->relation_id_number ?? $s->internal_file_number)
             ->filter()->unique()->values();
 
-        // حقول البويرتال: عبر sponsorship_id و عبر رقم هوية المكفول (كما في تصدير الاستمارات)
-        $portalById = [];
-        $portalByIdentity = [];
-
-        if ($sponsorships->isNotEmpty()) {
-            $portalRows = PortalGeneralRegistrationFieldValue::query()
-                ->where(function ($q) use ($sponsorships, $identityNumbers) {
-                    $q->whereIn('sponsorship_id', $sponsorships->pluck('id'));
-                    if ($identityNumbers->isNotEmpty()) {
-                        $q->orWhereIn('identity_number', $identityNumbers);
-                    }
-                })
-                ->get(['sponsorship_id', 'identity_number', 'field_key', 'field_value']);
-
-            foreach ($portalRows as $row) {
-                if ($row->sponsorship_id) {
-                    $portalById[(int) $row->sponsorship_id][$row->field_key] = $row->field_value;
-                }
-                if ($row->identity_number) {
-                    $portalByIdentity[$row->identity_number][$row->field_key] = $row->field_value;
-                }
-            }
-        }
-
         // بيانات المعيل من جدول data
         $guardianMap = [];
         if ($guardianIds->isNotEmpty()) {
@@ -262,6 +261,41 @@ class BulkExportUpdateDataExcel implements ShouldQueue
             foreach ($guardians as $guardian) {
                 if (!isset($guardianMap[$guardian->data_id_number])) {
                     $guardianMap[$guardian->data_id_number] = $guardian;
+                }
+            }
+        }
+
+        $portalFileNumbers = $fileNumbers
+            ->merge(collect($guardianMap)->pluck('file_id_number'))
+            ->filter()->unique()->values();
+
+        // حقول البويرتال: عبر sponsorship_id و عبر رقم هوية المكفول (كما في تصدير الاستمارات)
+        $portalById = [];
+        $portalByIdentity = [];
+        $portalByFileNumber = [];
+
+        if ($sponsorships->isNotEmpty()) {
+            $portalRows = PortalGeneralRegistrationFieldValue::query()
+                ->where(function ($q) use ($sponsorships, $identityNumbers, $portalFileNumbers) {
+                    $q->whereIn('sponsorship_id', $sponsorships->pluck('id'));
+                    if ($identityNumbers->isNotEmpty()) {
+                        $q->orWhereIn('identity_number', $identityNumbers);
+                    }
+                    if ($portalFileNumbers->isNotEmpty()) {
+                        $q->orWhereIn('file_id_number', $portalFileNumbers);
+                    }
+                })
+                ->get(['sponsorship_id', 'identity_number', 'file_id_number', 'field_key', 'field_value']);
+
+            foreach ($portalRows as $row) {
+                if ($row->sponsorship_id) {
+                    $portalById[(int) $row->sponsorship_id][$row->field_key] = $row->field_value;
+                }
+                if ($row->identity_number) {
+                    $portalByIdentity[$row->identity_number][$row->field_key] = $row->field_value;
+                }
+                if ($row->file_id_number && $row->field_value !== null && $row->field_value !== '') {
+                    $portalByFileNumber[(string) $row->file_id_number][$row->field_key] = $row->field_value;
                 }
             }
         }
@@ -278,6 +312,7 @@ class BulkExportUpdateDataExcel implements ShouldQueue
         return [
             'portal_by_id'      => $portalById,
             'portal_by_identity' => $portalByIdentity,
+            'portal_by_file_number' => $portalByFileNumber,
             'guardians'         => $guardianMap,
             'dead'              => $deadMap,
         ];
@@ -506,6 +541,22 @@ class BulkExportUpdateDataExcel implements ShouldQueue
         $value = $ctx['portal_by_id'][(int) $sponsorship->id][$key]
             ?? $ctx['portal_by_identity'][$sponsorship->identity_number][$key]
             ?? null;
+
+        if (($value === null || $value === '') && in_array($key, self::SHARED_GUARDIAN_FIELDS, true)) {
+            $guardian = $this->guardianOf($sponsorship, $ctx);
+            $fileNumbers = array_unique(array_filter([
+                $guardian?->file_id_number,
+                $sponsorship->relation_id_number,
+                $sponsorship->internal_file_number,
+            ]));
+
+            foreach ($fileNumbers as $fileNumber) {
+                $value = $ctx['portal_by_file_number'][(string) $fileNumber][$key] ?? null;
+                if ($value !== null) {
+                    break;
+                }
+            }
+        }
 
         return $this->normalizeValue($value);
     }

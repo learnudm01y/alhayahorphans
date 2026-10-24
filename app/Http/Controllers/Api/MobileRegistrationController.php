@@ -710,6 +710,9 @@ class MobileRegistrationController extends Controller
         $guardianIsMother = ($rel === '1');
         $motherIsAlive = $request->input('mother_is_alive');
         $identityNumber = $request->input('data_id_number');
+        $fieldIdentityNumber = $guardianIsMother
+            ? $identityNumber
+            : ($request->input('mother_id') ?: $identityNumber);
 
         $portalFields = [];
 
@@ -747,8 +750,13 @@ class MobileRegistrationController extends Controller
         foreach ($portalFields as $key => $value) {
             if ($value !== null && $value !== '') {
                 DB::table('portal_general_registration_field_values')->updateOrInsert(
-                    ['file_id_number' => $fileIdNumber, 'field_key' => $key],
-                    ['field_value' => $value, 'identity_number' => $identityNumber, 'updated_at' => now()]
+                    ['identity_number' => $fieldIdentityNumber, 'field_key' => $key],
+                    [
+                        'file_id_number' => $fileIdNumber,
+                        'field_value' => $value,
+                        'identity_number' => $fieldIdentityNumber,
+                        'updated_at' => now(),
+                    ]
                 );
             }
         }

@@ -2235,33 +2235,28 @@ class GeneralRegistrationController extends Controller
         // جلب sponsorship_id من جدول sponsorships
         $sponsorship = \App\Models\Sponsorship::where('identity_number', $guardianIdentity)->first();
         $sponsorshipId = $sponsorship?->id;
+        $fieldIdentityNumber = $guardianIsMother
+            ? $guardianIdentity
+            : ($motherId ?: $guardianIdentity);
 
         foreach ($portalFields as $fieldKey => $fieldValue) {
             if (is_null($fieldValue) || $fieldValue === '') {
                 continue;
             }
 
-            // البحث عن سجل موجود
-            $existingRecord = \App\Models\PortalGeneralRegistrationFieldValue::where('file_id_number', $fileIdNumber)
-                ->where('field_key', $fieldKey)
-                ->first();
-
-            if ($existingRecord) {
-                $existingRecord->update([
-                    'field_value' => $fieldValue,
-                    'identity_number' => $guardianIdentity,
-                    'updated_by_user_id' => auth()->id(),
-                ]);
-            } else {
-                \App\Models\PortalGeneralRegistrationFieldValue::create([
-                    'file_id_number' => $fileIdNumber,
-                    'identity_number' => $guardianIdentity,
-                    'sponsorship_id' => $sponsorshipId,
+            \App\Models\PortalGeneralRegistrationFieldValue::updateOrCreate(
+                [
+                    'identity_number' => $fieldIdentityNumber,
                     'field_key' => $fieldKey,
+                ],
+                [
+                    'file_id_number' => $fileIdNumber,
+                    'identity_number' => $fieldIdentityNumber,
+                    'sponsorship_id' => $sponsorshipId,
                     'field_value' => $fieldValue,
                     'updated_by_user_id' => auth()->id(),
-                ]);
-            }
+                ]
+            );
         }
 
         Log::info('✅ تم حفظ بيانات الأم الحية في portal_general_registration_field_values', [
@@ -2291,32 +2286,26 @@ class GeneralRegistrationController extends Controller
 
         $sponsorship = \App\Models\Sponsorship::where('identity_number', $guardianIdentity)->first();
         $sponsorshipId = $sponsorship?->id;
+        $fieldIdentityNumber = $motherId ?: $guardianIdentity;
 
         foreach ($portalFields as $fieldKey => $fieldValue) {
             if (is_null($fieldValue) || $fieldValue === '') {
                 continue;
             }
 
-            $existingRecord = \App\Models\PortalGeneralRegistrationFieldValue::where('file_id_number', $fileIdNumber)
-                ->where('field_key', $fieldKey)
-                ->first();
-
-            if ($existingRecord) {
-                $existingRecord->update([
-                    'field_value' => $fieldValue,
-                    'identity_number' => $guardianIdentity,
-                    'updated_by_user_id' => auth()->id(),
-                ]);
-            } else {
-                \App\Models\PortalGeneralRegistrationFieldValue::create([
-                    'file_id_number' => $fileIdNumber,
-                    'identity_number' => $guardianIdentity,
-                    'sponsorship_id' => $sponsorshipId,
+            \App\Models\PortalGeneralRegistrationFieldValue::updateOrCreate(
+                [
+                    'identity_number' => $fieldIdentityNumber,
                     'field_key' => $fieldKey,
+                ],
+                [
+                    'file_id_number' => $fileIdNumber,
+                    'identity_number' => $fieldIdentityNumber,
+                    'sponsorship_id' => $sponsorshipId,
                     'field_value' => $fieldValue,
                     'updated_by_user_id' => auth()->id(),
-                ]);
-            }
+                ]
+            );
         }
 
         Log::info('✅ تم حفظ بيانات الأم المتوفية في portal_general_registration_field_values', [
@@ -2326,4 +2315,3 @@ class GeneralRegistrationController extends Controller
         ]);
     }
 }
-

@@ -264,8 +264,9 @@ class ActionSyncController extends Controller
     {
         try {
             DB::table('portal_general_registration_field_values')->updateOrInsert(
-                ['file_id_number' => $fileIdNumber, 'field_key' => $fieldKey],
+                ['identity_number' => $identityNumber, 'field_key' => $fieldKey],
                 [
+                    'file_id_number' => $fileIdNumber,
                     'sponsorship_id' => $sponsorshipId,
                     'identity_number' => $identityNumber,
                     'field_value' => $fieldValue,

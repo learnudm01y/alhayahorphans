@@ -3126,15 +3126,15 @@ class SponsorshipSyncController extends Controller
             }
 
             try {
-                // استخدام updateOrInsert لتجنب التكرار
-                // الـ unique key هو على (file_id_number, field_key) وليس (sponsorship_id, field_key)
+                // استخدام هوية الشخص ومفتاح الحقل لتجنب تعارض أفراد الملف الواحد
                 DB::table('portal_general_registration_field_values')
                     ->updateOrInsert(
                         [
-                            'file_id_number' => $fileIdNumber,
+                            'identity_number' => $identityNumber,
                             'field_key' => $fieldKey,
                         ],
                         [
+                            'file_id_number' => $fileIdNumber,
                             'sponsorship_id' => $sponsorshipId,
                             'identity_number' => $identityNumber,
                             'field_value' => $fieldValue,
@@ -4542,15 +4542,15 @@ class SponsorshipSyncController extends Controller
         ?int $userId = null
     ): bool {
         try {
-            // استخدام updateOrInsert لتجنب التكرار
-            // الـ unique key هو على (file_id_number, field_key)
+            // استخدام هوية الشخص ومفتاح الحقل لتجنب تعارض أفراد الملف الواحد
             DB::table('portal_general_registration_field_values')
                 ->updateOrInsert(
                     [
-                        'file_id_number' => $fileIdNumber,
+                        'identity_number' => $identityNumber,
                         'field_key' => $fieldKey,
                     ],
                     [
+                        'file_id_number' => $fileIdNumber,
                         'sponsorship_id' => $sponsorshipId,
                         'identity_number' => $identityNumber,
                         'field_value' => $fieldValue,
@@ -5108,4 +5108,3 @@ class SponsorshipSyncController extends Controller
         ]);
     }
 }
-

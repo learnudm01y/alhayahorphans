@@ -1719,7 +1719,7 @@ class OfflineTestController extends Controller
 
                     // البحث عن سجل موجود
                     $existing = DB::table('portal_general_registration_field_values')
-                        ->where('sponsorship_id', $sponsorshipId)
+                        ->where('identity_number', $identityNumber)
                         ->where('field_key', $fieldKey)
                         ->first();
 
@@ -1728,6 +1728,9 @@ class OfflineTestController extends Controller
                         DB::table('portal_general_registration_field_values')
                             ->where('id', $existing->id)
                             ->update([
+                                'sponsorship_id' => $sponsorshipId,
+                                'file_id_number' => $fileIdNumber,
+                                'identity_number' => $identityNumber,
                                 'field_value' => $fieldValue,
                                 'updated_at' => now()
                             ]);

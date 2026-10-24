@@ -206,21 +206,26 @@ class GuardianFileService
                     'updated_at' => now(),
                 ]);
 
-            // 6) حقول البوابة - فهرس فريد على (file_id_number, field_key)
-            //    لذا نحذف تعارضات الهدف أولاً ثم ننقل قيم المصدر
+            // 6) حقول البوابة تُعرَّف بهوية الشخص ومفتاح الحقل.
             if (Schema::hasTable('portal_general_registration_field_values')) {
-                $portalKeys = DB::table('portal_general_registration_field_values')
+                $portalRows = DB::table('portal_general_registration_field_values')
                     ->whereIn('file_id_number', $fromCandidates)
-                    ->pluck('field_key')
-                    ->unique()
-                    ->values();
+                    ->get(['identity_number', 'field_key']);
 
-                if ($portalKeys->isNotEmpty()) {
-                    $deletedConflicts = DB::table('portal_general_registration_field_values')
+                $deletedConflicts = 0;
+                foreach ($portalRows as $portalRow) {
+                    if ($portalRow->identity_number === null) {
+                        continue;
+                    }
+
+                    $deletedConflicts += DB::table('portal_general_registration_field_values')
                         ->whereIn('file_id_number', $toCandidates)
-                        ->whereIn('field_key', $portalKeys)
+                        ->where('identity_number', $portalRow->identity_number)
+                        ->where('field_key', $portalRow->field_key)
                         ->delete();
+                }
 
+                if ($portalRows->isNotEmpty()) {
                     $counts['portal_general_registration_field_values'] = DB::table('portal_general_registration_field_values')
                         ->whereIn('file_id_number', $fromCandidates)
                         ->update([

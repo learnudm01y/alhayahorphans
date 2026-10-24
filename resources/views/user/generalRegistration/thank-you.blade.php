@@ -84,6 +84,28 @@
             line-height: 1.8;
         }
 
+        .registration-link {
+            display: inline-block;
+            margin: -10px 0 20px;
+            padding: 12px 24px;
+            border-radius: 10px;
+            background: #667eea;
+            color: white;
+            font-size: 20px;
+            font-weight: 700;
+            text-decoration: none;
+            transition: background-color 0.2s ease;
+        }
+
+        .registration-link:hover {
+            background: #5a67d8;
+        }
+
+        .registration-link:focus-visible {
+            outline: 3px solid #2d3748;
+            outline-offset: 3px;
+        }
+
         .flash-success {
             font-size: 26px;
             font-weight: 700;
@@ -185,6 +207,7 @@
 
         <h1 class="message">شكراً لحسن تعاونكم</h1>
         <h2 class="sub-message">بوابة تسجيل الأيتام والمستفيدين</h2>
+        <a class="registration-link" href="{{ url('/') }}">الانتقال إلى صفحة التسجيل الرئيسية</a>
 
         @if(session('success'))
             <div class="flash-success">{{ session('success') }}</div>
