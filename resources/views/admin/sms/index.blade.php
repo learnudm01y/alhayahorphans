@@ -22,6 +22,9 @@
             <a href="{{ route('admin.sms.templates.index') }}" class="btn btn-outline-secondary btn-sm">القوالب</a>
             <a href="{{ route('admin.sms.groups.index') }}" class="btn btn-outline-secondary btn-sm">المجموعات</a>
             <a href="{{ route('admin.sms.logs') }}" class="btn btn-outline-secondary btn-sm">السجل</a>
+            @if($canManageSettings ?? false)
+                <a href="{{ route('admin.sms.settings') }}" class="btn btn-outline-secondary btn-sm">الإعدادات</a>
+            @endif
         </div>
     </div>
 
@@ -131,6 +134,7 @@ $smsRoutes = [
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const routes = {!! json_encode($smsRoutes, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!};
+    const confirmBulk = @json((bool) $confirmBulk);   // من إعدادات الرسائل
     const csrf = document.querySelector('meta[name="csrf-token"]').content;
     const $ = id => document.getElementById(id);
     let xlToken = null;
@@ -167,6 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const busy = (btn, on) => { btn.disabled = on; };
 
     async function confirmAction(text) {
+        if (!confirmBulk) return true;   // التأكيد معطّل من الإعدادات
         if (typeof Swal !== 'undefined') {
             const r = await Swal.fire({
                 icon: 'question',

@@ -113,7 +113,7 @@ document.addEventListener('DOMContentLoaded', function () {
     };
     const DEFAULT_MESSAGE = 'تحديث بيانات اليتيم\nاليتيم: {name}\nنرجو تحديث البيانات من خلال الرابط السريع:\n{link}';
 
-    let composer = null;                       // {templates, senders}
+    let composer = null;                       // {templates, senders, default_sender}
     let current = { id: null, name: '', link: '', file: '', phone: '' };
     let sending = false;
 
@@ -171,6 +171,9 @@ document.addEventListener('DOMContentLoaded', function () {
         sel.innerHTML = '';
         const senders = (composer && composer.senders) || [];
         senders.forEach(s => sel.add(new Option(s, s)));
+        // تحديد المرسل الافتراضي من الإعدادات إن وجد ضمن القائمة
+        const def = composer && composer.default_sender;
+        if (def && senders.includes(def)) sel.value = def;
         $('smsq-sender-hint').classList.toggle('d-none', senders.length > 0);
         $('smsq-send').disabled = senders.length === 0;
     }

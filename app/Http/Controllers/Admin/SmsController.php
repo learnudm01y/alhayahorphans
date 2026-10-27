@@ -7,6 +7,7 @@ use App\Imports\SmsRowsImport;
 use App\Jobs\SendBulkSmsJob;
 use App\Models\SmsGroup;
 use App\Models\SmsLog;
+use App\Models\SmsSetting;
 use App\Models\SmsTemplate;
 use App\Services\NsmsClient;
 use Illuminate\Http\JsonResponse;
@@ -31,6 +32,9 @@ class SmsController extends Controller
             'groups'    => SmsGroup::orderBy('name')->get(),
             'senders'   => $this->senders(),
             'credits'   => $this->sms->credits(),
+            'defaultSender' => SmsSetting::defaultSender(),
+            'confirmBulk'   => SmsSetting::enabled('confirm_bulk', true),
+            'canManageSettings' => auth()->user()?->can('إدارة إعدادات الرسائل') ?? false,
         ]);
     }
 
@@ -51,6 +55,7 @@ class SmsController extends Controller
                 ->orderBy('title')
                 ->get(['id', 'title', 'body']),
             'senders' => $this->senders(),
+            'default_sender' => SmsSetting::defaultSender(),
         ]);
     }
 

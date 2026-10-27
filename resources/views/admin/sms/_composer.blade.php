@@ -3,7 +3,9 @@
     <div class="col-md-4">
         <label class="form-label">اسم المرسل</label>
         <select class="form-select" id="{{ $id }}-sender">
-            @foreach($senders as $s) <option value="{{ $s }}">{{ $s }}</option> @endforeach
+            @foreach($senders as $s)
+                <option value="{{ $s }}" @selected($s === ($defaultSender ?? null))>{{ $s }}</option>
+            @endforeach
         </select>
     </div>
     <div class="col-md-8">

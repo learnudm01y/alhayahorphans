@@ -47,6 +47,7 @@ use App\Http\Controllers\CivilRegistrySearchController;
 use App\Http\Controllers\Admin\CivilRegistryController;
 use App\Http\Controllers\Admin\SmsController;
 use App\Http\Controllers\Admin\SmsGroupController;
+use App\Http\Controllers\Admin\SmsSettingsController;
 use App\Http\Controllers\Admin\SmsTemplateController;
 use App\Http\Controllers\Admin\WhatsAppApplicationsController;
 use App\Http\Controllers\Admin\WhatsAppKnowledgeController;
@@ -670,6 +671,14 @@ Route::group(['prefix' => 'admin/sms', 'as' => 'admin.sms.'], function () {
     Route::get('logs', [SmsController::class, 'logs'])
         ->middleware('permission:عرض قسم الرسائل النصية|عرض سجل الرسائل')
         ->name('logs');
+
+    Route::get('settings', [SmsSettingsController::class, 'index'])
+        ->middleware('permission:إدارة إعدادات الرسائل')
+        ->name('settings');
+
+    Route::post('settings', [SmsSettingsController::class, 'update'])
+        ->middleware('permission:إدارة إعدادات الرسائل')
+        ->name('settings.update');
 
     Route::post('single', [SmsController::class, 'single'])
         ->middleware('permission:إرسال رسائل نصية')

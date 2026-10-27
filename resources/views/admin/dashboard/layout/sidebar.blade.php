@@ -79,6 +79,7 @@
             'إدارة قوالب الرسائل',
             'إدارة مجموعات الأرقام',
             'عرض سجل الرسائل',
+            'إدارة إعدادات الرسائل',
         ];
 
         $whatsappSectionPermissions = [
@@ -811,6 +812,16 @@
             </a>
         </div>
         @endcanany
+        @can('إدارة إعدادات الرسائل')
+        <div class="menu-item">
+            <a class="menu-link" href="{{ route('admin.sms.settings') }}">
+                <span class="menu-icon">
+                    <i class="fas fa-cog"></i>
+                </span>
+                <span class="menu-title"> إعدادات الرسائل </span>
+            </a>
+        </div>
+        @endcan
         <!--end:Menu item-->
         <!--begin:Menu item-->
         @canany($whatsappSectionPermissions)
