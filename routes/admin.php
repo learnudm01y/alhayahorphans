@@ -215,6 +215,9 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::get('sponsorships/sponsored', [SponsorshipController::class, 'sponsored'])
         ->middleware('permission:عرض قسم الكفالات|عرض المكفولين')
         ->name('sponsorships.sponsored');
+    Route::get('sponsorships/{id}/data-form', [SponsorshipController::class, 'downloadDataForm'])
+        ->middleware('permission:عرض قسم الكفالات|عرض المكفولين')
+        ->name('sponsorships.data-form');
     Route::get('sponsorships/unsponsored', [SponsorshipController::class, 'unsponsored'])
         ->middleware('permission:عرض قسم الكفالات|عرض غير المكفولين')
         ->name('sponsorships.unsponsored');

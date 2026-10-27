@@ -1,380 +1,602 @@
-<!DOCTYPE html>
-<html dir="rtl">
-<head>
-<meta charset="UTF-8">
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
-<style>
-@page {
-    margin: 2cm;
-}
-/* تضمين خط Cairo للعربية */
-@font-face {
-    font-family: 'Cairo';
-    src: url('file:///{{ str_replace("\\", "/", public_path("fonts/Cairo-Regular.ttf")) }}') format('truetype');
-    font-weight: normal;
-    font-style: normal;
-}
-@font-face {
-    font-family: 'Cairo';
-    src: url('file:///{{ str_replace("\\", "/", public_path("fonts/Cairo-Bold.ttf")) }}') format('truetype');
-    font-weight: bold;
-    font-style: normal;
-}
-/* استخدام خط Cairo للعربية */
-body {
-    font-family: 'Cairo', Arial, sans-serif;
-    font-size: 14pt;
-    direction: rtl;
-    text-align: right;
-    line-height: 1.6;
-}
-h1 {
-    font-family: 'Cairo', Arial, sans-serif;
-    text-align: center;
-    color: #003366;
-    font-size: 20pt;
-    font-weight: bold;
-    border-bottom: 2px solid #003366;
-    padding-bottom: 10px;
-    margin-bottom: 20px;
-}
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 15px;
-}
-td, th {
-    font-family: 'Cairo', Arial, sans-serif;
-    border: 1px solid #cccccc;
-    padding: 8px;
-    text-align: center;
-    vertical-align: top;
-}
-.header-blue {
-    background-color: #0d47a1;
-    color: #ffffff;
-    font-weight: bold;
-    font-size: 11pt;
-    padding: 8px;
-}
-.header-pink {
-    background-color: #E83E8C;
-    color: #ffffff;
-    font-weight: bold;
-    font-size: 11pt;
-    padding: 8px;
-}
-.header-black {
-    background-color: #000000;
-    color: #ffffff;
-    font-weight: bold;
-    font-size: 11pt;
-    padding: 8px;
-}
-.header-gray {
-    background-color: #6c757d;
-    color: #ffffff;
-    font-weight: bold;
-    font-size: 11pt;
-    padding: 8px;
-}
-.header-dark {
-    background-color: #003366;
-    color: #ffffff;
-    font-weight: bold;
-    font-size: 11pt;
-    padding: 8px;
-    width: 180px;
-}
-.content {
-    background-color: #ffffff;
-    font-size: 12pt;
-    padding: 10px;
-}
-.content-right {
-    background-color: #ffffff;
-    font-size: 12pt;
-    padding: 10px;
-    text-align: right;
-}
-</style>
-</head>
-<body>
-
-<h1>تقرير بيانات</h1>
-
 @php
-    $visibleFields = $visible_fields ?? [];
+    $reportGroups = $form_field_groups ?? [];
+    $sections = [
+        'basic' => [],
+        'father' => [],
+        'mother' => [],
+        'guardian' => [],
+        'housing' => [],
+        'education' => [],
+        'health' => [],
+        'religion' => [],
+        'needs' => [],
+        'impact' => [],
+        'additional' => [],
+    ];
+    $sectionColors = [
+        'basic' => 'header-blue',
+        'father' => 'header-pink',
+        'mother' => 'header-pink',
+        'guardian' => 'header-black',
+        'housing' => 'header-blue',
+        'education' => 'header-blue',
+        'health' => 'header-blue',
+        'religion' => 'header-blue',
+        'needs' => 'header-blue',
+        'impact' => 'header-dark',
+        'additional' => 'header-dark',
+    ];
+    $sectionColorAssigned = [];
+    $renderedFieldValues = [];
 
-    $isFieldEnabled = function (string $fieldKey) use ($visibleFields) {
-        return !array_key_exists($fieldKey, $visibleFields) || (bool) $visibleFields[$fieldKey];
-    };
-
-    $normalize = function ($value) {
-        if ($value === null) {
-            return null;
+    foreach ($reportGroups as $group) {
+        $categoryId = (string) ($group['category_id'] ?? '');
+        $headerClass = $group['header_class'] ?? 'header-dark';
+        if ($categoryId === 'name_parts') {
+            continue;
         }
 
-        if (is_string($value)) {
-            $trimmed = trim($value);
-            $invalid = ['(/)', '/|\\', '/', '\\', '-', 'غير متوفر', 'null', 'NULL', 'N/A', ''];
-            return in_array($trimmed, $invalid, true) ? null : $trimmed;
-        }
+        foreach (($group['fields'] ?? []) as $field) {
+            $field['header_class'] = $headerClass;
+            $label = (string) ($field['label'] ?? '');
+            $fieldValue = $field['value'] ?? null;
+            if (is_array($fieldValue)) {
+                $comparisonValue = implode('، ', array_map(function ($item) {
+                    return is_scalar($item) ? trim((string) $item) : '';
+                }, $fieldValue));
+            } else {
+                $comparisonValue = is_scalar($fieldValue) ? trim((string) $fieldValue) : '';
+            }
+            $comparisonLabel = preg_replace('/\s+/u', ' ', trim($label));
 
-        return $value;
-    };
+            if ($comparisonLabel !== '' && $comparisonValue !== '') {
+                $fieldFingerprint = $comparisonLabel . "\0" . $comparisonValue;
+                if (isset($renderedFieldValues[$fieldFingerprint])) {
+                    continue;
+                }
+                $renderedFieldValues[$fieldFingerprint] = true;
+            }
 
-    $filterColumns = function (array $columns) use ($normalize) {
-        $result = [];
-        foreach ($columns as $column) {
-            $value = $normalize($column['value'] ?? null);
-            if ($value !== null) {
-                $column['value'] = $value;
-                $result[] = $column;
+            $target = 'additional';
+
+            if (str_contains($label, 'طموح')) {
+                $target = 'needs';
+            } elseif ($categoryId === '1') {
+                $target = 'basic';
+            } elseif (in_array($categoryId, ['8', '13', '16'], true)) {
+                $target = 'guardian';
+            } elseif ($categoryId === '13.5') {
+                $target = 'mother';
+            } elseif ($categoryId === '14') {
+                if (str_contains($label, 'الأب')) {
+                    $target = 'father';
+                } elseif (str_contains($label, 'الأم')) {
+                    $target = 'mother';
+                }
+            } elseif ($categoryId === '2') {
+                $target = 'housing';
+            } elseif ($categoryId === '3') {
+                $target = 'education';
+            } elseif (in_array($categoryId, ['4', '6'], true)) {
+                $target = 'health';
+            } elseif ($categoryId === '5') {
+                $target = 'religion';
+            } elseif ($categoryId === '7') {
+                $target = 'needs';
+            } elseif ($categoryId === '10') {
+                $target = 'impact';
+            }
+
+            $sections[$target][] = $field;
+            if (!isset($sectionColorAssigned[$target])) {
+                $sectionColors[$target] = $headerClass;
+                $sectionColorAssigned[$target] = true;
             }
         }
-        return $result;
+    }
+
+    $sortFields = function (array $fields, bool $housing = false): array {
+        $decorated = [];
+        foreach ($fields as $index => $field) {
+            $label = trim((string) ($field['label'] ?? ''));
+            if ($housing) {
+                if (str_contains($label, 'المدينة')) {
+                    $priority = 0;
+                } elseif (str_contains($label, 'عنوان')) {
+                    $priority = 1;
+                } else {
+                    $priority = 2;
+                }
+            } elseif (preg_match('/^(?:الاسم|اسم|إسم)/u', $label) === 1) {
+                $priority = 0;
+            } elseif (str_contains($label, 'هوية')) {
+                $priority = 1;
+            } elseif (str_contains($label, 'تاريخ')) {
+                $priority = 2;
+            } else {
+                $priority = 3;
+            }
+
+            $decorated[] = [
+                'field' => $field,
+                'priority' => $priority,
+                'index' => $index,
+            ];
+        }
+
+        usort($decorated, function ($left, $right) {
+            return ($left['priority'] <=> $right['priority'])
+                ?: ($left['index'] <=> $right['index']);
+        });
+
+        return array_column($decorated, 'field');
+    };
+    foreach ($sections as $sectionKey => $fields) {
+        $sections[$sectionKey] = $sortFields($fields, $sectionKey === 'housing');
+    }
+    $ambitionFields = [];
+    $sections['needs'] = array_values(array_filter($sections['needs'], function ($field) use (&$ambitionFields) {
+        if (str_contains((string) ($field['label'] ?? ''), 'طموح')) {
+            $ambitionFields[] = $field;
+            return false;
+        }
+
+        return true;
+    }));
+    $sections['needs'] = array_merge($sections['needs'], $ambitionFields);
+
+    $valueToText = function ($value) {
+        if (is_array($value)) {
+            return implode('، ', array_map(function ($item) {
+                return is_scalar($item) ? (string) $item : '';
+            }, $value));
+        }
+
+        return is_scalar($value) ? (string) $value : '';
+    };
+    $makeRows = function (array $fields, int $columns) use ($valueToText) {
+        $rows = [];
+        $shortFields = [];
+
+        foreach ($fields as $field) {
+            $text = $valueToText($field['value'] ?? null);
+            if (\Illuminate\Support\Str::length($text) > 60 || str_contains((string) ($field['label'] ?? ''), 'طموح')) {
+                if ($shortFields) {
+                    $rows[] = ['fields' => $shortFields, 'long' => false];
+                    $shortFields = [];
+                }
+                $rows[] = ['fields' => [$field], 'long' => true];
+                continue;
+            }
+
+            $shortFields[] = $field;
+            if (count($shortFields) === $columns) {
+                $rows[] = ['fields' => $shortFields, 'long' => false];
+                $shortFields = [];
+            }
+        }
+
+        if ($shortFields) {
+            $rows[] = ['fields' => $shortFields, 'long' => false];
+        }
+
+        foreach ($rows as &$row) {
+            $spanTotal = $columns === 6 ? 12 : 2;
+            $fieldCount = count($row['fields']);
+            $baseSpan = intdiv($spanTotal, $fieldCount);
+            $extraSpans = $spanTotal % $fieldCount;
+            $row['spans'] = [];
+            for ($index = 0; $index < $fieldCount; $index++) {
+                $row['spans'][] = $row['long'] ? $spanTotal : $baseSpan + ($index < $extraSpans ? 1 : 0);
+            }
+        }
+        unset($row);
+
+        return $rows;
+    };
+    $isLtrLabel = function ($label) {
+        return preg_match('/(هوية|الهويه|الهاتف|الجوال|تاريخ|رقم|iban)/iu', (string) $label) === 1;
     };
 
-    $normalizedSponsorshipImpact = $normalize($sponsorship_impact ?? null);
-    $normalizedFamilyEvents = $normalize($family_events ?? null);
-    $normalizedTimestamp = $normalize($timestamp ?? null);
+    $familyMembersVisible = $visible_fields['field_family_members_section'] ?? true;
+    $hasOrphanPhoto = !empty($orphan_photo)
+        && !empty($orphan_photo['file_exists'])
+        && !empty($orphan_photo['is_image']);
+
+    $familyBlocks = [
+        ['title' => 'الأب المتوفى', 'key' => 'father'],
+    ];
+    if (count($sections['mother'])) {
+        $familyBlocks[] = ['title' => 'الأم', 'key' => 'mother'];
+    }
+    $familyBlocks[] = ['title' => 'المعيل', 'key' => 'guardian'];
+    $familyBlockWidth = 100 / count($familyBlocks);
+
+    $contentWeight = 0;
+    foreach ($sections as $sectionKey => $fields) {
+        if (in_array($sectionKey, ['father', 'mother', 'guardian'], true)) {
+            continue;
+        }
+
+        $contentWeight += count($makeRows($fields, 6));
+        foreach ($fields as $field) {
+            $textLength = \Illuminate\Support\Str::length($valueToText($field['value'] ?? null));
+            if ($textLength > 60) {
+                $contentWeight += max(0, ceil($textLength / 90) - 1);
+            }
+        }
+    }
+    foreach ($familyBlocks as $block) {
+        $blockFields = $sections[$block['key']];
+        $contentWeight += count($makeRows($blockFields, 2));
+        foreach ($blockFields as $field) {
+            $textLength = \Illuminate\Support\Str::length($valueToText($field['value'] ?? null));
+            if ($textLength > 60) {
+                $contentWeight += max(0, ceil($textLength / 35) - 1);
+            }
+        }
+    }
+    if ($familyMembersVisible) {
+        $contentWeight += count($family_members ?? []);
+    }
+    $reportSize = $contentWeight <= 34 ? 'lg' : ($contentWeight <= 58 ? 'md' : 'sm');
 @endphp
 
-<!-- الصف الأول: معلومات أساسية مع صورة المكفول -->
-@php
-    $basicColumns = $filterColumns([
-        ['label' => 'رقم الملف', 'value' => $isFieldEnabled('field_external_file_number') ? ($file_number ?? null) : null],
-        ['label' => 'اسم المكفول', 'value' => $isFieldEnabled('field_sponsor_name') ? ($orphan_name ?? null) : null],
-        ['label' => 'رقم الجوال', 'value' => $isFieldEnabled('field_phone') ? ($phone_number ?? null) : null],
-        ['label' => 'حالة السكن السابق', 'value' => $isFieldEnabled('field_housing_status') ? ($housing_status ?? null) : null],
-        ['label' => 'نوع السكن', 'value' => $isFieldEnabled('field_housing_type') ? ($housing_type ?? null) : null],
-        ['label' => 'المدينة', 'value' => $isFieldEnabled('field_data_city') ? ($city ?? null) : null],
-    ]);
-@endphp
-@if(count($basicColumns) > 0)
-<table>
-<tr>
-@foreach($basicColumns as $column)
-<td class="header-blue">{{ $column['label'] }}</td>
-@endforeach
-@if(!empty($orphan_photo) && $orphan_photo['file_exists'])
-<td class="header-blue" rowspan="2" style="width: 120px; text-align: center;">الصورة الشخصية</td>
-@endif
-</tr>
-<tr>
-@foreach($basicColumns as $column)
-<td class="content">{{ $column['value'] }}</td>
-@endforeach
-@if(!empty($orphan_photo) && $orphan_photo['file_exists'])
-<td class="content" style="text-align: center; padding: 5px; vertical-align: middle;">
-    <img src="file://{{ str_replace('\\', '/', $orphan_photo['file_path']) }}"
-         style="max-width: 100px; max-height: 120px; border: 2px solid #0d6efd; border-radius: 5px;" />
-</td>
-@endif
-</tr>
-</table>
-@endif
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @font-face {
+            font-family: 'Cairo';
+            src: url('file:///{{ str_replace("\\", "/", public_path("fonts/Cairo-Regular.ttf")) }}') format('truetype');
+            font-weight: normal;
+        }
+        @font-face {
+            font-family: 'Cairo';
+            src: url('file:///{{ str_replace("\\", "/", public_path("fonts/Cairo-Bold.ttf")) }}') format('truetype');
+            font-weight: bold;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            direction: rtl;
+            font-family: 'Cairo', sans-serif;
+            font-size: 9pt;
+            line-height: 1.35;
+            color: #222;
+            margin: 0;
+            padding: 0;
+        }
+        body.size-lg {
+            font-size: 10.5pt;
+            line-height: 1.4;
+        }
+        body.size-md {
+            font-size: 9.75pt;
+            line-height: 1.37;
+        }
+        body.size-sm {
+            font-size: 9pt;
+            line-height: 1.35;
+        }
+        table {
+            width: 100%;
+            table-layout: fixed;
+            border-collapse: collapse;
+            page-break-inside: auto;
+        }
+        tr, td, th, .report-section, .family-block, .field-box {
+            page-break-inside: avoid;
+        }
+        .report-header {
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 2px;
+        }
+        .report-header.with-photo {
+            height: 30mm;
+        }
+        .report-header.no-photo {
+            height: 10mm;
+        }
+        .report-title {
+            position: absolute;
+            top: 3mm;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 15pt;
+            line-height: 1.2;
+            margin: 0;
+            font-weight: bold;
+        }
+        body.size-lg .report-title { font-size: 18pt; }
+        body.size-md .report-title { font-size: 16pt; }
+        .header-photo {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 23mm;
+            height: 29mm;
+            overflow: hidden;
+            border: 1px solid #cbd2d8;
+            border-radius: 3px;
+            text-align: center;
+            line-height: 29mm;
+        }
+        .header-photo img {
+            max-width: 23mm;
+            max-height: 29mm;
+            vertical-align: middle;
+        }
+        .report-section {
+            margin: 0 0 4px;
+        }
+        .section-title {
+            font-size: 11pt;
+            line-height: 1.2;
+            padding: 2px 5px;
+            margin: 0;
+            color: #fff;
+            font-weight: bold;
+            -webkit-print-color-adjust: exact;
+        }
+        body.size-lg .section-title { font-size: 13pt; padding: 4px 6px; }
+        body.size-md .section-title { font-size: 12pt; padding: 3px 5px; }
+        .header-blue { background-color: #2878a5; }
+        .header-pink { background-color: #bd6578; }
+        .header-black { background-color: #333; }
+        .header-gray { background-color: #777; }
+        .header-dark { background-color: #4b5963; }
+        .fields-table {
+            margin: 0;
+        }
+        .fields-table td {
+            border: 1px solid #d5d9dc;
+            padding: 2px 3px;
+            vertical-align: top;
+            overflow-wrap: break-word;
+        }
+        body.size-lg .fields-table td { padding: 4px 5px; }
+        body.size-md .fields-table td { padding: 3px 4px; }
+        .field-label {
+            display: block;
+            color: #555;
+            font-size: 9pt;
+            line-height: 1.2;
+        }
+        body.size-lg .field-label { font-size: 9.5pt; }
+        body.size-md .field-label { font-size: 9.25pt; }
+        .field-value {
+            display: block;
+            font-size: 9.5pt;
+            line-height: 1.3;
+            white-space: pre-wrap;
+            overflow-wrap: break-word;
+        }
+        body.size-lg .field-value { font-size: 11.25pt; line-height: 1.35; }
+        body.size-md .field-value { font-size: 10.25pt; line-height: 1.33; }
+        .muted {
+            color: #999;
+        }
+        .family-table {
+            margin: 0;
+            table-layout: fixed;
+        }
+        .family-table > tbody > tr > td {
+            padding: 0 2px;
+            vertical-align: top;
+        }
+        .family-block {
+            border: 1px solid #d5d9dc;
+        }
+        .family-block-title {
+            color: #fff;
+            font-size: 9pt;
+            padding: 2px 4px;
+            font-weight: bold;
+            -webkit-print-color-adjust: exact;
+        }
+        body.size-lg .family-block-title { font-size: 10.5pt; padding: 4px 5px; }
+        body.size-md .family-block-title { font-size: 9.75pt; padding: 3px 4px; }
+        .family-fields td {
+            border: 1px solid #e0e3e5;
+            padding: 2px;
+            vertical-align: top;
+            overflow-wrap: break-word;
+        }
+        body.size-lg .family-fields td { padding: 3px; }
+        body.size-md .family-fields td { padding: 2px 3px; }
+        .family-fields .field-label {
+            font-size: 8.5pt;
+        }
+        body.size-lg .family-fields .field-label { font-size: 9.5pt; }
+        body.size-md .family-fields .field-label { font-size: 9pt; }
+        .family-fields .field-value {
+            font-size: 8.5pt;
+        }
+        body.size-lg .family-fields .field-value { font-size: 11.25pt; line-height: 1.3; }
+        body.size-md .family-fields .field-value { font-size: 10.25pt; line-height: 1.3; }
+        .members-table {
+            width: 100%;
+            table-layout: fixed;
+            font-size: 6.5pt;
+            line-height: 1.2;
+        }
+        .members-table th, .members-table td {
+            border: 1px solid #bfc5c9;
+            padding: 1px 2px;
+            vertical-align: top;
+            overflow-wrap: break-word;
+        }
+        .members-table th {
+            background: #e9edf0;
+            font-weight: bold;
+            -webkit-print-color-adjust: exact;
+        }
+        body.size-lg .members-table { font-size: 7.5pt; }
+        body.size-md .members-table { font-size: 7pt; }
+        body.size-lg .members-table th, body.size-lg .members-table td { padding: 2px 3px; }
+        body.size-md .members-table th, body.size-md .members-table td { padding: 1.5px 2px; }
+        .member-identity, .member-date {
+            white-space: nowrap;
+        }
+        .member-name {
+            white-space: normal;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+        }
+        .empty-members {
+            border: 1px solid #d5d9dc;
+            padding: 3px 5px;
+            color: #888;
+            font-size: 8.5pt;
+        }
+        .ltr {
+            direction: ltr;
+            unicode-bidi: embed;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body class="size-{{ $reportSize }}">
+    <header class="report-header {{ $hasOrphanPhoto ? 'with-photo' : 'no-photo' }}">
+        <h1 class="report-title">تقرير بيانات</h1>
+        @if($hasOrphanPhoto)
+            <div class="header-photo">
+                <img src="file:///{{ str_replace('\\', '/', $orphan_photo['file_path']) }}" alt="">
+            </div>
+        @endif
+    </header>
 
-<!-- الصف الثاني: معلومات المدرسة -->
-@php
-    $schoolColumns = $filterColumns([
-        ['label' => 'عنوان المدرسة', 'value' => $isFieldEnabled('field_school_address') ? ($school_address ?? null) : null],
-        ['label' => 'المرحلة الدراسية', 'value' => $isFieldEnabled('field_grade') ? ($academic_stage ?? null) : null],
-        ['label' => 'مستوى الطالب', 'value' => $isFieldEnabled('field_student_level') ? ($student_level ?? null) : null],
-        ['label' => 'سبب الضعف', 'value' => $isFieldEnabled('field_weakness_reason') ? ($weakness_reason ?? null) : null],
-    ]);
-@endphp
-@if(count($schoolColumns) > 0)
-<table>
-<tr>
-@foreach($schoolColumns as $column)
-<td class="header-blue" style="width:{{ 100 / count($schoolColumns) }}%;">{{ $column['label'] }}</td>
-@endforeach
-</tr>
-<tr>
-@foreach($schoolColumns as $column)
-<td class="content">{{ $column['value'] }}</td>
-@endforeach
-</tr>
-</table>
-@endif
+    @if(count($sections['basic']))
+        <section class="report-section">
+            <h2 class="section-title {{ $sectionColors['basic'] }}">بيانات المكفول</h2>
+            <table class="fields-table"><tbody>
+                @foreach($makeRows($sections['basic'], 6) as $row)
+                    <tr>
+                        @foreach($row['fields'] as $fieldIndex => $field)
+                            @php $text = $valueToText($field['value'] ?? null); @endphp
+                            <td colspan="{{ $row['spans'][$fieldIndex] }}">
+                                <span class="field-label">{{ $field['label'] ?? '' }}</span>
+                                <span class="field-value {{ trim($text) === '' || trim($text) === 'لا يوجد' ? 'muted' : '' }} {{ $isLtrLabel($field['label'] ?? '') ? 'ltr' : '' }}">{{ $text }}</span>
+                            </td>
+                        @endforeach
+                    </tr>
+                @endforeach
+            </tbody></table>
+        </section>
+    @endif
 
-<!-- الصف الثالث: الحالة النفسية والسلوكية -->
-@php
-    $psyColumns = $filterColumns([
-        ['label' => 'الحالة النفسية', 'value' => $isFieldEnabled('field_psychological_state') ? ($psychological_status ?? null) : null],
-        ['label' => 'الحالة السلوكية', 'value' => $isFieldEnabled('field_behavioral_state') ? ($behavioral_status ?? null) : null],
-        ['label' => 'الالتزام الديني', 'value' => $isFieldEnabled('field_religious_commitment') ? ($religious_commitment ?? null) : null],
-        ['label' => 'مقدار حفظه للقرآن', 'value' => $isFieldEnabled('field_quran_memorization') ? ($quran_memorization ?? null) : null],
-    ]);
-@endphp
-@if(count($psyColumns) > 0)
-<table>
-<tr>
-@foreach($psyColumns as $column)
-<td class="header-blue">{{ $column['label'] }}</td>
-@endforeach
-</tr>
-<tr>
-@foreach($psyColumns as $column)
-<td class="content">{{ $column['value'] }}</td>
-@endforeach
-</tr>
-</table>
-@endif
+    @if(count($sections['father']) || count($sections['mother']) || count($sections['guardian']))
+        <section class="report-section">
+            <h2 class="section-title {{ $sectionColors['guardian'] }}">الأسرة</h2>
+            <table class="family-table">
+                <colgroup>
+                    @foreach($familyBlocks as $block)
+                        <col style="width:{{ $familyBlockWidth }}%;">
+                    @endforeach
+                </colgroup>
+                <tbody><tr>
+                @foreach($familyBlocks as $block)
+                    <td>
+                        <div class="family-block">
+                            <div class="family-block-title {{ $sectionColors[$block['key']] }}">{{ $block['title'] }}</div>
+                            @if(count($sections[$block['key']]))
+                                <table class="family-fields"><tbody>
+                                    @foreach($makeRows($sections[$block['key']], 2) as $row)
+                                        <tr>
+                                            @foreach($row['fields'] as $fieldIndex => $field)
+                                                @php $text = $valueToText($field['value'] ?? null); @endphp
+                                                <td colspan="{{ $row['spans'][$fieldIndex] }}">
+                                                    <span class="field-label">{{ $field['label'] ?? '' }}</span>
+                                                    <span class="field-value {{ trim($text) === '' || trim($text) === 'لا يوجد' ? 'muted' : '' }} {{ $isLtrLabel($field['label'] ?? '') ? 'ltr' : '' }}">{{ $text }}</span>
+                                                </td>
+                                            @endforeach
+                                        </tr>
+                                    @endforeach
+                                </tbody></table>
+                            @else
+                                <div class="empty-members">لا توجد بيانات مسجلة</div>
+                            @endif
+                        </div>
+                    </td>
+                @endforeach
+            </tr></tbody></table>
+        </section>
+    @endif
 
-<!-- الصف الرابع: الحالة الصحية والاحتياجات -->
-@php
-    $healthColumns = $filterColumns([
-        ['label' => 'الحالة الصحية لليتيم', 'value' => $isFieldEnabled('field_health_status') ? ($orphan_health_status ?? null) : null],
-        ['label' => 'احتياجات اليتيم', 'value' => $isFieldEnabled('field_orphan_needs') ? ($orphan_needs ?? null) : null],
-        ['label' => 'جوانب الإبداع', 'value' => $isFieldEnabled('field_creativity_aspects') ? ($creativity_aspects ?? null) : null],
-    ]);
-@endphp
-@if(count($healthColumns) > 0)
-<table>
-<tr>
-@foreach($healthColumns as $column)
-<td class="header-blue">{{ $column['label'] }}</td>
-@endforeach
-</tr>
-<tr>
-@foreach($healthColumns as $column)
-<td class="content">{{ $column['value'] }}</td>
-@endforeach
-</tr>
-</table>
-@endif
+    @foreach([
+        ['key' => 'housing', 'title' => 'السكن'],
+        ['key' => 'education', 'title' => 'التعليم'],
+        ['key' => 'health', 'title' => 'الصحة والحالة النفسية والسلوكية'],
+        ['key' => 'religion', 'title' => 'الجانب الديني'],
+        ['key' => 'needs', 'title' => 'الاحتياجات والإبداع والطموح'],
+        ['key' => 'impact', 'title' => 'أثر الكفالة والمتابعة'],
+        ['key' => 'additional', 'title' => 'بيانات إضافية'],
+    ] as $section)
+        @if(count($sections[$section['key']]))
+            <section class="report-section">
+                <h2 class="section-title {{ $sectionColors[$section['key']] }}">{{ $section['title'] }}</h2>
+                <table class="fields-table"><tbody>
+                    @foreach($makeRows($sections[$section['key']], 6) as $row)
+                        <tr>
+                            @foreach($row['fields'] as $fieldIndex => $field)
+                                @php $text = $valueToText($field['value'] ?? null); @endphp
+                                <td colspan="{{ $row['spans'][$fieldIndex] }}">
+                                    <span class="field-label">{{ $field['label'] ?? '' }}</span>
+                                    <span class="field-value {{ trim($text) === '' || trim($text) === 'لا يوجد' ? 'muted' : '' }} {{ $isLtrLabel($field['label'] ?? '') ? 'ltr' : '' }}">{{ $text }}</span>
+                                </td>
+                            @endforeach
+                        </tr>
+                    @endforeach
+                </tbody></table>
+            </section>
+        @endif
+    @endforeach
 
-<!-- قسم الأم - يظهر فقط إذا كانت الأم ليست المعيل -->
-@php
-    $isMotherNameEnabled = $isFieldEnabled('field_mother_first_name') || $isFieldEnabled('field_living_mother_first_name');
-    $isMotherIdEnabled = $isFieldEnabled('field_mother_id') || $isFieldEnabled('field_living_mother_id');
-    $isMotherStatusEnabled = $isFieldEnabled('field_mother_status');
-
-    $motherColumns = $filterColumns([
-        ['label' => 'اسم الأم', 'value' => $isMotherNameEnabled ? ($mother_name ?? null) : null],
-        ['label' => 'رقم الهوية', 'value' => $isMotherIdEnabled ? ($mother_id ?? null) : null],
-        ['label' => 'هل الأم على قيد الحياة', 'value' => $isMotherStatusEnabled ? ($mother_alive ?? null) : null],
-    ]);
-@endphp
-@if(count($motherColumns) > 0)
-<table>
-<tr>
-@foreach($motherColumns as $column)
-<td class="header-pink" style="width:{{ 100 / count($motherColumns) }}%;">{{ $column['label'] }}</td>
-@endforeach
-</tr>
-<tr>
-@foreach($motherColumns as $column)
-<td class="content" style="width:{{ 100 / count($motherColumns) }}%;">{{ $column['value'] }}</td>
-@endforeach
-</tr>
-</table>
-@endif
-
-<!-- قسم المعيل مع الصورة الشخصية -->
-@php
-    $isGuardianNameEnabled =
-        $isFieldEnabled('field_data_first_name') ||
-        $isFieldEnabled('field_data_father_name') ||
-        $isFieldEnabled('field_data_grand_father_name') ||
-        $isFieldEnabled('field_data_family_name') ||
-        $isFieldEnabled('field_re_guardian_name');
-
-    $isGuardianRelationEnabled =
-        $isFieldEnabled('field_data_relationship') ||
-        $isFieldEnabled('field_relationship');
-
-    $isDependentsCountEnabled =
-        $isFieldEnabled('field_dependents_female') ||
-        $isFieldEnabled('field_dependents_male') ||
-        $isFieldEnabled('field_family_members_count');
-
-    $guardianColumns = $filterColumns([
-        ['label' => 'اسم المعيل رباعي', 'value' => $isGuardianNameEnabled ? ($guardian_full_name ?? null) : null],
-        ['label' => 'صلة القرابة', 'value' => $isGuardianRelationEnabled ? ($guardian_relation ?? null) : null],
-        ['label' => 'الحالة الصحية', 'value' => $isFieldEnabled('field_guardian_health') ? ($guardian_health ?? null) : null],
-        ['label' => 'الوظيفة', 'value' => $isFieldEnabled('field_guardian_job') ? ($guardian_job ?? null) : null],
-        ['label' => 'عدد من يعيلهم', 'value' => $isDependentsCountEnabled ? ($dependents_count ?? null) : null],
-    ]);
-@endphp
-@if(count($guardianColumns) > 0)
-<table>
-<tr>
-@foreach($guardianColumns as $column)
-<td class="header-black" style="width:{{ $loop->first ? '35' : ((65 / max(count($guardianColumns)-1,1))) }}%;">{{ $column['label'] }}</td>
-@endforeach
-@if(!empty($guardian_photo) && $guardian_photo['file_exists'])
-<td class="header-black" rowspan="2" style="width: 120px; text-align: center;">الصورة الشخصية</td>
-@endif
-</tr>
-<tr>
-@foreach($guardianColumns as $column)
-<td class="content">{{ $column['value'] }}</td>
-@endforeach
-@if(!empty($guardian_photo) && $guardian_photo['file_exists'])
-<td class="content" style="text-align: center; padding: 5px; vertical-align: middle;">
-    <img src="file://{{ str_replace('\\', '/', $guardian_photo['file_path']) }}"
-         style="max-width: 100px; max-height: 120px; border: 2px solid #000; border-radius: 5px;" />
-</td>
-@endif
-</tr>
-</table>
-@endif
-
-<!-- جدول أفراد الأسرة -->
-@if(($visible_fields['field_family_members_section'] ?? true) && !empty($family_members) && count($family_members) > 0)
-<table>
-<tr>
-<td class="header-gray" style="width:8%;">م</td>
-<td class="header-gray" style="width:35%;">الاسم رباعي</td>
-<td class="header-gray" style="width:19%;">تاريخ الميلاد</td>
-<td class="header-gray" style="width:19%;">مستوى التعليم</td>
-<td class="header-gray" style="width:19%;">الحالة الصحية</td>
-</tr>
-@foreach($family_members as $member)
-<tr>
-<td class="content">{{ $member['index'] }}</td>
-<td class="content">{{ $member['full_name'] }}</td>
-<td class="content">{{ $member['birth_date'] }}</td>
-<td class="content">{{ $member['academic_degree'] }}</td>
-<td class="content">{{ $member['health_status'] }}</td>
-</tr>
-@endforeach
-</table>
-@endif
-
-<!-- تأثير الكفالة على الأيتام -->
-@if(($visible_fields['field_sponsorship_impact'] ?? true) && !empty($normalizedSponsorshipImpact))
-<table>
-<tr>
-<td class="header-dark">تأثير الكفالة على الأيتام</td>
-<td class="content-right">{{ $normalizedSponsorshipImpact }}</td>
-</tr>
-</table>
-@endif
-
-<!-- أهم الأحداث التي مرت بها الأسرة -->
-@if(($visible_fields['field_important_events'] ?? true) && !empty($normalizedFamilyEvents))
-<table>
-<tr>
-<td class="header-dark">اهم الأحداث التي مرت بها الأسرة</td>
-<td class="content-right">{{ $normalizedFamilyEvents }}</td>
-</tr>
-</table>
-@endif
-
-<!-- طابع زمني -->
-@if(($visible_fields['field_data_update_date'] ?? true) && !empty($normalizedTimestamp))
-<table>
-<tr>
-<td class="header-dark">طابع زمني</td>
-<td class="content-right">{{ $normalizedTimestamp }}</td>
-</tr>
-</table>
-@endif
-
+    @if($familyMembersVisible)
+    <section class="report-section">
+        <h2 class="section-title {{ $sectionColors['basic'] }}">أفراد الأسرة</h2>
+        @if(!empty($family_members))
+            <table class="members-table">
+                <colgroup>
+                    <col style="width:4%;">
+                    <col style="width:28%;">
+                    <col style="width:14%;">
+                    <col style="width:13%;">
+                    <col style="width:20%;">
+                    <col style="width:21%;">
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th>م</th>
+                        <th>الاسم</th>
+                        <th>رقم الهوية</th>
+                        <th>تاريخ الميلاد</th>
+                        <th>مستوى التعليم</th>
+                        <th>الحالة الصحية</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($family_members as $member)
+                        <tr>
+                            <td>{{ $member['index'] ?? '' }}</td>
+                            <td class="member-name">{{ $member['full_name'] ?? '' }}</td>
+                            <td class="member-identity"><span class="ltr">{{ $member['person_id'] ?? '' }}</span></td>
+                            <td class="member-date"><span class="ltr">{{ $member['birth_date'] ?? '' }}</span></td>
+                            <td>{{ $member['academic_degree'] ?? '' }}</td>
+                            <td>{{ $member['health_status'] ?? '' }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @else
+            <div class="empty-members">لا يوجد أفراد أسرة مسجلين</div>
+        @endif
+    </section>
+    @endif
 </body>
 </html>

@@ -99,10 +99,10 @@ class GenerateOrphanReportPdf implements ShouldQueue
             $pdfContent = PDF::loadHTML($html)
                 ->setOption('encoding', 'UTF-8')
                 ->setOption('page-size', 'A4')
-                ->setOption('margin-top', '20mm')
-                ->setOption('margin-right', '20mm')
-                ->setOption('margin-bottom', '20mm')
-                ->setOption('margin-left', '20mm')
+                ->setOption('margin-top', '9mm')
+                ->setOption('margin-right', '9mm')
+                ->setOption('margin-bottom', '9mm')
+                ->setOption('margin-left', '9mm')
                 ->setOption('enable-local-file-access', true)
                 ->setOption('no-stop-slow-scripts', true)
                 ->setOption('javascript-delay', '1000')
@@ -733,7 +733,8 @@ class GenerateOrphanReportPdf implements ShouldQueue
         }
 
         // 4. جلب أفراد الأسرة من re_people
-        $data['family_members'] = $this->getFamilyMembers($relationIdNumber, $sponsorship->identity_number);
+        $familyFileIdNumber = $sponsorship->relationData?->file_id_number ?? $relationIdNumber;
+        $data['family_members'] = $this->getFamilyMembers($familyFileIdNumber, $sponsorship->identity_number);
 
         // 5. إذا كان اليتيم نفسه في re_people، جلب بياناته
         $orphanInRePeople = RePeople::where('person_id', $sponsorship->identity_number)->first();
@@ -768,7 +769,7 @@ class GenerateOrphanReportPdf implements ShouldQueue
         }
 
         // إضافة الصور الشخصية للمكفول والمعيل
-        $data['orphan_photo'] = $personalPhotos[$sponsorship->identity_number] ?? null;
+        $data['orphan_photo'] = $this->getLatestPersonalPhoto($sponsorship->identity_number);
         $data['guardian_photo'] = $personalPhotos[$sponsorship->guardian_identity_number] ?? null;
 
         // باقي الوثائق (بدون الصور الشخصية)
@@ -778,6 +779,7 @@ class GenerateOrphanReportPdf implements ShouldQueue
         $fieldSettings = $this->getSponsorFieldSettings($sponsorship);
         $data = $this->applyFieldSettingsAndSanitize($data, $fieldSettings);
         $data['visible_fields'] = $this->buildVisibleFieldMap($fieldSettings);
+        $data['form_field_groups'] = $this->buildFormFieldGroups($sponsorship, $portalFields, $data, $fieldSettings);
 
         Log::info('COLLECT_REPORT_DATA_COMPLETE', [
             'data_fields_filled' => array_filter($data, function($v) { return $v !== self::NOT_AVAILABLE; }),
@@ -815,15 +817,22 @@ class GenerateOrphanReportPdf implements ShouldQueue
             $result[] = [
                 'index' => $index + 1,
                 'person_id' => $member->person_id,
+                'first_name' => $member->first_name,
+                'second_name' => $member->second_name,
+                'third_name' => $member->third_name,
+                'last_name' => $member->last_name,
                 'full_name' => $this->formatFullName(
                     $member->first_name,
                     $member->second_name,
                     $member->third_name,
                     $member->last_name
                 ) ?: $na,
+                'gender' => $member->person_gender == 1 ? 'ذكر' : ($member->person_gender == 2 ? 'أنثى' : ''),
                 'birth_date' => $member->person_birth_date ? date('d/m/Y', strtotime($member->person_birth_date)) : $na,
+                'page_birth_date' => $member->person_birth_date,
                 'academic_degree' => $member->acadimic_degree ?? $na,
-                'health_status' => $this->getHealthStatus($member->person_health_status) ?? $na
+                'health_status' => $this->getHealthStatus($member->person_health_status) ?? $na,
+                'notes' => $member->person_note,
             ];
         }
 
@@ -833,6 +842,560 @@ class GenerateOrphanReportPdf implements ShouldQueue
         ]);
 
         return $result;
+    }
+
+    private function buildFormFieldGroups($sponsorship, $portalFields, array $reportData, ?SponsorFieldSetting $settings): array
+    {
+        $fieldDefinitions = config('sponsor_fields.fields', []);
+        $legacyUnmanagedFields = [
+            'field_re_guardian_name',
+            'field_re_guardian_phone',
+            'field_re_guardian_id',
+            'field_family_members_count',
+            'field_mother_name',
+        ];
+        $hiddenCategoriesForBreadwinner = [1, 3, 4, 5, 7];
+        $fieldValues = $portalFields->mapWithKeys(function ($field) {
+            return [$field->field_key => $field->field_value];
+        })->all();
+
+        $dataRecord = $sponsorship->relationData;
+        if (!$dataRecord && $sponsorship->relation_id_number) {
+            $dataRecord = Data::where('file_id_number', $sponsorship->relation_id_number)->first();
+        }
+
+        $sponsoredPerson = $sponsorship->identity_number
+            ? RePeople::where('person_id', $sponsorship->identity_number)->first()
+            : null;
+        $sponsoredData = $sponsorship->identity_number
+            ? Data::where('data_id_number', $sponsorship->identity_number)->first()
+            : null;
+        $guardianData = ($sponsorship->guardian_identity_number
+            ? Data::where('data_id_number', $sponsorship->guardian_identity_number)->first()
+            : null) ?: $dataRecord;
+        $relationIdNumber = $sponsorship->relationData?->file_id_number
+            ?? $sponsorship->relation_id_number
+            ?? $sponsorship->internal_file_number;
+        $deadPeople = $relationIdNumber
+            ? DeadPepole::where('re_file_id', $relationIdNumber)->first()
+            : null;
+        $bankAccountFileId = $guardianData->file_id_number
+            ?? $deadPeople->re_file_id
+            ?? $relationIdNumber;
+        $approvedBankAccount = $bankAccountFileId
+            ? DB::table('guardian_bank_accounts')
+                ->where('guardian_registration', $bankAccountFileId)
+                ->where('check_account', 1)
+                ->first()
+            : null;
+
+        $fallbackValues = [
+            'field_external_file_number' => $reportData['file_number'] ?? null,
+            'field_internal_file_number' => $reportData['file_number'] ?? null,
+            'field_sponsor_name' => $reportData['orphan_name'] ?? null,
+            'field_identity_number' => $reportData['identity_number'] ?? null,
+            'field_person_birth_date' => $sponsoredPerson->person_birth_date
+                ?? $sponsoredData->data_birth_date
+                ?? $sponsorship->sponsored_birth_date
+                ?? null,
+            'field_data_id_number' => $sponsorship->guardian_identity_number,
+            'field_data_first_name' => $guardianData->data_first_name ?? null,
+            'field_data_father_name' => $guardianData->data_father_name ?? null,
+            'field_data_grand_father_name' => $guardianData->data_grand_father_name ?? null,
+            'field_data_family_name' => $guardianData->data_family_name ?? null,
+            'field_data_birth_date' => $guardianData->data_birth_date ?? null,
+            'field_data_phone_number' => $guardianData->data_phone_number ?? ($reportData['phone_number'] ?? null),
+            'field_data_address' => $guardianData->data_current_address ?? null,
+            'field_data_province' => $reportData['province'] ?? null,
+            'field_data_city' => $reportData['city'] ?? null,
+            'field_housing_status' => $reportData['housing_status'] ?? null,
+            'field_housing_type' => $reportData['housing_type'] ?? null,
+            'field_housing_address_detail' => $guardianData->data_current_address ?? null,
+            'field_school_name' => $reportData['school_name'] ?? null,
+            'field_school_address' => $reportData['school_address'] ?? null,
+            'field_grade' => $reportData['academic_stage'] ?? null,
+            'field_student_level' => $reportData['student_level'] ?? null,
+            'field_weakness_reason' => $reportData['weakness_reason'] ?? null,
+            'field_health_status' => $reportData['orphan_health_status'] ?? null,
+            'field_orphan_needs' => $reportData['orphan_needs'] ?? null,
+            'field_creativity_aspects' => $reportData['creativity_aspects'] ?? null,
+            'field_guardian_health' => $reportData['guardian_health'] ?? null,
+            'field_guardian_job' => $reportData['guardian_job'] ?? null,
+            'field_guardian_relationship' => $reportData['guardian_relation'] ?? null,
+            'field_data_relationship' => $reportData['guardian_relation'] ?? null,
+            'field_sponsorship_impact' => $reportData['sponsorship_impact'] ?? null,
+            'field_important_events' => $reportData['family_events'] ?? null,
+            'field_data_update_date' => $reportData['timestamp'] ?? null,
+            'field_father_id' => $deadPeople->father_id ?? null,
+            'field_father_first_name' => $deadPeople->father_first_name ?? null,
+            'field_father_death_date' => $deadPeople->father_death_date ?? null,
+            'field_father_death_reason' => $this->getDeathReason($deadPeople->father_death_reason ?? null),
+            'field_mother_id' => $deadPeople->mother_id ?? null,
+            'field_mother_first_name' => $deadPeople->mother_first_name ?? null,
+            'field_mother_death_date' => $deadPeople->mother_death_date ?? null,
+            'field_mother_death_reason' => $this->getDeathReason($deadPeople->mother_death_reason ?? null),
+            'field_orphan_first_name' => $sponsoredPerson->first_name ?? null,
+            'field_orphan_second_name' => $sponsoredPerson->second_name ?? null,
+            'field_orphan_third_name' => $sponsoredPerson->third_name ?? null,
+            'field_orphan_last_name' => $sponsoredPerson->last_name ?? null,
+            'field_person_gender' => isset($sponsoredPerson->person_gender)
+                ? ($sponsoredPerson->person_gender == 1 ? 'ذكر' : ($sponsoredPerson->person_gender == 2 ? 'أنثى' : null))
+                : null,
+            'field_person_note' => $sponsoredPerson->person_note ?? null,
+            'field_orphan_name' => $reportData['orphan_name'] ?? null,
+            'field_guardian_name' => $reportData['guardian_full_name'] ?? null,
+            'field_phone' => $reportData['phone_number'] ?? null,
+            'field_orphan_health' => $reportData['orphan_health_status'] ?? null,
+            'field_guardian_account_owner_name' => $approvedBankAccount->re_guardian_name ?? null,
+            'field_guardian_bank_name' => $approvedBankAccount->bank_name ?? null,
+            'field_guardian_id_owner' => $approvedBankAccount->person_owner_identity_number ?? null,
+            'field_guardian_phone_number' => $approvedBankAccount->re_phone_number ?? null,
+            'field_guardian_iban_usd' => $approvedBankAccount->iban_usd ?? null,
+            'field_guardian_iban_shekel' => $approvedBankAccount->iban_shekel ?? null,
+        ];
+
+        if ($guardianData) {
+            $fallbackValues['field_dependents_female'] = $guardianData->data_number_female ?? null;
+            $fallbackValues['field_dependents_male'] = $guardianData->data_number_mail ?? null;
+        }
+
+        if ($deadPeople) {
+            foreach ([
+                'father' => ['father_first_name', 'father_second_name', 'father_third_name', 'father_last_name'],
+                'mother' => ['mother_first_name', 'mother_second_name', 'mother_third_name', 'mother_last_name'],
+            ] as $parent => $columns) {
+                foreach ($columns as $column) {
+                    $fallbackValues['field_' . $column] = $deadPeople->{$column} ?? null;
+                }
+            }
+        }
+
+        $databaseBackedFields = array_fill_keys([
+            'field_sponsor_name',
+            'field_identity_number',
+            'field_person_birth_date',
+            'field_data_id_number',
+            'field_data_first_name',
+            'field_data_father_name',
+            'field_data_grand_father_name',
+            'field_data_family_name',
+            'field_data_birth_date',
+            'field_data_phone_number',
+            'field_data_address',
+            'field_data_province',
+            'field_data_city',
+            'field_housing_status',
+            'field_housing_type',
+            'field_housing_address_detail',
+            'field_health_status',
+            'field_guardian_health',
+            'field_guardian_job',
+            'field_guardian_relationship',
+            'field_data_relationship',
+            'field_father_id',
+            'field_father_first_name',
+            'field_father_second_name',
+            'field_father_third_name',
+            'field_father_last_name',
+            'field_father_death_date',
+            'field_father_death_reason',
+            'field_mother_id',
+            'field_mother_first_name',
+            'field_mother_second_name',
+            'field_mother_third_name',
+            'field_mother_last_name',
+            'field_mother_death_date',
+            'field_mother_death_reason',
+            'field_orphan_first_name',
+            'field_orphan_second_name',
+            'field_orphan_third_name',
+            'field_orphan_last_name',
+            'field_person_gender',
+            'field_person_note',
+            'field_guardian_account_owner_name',
+            'field_guardian_bank_name',
+            'field_guardian_id_owner',
+            'field_guardian_phone_number',
+            'field_guardian_iban_usd',
+            'field_guardian_iban_shekel',
+        ], true);
+
+        $enabledFields = [];
+        foreach ($fieldDefinitions as $fieldKey => $fieldInfo) {
+            if (in_array($fieldKey, $legacyUnmanagedFields, true)) {
+                continue;
+            }
+
+            if (!$sponsorship->sponsor_id) {
+                continue;
+            }
+
+            if ($settings) {
+                $isEnabled = isset($settings->{$fieldKey}) && (int) $settings->{$fieldKey} === 1;
+                if ($fieldKey === 'field_data_relationship') {
+                    $settingsTable = (new SponsorFieldSetting())->getTable();
+                    $hasDataRelationshipColumn = Schema::hasColumn($settingsTable, 'field_data_relationship');
+                    $isEnabled = $hasDataRelationshipColumn
+                        ? (int) ($settings->field_data_relationship ?? 0) === 1
+                        : (int) ($settings->field_relationship ?? 0) === 1;
+                }
+
+                if (!$isEnabled) {
+                    continue;
+                }
+            }
+
+            if (
+                $sponsorship->person_type === 'breadwinner'
+                && in_array($fieldInfo['category_id'] ?? null, $hiddenCategoriesForBreadwinner, true)
+            ) {
+                continue;
+            }
+
+            $enabledFields[] = $fieldInfo;
+        }
+
+        $guardianRelationship = (string) (
+            $fieldValues['field_guardian_relationship']
+            ?? $fieldValues['field_data_relationship']
+            ?? ''
+        );
+        $motherStatus = (string) ($fieldValues['field_mother_status'] ?? '');
+        $motherFields = [
+            'field_mother_id',
+            'field_mother_first_name',
+            'field_mother_second_name',
+            'field_mother_third_name',
+            'field_mother_last_name',
+            'field_mother_death_date',
+            'field_mother_death_reason',
+            'field_living_mother_id',
+            'field_living_mother_first_name',
+            'field_living_mother_second_name',
+            'field_living_mother_third_name',
+            'field_living_mother_last_name',
+        ];
+        $nameValues = $fieldValues['names'] ?? null;
+        if (is_string($nameValues)) {
+            $nameValues = json_decode($nameValues, true);
+        }
+        $nameValues = is_array($nameValues) ? $nameValues : [];
+
+        $groups = [];
+        $enabledFieldKeys = [];
+        foreach ($enabledFields as $field) {
+            $fieldKey = $field['db_column'];
+            if ($fieldKey === 'field_attachments_section') {
+                continue;
+            }
+            if ((string) $guardianRelationship === '1' && in_array($fieldKey, $motherFields, true)) {
+                continue;
+            }
+            if ($fieldKey === 'field_mother_status' && (string) $guardianRelationship === '1') {
+                continue;
+            }
+            if (in_array($fieldKey, ['field_mother_id', 'field_mother_first_name', 'field_mother_death_date', 'field_mother_death_reason'], true) && $motherStatus !== 'متوفية') {
+                continue;
+            }
+            if (str_starts_with($fieldKey, 'field_living_mother_') && $motherStatus !== 'حية') {
+                continue;
+            }
+            if (in_array($fieldKey, ['field_treatment_cost', 'field_orphan_health'], true) && ($fieldValues['field_receives_treatment'] ?? null) !== 'نعم') {
+                continue;
+            }
+            if ($fieldKey === 'field_family_disease_cost' && ($fieldValues['field_family_sick_member'] ?? null) !== 'نعم') {
+                continue;
+            }
+
+            $enabledFieldKeys[] = $fieldKey;
+            $value = $fieldValues[$fieldKey] ?? $fallbackValues[$fieldKey] ?? null;
+            if (isset($databaseBackedFields[$fieldKey]) && array_key_exists($fieldKey, $fallbackValues) && $fallbackValues[$fieldKey] !== null) {
+                $value = $fallbackValues[$fieldKey];
+            }
+            if ($value === self::NOT_AVAILABLE) {
+                $value = '';
+            }
+            if ($fieldKey === 'field_guardian_bank_name' && is_numeric($value)) {
+                $value = DB::table('bank_names')->where('id', $value)->value('description') ?? $value;
+            }
+            if (in_array($fieldKey, ['field_guardian_relationship', 'field_data_relationship'], true) && is_numeric($value)) {
+                $value = $this->getRelation($value) ?? $value;
+            }
+
+            $categoryId = (string) ($field['category_id'] ?? 0);
+            if (!isset($groups[$categoryId])) {
+                $headerClass = in_array($categoryId, ['8', '13'], true)
+                    ? 'header-black'
+                    : (in_array($categoryId, ['14', '15'], true)
+                        ? 'header-pink'
+                        : ($categoryId === '10' ? 'header-dark' : 'header-blue'));
+                $groups[$categoryId] = [
+                    'name' => $field['category'] ?? 'بيانات إضافية',
+                    'header_class' => $headerClass,
+                    'category_id' => $categoryId,
+                    'fields' => [],
+                ];
+            }
+            $groups[$categoryId]['fields'][] = [
+                'field_key' => $fieldKey,
+                'label' => $field['display_name'] ?? $fieldKey,
+                'value' => $value,
+            ];
+        }
+
+        $categoryOrder = [1, 8, 13, 13.5, 14, 15, 16, 2, 3, 4, 5, 6, 7, 9, 10];
+        $categoryOrder = array_map('strval', $categoryOrder);
+        uksort($groups, function ($left, $right) use ($categoryOrder) {
+            $leftOrder = array_search((string) $left, $categoryOrder, true);
+            $rightOrder = array_search((string) $right, $categoryOrder, true);
+            return ($leftOrder === false ? count($categoryOrder) : $leftOrder)
+                <=> ($rightOrder === false ? count($categoryOrder) : $rightOrder);
+        });
+
+        $pickNamePart = function (...$values) {
+            foreach ($values as $value) {
+                if (is_scalar($value) && trim((string) $value) !== '') {
+                    return trim((string) $value);
+                }
+            }
+
+            return null;
+        };
+        $sponsoredNameSource = $sponsoredPerson ?: $sponsoredData;
+        $sponsoredNameColumns = $sponsoredPerson
+            ? ['first_name', 'second_name', 'third_name', 'last_name']
+            : ['data_first_name', 'data_father_name', 'data_grand_father_name', 'data_family_name'];
+        $sponsoredNameFallback = array_map(function ($column) use ($sponsoredNameSource) {
+            return $sponsoredNameSource->{$column} ?? null;
+        }, $sponsoredNameColumns);
+        if ($sponsorship->person_type === 'deceased_father' && $deadPeople) {
+            $sponsoredNameFallback = [
+                $pickNamePart($deadPeople->father_first_name),
+                $pickNamePart($deadPeople->father_second_name),
+                $pickNamePart($deadPeople->father_third_name),
+                $pickNamePart($deadPeople->father_last_name),
+            ];
+        } elseif ($sponsorship->person_type === 'deceased_mother' && $deadPeople) {
+            $sponsoredNameFallback = [
+                $pickNamePart($deadPeople->mother_first_name),
+                $pickNamePart($deadPeople->mother_second_name),
+                $pickNamePart($deadPeople->mother_third_name),
+                $pickNamePart($deadPeople->mother_last_name),
+            ];
+        }
+        foreach (['first_name', 'second_name', 'third_name', 'last_name'] as $index => $part) {
+            if (empty($sponsoredNameFallback[$index]) && !empty($nameValues['sponsored'][$part])) {
+                $sponsoredNameFallback[$index] = $nameValues['sponsored'][$part];
+            }
+        }
+
+        $mergeNameField = function (
+            string $categoryId,
+            array $fieldKeys,
+            string $label,
+            array $fallbackValues = [],
+            bool $useUnlistedFallbacks = false
+        ) use (&$groups): void {
+            if (!isset($groups[$categoryId])) {
+                return;
+            }
+
+            $fields = &$groups[$categoryId]['fields'];
+            $firstIndex = null;
+            $partsByKey = [];
+            foreach ($fields as $index => $field) {
+                $fieldKey = $field['field_key'] ?? null;
+                if (in_array($fieldKey, $fieldKeys, true)) {
+                    $partsByKey[$fieldKey] = $field['value'] ?? null;
+                    if ($firstIndex === null) {
+                        $firstIndex = $index;
+                    }
+                }
+            }
+
+            if ($firstIndex === null) {
+                return;
+            }
+
+            $nameParts = [];
+            foreach ($fieldKeys as $index => $fieldKey) {
+                $value = $partsByKey[$fieldKey] ?? null;
+                if ((!is_scalar($value) || trim((string) $value) === '')
+                    && (array_key_exists($fieldKey, $partsByKey) || $useUnlistedFallbacks)) {
+                    $value = $fallbackValues[$index] ?? null;
+                }
+                if (is_scalar($value) && trim((string) $value) !== '') {
+                    $nameParts[] = trim((string) $value);
+                }
+            }
+
+            $mergedField = [
+                'field_key' => $fieldKeys[0],
+                'label' => $label,
+                'value' => implode(' ', $nameParts),
+            ];
+            $newFields = [];
+            foreach ($fields as $index => $field) {
+                if ($index === $firstIndex) {
+                    $newFields[] = $mergedField;
+                }
+                if (!in_array($field['field_key'] ?? null, $fieldKeys, true)) {
+                    $newFields[] = $field;
+                }
+            }
+            $fields = $newFields;
+            unset($fields);
+        };
+
+        $mergeNameField('13', [
+            'field_data_first_name',
+            'field_data_father_name',
+            'field_data_grand_father_name',
+            'field_data_family_name',
+        ], 'الاسم الكامل - المعيل', [
+            $guardianData->data_first_name ?? null,
+            $guardianData->data_father_name ?? null,
+            $guardianData->data_grand_father_name ?? null,
+            $guardianData->data_family_name ?? null,
+        ]);
+        $mergeNameField('13.5', [
+            'field_living_mother_first_name',
+            'field_living_mother_second_name',
+            'field_living_mother_third_name',
+            'field_living_mother_last_name',
+        ], 'الاسم الكامل - الأم', [
+            $nameValues['mother']['first_name'] ?? null,
+            $nameValues['mother']['second_name'] ?? null,
+            $nameValues['mother']['third_name'] ?? null,
+            $nameValues['mother']['last_name'] ?? null,
+        ]);
+        $mergeNameField('14', [
+            'field_father_first_name',
+            'field_father_second_name',
+            'field_father_third_name',
+            'field_father_last_name',
+        ], 'الاسم الكامل - الأب المتوفى', [
+            $pickNamePart($deadPeople->father_first_name ?? null, $nameValues['father']['first_name'] ?? null, $fieldValues['field_father_first_name'] ?? null),
+            $pickNamePart($deadPeople->father_second_name ?? null, $nameValues['father']['second_name'] ?? null, $fieldValues['field_father_second_name'] ?? null),
+            $pickNamePart($deadPeople->father_third_name ?? null, $nameValues['father']['third_name'] ?? null, $fieldValues['field_father_third_name'] ?? null),
+            $pickNamePart($deadPeople->father_last_name ?? null, $nameValues['father']['last_name'] ?? null, $fieldValues['field_father_last_name'] ?? null),
+        ], true);
+        $mergeNameField('14', [
+            'field_mother_first_name',
+            'field_mother_second_name',
+            'field_mother_third_name',
+            'field_mother_last_name',
+        ], 'الاسم الكامل - الأم المتوفية', [
+            $pickNamePart($deadPeople->mother_first_name ?? null, $nameValues['mother']['first_name'] ?? null, $fieldValues['field_mother_first_name'] ?? null),
+            $pickNamePart($deadPeople->mother_second_name ?? null, $nameValues['mother']['second_name'] ?? null, $fieldValues['field_mother_second_name'] ?? null),
+            $pickNamePart($deadPeople->mother_third_name ?? null, $nameValues['mother']['third_name'] ?? null, $fieldValues['field_mother_third_name'] ?? null),
+            $pickNamePart($deadPeople->mother_last_name ?? null, $nameValues['mother']['last_name'] ?? null, $fieldValues['field_mother_last_name'] ?? null),
+        ], true);
+
+        foreach ([
+            ['name_key' => 'field_father_first_name', 'identity_key' => 'field_father_id', 'label' => 'رقم هوية الأب المتوفى'],
+            ['name_key' => 'field_mother_first_name', 'identity_key' => 'field_mother_id', 'label' => 'رقم هوية الأم المتوفية'],
+        ] as $identityField) {
+            foreach ($groups['14']['fields'] ?? [] as $index => $field) {
+                if (($field['field_key'] ?? null) !== $identityField['name_key']) {
+                    continue;
+                }
+
+                $identityExists = false;
+                foreach ($groups['14']['fields'] as $existingField) {
+                    if (($existingField['field_key'] ?? null) === $identityField['identity_key']) {
+                        $identityExists = true;
+                        break;
+                    }
+                }
+                if (!$identityExists) {
+                    array_splice($groups['14']['fields'], $index + 1, 0, [[
+                        'field_key' => $identityField['identity_key'],
+                        'label' => $identityField['label'],
+                        'value' => $fieldValues[$identityField['identity_key']]
+                            ?? $fallbackValues[$identityField['identity_key']]
+                            ?? '',
+                    ]]);
+                }
+                break;
+            }
+        }
+
+        if (isset($groups['1'])) {
+            foreach ($groups['1']['fields'] as &$field) {
+                if (($field['field_key'] ?? null) === 'field_sponsor_name'
+                    && (!is_scalar($field['value'] ?? null) || trim((string) $field['value']) === '')) {
+                    $field['value'] = implode(' ', array_filter(array_map(function ($value) {
+                        return is_scalar($value) ? trim((string) $value) : '';
+                    }, $sponsoredNameFallback), function ($value) {
+                        return $value !== '';
+                    }));
+                }
+            }
+            unset($field);
+        }
+
+        foreach ($groups as &$group) {
+            foreach ($group['fields'] as &$field) {
+                unset($field['field_key']);
+            }
+            unset($field);
+        }
+        unset($group);
+
+        return array_values($groups);
+    }
+
+    private function getLatestPersonalPhoto($identityNumber): ?array
+    {
+        $attachments = Attachment::where('person_identity_number', $identityNumber)
+            ->whereIn('file_type', [12, '12'])
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->get();
+
+        foreach ($attachments as $attachment) {
+            $filePath = $attachment->file_path;
+            if (!$filePath) {
+                continue;
+            }
+
+            if (!str_starts_with($filePath, '/') && !str_starts_with($filePath, 'http')
+                && !preg_match('/^[A-Za-z]:[\\\\\/]/', $filePath)) {
+                if (str_starts_with($filePath, 'storage/')) {
+                    $filePath = storage_path('app/public/' . str_replace('storage/', '', $filePath));
+                } else {
+                    $filePath = public_path($filePath);
+                }
+            }
+
+            $extension = strtolower(pathinfo(parse_url($filePath, PHP_URL_PATH) ?: $filePath, PATHINFO_EXTENSION));
+            if (!file_exists($filePath) || !in_array($extension, ['jpg', 'jpeg', 'png', 'gif'], true)) {
+                continue;
+            }
+
+            Log::info('GenerateOrphanReportPdf: Personal photo selected', [
+                'attachment_id' => $attachment->id,
+            ]);
+
+            return [
+                'id' => $attachment->id,
+                'person_identity' => $attachment->person_identity_number,
+                'person_name' => 'المكفول',
+                'person_type' => 'المكفول',
+                'document_type' => $this->getDocumentTypeName($attachment->file_type),
+                'file_name' => $attachment->stored_file_name ?? basename($filePath),
+                'file_path' => $filePath,
+                'file_exists' => true,
+                'is_personal_photo' => true,
+                'is_image' => true,
+                'created_at' => $attachment->created_at,
+            ];
+        }
+
+        Log::info('GenerateOrphanReportPdf: No valid type 12 personal photo found');
+
+        return null;
     }
 
     // Helper methods

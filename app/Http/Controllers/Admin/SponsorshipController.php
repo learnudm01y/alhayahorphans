@@ -15,11 +15,13 @@ use App\Models\RePeople;
 use App\Models\DeadPepole;
 use App\Models\BankName;
 use App\Models\GuardianBankAccount;
+use App\Models\Attachment;
 use App\Services\BankAccountValidationService;
 use App\Helpers\NameSegmentation; // 🆕 خوارزمية تقسيم الأسماء العربية
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -1478,6 +1480,88 @@ class SponsorshipController extends Controller
             'sponsorshipStatuses',
             'bankNames'
         ));
+    }
+
+    /**
+     * Download the latest generated data form for a sponsored person.
+     */
+    public function downloadDataForm($id)
+    {
+        $sponsorship = Sponsorship::findOrFail($id);
+        $reportIdentity = $sponsorship->relation_id_number ?? $sponsorship->internal_file_number;
+
+        abort_if(!$reportIdentity, 404, 'لا يتوفر رقم ملف لهذا المكفول.');
+
+        $fileNamePrefix = 'orphan_report_' . $reportIdentity . '_';
+        $attachment = Attachment::where('person_identity_number', $reportIdentity)
+            ->where('file_type', 'pdf')
+            ->where('stored_file_name', 'like', $fileNamePrefix . '%')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->first();
+
+        abort_if(!$attachment, 404, 'لم يتم إنشاء استمارة بيانات PDF لهذا المكفول بعد.');
+
+        $filePath = (string) $attachment->file_path;
+        $expectedPath = 'storage/uploads/' . $reportIdentity . '/' . $attachment->stored_file_name;
+        abort_unless($filePath === $expectedPath, 404, 'مسار استمارة البيانات غير صالح.');
+
+        $storagePath = substr($expectedPath, strlen('storage/'));
+        abort_unless(Storage::disk('public')->exists($storagePath), 404, 'ملف استمارة البيانات غير موجود.');
+
+        $sponsor = $sponsorship->sponsor;
+        if (!$sponsor) {
+            Log::warning('Data form Google Drive upload skipped - sponsor not found', [
+                'sponsorship_id' => $sponsorship->id,
+            ]);
+        } elseif (!$sponsor->google_drive_enabled) {
+            Log::info('Data form Google Drive upload skipped - not enabled for sponsor', [
+                'sponsor_id' => $sponsor->id,
+                'google_drive_enabled' => $sponsor->google_drive_enabled,
+            ]);
+        } else {
+            $rclonePath = config('services.rclone.path', env('RCLONE_PATH'));
+            $rcloneRemote = config('services.rclone.remote_name', env('RCLONE_REMOTE_NAME'));
+
+            if (!$rclonePath || !$rcloneRemote) {
+                Log::warning('Data form Google Drive upload skipped - Rclone configuration missing', [
+                    'rclone_path_exists' => !empty($rclonePath),
+                    'rclone_remote_exists' => !empty($rcloneRemote),
+                ]);
+            } else {
+                $localFilePath = Storage::disk('public')->path($storagePath);
+                $uploadResult = app(\App\Services\RcloneGoogleDriveService::class)->uploadFile(
+                    $localFilePath,
+                    $sponsor->sponsor_name,
+                    $sponsorship->orphan_name ?? 'unknown',
+                    'استمارة بيانات',
+                    'pdf',
+                    1
+                );
+
+                if ($uploadResult['success']) {
+                    Log::info('Data form PDF uploaded to Google Drive', [
+                        'sponsorship_id' => $sponsorship->id,
+                        'sponsor_id' => $sponsor->id,
+                        'file_name' => $attachment->stored_file_name,
+                        'remote_path' => $uploadResult['remote_path'],
+                    ]);
+                } else {
+                    Log::error('Data form PDF Google Drive upload failed', [
+                        'sponsorship_id' => $sponsorship->id,
+                        'sponsor_id' => $sponsor->id,
+                        'file_name' => $attachment->stored_file_name,
+                        'error' => $uploadResult['message'] ?? 'Unknown error',
+                    ]);
+                }
+            }
+        }
+
+        return Storage::disk('public')->download(
+            $storagePath,
+            $attachment->stored_file_name,
+            ['Content-Type' => 'application/pdf']
+        );
     }
 
     /**

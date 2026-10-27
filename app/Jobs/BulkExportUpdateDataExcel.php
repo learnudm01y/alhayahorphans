@@ -18,10 +18,12 @@ use App\Models\TypeOfGuarantee;
 use App\Models\PortalGeneralRegistrationFieldValue;
 use App\Models\Data;
 use App\Models\DeadPepole;
+use App\Models\CategoryOfRelation;
 use App\Services\ExportStatus;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 
@@ -56,7 +58,7 @@ class BulkExportUpdateDataExcel implements ShouldQueue
         'field_attachments',
     ];
 
-    private const SHARED_GUARDIAN_FIELDS = [
+    private const SHARED_FILE_FIELDS = [
         'field_data_id_number',
         'field_data_first_name',
         'field_data_father_name',
@@ -77,6 +79,26 @@ class BulkExportUpdateDataExcel implements ShouldQueue
         'field_dependents_female',
         'field_family_members_count',
         'field_phone',
+        'field_mother_status',
+        'field_living_mother_id',
+        'field_living_mother_first_name',
+        'field_living_mother_second_name',
+        'field_living_mother_third_name',
+        'field_living_mother_last_name',
+        'field_living_mother_birth_date',
+        'field_mother_id',
+        'field_mother_first_name',
+        'field_mother_second_name',
+        'field_mother_third_name',
+        'field_mother_last_name',
+        'field_mother_death_date',
+        'field_mother_death_reason',
+    ];
+
+    private const EXCEL_BIRTH_DATE_COLUMNS = [
+        'sponsored_birth_date',
+        'living_mother_birth_date',
+        'field_data_birth_date',
     ];
 
     public function __construct(int $sponsorId, ?int $sponsorshipStatusId = null, bool $updatedOnly = false)
@@ -153,20 +175,25 @@ class BulkExportUpdateDataExcel implements ShouldQueue
 
             $typeMap = TypeOfGuarantee::pluck('description', 'id');
             $statusMap = SponsorshipStatus::pluck('description', 'id');
+            $relationshipMap = CategoryOfRelation::pluck('attribute', 'id')->all();
 
             $headers = array_map(fn ($col) => $col['title'], $columns);
             $rows = [];
             $processedCount = 0;
 
             $query->orderBy('id')->chunk($this->chunkSize, function ($sponsorships) use (
-                $columns, $typeMap, $statusMap, &$rows, &$processedCount, $totalCount, $statusKey
+                $columns, $typeMap, $statusMap, $relationshipMap, &$rows, &$processedCount, $totalCount, $statusKey
             ) {
-                $context = $this->loadChunkContext($sponsorships);
+                $context = $this->loadChunkContext($sponsorships, $relationshipMap);
 
                 foreach ($sponsorships as $sponsorship) {
                     $row = [];
                     foreach ($columns as $col) {
-                        $row[] = ($col['resolve'] ?? fn () => null)($sponsorship, $context) ?? '';
+                        $value = ($col['resolve'] ?? fn () => null)($sponsorship, $context);
+                        if (in_array($col['key'], self::EXCEL_BIRTH_DATE_COLUMNS, true)) {
+                            $value = $this->excelBirthDate($value);
+                        }
+                        $row[] = $value ?? '';
                     }
                     $rows[] = $row;
                 }
@@ -180,7 +207,14 @@ class BulkExportUpdateDataExcel implements ShouldQueue
                 'message' => 'جارٍ إنشاء ملف الإكسل...',
             ]);
 
-            $fileName = $this->buildExcelFile($sponsor, $headers, $rows);
+            $birthDateColumnIndexes = [];
+            foreach ($columns as $index => $column) {
+                if (in_array($column['key'], self::EXCEL_BIRTH_DATE_COLUMNS, true)) {
+                    $birthDateColumnIndexes[] = $index + 1;
+                }
+            }
+
+            $fileName = $this->buildExcelFile($sponsor, $headers, $rows, $birthDateColumnIndexes);
 
             $driveEnabled = (bool) $sponsor->google_drive_enabled;
             $driveMessage = 'محلياً فقط';
@@ -243,7 +277,7 @@ class BulkExportUpdateDataExcel implements ShouldQueue
     /**
      * تحميل بيانات الدفعة دفعة واحدة (بويرتال + معيل + وفيات) لتفادي N+1.
      */
-    private function loadChunkContext($sponsorships): array
+    private function loadChunkContext($sponsorships, array $relationshipMap): array
     {
         $identityNumbers = $sponsorships->pluck('identity_number')->filter()->unique()->values();
         $guardianIds = $sponsorships->pluck('guardian_identity_number')->filter()->unique()->values();
@@ -300,10 +334,69 @@ class BulkExportUpdateDataExcel implements ShouldQueue
             }
         }
 
+        $portalContext = [
+            'portal_by_id' => $portalById,
+            'portal_by_identity' => $portalByIdentity,
+            'portal_by_file_number' => $portalByFileNumber,
+            'guardians' => $guardianMap,
+        ];
+
+        $deceasedMotherIds = $sponsorships
+            ->map(function (Sponsorship $sponsorship) use ($portalContext) {
+                $motherId = $this->portalValue($sponsorship, $portalContext, 'field_mother_id');
+
+                if (($motherId === null || $motherId === '') && $sponsorship->person_type === 'deceased_mother') {
+                    $motherId = $sponsorship->identity_number;
+                }
+
+                return $motherId;
+            })
+            ->filter()
+            ->unique()
+            ->values();
+
+        $deceasedMotherMap = [];
+        if ($deceasedMotherIds->isNotEmpty()) {
+            $deceasedMothers = DeadPepole::with(['motherDeathReason'])
+                ->whereIn('mother_id', $deceasedMotherIds)
+                ->orderBy('id')
+                ->get();
+
+            foreach ($deceasedMothers as $deceasedMother) {
+                $motherId = $this->identityMapKey($deceasedMother->mother_id);
+                if (!isset($deceasedMotherMap[$motherId])) {
+                    $deceasedMotherMap[$motherId] = $deceasedMother;
+                    continue;
+                }
+
+                $existing = $deceasedMotherMap[$motherId];
+                foreach ([
+                    'mother_first_name',
+                    'mother_second_name',
+                    'mother_third_name',
+                    'mother_last_name',
+                    'mother_death_date',
+                    'mother_death_reason',
+                ] as $field) {
+                    $existingValue = $existing->getAttribute($field);
+                    $candidateValue = $deceasedMother->getAttribute($field);
+                    $existingIsEmpty = $existingValue === null || (is_string($existingValue) && trim($existingValue) === '');
+                    $candidateIsPresent = $candidateValue !== null && (!is_string($candidateValue) || trim($candidateValue) !== '');
+
+                    if ($existingIsEmpty && $candidateIsPresent) {
+                        $existing->setAttribute($field, $candidateValue);
+                        if ($field === 'mother_death_reason') {
+                            $existing->unsetRelation('motherDeathReason');
+                        }
+                    }
+                }
+            }
+        }
+
         // بيانات الوفيات من جدول dead_people
         $deadMap = [];
         if ($fileNumbers->isNotEmpty()) {
-            $deadMap = DeadPepole::with(['fatherDeathReason', 'motherDeathReason'])
+            $deadMap = DeadPepole::with(['fatherDeathReason'])
                 ->whereIn('re_file_id', $fileNumbers)
                 ->get()
                 ->keyBy('re_file_id');
@@ -314,6 +407,8 @@ class BulkExportUpdateDataExcel implements ShouldQueue
             'portal_by_identity' => $portalByIdentity,
             'portal_by_file_number' => $portalByFileNumber,
             'guardians'         => $guardianMap,
+            'relationship_map'  => $relationshipMap,
+            'deceased_mothers'  => $deceasedMotherMap,
             'dead'              => $deadMap,
         ];
     }
@@ -353,9 +448,19 @@ class BulkExportUpdateDataExcel implements ShouldQueue
                 'resolve' => function (Sponsorship $s, array $ctx) {
                     $guardian = $this->guardianOf($s, $ctx);
 
-                    return $guardian?->categoryOfRelation?->description
-                        ?? $this->portalValue($s, $ctx, 'field_data_relationship')
-                        ?? $this->portalValue($s, $ctx, 'field_relationship');
+                    $relationship = $guardian?->categoryOfRelation?->attribute;
+                    if ($relationship !== null && $relationship !== '') {
+                        return $relationship;
+                    }
+
+                    foreach (['field_data_relationship', 'field_relationship'] as $key) {
+                        $relationship = $this->relationshipLabel($this->portalValue($s, $ctx, $key), $ctx);
+                        if ($relationship !== null) {
+                            return $relationship;
+                        }
+                    }
+
+                    return null;
                 },
             ],
             [
@@ -455,12 +560,28 @@ class BulkExportUpdateDataExcel implements ShouldQueue
                 'title'   => 'اسم الأم',
                 'setting' => 'field_mother_first_name',
                 'resolve' => function (Sponsorship $s, array $ctx) {
-                    $dead = $this->deadOf($s, $ctx);
-                    $name = $dead ? trim(implode(' ', array_filter([
-                        $dead->mother_first_name, $dead->mother_second_name, $dead->mother_third_name, $dead->mother_last_name,
-                    ]))) : null;
+                    $dead = $this->deceasedMotherOf($s, $ctx);
+                    $nameParts = [];
+                    foreach ([
+                        'mother_first_name' => 'field_mother_first_name',
+                        'mother_second_name' => 'field_mother_second_name',
+                        'mother_third_name' => 'field_mother_third_name',
+                        'mother_last_name' => 'field_mother_last_name',
+                    ] as $deadField => $portalField) {
+                        $nameParts[] = $this->valueOrPortal(
+                            $dead?->{$deadField},
+                            $s,
+                            $ctx,
+                            $portalField
+                        );
+                    }
 
-                    return $name ?: $this->portalValue($s, $ctx, 'field_mother_first_name');
+                    $name = trim(implode(' ', array_filter(
+                        $nameParts,
+                        fn ($part) => $part !== null && trim((string) $part) !== ''
+                    )));
+
+                    return $name !== '' ? $name : null;
                 },
             ],
             [
@@ -468,9 +589,15 @@ class BulkExportUpdateDataExcel implements ShouldQueue
                 'title'   => 'رقم هوية الأم',
                 'setting' => 'field_mother_id',
                 'resolve' => function (Sponsorship $s, array $ctx) {
-                    $dead = $this->deadOf($s, $ctx);
+                    $dead = $this->deceasedMotherOf($s, $ctx);
 
-                    return $dead?->mother_id ?? $this->portalValue($s, $ctx, 'field_mother_id');
+                    return $this->valueOrPortal(
+                        $dead?->mother_id,
+                        $s,
+                        $ctx,
+                        'field_mother_id',
+                        true
+                    );
                 },
             ],
             [
@@ -478,9 +605,14 @@ class BulkExportUpdateDataExcel implements ShouldQueue
                 'title'   => 'تاريخ وفاة الأم',
                 'setting' => 'field_mother_death_date',
                 'resolve' => function (Sponsorship $s, array $ctx) {
-                    $dead = $this->deadOf($s, $ctx);
+                    $dead = $this->deceasedMotherOf($s, $ctx);
 
-                    return $dead?->mother_death_date ?? $this->portalValue($s, $ctx, 'field_mother_death_date');
+                    return $this->valueOrPortal(
+                        $dead?->mother_death_date,
+                        $s,
+                        $ctx,
+                        'field_mother_death_date'
+                    );
                 },
             ],
             [
@@ -488,11 +620,49 @@ class BulkExportUpdateDataExcel implements ShouldQueue
                 'title'   => 'سبب وفاة الأم',
                 'setting' => 'field_mother_death_reason',
                 'resolve' => function (Sponsorship $s, array $ctx) {
-                    $dead = $this->deadOf($s, $ctx);
+                    $dead = $this->deceasedMotherOf($s, $ctx);
 
-                    return $dead?->motherDeathReason?->description
-                        ?? $this->portalValue($s, $ctx, 'field_mother_death_reason');
+                    return $this->valueOrPortal(
+                        $dead?->motherDeathReason?->description,
+                        $s,
+                        $ctx,
+                        'field_mother_death_reason'
+                    );
                 },
+            ],
+            [
+                'key'     => 'living_mother_status',
+                'title'   => 'حالة الأم',
+                'resolve' => fn (Sponsorship $s, array $ctx) => $this->livingMotherStatus($s, $ctx),
+            ],
+            [
+                'key'     => 'living_mother_name',
+                'title'   => 'اسم الأم الحية',
+                'resolve' => function (Sponsorship $s, array $ctx) {
+                    $nameParts = array_map(
+                        fn (string $key) => $this->livingMotherField($s, $ctx, $key),
+                        [
+                            'field_living_mother_first_name',
+                            'field_living_mother_second_name',
+                            'field_living_mother_third_name',
+                            'field_living_mother_last_name',
+                        ]
+                    );
+
+                    $name = implode(' ', array_filter($nameParts, fn ($part) => $part !== null && $part !== ''));
+
+                    return $name !== '' ? $name : null;
+                },
+            ],
+            [
+                'key'     => 'living_mother_id',
+                'title'   => 'رقم هوية الأم الحية',
+                'resolve' => fn (Sponsorship $s, array $ctx) => $this->livingMotherField($s, $ctx, 'field_living_mother_id'),
+            ],
+            [
+                'key'     => 'living_mother_birth_date',
+                'title'   => 'تاريخ ميلاد الأم الحية',
+                'resolve' => fn (Sponsorship $s, array $ctx) => $this->livingMotherField($s, $ctx, 'field_living_mother_birth_date'),
             ],
             ['key' => 'notes', 'title' => 'ملاحظات', 'resolve' => fn (Sponsorship $s) => $s->notes],
         ];
@@ -542,7 +712,7 @@ class BulkExportUpdateDataExcel implements ShouldQueue
             ?? $ctx['portal_by_identity'][$sponsorship->identity_number][$key]
             ?? null;
 
-        if (($value === null || $value === '') && in_array($key, self::SHARED_GUARDIAN_FIELDS, true)) {
+        if (($value === null || $value === '') && in_array($key, self::SHARED_FILE_FIELDS, true)) {
             $guardian = $this->guardianOf($sponsorship, $ctx);
             $fileNumbers = array_unique(array_filter([
                 $guardian?->file_id_number,
@@ -561,9 +731,82 @@ class BulkExportUpdateDataExcel implements ShouldQueue
         return $this->normalizeValue($value);
     }
 
+    private function valueOrPortal($value, Sponsorship $sponsorship, array $ctx, string $key, bool $zeroIsMissing = false)
+    {
+        $isMissing = $value === null || (is_string($value) && trim($value) === '');
+        if ($zeroIsMissing && is_numeric($value) && (float) $value === 0.0) {
+            $isMissing = true;
+        }
+
+        return $isMissing ? $this->portalValue($sponsorship, $ctx, $key) : $value;
+    }
+
     private function guardianOf(Sponsorship $sponsorship, array $ctx): ?Data
     {
         return $ctx['guardians'][$sponsorship->guardian_identity_number] ?? null;
+    }
+
+    private function livingMotherStatus(Sponsorship $sponsorship, array $ctx): ?string
+    {
+        $status = $this->portalValue($sponsorship, $ctx, 'field_mother_status');
+        if ($status !== null && $status !== '') {
+            return $status;
+        }
+
+        return $this->guardianIsMother($sponsorship, $ctx) ? 'حية' : null;
+    }
+
+    private function livingMotherField(Sponsorship $sponsorship, array $ctx, string $key)
+    {
+        $status = $this->livingMotherStatus($sponsorship, $ctx);
+        if ($status !== null && !in_array(trim($status), ['حية', 'على قيد الحياة'], true)) {
+            return null;
+        }
+
+        $value = $this->portalValue($sponsorship, $ctx, $key);
+        if ($value !== null && $value !== '') {
+            return $value;
+        }
+
+        if (!$this->guardianIsMother($sponsorship, $ctx)) {
+            return null;
+        }
+
+        $guardian = $this->guardianOf($sponsorship, $ctx);
+
+        return match ($key) {
+            'field_living_mother_id' => $guardian?->data_id_number,
+            'field_living_mother_first_name' => $guardian?->data_first_name,
+            'field_living_mother_second_name' => $guardian?->data_father_name,
+            'field_living_mother_third_name' => $guardian?->data_grand_father_name,
+            'field_living_mother_last_name' => $guardian?->data_family_name,
+            default => null,
+        };
+    }
+
+    private function guardianIsMother(Sponsorship $sponsorship, array $ctx): bool
+    {
+        $relationship = $this->guardianOf($sponsorship, $ctx)?->categoryOfRelation?->attribute;
+
+        return in_array(trim((string) $relationship), ['أم', 'الأم', 'والدة'], true);
+    }
+
+    private function relationshipLabel($value, array $ctx): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $value = trim((string) $value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (ctype_digit($value)) {
+            return $ctx['relationship_map'][(int) $value] ?? null;
+        }
+
+        return $value;
     }
 
     private function deadOf(Sponsorship $sponsorship, array $ctx): ?DeadPepole
@@ -571,6 +814,29 @@ class BulkExportUpdateDataExcel implements ShouldQueue
         $fileNumber = $sponsorship->relation_id_number ?? $sponsorship->internal_file_number;
 
         return $ctx['dead'][$fileNumber] ?? null;
+    }
+
+    private function deceasedMotherOf(Sponsorship $sponsorship, array $ctx): ?DeadPepole
+    {
+        $motherId = $this->portalValue($sponsorship, $ctx, 'field_mother_id');
+        if (($motherId === null || $motherId === '') && $sponsorship->person_type === 'deceased_mother') {
+            $motherId = $sponsorship->identity_number;
+        }
+
+        return $motherId !== null && $motherId !== ''
+            ? ($ctx['deceased_mothers'][$this->identityMapKey($motherId)] ?? null)
+            : null;
+    }
+
+    private function identityMapKey($identityNumber): string
+    {
+        $identityNumber = trim((string) $identityNumber);
+
+        if (ctype_digit($identityNumber)) {
+            return ltrim($identityNumber, '0') ?: '0';
+        }
+
+        return $identityNumber;
     }
 
     private function normalizeValue($value)
@@ -592,6 +858,33 @@ class BulkExportUpdateDataExcel implements ShouldQueue
         }
 
         return is_scalar($value) ? (string) $value : $value;
+    }
+
+    private function excelBirthDate($value)
+    {
+        if ($value instanceof \DateTimeInterface) {
+            return ExcelDate::PHPToExcel($value);
+        }
+
+        if (!is_string($value) || trim($value) === '') {
+            return $value;
+        }
+
+        $value = trim($value);
+        foreach (['Y-m-d', 'Y-m-d H:i:s', 'Y-m-d H:i:s.u', 'd-m-Y', 'd/m/Y'] as $format) {
+            $date = \DateTimeImmutable::createFromFormat('!' . $format, $value);
+            $errors = \DateTimeImmutable::getLastErrors();
+
+            if (
+                $date !== false
+                && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))
+                && $date->format($format) === $value
+            ) {
+                return ExcelDate::PHPToExcel($date);
+            }
+        }
+
+        return $value;
     }
 
     /**
@@ -668,7 +961,7 @@ class BulkExportUpdateDataExcel implements ShouldQueue
     /**
      * بناء ملف الإكسل وحفظه محلياً، مع حذف النسخ القديمة لنفس الجمعية.
      */
-    private function buildExcelFile(Sponsor $sponsor, array $headers, array $rows): string
+    private function buildExcelFile(Sponsor $sponsor, array $headers, array $rows, array $birthDateColumnIndexes): string
     {
         $folder = 'public/uploads/exports/update_data';
 
@@ -705,6 +998,13 @@ class BulkExportUpdateDataExcel implements ShouldQueue
         foreach ($rows as $row) {
             $sheet->fromArray($row, null, 'A' . $rowNumber);
             $rowNumber++;
+        }
+
+        foreach ($birthDateColumnIndexes as $columnIndex) {
+            $column = Coordinate::stringFromColumnIndex($columnIndex);
+            $sheet->getStyle($column . '2:' . $column . ($rowNumber - 1))
+                ->getNumberFormat()
+                ->setFormatCode('dd-mm-yyyy');
         }
 
         // setAutoSize لكل الأعمدة (تدعم أعمدة AA, AB... عبر فهارس PhpSpreadsheet)

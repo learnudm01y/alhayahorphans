@@ -30,15 +30,14 @@
         </button>
     @endcan
 
-    <button class="btn btn-icon btn-light-warning btn-sm regenerate-file-number"
-            data-id="{{ $row->id }}"
-            data-current="{{ $row->internal_file_number ?: '-' }}"
-            title="إعادة توليد رقم الملف الداخلي">
-        <i class="ki-duotone ki-refresh fs-4">
+    <a class="btn btn-icon btn-light-primary btn-sm"
+       href="{{ route('admin.sponsorships.data-form', $row->id) }}"
+       title="تصدير استمارة بيانات PDF">
+        <i class="ki-duotone ki-file-down fs-4">
             <span class="path1"></span>
             <span class="path2"></span>
         </i>
-    </button>
+    </a>
 
     <button class="btn btn-icon btn-light-danger btn-sm delete-sponsorship"
             data-id="{{ $row->id }}"
