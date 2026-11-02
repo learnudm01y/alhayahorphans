@@ -13,12 +13,16 @@ use App\Models\Sponsorship;
 use App\Models\SponsorFieldSetting;
 use App\Models\GuardianBankAccount;
 use App\Models\RePeople;
+use App\Models\DeadPepole;
 use App\Models\Attachment;
 use App\Models\PortalGeneralRegistrationFieldValue;
 use App\Services\GoogleDriveService;
 use App\Services\RcloneGoogleDriveService;
 use App\Services\GuardianFileService;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use App\Support\PortalSaveProgress;
 
 
 class ShowGeneralRegisrationController extends Controller
@@ -75,7 +79,9 @@ class ShowGeneralRegisrationController extends Controller
             ->first();
 
         if (!$sponsorship) {
-            Log::warning('Auto-login failed', ['identity_number' => $identityNumber]);
+            Log::warning('AUTO_LOGIN_FAILED', [
+                'identity_number' => $this->maskIdentity($identityNumber),
+            ]);
             return redirect('/users/generalRegistration/login')->withErrors([
                 'login_email' => 'بيانات الدخول غير صحيحة.',
             ]);
@@ -89,7 +95,8 @@ class ShowGeneralRegisrationController extends Controller
                 'name' => $sponsorship->orphan_name ?: 'مستخدم',
                 'phone' => $sponsorship->relationData->data_phone_number ?? '0000000000',
                 'email' => $identityNumber,
-                'password' => bcrypt($fileNumber),
+                // الدخول يتم بالرابط/الملف، ولا حاجة لكلمة مرور مشتقة من رقم الملف
+                'password' => bcrypt(Str::random(32)),
                 'role' => 'user',
                 'email_verified_at' => now(),
             ]);
@@ -106,9 +113,108 @@ class ShowGeneralRegisrationController extends Controller
         request()->session()->put('active_sponsorship_id', $sponsorship->id);
         request()->session()->put('active_internal_file_number', $sponsorship->internal_file_number);
 
-        Log::info('Auto-login successful', ['identity_number' => $identityNumber, 'sponsorship_id' => $sponsorship->id]);
+        Log::info('AUTO_LOGIN_SUCCESS', [
+            'identity_number' => $this->maskIdentity($identityNumber),
+            'sponsorship_id' => $sponsorship->id,
+        ]);
 
         return redirect()->route('user.generalRegistration.index');
+    }
+
+    /**
+     * إخفاء رقم الهوية في اللوغ (يبقى آخر 3 أرقام فقط).
+     */
+    private function maskIdentity(?string $value): string
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return '[MASKED]';
+        }
+
+        if (strlen($value) <= 3) {
+            return str_repeat('*', strlen($value));
+        }
+
+        return str_repeat('*', strlen($value) - 3) . substr($value, -3);
+    }
+
+    /**
+     * هل يملك المستخدم الحالي صلاحية قراءة هذا المرفق؟
+     *
+     * القاعدة: المرفق يخص الملف النشط في الجلسة (المكفول، المعيل، الأم،
+     * أفراد الأسرة، المتوفون)، أو أن المستخدم إداري.
+     */
+    private function userCanAccessAttachment(Attachment $attachment): bool
+    {
+        $user = Auth::user();
+
+        if (!$user) {
+            return false;
+        }
+
+        if (in_array($user->role, ['admin', 'super-admin'], true)) {
+            return true;
+        }
+
+        $targetIdentity = preg_replace('/\D+/', '', (string) $attachment->person_identity_number);
+
+        if ($targetIdentity === '') {
+            return false;
+        }
+
+        $sponsorshipId = session('active_sponsorship_id');
+        $sponsorship = $sponsorshipId ? Sponsorship::find($sponsorshipId) : null;
+
+        $fileNumbers = array_values(array_unique(array_filter(array_map('strval', [
+            session('active_internal_file_number'),
+            $sponsorship->internal_file_number ?? null,
+            $sponsorship->relation_id_number ?? null,
+        ]), static function ($value) {
+            return $value !== '';
+        })));
+
+        // (2.4) مفتاح بديل لفرد أسرة بلا رقم هوية: 9 + رقم الملف (6) + رقم الفرد (2)
+        foreach ($fileNumbers as $fileNumber) {
+            $fallbackPrefix = '9' . str_pad((string) $fileNumber, 6, '0', STR_PAD_LEFT);
+            if (strlen($targetIdentity) === 9 && strpos($targetIdentity, $fallbackPrefix) === 0) {
+                return true;
+            }
+        }
+
+        $allowedIdentities = [
+            $user->email,
+            $sponsorship->identity_number ?? null,
+            $sponsorship->guardian_identity_number ?? null,
+        ];
+
+        foreach ($fileNumbers as $fileNumber) {
+            $allowedIdentities[] = Data::where('file_id_number', $fileNumber)->value('data_id_number');
+
+            $allowedIdentities = array_merge(
+                $allowedIdentities,
+                RePeople::where('registration_id', $fileNumber)->pluck('person_id')->all()
+            );
+
+            $deceased = DeadPepole::where('re_file_id', $fileNumber)->first(['father_id', 'mother_id']);
+
+            if ($deceased) {
+                $allowedIdentities[] = $deceased->father_id;
+                $allowedIdentities[] = $deceased->mother_id;
+            }
+        }
+
+        foreach ($allowedIdentities as $identity) {
+            if ($identity === null || $identity === '') {
+                continue;
+            }
+
+            if (preg_replace('/\D+/', '', (string) $identity) === $targetIdentity) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -1321,6 +1427,10 @@ $groupedFields = $sorted;
      */
     public function updateSponsorshipData(Request $request)
     {
+        // تتبّع التقدّم (اختياري): يعمل فقط إذا أرسل المتصفح progress_token
+        $progress = new PortalSaveProgress(PortalSaveProgress::sanitizeToken($request->input('progress_token')));
+        $progress->update(2, 'جاري استلام البيانات...');
+
         try {
             $user = Auth::user();
             $sponsorshipId = $request->input('sponsorship_id');
@@ -1394,6 +1504,7 @@ $groupedFields = $sorted;
             // ✅ التحقق من ملكية الكفالة قبل أي فحص آخر (ownership / authorization)
             // المستخدم → الكفالة النشطة في الجلسة → مطابقة sponsorship_id المطلوب
             $sponsorship = $this->authorizeSponsorshipForUpdate($sponsorshipId, $user);
+            $progress->update(5, 'جاري التحقق من البيانات والمرفقات...');
 
             if ($fieldsIncomingCount === 0) {
                 // 🆕 البند 13: لا نجعل غياب الحقول خطأً عالمياً إذا كانت الجمعية
@@ -1453,6 +1564,7 @@ $groupedFields = $sorted;
             }
 
             DB::beginTransaction();
+            $progress->update(10, 'جاري إنشاء وحفظ بيانات الاستمارة...');
 
             // 🆕 التحقق من وجود بيانات مركزية - إذا لم تكن موجودة، نُنشئها
             $namesData = $request->input('names', []);
@@ -2956,6 +3068,8 @@ $groupedFields = $sorted;
                 }
             }
 
+            $progress->update(40, 'تم حفظ بيانات الاستمارة — جاري معالجة المرفقات...');
+
             // معالجة المرفقات الجديدة
             if ($attachmentsValidTotal > 0) {
                 // التحقق من استخدام Rclone أو Google Drive API أو التخزين المحلي
@@ -2990,6 +3104,14 @@ $groupedFields = $sorted;
                 ]);
 
                 $uploadedCount = 0;
+
+                $progressBytesTotal = 0;
+                foreach ($validAttachments as $progressFiles) {
+                    foreach ((array) $progressFiles as $progressFile) {
+                        $progressBytesTotal += (int) $progressFile->getSize();
+                    }
+                }
+                $progress->startFiles($attachmentsValidTotal, $progressBytesTotal);
 
                 // قراءة إعداد الضغط للجمعية
                 $compressEnabled = true;
@@ -3067,6 +3189,7 @@ $groupedFields = $sorted;
                             $driveFileName = "{$documentType->pref}_{$fileIdNumberAttach}_{$sponsorship->identity_number}_{$driveTimestamp}";
 
                             // رفع الملف عبر Rclone إلى Google Drive (دائماً)
+                            $progress->fileStart(($documentType->description ?: $documentTypeName) . ($fileIndex > 1 ? " ({$fileIndex})" : ''));
                             $uploadResult = $rcloneService->uploadFile(
                                 $file->getRealPath(),
                                 $organizationName,
@@ -3075,6 +3198,7 @@ $groupedFields = $sorted;
                                 $extension,
                                 $fileIndex
                             );
+                            $progress->fileDone((int) $file->getSize());
 
                             if (!$uploadResult['success']) {
                                 Log::error('RCLONE_UPLOAD_FAILED', [
@@ -3168,7 +3292,9 @@ $groupedFields = $sorted;
                                 throw new \Exception('خطأ في مسار التخزين: يجب تحديد مجلد فرعي داخل uploads');
                             }
 
+                            $progress->fileStart(($documentType->description ?: $fileType) . ($fileIndex > 1 ? " ({$fileIndex})" : ''));
                             $path = $file->storeAs($folder, $newFileName, 'public');
+                            $progress->fileDone((int) $file->getSize());
 
                             // حفظ في قاعدة البيانات
                             Attachment::create([
@@ -3253,7 +3379,9 @@ $groupedFields = $sorted;
                         $finalBaseName = $fileIndex === 1 ? $baseName : ($baseName . '_' . $fileIndex);
                         $filename = $extension ? ($finalBaseName . '.' . $extension) : $finalBaseName;
 
+                        $progress->fileStart($baseName . ($fileIndex > 1 ? " ({$fileIndex})" : ''));
                         $uploadResult = $driveService->uploadFile($file->getRealPath(), $filename, $personFolder['id']);
+                        $progress->fileDone((int) $file->getSize());
                         $fileId = $uploadResult['id'] ?? null;
                         if (!$fileId) {
                             throw new \Exception('فشل رفع الملف إلى Google Drive: لم يتم إرجاع file id');
@@ -3346,6 +3474,7 @@ $groupedFields = $sorted;
 
             // ✅ تحديث حالة الكفالة بعد حفظ البيانات
             // لا نصل إلى هنا إلا إذا تم حفظ بيانات فعلاً (fields_count > 0 و storedCount > 0)
+            $progress->update(92, 'جاري تحديث حالة الكفالة...');
             $sponsorship->sponsorship_status_id = 2; // 2 = تدقيق
             $sponsorship->save();
 
@@ -3360,6 +3489,7 @@ $groupedFields = $sorted;
             ]);
 
             DB::commit();
+            $progress->update(95, 'جاري إنشاء تقرير الاستمارة...');
 
             // فشل إنشاء التقرير بعد اعتماد المعاملة لا يعني فشل حفظ البيانات.
             try {
@@ -3379,10 +3509,23 @@ $groupedFields = $sorted;
                 ]);
             }
 
+            $progress->done('تم حفظ التغييرات بنجاح');
+
             // ✅ تسجيل خروج مباشرة بعد الحفظ
             Auth::logout();
             session()->invalidate();
             session()->regenerateToken();
+
+            // طلب XHR مع شريط التقدم: نعيد JSON ويقوم المتصفح بالتحويل
+            if ($request->expectsJson()) {
+                session()->flash('success', 'تم حفظ التغييرات بنجاح');
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'تم حفظ التغييرات بنجاح',
+                    'redirect' => route('user.thank.you.page'),
+                ]);
+            }
 
             return redirect()
                 ->route('user.thank.you.page')
@@ -3419,11 +3562,36 @@ $groupedFields = $sorted;
                 $friendlyMessage = $this->friendlyErrorMessage($e);
             }
 
+            $progress->fail($friendlyMessage);
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $friendlyMessage,
+                ], 422);
+            }
+
             return redirect()
                 ->back()
                 ->withInput()
                 ->with('error', $friendlyMessage);
         }
+    }
+
+    /**
+     * حالة تقدّم الحفظ (يستعلم عنها المتصفح كل ثانية تقريباً أثناء المعالجة).
+     * الرمز عشوائي وغير قابل للتخمين، والمسار بلا session حتى لا ينتظر قفل جلسة طلب الحفظ.
+     */
+    public function saveProgress(string $token)
+    {
+        $token = PortalSaveProgress::sanitizeToken($token);
+        if ($token === null) {
+            return response()->json(['status' => 'pending', 'percent' => 0, 'message' => ''], 200);
+        }
+
+        return response()
+            ->json(PortalSaveProgress::read($token))
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate');
     }
 
     /**
@@ -4194,12 +4362,56 @@ $groupedFields = $sorted;
             abort(404, 'المرفق غير موجود');
         }
 
-        $filePath = $attachment->file_path;
+        // منع IDOR: لا يعرض المستخدم إلا مرفقات ملفه النشط
+        if (!$this->userCanAccessAttachment($attachment)) {
+            Log::warning('ATTACHMENT_ACCESS_DENIED', [
+                'attachment_id' => $attachment->id,
+                'user_id' => Auth::id(),
+            ]);
+            abort(403, 'غير مصرح لك بعرض هذا المرفق');
+        }
+
+        $filePath = (string) $attachment->file_path;
+
+        if ($filePath === '') {
+            abort(404, 'المرفق غير موجود');
+        }
+
+        $privateHeaders = [
+            'Cache-Control' => 'private, no-store, max-age=0',
+            'X-Content-Type-Options' => 'nosniff',
+        ];
+
+        // روابط Google Drive القديمة (webViewLink)
+        if (preg_match('#^https?://#i', $filePath)) {
+            return redirect()->away($filePath);
+        }
 
         // التحقق مما إذا كان مسار Rclone
         if (!$this->isRclonePath($filePath)) {
-            // إذا كان مسار محلي، قم بإعادة التوجيه إليه
-            return redirect(asset('storage/' . $filePath));
+            // مسار محلي: قدّمه من الكنترولر بعد التحقق بدل التحويل إلى مسار عام
+            $relativePath = ltrim(str_replace('\\', '/', $filePath), '/');
+
+            if (str_starts_with($relativePath, 'storage/')) {
+                $relativePath = substr($relativePath, strlen('storage/'));
+            }
+
+            if ($relativePath === '' || str_contains($relativePath, '..')) {
+                abort(404, 'المرفق غير موجود');
+            }
+
+            $disk = Storage::disk('public');
+
+            if (!$disk->exists($relativePath)) {
+                abort(404, 'الملف غير موجود');
+            }
+
+            $downloadName = str_replace(['"', "\r", "\n"], '', basename((string) ($attachment->stored_file_name ?: $relativePath)));
+
+            return response()->file($disk->path($relativePath), array_merge($privateHeaders, [
+                'Content-Type' => $disk->mimeType($relativePath) ?: 'application/octet-stream',
+                'Content-Disposition' => 'inline; filename="' . $downloadName . '"',
+            ]));
         }
 
         // استخدام Rclone لتحميل الملف
@@ -4209,17 +4421,18 @@ $groupedFields = $sorted;
         if (!$result['success']) {
             Log::warning('RCLONE_FILE_NOT_FOUND', [
                 'attachment_id' => $attachmentId,
-                'file_path' => $filePath,
                 'error' => $result['message'] ?? 'Unknown error'
             ]);
             abort(404, 'الملف غير موجود في Google Drive');
         }
 
+        $downloadName = str_replace(['"', "\r", "\n"], '', basename((string) ($attachment->stored_file_name ?: 'file')));
+
         // إرجاع الملف مع نوع MIME الصحيح
-        return response($result['content'])
-            ->header('Content-Type', $result['mime_type'])
-            ->header('Content-Disposition', 'inline; filename="' . $attachment->stored_file_name . '"')
-            ->header('Cache-Control', 'public, max-age=3600');
+        return response($result['content'], 200, array_merge($privateHeaders, [
+            'Content-Type' => $result['mime_type'],
+            'Content-Disposition' => 'inline; filename="' . $downloadName . '"',
+        ]));
     }
 
     /**

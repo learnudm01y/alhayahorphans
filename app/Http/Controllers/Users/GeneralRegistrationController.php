@@ -27,6 +27,7 @@ use App\Models\TypeOfAccommodation;
 use App\Models\TypeOfGuarantee;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\GuardianBankAccount;
@@ -74,6 +75,26 @@ class GeneralRegistrationController extends Controller
     }
 
     /**
+     * (2.6) عند تحديث المعيل: إبقاء الحقول الغائبة عن الطلب كما هي بدل كتابة null.
+     */
+    private function filterPresentGuardianFields(Request $request, array $guardianData): array
+    {
+        $filtered = ['file_id_number' => $guardianData['file_id_number']];
+
+        foreach ($guardianData as $key => $value) {
+            if ($key === 'file_id_number') {
+                continue;
+            }
+
+            if ($request->exists($key)) {
+                $filtered[$key] = $value;
+            }
+        }
+
+        return $filtered;
+    }
+
+    /**
      * سياسة العمل: هل هذا الشخص (معيل أو فرد أسرة) مرتبط حالياً بملف معيل آخر؟
      *
      * يفحص جدول data (معيلون) وجدول re_people (أفراد الأسرة) بالهوية ورقم الملف.
@@ -88,14 +109,18 @@ class GeneralRegistrationController extends Controller
             return null;
         }
 
+        // (2.6) مقارنة أرقام الملفات بشكل موحّد (بلا أصفار بادئة)
+        $normalizedFileId = ltrim(trim($fileIdNumber), '0');
+
         $linkedData = Data::where('data_id_number', $identity)->first();
-        if ($linkedData && $linkedData->file_id_number != $fileIdNumber) {
+        if ($linkedData && ltrim(trim((string) $linkedData->file_id_number), '0') !== $normalizedFileId) {
             return (string) $linkedData->file_id_number;
         }
 
-        $linkedRePeople = RePeople::where('person_id', $identity)
-            ->where('registration_id', '!=', $fileIdNumber)
-            ->first();
+        $linkedRePeople = RePeople::where('person_id', $identity)->get(['registration_id'])
+            ->first(function ($row) use ($normalizedFileId) {
+                return ltrim(trim((string) $row->registration_id), '0') !== $normalizedFileId;
+            });
         if ($linkedRePeople) {
             return (string) $linkedRePeople->registration_id;
         }
@@ -120,55 +145,115 @@ class GeneralRegistrationController extends Controller
             return null;
         }
 
-        if (Data::where('file_id_number', $fileIdNumber)->exists()) {
+        // (2.6) توحيد شكل رقم الملف: قد يكون مخزّناً بأصفار بادئة أو بدونها
+        $fileIdVariants = array_values(array_unique(array_filter([
+            $fileIdNumber,
+            ltrim($fileIdNumber, '0'),
+        ], static function ($value) {
+            return $value !== '';
+        })));
+
+        if (Data::whereIn('file_id_number', $fileIdVariants)->exists()) {
             return 'data';
         }
 
-        if (RePeople::where('registration_id', $fileIdNumber)->exists()) {
+        if (RePeople::whereIn('registration_id', $fileIdVariants)->exists()) {
             return 're_people';
         }
 
-        if (DeadPepole::where('re_file_id', $fileIdNumber)->exists()) {
+        if (DeadPepole::whereIn('re_file_id', $fileIdVariants)->exists()) {
             return 'dead_people';
         }
 
-        if (\App\Models\Sponsorship::where('internal_file_number', $fileIdNumber)->exists()
-            || \App\Models\Sponsorship::where('relation_id_number', $fileIdNumber)->exists()) {
+        if (\App\Models\Sponsorship::whereIn('internal_file_number', $fileIdVariants)->exists()
+            || \App\Models\Sponsorship::whereIn('relation_id_number', $fileIdVariants)->exists()) {
             return 'sponsorships';
         }
 
         return null;
     }
 
-    public function index(): View
+    /**
+     * (3.3) رقم الملف المطلوب للنموذج: يُحجز مرة واحدة لكل جلسة ويُعاد استخدامه
+     * حتى الحفظ (أو 12 ساعة كحد أقصى) بدل حجز رقم جديد عند كل زيارة.
+     */
+    private function resolveReservedFileNumber(): string
     {
-        $generalSection = GeneralCategory::all();
-        // $file_id_number = generateFiveDigitCode(Data::class, 'file_id_number');
-        // حماية من Deadlock: إذا فشل توليد الرقم، نعرض الصفحة بكود مؤقت
+        $sessionCode = session('reserved_code');
+        $reservedAt = (int) session('reserved_code_at', 0);
+
+        if (is_string($sessionCode)
+            && preg_match('/^\d{6}$/', $sessionCode)
+            && $reservedAt > 0
+            && (time() - $reservedAt) < 43200) {
+            return $sessionCode;
+        }
+
         try {
-            $file_id_number = generateUniqueReservedCode('data', 'file_id_number');
+            $fileIdNumber = generateUniqueReservedCode('data', 'file_id_number', session()->getId());
         } catch (\Throwable $e) {
             Log::warning('generateUniqueReservedCode failed, using temp fallback', [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
-            // Fallback: رقم مؤقت فريد لا يُحفظ في DB - المستخدم سيحصل على رقم حقيقي عند الحفظ
-            $file_id_number = 'TEMP-' . strtoupper(substr(uniqid(), -6));
+            $fileIdNumber = null;
         }
-        $category_of_relationship = CategoryOfRelation::all();
-        $ci_personal_cd = CI_PERSONAL_CD::all(); // الحالة الاجتماعية
-        $academic_qualification = AcademicDegree::all();
-        $displacement_status = DisplacementStatus::all();
-        $city = City::all();
-        $province = Province::all();
-        $health_status = HealthStatus::all();
-        $employment_status_breadwinner = Employment::all();
-        $HousingStatus = HousingStatus::all();
-        $TypeOfAccommodation = TypeOfAccommodation::all();
-        $documentTypes = \App\Models\DocumentType::all(); // Assuming you have a DocumentType model
-        $sponsorship_status = SponsorshipStatus::all();
-        $guarantee_types = TypeOfGuarantee::all(); // Assuming you have a TypeOfGuarantee model
-        $death_reasons = DeathReason::all(); // Assuming you have a DeathReason model
-        $bank_name = BankName::all(); // Assuming you have a BankName model
+
+        if (!is_string($fileIdNumber) || $fileIdNumber === '') {
+            // رقم مؤقت فريد لا يُحفظ في DB - المستخدم سيحصل على رقم حقيقي عند الحفظ
+            return 'TEMP-' . strtoupper(substr(uniqid(), -6));
+        }
+
+        session([
+            'reserved_code' => $fileIdNumber,
+            'reserved_code_at' => time(),
+        ]);
+
+        return $fileIdNumber;
+    }
+
+    public function index(): View
+    {
+        // (3.3) لا نحجز رقماً جديداً عند كل زيارة — نعيد استخدام رقم الجلسة المحجوز
+        $file_id_number = $this->resolveReservedFileNumber();
+
+        // (3.3) كاش قوائم النموذج لمدة ساعة (يُبطَل تلقائياً عند تعديل الجداول)
+        $lookups = Cache::remember('portal.lookups', 3600, static function () {
+            return [
+                'generalSection' => GeneralCategory::all(),
+                'category_of_relationship' => CategoryOfRelation::all(),
+                'ci_personal_cd' => CI_PERSONAL_CD::all(),
+                'academic_qualification' => AcademicDegree::all(),
+                'displacement_status' => DisplacementStatus::all(),
+                'city' => City::all(),
+                'province' => Province::all(),
+                'health_status' => HealthStatus::all(),
+                'employment_status_breadwinner' => Employment::all(),
+                'HousingStatus' => HousingStatus::all(),
+                'TypeOfAccommodation' => TypeOfAccommodation::all(),
+                'documentTypes' => \App\Models\DocumentType::all(),
+                'sponsorship_status' => SponsorshipStatus::all(),
+                'guarantee_types' => TypeOfGuarantee::all(),
+                'death_reasons' => DeathReason::all(),
+                'bank_name' => BankName::all(),
+            ];
+        });
+
+        $generalSection = $lookups['generalSection'];
+        $category_of_relationship = $lookups['category_of_relationship'];
+        $ci_personal_cd = $lookups['ci_personal_cd'];
+        $academic_qualification = $lookups['academic_qualification'];
+        $displacement_status = $lookups['displacement_status'];
+        $city = $lookups['city'];
+        $province = $lookups['province'];
+        $health_status = $lookups['health_status'];
+        $employment_status_breadwinner = $lookups['employment_status_breadwinner'];
+        $HousingStatus = $lookups['HousingStatus'];
+        $TypeOfAccommodation = $lookups['TypeOfAccommodation'];
+        $documentTypes = $lookups['documentTypes'];
+        $sponsorship_status = $lookups['sponsorship_status'];
+        $guarantee_types = $lookups['guarantee_types'];
+        $death_reasons = $lookups['death_reasons'];
+        $bank_name = $lookups['bank_name'];
         
         // القيمة الافتراضية للضغط: مفعّل للتسجيل الرئيسي (لا توجد جمعية محددة بعد)
         $compressAttachments = true;
@@ -202,7 +287,32 @@ class GeneralRegistrationController extends Controller
     {
         $maxRetries = 3;
         $retryCount = 0;
+        // (2.3) الملفات المرحّلة حتى ما بعد commit (لا تُكتب ملفات نهائية داخل المعاملة)
+        $pendingStores = [];
 
+        // (3.1) قفل لكل هوية معيل: يمنع حفظين متزامنين لنفس الشخص
+        $lockIdentity = trim((string) $request->input('data_id_number'));
+        $storeLock = null;
+        if ($lockIdentity !== '') {
+            $storeLock = Cache::lock('guardian:' . sha1($lockIdentity), 30);
+            try {
+                $storeLock->block(5);
+            } catch (\Illuminate\Contracts\Cache\LockTimeoutException $lockTimeout) {
+                Log::warning('⏳ تعذر الحصول على قفل الحفظ لهوية معيل (طلب متزامن)', [
+                    'identity_masked' => $this->maskTail($lockIdentity, 3),
+                ]);
+                $lockMessage = 'يوجد طلب آخر قيد الحفظ لنفس الشخص. يرجى الانتظار قليلاً ثم إعادة المحاولة.';
+                if ($request->ajax() || $request->wantsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $lockMessage,
+                    ], 409);
+                }
+                return redirect()->back()->withInput()->with('error', $lockMessage);
+            }
+        }
+
+        try {
         while (true) {
             try {
                 // 🔹 استبعاد بطاقات أفراد الأسرة الفارغة تماماً (بلا هوية ولا أسماء)
@@ -225,6 +335,10 @@ class GeneralRegistrationController extends Controller
                 // عدّادات ملخص التسجيل (تُسجَّل بعد commit للتأكد من دخول جميع الأقسام)
                 $attachmentsSaved = 0;
                 $userCreated = false;
+                // (2.4) المرفقات التي لم تُحفظ مع سببها — تُعاد في warnings بدل إسقاطها بصمت
+                $skippedAttachments = [];
+                // ما غطّاه الطلب فعلياً من (هوية → نوع وثيقة) لفحص الوثائق الإلزامية
+                $coveredAttachments = [];
 
                 // 1. Validate basic data and attachments
                 $request->validate([
@@ -276,6 +390,16 @@ class GeneralRegistrationController extends Controller
                 'family_members' => 'required|array|min:1',
                 // Attachments
                 'document_file.*' => 'required|file|mimes:jpg,jpeg,png,pdf,heic|max:5120',
+                // 🛡️ (2.2) مرفقات البوابة: قائمة سماح للامتداد + حد للحجم + مسار مؤقت مُقيَّد
+                'attachments' => 'nullable|array',
+                // mimetypes (نوع المحتوى) بدل mimes (الامتداد): كل صيغ الصور الشائعة + PDF
+                'attachments.*.file' => 'nullable|file|max:5120|mimetypes:image/jpeg,image/pjpeg,image/png,image/webp,image/gif,image/bmp,image/x-bmp,image/x-ms-bmp,image/avif,image/heic,image/heif,image/tiff,image/x-icon,image/vnd.microsoft.icon,application/pdf,application/octet-stream',
+                // مصفوفة لا نص: فاصل القواعد "|" موجود داخل النمط نفسه
+                'attachments.*.temp_path' => ['nullable', 'string', 'max:255', 'regex:' . self::TEMP_ATTACHMENT_PATH_PATTERN],
+                'attachments.*.stored_file_name' => 'nullable|string|max:255',
+                'attachments.*.file_type' => 'nullable|string|max:64',
+                'attachments.*.person_identity_number' => 'nullable|string|max:32',
+                'attachments.*.file_id_number' => 'nullable|string|max:16',
             ], [
                 'file_id_number.required' => 'رقم الملف الموحد مطلوب.',
                 'file_id_number.regex' => 'رقم الملف يجب أن يتكون من 6 أرقام فقط (لا يقبل TEMP- أو أي رمز آخر). يرجى إعادة تحميل الصفحة ثم المحاولة مرة أخرى.',
@@ -286,6 +410,9 @@ class GeneralRegistrationController extends Controller
                 'deceased_mother_id.digits' => 'رقم هوية الأم المتوفية يجب أن يكون 9 أرقام بالضبط.',
                 'document_file.*.mimes' => 'يجب أن تكون صيغة الملف jpg أو jpeg أو png أو pdf أو heic.',
                 'document_file.*.max' => 'حجم الملف لا يجوز أن يتجاوز 5 ميغابايت.',
+                'attachments.*.file.mimetypes' => 'صيغة المرفق غير مدعومة. الصور تُقبل بكل صيغها وتُحوَّل تلقائياً إلى JPG، كما يُقبل PDF.',
+                'attachments.*.file.max' => 'حجم المرفق لا يجوز أن يتجاوز 5 ميغابايت.',
+                'attachments.*.temp_path.regex' => 'مسار الرفع المؤقت غير صالح.',
                 'family_members.required' => 'يجب إضافة فرد أسرة واحد على الأقل قبل الحفظ.',
                 'family_members.min' => 'يجب إضافة فرد أسرة واحد على الأقل قبل الحفظ.',
             ]);
@@ -315,7 +442,7 @@ class GeneralRegistrationController extends Controller
                     $fileIdNumber = $existingFileIdNumber; // استخدام رقم الملف الموجود
                     Log::info('🔗 تم العثور على معيل موجود', [
                         'file_id' => $existingFileIdNumber,
-                        'identity' => $guardianIdentity
+                        'identity_masked' => $this->maskTail((string) $guardianIdentity, 3),
                     ]);
                 }
             }
@@ -353,8 +480,8 @@ class GeneralRegistrationController extends Controller
 
                     Log::info('ℹ️ رقم الملف موجود مسبقاً - سيتم تحديث السجل الموجود بدلاً من إنشاء سجل جديد', [
                         'file_id_number' => $fileIdNumber,
-                        'existing_identity' => $conflictingFileData->data_id_number,
-                        'submitted_identity' => $guardianIdentity,
+                        'existing_identity_masked' => $this->maskTail((string) $conflictingFileData->data_id_number, 3),
+                        'submitted_identity_masked' => $this->maskTail((string) $guardianIdentity, 3),
                     ]);
                 }
             }
@@ -444,7 +571,7 @@ class GeneralRegistrationController extends Controller
                         'old_file_id' => $fileIdNumber,
                         'new_file_id' => $regeneratedFileIdNumber,
                         'conflict_table' => $fileNumberConflictTable,
-                        'guardian_identity' => $guardianIdentity,
+                        'guardian_identity_masked' => $this->maskTail((string) $guardianIdentity, 3),
                     ]);
 
                     $fileIdNumber = $regeneratedFileIdNumber;
@@ -508,7 +635,7 @@ class GeneralRegistrationController extends Controller
                     Log::info('🔗 تم إعادة ربط سجلات الملف المطلوب بملف المعيل الموجود', [
                         'requested_file' => $requestedFileIdNumber,
                         'existing_file' => $existingFileIdNumber,
-                        'guardian_identity' => $guardianIdentity,
+                        'guardian_identity_masked' => $this->maskTail((string) $guardianIdentity, 3),
                         'counts' => $relinkCounts,
                     ]);
                 }
@@ -519,6 +646,8 @@ class GeneralRegistrationController extends Controller
 
             if ($useExistingGuardian && $existingGuardianData) {
                 $guardianData = $this->mapGuardianData($request, $fileIdNumber);
+                // (2.6) لا نكتب null لحقل غاب من الطلب؛ المسح الصريح (حقل مُرسَل فارغاً) يبقى مسموحاً
+                $guardianData = $this->filterPresentGuardianFields($request, $guardianData);
                 $guardianData['data_request_status'] = 2; // تحديث طلب موجود
                 $existingGuardianData->update($guardianData);
                 $data = $existingGuardianData;
@@ -526,7 +655,6 @@ class GeneralRegistrationController extends Controller
 
                 Log::info('✅ تم تحديث بيانات المعيل', [
                     'file_id_number' => $fileIdNumber,
-                    'guardian_identity' => $guardianIdentity,
                 ]);
             } else {
                 $guardianData = $this->mapGuardianData($request, $fileIdNumber);
@@ -543,17 +671,23 @@ class GeneralRegistrationController extends Controller
             $bankAccounts = $request->input('bank_accounts', []);
             $bankValidationService = app(BankAccountValidationService::class);
             $duplicateBankErrors = [];
-            $guardianIdNumber = $request->input('data_id_number'); // رقم هوية المعيل
 
-            Log::info('🟢 بيانات الحسابات البنكية المستلمة من الواجهة:', ['bank_accounts' => $bankAccounts]);
+            Log::info('🟢 الحسابات البنكية المستلمة من الواجهة', [
+                'count' => is_array($bankAccounts) ? count($bankAccounts) : 0,
+            ]);
             if (is_array($bankAccounts) && count($bankAccounts) > 0) {
                 // جلب كل الحسابات البنكية الموجودة مسبقاً دفعة واحدة (تحسين الأداء)
                 $existingAccounts = GuardianBankAccount::where('guardian_registration', $fileIdNumber)->get();
                 $existingAccountsCount = $existingAccounts->count();
                 $existingAccountsByIdentity = $existingAccounts->keyBy('person_owner_identity_number');
+                $accountsCreatedInRequest = 0;
 
                 foreach ($bankAccounts as $index => $bankAccount) {
-                    Log::info('🔵 حساب بنكي فردي:', $bankAccount);
+                    Log::info('🔵 معالجة حساب بنكي', [
+                        'index' => $index,
+                        'has_usd_iban' => !empty($bankAccount['iban_usd']),
+                        'has_shekel_iban' => !empty($bankAccount['iban_shekel']),
+                    ]);
                     // تأكد من استقبال وتخزين person_owner_identity_number
                     $reIdNumber = $bankAccount['person_owner_identity_number'] ?? null;
                     if (
@@ -564,25 +698,37 @@ class GeneralRegistrationController extends Controller
                         (!empty($bankAccount['re_phone_number'])) ||
                         (!empty($reIdNumber))
                     ) {
-                        // 🔍 التحقق من عدم تكرار الحساب البنكي
-                        $accountIdNumber = $reIdNumber ?? $guardianIdNumber;
+                        // (2.6) الحساب الجاري تحديثه مستثنى من فحص التكرار
+                        $existingBankAccount = null;
+                        if (!empty($reIdNumber)) {
+                            $existingBankAccount = $existingAccountsByIdentity->get($reIdNumber);
+                        }
 
-                        // فحص التكرار محلياً بدلاً من query في كل مرة
+                        // (2.6) التكرار يُقارن بالـ IBAN ونوعه (دولار/شيكل) بدل هوية المالك
+                        $incomingUsdIban = trim((string) ($bankAccount['iban_usd'] ?? ''));
+                        $incomingShekelIban = trim((string) ($bankAccount['iban_shekel'] ?? ''));
+
                         $isDuplicate = false;
                         foreach ($existingAccounts as $existingAccount) {
-                            $matchId = ($existingAccount->person_owner_identity_number == $accountIdNumber);
-                            $matchPhone = (!empty($bankAccount['re_phone_number']) && $existingAccount->re_phone_number == $bankAccount['re_phone_number']);
-                            $matchBank = (!empty($bankAccount['bank_name']) && $existingAccount->bank_name == $bankAccount['bank_name']);
+                            if ($existingBankAccount && (int) $existingAccount->id === (int) $existingBankAccount->id) {
+                                continue;
+                            }
 
-                            if ($matchId && ($matchPhone || $matchBank)) {
+                            $sameUsdIban = $incomingUsdIban !== ''
+                                && trim((string) $existingAccount->iban_usd) === $incomingUsdIban;
+                            $sameShekelIban = $incomingShekelIban !== ''
+                                && trim((string) $existingAccount->iban_shekel) === $incomingShekelIban;
+
+                            if ($sameUsdIban || $sameShekelIban) {
                                 $isDuplicate = true;
                                 $duplicateBankErrors[] = [
                                     'index' => $index + 1,
-                                    'message' => 'الحساب البنكي مكرر - موجود مسبقاً للشخص ' . $accountIdNumber
+                                    'message' => 'الحساب البنكي مكرر - نفس الـ IBAN مسجّل مسبقاً في هذا الملف.',
                                 ];
                                 Log::warning('⚠️ محاولة إضافة حساب بنكي مكرر في التسجيل العام', [
                                     'index' => $index,
-                                    'existing_account' => $existingAccount->id
+                                    'existing_account' => $existingAccount->id,
+                                    'iban_type' => $sameUsdIban ? 'usd' : 'shekel',
                                 ]);
                                 break;
                             }
@@ -592,14 +738,9 @@ class GeneralRegistrationController extends Controller
                             continue; // تجاوز هذا الحساب المكرر
                         }
 
-                        // 🆕 التحقق إذا كان هذا أول حساب بنكي للشخص (يُعتمد تلقائياً)
-                        $isFirstAccount = ($existingAccountsCount == 0);
-
-                        // البحث عن حساب بنكي موجود لنفس الشخص (محلياً)
-                        $existingBankAccount = null;
-                        if (!empty($reIdNumber)) {
-                            $existingBankAccount = $existingAccountsByIdentity->get($reIdNumber);
-                        }
+                        // (2.6) أول حساب في الملف فقط يأخذ check_account=1
+                        //       مع احتساب ما أُضيف في هذا الطلب نفسه
+                        $isFirstAccount = ($existingAccountsCount === 0 && $accountsCreatedInRequest === 0);
 
                         $bankData = [
                             'guardian_registration' => $fileIdNumber,
@@ -613,15 +754,46 @@ class GeneralRegistrationController extends Controller
                             'check_account' => $isFirstAccount ? 1 : 0,
                         ];
 
+                        $createdBankAccount = null;
+
                         if ($existingBankAccount) {
+                            // لا نُصفِّر حساباً أساسياً قائماً: نحفظ حالته إلا إذا أرسل العميل قيمة صريحة
+                            $bankData['check_account'] = array_key_exists('check_account', $bankAccount)
+                                ? (int) (!empty($bankAccount['check_account']) ? 1 : 0)
+                                : (int) $existingBankAccount->check_account;
+
                             $existingBankAccount->update($bankData);
-                            Log::info('✅ تم تحديث حساب بنكي موجود', ['person_id' => $reIdNumber]);
+                            Log::info('✅ تم تحديث حساب بنكي موجود', [
+                                'index' => $index,
+                                'person_identity_masked' => $this->maskTail((string) $reIdNumber, 3),
+                            ]);
                         } else {
-                            GuardianBankAccount::create($bankData);
-                            Log::info('🟢 تم إنشاء حساب بنكي جديد', ['person_id' => $reIdNumber]);
+                            $createdBankAccount = GuardianBankAccount::create($bankData);
+                            $accountsCreatedInRequest++;
+                            Log::info('🟢 تم إنشاء حساب بنكي جديد', [
+                                'index' => $index,
+                                'person_identity_masked' => $this->maskTail((string) $reIdNumber, 3),
+                            ]);
+                        }
+
+                        // (2.6) خدمة التحقق البنكي تُفعَّل كتحذير فقط (لا تمنع الحفظ)
+                        try {
+                            $serviceCheck = $bankValidationService->checkDuplicateBankAccount(
+                                $bankData,
+                                $existingBankAccount?->id ?? ($createdBankAccount->id ?? null)
+                            );
+
+                            if (!empty($serviceCheck['is_duplicate'])) {
+                                Log::warning('⚠️ خدمة التحقق البنكي أشارت إلى تكرار محتمل (لم يُمنع الحفظ)', [
+                                    'index' => $index,
+                                    'existing_account' => $serviceCheck['existing_account']['id'] ?? null,
+                                ]);
+                            }
+                        } catch (\Throwable $bankCheckError) {
+                            Log::warning('تعذر تشغيل خدمة التحقق البنكي: ' . $bankCheckError->getMessage());
                         }
                     } else {
-                        Log::warning('⚠️ لم يتم تخزين حساب بنكي بسبب نقص البيانات', $bankAccount);
+                        Log::warning('⚠️ لم يتم تخزين حساب بنكي بسبب نقص البيانات', ['index' => $index]);
                     }
                 }
             }
@@ -688,13 +860,9 @@ class GeneralRegistrationController extends Controller
                 // 🆕 حفظ المتوفين الإضافيين (غير الأب والأم) - يتم تنفيذه دائماً للقسم 1 (أيتام)
                 $additionalDeceased = $request->input('additional_deceased', []);
 
-                // تتبع البيانات المستلمة
-                Log::info('📋 البيانات المستلمة من النموذج للمتوفين الإضافيين:', [
-                    'additional_deceased_raw' => $request->input('additional_deceased'),
-                    'additional_deceased_array' => $additionalDeceased,
+                Log::info('📋 المتوفون الإضافيون المستلمون من النموذج', [
                     'is_array' => is_array($additionalDeceased),
                     'count' => is_array($additionalDeceased) ? count($additionalDeceased) : 0,
-                    'all_input_keys' => array_keys($request->all())
                 ]);
 
                 if (is_array($additionalDeceased) && count($additionalDeceased) > 0) {
@@ -712,9 +880,8 @@ class GeneralRegistrationController extends Controller
 
                         // التحقق من صحة رقم الهوية إذا تم إدخاله
                         if (!empty($personId) && !preg_match('/^\d{9}$/', $personId)) {
-                            Log::warning('⚠️ رقم هوية متوفي إضافي غير صالح:', [
+                            Log::warning('⚠️ رقم هوية متوفي إضافي غير صالح', [
                                 'index' => $index,
-                                'person_id' => $personId
                             ]);
                         }
 
@@ -740,10 +907,10 @@ class GeneralRegistrationController extends Controller
 
                         if ($existingAdditional) {
                             $existingAdditional->update($additionalData);
-                            Log::info('✅ تم تحديث متوفي إضافي', ['person_id' => $personId]);
+                            Log::info('✅ تم تحديث متوفي إضافي', ['index' => $index]);
                         } else {
                             \App\Models\AdditionalDeceased::create($additionalData);
-                            Log::info('✅ تم إنشاء متوفي إضافي جديد', ['person_id' => $personId]);
+                            Log::info('✅ تم إنشاء متوفي إضافي جديد', ['index' => $index]);
                         }
                     }
                 }
@@ -755,21 +922,18 @@ class GeneralRegistrationController extends Controller
             $guardianRelationship = $request->input('data_relationship');
             $guardianRelationshipText = $request->input('data_relationship_text', '');
             $motherIsAlive = $request->input('mother_is_alive');
-            $motherId = $request->input('mother_id') ?: $request->input('deceased_mother_id');
+            // الهوية تتبع الحالة المعلنة: الحية من mother_id والمتوفاة من deceased_mother_id
+            $motherId = $motherIsAlive === '1'
+                ? ($request->input('mother_id') ?: $request->input('deceased_mother_id'))
+                : ($request->input('deceased_mother_id') ?: $request->input('mother_id'));
             $motherFilled = $request->filled('mother_first_name') || $request->filled('mother_last_name') || !empty($motherId)
                 || $request->filled('deceased_mother_first_name') || $request->filled('deceased_mother_last_name')
                 || $request->filled('deceased_mother_id');
 
-            Log::info('🔍 [DEBUG] Mother data check:', [
-                'guardian_relationship' => $guardianRelationship,
-                'guardian_relationship_text' => $guardianRelationshipText,
+            Log::info('🔍 فحص بيانات الأم', [
+                'relationship' => $guardianRelationship,
                 'mother_is_alive' => $motherIsAlive,
-                'mother_id' => $motherId,
-                'mother_first_name' => $request->input('mother_first_name'),
-                'mother_last_name' => $request->input('mother_last_name'),
-                'mother_second_name' => $request->input('mother_second_name'),
-                'mother_third_name' => $request->input('mother_third_name'),
-                'motherFilled' => $motherFilled,
+                'mother_filled' => $motherFilled,
                 'file_id' => $fileIdNumber,
             ]);
 
@@ -782,8 +946,8 @@ class GeneralRegistrationController extends Controller
                 // ═══════════════════════════════════════════════════════════
                 $this->saveLivingMotherToPortal($request, $fileIdNumber, null, true);
                 Log::info('✅ تم نسخ بيانات المعيل (الأم) إلى portal_general_registration_field_values', [
-                    'guardian_id' => $guardianIdentity,
-                    'file_id' => $fileIdNumber
+                    'guardian_identity_masked' => $this->maskTail((string) $guardianIdentity, 3),
+                    'file_id' => $fileIdNumber,
                 ]);
 
             } elseif ($motherFilled) {
@@ -794,8 +958,8 @@ class GeneralRegistrationController extends Controller
                     // الأم حية — حفظ البيانات في portal_general_registration_field_values
                     $this->saveLivingMotherToPortal($request, $fileIdNumber, $motherId, false);
                     Log::info('✅ تم حفظ بيانات الأم الحية في portal_general_registration_field_values', [
-                        'mother_id' => $motherId,
-                        'file_id' => $fileIdNumber
+                        'mother_identity_masked' => $this->maskTail((string) $motherId, 3),
+                        'file_id' => $fileIdNumber,
                     ]);
                 } else {
                     // الأم متوفاة — حفظ البيانات في dead_people
@@ -816,11 +980,11 @@ class GeneralRegistrationController extends Controller
 
                     if ($deadRecord) {
                         $deadRecord->update($motherData);
-                        Log::info('✅ تم تحديث بيانات الأم المتوفاة في dead_people:', ['mother_id' => $motherId, 'file_id' => $fileIdNumber]);
+                        Log::info('✅ تم تحديث بيانات الأم المتوفاة في dead_people', ['file_id' => $fileIdNumber]);
                     } else {
                         $motherData['re_file_id'] = $fileIdNumber;
                         DeadPepole::create($motherData);
-                        Log::info('✅ تم إنشاء سجل بيانات الأم المتوفاة في dead_people:', ['mother_id' => $motherId, 'file_id' => $fileIdNumber]);
+                        Log::info('✅ تم إنشاء سجل بيانات الأم المتوفاة في dead_people', ['file_id' => $fileIdNumber]);
                     }
 
                     // حفظ بيانات الأم المتوفية في portal_general_registration_field_values
@@ -879,46 +1043,50 @@ class GeneralRegistrationController extends Controller
             // معالجة المرفقات الجديدة كمصفوفة Laravel
             $attachmentsData = $request->input('attachments', []);
             $allFiles = $request->allFiles();
-            Log::info('🟢 عدد المرفقات المستلمة من جميع البوابات:', [
-                'count' => count($attachmentsData),
-                'attachments' => $attachmentsData,
-                'family_members' => $request->input('family_members', []),
-                'all_files_keys' => array_keys($allFiles),
-                'all_files_debug' => array_map(function($f){
-                    if (is_array($f)) return array_map(function($ff){ return is_object($ff) && method_exists($ff, 'getClientOriginalName') ? $ff->getClientOriginalName() : 'NOT_FILE_OBJECT'; }, $f);
-                    return is_object($f) && method_exists($f, 'getClientOriginalName') ? $f->getClientOriginalName() : 'NOT_FILE_OBJECT';
-                }, $allFiles)
+            Log::info('🟢 عدد المرفقات المستلمة من جميع البوابات', [
+                'count' => is_array($attachmentsData) ? count($attachmentsData) : 0,
+                'files_count' => count($allFiles),
             ]);
             // 🛡️ هل أُضيف عمود file_hash إلى جدول attachments؟ (حماية من ترتيب الـ migrations)
             $attachmentsHasFileHash = \Illuminate\Support\Facades\Schema::hasColumn('attachments', 'file_hash');
 
             // 🛡️ منع التكرار داخل نفس الطلب: مفتاح فريد = شخص + نوع الوثيقة + بصمة المحتوى
             $seenAttachments = [];
+            $pendingStores = [];
 
             foreach ($attachmentsData as $index => $data) {
                 // استقبال الملف بشكل صحيح
                 $file = $request->hasFile("attachments.$index.file") ? $request->file("attachments.$index.file") : null;
                 $tempPath = $data['temp_path'] ?? null;
 
+                // 🛡️ (2.2) temp_path يُستقبل من العميل: صيغة صارمة + احتواء فعلي داخل مجلد الرفع المؤقت
+                $tempPath = is_string($tempPath) ? trim($tempPath) : null;
+                $tempPathRejected = false;
+                if ($tempPath === '') {
+                    $tempPath = null;
+                } elseif ($tempPath !== null && !$this->isAllowedTempPath($tempPath)) {
+                    Log::warning('🚫 تجاهل temp_path غير صالح أو خارج مجلد الرفع المؤقت', ['index' => $index]);
+                    $tempPath = null;
+                    $tempPathRejected = true;
+                }
+
                 if (!$file && !$tempPath) {
-                    Log::error('🔴 لم يتم استقبال الملف من الواجهة', [
-                        'index' => $index,
-                        'data' => $data,
-                        'all_files' => $request->allFiles(),
-                        'all_files_keys' => array_keys($allFiles),
-                        'all_files_debug' => array_map(function($f){
-                            if (is_array($f)) return array_map(function($ff){ return is_object($ff) && method_exists($ff, 'getClientOriginalName') ? $ff->getClientOriginalName() : 'NOT_FILE_OBJECT'; }, $f);
-                            return is_object($f) && method_exists($f, 'getClientOriginalName') ? $f->getClientOriginalName() : 'NOT_FILE_OBJECT';
-                        }, $allFiles)
-                    ]);
+                    $this->recordSkippedAttachment(
+                        $skippedAttachments,
+                        $index,
+                        $data,
+                        $tempPathRejected ? 'invalid_temp_path' : 'missing_file',
+                        $tempPathRejected
+                            ? 'مسار الرفع المؤقت غير صالح، ولم يصل الملف مع الطلب.'
+                            : 'لم يتم استقبال ملف المرفق.'
+                    );
                     continue;
                 }
-                if ($file) {
-                    Log::info('📸 اسم الملف المستلم: ' . $file->getClientOriginalName() . ' | الحجم: ' . $file->getSize());
-                } else if ($tempPath) {
-                    Log::info('📸 مسار الملف المؤقت المستلم: ' . $tempPath);
-                }
-                Log::info('🟠 معالجة مرفق فرد أسرة', ['index' => $index, 'data' => $data, 'file' => $file, 'tempPath' => $tempPath]);
+                Log::info('📸 استلام مرفق', [
+                    'index' => $index,
+                    'source' => $file ? 'upload' : 'temp_path',
+                    'size' => $file ? $file->getSize() : null,
+                ]);
                 $personType = $data['person_identity_number'] ?? null;
                 $fileType = $data['file_type'] ?? null;
                 // 📎 رقم المرفق يُوحَّد دائماً مع رقم الملف النهائي لهذه المعاملة
@@ -933,20 +1101,16 @@ class GeneralRegistrationController extends Controller
                     ]);
                 }
                 if (!$fileIdNumberAttach || $fileIdNumberAttach === 'undefined') {
-                    Log::warning('🚫 تجاهل مرفق بسبب عدم وجود رقم ملف عام صالح', ['index' => $index, 'data' => $data]);
+                    $this->recordSkippedAttachment($skippedAttachments, $index, $data, 'missing_file_id', 'رقم الملف غير صالح، تعذّر ربط المرفق بالملف.');
                     continue;
                 }
                 $storedFileName = $data['stored_file_name'] ?? ($file ? $file->getClientOriginalName() : null);
                 if (!$storedFileName && $file) {
                     $storedFileName = $file->getClientOriginalName();
                 }
-                // تجاهل أي صورة أصلية (غير مقصوصة)
-                if ($file && $file->isValid() && strpos($file->getMimeType(), 'image/') === 0 && (strpos($file->getClientOriginalName(), '_cropped') === false && strpos($storedFileName, '_cropped') === false)) {
-                    Log::warning('🚫 تجاهل صورة أصلية غير مقصوصة', ['index' => $index, 'file' => $file->getClientOriginalName(), 'data' => $data]);
-                    continue;
-                }
-                if ((!$file && !$tempPath) || !$storedFileName) {
-                    Log::error('🔴 تجاهل مرفق بسبب نقص البيانات', ['index' => $index, 'file' => $file, 'tempPath' => $tempPath, 'storedFileName' => $storedFileName, 'data' => $data]);
+                // (2.4) لم تعد الصورة الأصلية (غير المقصوصة) تُرفض: تُحفظ كنسخة أصلية
+                if (!$storedFileName) {
+                    $this->recordSkippedAttachment($skippedAttachments, $index, $data, 'missing_file_name', 'اسم الملف مفقود.');
                     continue;
                 }
                 $realPersonId = null;
@@ -955,7 +1119,8 @@ class GeneralRegistrationController extends Controller
                 } elseif ($personType === 'deceased_father') {
                     $realPersonId = $request->input('father_id');
                 } elseif ($personType === 'deceased_mother') {
-                    $realPersonId = $request->input('mother_id');
+                    // (2.4) الأولوية لهوية الأم المتوفاة، ثم هوية الأم الحية كاحتياط
+                    $realPersonId = $request->input('deceased_mother_id') ?: $request->input('mother_id');
                 } elseif (strpos($personType, 'family_') === 0) {
                     $familyIndex = (int)str_replace('family_', '', $personType);
                     $familyMembers = $request->input('family_members', []);
@@ -969,33 +1134,49 @@ class GeneralRegistrationController extends Controller
                             }
                         }
                     }
+                    // (2.4) فرد أسرة بلا رقم هوية: هوية الطلب إن وُجدت، وإلا مفتاح بديل ثابت
+                    //        (9 + رقم الملف + رقم الفرد) بدل إسقاط المرفق بصمت
+                    if (empty($realPersonId) || !preg_match('/^\d+$/', (string) $realPersonId)) {
+                        $submittedIdentity = trim((string) ($data['person_identity_number'] ?? ''));
+                        $realPersonId = preg_match('/^\d{9,10}$/', $submittedIdentity)
+                            ? $submittedIdentity
+                            : $this->buildFamilyFallbackIdentity((string) $fileIdNumberAttach, $familyIndex);
+                        Log::info('🪪 ربط مرفق فرد أسرة بلا هوية بمفتاح بديل', [
+                            'index' => $index,
+                            'family_index' => $familyIndex,
+                            'fallback_identity_masked' => $this->maskTail((string) $realPersonId, 3),
+                        ]);
+                    }
                 } else {
                     $realPersonId = is_numeric($personType) ? $personType : null;
                 }
                 if (($file || $tempPath) && $realPersonId && $fileType && $fileIdNumberAttach && $storedFileName && preg_match('/^\d+$/', $realPersonId)) {
                     // ملاحظة: فحص الوجه يتم الآن Client-Side عبر face-api.js في الواجهة الأمامية
 
-                    $extension = '';
-                    $fileSize = 0;
-                    if ($file) {
-                        $extension = $file->getClientOriginalExtension();
-                        $fileSize = $file->getSize();
-                    } else {
-                        // استخراج الامتداد من اسم الملف الأصلي المخزن
-                        $extension = pathinfo($storedFileName, PATHINFO_EXTENSION);
-                        if (empty($extension)) {
-                            $extension = 'jpg'; // افتراضي
-                        }
+                    // 🛡️ (2.2) النوع الحقيقي للمحتوى عبر finfo بدل الثقة باسم الملف،
+                    // والامتداد النهائي يُشتق من قائمة سماح ثابتة فقط.
+                    $absolutePath = $file
+                        ? $file->getRealPath()
+                        : ($tempPath ? \Storage::disk('public')->path($tempPath) : null);
+
+                    if (!$absolutePath || !is_file($absolutePath)) {
+                        $this->recordSkippedAttachment($skippedAttachments, $index, $data, 'unreadable_file', 'تعذّر الوصول إلى محتوى الملف.');
+                        continue;
                     }
 
-                    // 🔒 بصمة محتوى الملف (SHA-1) — تُستخدم لمنع إدخال نفس الملف مرتين لنفس الشخص ونوع الوثيقة
+                    $detectedMime = $this->detectUploadMime($absolutePath);
+                    $extension = $this->resolveAttachmentExtension($detectedMime, $absolutePath);
+                    if ($extension === null) {
+                        $this->recordSkippedAttachment($skippedAttachments, $index, $data, 'unsupported_type', 'نوع محتوى الملف غير مدعوم.');
+                        continue;
+                    }
+
+                    $fileSize = (int) @filesize($absolutePath);
+
+                    // 🔒 بصمة محتوى الملف (SHA-1) — تُحسب على المحتوى الأصلي لتوافق السجلات السابقة
                     $fileHash = null;
                     try {
-                        if ($file) {
-                            $fileHash = @hash_file('sha1', $file->getRealPath()) ?: null;
-                        } elseif ($tempPath && \Storage::disk('public')->exists($tempPath)) {
-                            $fileHash = @hash_file('sha1', \Storage::disk('public')->path($tempPath)) ?: null;
-                        }
+                        $fileHash = @hash_file('sha1', $absolutePath) ?: null;
                     } catch (\Throwable $hashError) {
                         $fileHash = null;
                     }
@@ -1003,13 +1184,7 @@ class GeneralRegistrationController extends Controller
                     // 🛡️ (1) منع التكرار داخل نفس الطلب — قد تصل الواجهة بنفس الملف أكثر من مرة
                     $dedupKey = $realPersonId . '|' . $fileType . '|' . ($fileHash ?? ($storedFileName . '|' . $fileSize));
                     if (isset($seenAttachments[$dedupKey])) {
-                        Log::warning('⚠️ تم تجاهل مرفق مكرر داخل نفس الطلب', [
-                            'index' => $index,
-                            'person_identity_number' => $realPersonId,
-                            'file_type' => $fileType,
-                            'file_hash' => $fileHash,
-                            'stored_file_name' => $storedFileName,
-                        ]);
+                        $this->recordSkippedAttachment($skippedAttachments, $index, $data, 'duplicate_in_request', 'المرفق مكرر داخل الطلب نفسه.');
                         continue;
                     }
 
@@ -1018,55 +1193,88 @@ class GeneralRegistrationController extends Controller
                             ->where('file_type', $fileType)
                             ->where('file_hash', $fileHash)
                             ->exists()) {
-                        Log::warning('⚠️ تم تجاهل مرفق مكرر مسجل مسبقاً في قاعدة البيانات', [
-                            'index' => $index,
-                            'person_identity_number' => $realPersonId,
-                            'file_type' => $fileType,
-                            'file_hash' => $fileHash,
-                        ]);
+                        $this->recordSkippedAttachment($skippedAttachments, $index, $data, 'duplicate_in_db', 'المرفق مسجّل مسبقاً في النظام.');
                         continue;
                     }
 
                     $seenAttachments[$dedupKey] = true;
 
+                    // 🖼️ كل صورة غير JPEG تُحوَّل إلى JPG قبل الحفظ (GD ثم ImageMagick احتياطاً)
+                    $convertedTempPath = null;
+                    if (in_array($extension, self::JPEG_CONVERSION_EXTENSIONS, true)) {
+                        $convertedTempPath = $this->convertImageToJpeg($absolutePath);
+                        if ($convertedTempPath === null) {
+                            $this->recordSkippedAttachment($skippedAttachments, $index, $data, 'conversion_failed', 'تعذّر تحويل الصورة إلى JPG.');
+                            continue;
+                        }
+
+                        $absolutePath = $convertedTempPath;
+                        $extension = 'jpg';
+                        $fileSize = (int) @filesize($convertedTempPath);
+                    }
+
                     // اسم الملف: نوع الوثيقة _ رقم الملف الخاص بالشخص _ رقم هوية الشخص _ تاريخ ووقت اليوم + مُعرّف فريد
                     // المعرّف الفريد ضروري: الطابع الزمني دقيقته الثانية فقط، فكانت محاولات متعددة داخل نفس الثانية
                     // تُنشئ نفس الاسم وتكتب فوق الملف الفعلي على القرص مع بقاء سجلات مكررة في قاعدة البيانات.
-                    $newFileName = "{$fileType}_{$fileIdNumberAttach}_{$realPersonId}_" . date('Ymd_His') . '_' . uniqid() . ".{$extension}";
+                    $safeFileType = preg_replace('/[^A-Za-z0-9_-]/', '_', (string) $fileType) ?: 'doc';
+                    $newFileName = "{$safeFileType}_{$fileIdNumberAttach}_{$realPersonId}_" . date('Ymd_His') . '_' . uniqid() . ".{$extension}";
                     $folder = 'uploads/' . $fileIdNumberAttach;
                     if ($folder === 'public' || $folder === 'public/') {
                         throw new \Exception('خطأ في مسار التخزين: يجب تحديد مجلد فرعي داخل uploads');
                     }
 
-                    $path = '';
-                    if ($file) {
-                        $path = $file->storeAs($folder, $newFileName, 'public');
+                    // (2.3) لا نكتب الملف النهائي داخل المعاملة: نرحّل مصدره وننقله بعد commit
+                    $finalPath = $folder . '/' . $newFileName;
+                    $stagedStore = null;
+
+                    if ($convertedTempPath) {
+                        $fileSize = (int) @filesize($convertedTempPath);
+                        $stagedStore = [
+                            'type' => 'absolute',
+                            'source' => $convertedTempPath,
+                            'final_path' => $finalPath,
+                            'folder' => $folder,
+                            'file_name' => $newFileName,
+                        ];
+
+                        // لم يعد المصدر المؤقت مطلوباً بعد التحويل
+                        if ($tempPath) {
+                            $this->deleteTempUploadIfEmpty($tempPath);
+                        }
+                    } elseif ($file) {
+                        $fileSize = (int) $file->getSize();
+                        $stagedStore = [
+                            'type' => 'uploaded',
+                            'file' => $file,
+                            'final_path' => $finalPath,
+                            'folder' => $folder,
+                            'file_name' => $newFileName,
+                        ];
                     } else {
-                        $finalPath = $folder . '/' . $newFileName;
-                        if (\Storage::disk('public')->exists($tempPath)) {
-                            \Storage::disk('public')->move($tempPath, $finalPath);
-                            $path = $finalPath;
-                            $fileSize = \Storage::disk('public')->size($finalPath);
-                            
-                            // Delete the temporary directory if it's empty after move
-                            $tempDir = dirname($tempPath);
-                            if (\Storage::disk('public')->exists($tempDir)) {
-                                $remainingFiles = \Storage::disk('public')->allFiles($tempDir);
-                                if (empty($remainingFiles)) {
-                                    \Storage::disk('public')->deleteDirectory($tempDir);
-                                    Log::info('🗑️ تم حذف المجلد المؤقت الفارغ', ['dir' => $tempDir]);
-                                }
-                            }
-                        } else {
-                            Log::error('الملف المؤقت غير موجود', ['tempPath' => $tempPath]);
+                        if (!\Storage::disk('public')->exists($tempPath)) {
+                            $this->recordSkippedAttachment($skippedAttachments, $index, $data, 'temp_file_missing', 'الملف المؤقت لم يعد موجوداً.');
                             continue;
                         }
+
+                        try {
+                            $fileSize = (int) \Storage::disk('public')->size($tempPath);
+                        } catch (\Throwable $sizeError) {
+                            $fileSize = 0;
+                        }
+
+                        $stagedStore = [
+                            'type' => 'temp_path',
+                            'source' => $tempPath,
+                            'final_path' => $finalPath,
+                            'folder' => $folder,
+                            'file_name' => $newFileName,
+                        ];
                     }
 
                     $attachmentPayload = [
                         'person_identity_number' => $realPersonId,
                         'stored_file_name' => $newFileName,
-                        'file_path' => 'storage/' . $path,
+                        'file_path' => 'storage/' . $finalPath,
                         'file_type' => $fileType,
                         'file_size' => $fileSize,
                     ];
@@ -1075,48 +1283,99 @@ class GeneralRegistrationController extends Controller
                     }
 
                     try {
-                        Attachment::create($attachmentPayload);
+                        $attachment = Attachment::create($attachmentPayload);
                     } catch (\Illuminate\Database\QueryException $queryException) {
                         // فهرس الفريدة uniq_person_type_hash رفض سجلاً مكرراً (سباق بين طلبين) — لا نُفشل التسجيل كاملاً
                         if ((string) $queryException->getCode() === '23000') {
-                            Log::warning('⚠️ رفض مرفق مكرر بواسطة فهرس الفريدة', [
-                                'index' => $index,
-                                'person_identity_number' => $realPersonId,
-                                'file_type' => $fileType,
-                                'file_hash' => $fileHash,
-                                'stored_file_name' => $newFileName,
-                            ]);
+                            $this->recordSkippedAttachment($skippedAttachments, $index, $data, 'duplicate_in_db', 'المرفق مسجّل مسبقاً في النظام.');
                             continue;
                         }
                         throw $queryException;
                     }
-                    $attachmentsSaved++;
-                    Log::info('🟢 تم تخزين مرفق بنجاح', ['index' => $index, 'file' => $file, 'tempPath' => $tempPath, 'data' => $data, 'newFileName' => $newFileName, 'file_hash' => $fileHash]);
+
+                    $stagedStore['attachment_id'] = $attachment->id;
+                    $stagedStore['index'] = $index;
+                    $stagedStore['data'] = $data;
+                    $pendingStores[] = $stagedStore;
+
+                    $coveredAttachments[(string) $realPersonId][strtolower(trim((string) $fileType))] = true;
+                    Log::info('🟢 تم تسجيل مرفق بانتظار النقل بعد commit', [
+                        'index' => $index,
+                        'file_type' => $fileType,
+                        'new_file_name' => $newFileName,
+                        'file_hash' => $fileHash,
+                        'file_size' => $fileSize,
+                    ]);
                 } else {
-                    Log::error('🔴 تجاهل مرفق بسبب شرط تحقق نهائي', ['index' => $index, 'file' => $file, 'tempPath' => $tempPath, 'data' => $data]);
+                    $this->recordSkippedAttachment(
+                        $skippedAttachments,
+                        $index,
+                        $data,
+                        'incomplete_attachment_data',
+                        'بيانات المرفق غير مكتملة (نوع الوثيقة أو ربط الشخص).'
+                    );
                 }
             }
 
+            if (!empty($skippedAttachments)) {
+                Log::warning('⚠️ مرفقات لم تُحفظ في الطلب', [
+                    'file_id_number' => $fileIdNumber,
+                    'skipped_count' => count($skippedAttachments),
+                    'reasons' => array_count_values(array_column($skippedAttachments, 'reason')),
+                ]);
+            }
+
+
+            // 🛡️ (2.4) فحص الوثائق الإلزامية: تحذير + تسجيل افتراضياً،
+            //      والحجب فقط عند تفعيل config('portal.strict_attachments') بقرار من مالك المشروع
+            $missingRequiredAttachments = $this->collectMissingRequiredAttachments($request, $fileIdNumber, $coveredAttachments);
+            if (!empty($missingRequiredAttachments)) {
+                foreach ($missingRequiredAttachments as $missingAttachment) {
+                    $skippedAttachments[] = $missingAttachment;
+                }
+
+                Log::warning('⚠️ وثائق إلزامية غير مرفوعة في الطلب', [
+                    'file_id_number' => $fileIdNumber,
+                    'missing_count' => count($missingRequiredAttachments),
+                ]);
+
+                if (config('portal.strict_attachments', false)) {
+                    $missingTypeNames = array_values(array_unique(array_column($missingRequiredAttachments, 'file_type')));
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'attachments' => 'وثائق إلزامية ناقصة: ' . implode('، ', $missingTypeNames),
+                    ]);
+                }
+            }
 
             // إضافة مستخدم جديد عند التسجيل العام
             // توليد كلمة مرور عشوائية من 8 أحرف
             $randomPassword = substr(str_shuffle('0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'), 0, 8);
-            // فحص وجود المستخدم قبل محاولة الإنشاء (يمنع Duplicate entry error)
-            if (!\App\Models\User::where('email', $request->input('data_id_number'))->exists()) {
-                $user = \App\Models\User::create([
+
+            // (2.5) firstOrCreate يمنع فشل الاستمارة عند سباق إنشاء نفس المستخدم
+            $user = \App\Models\User::firstOrCreate(
+                ['email' => $request->input('data_id_number')],
+                [
                     'name' => $request->input('data_first_name'),
                     'phone' => $request->input('data_phone_number') ?? $request->input('data_id_number'), // قيمة افتراضية = رقم الهوية
-                    'email' => $request->input('data_id_number'), // تخزين رقم الهوية مباشرة في عمود البريد الإلكتروني
                     'password' => bcrypt($randomPassword),
                     'role' => 'user',
-                ]);
-                Log::info('ℹ️ تم إنشاء حساب مستخدم جديد', ['identity' => $request->input('data_id_number')]);
-                $userCreated = true;
-            } else {
-                Log::info('ℹ️ المستخدم مسجل مسبقاً، تخطي إنشاء حساب جديد', ['identity' => $request->input('data_id_number')]);
-            }
+                ]
+            );
+            $userCreated = $user->wasRecentlyCreated;
+            Log::info($userCreated ? 'ℹ️ تم إنشاء حساب مستخدم جديد' : 'ℹ️ المستخدم مسجل مسبقاً، تخطي إنشاء حساب جديد', [
+                'file_id_number' => $fileIdNumber,
+            ]);
 
             DB::commit();
+
+            // (3.3) انتهى استخدام الرقم المحجوز لهذه الجلسة
+            if ($request->hasSession()) {
+                $request->session()->forget(['reserved_code', 'reserved_code_at']);
+            }
+
+            // (2.3) اكتملت كتابة السجلات — ننقل ملفات المرفقات إلى مكانها النهائي الآن فقط
+            $attachmentsSaved = $this->finalizePendingAttachmentStores($pendingStores, $skippedAttachments);
+            $pendingStores = [];
 
             // 📋 ملخص التسجيل — للتأكد من دخول جميع الأقسام (قراءة فقط بعد الحفظ)
             try {
@@ -1141,7 +1400,7 @@ class GeneralRegistrationController extends Controller
                 Log::info('📋 ملخص التسجيل العام', [
                     'file_id_number' => $fileIdNumber,
                     'mode' => $useExistingGuardian ? 'update' : 'create',
-                    'guardian_identity' => $guardianIdentity,
+                    'guardian_identity_masked' => $this->maskTail((string) $guardianIdentity, 3),
                     'family_members_total' => $summaryFamilyMembers,
                     'bank_accounts_total' => $summaryBankAccounts,
                     'has_dead_people' => $summaryHasDeadPeople,
@@ -1154,13 +1413,26 @@ class GeneralRegistrationController extends Controller
             }
 
             if ($request->ajax() || $request->wantsJson()) {
-                return response()->json(['success' => true, 'redirect' => route('user.thank.you.page')]);
+                // (2.4) المرفقات غير المحفوظة تُعاد للواجهة كتحذيرات بدل إسقاطها بصمت
+                return response()->json([
+                    'success' => true,
+                    'redirect' => route('user.thank.you.page'),
+                    'warnings' => $skippedAttachments,
+                    'skipped_attachments' => $skippedAttachments,
+                ]);
             }
-            return redirect()->route('user.thank.you.page');
+
+            $thankYouRedirect = redirect()->route('user.thank.you.page');
+            if (!empty($skippedAttachments)) {
+                $thankYouRedirect->with('attachment_warnings', $skippedAttachments);
+            }
+            return $thankYouRedirect;
 
             } catch (\Illuminate\Validation\ValidationException $e) {
                 // فشل تحقق (ValidationException) ليس عطلاً في الخادم:
                 // يُعاد بـ 422 مع أخطاء الحقول الصحيحة بدل 500
+                $this->cleanupPendingAttachmentTemps($pendingStores);
+                $pendingStores = [];
                 DB::rollBack();
                 Log::warning('⚠️ فشل تحقق أثناء حفظ السجل العام: ' . $e->getMessage());
 
@@ -1176,7 +1448,33 @@ class GeneralRegistrationController extends Controller
                     ->withErrors($e->errors())
                     ->with('error', $e->getMessage());
             } catch (\Exception $e) {
+                $this->cleanupPendingAttachmentTemps($pendingStores);
+                $pendingStores = [];
                 DB::rollBack();
+
+                // (2.5) أخطاء التكرار (SQLSTATE 23000 / MySQL 1062) تُعاد كطلب مكرر مفهوم بلا كشف SQL
+                if ($e instanceof \Illuminate\Database\QueryException) {
+                    $sqlState = (string) $e->getCode();
+                    $driverCode = (int) ($e->errorInfo[1] ?? 0);
+
+                    if ($sqlState === '23000' || $driverCode === 1062) {
+                        Log::warning('⚠️ تكرار في قاعدة البيانات أثناء حفظ التسجيل العام', [
+                            'sql_state' => $sqlState,
+                            'driver_code' => $driverCode,
+                        ]);
+
+                        $duplicateMessage = 'يبدو أن هذا الطلب مسجّل مسبقاً في النظام (تكرار في البيانات). يرجى مراجعة البيانات والمحاولة مرة أخرى، أو التواصل مع الإدارة.';
+
+                        if ($request->ajax() || $request->wantsJson()) {
+                            return response()->json([
+                                'success' => false,
+                                'message' => $duplicateMessage,
+                            ], 409);
+                        }
+
+                        return redirect()->back()->withInput()->with('error', $duplicateMessage);
+                    }
+                }
 
                 // إعادة المحاولة في حالة Deadlock
                 $isDeadlock = str_contains($e->getMessage(), 'Deadlock') ||
@@ -1202,36 +1500,78 @@ class GeneralRegistrationController extends Controller
                     ->with('error', 'حدث خطأ أثناء حفظ السجل: ' . $e->getMessage());
             }
         } // end while
+        } finally {
+            // (3.1) تحرير القفل دائماً — وإن فشل يتحرر تلقائياً بعد انتهاء مدته
+            if ($storeLock !== null) {
+                try {
+                    $storeLock->release();
+                } catch (\Throwable $releaseError) {
+                    Log::warning('تعذر تحرير قفل الحفظ: ' . $releaseError->getMessage());
+                }
+            }
+        }
     }
     // إضافة دالة الرفع المجزأ
     public function uploadChunk(Request $request)
     {
         try {
             $chunk = $request->file('chunk');
-            $fileName = $request->input('file_name');
-            $fileId = $request->input('file_id_number');
+            $fileName = (string) $request->input('file_name');
+            $fileId = (string) $request->input('file_id_number');
             $chunkIndex = $request->input('chunk_index');
             $totalChunks = $request->input('total_chunks');
 
-            if (!$chunk || !$fileName || !$fileId) {
+            if (!$chunk || $fileName === '' || $fileId === '') {
                 return response()->json(['success' => false, 'error' => 'بيانات مفقودة للرفع المجزأ'], 400);
             }
 
-            // تحديد مسار التخزين المؤقت
-            $tempDir = storage_path('app/public/temp_uploads/' . $fileId);
-            if (!file_exists($tempDir)) {
-                mkdir($tempDir, 0777, true);
+            // رقم الملف: 6 أرقام (أو الصيغة الاحتياطية TEMP التي تولّدها الواجهة)
+            if (!preg_match('/^(?:\d{6}|TEMP-[A-Z0-9]{6})$/', $fileId)) {
+                return response()->json(['success' => false, 'error' => 'رقم الملف غير صالح للرفع'], 422);
+            }
+
+            // كل صيغ الصور الشائعة + PDF (الصور تُحوَّل إلى JPG عند الحفظ)
+            $extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+            if (!in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'tif', 'tiff', 'ico', 'heic', 'heif', 'jfif', 'pdf'], true)) {
+                return response()->json(['success' => false, 'error' => 'نوع الملف غير مسموح'], 422);
+            }
+
+            if (!is_numeric($chunkIndex) || !is_numeric($totalChunks)) {
+                return response()->json(['success' => false, 'error' => 'بيانات الأجزاء غير صالحة'], 422);
+            }
+
+            $chunkIndex = (int) $chunkIndex;
+            $totalChunks = (int) $totalChunks;
+
+            if ($totalChunks < 1 || $totalChunks > 200) {
+                return response()->json(['success' => false, 'error' => 'عدد الأجزاء غير مسموح'], 422);
+            }
+
+            if ($chunkIndex < 0 || $chunkIndex >= $totalChunks) {
+                return response()->json(['success' => false, 'error' => 'فهرس الجزء غير صالح'], 422);
+            }
+
+            // حجم الجزء 1MB في الواجهة، ونسمح بهامش حتى 2MB
+            if ($chunk->getSize() > 2 * 1024 * 1024) {
+                return response()->json(['success' => false, 'error' => 'حجم الجزء أكبر من المسموح'], 422);
             }
 
             // تنظيف اسم الملف لتجنب أي مشاكل أمنية
             $safeFileName = preg_replace('/[^a-zA-Z0-9_.-]/', '_', $fileName);
-            $tempPath = $tempDir . '/' . $safeFileName;
+            if ($safeFileName === '' || $safeFileName === '.' || $safeFileName === '..') {
+                return response()->json(['success' => false, 'error' => 'اسم الملف غير صالح'], 422);
+            }
 
-            // إلحاق الجزء بالملف المؤقت (FILE_APPEND)
-            file_put_contents($tempPath, file_get_contents($chunk->getRealPath()), FILE_APPEND);
+            $tempDir = storage_path('app/public/temp_uploads/' . $fileId);
+            if (!is_dir($tempDir) && !mkdir($tempDir, 0755, true) && !is_dir($tempDir)) {
+                return response()->json(['success' => false, 'error' => 'تعذر تجهيز مجلد الرفع'], 500);
+            }
 
-            // إذا كان هذا هو الجزء الأخير
-            if ($chunkIndex == $totalChunks - 1) {
+            $finalPath = $tempDir . '/' . $safeFileName;
+            $partPath = $finalPath . '.part' . $chunkIndex;
+
+            // الجزء الأخير بعد استجابة مفقودة: الملف مجمّع مسبقاً بالفعل
+            if ($chunkIndex === $totalChunks - 1 && empty(glob($finalPath . '.part*')) && is_file($finalPath)) {
                 return response()->json([
                     'success' => true,
                     'complete' => true,
@@ -1239,10 +1579,66 @@ class GeneralRegistrationController extends Controller
                 ]);
             }
 
-            return response()->json(['success' => true, 'complete' => false]);
+            if ($chunkIndex === 0) {
+                // بداية رفع جديد: احذف بقايا نفس الاسم
+                foreach ((array) glob($finalPath . '.part*') as $stalePart) {
+                    @unlink($stalePart);
+                }
+                @unlink($finalPath);
+            }
+
+            // اكتب كل جزء في ملف مستقل لتجنّب تداخل الأجزاء المتزامنة
+            $chunkContents = file_get_contents($chunk->getRealPath());
+            if ($chunkContents === false || file_put_contents($partPath, $chunkContents) === false) {
+                @unlink($partPath);
+                return response()->json(['success' => false, 'error' => 'تعذر كتابة الجزء'], 500);
+            }
+
+            // إذا لم يكن هذا الجزء الأخير
+            if ($chunkIndex !== $totalChunks - 1) {
+                return response()->json(['success' => true, 'complete' => false]);
+            }
+
+            // الجزء الأخير: تأكد من اكتمال جميع الأجزاء ثم اجمعها بالترتيب
+            $parts = [];
+            for ($i = 0; $i < $totalChunks; $i++) {
+                $candidate = $finalPath . '.part' . $i;
+                if (!is_file($candidate)) {
+                    return response()->json(['success' => false, 'error' => 'أجزاء ناقصة، أعد المحاولة'], 409);
+                }
+                $parts[] = $candidate;
+            }
+
+            $out = fopen($finalPath, 'wb');
+            if ($out === false) {
+                return response()->json(['success' => false, 'error' => 'تعذر تجميع الملف'], 500);
+            }
+
+            try {
+                foreach ($parts as $part) {
+                    $in = fopen($part, 'rb');
+                    if ($in === false) {
+                        throw new \RuntimeException('تعذر قراءة جزء من الأجزاء');
+                    }
+                    stream_copy_to_stream($in, $out);
+                    fclose($in);
+                }
+            } finally {
+                fclose($out);
+            }
+
+            foreach ($parts as $part) {
+                @unlink($part);
+            }
+
+            return response()->json([
+                'success' => true,
+                'complete' => true,
+                'path' => 'temp_uploads/' . $fileId . '/' . $safeFileName
+            ]);
         } catch (\Exception $e) {
             Log::error('خطأ في الرفع المجزأ: ' . $e->getMessage());
-            return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+            return response()->json(['success' => false, 'error' => 'تعذر إكمال الرفع المجزأ'], 500);
         }
     }
 
@@ -1264,6 +1660,496 @@ class GeneralRegistrationController extends Controller
         if (RePeople::where('person_id', $id)->exists()) $exists = true;
 
         return response()->json(['exists' => $exists]);
+    }
+
+    /**
+     * مسارات الرفع المؤقت المسموحة: رفع البوابة المجزأ ورفع واتساب.
+     * ملف واحد فقط تحت مجلد معروف، بلا شرطات مائلة داخل الاسم.
+     */
+    private const TEMP_ATTACHMENT_PATH_PATTERN = '#^temp_uploads/(?:(?:\d{6}|TEMP-[A-Z0-9]{6})|whatsapp/\d{6,20})/[^/\\\\]+$#';
+
+    /** أنواع المحتوى المسموحة للمرفقات، مشتقة من فحص finfo الحقيقي فقط. */
+    private const ATTACHMENT_MIME_EXTENSIONS = [
+        'image/jpeg' => 'jpg',
+        'image/pjpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+        'image/gif' => 'gif',
+        'image/bmp' => 'bmp',
+        'image/x-bmp' => 'bmp',
+        'image/x-ms-bmp' => 'bmp',
+        'image/avif' => 'avif',
+        'image/heic' => 'heic',
+        'image/heif' => 'heic',
+        'image/tiff' => 'tif',
+        'image/x-icon' => 'ico',
+        'image/vnd.microsoft.icon' => 'ico',
+        'application/pdf' => 'pdf',
+    ];
+
+    /** كل صورة غير JPEG تُحوَّل إلى JPG قبل الحفظ. */
+    private const JPEG_CONVERSION_EXTENSIONS = ['png', 'webp', 'gif', 'bmp', 'avif', 'heic', 'tif', 'ico'];
+
+    /** الحد الأقصى لحجم المرفق بعد التحويل (5 ميغابايت). */
+    private const MAX_ATTACHMENT_BYTES = 5242880;
+
+    /**
+     * نوع المحتوى الحقيقي للملف عبر finfo (وليس امتداد الاسم).
+     */
+    private function detectUploadMime(string $absolutePath): ?string
+    {
+        try {
+            $finfo = new \finfo(FILEINFO_MIME_TYPE);
+            $mime = $finfo->file($absolutePath);
+            if (!is_string($mime) || $mime === '') {
+                return null;
+            }
+
+            return strtolower(trim(explode(';', $mime)[0]));
+        } catch (\Throwable $exception) {
+            return null;
+        }
+    }
+
+    /**
+     * يعيد الامتداد المسموح المقابل للنوع الحقيقي، أو null إذا كان النوع مرفوضاً.
+     */
+    private function resolveAttachmentExtension(?string $mime, string $absolutePath): ?string
+    {
+        if ($mime !== null && isset(self::ATTACHMENT_MIME_EXTENSIONS[$mime])) {
+            return self::ATTACHMENT_MIME_EXTENSIONS[$mime];
+        }
+
+        // بعض إصدارات libmagic تُرجع application/octet-stream لصور HEIC — نتحقق من ترويسة ftyp
+        if (($mime === null || $mime === 'application/octet-stream') && $this->looksLikeHeic($absolutePath)) {
+            return 'heic';
+        }
+
+        return null;
+    }
+
+    private function looksLikeHeic(string $absolutePath): bool
+    {
+        $handle = @fopen($absolutePath, 'rb');
+        if ($handle === false) {
+            return false;
+        }
+        $header = fread($handle, 12);
+        fclose($handle);
+
+        if (!is_string($header) || strlen($header) < 12 || substr($header, 4, 4) !== 'ftyp') {
+            return false;
+        }
+
+        return in_array(substr($header, 8, 4), ['heic', 'heix', 'hevc', 'hevx', 'mif1', 'msf1'], true);
+    }
+
+    /**
+     * يحوّل أي صورة مدعومة إلى JPEG على خلفية بيضاء ويُعيد مساراً مؤقتاً، أو null عند الفشل.
+     */
+    private function convertImageToJpeg(string $sourcePath): ?string
+    {
+        $base = @tempnam(sys_get_temp_dir(), 'attachment_');
+        if ($base === false) {
+            return null;
+        }
+        $destination = $base . '.jpg';
+        @unlink($base);
+
+        // الصور الضخمة تُترك لـ ImageMagick (يستخدم ذاكرة مؤقتة على القرص) تفادياً لاستنزاف ذاكرة PHP
+        $probe = @getimagesize($sourcePath);
+        $pixels = is_array($probe) ? ((int) $probe[0] * (int) $probe[1]) : 0;
+
+        if (($pixels === 0 || $pixels <= 24000000) && function_exists('imagecreatefromstring')) {
+            $contents = @file_get_contents($sourcePath);
+            $image = $contents !== false ? @imagecreatefromstring($contents) : false;
+            unset($contents);
+
+            if ($image !== false) {
+                $width = imagesx($image);
+                $height = imagesy($image);
+                $longest = max($width, $height);
+
+                // حد أقصى 4096px للضلع الأطول: يحافظ على وضوح الوثائق ويضبط الحجم
+                if ($longest > 4096) {
+                    $ratio = 4096 / $longest;
+                    $resized = imagescale(
+                        $image,
+                        max(1, (int) round($width * $ratio)),
+                        max(1, (int) round($height * $ratio)),
+                        IMG_BICUBIC
+                    );
+                    if ($resized !== false) {
+                        imagedestroy($image);
+                        $image = $resized;
+                        $width = imagesx($image);
+                        $height = imagesy($image);
+                    }
+                }
+
+                $canvas = $width > 0 && $height > 0 ? imagecreatetruecolor($width, $height) : false;
+
+                if ($canvas !== false) {
+                    $white = imagecolorallocate($canvas, 255, 255, 255);
+                    imagefilledrectangle($canvas, 0, 0, $width, $height, $white);
+                    imagecopy($canvas, $image, 0, 0, 0, 0, $width, $height);
+
+                    // جودة تنازلية حتى يبقى الحجم ضمن الحد المسموح
+                    foreach ([85, 70, 55] as $quality) {
+                        if (@imagejpeg($canvas, $destination, $quality)
+                            && is_file($destination)
+                            && filesize($destination) > 0
+                            && filesize($destination) <= self::MAX_ATTACHMENT_BYTES) {
+                            imagedestroy($canvas);
+                            imagedestroy($image);
+                            return $destination;
+                        }
+                    }
+
+                    imagedestroy($canvas);
+                }
+
+                imagedestroy($image);
+            }
+        }
+
+        // محرك احتياطي: ImageMagick يقرأ HEIC/TIFF/ICO عند توفّر delegates
+        if ($this->convertImageWithImageMagick($sourcePath, $destination)) {
+            return $destination;
+        }
+
+        @unlink($destination);
+        return null;
+    }
+
+    private function convertImageWithImageMagick(string $sourcePath, string $destination): bool
+    {
+        if (!function_exists('exec')) {
+            return false;
+        }
+
+        static $available = null;
+        if ($available === null) {
+            $output = [];
+            $exitCode = 1;
+            @exec('magick -version 2>&1', $output, $exitCode);
+            $available = $exitCode === 0;
+        }
+
+        if (!$available) {
+            return false;
+        }
+
+        $command = 'magick ' . escapeshellarg($sourcePath)
+            . ' -auto-orient -resize "4096x4096>" -background white -alpha remove -alpha off -quality 85 '
+            . escapeshellarg($destination) . ' 2>&1';
+
+        $output = [];
+        $exitCode = 1;
+        @exec($command, $output, $exitCode);
+
+        return $exitCode === 0
+            && is_file($destination)
+            && filesize($destination) > 0
+            && filesize($destination) <= self::MAX_ATTACHMENT_BYTES;
+    }
+
+    /**
+     * حذف الملف المؤقت (بعد التحويل) ومجلده إن أصبح فارغاً.
+     */
+    private function deleteTempUploadIfEmpty(string $tempPath): void
+    {
+        try {
+            $disk = \Storage::disk('public');
+            $disk->delete($tempPath);
+
+            $dir = dirname($tempPath);
+            if ($dir === 'temp_uploads' || $dir === '.') {
+                return;
+            }
+
+            if ($disk->exists($dir) && empty($disk->allFiles($dir))) {
+                $disk->deleteDirectory($dir);
+            }
+        } catch (\Throwable $exception) {
+            // التنظيف ليس حرجاً — الكنس الدوري يتكفل بالبقايا
+        }
+    }
+
+    /**
+     * مسار الرفع المؤقت يجب أن يطابق temp_uploads/{ملف}/اسم وأن يبقى فعلياً داخل temp_uploads.
+     */
+    private function isAllowedTempPath(string $tempPath): bool
+    {
+        if (strpos($tempPath, '..') !== false
+            || !preg_match(self::TEMP_ATTACHMENT_PATH_PATTERN, $tempPath)) {
+            return false;
+        }
+
+        $tempRoot = realpath(storage_path('app/public/temp_uploads'));
+        if ($tempRoot === false) {
+            return false;
+        }
+
+        // ذاكرة realpath تبقى بين الطلبات في php-fpm؛ نمسحها لئلا يُرفض ملف أُنشئ للتوّ
+        $absolute = storage_path('app/public/' . $tempPath);
+        clearstatcache(true, $absolute);
+        $resolved = realpath($absolute);
+
+        return $resolved !== false
+            && is_file($resolved)
+            && strpos($resolved, $tempRoot . DIRECTORY_SEPARATOR) === 0;
+    }
+
+    /**
+     * (2.3) نقل ملفات المرفقات بعد commit. أي فشل يتراجع عن سجل المرفق ويُعاد في warnings.
+     */
+    private function finalizePendingAttachmentStores(array $pendingStores, array &$skippedAttachments): int
+    {
+        $disk = \Storage::disk('public');
+        $storedCount = 0;
+
+        foreach ($pendingStores as $pending) {
+            $stored = false;
+            $failureReason = null;
+
+            try {
+                if ($pending['type'] === 'uploaded') {
+                    $stored = $pending['file']->storeAs($pending['folder'], $pending['file_name'], 'public') !== false;
+                } elseif ($pending['type'] === 'temp_path') {
+                    $stored = $disk->exists($pending['source'])
+                        && $disk->move($pending['source'], $pending['final_path']);
+                } else {
+                    $handle = @fopen($pending['source'], 'rb');
+                    if ($handle !== false) {
+                        $stored = $disk->put($pending['final_path'], $handle) !== false;
+                        fclose($handle);
+                    }
+                }
+            } catch (\Throwable $storeError) {
+                $failureReason = $storeError->getMessage();
+                $stored = false;
+            }
+
+            if ($pending['type'] === 'absolute') {
+                @unlink($pending['source']);
+            }
+
+            if (!$stored) {
+                // الملف لم يُحفظ فعلياً: إزالة السجل الذي أُنشئ في هذه العملية وعدم إبقاء ملف جزئي
+                try {
+                    Attachment::whereKey($pending['attachment_id'])->delete();
+                } catch (\Throwable $cleanupError) {
+                    // لا شيء إضافي: السجل سيظهر لاحقاً كمرفق بلا ملف ويُعالج يدوياً
+                }
+
+                try {
+                    $disk->delete($pending['final_path']);
+                } catch (\Throwable $cleanupError) {
+                    // تجاهل
+                }
+
+                $this->recordSkippedAttachment(
+                    $skippedAttachments,
+                    $pending['index'] ?? null,
+                    $pending['data'] ?? [],
+                    'storage_failed',
+                    'تعذّر نقل الملف إلى مكانه النهائي بعد حفظ السجل.'
+                );
+
+                Log::error('تعذر نقل ملف مرفق بعد commit', [
+                    'attachment_id' => $pending['attachment_id'],
+                    'error' => $failureReason,
+                ]);
+                continue;
+            }
+
+            if ($pending['type'] === 'temp_path') {
+                $tempDir = dirname($pending['source']);
+                if ($tempDir !== 'temp_uploads' && $tempDir !== '.') {
+                    try {
+                        if ($disk->exists($tempDir) && empty($disk->allFiles($tempDir))) {
+                            $disk->deleteDirectory($tempDir);
+                        }
+                    } catch (\Throwable $cleanupError) {
+                        // التنظيف غير حرج
+                    }
+                }
+            }
+
+            $storedCount++;
+        }
+
+        return $storedCount;
+    }
+
+    /**
+     * (2.3) حذف الملفات المؤقتة الناتجة عن التحويل عند فشل/إعادة الطلب.
+     */
+    private function cleanupPendingAttachmentTemps(array $pendingStores): void
+    {
+        foreach ($pendingStores as $pending) {
+            if (($pending['type'] ?? null) === 'absolute' && !empty($pending['source'])) {
+                @unlink($pending['source']);
+            }
+        }
+    }
+
+    /**
+     * (2.4) تسجيل مرفق لم يُحفظ مع سبب مفهوم، وإعادته للواجهة ضمن warnings.
+     */
+    private function recordSkippedAttachment(array &$skipped, $index, $data, string $reason, string $message): void
+    {
+        $fileType = is_array($data) ? ($data['file_type'] ?? null) : null;
+        $personIdentity = is_array($data) ? ($data['person_identity_number'] ?? null) : null;
+
+        $skipped[] = [
+            'index' => $index,
+            'file_type' => $fileType,
+            'person_identity_number' => $personIdentity,
+            'reason' => $reason,
+            'message' => $message,
+        ];
+
+        Log::warning('⚠️ مرفق لم يُحفظ — سيُعاد للمستخدم في warnings', [
+            'index' => $index,
+            'file_type' => $fileType,
+            'person_identity_masked' => $this->maskTail((string) $personIdentity, 3),
+            'reason' => $reason,
+        ]);
+    }
+
+    /**
+     * (2.4) مفتاح بديل ثابت لفرد أسرة بلا رقم هوية: 9 + رقم الملف (6) + رقم الفرد (2).
+     */
+    private function buildFamilyFallbackIdentity(string $fileIdNumber, int $familyIndex): string
+    {
+        return '9'
+            . str_pad($fileIdNumber, 6, '0', STR_PAD_LEFT)
+            . str_pad((string) max(0, min($familyIndex, 99)), 2, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * (2.4) الوثائق الإلزامية الناقصة لكل شخص في الطلب.
+     * تحذير فقط افتراضياً؛ الحجب يحتاج تفعيل config('portal.strict_attachments').
+     */
+    private function collectMissingRequiredAttachments(Request $request, string $fileIdNumber, array $coveredAttachments): array
+    {
+        try {
+            $documentTypes = \App\Models\DocumentType::query()
+                ->get(['pref', 'basic_required', 'deceased_required', 'family_required']);
+        } catch (\Throwable $exception) {
+            Log::warning('تعذر جلب أنواع الوثائق لفحص المرفقات الإلزامية: ' . $exception->getMessage());
+            return [];
+        }
+
+        $groups = [];
+
+        $mainIdentity = trim((string) $request->input('data_id_number', ''));
+        if ($mainIdentity !== '') {
+            $groups[$mainIdentity] = ['label' => 'البيانات الأساسية', 'flag' => 'basic_required'];
+        }
+
+        $fatherIdentity = trim((string) $request->input('father_id', ''));
+        if ($fatherIdentity !== '') {
+            $groups[$fatherIdentity] = ['label' => 'الأب المتوفى', 'flag' => 'deceased_required'];
+        }
+
+        $motherIdentity = trim((string) ($request->input('deceased_mother_id') ?: $request->input('mother_id', '')));
+        if ($motherIdentity !== '') {
+            $groups[$motherIdentity] = ['label' => 'الأم المتوفاة', 'flag' => 'deceased_required'];
+        }
+
+        foreach ((array) $request->input('family_members', []) as $index => $member) {
+            if (!is_array($member)) {
+                continue;
+            }
+
+            $identity = trim((string) ($member['person_id'] ?? ''));
+            if ($identity === '') {
+                $identity = $this->buildFamilyFallbackIdentity($fileIdNumber, (int) $index);
+            }
+
+            $groups[$identity] = ['label' => 'فرد أسرة', 'flag' => 'family_required'];
+        }
+
+        $identities = array_keys($groups);
+        if (empty($identities)) {
+            return [];
+        }
+
+        $existingCoverage = [];
+        Attachment::whereIn('person_identity_number', $identities)
+            ->get(['person_identity_number', 'file_type'])
+            ->each(function ($attachment) use (&$existingCoverage) {
+                $existingCoverage[(string) $attachment->person_identity_number][strtolower(trim((string) $attachment->file_type))] = true;
+            });
+
+        $missing = [];
+        foreach ($groups as $identity => $group) {
+            $requiredFlag = $group['flag'];
+
+            foreach ($documentTypes as $documentType) {
+                if (!(int) $documentType->{$requiredFlag}) {
+                    continue;
+                }
+
+                $pref = strtolower(trim((string) $documentType->pref));
+                if ($pref === '') {
+                    continue;
+                }
+
+                $isCovered = !empty($coveredAttachments[(string) $identity][$pref])
+                    || !empty($existingCoverage[(string) $identity][$pref]);
+
+                if ($isCovered) {
+                    continue;
+                }
+
+                $missing[] = [
+                    'index' => null,
+                    'file_type' => (string) $documentType->pref,
+                    'person_identity_number' => (string) $identity,
+                    'reason' => 'missing_required_document',
+                    'message' => "وثيقة إلزامية غير مرفوعة ({$documentType->pref}) — {$group['label']}.",
+                ];
+            }
+        }
+
+        return $missing;
+    }
+
+    /**
+     * إخفاء جزء من القيمة وإبقاء آخر عدد من الخانات (هاتف/هوية/IBAN).
+     */
+    private function maskTail($value, int $keep): string
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return '';
+        }
+
+        $length = mb_strlen($value);
+
+        if ($length <= $keep) {
+            return str_repeat('*', $length);
+        }
+
+        return str_repeat('*', $length - $keep) . mb_substr($value, $length - $keep);
+    }
+
+    /**
+     * تقليل بيانات الحساب البنكي قبل إرجاعه في الاستجابات العامة.
+     */
+    private function maskBankAccountForPublic(array $account): array
+    {
+        $account['iban_usd'] = $this->maskTail($account['iban_usd'] ?? '', 4);
+        $account['iban_shekel'] = $this->maskTail($account['iban_shekel'] ?? '', 4);
+        $account['person_owner_identity_number'] = $this->maskTail($account['person_owner_identity_number'] ?? '', 3);
+        $account['re_phone_number'] = $this->maskTail($account['re_phone_number'] ?? '', 3);
+
+        return $account;
     }
 
     /**
@@ -1481,7 +2367,6 @@ class GeneralRegistrationController extends Controller
 
             if ($result) {
                 return [
-                    'file_id_number' => $result->file_id_number,
                     'id_number' => $result->data_id_number,
                     'full_name' => trim(
                         ($result->data_first_name ?? '') . ' ' .
@@ -1489,7 +2374,7 @@ class GeneralRegistrationController extends Controller
                         ($result->data_grand_father_name ?? '') . ' ' .
                         ($result->data_family_name ?? '')
                     ),
-                    'phone' => $result->data_phone_number,
+                    'phone' => $this->maskTail($result->data_phone_number, 3),
                     'type' => 'معيل أسرة'
                 ];
             }
@@ -1502,7 +2387,6 @@ class GeneralRegistrationController extends Controller
         if ($results && $results->isNotEmpty()) {
             $result = $results->first();
             return [
-                'file_id_number' => $result->file_id_number,
                 'id_number' => $result->data_id_number,
                 'full_name' => trim(
                     ($result->data_first_name ?? '') . ' ' .
@@ -1510,7 +2394,7 @@ class GeneralRegistrationController extends Controller
                     ($result->data_grand_father_name ?? '') . ' ' .
                     ($result->data_family_name ?? '')
                 ),
-                'phone' => $result->data_phone_number ?? null,
+                'phone' => $this->maskTail($result->data_phone_number ?? null, 3),
                 'type' => 'معيل أسرة'
             ];
         }
@@ -1769,8 +2653,8 @@ class GeneralRegistrationController extends Controller
                         ($dataRecord->data_grand_father_name ?? '') . ' ' .
                         ($dataRecord->data_family_name ?? '')
                     ),
-                    'phone_number' => $dataRecord->data_phone_number,
-                    'alt_phone_number' => $dataRecord->data_alt_phone_number,
+                    'phone_number' => $this->maskTail($dataRecord->data_phone_number, 3),
+                    'alt_phone_number' => $this->maskTail($dataRecord->data_alt_phone_number, 3),
                     'birth_date' => $dataRecord->data_birth_date,
                     'gender' => $dataRecord->data_gender,
                     'marital_status' => $dataRecord->data_marital_status,
@@ -1786,7 +2670,7 @@ class GeneralRegistrationController extends Controller
                     app(GuardianFileService::class)->fileCandidates((string) $dataRecord->file_id_number)
                 )->get();
                 $result['bank_accounts'] = $bankAccounts->map(function($account) {
-                    return [
+                    return $this->maskBankAccountForPublic([
                         'id' => $account->id,
                         'bank_name' => $account->bank_name,
                         'iban_usd' => $account->iban_usd,
@@ -1795,13 +2679,13 @@ class GeneralRegistrationController extends Controller
                         're_guardian_name' => $account->re_guardian_name,
                         're_phone_number' => $account->re_phone_number,
                         'check_account' => $account->check_account,
-                    ];
+                    ]);
                 })->toArray();
 
                 $result['message'] = ''; // سياسة العمل: لا نكشف للمستخدم وجود بيانات قديمة
 
                 Log::info('✅ تم العثور على معيل موجود في جدول data', [
-                    'identity' => $identityNumber,
+                    'identity' => $this->maskTail($identityNumber, 3),
                     'file_id_number' => $dataRecord->file_id_number,
                     'bank_accounts_count' => count($result['bank_accounts'])
                 ]);
@@ -1853,8 +2737,8 @@ class GeneralRegistrationController extends Controller
                     ->keyBy('field_key');
 
                 if ($portalFields->isNotEmpty()) {
-                    $result['guardian_data']['phone_number'] = $portalFields->get('phone_number')?->field_value;
-                    $result['guardian_data']['alt_phone_number'] = $portalFields->get('alt_phone_number')?->field_value;
+                    $result['guardian_data']['phone_number'] = $this->maskTail($portalFields->get('phone_number')?->field_value, 3);
+                    $result['guardian_data']['alt_phone_number'] = $this->maskTail($portalFields->get('alt_phone_number')?->field_value, 3);
                     $result['guardian_data']['current_address'] = $portalFields->get('current_address')?->field_value;
                     $result['guardian_data']['city'] = $portalFields->get('city')?->field_value;
                     $result['guardian_data']['province'] = $portalFields->get('province')?->field_value;
@@ -1863,7 +2747,7 @@ class GeneralRegistrationController extends Controller
                 // جلب الحسابات البنكية
                 $bankAccounts = GuardianBankAccount::where('guardian_registration', $deadRecord->re_file_id)->get();
                 $result['bank_accounts'] = $bankAccounts->map(function($account) {
-                    return [
+                    return $this->maskBankAccountForPublic([
                         'id' => $account->id,
                         'bank_name' => $account->bank_name,
                         'iban_usd' => $account->iban_usd,
@@ -1872,13 +2756,13 @@ class GeneralRegistrationController extends Controller
                         're_guardian_name' => $account->re_guardian_name,
                         're_phone_number' => $account->re_phone_number,
                         'check_account' => $account->check_account,
-                    ];
+                    ]);
                 })->toArray();
 
                 $result['message'] = ''; // سياسة العمل: لا نكشف للمستخدم وجود بيانات قديمة
 
                 Log::info('✅ تم العثور على شخص في جدول dead_people', [
-                    'identity' => $identityNumber,
+                    'identity' => $this->maskTail($identityNumber, 3),
                     'file_id_number' => $deadRecord->re_file_id,
                     'type' => $isFather ? 'father' : 'mother',
                     'bank_accounts_count' => count($result['bank_accounts'])
@@ -1926,13 +2810,17 @@ class GeneralRegistrationController extends Controller
             $existingGuardian = $guardianFileService->findLatestDataByIdentity((string) $identityNumber);
 
             if ($existingGuardian) {
+                $payload = $guardianFileService->buildGuardianPayload($existingGuardian);
+                $payload['phone_number'] = $this->maskTail($payload['phone_number'] ?? '', 3);
+                $payload['data_phone_number'] = $this->maskTail($payload['data_phone_number'] ?? '', 3);
+                $payload['data_alt_phone_number'] = $this->maskTail($payload['data_alt_phone_number'] ?? '', 3);
+
                 return response()->json([
                     'success' => true,
                     'source' => 'data',
                     'exists' => true,
                     'file_id_number' => str_pad((string) $existingGuardian->file_id_number, 6, '0', STR_PAD_LEFT),
-                    'data' => $guardianFileService->buildGuardianPayload($existingGuardian),
-                    'linked' => $guardianFileService->buildLinkedFilePayload((string) $existingGuardian->file_id_number),
+                    'data' => $payload,
                     'message' => '', // سياسة العمل: لا نكشف للمستخدم وجود بيانات قديمة
                 ]);
             }
@@ -2153,11 +3041,11 @@ class GeneralRegistrationController extends Controller
                         ($guardian->data_grand_father_name ?? '') . ' ' .
                         ($guardian->data_family_name ?? '')
                     ),
-                    'phone_number' => $guardian->data_phone_number,
-                    'alt_phone_number' => $guardian->data_alt_phone_number,
+                    'phone_number' => $this->maskTail($guardian->data_phone_number, 3),
+                    'alt_phone_number' => $this->maskTail($guardian->data_alt_phone_number, 3),
                 ],
                 'bank_accounts' => $bankAccounts->map(function($account) {
-                    return [
+                    return $this->maskBankAccountForPublic([
                         'id' => $account->id,
                         'bank_name' => $account->bank_name,
                         'bank_description' => $account->bankNameRelation?->description ?? '',
@@ -2167,7 +3055,7 @@ class GeneralRegistrationController extends Controller
                         're_guardian_name' => $account->re_guardian_name,
                         're_phone_number' => $account->re_phone_number,
                         'check_account' => $account->check_account,
-                    ];
+                    ]);
                 })->toArray()
             ]);
 
@@ -2232,8 +3120,10 @@ class GeneralRegistrationController extends Controller
 
             $guardianIdentity = $request->input('data_id_number');
         }
-        // جلب sponsorship_id من جدول sponsorships
-        $sponsorship = \App\Models\Sponsorship::where('identity_number', $guardianIdentity)->first();
+        // جلب sponsorship_id من جدول sponsorships (أحدث كفالة عند التكرار)
+        $sponsorship = \App\Models\Sponsorship::where('identity_number', $guardianIdentity)
+            ->orderByDesc('id')
+            ->first();
         $sponsorshipId = $sponsorship?->id;
         $fieldIdentityNumber = $guardianIsMother
             ? $guardianIdentity
@@ -2284,7 +3174,9 @@ class GeneralRegistrationController extends Controller
             'field_mother_death_reason' => $request->input('mother_death_reason'),
         ];
 
-        $sponsorship = \App\Models\Sponsorship::where('identity_number', $guardianIdentity)->first();
+        $sponsorship = \App\Models\Sponsorship::where('identity_number', $guardianIdentity)
+            ->orderByDesc('id')
+            ->first();
         $sponsorshipId = $sponsorship?->id;
         $fieldIdentityNumber = $motherId ?: $guardianIdentity;
 

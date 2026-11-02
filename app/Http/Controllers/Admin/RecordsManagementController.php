@@ -35,6 +35,9 @@ use PhpParser\Comment\Doc;
 use App\Services\RecordsExportService;
 use App\Services\RecordsExportCSVService;
 use App\Services\RecordsStreamingExportService;
+use App\Services\ExportStatus;
+use App\Jobs\ExportAllRecordsJob;
+use Illuminate\Support\Facades\Response;
 
 class RecordsManagementController extends Controller
 {
@@ -67,6 +70,114 @@ class RecordsManagementController extends Controller
     public function exportAllStreaming(RecordsStreamingExportService $exportService)
     {
         return $exportService->exportAll();
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | التصدير الخلفي (Background Export) — لتجنب خطأ Cloudflare 524
+    |--------------------------------------------------------------------------
+    | يبني الملف في الطابور (بلا اتصال HTTP مفتوح) ثم يُحمّل الملف الجاهز.
+    | لا يمسّ التصدير القديم (export-all-csv) — يبقى كما هو.
+    */
+
+    // مفتاح حالة التصدير الخلفي (تصدير واحد عام — بدون ربط بكفالة)
+    private function recordsExportStatusKey(): string
+    {
+        return ExportStatus::key(ExportStatus::TYPE_RECORDS, 0);
+    }
+
+    // بدء التصدير في الخلفية — يُرجع فورًا (خلال أقل من ثانية)
+    public function exportRecordsBackground()
+    {
+        try {
+            $statusKey = $this->recordsExportStatusKey();
+
+            // منع تشغيل تصدير آخر أثناء وجود جارٍ
+            $existing = ExportStatus::get($statusKey);
+            if ($existing && in_array($existing['stage'] ?? '', [ExportStatus::STAGE_QUEUED, ExportStatus::STAGE_RUNNING], true)) {
+                return response()->json([
+                    'success'    => false,
+                    'message'    => 'يوجد تصدير جارٍ بالفعل. انتظر انتهائه.',
+                    'status_key' => $statusKey,
+                    'status'     => $existing,
+                ], 409);
+            }
+
+            ExportStatus::start($statusKey, [
+                'label'   => 'تصدير البيانات المدخلة (6 شيتات)',
+                'message' => 'في انتظار عامل الطابور...',
+                'total'   => 6,
+            ]);
+
+            ExportAllRecordsJob::dispatch($statusKey);
+
+            Log::info('Records background export dispatched', ['status_key' => $statusKey]);
+
+            return response()->json([
+                'success'    => true,
+                'message'    => 'تم بدء عملية التصدير في الخلفية',
+                'status_key' => $statusKey,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error dispatching records export', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'تعذّر بدء التصدير: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    // متابعة حالة التصدير (تُستدعى بشكل دوري من الواجهة)
+    public function exportRecordsStatus()
+    {
+        try {
+            $statusKey = $this->recordsExportStatusKey();
+            $status = ExportStatus::get($statusKey);
+
+            if (!$status) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لا يوجد تصدير جارٍ',
+                    'status'  => null,
+                ], 404);
+            }
+
+            return response()->json([
+                'success'    => true,
+                'status_key' => $statusKey,
+                'status'     => $status,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error reading records export status', ['error' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'تعذّر قراءة الحالة: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    // تحميل الملف الجاهز بعد اكتمال البناء (ملف ثابت — سريع، بلا بناء أثناء الطلب)
+    public function downloadRecordsExport(Request $request)
+    {
+        $file = (string) $request->query('file', '');
+
+        // حماية: اسم ملف فقط من مجلد exports، بلا اجتياز مسارات
+        $safeName = basename($file);
+        if (!preg_match('/^all_records_\d{8}_\d{6}\.xlsx$/', $safeName)) {
+            abort(400, 'اسم ملف غير صالح');
+        }
+
+        $filePath = storage_path('app/exports/' . $safeName);
+
+        if (!file_exists($filePath)) {
+            abort(404, 'الملف غير موجود أو انتهت صلاحيته');
+        }
+
+        return Response::download($filePath, $safeName, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
     }
        public function create()
     {

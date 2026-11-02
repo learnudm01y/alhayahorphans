@@ -65,17 +65,19 @@ Route::get('/test-snappy-pdf', function () {
         ->setOption('page-size', 'A4')
         ->setOption('enable-local-file-access', true)
         ->inline('test_snappy.pdf');
+})->middleware(['auth', 'verified', 'rolebreeze:admin']);
+
+// مسارات اختبار التحميل (إداري فقط)
+Route::middleware(['auth', 'verified', 'rolebreeze:admin'])->group(function () {
+    Route::get('/test-download-all', [UnifiedFileManagementController::class, 'downloadAllDuplicateFiles']);
+    Route::post('/test-download-selected', [UnifiedFileManagementController::class, 'downloadSelectedDuplicateFiles']);
+
+    // مسار اختبار الإحصائيات الحقيقية (إداري فقط)
+    Route::get('/test-real-stats-public', [UnifiedFileManagementController::class, 'getRealDuplicateFilesStatistics']);
 });
 
-// مسارات اختبار التحميل بدون مصادقة
-Route::get('/test-download-all', [UnifiedFileManagementController::class, 'downloadAllDuplicateFiles']);
-Route::post('/test-download-selected', [UnifiedFileManagementController::class, 'downloadSelectedDuplicateFiles']);
-
-// مسار اختبار الإحصائيات الحقيقية بدون مصادقة (مؤقت)
-Route::get('/test-real-stats-public', [UnifiedFileManagementController::class, 'getRealDuplicateFilesStatistics']);
-
-// Scout Search API Routes
-Route::prefix('api/scout')->group(function () {
+// Scout Search API Routes (إداري فقط)
+Route::prefix('api/scout')->middleware(['auth', 'verified', 'rolebreeze:admin'])->group(function () {
     Route::get('instant-search', [ScoutSearchController::class, 'instantSearch'])->name('scout.instant.search');
     Route::post('advanced-search', [ScoutSearchController::class, 'advancedSearch'])->name('scout.advanced.search');
 });
@@ -84,17 +86,22 @@ Route::prefix('api/scout')->group(function () {
 
 // Civil Registry Scout Search API Routes - مسارات البحث في السجل المدني
 Route::prefix('api/civil-registry')->group(function () {
-    Route::get('/', [CivilRegistrySearchController::class, 'index'])->name('civil.registry.index');
+    // مسارات البحث العامة (تستخدمها استمارة التسجيل العامة)
     Route::get('quick-search', [CivilRegistrySearchController::class, 'quickSearch'])->name('civil.registry.quick.search');
     Route::get('advanced-search', [CivilRegistrySearchController::class, 'advancedSearch'])->name('civil.registry.advanced.search');
     Route::get('search-by-id', [CivilRegistrySearchController::class, 'searchById'])->name('civil.registry.search.id');
     Route::get('search-by-name', [CivilRegistrySearchController::class, 'searchByName'])->name('civil.registry.search.name');
     Route::get('comprehensive-search', [CivilRegistrySearchController::class, 'comprehensiveSearch'])->name('civil.registry.comprehensive.search');
-    Route::get('stats', [CivilRegistrySearchController::class, 'getStats'])->name('civil.registry.stats');
-    Route::get('database-stats', [CivilRegistrySearchController::class, 'getStats'])->name('civil.registry.database.stats');
-    Route::post('index-data', [CivilRegistrySearchController::class, 'indexData'])->name('civil.registry.index.data');
-    Route::get('test-connection', [CivilRegistrySearchController::class, 'testConnection'])->name('civil.registry.test');
-    Route::post('clear-cache', [CivilRegistrySearchController::class, 'clearCache'])->name('civil.registry.clear.cache');
+
+    // مسارات إدارية فقط
+    Route::middleware(['auth', 'verified', 'rolebreeze:admin'])->group(function () {
+        Route::get('/', [CivilRegistrySearchController::class, 'index'])->name('civil.registry.index');
+        Route::get('stats', [CivilRegistrySearchController::class, 'getStats'])->name('civil.registry.stats');
+        Route::get('database-stats', [CivilRegistrySearchController::class, 'getStats'])->name('civil.registry.database.stats');
+        Route::post('index-data', [CivilRegistrySearchController::class, 'indexData'])->name('civil.registry.index.data');
+        Route::get('test-connection', [CivilRegistrySearchController::class, 'testConnection'])->name('civil.registry.test');
+        Route::post('clear-cache', [CivilRegistrySearchController::class, 'clearCache'])->name('civil.registry.clear.cache');
+    });
 });
 
 // Civil Registry CRUD Routes - مسارات إدارة السجل المدني
@@ -112,8 +119,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 });
 
-// Public API routes for duplicate files (without authentication middleware)
-Route::prefix('public-api/duplicate-files')->group(function () {
+// Public API routes for duplicate files (إداري فقط)
+Route::prefix('public-api/duplicate-files')->middleware(['auth', 'verified', 'rolebreeze:admin'])->group(function () {
     Route::get('paginated', [UnifiedFileManagementController::class, 'getDuplicateFilesPaginated'])->name('public.duplicate.files.paginated');
     Route::get('real-statistics', [UnifiedFileManagementController::class, 'getRealDuplicateFilesStatistics'])->name('public.duplicate.files.real.statistics');
     Route::get('preview/{id}', [UnifiedFileManagementController::class, 'previewDuplicateFile'])->name('public.duplicate.files.preview');
@@ -141,19 +148,27 @@ Route::get('/',[GeneralRegistrationController::class,'index'])->name('generalReg
 Route::post('users/generalRegistration/store',[GeneralRegistrationController::class,'store'])->name('store.generalRegistration');
 Route::post('users/generalRegistration/upload-chunk',[GeneralRegistrationController::class,'uploadChunk'])->name('upload.chunk.generalRegistration');
 
+Route::get('/users/generalRegistration/save-progress/{token}', [ShowGeneralRegisrationController::class, 'saveProgress'])
+    ->where('token', '[A-Za-z0-9\-]{16,64}')
+    ->withoutMiddleware([
+        \Illuminate\Session\Middleware\StartSession::class,
+        \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+    ])
+    ->name('user.generalRegistration.saveProgress');
+
 // مسار صفحة تسجيل الدخول
 Route::get('/login', function () {
     return view('auth/login');
 })->name('login.page');
 
-// Route for testing the advanced file manager
+// Route for testing the advanced file manager (إداري فقط — كان متاحاً للعامة)
 Route::get('/file-manager', function () {
     return view('file-management.advanced-interface');
-})->name('file-manager');
+})->middleware(['auth', 'verified', 'rolebreeze:admin'])->name('file-manager');
 
 // رابط الدخول المباشر لتحديث الكفالات
-Route::get('/auto-login', [App\Http\Controllers\Users\ShowGeneralRegisrationController::class, 'autoLogin'])->name('auto-login');
-Route::get('/s/{credentials}', [App\Http\Controllers\Users\ShowGeneralRegisrationController::class, 'autoLoginShort'])->name('auto-login-short');
+Route::get('/auto-login', [App\Http\Controllers\Users\ShowGeneralRegisrationController::class, 'autoLogin'])->middleware('throttle:10,1')->name('auto-login');
+Route::get('/s/{credentials}', [App\Http\Controllers\Users\ShowGeneralRegisrationController::class, 'autoLoginShort'])->middleware('throttle:10,1')->name('auto-login-short');
 
 // حماية جميع مسارات المستخدمين بميدل وير auth و verified
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -180,11 +195,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
-    Route::resource('roles', RoleController::class);
-    Route::resource('users', UserController::class);
+    Route::resource('roles', RoleController::class)->middleware('rolebreeze:admin');
+    Route::resource('users', UserController::class)->middleware('rolebreeze:admin');
 });
 
-    Route::post('/login/user', [UserLoginContoller::class, 'login'])->name('user.login');
+    Route::post('/login/user', [UserLoginContoller::class, 'login'])->middleware('throttle:10,1')->name('user.login');
     Route::post('/logout-user', [\App\Http\Controllers\Users\UserLoginContoller::class, 'logout'])->name('user.logout.custom');
     Route::get('/users/generalRegistration/login', function() {
         return view('user.generalRegistration.login');
@@ -194,24 +209,26 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return view('user.generalRegistration.thank-you');
     })->name('user.thank.you.page');
 
-    Route::post('admin/general-category/toggle-status', [GeneralCategoryCotroller::class, 'toggleStatus'])->name('admin.general-category.toggle-status');
+    Route::post('admin/general-category/toggle-status', [GeneralCategoryCotroller::class, 'toggleStatus'])
+        ->middleware(['auth', 'verified', 'rolebreeze:admin'])
+        ->name('admin.general-category.toggle-status');
 
-    Route::post('/check-id-number', [GeneralRegistrationController::class, 'check'])->name('check.id');
-    Route::post('/search-all-tables', [GeneralRegistrationController::class, 'searchAllTables'])->name('search.all.tables');
-    Route::post('/fill-from-civil-registry', [GeneralRegistrationController::class, 'fillFromCivilRegistry'])->name('fill.civil.registry');
+    Route::post('/check-id-number', [GeneralRegistrationController::class, 'check'])->middleware('throttle:30,1')->name('check.id');
+    Route::post('/search-all-tables', [GeneralRegistrationController::class, 'searchAllTables'])->middleware('throttle:30,1')->name('search.all.tables');
+    Route::post('/fill-from-civil-registry', [GeneralRegistrationController::class, 'fillFromCivilRegistry'])->middleware('throttle:30,1')->name('fill.civil.registry');
 
     // 🆕 مسارات التحقق من وجود المعيل وجلب بياناته
-    Route::post('/check-existing-guardian', [GeneralRegistrationController::class, 'checkExistingGuardian'])->name('check.existing.guardian');
-    Route::post('/get-guardian-with-bank-accounts', [GeneralRegistrationController::class, 'getGuardianWithBankAccounts'])->name('get.guardian.bank.accounts');
+    Route::post('/check-existing-guardian', [GeneralRegistrationController::class, 'checkExistingGuardian'])->middleware('throttle:10,1')->name('check.existing.guardian');
+    Route::post('/get-guardian-with-bank-accounts', [GeneralRegistrationController::class, 'getGuardianWithBankAccounts'])->middleware('throttle:10,1')->name('get.guardian.bank.accounts');
 
     // 🆕 مسارات البوابة العامة المحدثة
-    Route::post('/lookup-guardian', [GeneralRegistrationController::class, 'lookupGuardian'])->name('lookup.guardian');
-    Route::post('/lookup-mother', [GeneralRegistrationController::class, 'lookupMother'])->name('lookup.mother');
-    Route::post('/check-person-linked', [GeneralRegistrationController::class, 'checkPersonLinked'])->name('check.person.linked');
+    Route::post('/lookup-guardian', [GeneralRegistrationController::class, 'lookupGuardian'])->middleware('throttle:10,1')->name('lookup.guardian');
+    Route::post('/lookup-mother', [GeneralRegistrationController::class, 'lookupMother'])->middleware('throttle:10,1')->name('lookup.mother');
+    Route::post('/check-person-linked', [GeneralRegistrationController::class, 'checkPersonLinked'])->middleware('throttle:30,1')->name('check.person.linked');
 
 
 // Reserved Codes Management Routes (Admin Only)
-Route::middleware(['auth', 'verified'])->prefix('admin/reserved-codes')->group(function () {
+Route::middleware(['auth', 'verified', 'rolebreeze:admin'])->prefix('admin/reserved-codes')->group(function () {
     // مزامنة جدول reserved_codes مع جدول data
     Route::post('/sync', function () {
         if (function_exists('syncReservedCodesWithData')) {
@@ -321,13 +338,13 @@ Route::middleware(['auth', 'verified'])->prefix('admin/reserved-codes')->group(f
 });
 
 
-// File Management Routes
+// File Management Routes (إداري فقط)
 Route::get('/file-management/advanced-interface', function () {
     return view('file-management.advanced-interface');
-})->name('file-management.advanced-interface');
+})->middleware(['auth', 'verified', 'rolebreeze:admin'])->name('file-management.advanced-interface');
 
-// API Routes for File Management
-Route::prefix('api/files')->group(function () {
+// API Routes for File Management (إداري فقط)
+Route::prefix('api/files')->middleware(['auth', 'verified', 'rolebreeze:admin'])->group(function () {
     Route::post('/generate-record-number', [App\Http\Controllers\UnifiedFileManagementController::class, 'generateRecordNumber'])
         ->name('api.files.generate-record-number');
 
@@ -338,24 +355,24 @@ Route::prefix('api/files')->group(function () {
         ->name('api.files.analytics');
 });
 
-// Fallback routes for analytics without auth
+// Fallback routes for analytics (إداري فقط)
 Route::get('/api/files/analytics', [App\Http\Controllers\UnifiedFileManagementController::class, 'getFileAnalytics'])
-    ->withoutMiddleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'rolebreeze:admin'])
     ->name('api.files.analytics.fallback');
 
-// Speed Test Routes
-Route::prefix('api/speedtest')->group(function () {
+// Speed Test Routes (إداري فقط)
+Route::prefix('api/speedtest')->middleware(['auth', 'verified', 'rolebreeze:admin'])->group(function () {
     Route::post('/run', [SpeedTestController::class, 'run'])->name('api.speedtest.run');
     Route::get('/check-availability', [SpeedTestController::class, 'checkAvailability'])->name('api.speedtest.check');
     Route::post('/clear-cache', [SpeedTestController::class, 'clearCache'])->name('api.speedtest.clear-cache');
 });
 
-// Fallback speedtest routes without auth
+// Fallback speedtest routes (إداري فقط)
 Route::post('/api/speedtest/run', [SpeedTestController::class, 'run'])
-    ->withoutMiddleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'rolebreeze:admin'])
     ->name('api.speedtest.run.fallback');
 Route::get('/api/speedtest/check-availability', [SpeedTestController::class, 'checkAvailability'])
-    ->withoutMiddleware(['auth', 'verified'])
+    ->middleware(['auth', 'verified', 'rolebreeze:admin'])
     ->name('api.speedtest.check.fallback');
 
 // // Routes للمعالجة الملفات المكررة
@@ -369,8 +386,8 @@ Route::get('/api/speedtest/check-availability', [SpeedTestController::class, 'ch
 // });
 // Routes للمعالجة الملفات المكررة - تم نقلها إلى admin.php
 
-// API Routes for Duplicate File Management - TEST WITHOUT MIDDLEWARE
-Route::prefix('api/files')->withoutMiddleware(['auth', 'verified'])->group(function () {
+// API Routes for Duplicate File Management (إداري فقط)
+Route::prefix('api/files')->middleware(['auth', 'verified', 'rolebreeze:admin'])->group(function () {
     Route::post('/generate-record-number', [App\Http\Controllers\UnifiedFileManagementController::class, 'generateRecordNumber'])
         ->name('api.files.generate-record-number');
 
@@ -404,7 +421,7 @@ Route::prefix('api/files')->withoutMiddleware(['auth', 'verified'])->group(funct
 // Excel Gateway Routes
 // Excel Gateway Routes - محمية بمصادقة المستخدم
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::group(['prefix' => 'admin/file'], function() {
+    Route::group(['prefix' => 'admin/file', 'middleware' => 'rolebreeze:admin'], function() {
         Route::get('/excel-gateway', [UnifiedFileManagementController::class, 'showExcelGateway'])
             ->name('admin.file.excel.gateway');
 
@@ -421,8 +438,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 });
 
-// Speedtest Routes - Production Ready
-Route::prefix('api/speedtest')->withoutMiddleware(['auth', 'verified'])->group(function () {
+// Speedtest Routes - Production Ready (إداري فقط)
+Route::prefix('api/speedtest')->middleware(['auth', 'verified', 'rolebreeze:admin'])->group(function () {
     Route::get('/', [SpeedTestController::class, 'run'])
         ->name('api.speedtest.run');
 
@@ -433,8 +450,8 @@ Route::prefix('api/speedtest')->withoutMiddleware(['auth', 'verified'])->group(f
         ->name('api.speedtest.clear-cache');
 });
 
-// Google Drive Test Routes - مسارات اختبار Google Drive
-Route::prefix('google-drive-test')->group(function () {
+// Google Drive Test Routes - مسارات اختبار Google Drive (إداري فقط)
+Route::prefix('google-drive-test')->middleware(['auth', 'verified', 'rolebreeze:admin'])->group(function () {
     Route::get('/', [\App\Http\Controllers\Admin\GoogleDriveTestController::class, 'index'])->name('google.drive.test.index');
     Route::post('/test-connection', [\App\Http\Controllers\Admin\GoogleDriveTestController::class, 'testConnection'])->name('google.drive.test.connection');
     Route::post('/upload', [\App\Http\Controllers\Admin\GoogleDriveTestController::class, 'uploadTest'])->name('google.drive.test.upload');
@@ -494,34 +511,36 @@ Route::middleware(['auth', 'verified'])->prefix('admin/api')->group(function () 
 
 require __DIR__ . '/auth.php';
 
-// Test Documents API
-Route::get('/test-documents-api', function() { return view('test-documents-api'); })->name('test.documents.api');
+// Test Documents API (إداري فقط)
+Route::middleware(['auth', 'verified', 'rolebreeze:admin'])->group(function () {
+    Route::get('/test-documents-api', function() { return view('test-documents-api'); })->name('test.documents.api');
 
-Route::get('/test-documents-display', function() { return view('test-documents-display'); });
+    Route::get('/test-documents-display', function() { return view('test-documents-display'); });
 
-Route::get('/diagnose-documents', function() { return view('diagnose-documents'); });
+    Route::get('/diagnose-documents', function() { return view('diagnose-documents'); });
 
-Route::get('/simple-modal-test', function() { return view('simple-modal-test'); });
+    Route::get('/simple-modal-test', function() { return view('simple-modal-test'); });
 
-Route::get('/debug-documents-api', function() { return view('debug-documents-api'); });
+    Route::get('/debug-documents-api', function() { return view('debug-documents-api'); });
 
-Route::get('/test-save-documents', function() { return view('test-save-documents'); });
+    Route::get('/test-save-documents', function() { return view('test-save-documents'); });
 
-Route::get('/direct-test-save', function() { return view('direct-test-save'); });
+    Route::get('/direct-test-save', function() { return view('direct-test-save'); });
 
-Route::get('/comprehensive-test', function() { return view('comprehensive-test'); });
+    Route::get('/comprehensive-test', function() { return view('comprehensive-test'); });
 
-Route::get('/quick-save-test', function() { return view('quick-save-test'); });
+    Route::get('/quick-save-test', function() { return view('quick-save-test'); });
 
-Route::get('/final-documents-test', function() { return view('final-documents-test'); });
+    Route::get('/final-documents-test', function() { return view('final-documents-test'); });
 
-Route::get('/test-save-button', function() { return view('test-save-button'); });
+    Route::get('/test-save-button', function() { return view('test-save-button'); });
 
-Route::get('/test-new-documents-system', function() { return view('test-new-documents-system'); });
+    Route::get('/test-new-documents-system', function() { return view('test-new-documents-system'); });
 
-Route::get('/direct-documents-page', function() { return view('direct-documents-page'); });
+    Route::get('/direct-documents-page', function() { return view('direct-documents-page'); });
 
-Route::get('/test-images', function() { return view('test-images'); });
+    Route::get('/test-images', function() { return view('test-images'); });
+});
 
 // Route لعرض ملفات storage بدون الحاجة لـ symlink
 Route::get('/storage/{path}', function ($path) {
@@ -561,4 +580,3 @@ Route::get('/storage/{path}', function ($path) {
         'Cache-Control' => 'public, max-age=31536000'
     ]);
 })->where('path', '.*');
-

@@ -398,6 +398,22 @@
                     </div>
                     <!--end::تصدير البيانات المحدثة فقط-->
 
+                    <div class="mb-5">
+                        <label class="form-label" for="export_attachments">هل ترغب في تصدير المرفقات؟</label>
+                        <select name="export_attachments" id="export_attachments" class="form-select">
+                            <option value="0" selected>لا</option>
+                            <option value="1">نعم</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-5">
+                        <label class="form-label" for="export_forms">هل ترغب في تصدير الاستمارات؟</label>
+                        <select name="export_forms" id="export_forms" class="form-select">
+                            <option value="1" selected>نعم</option>
+                            <option value="0">لا</option>
+                        </select>
+                    </div>
+
                     <!--begin::معلومات إضافية-->
                     <div class="alert alert-warning">
                         <i class="fas fa-exclamation-triangle me-2"></i>
@@ -869,6 +885,8 @@ $(document).ready(function() {
         const sponsorId = $('#export_sponsor_id').val();
         const sponsorshipStatusId = $('#export_sponsorship_status_id').val();
         const updatedOnly = $('#export_updated_only').is(':checked') ? 1 : 0;
+        const exportAttachments = $('#export_attachments').val();
+        const exportForms = $('#export_forms').val();
 
         if (!sponsorId) {
             Swal.fire({
@@ -880,11 +898,22 @@ $(document).ready(function() {
             return;
         }
 
+        if (exportAttachments === '0' && exportForms === '0') {
+            Swal.fire({
+                icon: 'warning',
+                title: 'تنبيه',
+                text: 'يرجى اختيار تصدير المرفقات أو الاستمارات على الأقل',
+                confirmButtonText: 'حسناً'
+            });
+            return;
+        }
+
         // تأكيد التصدير
         Swal.fire({
             title: 'تأكيد التصدير',
             html: `
-                <p>هل أنت متأكد من رغبتك في تصدير الاستمارات؟</p>
+                <p>المرفقات: ${exportAttachments === '1' ? 'نعم' : 'لا'}</p>
+                <p>الاستمارات: ${exportForms === '1' ? 'نعم' : 'لا'}</p>
                 <p class="text-muted">سيتم معالجة الطلب في الخلفية.</p>
             `,
             icon: 'question',
@@ -895,7 +924,7 @@ $(document).ready(function() {
             cancelButtonColor: '#f1416c'
         }).then((result) => {
             if (result.isConfirmed) {
-                startExportProcess(sponsorId, sponsorshipStatusId, updatedOnly);
+                startExportProcess(sponsorId, sponsorshipStatusId, updatedOnly, exportAttachments, exportForms);
             }
         });
     });
@@ -1072,7 +1101,7 @@ $(document).ready(function() {
     /**
      * بدء عملية التصدير
      */
-    function startExportProcess(sponsorId, sponsorshipStatusId, updatedOnly) {
+    function startExportProcess(sponsorId, sponsorshipStatusId, updatedOnly, exportAttachments, exportForms) {
         const $btn = $('#start_export_btn');
         const originalText = $btn.html();
 
@@ -1088,7 +1117,9 @@ $(document).ready(function() {
                 _token: '{{ csrf_token() }}',
                 sponsor_id: sponsorId,
                 sponsorship_status_id: sponsorshipStatusId,
-                updated_only: updatedOnly
+                updated_only: updatedOnly,
+                export_attachments: exportAttachments,
+                export_forms: exportForms
             },
             success: function(response) {
                 $btn.prop('disabled', false).html(originalText);
@@ -1106,8 +1137,8 @@ $(document).ready(function() {
                     title: 'تم بدء التصدير',
                     html: `
                         <p>${response.message}</p>
-                        <p class="text-muted">عدد الاستمارات: ${response.count || 0}</p>
-                        <p class="text-muted">سيتم معالجتها في الخلفية ورفعها إلى Google Drive</p>
+                        <p class="text-muted">عدد السجلات: ${response.count || 0}</p>
+                        <p class="text-muted">سيتم تنفيذ الخيارات المحددة في الخلفية، ورفع الملفات إلى Google Drive عند تفعيله للمؤسسة</p>
                     `,
                     confirmButtonText: 'حسناً'
                 });

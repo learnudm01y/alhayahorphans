@@ -3074,6 +3074,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 @include('user.generalRegistration.javascript.cropper')
 
-@endsection
+<script src="{{ asset('js/portal-save-progress.js') }}"></script>
 
+@endsection
 

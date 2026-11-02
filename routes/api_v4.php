@@ -62,21 +62,21 @@ Route::prefix('mobile/v4')->group(function () {
     // Admin Offline Export
     // ---------------------------------------------
     Route::get('admin/dashboard-snapshot', [AdminOfflineExportControllerV4::class, 'dashboardSnapshot'])
-        ->middleware('auth:sanctum', 'throttle:api-v4')
+        ->middleware('auth:sanctum', 'throttle:api-v4', 'api.admin')
         ->name('api.v4.admin.dashboard-snapshot');
 
     Route::get('admin/reports-source', [AdminOfflineExportControllerV4::class, 'reportsSource'])
-        ->middleware('auth:sanctum', 'throttle:api-v4')
+        ->middleware('auth:sanctum', 'throttle:api-v4', 'api.admin')
         ->name('api.v4.admin.reports-source');
 
     Route::get('admin/permissions-manifest', [AdminOfflineExportControllerV4::class, 'permissionsManifest'])
-        ->middleware('auth:sanctum', 'throttle:api-v4')
+        ->middleware('auth:sanctum', 'throttle:api-v4', 'api.admin')
         ->name('api.v4.admin.permissions-manifest');
 
     // ---------------------------------------------
     // Admin CRUD (Phase 5 — screens parity) — APPEND ONLY
     // ---------------------------------------------
-    $m = ['auth:sanctum', 'throttle:api-v4'];
+    $m = ['auth:sanctum', 'throttle:api-v4', 'api.admin'];
 
     // Records
     Route::get('records', [AdminCrudControllerV4::class, 'recordsIndex'])->middleware($m)->name('api.v4.records.index');
@@ -110,7 +110,8 @@ Route::prefix('mobile/v4')->group(function () {
     Route::put('sponsors/{id}', [AdminCrudControllerV4::class, 'sponsorsUpdate'])->middleware($m)->name('api.v4.sponsors.update');
     Route::delete('sponsors/{id}', [AdminCrudControllerV4::class, 'sponsorsDestroy'])->middleware($m)->name('api.v4.sponsors.destroy');
 
-    // Users / Roles
+    // Users / Roles — إدارة المستخدمين والأدوار: تتطلب صلاحية إدارية صريحة
+    // (بدون ذلك يستطيع أي مستخدم يملك توكن Sanctum تصعيد صلاحياته إلى admin).
     Route::get('users', [AdminCrudControllerV4::class, 'usersIndex'])->middleware($m)->name('api.v4.users.index');
     Route::post('users', [AdminCrudControllerV4::class, 'usersStore'])->middleware($m)->name('api.v4.users.store');
     Route::put('users/{id}', [AdminCrudControllerV4::class, 'usersUpdate'])->middleware($m)->name('api.v4.users.update');

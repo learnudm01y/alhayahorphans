@@ -28,13 +28,13 @@ class BankAccountValidationService
             $rePhoneNumber = $bankAccountData['re_phone_number'] ?? null;
             $bankName = $bankAccountData['bank_name'] ?? null;
 
-            Log::info('🔍 بدء التحقق من تكرار الحساب البنكي:', [
+            Log::info('🔍 بدء التحقق من تكرار الحساب البنكي', [
                 'guardian_registration' => $guardianRegistration,
-                'person_owner_identity_number' => $personOwnerIdentityNumber,
-                're_id_number' => $reIdNumber,
-                're_phone_number' => $rePhoneNumber,
-                'bank_name' => $bankName,
-                'exclude_id' => $excludeId
+                'has_owner_identity' => !empty($personOwnerIdentityNumber),
+                'has_re_identity' => !empty($reIdNumber),
+                'has_phone' => !empty($rePhoneNumber),
+                'has_bank_name' => !empty($bankName),
+                'exclude_id' => $excludeId,
             ]);
 
             // التحقق من وجود البيانات الأساسية الإلزامية فقط
@@ -72,14 +72,14 @@ class BankAccountValidationService
             $existingAccount = $query->first();
 
             if ($existingAccount) {
-                Log::warning('🚫 تم العثور على حساب بنكي مكرر - تم منع الإدخال:', [
+                Log::warning('🚫 تم العثور على حساب بنكي مكرر - تم منع الإدخال', [
                     'existing_account_id' => $existingAccount->id,
-                    '1_guardian_registration' => $existingAccount->guardian_registration,
-                    '2_person_owner_identity_number' => $existingAccount->person_owner_identity_number,
-                    '3_re_id_number' => $existingAccount->re_id_number,
-                    '4_re_phone_number' => $existingAccount->re_phone_number,
-                    '5_bank_name' => $existingAccount->bank_name,
-                    'created_at' => $existingAccount->created_at->format('Y-m-d H:i:s')
+                    'guardian_registration' => $existingAccount->guardian_registration,
+                    'has_owner_identity' => !empty($existingAccount->person_owner_identity_number),
+                    'has_re_identity' => !empty($existingAccount->re_id_number),
+                    'has_phone' => !empty($existingAccount->re_phone_number),
+                    'has_bank_name' => !empty($existingAccount->bank_name),
+                    'created_at' => $existingAccount->created_at?->format('Y-m-d H:i:s'),
                 ]);
 
                 return [

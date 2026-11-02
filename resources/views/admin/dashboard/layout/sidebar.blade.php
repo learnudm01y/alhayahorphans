@@ -660,6 +660,16 @@
                     </a>
                 </div>
                 @endcanany
+                @canany(['عرض قسم إدارة السجل المدني', 'السجل المدني الجديد'])
+                <div class="menu-item">
+                    <a class="menu-link" href="{{ route('civil-registry.deaths.index') }}">
+                        <span class="menu-bullet">
+                            <i class="fas fa-list-check"></i>
+                        </span>
+                        <span class="menu-title"> قائمة الوفيات </span>
+                    </a>
+                </div>
+                @endcanany
                 @canany(['عرض قسم إدارة السجل المدني', 'إضافة مواطن'])
                 <div class="menu-item">
                     <a class="menu-link" href="{{ route('civil-registry.create') }}">

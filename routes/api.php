@@ -32,8 +32,9 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-// TEST ROUTE WITHOUT AUTH
-Route::post('/chunked-upload-test', [\App\Http\Controllers\Api\ChunkedUploadController::class, 'handleChunk']);
+// TEST ROUTE (إداري فقط)
+Route::post('/chunked-upload-test', [\App\Http\Controllers\Api\ChunkedUploadController::class, 'handleChunk'])
+    ->middleware(['web', 'auth', 'verified', 'rolebreeze:admin']);
 
 Route::post('/whatsapp/webhook', [\App\Http\Controllers\WhatsAppBotController::class, 'handleWebhook'])
     ->middleware('throttle:300,1');
@@ -202,14 +203,14 @@ Route::get('/search/final-exact', function (Request $request) {
             'engine' => 'Final Exact Match'
         ], 500);
     }
-});// Simple file upload for testing
-Route::prefix('simple')->group(function () {
+});// Simple file upload for testing (إداري فقط)
+Route::prefix('simple')->middleware(['web', 'auth', 'verified', 'rolebreeze:admin'])->group(function () {
     Route::get('/test', [SimpleFileUploadController::class, 'test']);
     Route::post('/upload', [SimpleFileUploadController::class, 'simpleUpload']);
 });
 
-// File management API routes
-Route::prefix('files')->group(function () {
+// File management API routes (إداري فقط)
+Route::prefix('files')->middleware(['web', 'auth', 'verified', 'rolebreeze:admin'])->group(function () {
     // إحصائيات محدّثة من الجداول الجديدة (يجب أن تكون الأولى)
     Route::get('/analytics/detailed', [FileAnalyticsController::class, 'getDetailedAnalytics']);
     Route::get('/analytics/new', [FileAnalyticsController::class, 'getAnalytics']); // استخدام endpoint جديد
@@ -231,8 +232,8 @@ Route::prefix('files')->group(function () {
     Route::get('/analytics/activity', [UnifiedFileManagementController::class, 'getActivityAnalytics']);
 });
 
-// Duplicate Files API Routes - بدون authentication
-Route::prefix('duplicate-files')->group(function () {
+// Duplicate Files API Routes — إدارية فقط (كانت عامة وتكشف مسارات الملفات وتسمح بالحذف)
+Route::prefix('duplicate-files')->middleware(['web', 'auth', 'verified', 'rolebreeze:admin'])->group(function () {
     Route::get('/summary', [DuplicateFileController::class, 'getDuplicateFilesSummary']);
     Route::delete('/delete', [DuplicateFileController::class, 'deleteDuplicateFiles']);
     Route::get('/download', [DuplicateFileController::class, 'downloadDuplicateFiles']);
@@ -431,10 +432,10 @@ Route::get('/person-name/{id_number}', function ($id_number) {
             'message' => 'حدث خطأ: ' . $e->getMessage()
         ], 500);
     }
-});
+})->middleware(['web', 'auth', 'verified', 'rolebreeze:admin']);
 
-// File Gallery API Routes - لإدارة معاينة وتحميل وحذف الصور
-Route::prefix('gallery')->group(function () {
+// File Gallery API Routes - لإدارة معاينة وتحميل وحذف الصور (إداري فقط)
+Route::prefix('gallery')->middleware(['web', 'auth', 'verified', 'rolebreeze:admin'])->group(function () {
     // جلب ملفات مجلد معين
     Route::get('/folder/{folder_name}', function ($folder_name) {
         try {
@@ -645,9 +646,9 @@ Route::get('/civil-registry/person-details/{personId}', function ($personId) {
             'message' => 'حدث خطأ: ' . $e->getMessage()
         ], 500);
     }
-});
+})->middleware(['web', 'auth', 'verified', 'rolebreeze:admin']);
 
-// حفظ حساب بنكي جديد من بوابة السجل المدني
+// حفظ حساب بنكي جديد من بوابة السجل المدني (إداري فقط)
 Route::post('/civil-registry/save-bank-account', function (Request $request) {
     try {
         // التحقق من صحة البيانات المطلوبة
@@ -724,7 +725,7 @@ Route::post('/civil-registry/save-bank-account', function (Request $request) {
             'message' => 'حدث خطأ أثناء حفظ البيانات: ' . $e->getMessage()
         ], 500);
     }
-});
+})->middleware(['web', 'auth', 'verified', 'rolebreeze:admin']);
 
 // جلب الحسابات البنكية بناءً على file_id_number أو guardian_identity
 // يجب أن يكون المستخدم مسجلاً دخوله وبرتبة admin
@@ -794,8 +795,10 @@ Route::middleware(['auth:sanctum'])->get('/sponsorships/get-bank-accounts', func
 // ====================================================================
 // API للكشف عن الملفات المكررة - نظام التسجيل
 // ====================================================================
-Route::post('/check-duplicate-file', [UnifiedFileManagementController::class, 'checkSingleDuplicate']);
-Route::post('/replace-duplicate-file', [UnifiedFileManagementController::class, 'handleDuplicate']);
+Route::post('/check-duplicate-file', [UnifiedFileManagementController::class, 'checkSingleDuplicate'])
+    ->middleware(['web', 'auth', 'verified', 'rolebreeze:admin']);
+Route::post('/replace-duplicate-file', [UnifiedFileManagementController::class, 'handleDuplicate'])
+    ->middleware(['web', 'auth', 'verified', 'rolebreeze:admin']);
 
 // ====================================================================
 // Sync API Routes - Mobile App Synchronization

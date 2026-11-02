@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 class UserLoginContoller extends Controller
 {
@@ -31,7 +32,7 @@ class UserLoginContoller extends Controller
         $fileNumber = $request->input('login_password');
 
         Log::info('🔐 محاولة تسجيل دخول من البوابة الرئيسية', [
-            'identity_number' => $identityNumber,
+            'identity_number' => $this->maskIdentity($identityNumber),
             'file_number_length' => strlen($fileNumber)
         ]);
 
@@ -47,17 +48,15 @@ class UserLoginContoller extends Controller
             $anySponsorshipWithIdentity = Sponsorship::where('identity_number', $identityNumber)->first();
 
             if (!$anySponsorshipWithIdentity) {
-                Log::warning('⚠️ لم يتم العثور على كفالة برقم الهوية', ['identity_number' => $identityNumber]);
+                Log::warning('⚠️ لم يتم العثور على كفالة برقم الهوية', ['identity_number' => $this->maskIdentity($identityNumber)]);
                 return back()->withErrors([
                     'login_email' => 'رقم الهوية غير مسجل في النظام أو لا توجد كفالة مرتبطة به.',
                 ])->withInput();
             } else {
                 // الهوية موجودة لكن رقم الملف غير صحيح
                 Log::warning('❌ رقم الملف الداخلي غير صحيح', [
-                    'identity_number' => $identityNumber,
-                    'provided_file_number' => $fileNumber,
-                    'available_sponsorships' => Sponsorship::where('identity_number', $identityNumber)
-                        ->pluck('internal_file_number')->toArray()
+                    'identity_number' => $this->maskIdentity($identityNumber),
+                    'file_number_length' => strlen($fileNumber),
                 ]);
                 return back()->withErrors([
                     'login_password' => 'رقم الملف الداخلي غير صحيح.',
@@ -71,7 +70,7 @@ class UserLoginContoller extends Controller
         if (empty($correctFileNumber)) {
             Log::error('❌ رقم الملف الداخلي غير موجود للكفالة', [
                 'sponsorship_id' => $sponsorship->id,
-                'identity_number' => $identityNumber
+                'identity_number' => $this->maskIdentity($identityNumber)
             ]);
             return back()->withErrors([
                 'login_email' => 'لا يوجد رقم ملف داخلي مسجل لهذه الكفالة. يرجى التواصل مع الإدارة.',
@@ -80,8 +79,7 @@ class UserLoginContoller extends Controller
 
         Log::info('✅ تم العثور على الكفالة المطابقة', [
             'sponsorship_id' => $sponsorship->id,
-            'identity_number' => $identityNumber,
-            'internal_file_number' => $correctFileNumber
+            'identity_number' => $this->maskIdentity($identityNumber),
         ]);
 
         // البحث عن المستخدم المرتبط - البحث فقط برقم هوية المكفول (identity_number)
@@ -90,7 +88,7 @@ class UserLoginContoller extends Controller
         if (!$user) {
             // إنشاء مستخدم جديد تلقائياً للمكفول
             Log::info('🆕 إنشاء مستخدم جديد للمكفول', [
-                'identity_number' => $identityNumber,
+                'identity_number' => $this->maskIdentity($identityNumber),
                 'sponsorship_id' => $sponsorship->id,
                 'name' => $sponsorship->orphan_name
             ]);
@@ -99,14 +97,14 @@ class UserLoginContoller extends Controller
                 'name' => $sponsorship->orphan_name ?: 'مستخدم',
                 'phone' => $sponsorship->relationData->data_phone_number ?? '0000000000',
                 'email' => $identityNumber,  // نستخدم رقم هوية المكفول كـ email
-                'password' => bcrypt($correctFileNumber),
+                // الدخول يتم برقم الهوية + رقم الملف، لا حاجة لكلمة مرور مشتقة منه
+                'password' => bcrypt(Str::random(32)),
                 'role' => 'user',
                 'email_verified_at' => now(),  // تفعيل البريد مباشرة
             ]);
 
             Log::info('✅ تم إنشاء المستخدم بنجاح', [
                 'user_id' => $user->id,
-                'email' => $user->email
             ]);
         }
 
@@ -120,13 +118,26 @@ class UserLoginContoller extends Controller
 
         Log::info('✅ تم تسجيل الدخول بنجاح', [
             'user_id' => $user->id,
-            'user_email' => $user->email,
-            'identity_number' => $identityNumber,
+            'identity_number' => $this->maskIdentity($identityNumber),
             'sponsorship_id' => $sponsorship->id,
-            'session_sponsorship_id' => $sponsorship->id
         ]);
 
         return redirect()->route('user.generalRegistration.index')->with('success', 'تم تسجيل الدخول بنجاح.');
+    }
+
+    private function maskIdentity(?string $value): string
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return '[MASKED]';
+        }
+
+        if (strlen($value) <= 3) {
+            return str_repeat('*', strlen($value));
+        }
+
+        return str_repeat('*', strlen($value) - 3) . substr($value, -3);
     }
 
     public function logout(Request $request)

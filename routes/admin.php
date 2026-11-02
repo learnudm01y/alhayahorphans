@@ -45,6 +45,7 @@ use App\Http\Controllers\Admin\BackupController;
 use App\Http\Controllers\DuplicateFileController;
 use App\Http\Controllers\CivilRegistrySearchController;
 use App\Http\Controllers\Admin\CivilRegistryController;
+use App\Http\Controllers\Admin\DeathsController;
 use App\Http\Controllers\Admin\SmsController;
 use App\Http\Controllers\Admin\SmsGroupController;
 use App\Http\Controllers\Admin\SmsSettingsController;
@@ -131,6 +132,19 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
 
     // Export all records as CSV files (أخف على الذاكرة)
     Route::get('records-management/export-all-csv', [\App\Http\Controllers\Admin\RecordsManagementController::class, 'exportAllCSV'])->name('records.management.exportAllCSV');
+
+    // التصدير الخلفي (Background) — لتجنب خطأ Cloudflare 524: يبني الملف في الطابور ثم يُحمّل جاهزًا
+    Route::post('records-management/export-records-background', [\App\Http\Controllers\Admin\RecordsManagementController::class, 'exportRecordsBackground'])
+        ->middleware('permission:تصدير السجلات')
+        ->name('records.management.exportRecordsBackground');
+
+    Route::get('records-management/export-records-status', [\App\Http\Controllers\Admin\RecordsManagementController::class, 'exportRecordsStatus'])
+        ->middleware('permission:تصدير السجلات')
+        ->name('records.management.exportRecordsStatus');
+
+    Route::get('records-management/export-records-download', [\App\Http\Controllers\Admin\RecordsManagementController::class, 'downloadRecordsExport'])
+        ->middleware('permission:تصدير السجلات')
+        ->name('records.management.exportRecordsDownload');
 
     Route::get('records-management/create', [RecordsManagementController::class, 'create'])
         ->middleware('permission:عرض قسم إدارة التسجيلات|إدخال بيانات التسجيلات')
@@ -629,6 +643,24 @@ Route::prefix('admin')->group(function () {
         Route::get('/create', [CivilRegistryController::class, 'create'])
             ->middleware('permission:عرض قسم إدارة السجل المدني|إضافة مواطن')
             ->name('civil-registry.create');
+
+        // قائمة الوفيات — قبل مسار {id} حتى لا يحجبها
+        Route::get('deaths', [DeathsController::class, 'index'])
+            ->middleware('permission:عرض قسم إدارة السجل المدني|السجل المدني الجديد')
+            ->name('civil-registry.deaths.index');
+        Route::get('deaths/template', [DeathsController::class, 'importTemplate'])
+            ->middleware('permission:عرض قسم إدارة السجل المدني|إضافة مواطن')
+            ->name('civil-registry.deaths.template');
+        Route::post('deaths/import', [DeathsController::class, 'importFromExcel'])
+            ->middleware('permission:عرض قسم إدارة السجل المدني|إضافة مواطن')
+            ->name('civil-registry.deaths.import');
+        Route::post('deaths/merge', [DeathsController::class, 'merge'])
+            ->middleware('permission:عرض قسم إدارة السجل المدني|إضافة مواطن')
+            ->name('civil-registry.deaths.merge');
+        Route::delete('deaths/{death}', [DeathsController::class, 'destroy'])
+            ->middleware('permission:عرض قسم إدارة السجل المدني|إضافة مواطن')
+            ->name('civil-registry.deaths.destroy');
+
         Route::post('/', [CivilRegistryController::class, 'store'])->name('civil-registry.store');
         Route::get('/{id}', [CivilRegistryController::class, 'show'])->name('civil-registry.show');
         Route::get('/{id}/edit', [CivilRegistryController::class, 'edit'])->name('civil-registry.edit');

@@ -57,8 +57,46 @@ class AppServiceProvider extends ServiceProvider
         // مزامنة لحظية لحالة الكفالة عند أي تغيير في جدول sponsorships
         Sponsorship::observe(SponsorshipObserver::class);
 
+        // (3.3) إبطال كاش قوائم نموذج التسجيل عند تعديل أي جدول قوائم
+        $this->registerPortalLookupCacheInvalidation();
+
         // تحميل إعدادات الملفات الكبيرة
         $this->loadLargeFileSettings();
+    }
+
+    /**
+     * (3.3) جداول القوائم تُعرض في نموذج التسجيل من كاش لمدة ساعة.
+     * أي إنشاء/تعديل/حذف يُبطل الكاش فوراً.
+     */
+    private function registerPortalLookupCacheInvalidation(): void
+    {
+        $lookupModels = [
+            \App\Models\GeneralCategory::class,
+            \App\Models\CategoryOfRelation::class,
+            \App\Models\CI_PERSONAL_CD::class,
+            \App\Models\AcademicDegree::class,
+            \App\Models\DisplacementStatus::class,
+            \App\Models\City::class,
+            \App\Models\Province::class,
+            \App\Models\HealthStatus::class,
+            \App\Models\Employment::class,
+            \App\Models\HousingStatus::class,
+            \App\Models\TypeOfAccommodation::class,
+            \App\Models\DocumentType::class,
+            \App\Models\SponsorshipStatus::class,
+            \App\Models\TypeOfGuarantee::class,
+            \App\Models\DeathReason::class,
+            \App\Models\BankName::class,
+        ];
+
+        $forget = static function () {
+            \Illuminate\Support\Facades\Cache::forget('portal.lookups');
+        };
+
+        foreach ($lookupModels as $lookupModel) {
+            $lookupModel::saved($forget);
+            $lookupModel::deleted($forget);
+        }
     }
 
     /**

@@ -65,6 +65,7 @@ class Kernel extends HttpKernel
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
         'rolebreeze' => \App\Http\Middleware\RoleMiddleware::class,
+        'api.admin' => \App\Http\Middleware\EnsureApiAdmin::class,
         'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
         'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
         'large.upload' => \App\Http\Middleware\LargeFileUploadMiddleware::class,

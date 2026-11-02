@@ -825,12 +825,23 @@ class SponsorController extends Controller
             $validated = $request->validate([
                 'sponsor_id' => 'required|exists:sponsors,id',
                 'sponsorship_status_id' => 'nullable|exists:sponsorship_statuses,id',
-                'updated_only' => 'nullable|boolean'
+                'updated_only' => 'nullable|boolean',
+                'export_attachments' => 'nullable|boolean',
+                'export_forms' => 'nullable|boolean',
             ]);
 
             $sponsorId = $validated['sponsor_id'];
             $sponsorshipStatusId = $validated['sponsorship_status_id'] ?? null;
             $updatedOnly = (bool)($validated['updated_only'] ?? false);
+            $exportAttachments = (bool)($validated['export_attachments'] ?? false);
+            $exportForms = (bool)($validated['export_forms'] ?? true);
+
+            if (!$exportAttachments && !$exportForms) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'يرجى اختيار تصدير المرفقات أو الاستمارات على الأقل',
+                ], 422);
+            }
 
             // الحصول على معلومات الجمعية
             $sponsor = \App\Models\Sponsor::findOrFail($sponsorId);
@@ -873,17 +884,27 @@ class SponsorController extends Controller
             ExportStatus::start($statusKey, [
                 'label'        => 'تصدير الاستمارات',
                 'sponsor_name' => $sponsor->sponsor_name,
-                'total'        => $count,
+                'total'        => $count * ((int) $exportAttachments + (int) $exportForms),
+                'export_attachments' => $exportAttachments,
+                'export_forms' => $exportForms,
                 'message'      => 'في انتظار عامل الطابور...',
             ]);
 
-            \App\Jobs\BulkExportSponsorshipForms::dispatch($sponsorId, $sponsorshipStatusId, $updatedOnly);
+            \App\Jobs\BulkExportSponsorshipForms::dispatch(
+                (int) $sponsorId,
+                $sponsorshipStatusId ? (int) $sponsorshipStatusId : null,
+                $updatedOnly,
+                $exportAttachments,
+                $exportForms
+            );
 
             Log::info('Bulk export forms job dispatched', [
                 'sponsor_id' => $sponsorId,
                 'sponsor_name' => $sponsor->sponsor_name,
                 'sponsorship_status_id' => $sponsorshipStatusId,
                 'updated_only' => $updatedOnly,
+                'export_attachments' => $exportAttachments,
+                'export_forms' => $exportForms,
                 'estimated_count' => $count
             ]);
 
@@ -893,6 +914,8 @@ class SponsorController extends Controller
                 'sponsor_name' => $sponsor->sponsor_name,
                 'count' => $count,
                 'updated_only' => $updatedOnly,
+                'export_attachments' => $exportAttachments,
+                'export_forms' => $exportForms,
                 'status_filter' => $sponsorshipStatusId ? \App\Models\SponsorshipStatus::find($sponsorshipStatusId)->description : 'جميع الحالات',
                 'status_type' => ExportStatus::TYPE_FORMS,
                 'status_key' => $statusKey,
@@ -1226,4 +1249,3 @@ class SponsorController extends Controller
         }
     }
 }
-

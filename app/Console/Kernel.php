@@ -144,6 +144,21 @@ class Kernel extends ConsoleKernel
                     $removed++;
                 }
             }
+
+            // مجلدات الرفع المجزأ للبوابة (temp_uploads/{fileId}) الأقدم من 24 ساعة
+            $dirCutoff = now()->subHours(24)->getTimestamp();
+            foreach ((array) glob($tempDir . '/*', GLOB_ONLYDIR) as $dir) {
+                if (@filemtime($dir) === false || filemtime($dir) >= $dirCutoff) {
+                    continue;
+                }
+                foreach ((array) glob($dir . '/*') as $stale) {
+                    if (is_file($stale)) {
+                        @unlink($stale);
+                    }
+                }
+                @rmdir($dir);
+                $removed++;
+            }
         }
 
         if ($removed > 0) {

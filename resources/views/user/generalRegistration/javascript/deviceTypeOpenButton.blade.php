@@ -455,7 +455,8 @@ document.addEventListener('DOMContentLoaded', function() {
         cameraInput.removeAttribute('capture');
         if (galleryInput) {
             galleryInput.removeAttribute('capture');
-            galleryInput.setAttribute('accept', 'image/jpeg,image/png,image/jpg,image/webp');
+            // كل صيغ الصور مقبولة؛ التحويل إلى JPG يتم على الخادم قبل الحفظ
+            galleryInput.setAttribute('accept', 'image/*');
         }
 
         if (deviceInfo.isMobile) {

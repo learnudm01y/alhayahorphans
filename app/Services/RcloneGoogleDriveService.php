@@ -96,7 +96,7 @@ class RcloneGoogleDriveService
      * @param array $arguments الوسائط
      * @return array ['success' => bool, 'output' => string, 'error' => string]
      */
-    private function executeRclone(array $arguments): array
+    private function executeRclone(array $arguments, int $timeoutSeconds = 600, bool $logFullOutput = true): array
     {
         // إضافة مسار ملف الإعدادات إذا كان محدداً
         if ($this->configPath && file_exists($this->configPath)) {
@@ -111,15 +111,16 @@ class RcloneGoogleDriveService
         Log::info('RCLONE_COMMAND', ['command' => $commandStr]);
 
         try {
-            // Using Laravel's Process facade with a strict 10-minute timeout
-            $result = Process::timeout(600)->run($arguments);
+            // Laravel's Process facade; المهلة الافتراضية 10 دقائق وتُرفع للعمليات الجماعية
+            $result = Process::timeout($timeoutSeconds)->run($arguments);
 
             $outputStr = $result->output() . "\n" . $result->errorOutput();
             $returnCode = $result->exitCode();
 
             Log::info('RCLONE_RESULT', [
                 'return_code' => $returnCode,
-                'output' => $outputStr
+                // العمليات الجماعية تُنتج مخرجات كبيرة: نسجّل آخر 2000 حرف فقط
+                'output' => $logFullOutput ? $outputStr : mb_substr($outputStr, -2000)
             ]);
 
             return [
@@ -136,7 +137,7 @@ class RcloneGoogleDriveService
             
             return [
                 'success' => false,
-                'output' => 'Process Timed Out after 600 seconds',
+                'output' => "Process Timed Out after {$timeoutSeconds} seconds",
                 'return_code' => 124 // Standard timeout exit code
             ];
         } catch (\Exception $e) {
@@ -490,6 +491,79 @@ class RcloneGoogleDriveService
         }
 
         return ['success' => false, 'remote_path' => $remotePath, 'message' => $result['output'] ?? 'فشل الرفع'];
+    }
+
+    /**
+     * رفع شجرة مجلدات كاملة بعملية rclone واحدة مباشرة تحت مجلد الجهة الداعمة.
+     *
+     * المسار الناتج: {remoteName}:{rootFolder}/{organizationName}[/{subFolder}]/<محتويات المجلد المحلي>
+     * (بخلاف uploadFolder لا يُضاف مجلد وسيط؛ ومعامل $subFolder اختياري فقط)
+     *
+     * - عملية واحدة بدل عملية لكل مجلد (أسرع بكثير مع آلاف المجلدات).
+     * - `rclone copy` لا يحذف شيئاً من الوجهة ويتخطى الملفات المطابقة (بالحجم) عند إعادة التشغيل.
+     * - المجلدات الفارغة لا تُنشأ على الدرايف.
+     *
+     * @param string      $localDir          المجلد المحلي الذي تُرفع محتوياته
+     * @param string      $organizationName  اسم الجهة الداعمة
+     * @param string|null $subFolder         مجلد فرعي اختياري داخل الجهة
+     * @param int         $timeoutSeconds    مهلة العملية بالثواني
+     * @param array       $extraArgs         وسائط rclone إضافية (مثل --exclude)
+     * @return array ['success' => bool, 'remote_path' => string, 'message' => string]
+     */
+    public function uploadTree(
+        string $localDir,
+        string $organizationName,
+        ?string $subFolder = null,
+        int $timeoutSeconds = 14400,
+        array $extraArgs = []
+    ): array {
+        if (!is_dir($localDir)) {
+            return ['success' => false, 'remote_path' => null, 'message' => 'المجلد المحلي غير موجود'];
+        }
+
+        $remotePath = "{$this->remoteName}:{$this->rootFolder}/" . $this->sanitizeName($organizationName);
+        if ($subFolder !== null && trim($subFolder) !== '') {
+            $remotePath .= '/' . $this->sanitizeName($subFolder);
+        }
+
+        $transfers = (int) config('services.rclone.transfers', 8);
+        $checkers  = (int) config('services.rclone.checkers', 16);
+
+        $arguments = array_merge([
+            'copy',
+            $localDir,
+            $remotePath,
+            '--transfers', (string) max(1, $transfers),
+            '--checkers', (string) max(1, $checkers),
+            '--retries', '5',
+            '--low-level-retries', '20',
+            '--retries-sleep', '10s',
+            '--size-only',          // الملفات ثابتة المحتوى (الاسم يبدأ بمعرّف المرفق)، فيكفي الحجم لتخطي ما رُفع
+            '--no-update-modtime',
+            '--fast-list',
+            '--stats', '60s',
+            '--stats-one-line',
+        ], $extraArgs);
+
+        $result = $this->executeRclone($arguments, $timeoutSeconds, false);
+
+        if ($result['success']) {
+            Log::info('RCLONE_TREE_UPLOADED', ['local' => $localDir, 'remote' => $remotePath]);
+            return ['success' => true, 'remote_path' => $remotePath, 'message' => 'تم رفع المجلد بنجاح'];
+        }
+
+        Log::error('RCLONE_TREE_UPLOAD_FAILED', [
+            'local' => $localDir,
+            'remote' => $remotePath,
+            'return_code' => $result['return_code'] ?? null,
+            'output_tail' => mb_substr((string) ($result['output'] ?? ''), -1500),
+        ]);
+
+        return [
+            'success' => false,
+            'remote_path' => $remotePath,
+            'message' => mb_substr((string) ($result['output'] ?? 'فشل الرفع'), -500),
+        ];
     }
 
     /**
