@@ -414,6 +414,14 @@
                         </select>
                     </div>
 
+                    <div class="mb-5">
+                        <label class="form-label" for="export_excel">هل ترغب في تصدير ملف Excel؟</label>
+                        <select name="export_excel" id="export_excel" class="form-select">
+                            <option value="1" selected>نعم</option>
+                            <option value="0">لا</option>
+                        </select>
+                    </div>
+
                     <!--begin::معلومات إضافية-->
                     <div class="alert alert-warning">
                         <i class="fas fa-exclamation-triangle me-2"></i>
@@ -887,6 +895,7 @@ $(document).ready(function() {
         const updatedOnly = $('#export_updated_only').is(':checked') ? 1 : 0;
         const exportAttachments = $('#export_attachments').val();
         const exportForms = $('#export_forms').val();
+        const exportExcel = $('#export_excel').val();
 
         if (!sponsorId) {
             Swal.fire({
@@ -898,7 +907,7 @@ $(document).ready(function() {
             return;
         }
 
-        if (exportAttachments === '0' && exportForms === '0') {
+        if (exportAttachments === '0' && exportForms === '0' && exportExcel === '0') {
             Swal.fire({
                 icon: 'warning',
                 title: 'تنبيه',
@@ -914,6 +923,7 @@ $(document).ready(function() {
             html: `
                 <p>المرفقات: ${exportAttachments === '1' ? 'نعم' : 'لا'}</p>
                 <p>الاستمارات: ${exportForms === '1' ? 'نعم' : 'لا'}</p>
+                <p>ملف Excel: ${exportExcel === '1' ? 'نعم' : 'لا'}</p>
                 <p class="text-muted">سيتم معالجة الطلب في الخلفية.</p>
             `,
             icon: 'question',
@@ -924,7 +934,7 @@ $(document).ready(function() {
             cancelButtonColor: '#f1416c'
         }).then((result) => {
             if (result.isConfirmed) {
-                startExportProcess(sponsorId, sponsorshipStatusId, updatedOnly, exportAttachments, exportForms);
+                startExportProcess(sponsorId, sponsorshipStatusId, updatedOnly, exportAttachments, exportForms, exportExcel);
             }
         });
     });
@@ -1101,7 +1111,7 @@ $(document).ready(function() {
     /**
      * بدء عملية التصدير
      */
-    function startExportProcess(sponsorId, sponsorshipStatusId, updatedOnly, exportAttachments, exportForms) {
+    function startExportProcess(sponsorId, sponsorshipStatusId, updatedOnly, exportAttachments, exportForms, exportExcel) {
         const $btn = $('#start_export_btn');
         const originalText = $btn.html();
 
@@ -1119,7 +1129,8 @@ $(document).ready(function() {
                 sponsorship_status_id: sponsorshipStatusId,
                 updated_only: updatedOnly,
                 export_attachments: exportAttachments,
-                export_forms: exportForms
+                export_forms: exportForms,
+                export_excel: exportExcel
             },
             success: function(response) {
                 $btn.prop('disabled', false).html(originalText);

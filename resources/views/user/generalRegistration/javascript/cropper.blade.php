@@ -7,44 +7,114 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════════
-// فحص الوجه Client-Side عبر face-api.js
+// فحص الوجه Client-Side عبر face-api.js — محرك مسح متعدّد المقاييس
 // ═══════════════════════════════════════════════════════════════
+// الأرقام هنا مطابقة لـ CFG في scripts/face-lib.js (فحص الخادم) — غيّر في المكانين معاً.
+const FACE_CFG = {
+  maxWorkSide: 1600,          // توحيد كانفس العمل (حفاظاً على النسبة وعلى حد النسيج في GPU)
+  tileOverlap: 0.2,
+  timeBudgetMs: 9000,         // ميزانية الفحص في المتصفح (أقل من الخادم لأنه على CPU/Mobile GPU)
+  minFaceRelWidth: 0.06,
+  minFaceAbsWidth: 40,
+  significantFaceRelWidth: 0.10,
+  eyeSpanOverBoxWidth: [0.22, 0.78],
+  eyeRollMax: 0.25,
+  eyeYRange: [0.18, 0.72],
+  mouthYawMax: 0.26,
+  jawOverEyeSpanMin: 0.90,
+  sweeps: {
+    full: [
+      { kind: 'frame', confidence: 0.50 },
+      { kind: 'tiles', scale: 0.72, confidence: 0.50, maxTiles: 4 },
+      { kind: 'frame', confidence: 0.35 },
+      { kind: 'tiles', scale: 0.50, confidence: 0.42, maxTiles: 6 },
+      { kind: 'tiles', scale: 0.34, confidence: 0.35, maxTiles: 8 }
+    ],
+    coarse: [
+      { kind: 'frame', confidence: 0.50 },
+      { kind: 'tiles', scale: 0.72, confidence: 0.50, maxTiles: 4 }
+    ],
+    frameOnly: [
+      { kind: 'frame', confidence: 0.50 }
+    ]
+  },
+  rotationPlan: [
+    { deg: 0, sweep: 'full' },
+    { deg: 90, sweep: 'coarse' },
+    { deg: 270, sweep: 'coarse' },
+    { deg: 180, sweep: 'frameOnly' }
+  ],
+  // نجاح الفحص على الصورة المرمَّمة (من الذكاء الاصطناعي) يُقبل دليلاً على وجود وجه،
+  // لكن الصورة المؤرشفة تبقى دائماً الأصلَ بدون أي توليد أو تعديل.
+  restoreAsProof: true,
+  serverVerify: { url: @json(route('face.verify')) },
+  serverRestore: { url: @json(route('face.restore')) },
+  report: { url: @json(route('face.report')) }
+};
+
+const FACE_REASONS = {
+  'no-face': 'لم يتم العثور على وجه واضح — اجعل الوجه أمامياً وكاملاً وغير مغطّى',
+  'multi-face': 'الصورة تحتوي على أكثر من وجه — يرجى إرسال صورة لشخص واحد فقط',
+  'face-too-small': 'حجم الوجه صغير جداً بالنسبة للصورة — قرّب الصورة من الوجه',
+  'face-turned-side': 'الوجه غير مواجه للكاميرا — استخدم صورة أمامية',
+  'face-tilted': 'الوجه مائل كثيراً — استخدم صورة مستقيمة للوجه',
+  'face-framing-off': 'الوجه غير مؤطَّر داخل الصورة — اجعل العينين قرب الثلث العلوي',
+  'eyes-unresolved': 'العينان غير واضحتين — أزل ما يحجبهما أو استخدم صورة أوضح',
+  'jaw-unresolved': 'أجزاء من الوجه غير ظاهرة (غطاء أو قصّ) — أكشف الوجه كاملاً',
+  'landmarks-incomplete': 'تعذر تحليل تفاصيل الوجه — استخدم صورة وجه واضحة',
+  'landmarks-invalid': 'معالم الوجه غير واضحة — استخدم صورة وجه واضحة',
+  'face-ratio-unusual': 'لم تظهر ملامح الوجه كاملة (غطاء أو وضعية غير واضحة) — استخدم صورة أمامية مكشوفة الوجه',
+  'busy': 'الخادم مشغول حالياً',
+  'timeout': 'انتهت مهلة الفحص',
+  'engine-error': 'تعذّر تشغيل نظام الفحص'
+};
+
+// أكواد تخص جودة الصورة فقط — الترميم المساعد لا يُجرَّب إلا عليها.
+// face-ratio-unusual مستثنى عمداً: هو بصمة الوجه المغطّى (نقاب/كمامة)، والترميم
+// قد يولّد ملامح غير موجودة فيقبل صورة لا وجه مكشوف فيها.
+const FACE_QUALITY_CODES = ['no-face', 'face-too-small', 'eyes-unresolved', 'jaw-unresolved', 'landmarks-incomplete', 'landmarks-invalid'];
+
+function setFaceProgress(progressBar, statusText, pct, label) {
+  if (!progressBar || !statusText) return;
+  progressBar.style.width = pct + '%';
+  progressBar.textContent = pct + '%';
+  statusText.innerHTML = '<small>' + label + '</small>';
+}
+
 let _faceModelsLoaded = false;
+const FACE_ENGINE = { backend: null };
 
 async function loadFaceModels() {
   if (_faceModelsLoaded) return true;
 
-  // التحقق من أن مكتبة face-api.js محملة
   if (typeof faceapi === 'undefined') {
     console.error('[FaceCheck] مكتبة face-api.js غير محملة');
     return false;
   }
 
+  // دقة fp16 على بعض GPUs تُنتج قيماً عديمة المعنى → ثقة صفر بلا أي خطأ ظاهر
   try {
-    // تهيئة TensorFlow.js مع WebGL (تجنب WASM)
-    await faceapi.tf.setBackend('webgl');
-    await faceapi.tf.ready();
-    console.log('[FaceCheck] تم تهيئة TensorFlow.js بـ WebGL backend');
-  } catch (e) {
-    console.warn('[FaceCheck] WebGL غير متاح، محاولة WASM...');
+    faceapi.tf.env().set('WEBGL_F16_MATMUL_ENABLE', false);
+  } catch (e) { /* نسخة أقدم من tfjs */ }
+
+  const backends = ['webgl', 'wasm', 'cpu'];
+  let ready = false;
+
+  for (const name of backends) {
     try {
-      await faceapi.tf.setBackend('wasm');
+      await faceapi.tf.setBackend(name);
       await faceapi.tf.ready();
-      console.log('[FaceCheck] تم تهيئة TensorFlow.js بـ WASM backend');
-    } catch (e2) {
-      console.warn('[FaceCheck] WASM غير متاح، محاولة CPU...');
-      try {
-        await faceapi.tf.setBackend('cpu');
-        await faceapi.tf.ready();
-        console.log('[FaceCheck] تم تهيئة TensorFlow.js بـ CPU backend (أبطأ)');
-      } catch (e3) {
-        console.error('[FaceCheck] فشل تهيئة TensorFlow.js:', e3);
-        return false;
-      }
+      FACE_ENGINE.backend = name;
+      ready = true;
+      console.log('[FaceCheck] backend =', name);
+      break;
+    } catch (e) {
+      console.warn('[FaceCheck] backend غير متاح:', name);
     }
   }
 
-  // قائمة المصادر: أولاً محلي (أسرع)، ثم CDN كـ fallback
+  if (!ready) return false;
+
   const MODEL_SOURCES = [
     '{{ asset("scripts/models") }}',
     'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model'
@@ -62,131 +132,367 @@ async function loadFaceModels() {
     }
   }
 
-  console.error('[FaceCheck] فشل تحميل النماذج من جميع المصادر');
   return false;
 }
 
-async function checkFaceOnCanvas(canvas) {
+// ───────── أدوات الكانفس ─────────
+
+/** تحجيم مع الحفاظ على النسبة إلى maxWorkSide (يحلّ حدّ النسيج في GPU والضوضاء عند السحق) */
+function toWorkCanvas(canvas, maxSide) {
+  const longest = Math.max(canvas.width, canvas.height);
+
+  if (longest <= maxSide) return canvas;
+
+  const scale = maxSide / longest;
+  const w = Math.max(1, Math.round(canvas.width * scale));
+  const h = Math.max(1, Math.round(canvas.height * scale));
+  const out = document.createElement('canvas');
+  out.width = w;
+  out.height = h;
+  const ctx = out.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(canvas, 0, 0, w, h);
+
+  return out;
+}
+
+function cropCanvas(src, x, y, size) {
+  const out = document.createElement('canvas');
+  out.width = size;
+  out.height = size;
+  const ctx = out.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(src, x, y, size, size, 0, 0, size, size);
+
+  return out;
+}
+
+function rotateCanvas(src, deg) {
+  if (!deg) return src;
+
+  const out = document.createElement('canvas');
+  out.width = deg === 180 ? src.width : src.height;
+  out.height = deg === 180 ? src.height : src.width;
+  const ctx = out.getContext('2d');
+  ctx.translate(out.width / 2, out.height / 2);
+  ctx.rotate(deg * Math.PI / 180);
+  ctx.drawImage(src, -src.width / 2, -src.height / 2);
+
+  return out;
+}
+
+function releaseCanvas(canvas) {
+  if (!canvas) return;
+  canvas.width = 0;
+  canvas.height = 0;
+}
+
+// ───────── الكشف ─────────
+
+async function detectAllIn(canvas, minConfidence) {
+  const detections = await faceapi
+    .detectAllFaces(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence }))
+    .withFaceLandmarks();
+
+  if (!detections || !detections.length) return [];
+
+  return detections.map((d) => ({
+    x: d.detection.box.x,
+    y: d.detection.box.y,
+    width: d.detection.box.width,
+    height: d.detection.box.height,
+    score: d.detection.score,
+    landmarks: (d.landmarks && d.landmarks.positions ? d.landmarks.positions : []).map((p) => ({ x: p.x, y: p.y }))
+  }));
+}
+
+function tileAxis(fullSide, tileSide, overlap) {
+  const step = Math.max(1, Math.round(tileSide * (1 - overlap)));
+  const raw = [];
+
+  for (let o = 0; o < fullSide; o += step) {
+    raw.push(Math.max(0, Math.min(o, fullSide - tileSide)));
+    if (o + tileSide >= fullSide) break;
+  }
+
+  return [...new Set(raw)];
+}
+
+function centerOutTiles(w, h, tileSide, maxTiles) {
+  const xs = tileAxis(w, tileSide, FACE_CFG.tileOverlap);
+  const ys = tileAxis(h, tileSide, FACE_CFG.tileOverlap);
+  const cx = w / 2, cy = h / 2;
+  const list = [];
+
+  for (const tx of xs) {
+    for (const ty of ys) list.push([tx, ty]);
+  }
+
+  list.sort((a, b) => Math.hypot(a[0] + tileSide / 2 - cx, a[1] + tileSide / 2 - cy)
+    - Math.hypot(b[0] + tileSide / 2 - cx, b[1] + tileSide / 2 - cy));
+
+  return list.slice(0, maxTiles);
+}
+
+function faceIou(a, b) {
+  const x1 = Math.max(a.x, b.x), y1 = Math.max(a.y, b.y);
+  const x2 = Math.min(a.x + a.width, b.x + b.width);
+  const y2 = Math.min(a.y + a.height, b.y + b.height);
+  const inter = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
+  const union = a.width * a.height + b.width * b.height - inter;
+
+  return union > 0 ? inter / union : 0;
+}
+
+function dedupeFaces(list) {
+  const sorted = [...list].sort((a, b) => b.score - a.score);
+  const kept = [];
+
+  for (const d of sorted) {
+    if (!kept.some((k) => faceIou(k, d) > 0.35)) kept.push(d);
+  }
+
+  return kept;
+}
+
+/** مرحلة مسح واحدة (إطار كامل أو مربعات من المركز للأطراف) */
+async function runSweep(canvas, sweep, deadline, sink) {
+  const w = canvas.width, h = canvas.height;
+
+  if (sweep.kind === 'frame') {
+    if (Date.now() > deadline) return null;
+
+    const found = await detectAllIn(canvas, sweep.confidence);
+    sink.push(...found);
+    if (!found.length) return null;
+
+    return found.sort((a, b) => b.score - a.score)[0];
+  }
+
+  const tileSide = Math.max(64, Math.min(Math.min(w, h), Math.round(Math.min(w, h) * sweep.scale)));
+
+  if (tileSide >= Math.max(w, h)) {
+    return runSweep(canvas, { kind: 'frame', confidence: sweep.confidence }, deadline, sink);
+  }
+
+  for (const [tx, ty] of centerOutTiles(w, h, tileSide, sweep.maxTiles || 4)) {
+    if (Date.now() > deadline) return null;
+
+    const tile = cropCanvas(canvas, tx, ty, tileSide);
+    const found = await detectAllIn(tile, sweep.confidence);
+    releaseCanvas(tile);
+
+    for (const d of found) {
+      d.x += tx; d.y += ty;
+      if (d.landmarks) d.landmarks = d.landmarks.map((p) => ({ x: p.x + tx, y: p.y + ty }));
+      sink.push(d);
+    }
+
+    if (found.length) return found.sort((a, b) => b.score - a.score)[0];
+  }
+
+  return null;
+}
+
+function avgPoints(lm, a, b) {
+  let x = 0, y = 0;
+  for (let i = a; i < b; i++) { x += lm[i].x; y += lm[i].y; }
+
+  return { x: x / (b - a), y: y / (b - a) };
+}
+
+/** تحقّق هندسي حقيقي بدل عدّ النقاط فقط */
+function validateFaceGeometry(face, w, h) {
+  const lm = face.landmarks;
+
+  if (!lm || lm.length < 68) return { ok: false, code: 'landmarks-incomplete' };
+
+  if (!lm.every((p) => p && isFinite(p.x) && isFinite(p.y))) return { ok: false, code: 'landmarks-invalid' };
+
+  const boxW = Math.max(1, face.width);
+  const boxH = Math.max(1, face.height);
+  const leftEye = avgPoints(lm, 36, 42);
+  const rightEye = avgPoints(lm, 42, 48);
+  const mouth = avgPoints(lm, 48, 68);
+  const eyeDist = Math.hypot(rightEye.x - leftEye.x, rightEye.y - leftEye.y);
+
+  if (eyeDist < 2) return { ok: false, code: 'eyes-unresolved' };
+
+  const spanRatio = eyeDist / boxW;
+  if (spanRatio < FACE_CFG.eyeSpanOverBoxWidth[0] || spanRatio > FACE_CFG.eyeSpanOverBoxWidth[1]) {
+    return { ok: false, code: 'face-ratio-unusual' };
+  }
+
+  const roll = Math.abs(rightEye.y - leftEye.y) / eyeDist;
+  if (roll > FACE_CFG.eyeRollMax) return { ok: false, code: 'face-tilted' };
+
+  const relEyeY = ((leftEye.y + rightEye.y) / 2 - face.y) / boxH;
+  if (relEyeY < FACE_CFG.eyeYRange[0] || relEyeY > FACE_CFG.eyeYRange[1]) {
+    return { ok: false, code: 'face-framing-off' };
+  }
+
+  const yaw = Math.abs(mouth.x - (leftEye.x + rightEye.x) / 2) / boxW;
+  if (yaw > FACE_CFG.mouthYawMax) return { ok: false, code: 'face-turned-side' };
+
+  const jaw = lm.slice(0, 17);
+  const jawWidth = Math.max(...jaw.map((p) => p.x)) - Math.min(...jaw.map((p) => p.x));
+  if (jawWidth / eyeDist < FACE_CFG.jawOverEyeSpanMin) return { ok: false, code: 'jaw-unresolved' };
+
+  if (boxW < FACE_CFG.minFaceAbsWidth || boxW / w < FACE_CFG.minFaceRelWidth) {
+    return { ok: false, code: 'face-too-small' };
+  }
+
+  return { ok: true, metrics: { faceWidthPx: Math.round(boxW), relWidth: +(boxW / w).toFixed(3), score: +face.score.toFixed(3) } };
+}
+
+/**
+ * الفحص الكامل على كانفس.
+ * يُرجع { valid, code, detail, score, rotatedDeg, rotatedCanvas, work, ms, engineError }
+ */
+async function checkFaceOnCanvas(rawCanvas) {
+  const t0 = Date.now();
+  const deadline = t0 + FACE_CFG.timeBudgetMs;
+  const work = toWorkCanvas(rawCanvas, FACE_CFG.maxWorkSide);
+  let lastCode = 'no-face';
+
   try {
-    // ═══════════════════════════════════════════════════════════════
-    // Two-Pass Detection: كشف الوجه أولاً، ثم تكبير منطقة الوجه لفحص المعالم
-    // ═══════════════════════════════════════════════════════════════
+    for (const step of FACE_CFG.rotationPlan) {
+      if (Date.now() > deadline) break;
 
-    // Pass 1: كشف الوجه على الصورة الكاملة
-    const detections = await faceapi
-      .detectAllFaces(canvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.50 }))
-      .withFaceLandmarks();
+      const frame = rotateCanvas(work, step.deg);
+      // الصناديق بإحداثيات الإطار المُدار، فالنسب تُحسب على عرضه لا على عرض الصورة الأصلية
+      const frameW = frame.width;
+      const frameH = frame.height;
+      const plan = FACE_CFG.sweeps[step.sweep] || FACE_CFG.sweeps.coarse;
+      const sink = [];
+      let face = null;
 
-    console.log('[FaceCheck] Pass 1: تم كشف', detections.length, 'وجه(وجوه)');
-
-    if (!detections || detections.length === 0) {
-      return { valid: false, reason: 'لم يتم العثور على وجه واضح في الصورة' };
-    }
-
-    if (detections.length > 1) {
-      return { valid: false, reason: 'الصورة تحتوي على أكثر من وجه - يرجى إرسال صورة لشخص واحد فقط' };
-    }
-
-    const face = detections[0];
-    const box = face.detection.box;
-    console.log('[FaceCheck] Confidence Score:', face.detection.score.toFixed(3));
-
-    // فحص حجم الوجه في الصورة الأصلية
-    const relativeWidth = box.width / canvas.width;
-    console.log('[FaceCheck] حجم الوجه:', (relativeWidth * 100).toFixed(1) + '% من عرض الصورة');
-
-    if (relativeWidth < 0.06) {
-      return { valid: false, reason: 'حجم الوجه صغير جداً بالنسبة للصورة - يقرّب الصورة' };
-    }
-
-    // Pass 2: قص منطقة مكبّرة حول الوجه لفحص المعالم بدقة
-    const padding = Math.max(box.width, box.height) * 0.5;
-    const sx = Math.max(0, box.x - padding);
-    const sy = Math.max(0, box.y - padding);
-    const sw = Math.min(canvas.width - sx, box.width + padding * 2);
-    const sh = Math.min(canvas.height - sy, box.height + padding * 2);
-
-    console.log('[FaceCheck] Pass 2: تكبير منطقة الوجه من', sw.toFixed(0), 'x', sh.toFixed(0), 'إلى 300px');
-
-    const zoomCanvas = document.createElement('canvas');
-    const ZOOM_WIDTH = 300;
-    const ZOOM_HEIGHT = Math.round(ZOOM_WIDTH * (sh / sw));
-    zoomCanvas.width = ZOOM_WIDTH;
-    zoomCanvas.height = ZOOM_HEIGHT;
-
-    const ctx = zoomCanvas.getContext('2d');
-    ctx.drawImage(canvas, sx, sy, sw, sh, 0, 0, ZOOM_WIDTH, ZOOM_HEIGHT);
-
-    // فحص المعالم على المنطقة المكبّرة
-    const detailed = await faceapi
-      .detectSingleFace(zoomCanvas, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.50 }))
-      .withFaceLandmarks();
-
-    if (!detailed) {
-      console.warn('[FaceCheck] Pass 2 فشل، الاعتماد على نتائج Pass 1');
-      const pass1Landmarks = face.landmarks;
-      if (pass1Landmarks && pass1Landmarks.positions && pass1Landmarks.positions.length >= 68) {
-        // نكمل التحقق على بيانات Pass 1
-      } else {
-        zoomCanvas.width = 0;
-        zoomCanvas.height = 0;
-        return { valid: false, reason: 'تعذر تحليل تفاصيل الوجه - يرجى استخدام صورة وجه واضحة' };
+      for (const sweep of plan) {
+        if (Date.now() > deadline) break;
+        face = await runSweep(frame, sweep, deadline, sink);
+        if (face) break;
       }
+
+      if (frame !== work) releaseCanvas(frame);
+
+      if (!face) {
+        lastCode = 'no-face';
+        continue;
+      }
+
+      const candidates = dedupeFaces(sink);
+      const significant = candidates.filter((d) => d.width / frameW >= FACE_CFG.significantFaceRelWidth);
+
+      if (significant.length > 1) {
+        return { valid: false, code: 'multi-face', detail: FACE_REASONS['multi-face'], faces: significant.length, ms: Date.now() - t0 };
+      }
+
+      const v = validateFaceGeometry(face, frameW, frameH);
+
+      if (!v.ok) {
+        lastCode = v.code;
+        // وجه جانبي/مائل عند 0° قد يعني أن الصورة مقلوبة: جرّب الاتجاهات الأخرى
+        if (step.deg === 0 && ['face-turned-side', 'face-tilted', 'face-framing-off'].includes(v.code)) continue;
+
+        return {
+          valid: false, code: v.code, detail: FACE_REASONS[v.code] || 'وجه غير واضح',
+          score: +face.score.toFixed(3), ms: Date.now() - t0
+        };
+      }
+
+      let outCanvas = null;
+
+      if (step.deg) {
+        // الصورة مقلوبة (EXIF غير مخبوز): تدويرها يجعل الفحص والأرشيف صحيحين
+        outCanvas = rotateCanvas(rawCanvas, step.deg);
+      }
+
+      return {
+        valid: true,
+        code: 'ok',
+        score: +face.score.toFixed(3),
+        rotatedDeg: step.deg,
+        rotatedCanvas: outCanvas,
+        box: face.box || { x: face.x, y: face.y, width: face.width, height: face.height },
+        metrics: v.metrics,
+        ms: Date.now() - t0
+      };
     }
 
-    const positions = detailed ? detailed.landmarks.positions : face.landmarks.positions;
-    if (!positions || positions.length < 68) {
-      zoomCanvas.width = 0;
-      zoomCanvas.height = 0;
-      return { valid: false, reason: 'معالم الوجه غير مكتملة - يرجى استخدام صورة وجه واضحة' };
-    }
-
-    const isValidGroup = (pts) => pts.every(p => p && typeof p.x === 'number' && typeof p.y === 'number' && !isNaN(p.x) && isFinite(p.x) && !isNaN(p.y) && isFinite(p.y));
-
-    const jaw = positions.slice(0, 17);
-    if (jaw.length !== 17 || !isValidGroup(jaw)) {
-      zoomCanvas.width = 0;
-      zoomCanvas.height = 0;
-      return { valid: false, reason: 'الفك غير واضح - يرجى استخدام صورة وجه واضحة من الأمام' };
-    }
-
-    const rightEyebrow = positions.slice(17, 22);
-    const leftEyebrow = positions.slice(22, 27);
-    if (rightEyebrow.length !== 5 || leftEyebrow.length !== 5 || !isValidGroup(rightEyebrow) || !isValidGroup(leftEyebrow)) {
-      zoomCanvas.width = 0;
-      zoomCanvas.height = 0;
-      return { valid: false, reason: 'معالم الحاجبين غير واضحة - يرجى استخدام صورة وجه واضحة من الأمام' };
-    }
-
-    const nose = positions.slice(27, 36);
-    if (nose.length !== 9 || !isValidGroup(nose)) {
-      zoomCanvas.width = 0;
-      zoomCanvas.height = 0;
-      return { valid: false, reason: 'معالم الأنف غير واضحة' };
-    }
-
-    const leftEye = positions.slice(36, 42);
-    const rightEye = positions.slice(42, 48);
-    if (leftEye.length !== 6 || rightEye.length !== 6 || !isValidGroup(leftEye) || !isValidGroup(rightEye)) {
-      zoomCanvas.width = 0;
-      zoomCanvas.height = 0;
-      return { valid: false, reason: 'معالم العينين غير واضحة' };
-    }
-
-    const mouth = positions.slice(48, 68);
-    if (mouth.length !== 20 || !isValidGroup(mouth)) {
-      zoomCanvas.width = 0;
-      zoomCanvas.height = 0;
-      return { valid: false, reason: 'معالم الفم غير واضحة' };
-    }
-
-    zoomCanvas.width = 0;
-    zoomCanvas.height = 0;
-    console.log('[FaceCheck] ✅ تم التحقق من الوجه بنجاح (Two-Pass)');
-    return { valid: true };
+    return { valid: false, code: lastCode, detail: FACE_REASONS[lastCode] || FACE_REASONS['no-face'], ms: Date.now() - t0 };
   } catch (err) {
-    console.error('[FaceCheck] خطأ في فحص الوجه:', err);
-    return { valid: false, reason: 'تعذر فحص الصورة الشخصية' };
+    console.error('[FaceCheck] خطأ المحرك:', err && err.message);
+    // خطأ محرك (سياق WebGL مفقود/نسيج كبير) ليس دليلاً على غياب الوجه
+    return { valid: false, code: 'engine-error', detail: 'تعذّر تشغيل فحص الوجه في المتصفح', engineError: true, ms: Date.now() - t0 };
+  } finally {
+    if (work !== rawCanvas) releaseCanvas(work);
+  }
+}
+
+// ───────── تقارير + فحوص خادمية ─────────
+
+// المسار العام يحتوي وسم csrf-token، أما نسخة لوحة المستخدم فقد لا تحتويه — رمزه من Blade مباشرة
+const FACE_CSRF = @json(csrf_token());
+
+function faceCsrfForm() {
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  const token = meta ? meta.getAttribute('content') : '';
+  return token || FACE_CSRF;
+}
+
+function reportFaceCheck(payload) {
+  try {
+    const body = Object.assign({}, payload, { _token: faceCsrfForm() });
+    fetch(FACE_CFG.report.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': body._token },
+      body: JSON.stringify(body),
+      keepalive: true
+    }).catch(() => {});
+  } catch (e) { /* القياس لا يجب أن يعطّل الرفع */ }
+}
+
+async function canvasToJpegBlob(canvas, quality) {
+  return new Promise((resolve) => {
+    canvas.toBlob((b) => resolve(b || null), 'image/jpeg', quality || 0.92);
+  });
+}
+
+/** رأي الخادم النهائي: محرك Node مطابق للعتبات، غير متأثر بضعف GPU */
+async function verifyFaceOnServer(canvas, fileType, clientCode) {
+  try {
+    const blob = await canvasToJpegBlob(canvas, 0.92);
+    if (!blob) return { ok: false, code: 'engine-error' };
+
+    const form = new FormData();
+    form.append('image', blob, 'face_verify.jpg');
+    form.append('file_type', String(fileType || ''));
+    form.append('client_code', String(clientCode || ''));
+    form.append('_token', faceCsrfForm());
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 45000);
+    const response = await fetch(FACE_CFG.serverVerify.url, { method: 'POST', body: form, signal: controller.signal, headers: { 'Accept': 'application/json' } });
+    clearTimeout(timer);
+
+    if (!response.ok) return { ok: false, code: 'http-' + response.status };
+
+    const data = await response.json();
+    return {
+      ok: !!data.ok,
+      pass: !!data.pass,
+      code: data.code,
+      detail: data.detail,
+      score: data.score,
+      rotated: data.rotated || 0,
+      ms: data.ms || 0,
+      busy: data.code === 'busy'
+    };
+  } catch (e) {
+    console.warn('[FaceVerify] فشل:', e && (e.name === 'AbortError' ? 'timeout' : e.message));
+    return { ok: false, code: e && e.name === 'AbortError' ? 'timeout' : 'engine-error' };
   }
 }
 
@@ -527,8 +833,9 @@ window.showCropperModal = async function(file, callback) {
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  // ترميم الصورة على الخادم عند فشل الفحص (الصور الشخصية file_type = 12)
-  // يعيد canvas جاهز لإعادة الفحص في المتصفح عبر checkFaceOnCanvas
+  // ترميم الصورة على الخادم — مساعد للفحص فقط: نجاحه دليل على وجود وجه،
+  // لكن كانفس الأصل هو ما يُرفع ويُؤرشف دون أي تغيير (لا تُؤرشف صورة مولّدة).
+  // (file_type = 12 تخرج 400x600 في فحص الخادم، وبقية الأنواع بمقاسها الأصلي)
   // ═══════════════════════════════════════════════════════════════════
   async function restoreFaceOnServer(sourceCanvas, fileType) {
     try {
@@ -540,13 +847,15 @@ window.showCropperModal = async function(file, callback) {
       const form = new FormData();
       form.append('image', blob, 'face_restore_input.jpg');
       form.append('file_type', String(fileType));
+      form.append('_token', faceCsrfForm());
 
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 130000);
-      const response = await fetch('/api/face/restore', {
+      const response = await fetch(FACE_CFG.serverRestore.url, {
         method: 'POST',
         body: form,
-        signal: controller.signal
+        signal: controller.signal,
+        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': faceCsrfForm() }
       });
       clearTimeout(timer);
 
@@ -639,99 +948,124 @@ window.showCropperModal = async function(file, callback) {
       console.log('[CropButton] تم إنشاء canvas مقصوص بنجاح');
 
       // ═══════════════════════════════════════════════════════════════
-      // فحص الوجه Client-Side بعد القص مباشرة (فقط للصور الشخصية)
+      // فحص الوجه: المتصفح أولاً، ثم الخادم كمرجع أدق، والترميم مساعد فحص فقط
       // ═══════════════════════════════════════════════════════════════
       const fileType = file._fileType || 'image';
       if (fileType === 'document') {
         console.log('[FaceCheck] ⏭️ تخطي فحص الوجه - الوثيقة لا تتطلب فحص:', file.name);
       } else {
-        if (progressBar && statusText) {
-          progressBar.style.width = '40%';
-          progressBar.textContent = '40%';
-          statusText.innerHTML = '<small>جاري فحص الوجه...</small>';
-        }
+        setFaceProgress(progressBar, statusText, 40, 'جاري فحص الوجه...');
 
         const modelsLoaded = await loadFaceModels();
-        if (modelsLoaded) {
-          const faceResult = await checkFaceOnCanvas(canvas);
-          if (!faceResult.valid) {
-            // محاولة ترميم الصورة على الخادم ثم إعادة الفحص هنا
-            // (file_type = 12 تخرج 400x600، وبقية الأنواع تخرج بمقاسها الأصلي)
-            let restoredCanvas = null;
-            if (progressBar && statusText) {
-              progressBar.style.width = '45%';
-              progressBar.textContent = '45%';
-              statusText.innerHTML = '<small>جاري تحسين الصورة وإعادة الفحص...</small>';
-            }
+        const client = modelsLoaded
+          ? await checkFaceOnCanvas(canvas)
+          : { valid: false, code: 'engine-error', detail: FACE_REASONS['engine-error'], engineError: true, ms: 0 };
 
-            restoredCanvas = await restoreFaceOnServer(canvas, fileType);
-            if (restoredCanvas) {
-              const modelsAgain = await loadFaceModels();
-              const retryResult = modelsAgain
-                ? await checkFaceOnCanvas(restoredCanvas)
-                : { valid: false, reason: 'تعذر إعادة تحميل نظام فحص الوجه' };
+        reportFaceCheck({
+          stage: 'client',
+          file_type: fileType,
+          code: client.code,
+          detail: client.detail,
+          score: client.score || 0,
+          rotated: client.rotatedDeg || 0,
+          ms: client.ms || 0,
+          engine: modelsLoaded ? (FACE_ENGINE.backend || 'unknown') : 'models-failed',
+          canvas: canvas.width + 'x' + canvas.height
+        });
 
-              if (retryResult.valid) {
-                canvas = restoredCanvas;
-                console.log('[FaceCheck] ✅ تم قبول الصورة بعد الترميم');
-              } else {
-                console.warn('[FaceCheck] ⚠️ الصورة المرمّمة لم تجتز الفحص:', retryResult.reason);
-                restoredCanvas = null;
-              }
-            }
+        // صورة مقلوبة (EXIF غير مخبوز في المتصفح): التدوير يصحّح الفحص والأرشفة معاً
+        if (client.rotatedCanvas) {
+          canvas = client.rotatedCanvas;
+        }
 
-            if (!restoredCanvas) {
-              Swal.close();
-              Swal.fire({
-                icon: 'warning',
-                title: 'صورة غير مقبولة',
-                text: faceResult.reason,
-                confirmButtonText: 'اختر صورة أخرى',
-                allowOutsideClick: false
-              }).then(() => {
-                cleanup();
-                // فتح حوار اختيار ملف جديد عبر مودال النظام المخصص بدل نافذة أندرويد
-                if (window.DeviceImageSource && typeof window.DeviceImageSource.showModal === 'function') {
-                  window.DeviceImageSource.showModal(function(newFile) {
-                    if (newFile) {
-                      newFile._fileType = fileType;
-                      window.showCropperModal(newFile, callback);
-                    }
-                  });
-                } else {
-                  const fileInput = document.createElement('input');
-                  fileInput.type = 'file';
-                  fileInput.accept = 'image/*';
-                  fileInput.style.display = 'none';
-                  fileInput.onchange = (e) => {
-                    const newFile = e.target.files[0];
-                    fileInput.remove();
-                    if (newFile) {
-                      newFile._fileType = fileType;
-                      window.showCropperModal(newFile, callback);
-                    }
-                  };
-                  document.body.appendChild(fileInput);
-                  fileInput.click();
-                }
-              });
-              return;
-            }
+        let verdict = client;
+
+        // الخادم يُستدعى عند رفض المتصفح أو عند تعطل محركه — لا على المسار الناجح
+        if (!client.valid) {
+          setFaceProgress(progressBar, statusText, 45, 'جاري تأكيد الفحص على الخادم...');
+
+          const server = await verifyFaceOnServer(canvas, fileType, client.code);
+          reportFaceCheck({
+            stage: 'server',
+            file_type: fileType,
+            code: server.code || (server.pass ? 'ok' : 'unknown'),
+            detail: server.detail,
+            score: server.score || 0,
+            ms: server.ms || 0,
+            engine: 'node'
+          });
+
+          if (server.ok && server.pass) {
+            verdict = { valid: true, code: 'ok', score: server.score || 0, via: 'server' };
+          } else if (server.ok && !server.pass) {
+            // رفض حقيقي من المحرك الأدق
+            verdict = { valid: false, code: server.code, detail: FACE_REASONS[server.code] || server.detail, score: server.score || 0, via: 'server' };
+          } else if (client.engineError) {
+            // المحركان معاً غير متاحين → لا نوقف تسجيل يتيم بسبب عطل قياس
+            verdict = { valid: true, code: 'fail-open', detail: 'تعذّر الفحص الآلي، تم القبول للمراجعة' };
+            console.warn('[FaceCheck] ⚠️ fail-open: المتصفح والخادم غير متاحين');
           }
-          console.log('[FaceCheck] ✅ تم التحقق من الوجه بنجاح');
-        } else {
-          // فشل تحميل النماذج = رفض الرفع بدلاً من التخطي الصامت
+        }
+
+        // الترميم مساعد للفحص فقط: نجاحه دليل على وجود وجه، لكن المُؤرشف يبقى الأصل
+        if (!verdict.valid && FACE_CFG.restoreAsProof && FACE_QUALITY_CODES.includes(verdict.code)) {
+          setFaceProgress(progressBar, statusText, 48, 'جاري تحسين الصورة وإعادة الفحص...');
+
+          const restoredCanvas = await restoreFaceOnServer(canvas, fileType);
+          if (restoredCanvas) {
+            reportFaceCheck({
+              stage: 'restore-aid', file_type: fileType, code: 'ok',
+              detail: 'تم القبول بعد ترميم مساعد (الأصل هو المؤرشف)', score: verdict.score || 0, engine: 'node'
+            });
+            console.log('[FaceCheck] ✅ وجه مؤكد عبر الترميم المساعد — سيُحفظ الأصل بدون تغيير');
+            verdict = { valid: true, code: 'ok', via: 'restore-aid' };
+          } else {
+            reportFaceCheck({
+              stage: 'restore-aid', file_type: fileType, code: verdict.code,
+              detail: 'الترميم لم ينتج وجهاً مؤكداً', engine: 'node'
+            });
+          }
+        }
+
+        if (!verdict.valid) {
           Swal.close();
           Swal.fire({
-            icon: 'error',
-            title: 'خطأ في التحقق',
-            text: 'تعذر تحميل نظام فحص الوجه. يرجى التحقق من اتصال الإنترنت و المحاولة مرة أخرى.',
-            confirmButtonText: 'حسناً'
+            icon: 'warning',
+            title: 'صورة غير مقبولة',
+            text: verdict.detail || FACE_REASONS['no-face'],
+            confirmButtonText: 'اختر صورة أخرى',
+            allowOutsideClick: false
+          }).then(() => {
+            cleanup();
+            // فتح حوار اختيار ملف جديد عبر مودال النظام المخصص بدل نافذة أندرويد
+            if (window.DeviceImageSource && typeof window.DeviceImageSource.showModal === 'function') {
+              window.DeviceImageSource.showModal(function(newFile) {
+                if (newFile) {
+                  newFile._fileType = fileType;
+                  window.showCropperModal(newFile, callback);
+                }
+              });
+            } else {
+              const fileInput = document.createElement('input');
+              fileInput.type = 'file';
+              fileInput.accept = 'image/*';
+              fileInput.style.display = 'none';
+              fileInput.onchange = (e) => {
+                const newFile = e.target.files[0];
+                fileInput.remove();
+                if (newFile) {
+                  newFile._fileType = fileType;
+                  window.showCropperModal(newFile, callback);
+                }
+              };
+              document.body.appendChild(fileInput);
+              fileInput.click();
+            }
           });
-          cleanup();
-          callback(null, 'فشل تحميل نظام فحص الوجه');
           return;
         }
+
+        console.log('[FaceCheck] ✅ تم التحقق من الوجه بنجاح', verdict.code, verdict.via || 'client');
       }
 
       // تحديث شريط التقدم - تحويل إلى blob

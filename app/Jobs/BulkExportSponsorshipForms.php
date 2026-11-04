@@ -17,7 +17,10 @@ use App\Models\Sponsorship;
 use App\Models\Sponsor;
 use App\Models\Attachment;
 use App\Services\ExportStatus;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 /**
@@ -45,6 +48,7 @@ class BulkExportSponsorshipForms implements ShouldQueue
     protected $updatedOnly;
     protected $exportAttachments;
     protected $exportForms;
+    protected $exportExcel;
 
     /** معرّف التشغيل (null = وضع المنسّق) */
     protected $runId;
@@ -74,7 +78,6 @@ class BulkExportSponsorshipForms implements ShouldQueue
     private const RCLONE_UPLOAD_TIMEOUT = 3000;   // رفع مرفقات دفعة واحدة
     private const RCLONE_REPORT_TIMEOUT = 600;    // رفع تقرير الإكسل
     private const RUN_LOCK_TTL = 3600;            // يُجدَّد مع كل تقدّم، فينتهي وحده لو توقف التشغيل
-    private const REPORT_FOLDER_NAME = 'تقرير التصدير';
 
     /** كاش لنتيجة hasTable لتجنب تكرار الاستعلام لكل كفالة */
     private ?bool $hasAdditionalDeceasedTable = null;
@@ -91,6 +94,7 @@ class BulkExportSponsorshipForms implements ShouldQueue
         bool $updatedOnly = false,
         bool $exportAttachments = false,
         bool $exportForms = true,
+        bool $exportExcel = true,
         ?string $runId = null,
         array $chunkIds = [],
         int $chunkIndex = 0,
@@ -101,6 +105,7 @@ class BulkExportSponsorshipForms implements ShouldQueue
         $this->updatedOnly = $updatedOnly;
         $this->exportAttachments = $exportAttachments;
         $this->exportForms = $exportForms;
+        $this->exportExcel = $exportExcel;
         $this->runId = $runId;
         $this->chunkIds = $chunkIds;
         $this->chunkIndex = $chunkIndex;
@@ -126,7 +131,8 @@ class BulkExportSponsorshipForms implements ShouldQueue
         return "export_forms_{$this->sponsorId}_{$this->sponsorshipStatusId}_"
             . ($this->updatedOnly ? 'updated' : 'all') . '_'
             . ($this->exportAttachments ? 'attachments' : 'no_attachments') . '_'
-            . ($this->exportForms ? 'forms' : 'no_forms');
+            . ($this->exportForms ? 'forms' : 'no_forms') . '_'
+            . ($this->exportExcel ? 'excel' : 'no_excel');
     }
 
     private function statusKey(): string
@@ -141,7 +147,7 @@ class BulkExportSponsorshipForms implements ShouldQueue
 
     private function phasesCount(): int
     {
-        return (int) $this->exportAttachments + (int) $this->exportForms;
+        return (int) ($this->exportAttachments || $this->exportExcel) + (int) $this->exportForms;
     }
 
     private function workDirFor(string $runId): string
@@ -198,7 +204,7 @@ class BulkExportSponsorshipForms implements ShouldQueue
             }
 
             // فحص إعداد Rclone مبكراً بدل اكتشاف المشكلة بعد نسخ الملفات
-            if ($driveEnabled && $this->exportAttachments) {
+            if ($driveEnabled && ($this->exportAttachments || $this->exportExcel)) {
                 $rclonePath = config('services.rclone.path', env('RCLONE_PATH'));
                 $rcloneRemote = config('services.rclone.remote_name', env('RCLONE_REMOTE_NAME'));
                 if (!$rclonePath || !$rcloneRemote) {
@@ -232,7 +238,7 @@ class BulkExportSponsorshipForms implements ShouldQueue
             if ($this->phasesCount() === 0) {
                 ExportStatus::finish($statusKey, [
                     'total' => 0,
-                    'message' => 'لم يتم تحديد نوع التصدير (مرفقات أو استمارات)',
+                    'message' => 'لم يتم تحديد نوع التصدير (مرفقات أو استمارات أو ملف Excel)',
                     'drive' => $driveEnabled ? 'enabled' : 'disabled',
                 ]);
                 return;
@@ -248,23 +254,7 @@ class BulkExportSponsorshipForms implements ShouldQueue
                 throw new \RuntimeException('تعذّر إنشاء مجلد عمل التصدير.');
             }
 
-            $this->writeState($workDir, [
-                'run_id' => $runId,
-                'sponsor_id' => $this->sponsorId,
-                'total' => $totalCount,
-                'chunk_count' => count($chunks),
-                'chunks' => $chunks,
-                'counters' => ['processed' => 0, 'success' => 0, 'failed' => 0, 'attachments_exported' => 0],
-                'identities' => [],
-                'used_dir_names' => [],
-                'done_chunks' => [],
-                'dispatched' => [0],
-                'failed_chunks' => [],
-                'failed_attachment_chunks' => [],
-                'attachments_error' => null,
-                'last_error' => null,
-                'finalized' => false,
-            ]);
+            $this->initializeRunState($workDir, $runId, $ids, $chunks);
 
             ExportStatus::running($statusKey, [
                 'total' => $totalCount * $this->phasesCount(),
@@ -302,6 +292,7 @@ class BulkExportSponsorshipForms implements ShouldQueue
             $this->updatedOnly,
             $this->exportAttachments,
             $this->exportForms,
+            $this->exportExcel,
             $runId,
             $ids,
             $index,
@@ -330,6 +321,27 @@ class BulkExportSponsorshipForms implements ShouldQueue
         $workDir = $this->workDirFor($this->runId);
 
         $state = $this->readState($workDir);
+        if ($state === null && $this->chunkIndex === 0) {
+            $ids = $this->sponsorshipQuery()->orderBy('id')->pluck('id')->all();
+            $chunkSize = max(25, (int) config('services.export.chunk_size', self::DEFAULT_CHUNK_SIZE));
+            $chunks = array_chunk($ids, $chunkSize);
+
+            if (($chunks[0] ?? null) === $this->chunkIds) {
+                if (!is_dir($workDir) && !mkdir($workDir, 0775, true) && !is_dir($workDir)) {
+                    throw new \RuntimeException('تعذّر إعادة إنشاء مجلد حالة التصدير.');
+                }
+
+                $this->initializeRunState($workDir, $this->runId, $ids, $chunks);
+                $state = $this->readState($workDir);
+
+                Log::warning('BulkExportSponsorshipForms: Recreated missing state for the first chunk', [
+                    'run_id' => $this->runId,
+                    'sponsor_id' => $this->sponsorId,
+                    'chunk' => $this->chunkIndex + 1,
+                ]);
+            }
+        }
+
         if ($state === null) {
             Log::error('BulkExportSponsorshipForms: Run state is missing', [
                 'run_id' => $this->runId,
@@ -370,7 +382,7 @@ class BulkExportSponsorshipForms implements ShouldQueue
 
         $sponsorships = Sponsorship::whereIn('id', $this->chunkIds)->orderBy('id')->get();
 
-        if ($this->exportAttachments) {
+        if ($this->exportAttachments || $this->exportExcel) {
             $processedBefore = $counters['processed'];
 
             try {
@@ -497,17 +509,20 @@ class BulkExportSponsorshipForms implements ShouldQueue
                     } elseif (!isset($state['identities'][$identityNumber])) {
                         // اسم المجلد = اسم الشخص فقط؛ وعند تكرار الاسم لشخص آخر: الاسم (2)
                         // (الأسماء المستخدمة محفوظة في الحالة عبر كل الدفعات)
-                        $baseDirName = $this->sanitizeExportName($personName ?: 'unknown');
-                        $dirName = $baseDirName;
-                        $suffix = 2;
-                        while (isset($state['used_dir_names'][$dirName])) {
-                            $dirName = $baseDirName . ' (' . $suffix++ . ')';
-                        }
-                        $state['used_dir_names'][$dirName] = true;
+                        $personDir = null;
+                        if ($this->exportAttachments) {
+                            $baseDirName = $this->sanitizeExportName($personName ?: 'unknown');
+                            $dirName = $baseDirName;
+                            $suffix = 2;
+                            while (isset($state['used_dir_names'][$dirName])) {
+                                $dirName = $baseDirName . ' (' . $suffix++ . ')';
+                            }
+                            $state['used_dir_names'][$dirName] = true;
 
-                        $personDir = $chunkDir . DIRECTORY_SEPARATOR . $dirName;
-                        if (!mkdir($personDir, 0775, true) && !is_dir($personDir)) {
-                            throw new \RuntimeException('تعذّر إنشاء مجلد مرفقات الشخص.');
+                            $personDir = $chunkDir . DIRECTORY_SEPARATOR . $dirName;
+                            if (!mkdir($personDir, 0775, true) && !is_dir($personDir)) {
+                                throw new \RuntimeException('تعذّر إنشاء مجلد مرفقات الشخص.');
+                            }
                         }
 
                         $relatedIdentities = $this->relatedAttachmentIdentities($sponsorship);
@@ -528,18 +543,20 @@ class BulkExportSponsorshipForms implements ShouldQueue
                                 continue;
                             }
 
-                            $originalName = basename(str_replace('\\', '/', (string) ($attachment->stored_file_name ?: $sourcePath)));
-                            $safeName = $this->sanitizeExportName($originalName);
-                            $targetPath = $personDir . DIRECTORY_SEPARATOR . $attachment->id . '_' . $safeName;
+                            if ($this->exportAttachments) {
+                                $originalName = basename(str_replace('\\', '/', (string) ($attachment->stored_file_name ?: $sourcePath)));
+                                $safeName = $this->sanitizeExportName($originalName);
+                                $targetPath = $personDir . DIRECTORY_SEPARATOR . $attachment->id . '_' . $safeName;
 
-                            if (!copy($sourcePath, $targetPath)) {
-                                $recordFailed = true;
-                                Log::warning('BulkExportSponsorshipForms: Failed to copy archived attachment', [
-                                    'attachment_id' => $attachment->id,
-                                    'identity_number' => $identityNumber,
-                                    'source_path' => $sourcePath,
-                                ]);
-                                continue;
+                                if (!copy($sourcePath, $targetPath)) {
+                                    $recordFailed = true;
+                                    Log::warning('BulkExportSponsorshipForms: Failed to copy archived attachment', [
+                                        'attachment_id' => $attachment->id,
+                                        'identity_number' => $identityNumber,
+                                        'source_path' => $sourcePath,
+                                    ]);
+                                    continue;
+                                }
                             }
 
                             $documentType = $documentTypesById->get((int) $attachment->file_type)
@@ -548,16 +565,21 @@ class BulkExportSponsorshipForms implements ShouldQueue
                             if ($documentTypeName === '' && !is_numeric($attachment->file_type)) {
                                 $documentTypeName = trim((string) $attachment->file_type);
                             }
-                            if ($documentTypeName !== '') {
-                                $exportedTypes[] = $documentTypeName;
+                            // عدد الملفات لكل نوع (يصبح عموداً مستقلاً في التقرير)
+                            if ($documentTypeName === '') {
+                                $documentTypeName = 'غير محدد';
                             }
-                            $filesExported++;
+                            $exportedTypes[$documentTypeName] = ($exportedTypes[$documentTypeName] ?? 0) + 1;
+                            if ($this->exportAttachments) {
+                                $filesExported++;
+                            }
                         }
 
                         // لا نترك مجلداً فارغاً لمن لا مرفقات له (rmdir تنجح فقط إن كان المجلد فارغاً)
-                        @rmdir($personDir);
+                        if ($personDir !== null) {
+                            @rmdir($personDir);
+                        }
 
-                        $exportedTypes = array_values(array_unique($exportedTypes));
                         $state['identities'][$identityNumber] = [
                             'types' => $exportedTypes,
                             'failed' => $recordFailed,
@@ -570,7 +592,7 @@ class BulkExportSponsorshipForms implements ShouldQueue
                     }
 
                     fwrite($rowsHandle, json_encode(
-                        [$personName, $identityNumber, implode('، ', $exportedTypes)],
+                        [$personName, $identityNumber, $exportedTypes],
                         JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE
                     ) . "\n");
 
@@ -623,7 +645,7 @@ class BulkExportSponsorshipForms implements ShouldQueue
 
             // بعد نجاح الرفع نحذف النسخة المؤقتة لهذه الدفعة
             File::deleteDirectory($chunkDir);
-        } elseif (!$sponsor->google_drive_enabled) {
+        } elseif ($this->exportAttachments && !$sponsor->google_drive_enabled) {
             Log::warning('BulkExportSponsorshipForms: Google Drive disabled; attachment export remains local', [
                 'sponsor_id' => $sponsor->id,
                 'chunk_dir' => $chunkDir,
@@ -676,7 +698,7 @@ class BulkExportSponsorshipForms implements ShouldQueue
         $reportUploaded = false;
 
         try {
-            if ($this->exportAttachments) {
+            if ($this->exportExcel) {
                 $reportUploaded = $this->buildAndUploadReport($workDir, $state, $sponsor, $driveEnabled);
             }
         } catch (\Throwable $e) {
@@ -695,8 +717,9 @@ class BulkExportSponsorshipForms implements ShouldQueue
         }
 
         // الملفات المحلية تُحذف فقط عند اكتمال رفعها كلها؛ وإلا تبقى لمراجعتها (وتُنظَّف تلقائياً بعد 3 أيام)
-        $keepLocalFiles = $this->exportAttachments
-            && (!$driveEnabled || !empty($state['failed_attachment_chunks']) || !$reportUploaded);
+        $keepLocalFiles = ($this->exportAttachments
+                && (!$driveEnabled || !empty($state['failed_attachment_chunks'])))
+            || ($this->exportExcel && (!$driveEnabled || !$reportUploaded));
         if (!$keepLocalFiles) {
             $this->cleanupWorkDir($workDir);
         }
@@ -715,6 +738,7 @@ class BulkExportSponsorshipForms implements ShouldQueue
             'updated_only' => $this->updatedOnly,
             'export_attachments' => $this->exportAttachments,
             'export_forms' => $this->exportForms,
+            'export_excel' => $this->exportExcel,
             'attachments_exported' => $counters['attachments_exported'],
             'attachments_error' => $attachmentsError,
         ]);
@@ -742,7 +766,7 @@ class BulkExportSponsorshipForms implements ShouldQueue
     }
 
     /**
-     * يبني attachments_export.xlsx من ملفات الصفوف ويرفعه إلى {الجهة}/تقرير التصدير/.
+     * يبني attachments_export.xlsx من ملفات الصفوف ويرفعه مباشرة إلى {الجهة}/ (بدون مجلد).
      *
      * @return bool هل رُفع التقرير إلى الدرايف
      */
@@ -752,31 +776,97 @@ class BulkExportSponsorshipForms implements ShouldQueue
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('المرفقات المصدرة');
         $sheet->setRightToLeft(true);
-        $sheet->fromArray(['الاسم', 'رقم الهوية', 'نوع المرفق'], null, 'A1');
 
-        $rowNumber = 2;
+        // ترتيب أعمدة الأنواع: حسب ترتيب أنواع المستندات في النظام، وأي نوع آخر يُضاف بعدها
+        $typeOrder = DB::table('document_types')->orderBy('id')->pluck('description')
+            ->map(fn ($description) => trim((string) $description))
+            ->filter(fn ($description) => $description !== '')
+            ->values()
+            ->all();
+        $typeOrderIndex = array_flip(array_unique($typeOrder));
+
+        $rowFiles = [];
         for ($i = 0; $i < (int) $state['chunk_count']; $i++) {
             $rowsFile = $workDir . DIRECTORY_SEPARATOR . 'rows-' . $i . '.jsonl';
-            if (!is_file($rowsFile)) {
-                continue;
+            if (is_file($rowsFile)) {
+                $rowFiles[] = $rowsFile;
             }
+        }
 
+        // المرور الأول: جمع أنواع المرفقات الموجودة فعلاً في التصدير
+        $seenTypes = [];
+        foreach ($rowFiles as $rowsFile) {
             $handle = fopen($rowsFile, 'r');
             if ($handle === false) {
                 continue;
             }
             while (($line = fgets($handle)) !== false) {
                 $row = json_decode($line, true);
-                if (is_array($row)) {
-                    $sheet->fromArray($row, null, 'A' . $rowNumber);
-                    $rowNumber++;
+                if (is_array($row) && isset($row[2]) && is_array($row[2])) {
+                    foreach (array_keys($row[2]) as $typeName) {
+                        $seenTypes[(string) $typeName] = true;
+                    }
                 }
             }
             fclose($handle);
         }
 
-        foreach (['A', 'B', 'C'] as $column) {
-            $sheet->getColumnDimension($column)->setAutoSize(true);
+        $typeNames = array_map('strval', array_keys($seenTypes));
+        usort($typeNames, function ($a, $b) use ($typeOrderIndex) {
+            $indexA = $typeOrderIndex[$a] ?? PHP_INT_MAX;
+            $indexB = $typeOrderIndex[$b] ?? PHP_INT_MAX;
+
+            return ($indexA <=> $indexB) ?: strcmp($a, $b);
+        });
+
+        $headers = array_merge(['الاسم', 'رقم الهوية'], $typeNames, ['إجمالي الملفات']);
+        $columnCount = count($headers);
+        $lastColumn = Coordinate::stringFromColumnIndex($columnCount);
+        $sheet->fromArray($headers, null, 'A1');
+
+        // المرور الثاني: كتابة الصفوف، خلية لكل نوع (عدد الملفات، وتبقى فارغة إن لم يوجد)
+        $rowNumber = 2;
+        foreach ($rowFiles as $rowsFile) {
+            $handle = fopen($rowsFile, 'r');
+            if ($handle === false) {
+                continue;
+            }
+            while (($line = fgets($handle)) !== false) {
+                $row = json_decode($line, true);
+                if (!is_array($row)) {
+                    continue;
+                }
+
+                $types = is_array($row[2] ?? null) ? $row[2] : [];
+                $cells = [];
+                $totalFiles = 0;
+                foreach ($typeNames as $typeName) {
+                    $count = (int) ($types[$typeName] ?? 0);
+                    $totalFiles += $count;
+                    $cells[] = $count > 0 ? $count : null;
+                }
+
+                // الاسم والهوية كنص صريح حتى لا يحذف Excel الأصفار من بداية الرقم
+                $sheet->setCellValueExplicit('A' . $rowNumber, (string) ($row[0] ?? ''), DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit('B' . $rowNumber, (string) ($row[1] ?? ''), DataType::TYPE_STRING);
+                if ($cells !== []) {
+                    $sheet->fromArray($cells, null, 'C' . $rowNumber);
+                }
+                $sheet->setCellValue($lastColumn . $rowNumber, $totalFiles);
+                $rowNumber++;
+            }
+            fclose($handle);
+        }
+
+        $sheet->getStyle('A1:' . $lastColumn . '1')->getFont()->setBold(true);
+        $sheet->freezePane('C2');
+        if ($rowNumber > 2) {
+            $sheet->getStyle('C2:' . $lastColumn . ($rowNumber - 1))
+                ->getAlignment()
+                ->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        }
+        for ($column = 1; $column <= $columnCount; $column++) {
+            $sheet->getColumnDimensionByColumn($column)->setAutoSize(true);
         }
 
         $reportPath = $workDir . DIRECTORY_SEPARATOR . 'attachments_export.xlsx';
@@ -788,20 +878,22 @@ class BulkExportSponsorshipForms implements ShouldQueue
             return false;
         }
 
-        // مجلد مؤقت يحوي "تقرير التصدير/attachments_export.xlsx" فيُرفع تحت مجلد الجهة مباشرة
+        // مجلد مؤقت فيه ملف الإكسل وحده، فيُرفع مباشرة إلى {الجهة الداعمة}/attachments_export.xlsx (بدون مجلد)
         $reportRoot = $workDir . DIRECTORY_SEPARATOR . '_report';
-        $reportDir = $reportRoot . DIRECTORY_SEPARATOR . self::REPORT_FOLDER_NAME;
         File::deleteDirectory($reportRoot);
-        if (!mkdir($reportDir, 0775, true) && !is_dir($reportDir)) {
-            throw new \RuntimeException('تعذّر إنشاء مجلد تقرير التصدير.');
+        if (!mkdir($reportRoot, 0775, true) && !is_dir($reportRoot)) {
+            throw new \RuntimeException('تعذّر إنشاء مجلد تقرير التصدير المؤقت.');
         }
-        copy($reportPath, $reportDir . DIRECTORY_SEPARATOR . basename($reportPath));
+        copy($reportPath, $reportRoot . DIRECTORY_SEPARATOR . basename($reportPath));
 
+        // المقارنة بالـ checksum لأن محتوى التقرير يتغير بين تشغيل وآخر وقد يتطابق الحجم
         $result = app(\App\Services\RcloneGoogleDriveService::class)->uploadTree(
             $reportRoot,
             $sponsor->sponsor_name,
             null,
-            self::RCLONE_REPORT_TIMEOUT
+            self::RCLONE_REPORT_TIMEOUT,
+            [],
+            false
         );
 
         if (!$result['success']) {
@@ -825,6 +917,27 @@ class BulkExportSponsorshipForms implements ShouldQueue
         $data = json_decode((string) file_get_contents($file), true);
 
         return is_array($data) ? $data : null;
+    }
+
+    private function initializeRunState(string $workDir, string $runId, array $ids, array $chunks): void
+    {
+        $this->writeState($workDir, [
+            'run_id' => $runId,
+            'sponsor_id' => $this->sponsorId,
+            'total' => count($ids),
+            'chunk_count' => count($chunks),
+            'chunks' => $chunks,
+            'counters' => ['processed' => 0, 'success' => 0, 'failed' => 0, 'attachments_exported' => 0],
+            'identities' => [],
+            'used_dir_names' => [],
+            'done_chunks' => [],
+            'dispatched' => [0],
+            'failed_chunks' => [],
+            'failed_attachment_chunks' => [],
+            'attachments_error' => null,
+            'last_error' => null,
+            'finalized' => false,
+        ]);
     }
 
     private function writeState(string $workDir, array $state): void

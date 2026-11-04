@@ -508,6 +508,8 @@ class RcloneGoogleDriveService
      * @param string|null $subFolder         مجلد فرعي اختياري داخل الجهة
      * @param int         $timeoutSeconds    مهلة العملية بالثواني
      * @param array       $extraArgs         وسائط rclone إضافية (مثل --exclude)
+     * @param bool        $sizeOnly          true: يتخطى الملف المطابق بالحجم فقط (للملفات ثابتة المحتوى)،
+     *                                       false: يقارن بالـ checksum (للملفات التي يتغير محتواها بنفس الاسم)
      * @return array ['success' => bool, 'remote_path' => string, 'message' => string]
      */
     public function uploadTree(
@@ -515,7 +517,8 @@ class RcloneGoogleDriveService
         string $organizationName,
         ?string $subFolder = null,
         int $timeoutSeconds = 14400,
-        array $extraArgs = []
+        array $extraArgs = [],
+        bool $sizeOnly = true
     ): array {
         if (!is_dir($localDir)) {
             return ['success' => false, 'remote_path' => null, 'message' => 'المجلد المحلي غير موجود'];
@@ -538,7 +541,7 @@ class RcloneGoogleDriveService
             '--retries', '5',
             '--low-level-retries', '20',
             '--retries-sleep', '10s',
-            '--size-only',          // الملفات ثابتة المحتوى (الاسم يبدأ بمعرّف المرفق)، فيكفي الحجم لتخطي ما رُفع
+            $sizeOnly ? '--size-only' : '--checksum', // ثابتة المحتوى (الاسم يبدأ بمعرّف المرفق): الحجم يكفي
             '--no-update-modtime',
             '--fast-list',
             '--stats', '60s',

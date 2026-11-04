@@ -156,6 +156,15 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::post('records-management/delete-family-member/{id}', [RecordsManagementEditController::class, 'deleteFamilyMember'])
         ->name('records-management.delete-family-member');
 
+    // نقل فرد الأسرة إلى معيل آخر: استعلام اسم المعيل ثم التنفيذ
+    Route::get('records-management/lookup-guardian', [RecordsManagementEditController::class, 'lookupGuardian'])
+        ->middleware('permission:تعديل سجل')
+        ->name('records-management.lookup-guardian');
+
+    Route::post('records-management/transfer-family-member', [RecordsManagementEditController::class, 'transferFamilyMember'])
+        ->middleware('permission:تعديل سجل')
+        ->name('records-management.transfer-family-member');
+
     // إضافة مسار حذف المرفق عبر AJAX
     Route::post('records-management/delete-attachment/{id}', [RecordsManagementEditController::class, 'deleteAttachment'])
         ->name('records-management.delete-attachment');

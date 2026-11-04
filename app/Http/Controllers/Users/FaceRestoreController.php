@@ -10,11 +10,12 @@ use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
 
 /**
- * ترميم صور الوجه قبل رفعها (يُستدعى من cropper.blade.php عند فشل فحص الوجه).
+ * ترميم صورة الوجه كمساعد للفحص فقط (يُستدعى من cropper.blade.php عند فشل فحص الوجه).
  *
- * يولّد node scripts/face-restore.js ثم يعيد الصورة المرمّمة كـ base64
- * ليُعاد فحصها في المتصفح عبر checkFaceOnCanvas (بدون أي تعديل لها).
- * file_type = 12 تخرج 400x600، وبقية الأنواع تخرج بمقاسها الأصلي دون تغيير.
+ * يولّد node scripts/face-restore.js ثم يعيد الصورة المرمّمة كـ base64 بعد أن يجتاز
+ * ناتجُها الفحصَ بالخادم (check.pass). المتصفح يستخدم نجاحها دليلاً على وجود وجه في
+ * الصورة الأصلية، لكنه يؤرشف الأصل دون استبدال (FACE_CFG.saveRestoredImage = false).
+ * file_type = 12 تخرج 400x600، وبقية الأنواع تخرج بمقاسها الأصلي.
  */
 class FaceRestoreController extends Controller
 {
@@ -80,11 +81,13 @@ class FaceRestoreController extends Controller
             $process->run();
 
             $payload = $this->parseJsonOutput($process->getOutput());
+            $check = $payload['check'] ?? [];
 
-            if (!is_file($outPath) || empty($payload['ok']) || empty($payload['check']['pass'])) {
-                $reason = $payload['reason'] ?? ($payload['check']['reason'] ?? 'restore-failed');
-                Log::warning('face-restore: فشل الترميم', [
+            if (!is_file($outPath) || empty($payload['ok']) || empty($check['pass'])) {
+                $reason = $payload['reason'] ?? ($check['detail'] ?? ($check['code'] ?? 'restore-failed'));
+                Log::channel('face_check')->warning('face-restore: فشل الترميم', [
                     'reason' => $reason,
+                    'code' => $check['code'] ?? ($payload['reason'] ?? null),
                     'exit' => $process->getExitCode(),
                     'stderr' => mb_substr($process->getErrorOutput(), -800),
                 ]);
@@ -103,12 +106,14 @@ class FaceRestoreController extends Controller
                 return response()->json(['ok' => false, 'applied' => true, 'reason' => 'empty-output']);
             }
 
-            Log::info('face-restore: نجح الترميم', [
+            Log::channel('face_check')->info('face-restore: نجح الترميم', [
                 'fileType' => $fileType ?: '-',
                 'restore' => $payload['restore'] ?? null,
                 'w' => $payload['w'] ?? null,
                 'h' => $payload['h'] ?? null,
-                'score' => $payload['check']['score'] ?? null,
+                'code' => $check['code'] ?? null,
+                'score' => $check['score'] ?? null,
+                'rotated' => $check['rotated'] ?? null,
                 'ms' => $payload['ms']['total'] ?? null,
                 'rfError' => $payload['rfError'] ?? null,
             ]);
@@ -121,15 +126,15 @@ class FaceRestoreController extends Controller
                 'height' => (int) ($payload['h'] ?? 0),
                 'restore' => $payload['restore'] ?? null,
                 'rfError' => $payload['rfError'] ?? null,
-                'check' => $payload['check'] ?? null,
+                'check' => $check,
                 'ms' => $payload['ms'] ?? null,
             ]);
         } catch (ProcessTimedOutException $e) {
-            Log::warning('face-restore: انتهت المهلة', ['message' => $e->getMessage()]);
+            Log::channel('face_check')->warning('face-restore: انتهت المهلة', ['message' => $e->getMessage()]);
 
             return response()->json(['ok' => false, 'applied' => true, 'reason' => 'timeout']);
         } catch (\Throwable $e) {
-            Log::error('face-restore: خطأ غير متوقع', [
+            Log::channel('face_check')->error('face-restore: خطأ غير متوقع', [
                 'message' => $e->getMessage(),
                 'file' => $e->getFile() . ':' . $e->getLine(),
             ]);

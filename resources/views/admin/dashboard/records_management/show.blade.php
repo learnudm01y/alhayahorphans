@@ -651,7 +651,7 @@
                                         </div>
                                     @endif
 
-                                    <div class="d-flex gap-2 justify-content-center">
+                                    <div class="d-flex gap-2 justify-content-center flex-wrap">
                                         <button type="button" class="btn btn-sm btn-info view-more-btn"
                                                 data-type="family_member"
                                                 data-person-id="{{ $member->person_id }}"
@@ -659,6 +659,14 @@
                                                 data-person-name="{{ $member->first_name }} {{ $member->second_name }} {{ $member->third_name }} {{ $member->last_name }}">
                                             <i class="bi bi-eye"></i> مشاهدة المزيد
                                         </button>
+                                        @can('تعديل سجل')
+                                            <button type="button" class="btn btn-sm btn-warning transfer-family-member"
+                                                    data-member-id="{{ $member->id }}"
+                                                    data-mode="show"
+                                                    data-member-name="{{ trim(($member->first_name ?? '').' '.($member->second_name ?? '').' '.($member->third_name ?? '').' '.($member->last_name ?? '')) }}">
+                                                <i class="bi bi-arrow-left-right"></i> نقل إلى معيل آخر
+                                            </button>
+                                        @endcan
                                         <a href="{{ route('admin.records.management.export-family-report', ['id' => $data->id, 'member_id' => $member->id]) }}"
                                            class="btn btn-sm btn-success export-report-btn"
                                            data-member-id="{{ $member->id }}"
@@ -827,6 +835,11 @@
         @endif
     </div>
 </div>
+
+@can('تعديل سجل')
+    @include('admin.dashboard.records_management.partials.transfer_member_modal')
+@endcan
+
 @push('scriptsCode')
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script>

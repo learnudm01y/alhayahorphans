@@ -39,9 +39,8 @@ Route::post('/chunked-upload-test', [\App\Http\Controllers\Api\ChunkedUploadCont
 Route::post('/whatsapp/webhook', [\App\Http\Controllers\WhatsAppBotController::class, 'handleWebhook'])
     ->middleware('throttle:300,1');
 
-// ترميم صور الوجه عند فشل فحص الوجه (يُستدعى من cropper.blade.php) — الصور الشخصية فقط
-Route::post('/face/restore', [\App\Http\Controllers\Users\FaceRestoreController::class, 'restore'])
-    ->middleware('auth');
+// ملاحظة: مسارات فحص/ترميم الوجوه (/api/face/*) نُقلت إلى routes/web.php
+// لأن مجموعة api لا تبدأ الجلسة فكانت تُرفض دائماً بالتوثيق.
 
 // Ultra Fast Search API - بدون middleware للحصول على أقصى سرعة
 Route::get('/search/ultra-fast', function (Request $request) {

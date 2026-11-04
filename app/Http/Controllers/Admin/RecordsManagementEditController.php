@@ -27,7 +27,9 @@ use App\Models\RePeople;
 use App\Models\BankName;
 use App\Models\GuardianBankAccount;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use App\Services\CivilRegistryScoutSearchService;
 use Barryvdh\Snappy\Facades\SnappyPdf as PDF;
 
 class RecordsManagementEditController extends Controller
@@ -1155,6 +1157,331 @@ class RecordsManagementEditController extends Controller
                 ->with('error', $message);
         }
     }
+    /**
+     * البحث عن معيل برقم الهوية لعرض اسمه قبل نقل فرد الأسرة
+     */
+    public function lookupGuardian(Request $request)
+    {
+        $identity = $this->normalizeIdentity($request->input('identity'));
+
+        if (strlen($identity) < 6) {
+            return response()->json([
+                'success' => false,
+                'message' => 'أدخل رقم هوية صحيح للمعيل'
+            ], 422);
+        }
+
+        $guardians = Data::where('data_id_number', (int) $identity)
+            ->get(['id', 'file_id_number', 'data_first_name', 'data_father_name', 'data_grand_father_name', 'data_family_name']);
+
+        if ($guardians->count() > 1) {
+            return response()->json([
+                'success' => true,
+                'status' => 'duplicate',
+                'message' => 'رقم الهوية مرتبط بأكثر من ملف، لا يمكن النقل تلقائياً.',
+                'files' => $guardians->map(function ($guardian) {
+                    return [
+                        'file_id_number' => str_pad($guardian->file_id_number, 6, '0', STR_PAD_LEFT),
+                        'name' => $this->guardianFullName($guardian),
+                    ];
+                })->values(),
+            ]);
+        }
+
+        if ($guardians->count() === 1) {
+            $guardian = $guardians->first();
+
+            return response()->json([
+                'success' => true,
+                'status' => 'found',
+                'guardian' => [
+                    'name' => $this->guardianFullName($guardian),
+                    'file_id_number' => str_pad($guardian->file_id_number, 6, '0', STR_PAD_LEFT),
+                ],
+            ]);
+        }
+
+        $civil = $this->findCivilRegistryPerson($identity);
+
+        return response()->json([
+            'success' => true,
+            'status' => 'not_found',
+            'guardian' => null,
+            'civil' => $civil ? [
+                'first_name' => (string) ($civil->CI_FIRST_ARB ?? ''),
+                'father_name' => (string) ($civil->CI_FATHER_ARB ?? ''),
+                'grand_father_name' => (string) ($civil->CI_GRAND_FATHER_ARB ?? ''),
+                'family_name' => (string) ($civil->CI_FAMILY_ARB ?? ''),
+                'full_name' => trim(implode(' ', array_filter([
+                    (string) ($civil->CI_FIRST_ARB ?? ''),
+                    (string) ($civil->CI_FATHER_ARB ?? ''),
+                    (string) ($civil->CI_GRAND_FATHER_ARB ?? ''),
+                    (string) ($civil->CI_FAMILY_ARB ?? ''),
+                ]))),
+            ] : null,
+        ]);
+    }
+
+    /**
+     * نقل فرد الأسرة إلى ملف معيل آخر (وإنشاء سجل المعيل عند الحاجة)
+     */
+    public function transferFamilyMember(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'member_id' => 'required|integer|exists:re_people,id',
+            'guardian_identity' => 'required|string|max:20',
+            'create_guardian' => 'nullable|boolean',
+            'first_name' => 'nullable|string|max:255',
+            'father_name' => 'nullable|string|max:255',
+            'grand_father_name' => 'nullable|string|max:255',
+            'family_name' => 'nullable|string|max:255',
+            'birth_date' => 'nullable|date',
+            'gender' => 'nullable|in:1,2',
+        ], [
+            'member_id.required' => 'فرد الأسرة مطلوب',
+            'member_id.exists' => 'فرد الأسرة غير موجود',
+            'guardian_identity.required' => 'رقم هوية المعيل مطلوب',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first()
+            ], 422);
+        }
+
+        $identity = $this->normalizeIdentity($request->input('guardian_identity'));
+
+        if (strlen($identity) < 6) {
+            return response()->json([
+                'success' => false,
+                'message' => 'أدخل رقم هوية صحيح للمعيل'
+            ], 422);
+        }
+
+        try {
+            $result = DB::transaction(function () use ($request, $identity) {
+                $member = RePeople::whereKey($request->input('member_id'))->lockForUpdate()->first();
+
+                if (!$member) {
+                    throw new \RuntimeException('فرد الأسرة غير موجود');
+                }
+
+                $source = Data::where('file_id_number', (int) $member->registration_id)->lockForUpdate()->first();
+
+                if (!$source) {
+                    throw new \RuntimeException('ملف المعيل الحالي غير موجود');
+                }
+
+                $targets = Data::where('data_id_number', (int) $identity)->lockForUpdate()->get();
+
+                if ($targets->count() > 1) {
+                    $files = $targets
+                        ->map(fn ($target) => str_pad($target->file_id_number, 6, '0', STR_PAD_LEFT))
+                        ->implode('، ');
+                    throw new \RuntimeException('رقم الهوية مرتبط بأكثر من ملف (' . $files . ')، لا يمكن النقل تلقائياً.');
+                }
+
+                $target = $targets->first();
+                $created = false;
+
+                if (!$target) {
+                    if (!$request->boolean('create_guardian')) {
+                        throw new \RuntimeException('المعيل غير موجود، يلزم تأكيد إنشاء سجل جديد أولاً');
+                    }
+
+                    $civil = $this->findCivilRegistryPerson($identity);
+
+                    $firstName = trim((string) ($request->input('first_name') ?: ($civil->CI_FIRST_ARB ?? '')));
+                    $fatherName = trim((string) ($request->input('father_name') ?: ($civil->CI_FATHER_ARB ?? '')));
+                    $grandFatherName = trim((string) ($request->input('grand_father_name') ?: ($civil->CI_GRAND_FATHER_ARB ?? '')));
+                    $familyName = trim((string) ($request->input('family_name') ?: ($civil->CI_FAMILY_ARB ?? '')));
+
+                    if ($firstName === '' || $familyName === '') {
+                        throw new \RuntimeException('يلزم إدخال الاسم الأول واسم العائلة للمعيل الجديد');
+                    }
+
+                    $birthDate = $request->input('birth_date')
+                        ?: $this->normalizeCivilDate($civil ? ($civil->CI_BIRTH_DT ?? null) : null)
+                        ?: $source->data_birth_date;
+
+                    $gender = (int) $request->input('gender')
+                        ?: $this->mapCivilGender($civil ? ($civil->CI_SEX_CD ?? null) : null)
+                        ?: (int) $source->data_gender;
+
+                    $fileCode = generateUniqueReservedCode('data', 'file_id_number');
+
+                    if (!$fileCode) {
+                        throw new \RuntimeException('تعذر توليد رقم ملف جديد، حاول مرة أخرى');
+                    }
+
+                    $target = Data::forceCreate([
+                        'file_id_number' => $fileCode,
+                        'data_section_id' => $source->data_section_id,
+                        'data_id_number' => (int) $identity,
+                        'data_first_name' => $firstName,
+                        'data_father_name' => $fatherName !== '' ? $fatherName : $firstName,
+                        'data_grand_father_name' => $grandFatherName !== '' ? $grandFatherName : ($fatherName !== '' ? $fatherName : $firstName),
+                        'data_family_name' => $familyName,
+                        'data_relationship' => $source->data_relationship,
+                        'data_birth_date' => $birthDate,
+                        'data_gender' => in_array($gender, [1, 2], true) ? $gender : 1,
+                        'data_phone_number' => 0,
+                        'data_alt_phone_number' => 0,
+                        'data_number_of_individuals' => 0,
+                        'data_marital_status' => $source->data_marital_status,
+                        'data_academic_qualification' => $source->data_academic_qualification,
+                        'data_displacement_status' => $source->data_displacement_status,
+                        'data_address_before_displacement' => '',
+                        'data_current_address' => '',
+                        'data_city' => $source->data_city,
+                        'data_province' => $source->data_province,
+                        'data_health_status' => $source->data_health_status,
+                        'data_description_needs' => '',
+                        'data_number_mail' => 0,
+                        'data_number_female' => 0,
+                        'data_number_of_individuals_with_chronic_diseases' => 0,
+                        'data_number_of_people_with_special_needs' => 0,
+                        'data_employment_status_breadwinner' => $source->data_employment_status_breadwinner,
+                        'data_housing_status' => $source->data_housing_status,
+                        'data_current_housing_type' => $source->data_current_housing_type,
+                        'data_user_insert_data' => optional(auth()->user())->name ?? 'admin',
+                        'data_request_status' => $source->data_request_status,
+                        // سجل منشأ تلقائياً بفعل النقل: بلا تاريخ إضافة/تحديث حتى لا يُحتسب كسجل جديد
+                        'created_at' => null,
+                        'updated_at' => null,
+                    ]);
+
+                    markCodeAsUsed($fileCode);
+                    $created = true;
+                }
+
+                if ((int) $target->file_id_number === (int) $member->registration_id) {
+                    throw new \RuntimeException('الفرد موجود بالفعل في هذا الملف');
+                }
+
+                $alreadyInTarget = RePeople::where('registration_id', $target->file_id_number)
+                    ->where('person_id', $member->person_id)
+                    ->where('id', '!=', $member->id)
+                    ->exists();
+
+                if ($alreadyInTarget) {
+                    throw new \RuntimeException('هذا الفرد موجود بالفعل في ملف المعيل الهدف');
+                }
+
+                $fromFile = str_pad($member->registration_id, 6, '0', STR_PAD_LEFT);
+
+                $member->registration_id = $target->file_id_number;
+                $member->save();
+
+                Log::info('نقل فرد الأسرة إلى معيل آخر', [
+                    'member_id' => $member->id,
+                    'person_id' => $member->person_id,
+                    'from_file' => $fromFile,
+                    'to_file' => str_pad($target->file_id_number, 6, '0', STR_PAD_LEFT),
+                    'guardian_created' => $created,
+                    'user_id' => auth()->id(),
+                ]);
+
+                return [
+                    'member_id' => $member->id,
+                    'guardian_file_id' => str_pad($target->file_id_number, 6, '0', STR_PAD_LEFT),
+                    'guardian_name' => $this->guardianFullName($target),
+                    'created' => $created,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'تم نقل الفرد بنجاح',
+                'data' => $result,
+            ]);
+        } catch (\RuntimeException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 422);
+        } catch (\Throwable $e) {
+            Log::error('خطأ في نقل فرد الأسرة: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء نقل الفرد: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    private function normalizeIdentity($value): string
+    {
+        return (string) preg_replace('/\D+/', '', (string) $value);
+    }
+
+    private function guardianFullName($guardian): string
+    {
+        return trim(implode(' ', array_filter([
+            (string) ($guardian->data_first_name ?? ''),
+            (string) ($guardian->data_father_name ?? ''),
+            (string) ($guardian->data_grand_father_name ?? ''),
+            (string) ($guardian->data_family_name ?? ''),
+        ], fn ($part) => $part !== '')));
+    }
+
+    private function findCivilRegistryPerson(string $identity)
+    {
+        try {
+            $service = app(CivilRegistryScoutSearchService::class);
+            $result = $service->searchByIdNumber($identity);
+            $person = $result['data'][0] ?? null;
+
+            if (!$person && $identity !== ltrim($identity, '0')) {
+                $result = $service->searchByIdNumber(ltrim($identity, '0'));
+                $person = $result['data'][0] ?? null;
+            }
+
+            return $person;
+        } catch (\Throwable $e) {
+            Log::warning('تعذر البحث في السجل المدني: ' . $e->getMessage());
+
+            return null;
+        }
+    }
+
+    private function normalizeCivilDate($value): ?string
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        try {
+            $value = trim((string) $value);
+
+            if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $value)) {
+                return \Carbon\Carbon::createFromFormat('d/m/Y', $value)->format('Y-m-d');
+            }
+
+            return \Carbon\Carbon::parse($value)->format('Y-m-d');
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    private function mapCivilGender($value): ?int
+    {
+        $value = strtoupper(trim((string) $value));
+
+        if (in_array($value, ['1', 'M', 'MALE', 'ذكر'], true)) {
+            return 1;
+        }
+
+        if (in_array($value, ['2', 'F', 'FEMALE', 'أنثى'], true)) {
+            return 2;
+        }
+
+        return null;
+    }
+
     /**
      * حذف مرفق عبر AJAX
      */

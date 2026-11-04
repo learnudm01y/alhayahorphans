@@ -226,6 +226,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/lookup-mother', [GeneralRegistrationController::class, 'lookupMother'])->middleware('throttle:10,1')->name('lookup.mother');
     Route::post('/check-person-linked', [GeneralRegistrationController::class, 'checkPersonLinked'])->middleware('throttle:30,1')->name('check.person.linked');
 
+// ═══ فحص/ترميم وجوه الصور الشخصية (مُستدعاة من cropper.blade.php) ═══
+// داخل مجموعة web لتتوفّر الجلسة وحماية CSRF؛ كانت في routes/api.php حيث لا جلسة
+// فرفض الـ auth كل طلب (مشكلة صامتة: الترميم لم يعمل مطلقاً).
+// متاحة للزائر والمسجّل، والحدّ من الطلبات يحمي CPU من الاستنزاف.
+Route::prefix('api/face')->as('face.')->group(function () {
+    Route::post('restore', [\App\Http\Controllers\Users\FaceRestoreController::class, 'restore'])
+        ->middleware('throttle:8,1')->name('restore');
+
+    Route::post('verify', [\App\Http\Controllers\Users\FaceVerifyController::class, 'verify'])
+        ->middleware('throttle:20,1')->name('verify');
+
+    Route::post('report', [\App\Http\Controllers\Users\FaceVerifyController::class, 'report'])
+        ->middleware('throttle:60,1')->name('report');
+});
+
 
 // Reserved Codes Management Routes (Admin Only)
 Route::middleware(['auth', 'verified', 'rolebreeze:admin'])->prefix('admin/reserved-codes')->group(function () {

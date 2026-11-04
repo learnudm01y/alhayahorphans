@@ -1103,17 +1103,6 @@
                     });
                 });
 
-                // جمع بيانات الحسابات البنكية من النماذج الديناميكية (من baseTap.blade.php)
-                document.querySelectorAll('.bank-account-form').forEach(function(form, idx) {
-                    form.querySelectorAll('[name]').forEach(function(input) {
-                        const name = input.name;
-                        const value = input.value;
-                        if (name.startsWith('bank_accounts[')) {
-                            formData.append(name, value);
-                        }
-                    });
-                });
-
                 // 🆕 حذف أي بيانات متوفين إضافيين قديمة من FormData
                 Array.from(formData.keys()).forEach(key => {
                     if (key.startsWith('additional_deceased')) {

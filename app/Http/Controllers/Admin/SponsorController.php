@@ -828,6 +828,7 @@ class SponsorController extends Controller
                 'updated_only' => 'nullable|boolean',
                 'export_attachments' => 'nullable|boolean',
                 'export_forms' => 'nullable|boolean',
+                'export_excel' => 'nullable|boolean',
             ]);
 
             $sponsorId = $validated['sponsor_id'];
@@ -835,8 +836,9 @@ class SponsorController extends Controller
             $updatedOnly = (bool)($validated['updated_only'] ?? false);
             $exportAttachments = (bool)($validated['export_attachments'] ?? false);
             $exportForms = (bool)($validated['export_forms'] ?? true);
+            $exportExcel = (bool)($validated['export_excel'] ?? true);
 
-            if (!$exportAttachments && !$exportForms) {
+            if (!$exportAttachments && !$exportForms && !$exportExcel) {
                 return response()->json([
                     'success' => false,
                     'message' => 'يرجى اختيار تصدير المرفقات أو الاستمارات على الأقل',
@@ -884,9 +886,10 @@ class SponsorController extends Controller
             ExportStatus::start($statusKey, [
                 'label'        => 'تصدير الاستمارات',
                 'sponsor_name' => $sponsor->sponsor_name,
-                'total'        => $count * ((int) $exportAttachments + (int) $exportForms),
+                'total'        => $count * ((int) ($exportAttachments || $exportExcel) + (int) $exportForms),
                 'export_attachments' => $exportAttachments,
                 'export_forms' => $exportForms,
+                'export_excel' => $exportExcel,
                 'message'      => 'في انتظار عامل الطابور...',
             ]);
 
@@ -895,7 +898,8 @@ class SponsorController extends Controller
                 $sponsorshipStatusId ? (int) $sponsorshipStatusId : null,
                 $updatedOnly,
                 $exportAttachments,
-                $exportForms
+                $exportForms,
+                $exportExcel
             );
 
             Log::info('Bulk export forms job dispatched', [
@@ -905,6 +909,7 @@ class SponsorController extends Controller
                 'updated_only' => $updatedOnly,
                 'export_attachments' => $exportAttachments,
                 'export_forms' => $exportForms,
+                'export_excel' => $exportExcel,
                 'estimated_count' => $count
             ]);
 
@@ -916,6 +921,7 @@ class SponsorController extends Controller
                 'updated_only' => $updatedOnly,
                 'export_attachments' => $exportAttachments,
                 'export_forms' => $exportForms,
+                'export_excel' => $exportExcel,
                 'status_filter' => $sponsorshipStatusId ? \App\Models\SponsorshipStatus::find($sponsorshipStatusId)->description : 'جميع الحالات',
                 'status_type' => ExportStatus::TYPE_FORMS,
                 'status_key' => $statusKey,

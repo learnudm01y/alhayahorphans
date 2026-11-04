@@ -20,12 +20,23 @@
                                             <span class="badge bg-success" style="font-size: 1rem;">فرد الأسرة ({{ $index + 1 }})</span>
                                             <i class="fas fa-user-circle fs-5 text-primary"></i>
                                         </span>
-                                        <button type="button"
-                                            class="btn btn-danger btn-sm delete-family-member"
-                                            data-index="{{ $index }}"
-                                            data-member-id="{{ $member->id }}">
-                                            حذف الفرد
-                                        </button>
+                                        <div class="d-flex align-items-center gap-2">
+                                            @can('تعديل سجل')
+                                                <button type="button"
+                                                    class="btn btn-warning btn-sm transfer-family-member"
+                                                    data-member-id="{{ $member->id }}"
+                                                    data-mode="edit"
+                                                    data-member-name="{{ trim(($member->first_name ?? '').' '.($member->second_name ?? '').' '.($member->third_name ?? '').' '.($member->last_name ?? '')) }}">
+                                                    نقل إلى معيل آخر
+                                                </button>
+                                            @endcan
+                                            <button type="button"
+                                                class="btn btn-danger btn-sm delete-family-member"
+                                                data-index="{{ $index }}"
+                                                data-member-id="{{ $member->id }}">
+                                                حذف الفرد
+                                            </button>
+                                        </div>
                                     </div>
                                     <div class="card-body">
                                         <div class="row g-3">
@@ -309,4 +320,8 @@ document.addEventListener('DOMContentLoaded', function() {
     border: 1px solid #dc3545 !important;
 }
 </style>
+
+@can('تعديل سجل')
+    @include('admin.dashboard.records_management.partials.transfer_member_modal')
+@endcan
 

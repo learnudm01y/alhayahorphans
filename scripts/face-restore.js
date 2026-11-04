@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import * as ort from 'onnxruntime-node';
 import * as faceapi from '@vladmandic/face-api/dist/face-api.node-wasm.js';
+import { initFaceApi, verifyFaceInRgb, loadWorkRgb } from './face-lib.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MODELS_DIR = process.env.FACE_RESTORE_MODELS || path.join(ROOT, 'storage', 'app', 'face_models');
@@ -106,19 +107,9 @@ async function loadWorkingImage(file) {
 }
 
 // ---------- face-api ----------
-let faceapiReady = false;
-async function initFaceApi() {
-  if (faceapiReady) return true;
-  try { await faceapi.tf.setBackend('wasm'); } catch { /* fallback */ }
-  await faceapi.tf.ready();
-  await faceapi.nets.ssdMobilenetv1.loadFromDisk(FACEAPI_MODELS);
-  await faceapi.nets.faceLandmark68Net.loadFromDisk(FACEAPI_MODELS);
-  faceapiReady = true;
-  return true;
-}
-
+// تحميل النماذج وإعداد الـ backend من face-lib (مشترك مع face-verify.js وفحص ما بعد الترميم)
 async function detectFace(rgb, w, h, minConf) {
-  await initFaceApi();
+  await initFaceApi(FACEAPI_MODELS);
   const tensor = faceapi.tf.tensor3d(new Uint8Array(rgb), [h, w, 3]);
   try {
     const detections = await faceapi
@@ -472,55 +463,20 @@ async function composeInPlace(srcPng, paste, restoredRgb, restoredSize, m, cropO
 }
 
 /**
- * تحقق مطابق لـ checkFaceOnCanvas في المتصفح (cropper.blade.php L69-191):
- * Pass1 كشف ≥0.5 على الصورة كاملة (وجه واحد فقط + عرض≥6% + معالم≥68)
- * Pass2 تكبير منطقة الوجه إلى 300px ثم كشف ≥0.5 للمعالم (مع رجوع لمعالم Pass1)
+ * فحص الصورة الناتجة بنفس محرك face-lib (مسح متعدّد المقاييس + تحقّق هندسي)
+ * المستخدم في face-verify.js وفي cropper.blade.php — العتبات في مكان واحد.
  */
 async function verifyLikeClient(file) {
-  const out = { found: false, pass: false, reason: null };
-  let img;
-  try { img = await loadWorkingImage(file); } catch (e) { out.reason = 'تعذر قراءة الصورة الناتجة'; return out; }
-
-  const p1 = await detectFace(img.rgb, img.w, img.h, 0.50);
-  if (!p1) { out.reason = 'لم يتم العثور على وجه واضح في الصورة'; return out; }
-  out.found = true;
-  out.count = p1.count;
-  out.score = Number(p1.box.score.toFixed(3));
-  out.faceWidthPct = Number(((p1.box.width / img.w) * 100).toFixed(1));
-
-  if (p1.count > 1) { out.reason = 'الصورة تحتوي على أكثر من وجه'; return out; }
-  if (p1.box.width / img.w < 0.06) { out.reason = 'حجم الوجه صغير جداً بالنسبة للصورة'; return out; }
-
-  // Pass 2: قص منطقة مكبّرة حول الوجه وفحص المعالم
-  const padding = Math.max(p1.box.width, p1.box.height) * 0.5;
-  const sx = Math.max(0, Math.floor(p1.box.x - padding));
-  const sy = Math.max(0, Math.floor(p1.box.y - padding));
-  const sw = Math.max(1, Math.round(Math.min(img.w - sx, p1.box.width + padding * 2)));
-  const sh = Math.max(1, Math.round(Math.min(img.h - sy, p1.box.height + padding * 2)));
-  const ZOOM_W = 300, ZOOM_H = Math.max(1, Math.round(ZOOM_W * (sh / sw)));
-
-  let positions = null;
+  let src;
   try {
-    const zoomRgb = await sharp(img.rgb, { raw: { width: img.w, height: img.h, channels: 3 } })
-      .extract({ left: sx, top: sy, width: sw, height: sh })
-      .resize(ZOOM_W, ZOOM_H, { fit: 'fill' })
-      .raw().toBuffer();
-    const p2 = await detectFace(zoomRgb, ZOOM_W, ZOOM_H, 0.50);
-    if (p2 && p2.landmarks && p2.landmarks.length >= 68) positions = p2.landmarks;
-  } catch (e) { /* يُعتمد على معالم Pass 1 */ }
-  if (!positions) positions = p1.landmarks;
+    src = await loadWorkRgb(file);
+  } catch (e) {
+    return { pass: false, code: 'unreadable-output', detail: 'تعذر قراءة الصورة الناتجة' };
+  }
 
-  if (!positions || positions.length < 68) { out.reason = 'معالم الوجه غير مكتملة'; return out; }
-
-  const groups = [[0, 17, 17], [17, 22, 5], [22, 27, 5], [27, 36, 9], [36, 42, 6], [42, 48, 6], [48, 68, 20]];
-  const valid = groups.every(([a, b, need]) => {
-    const pts = positions.slice(a, b);
-    return pts.length === need && pts.every((p) => p && isFinite(p.x) && isFinite(p.y));
-  });
-  if (!valid) { out.reason = 'معالم الوجه غير واضحة'; return out; }
-
-  out.pass = true;
-  return out;
+  const check = await verifyFaceInRgb(src.rgb, src.w, src.h);
+  log(`check ${check.pass ? 'PASS' : 'FAIL'} code=${check.code} score=${check.score ?? '-'} rotated=${check.rotated ?? 0} ms=${check.ms}`);
+  return check;
 }
 
 // ---------- main ----------
@@ -537,7 +493,9 @@ async function verifyLikeClient(file) {
   t = now();
   let face = await detectFace(src.rgb, src.w, src.h, 0.50);
   ms.detect = now() - t;
-  if (face && face.count > 1) fail('multiple-faces');
+  // تعدد الصناديق قد يكون تكراراً حول وجه واحد (قصّة ضيقة) — الترميم يختار أكبر صندوق،
+  // وقرار "أكثر من وجه" يُترك لفحص face-lib على الناتج (dedupe + أهمية الحجم).
+  if (face && face.count > 1) log(`تنبيه: ${face.count} صندوق وجه عند 0.50 — سيُستخدم الأكبر`);
   if (!face) {
     // صورة يرفضها المتصفح (score<0.5) — نحاول تحديد موقع الوجه بعتبة أقل لترميمه
     t = now();
@@ -664,7 +622,7 @@ async function verifyLikeClient(file) {
     fs.writeFileSync(path.join(dbg, 'restored.png'), await sharp(restored.rgb, { raw: { width: restored.w, height: restored.h, channels: 3 } }).png().toBuffer());
   }
 
-  // 5) فحص اختياري — يحاكي checkFaceOnCanvas بالمتصفح حرفيًا (cropper.blade.php L69-191)
+  // 5) فحص اختياري بالنفس محرك face-lib (المطابق لـ checkFaceOnCanvas في cropper.blade.php)
   let check = null;
   if (args.check) check = await verifyLikeClient(args.out);
 

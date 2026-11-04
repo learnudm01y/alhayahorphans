@@ -73,6 +73,15 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // نتائج فحص الوجوه في الصور الشخصية (فحص الخادم + تقارير المتصفح) — للتشخيص والقياس
+        'face_check' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/face_check.log'),
+            'level' => env('FACE_LOG_LEVEL', 'debug'),
+            'days' => 30,
+            'replace_placeholders' => true,
+        ],
+
         'slack' => [
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),
