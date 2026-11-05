@@ -40,6 +40,7 @@ use App\Http\Controllers\Users\UserController;
 use App\Http\Controllers\Admin\SpeedTestController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Admin\ManageTheUserRequestController;
+use App\Http\Controllers\Admin\MemberTransferRequestController;
 use App\Http\Controllers\AttachmentAuditController;
 use App\Http\Controllers\Admin\BackupController;
 use App\Http\Controllers\DuplicateFileController;
@@ -61,6 +62,24 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::post('manage-user-requests/change-status', [ManageTheUserRequestController::class, 'changeStatus'])
         ->middleware('permission:عرض قسم إدارة التسجيلات|إدارة طلبات المستخدمين')
         ->name('manage.user.requests.changeStatus');
+    // الفحص التلقائي (قراءة فقط) ثم الاعتماد بعد تأكيد الموظف
+    Route::post('manage-user-requests/auto-accept-check', [ManageTheUserRequestController::class, 'autoAcceptCheck'])
+        ->middleware('permission:عرض قسم إدارة التسجيلات|إدارة طلبات المستخدمين')
+        ->name('manage.user.requests.autoAcceptCheck');
+    Route::post('manage-user-requests/auto-accept-apply', [ManageTheUserRequestController::class, 'autoAcceptApply'])
+        ->middleware('permission:عرض قسم إدارة التسجيلات|إدارة طلبات المستخدمين')
+        ->name('manage.user.requests.autoAcceptApply');
+
+    // طابور طلبات نقل الأفراد بين المعيلين: القائمة + الموافقة/الرفض
+    Route::get('member-transfer-requests', [MemberTransferRequestController::class, 'index'])
+        ->middleware('permission:عرض قسم إدارة التسجيلات|إدارة طلبات المستخدمين|تعديل سجل')
+        ->name('member-transfer-requests.index');
+    Route::post('member-transfer-requests/{transfer}/approve', [MemberTransferRequestController::class, 'approve'])
+        ->middleware('permission:تعديل سجل')
+        ->name('member-transfer-requests.approve');
+    Route::post('member-transfer-requests/{transfer}/reject', [MemberTransferRequestController::class, 'reject'])
+        ->middleware('permission:تعديل سجل')
+        ->name('member-transfer-requests.reject');
     Route::get('dashboard', [AdminController::class, 'index'])
         ->middleware('permission:الوصول للصفحة الرئيسية|عرض قسم إدارة التسجيلات|عرض قسم إدارة التصنيفات|عرض قسم إدارة الجمعيات|عرض قسم الكفالات|عرض قسم إدارة الصلاحيات|عرض قسم إدارة السجل المدني|عرض قسم إدارة الملفات|عرض قسم أدوات النظام')
         ->name('dashboard');

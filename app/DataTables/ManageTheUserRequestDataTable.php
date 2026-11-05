@@ -4,6 +4,7 @@ namespace App\DataTables;
 
 use App\Models\Data;
 use App\Models\ManageTheUserRequest;
+use App\Models\MemberTransferRequest;
 use Illuminate\Database\Eloquent\Builder as QueryBuilder;
 use Yajra\DataTables\EloquentDataTable;
 use Yajra\DataTables\Html\Builder as HtmlBuilder;
@@ -60,6 +61,14 @@ class ManageTheUserRequestDataTable extends DataTable
                 }
                 return '<span class="badge badge-secondary">غير محدد</span>';
             })
+            // عدد الأفراد المرتبطين بمعيل آخر والمعلّقين بانتظار موافقة النقل
+            ->addColumn('pending_members_badge', function($row) {
+                $count = $this->pendingCountFor($row);
+                if ($count === 0) {
+                    return '<span class="text-muted">—</span>';
+                }
+                return '<span class="badge badge-warning">' . $count . ' بانتظار النقل</span>';
+            })
             // Created at (date only)
             ->addColumn('created_at', function($row) {
                 return $row->created_at ? date('Y-m-d', strtotime($row->created_at)) : '-';
@@ -73,18 +82,28 @@ class ManageTheUserRequestDataTable extends DataTable
                 $editUrl = route('admin.records.management.edit', $row->id);
                 $showUrl = route('admin.records.management.show', $row->id);
                 $statusOptions = '';
+                $pendingTransferCount = $this->pendingCountFor($row);
                 foreach (\App\Models\RequestStatus::all() as $status) {
                     $selected = $row->data_request_status == $status->id ? 'selected' : '';
-                    $statusOptions .= '<option value="' . $status->id . '" ' . $selected . '>' . $status->description . '</option>';
+                    // «مقبول» محجوز أثناء وجود أفراد معلّقين بانتظار موافقة النقل
+                    $disabled = ($pendingTransferCount > 0 && $status->description === 'مقبول') ? ' disabled' : '';
+                    $statusOptions .= '<option value="' . $status->id . '" ' . $selected . $disabled . '>' . $status->description . '</option>';
                 }
-                $dropdown = '<select class="form-control change-status mt-3" data-id="' . $row->id . '">' . $statusOptions . '</select>';
+                $dropdown = '<select class="form-control change-status mt-3" data-id="' . $row->id . '" data-current-status="' . (int) $row->data_request_status . '">' . $statusOptions . '</select>';
+                $guardianName = trim($row->data_first_name . ' ' . $row->data_father_name . ' ' . $row->data_grand_father_name . ' ' . $row->data_family_name);
+                // الزر يفحص على الخادم ثم يطلب تأكيداً؛ لا يغيّر شيئاً إذا فشل أي فحص
+                $autoAccept = '<button type="button" class="btn btn-sm btn-outline-success mt-2 auto-accept-check" '
+                    . 'data-id="' . $row->id . '" data-file="' . e($row->file_id_number ?? '') . '" '
+                    . 'data-name="' . e($guardianName) . '">'
+                    . '<i class="fa fa-magic"></i> فحص وقبول تلقائي</button>';
                 return '
                     <a href="' . $editUrl . '" class="btn btn-sm btn-primary"><i class="fa fa-edit"></i> تعديل</a>
                     <a href="' . $showUrl . '" class="btn btn-sm btn-info"><i class="fa fa-eye"></i> عرض</a>
                     ' . $dropdown . '
+                    ' . $autoAccept . '
                 ';
             })
-            ->rawColumns(['action', 'request_status_badge'])
+            ->rawColumns(['action', 'request_status_badge', 'pending_members_badge'])
             ->setRowId('id');
     }
 
@@ -95,7 +114,14 @@ class ManageTheUserRequestDataTable extends DataTable
     {
         // جلب السجلات التي data_user_insert_data = null أو تساوي n_user
         $n_user = 'N_user'; // ثابت مؤقتاً لعرض جميع الأسطر التي تحمل هذه القيمة
-        $query = $model->newQuery()
+        $query = $model->newQuery();
+
+        // التحميل المسبق لطلبات النقل يعمل فقط إذا كان الجدول مثبَّتاً بالـ migration
+        if (MemberTransferRequest::tableExists()) {
+            $query->with('pendingMemberTransfers:id,data_id,file_id_number,identity_number,status');
+        }
+
+        $query
             ->where(function($q) use ($n_user) {
                 $q->whereNull('data_user_insert_data');
                 if ($n_user) {
@@ -112,6 +138,24 @@ class ManageTheUserRequestDataTable extends DataTable
         }
 
         return $query;
+    }
+
+    /**
+     * عدد الأفراد المعلّقات نقلهم لهذا الملف، بصفر آمن إذا لم يُنفَّذ الـ migration بعد.
+     */
+    private function pendingCountFor($row): int
+    {
+        if (!MemberTransferRequest::tableExists()) {
+            return 0;
+        }
+
+        if ($row->relationLoaded('pendingMemberTransfers')) {
+            return $row->pendingMemberTransfers->count();
+        }
+
+        return MemberTransferRequest::pending()
+            ->where('file_id_number', $row->file_id_number)
+            ->count();
     }
 
     /**
@@ -178,6 +222,8 @@ class ManageTheUserRequestDataTable extends DataTable
             Column::make('guardian_id')->title('رقم هوية ولي الأمر'),
             // Request status (with badge)
             Column::make('request_status_badge')->title('حالة الطلب')->orderable(false)->searchable(false),
+            // Pending member transfers (with badge)
+            Column::make('pending_members_badge')->title('أفراد بانتظار النقل')->orderable(false)->searchable(false),
             // Created/updated
             Column::make('created_at')->title('تاريخ الإنشاء'),
             Column::make('updated_at')->title('تاريخ التعديل'),
@@ -185,7 +231,7 @@ class ManageTheUserRequestDataTable extends DataTable
             Column::computed('action')
                 ->exportable(false)
                 ->printable(false)
-                ->width(200)
+                ->width(300)
                 ->addClass('text-center'),
         ];
     }

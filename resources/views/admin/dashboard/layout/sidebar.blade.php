@@ -144,6 +144,20 @@
                 @endcanany
                 <!--end:Menu item-->
                 <!--begin:Menu item-->
+                @canany(['عرض قسم إدارة التسجيلات', 'إدارة طلبات المستخدمين', 'تعديل سجل'])
+                <div class="menu-item">
+                    <!--begin:Menu link-->
+                    <a class="menu-link" href="{{ route('admin.member-transfer-requests.index') }}">
+                        <span class="menu-bullet">
+                            <span class="bullet bullet-dot"></span>
+                        </span>
+                        <span class="menu-title"> طلبات نقل الأفراد  </span>
+                    </a>
+                    <!--end:Menu link-->
+                </div>
+                @endcanany
+                <!--end:Menu item-->
+                <!--begin:Menu item-->
                 @canany(['عرض قسم إدارة التسجيلات', 'إدخال بيانات التسجيلات'])
                 <div class="menu-item">
                     <!--begin:Menu link-->

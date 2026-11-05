@@ -20,6 +20,7 @@ use App\Models\GeneralCategory;
 use App\Models\HealthStatus;
 use App\Models\HousingStatus;
 use App\Models\MaritalStatus;
+use App\Models\MemberTransferRequest;
 use App\Models\Province;
 use App\Models\RePeople;
 use App\Models\SponsorshipStatus;
@@ -99,9 +100,9 @@ class GeneralRegistrationController extends Controller
      *
      * يفحص جدول data (معيلون) وجدول re_people (أفراد الأسرة) بالهوية ورقم الملف.
      *
-     * @return string|null رقم ملف المعيل الآخر عند وجود ارتباط، أو null إذا لم يوجد
+     * @return array{type: string, file_id_number: string}|null نوع الارتباط ورقم الملف الآخر، أو null عند لا ارتباط
      */
-    private function findOtherFileForIdentity(string $identity, string $fileIdNumber): ?string
+    private function classifyIdentityLink(string $identity, string $fileIdNumber): ?array
     {
         $identity = trim($identity);
 
@@ -114,7 +115,7 @@ class GeneralRegistrationController extends Controller
 
         $linkedData = Data::where('data_id_number', $identity)->first();
         if ($linkedData && ltrim(trim((string) $linkedData->file_id_number), '0') !== $normalizedFileId) {
-            return (string) $linkedData->file_id_number;
+            return ['type' => 'guardian', 'file_id_number' => (string) $linkedData->file_id_number];
         }
 
         $linkedRePeople = RePeople::where('person_id', $identity)->get(['registration_id'])
@@ -122,10 +123,78 @@ class GeneralRegistrationController extends Controller
                 return ltrim(trim((string) $row->registration_id), '0') !== $normalizedFileId;
             });
         if ($linkedRePeople) {
-            return (string) $linkedRePeople->registration_id;
+            return ['type' => 'member', 'file_id_number' => (string) $linkedRePeople->registration_id];
         }
 
         return null;
+    }
+
+    private function findOtherFileForIdentity(string $identity, string $fileIdNumber): ?string
+    {
+        $link = $this->classifyIdentityLink($identity, $fileIdNumber);
+
+        return $link === null ? null : $link['file_id_number'];
+    }
+
+    /**
+     * معرّف حالة الطلب التي تُبقي الملف في طابور المراجعة.
+     * يُبحث بالوصف لا بالرقم: قيم request_status مرجعية وقد تختلف بين الاستضافات.
+     */
+    private function resolveReviewStatusId(): ?int
+    {
+        foreach (['مراجعة', 'قيد المراجعة'] as $description) {
+            $statusId = \DB::table('request_status')->where('description', $description)->value('id');
+
+            if ($statusId !== null) {
+                return (int) $statusId;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * إلغاء طلبات النقل المعلّقة التي لم يعد الفرد ضمنها مسجَّلاً في الطلب.
+     *
+     * تعمل فقط عند مصفوفة family_members مُرسلة فعلياً: غياب المصفوفة يعني
+     * "لم تُرسل" لا "لا يوجد أفراد"، فلا نُلغي طلبات قائمة بسبب حقول ناقصة.
+     */
+    private function cancelStalePendingTransfers(Data $data, string $fileIdNumber, $familyMembers): void
+    {
+        if (!is_array($familyMembers) || !MemberTransferRequest::tableExists()) {
+            return;
+        }
+
+        $stillRequested = [];
+        foreach ($familyMembers as $member) {
+            $identity = ltrim(trim((string) ($member['person_id'] ?? '')), '0');
+            if ($identity !== '') {
+                $stillRequested[$identity] = true;
+            }
+        }
+
+        $stale = MemberTransferRequest::pending()
+            ->where('file_id_number', $fileIdNumber)
+            ->where('data_id', $data->id)
+            ->get(['id', 'identity_number']);
+
+        foreach ($stale as $request) {
+            $identity = ltrim(trim((string) $request->identity_number), '0');
+            if (isset($stillRequested[$identity])) {
+                continue;
+            }
+
+            $request->update([
+                'status' => MemberTransferRequest::STATUS_CANCELLED,
+                'reason' => 'أُلغي بإعادة إرسال الطلب: لم يعد الفرد ضمن أفراد الأسرة.',
+            ]);
+
+            Log::info('🗑️ أُلغي طلب نقل فرد لم يعد ضمن الطلب', [
+                'file_id_number' => $fileIdNumber,
+                'transfer_request_id' => $request->id,
+                'person_id' => $request->identity_number,
+            ]);
+        }
     }
 
     /**
@@ -514,18 +583,6 @@ class GeneralRegistrationController extends Controller
                                 ->with('error', "رقم هوية فرد الأسرة رقم " . ($index + 1) . " يجب أن يكون 9 أرقام بالضبط");
                         }
 
-                        // 🆕 التحقق من أن الشخص ليس مرتبطاً بمعيل آخر
-                        if ($this->findOtherFileForIdentity((string) $member['person_id'], $fileIdNumber) !== null) {
-                            $errorMsg = "الشخص برقم هوية " . $member['person_id'] . " مسجل مسبقاً في النظام ومرتبط بمعيل آخر. لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.";
-                            if ($request->ajax() || $request->wantsJson()) {
-                                return response()->json([
-                                    'success' => false,
-                                    'message' => $errorMsg
-                                ], 422);
-                            }
-                            return redirect()->back()->withInput()->with('error', $errorMsg);
-                        }
-
                         // 🆕 منع تكرار نفس الرقم داخل الطلب الواحد (وإلا ضاع فرد بصمت)
                         $memberIdentityKey = (string) $member['person_id'];
                         if (isset($seenFamilyIdentities[$memberIdentityKey])) {
@@ -539,6 +596,22 @@ class GeneralRegistrationController extends Controller
                             return redirect()->back()->withInput()->with('error', $errorMsg);
                         }
                         $seenFamilyIdentities[$memberIdentityKey] = true;
+
+                        // 🆕 الشخص مرتبط بملف معيل آخر:
+                        //    - معيل لملف آخر: يبقى رفضاً، فضمّه فرداً يعني تجريده من ملفه (قرار إداري)
+                        //    - فرد أسرة في ملف آخر: الطلب يُقبل والنقل يُعلَّق حتى موافقة الإدارة (يُسجَّل داخل المعاملة)
+                        $memberLink = $this->classifyIdentityLink($memberIdentityKey, $fileIdNumber);
+
+                        if ($memberLink !== null && $memberLink['type'] === 'guardian') {
+                            $errorMsg = "الشخص برقم هوية " . $memberIdentityKey . " مسجل كمعيل لملف آخر (رقم ملف " . $memberLink['file_id_number'] . "). لا يمكن ضمه كفرد أسرة. يرجى التواصل مع إدارة المؤسسة.";
+                            if ($request->ajax() || $request->wantsJson()) {
+                                return response()->json([
+                                    'success' => false,
+                                    'message' => $errorMsg
+                                ], 422);
+                            }
+                            return redirect()->back()->withInput()->with('error', $errorMsg);
+                        }
                     }
                 }
             }
@@ -583,10 +656,12 @@ class GeneralRegistrationController extends Controller
             // ================================================
             // 🔒 إعادة فحص الارتباط بملف آخر داخل المعاملة
             //    (يُغلق سباق التزامن: قد يُدخل طلب آخر نفس الشخص بين الفحص السابق والكتابة)
-            //    سياسة العمل: أي فرد (معيل أو فرد أسرة) مرتبط بملف معيل آخر ⇒ إيقاف العملية
-            //                  تماماً مع رسالة تنبيه، دون أي كتابة في القاعدة
+            //    سياسة العمل:
+            //      - معيل مرتبط بملف آخر (المعيل المتقدم أو فرد مُدخل وهو ولي أمر ملف) ⇒ إيقاف العملية دون كتابة
+            //      - فرد أسرة مرتبط بملف آخر ⇒ الطلب يُقبل، ويُصف الفرد في طابور نقل معلّق حتى موافقة الإدارة
             // ================================================
             $inTransactionConflictMsg = null;
+            $pendingTransfers = [];
 
             if (!$useExistingGuardian && !empty($guardianIdentity)) {
                 if ($this->findOtherFileForIdentity((string) $guardianIdentity, $fileIdNumber) !== null) {
@@ -600,10 +675,28 @@ class GeneralRegistrationController extends Controller
                     if ($memberIdentity === '') {
                         continue;
                     }
-                    if ($this->findOtherFileForIdentity($memberIdentity, $fileIdNumber) !== null) {
-                        $inTransactionConflictMsg = "الشخص برقم هوية " . $memberIdentity . " مسجل مسبقاً في النظام ومرتبط بمعيل آخر. لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.";
+
+                    $memberLink = $this->classifyIdentityLink($memberIdentity, $fileIdNumber);
+
+                    if ($memberLink === null) {
+                        continue;
+                    }
+
+                    if ($memberLink['type'] === 'guardian') {
+                        $inTransactionConflictMsg = "الشخص برقم هوية " . $memberIdentity . " مسجل كمعيل لملف آخر (رقم ملف " . $memberLink['file_id_number'] . "). لا يمكن ضمه كفرد أسرة. يرجى التواصل مع إدارة المؤسسة.";
                         break;
                     }
+
+                    // جدول الطابور غير مثبَّت: لا نكتب طلباً ولا نسقط الفرد بصمت، بل نعود للسلوك القديم
+                    if (!MemberTransferRequest::tableExists()) {
+                        $inTransactionConflictMsg = "الشخص برقم هوية " . $memberIdentity . " مرتبط بمعيل آخر (رقم ملف " . $memberLink['file_id_number'] . "). لا يمكن ضمّه الآن. يرجى التواصل مع إدارة المؤسسة.";
+                        break;
+                    }
+
+                    $pendingTransfers[$memberIdentity] = [
+                        'source_file_id_number' => (int) $memberLink['file_id_number'],
+                        'member' => $member,
+                    ];
                 }
             }
 
@@ -613,6 +706,14 @@ class GeneralRegistrationController extends Controller
                     return response()->json(['success' => false, 'message' => $inTransactionConflictMsg], 422);
                 }
                 return redirect()->back()->withInput()->with('error', $inTransactionConflictMsg);
+            }
+
+            if (!empty($pendingTransfers)) {
+                Log::info('🕒 أفراد مرتبطون بمعيل آخر: الطلب أُقبل والنقل معلّق بانتظار موافقة الإدارة', [
+                    'file_id_number' => $fileIdNumber,
+                    'pending_count' => count($pendingTransfers),
+                    'pending_identities' => array_keys($pendingTransfers),
+                ]);
             }
 
             // ================================================
@@ -644,28 +745,42 @@ class GeneralRegistrationController extends Controller
             // 2. Store main Data record أو استخدام المعيل الموجود
             $data = null;
 
+            // وجود أفراد معلّقين ⇒ الملف في «مراجعة» حتى تُحسم طلبات النقل من لوحة الإدارة
+            $reviewStatusId = empty($pendingTransfers) ? null : $this->resolveReviewStatusId();
+
+            if (!empty($pendingTransfers) && $reviewStatusId === null) {
+                Log::warning('⚠️ لم تُعثر حالة مراجعة في جدول request_status — بقيت حالة الطلب كما هي مع وجود أفراد معلّقين', [
+                    'file_id_number' => $fileIdNumber,
+                    'pending_count' => count($pendingTransfers),
+                ]);
+            }
+
             if ($useExistingGuardian && $existingGuardianData) {
                 $guardianData = $this->mapGuardianData($request, $fileIdNumber);
                 // (2.6) لا نكتب null لحقل غاب من الطلب؛ المسح الصريح (حقل مُرسَل فارغاً) يبقى مسموحاً
                 $guardianData = $this->filterPresentGuardianFields($request, $guardianData);
-                $guardianData['data_request_status'] = 2; // تحديث طلب موجود
+                $guardianData['data_request_status'] = $reviewStatusId ?? 2; // تحديث طلب موجود
                 $existingGuardianData->update($guardianData);
                 $data = $existingGuardianData;
                 $fileIdNumber = $existingFileIdNumber;
 
                 Log::info('✅ تم تحديث بيانات المعيل', [
                     'file_id_number' => $fileIdNumber,
+                    'data_request_status' => $guardianData['data_request_status'],
                 ]);
             } else {
                 $guardianData = $this->mapGuardianData($request, $fileIdNumber);
                 $guardianData['data_user_insert_data'] = "N_user";
-                $guardianData['data_request_status'] = 1;
+                $guardianData['data_request_status'] = $reviewStatusId ?? 1;
                 $data = Data::create($guardianData);
 
                 // وضع علامة على الرقم كمستخدم في جدول reserved_codes
                 markCodeAsUsed($fileIdNumber);
                 Log::info('✅ تم إنشاء سجل معيل جديد: ' . $fileIdNumber);
             } // نهاية else (إنشاء سجل جديد)
+
+            // ⚠️ حلقة المرفقات تعيد ربط $data بمصفوفة المرفق، لذا يُحفظ معرّف السجل هنا
+            $registrationDataId = (int) $data->id;
 
             // إضافة بيانات الحساب البنكي إذا وُجدت أي قيمة بنكية مع التحقق من التكرار
             $bankAccounts = $request->input('bank_accounts', []);
@@ -1022,6 +1137,30 @@ class GeneralRegistrationController extends Controller
                         'person_note' => $member['person_note'] ?? null,
                     ];
 
+                    // 🕒 الفرد مرتبط بمعيل آخر: لا يُكتب في re_people إطلاقاً
+                    //    (سجل واحد لكل فرد ⇒ كتابته الآن تعني ملكيتين لملفين معاً).
+                    //    تُحفظ لقطة بياناته في طلب النقل ويُستكمل عند موافقة الإدارة.
+                    $memberIdentityKey = trim((string) ($member['person_id'] ?? ''));
+                    if ($memberIdentityKey !== '' && isset($pendingTransfers[$memberIdentityKey])) {
+                        $snapshot = $memberData;
+                        unset($snapshot['registration_id']);
+
+                        MemberTransferRequest::recordPending(
+                            $registrationDataId,
+                            (int) $fileIdNumber,
+                            (int) $memberIdentityKey,
+                            $pendingTransfers[$memberIdentityKey]['source_file_id_number'],
+                            $snapshot
+                        );
+
+                        Log::info('🕒 فرد أُوقف نقله بانتظار موافقة الإدارة', [
+                            'file_id_number' => $fileIdNumber,
+                            'person_id' => $memberIdentityKey,
+                            'source_file_id_number' => $pendingTransfers[$memberIdentityKey]['source_file_id_number'],
+                        ]);
+                        continue;
+                    }
+
                     // البحث عن سجل موجود لنفس الشخص في نفس الملف
                     $existingMember = null;
                     if (!empty($member['person_id'])) {
@@ -1037,6 +1176,9 @@ class GeneralRegistrationController extends Controller
                     }
                 }
             }
+
+            // إلغاء طلبات النقل المعلّقة التي لم تعد ضمن قائمة الأفراد المُرسلة في هذا الطلب
+            $this->cancelStalePendingTransfers($data, $fileIdNumber, $familyMembers);
 
 
 
@@ -1382,6 +1524,9 @@ class GeneralRegistrationController extends Controller
                 $summaryFamilyMembers = RePeople::where('registration_id', $fileIdNumber)->count();
                 $summaryBankAccounts = GuardianBankAccount::where('guardian_registration', $fileIdNumber)->count();
                 $summaryHasDeadPeople = DeadPepole::where('re_file_id', $fileIdNumber)->exists();
+                $summaryPendingTransfers = MemberTransferRequest::tableExists()
+                    ? MemberTransferRequest::pending()->where('data_id', $registrationDataId)->count()
+                    : 0;
 
                 $emptySections = [];
                 if ($summaryFamilyMembers === 0) {
@@ -1405,12 +1550,17 @@ class GeneralRegistrationController extends Controller
                     'bank_accounts_total' => $summaryBankAccounts,
                     'has_dead_people' => $summaryHasDeadPeople,
                     'attachments_saved_this_request' => $attachmentsSaved,
+                    'pending_transfers_count' => $summaryPendingTransfers,
                     'user_created' => $userCreated,
                     'empty_sections' => $emptySections,
                 ]);
             } catch (\Throwable $summaryError) {
                 Log::warning('تعذر تسجيل ملخص التسجيل العام: ' . $summaryError->getMessage());
             }
+
+            $pendingTransfersCount = MemberTransferRequest::tableExists()
+                ? MemberTransferRequest::pending()->where('data_id', $registrationDataId)->count()
+                : 0;
 
             if ($request->ajax() || $request->wantsJson()) {
                 // (2.4) المرفقات غير المحفوظة تُعاد للواجهة كتحذيرات بدل إسقاطها بصمت
@@ -1419,6 +1569,7 @@ class GeneralRegistrationController extends Controller
                     'redirect' => route('user.thank.you.page'),
                     'warnings' => $skippedAttachments,
                     'skipped_attachments' => $skippedAttachments,
+                    'pending_transfers_count' => $pendingTransfersCount,
                 ]);
             }
 

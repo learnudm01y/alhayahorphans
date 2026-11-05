@@ -1356,36 +1356,22 @@ class RecordsManagementEditController extends Controller
                     $created = true;
                 }
 
-                if ((int) $target->file_id_number === (int) $member->registration_id) {
-                    throw new \RuntimeException('الفرد موجود بالفعل في هذا الملف');
-                }
-
-                $alreadyInTarget = RePeople::where('registration_id', $target->file_id_number)
-                    ->where('person_id', $member->person_id)
-                    ->where('id', '!=', $member->id)
-                    ->exists();
-
-                if ($alreadyInTarget) {
-                    throw new \RuntimeException('هذا الفرد موجود بالفعل في ملف المعيل الهدف');
-                }
-
-                $fromFile = str_pad($member->registration_id, 6, '0', STR_PAD_LEFT);
-
-                $member->registration_id = $target->file_id_number;
-                $member->save();
+                // النقل ينقل الرابط فقط (registration_id) — التفاصيل في الخدمة المشتركة
+                $moved = app(\App\Services\FamilyMemberTransferService::class)
+                    ->moveMemberToGuardian($member, $target);
 
                 Log::info('نقل فرد الأسرة إلى معيل آخر', [
-                    'member_id' => $member->id,
-                    'person_id' => $member->person_id,
-                    'from_file' => $fromFile,
-                    'to_file' => str_pad($target->file_id_number, 6, '0', STR_PAD_LEFT),
+                    'member_id' => $moved['member_id'],
+                    'person_id' => $moved['person_id'],
+                    'from_file' => $moved['from_file'],
+                    'to_file' => $moved['to_file'],
                     'guardian_created' => $created,
                     'user_id' => auth()->id(),
                 ]);
 
                 return [
-                    'member_id' => $member->id,
-                    'guardian_file_id' => str_pad($target->file_id_number, 6, '0', STR_PAD_LEFT),
+                    'member_id' => $moved['member_id'],
+                    'guardian_file_id' => $moved['to_file'],
                     'guardian_name' => $this->guardianFullName($target),
                     'created' => $created,
                 ];

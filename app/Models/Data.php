@@ -164,6 +164,16 @@ class Data extends Model
         return $this->belongsTo(RequestStatus::class, 'data_request_status');
     }
 
+    public function memberTransferRequests()
+    {
+        return $this->hasMany(MemberTransferRequest::class, 'file_id_number', 'file_id_number');
+    }
+
+    public function pendingMemberTransfers()
+    {
+        return $this->memberTransferRequests()->where('status', MemberTransferRequest::STATUS_PENDING);
+    }
+
     public function categoryOfRelation()
     {
         return $this->belongsTo(CategoryOfRelation::class, 'data_relationship');
