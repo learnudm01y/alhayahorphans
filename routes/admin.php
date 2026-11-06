@@ -69,6 +69,10 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::post('manage-user-requests/auto-accept-apply', [ManageTheUserRequestController::class, 'autoAcceptApply'])
         ->middleware('permission:عرض قسم إدارة التسجيلات|إدارة طلبات المستخدمين')
         ->name('manage.user.requests.autoAcceptApply');
+    // القبول التلقائي الجماعي: يفحص دفعة من الطلبات غير المقبولة ويعتمد المؤهل فقط
+    Route::post('manage-user-requests/auto-accept-bulk', [ManageTheUserRequestController::class, 'autoAcceptBulk'])
+        ->middleware('permission:عرض قسم إدارة التسجيلات|إدارة طلبات المستخدمين')
+        ->name('manage.user.requests.autoAcceptBulk');
 
     // طابور طلبات نقل الأفراد بين المعيلين: القائمة + الموافقة/الرفض
     Route::get('member-transfer-requests', [MemberTransferRequestController::class, 'index'])

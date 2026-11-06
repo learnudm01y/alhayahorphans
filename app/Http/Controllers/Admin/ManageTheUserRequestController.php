@@ -11,6 +11,7 @@ use App\Models\MemberTransferRequest;
 use App\Models\RequestStatus;
 use App\Services\RegistrationAutoAcceptService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Log;
 
 class ManageTheUserRequestController extends Controller
 {
@@ -62,6 +63,105 @@ class ManageTheUserRequestController extends Controller
             'status' => $status ? $status->description : 'مقبول',
             'status_html' => $this->statusBadgeHtml($status),
             'report' => $report,
+        ]);
+    }
+
+    /**
+     * القبول التلقائي الجماعي: يعالج دفعة من الطلبات غير المقبولة،
+     * ويعتمد فقط الطلبات التي تجتاز كل شروط RegistrationAutoAcceptService.
+     * لا كتابة إطلاقاً للطلبات التي يفشل أي فحص فيها.
+     */
+    public function autoAcceptBulk(Request $request, RegistrationAutoAcceptService $service): JsonResponse
+    {
+        $validated = $request->validate([
+            'status_id' => 'nullable|integer|exists:request_status,id',
+            'after_id' => 'nullable|integer|min:0',
+            'limit' => 'nullable|integer|min:1|max:200',
+        ]);
+
+        $limit = (int) ($validated['limit'] ?? 25);
+        $afterId = (int) ($validated['after_id'] ?? 0);
+        $statusFilter = $validated['status_id'] ?? null;
+
+        // نفس نطاق جدول إدارة الطلبات: سجلات البوابة غير المقبولة فقط.
+        $query = Data::query()
+            ->where(function ($q) {
+                $q->whereNull('data_user_insert_data')
+                    ->orWhere('data_user_insert_data', 'N_user');
+            })
+            ->whereHas('requestStatus', function ($q) {
+                $q->where('description', '!=', RegistrationAutoAcceptService::ACCEPTED_DESCRIPTION);
+            })
+            ->where('id', '>', $afterId)
+            ->orderBy('id');
+
+        // احترام فلتر الحالة الحالي إن اختاره الموظف.
+        if ($statusFilter !== null && $statusFilter !== '') {
+            $query->where('data_request_status', $statusFilter);
+        }
+
+        $rows = $query->limit($limit)->get();
+
+        $accepted = 0;
+        $skipped = 0;
+        $alreadyAccepted = 0;
+        $failed = 0;
+        $skipReasons = [];
+
+        foreach ($rows as $data) {
+            try {
+                $report = $service->accept($data);
+
+                if (!empty($report['accepted'])) {
+                    $accepted++;
+                    continue;
+                }
+
+                if (!empty($report['already_accepted'])) {
+                    $alreadyAccepted++;
+                    continue;
+                }
+
+                $skipped++;
+
+                // تجميع أسباب التخطي لعرضها للموظف دون كشف تفاصيل ثقيلة.
+                foreach (($report['checks'] ?? []) as $check) {
+                    if (empty($check['passed'])) {
+                        $label = (string) ($check['label'] ?? 'فحص غير مسمى');
+                        $skipReasons[$label] = ($skipReasons[$label] ?? 0) + 1;
+                    }
+                }
+            } catch (\Throwable $e) {
+                $failed++;
+                Log::error('AUTO_ACCEPT_BULK_RECORD_FAILED', [
+                    'data_id' => (int) $data->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $lastId = $rows->isNotEmpty() ? (int) $rows->last()->id : $afterId;
+        $hasMore = $rows->count() === $limit;
+
+        Log::info('AUTO_ACCEPT_BULK_BATCH', [
+            'status_filter' => $statusFilter,
+            'after_id' => $afterId,
+            'processed' => $rows->count(),
+            'accepted' => $accepted,
+            'skipped' => $skipped,
+            'failed' => $failed,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'processed' => $rows->count(),
+            'accepted' => $accepted,
+            'skipped' => $skipped,
+            'already_accepted' => $alreadyAccepted,
+            'failed' => $failed,
+            'skip_reasons' => $skipReasons,
+            'next_after_id' => $lastId,
+            'has_more' => $hasMore,
         ]);
     }
 

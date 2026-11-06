@@ -21,9 +21,13 @@
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-6 d-flex align-items-end gap-2 flex-wrap">
                         <button type="button" id="reset-filter" class="btn btn-secondary">
                             <i class="fas fa-redo"></i> إعادة تعيين
+                        </button>
+                        <button type="button" id="auto-accept-bulk" class="btn btn-success"
+                                title="يفحص الطلبات غير المقبولة ويعتمد فقط التي تجتاز كل الشروط">
+                            <i class="fas fa-magic"></i> قبول تلقائي للمؤهلين
                         </button>
                     </div>
                 </div>
@@ -312,6 +316,148 @@
                         ? xhr.responseJSON.message
                         : 'تعذّر تنفيذ الفحص على الخادم');
                 }
+            });
+        });
+
+        // ===== القبول التلقائي الجماعي (زر أعلى الصفحة) =====
+        var bulkAutoAcceptRunning = false;
+
+        function bulkSummaryHtml(result) {
+            var html = '<div class="text-right" dir="rtl">';
+            html += '<div class="mb-1">تم فحص: <b>' + (result.processed || 0) + '</b></div>';
+            html += '<div class="mb-1 text-success">تم اعتماد: <b>' + (result.accepted || 0) + '</b></div>';
+            html += '<div class="mb-1 text-warning">لم يجتز الشروط: <b>' + (result.skipped || 0) + '</b></div>';
+            if (result.failed > 0) {
+                html += '<div class="mb-1 text-danger">أخطاء: <b>' + result.failed + '</b></div>';
+            }
+
+            var reasons = result.skip_reasons || {};
+            var keys = Object.keys(reasons);
+            if (keys.length) {
+                html += '<hr><div class="fw-bold mb-1">أسباب عدم الاعتماد:</div><ul class="mb-0 ps-3">';
+                keys.forEach(function(key) {
+                    html += '<li class="small">' + escapeHtml(key) + ' — ' + reasons[key] + '</li>';
+                });
+                html += '</ul>';
+            }
+
+            return html + '</div>';
+        }
+
+        function runBulkAutoAccept(button, statusId) {
+            bulkAutoAcceptRunning = true;
+            button.prop('disabled', true);
+            var originalHtml = button.html();
+            button.html('<i class="fas fa-spinner fa-spin"></i> جاري الفحص...');
+
+            var totals = { processed: 0, accepted: 0, skipped: 0, failed: 0, skip_reasons: {} };
+            var afterId = 0;
+
+            function finish(xhr) {
+                bulkAutoAcceptRunning = false;
+                button.prop('disabled', false).html(originalHtml);
+
+                var table = $('#managetheuserrequest-table').DataTable();
+                table.ajax.reload(null, false);
+
+                if (xhr) {
+                    var message = (xhr.responseJSON && xhr.responseJSON.message)
+                        ? xhr.responseJSON.message
+                        : 'توقف الفحص قبل اكتمال كل الطلبات.';
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'توقّف القبول التلقائي',
+                        html: bulkSummaryHtml(totals) + '<div class="mt-2">' + escapeHtml(message) + '</div>',
+                        confirmButtonText: 'حسنًا'
+                    });
+                    return;
+                }
+
+                if (totals.processed === 0) {
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'لا توجد طلبات للمعالجة',
+                        text: 'لا توجد طلبات غير مقبولة مطابقة للفلتر الحالي.',
+                        confirmButtonText: 'حسنًا'
+                    });
+                    return;
+                }
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'انتهى الفحص',
+                    html: bulkSummaryHtml(totals),
+                    confirmButtonText: 'حسنًا'
+                });
+            }
+
+            function nextBatch() {
+                $.ajax({
+                    url: '{{ route('admin.manage.user.requests.autoAcceptBulk') }}',
+                    type: 'POST',
+                    dataType: 'json',
+                    data: {
+                        _token: '{{ csrf_token() }}',
+                        status_id: statusId,
+                        after_id: afterId,
+                        limit: 25
+                    },
+                    success: function(response) {
+                        totals.processed += response.processed || 0;
+                        totals.accepted += response.accepted || 0;
+                        totals.skipped += response.skipped || 0;
+                        totals.failed += response.failed || 0;
+
+                        var reasons = response.skip_reasons || {};
+                        Object.keys(reasons).forEach(function(key) {
+                            totals.skip_reasons[key] = (totals.skip_reasons[key] || 0) + reasons[key];
+                        });
+
+                        var previousAfterId = afterId;
+                        afterId = response.next_after_id || afterId;
+                        button.html('<i class="fas fa-spinner fa-spin"></i> تم فحص ' + totals.processed + '...');
+
+                        // حماية من أي حلقة لا نهائية إذا لم يتقدم المؤشر
+                        if (response.has_more && (response.processed || 0) > 0 && afterId > previousAfterId) {
+                            nextBatch();
+                            return;
+                        }
+
+                        finish();
+                    },
+                    error: function(xhr) {
+                        finish(xhr);
+                    }
+                });
+            }
+
+            nextBatch();
+        }
+
+        $('#auto-accept-bulk').on('click', function() {
+            if (bulkAutoAcceptRunning) {
+                return;
+            }
+
+            var button = $(this);
+            var statusId = $('#status-filter').val() || '';
+            var scope = statusId
+                ? 'الطلبات المطابقة للفلتر الحالي'
+                : 'جميع الطلبات غير المقبولة الظاهرة في الجدول';
+
+            Swal.fire({
+                icon: 'question',
+                title: 'القبول التلقائي للمؤهلين',
+                html: '<div class="text-right" dir="rtl">سيتم فحص <b>' + scope + '</b> واعتماد الطلبات التي تجتاز كل الشروط فقط.<br>'
+                    + 'الطلبات التي لا تجتاز الفحوصات تبقى دون أي تغيير.</div>',
+                showCancelButton: true,
+                confirmButtonText: 'بدء الفحص والاعتماد',
+                cancelButtonText: 'إلغاء'
+            }).then(function(result) {
+                if (!result.isConfirmed) {
+                    return;
+                }
+                runBulkAutoAccept(button, statusId);
             });
         });
     </script>
