@@ -227,6 +227,7 @@
                     @endforeach
                 </select>
                 <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_main" tabindex="-1" aria-hidden="true"
+                accept="image/*,.heic,.heif"
                 style="
                 position: absolute !important;
                 width:1px !important;

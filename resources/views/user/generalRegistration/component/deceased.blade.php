@@ -78,7 +78,7 @@
                                               {{ $documentType->deceased_required ? '★ ' : '' }}{{ $documentType->description }}{{ $documentType->deceased_required ? ' (إجباري)' : '' }}</option>
                                       @endforeach
                                   </select>
-                                  <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_father" style="display:none;">
+                                  <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_father" accept="image/*,.heic,.heif" style="display:none;">
                                   <div class="mainDocumentPreview" id="mainDocumentPreview_father"></div>
                               </div>
                           </div>
@@ -164,7 +164,7 @@
                                               {{ $documentType->deceased_required ? '★ ' : '' }}{{ $documentType->description }}{{ $documentType->deceased_required ? ' (إجباري)' : '' }}</option>
                                       @endforeach
                                   </select>
-                                  <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_mother" style="display:none;">
+                                  <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_mother" accept="image/*,.heic,.heif" style="display:none;">
                                   <div class="mainDocumentPreview" id="mainDocumentPreview_mother"></div>
                               </div>
                           </div>
@@ -393,7 +393,7 @@
                                           <option value="">اختر نوع الوثيقة</option>
                                           ${documentTypesOptions}
                                       </select>
-                                      <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_additional_${index}" style="display:none;">
+                                      <input type="file" class="mainDocumentFileInput" id="mainDocumentFileInput_additional_${index}" accept="image/*,.heic,.heif" style="display:none;">
                                       <div class="mainDocumentPreview mt-2" id="mainDocumentPreview_additional_${index}" style="display: block; visibility: visible !important; opacity: 1 !important; width: 100% !important; position: relative !important; margin: 10px 0px !important; padding: 10px !important; background: rgb(248, 249, 250) !important; border: 1px solid rgb(40, 167, 69) !important; border-radius: 8px !important;"></div>
                                   </div>
                               </div>

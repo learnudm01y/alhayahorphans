@@ -410,6 +410,18 @@ class GeneralRegistrationController extends Controller
                 $coveredAttachments = [];
 
                 // 1. Validate basic data and attachments
+                // صفحة التسجيل العامة (المسار store.generalRegistration) تفرض «صور فقط»،
+                // بينما مسار واتساب الداخلي (Request مُصنَّع بلا Route) يبقى محتفظاً بدعم PDF.
+                $imagesOnly = $request->route() !== null
+                    && $request->route()->getName() === 'store.generalRegistration';
+
+                $documentFileMimes = $imagesOnly
+                    ? 'jpg,jpeg,png,webp,gif,bmp,avif,tif,tiff,ico,jfif,heic,heif'
+                    : 'jpg,jpeg,png,pdf,heic';
+
+                $attachmentMimetypes = 'image/jpeg,image/pjpeg,image/png,image/webp,image/gif,image/bmp,image/x-bmp,image/x-ms-bmp,image/avif,image/heic,image/heif,image/tiff,image/x-icon,image/vnd.microsoft.icon,application/octet-stream'
+                    . ($imagesOnly ? '' : ',application/pdf');
+
                 $request->validate([
                 'file_id_number' => 'required|string|regex:/^[0-9]{6}$/',
                 'original_file_id_number' => 'nullable|string|regex:/^[0-9]{6}$/',
@@ -458,11 +470,13 @@ class GeneralRegistrationController extends Controller
                 // Family members (required — at least one)
                 'family_members' => 'required|array|min:1',
                 // Attachments
-                'document_file.*' => 'required|file|mimes:jpg,jpeg,png,pdf,heic|max:5120',
+                'document_file.*' => 'required|file|mimes:' . $documentFileMimes . '|max:5120',
                 // 🛡️ (2.2) مرفقات البوابة: قائمة سماح للامتداد + حد للحجم + مسار مؤقت مُقيَّد
                 'attachments' => 'nullable|array',
-                // mimetypes (نوع المحتوى) بدل mimes (الامتداد): كل صيغ الصور الشائعة + PDF
-                'attachments.*.file' => 'nullable|file|max:5120|mimetypes:image/jpeg,image/pjpeg,image/png,image/webp,image/gif,image/bmp,image/x-bmp,image/x-ms-bmp,image/avif,image/heic,image/heif,image/tiff,image/x-icon,image/vnd.microsoft.icon,application/pdf,application/octet-stream',
+                // mimetypes (نوع المحتوى) بدل mimes (الامتداد).
+                // application/octet-stream مسموح فقط لصور HEIC التي يعجز finfo عن كشفها،
+                // ويُرفض لاحقاً في resolveAttachmentExtension إن لم تكن صورة HEIC حقيقية.
+                'attachments.*.file' => 'nullable|file|max:5120|mimetypes:' . $attachmentMimetypes,
                 // مصفوفة لا نص: فاصل القواعد "|" موجود داخل النمط نفسه
                 'attachments.*.temp_path' => ['nullable', 'string', 'max:255', 'regex:' . self::TEMP_ATTACHMENT_PATH_PATTERN],
                 'attachments.*.stored_file_name' => 'nullable|string|max:255',
@@ -477,9 +491,13 @@ class GeneralRegistrationController extends Controller
                 'data_id_number.digits' => 'رقم الهوية يجب أن يكون 9 أرقام بالضبط.',
                 'mother_id.digits' => 'رقم هوية الأم يجب أن يكون 9 أرقام بالضبط.',
                 'deceased_mother_id.digits' => 'رقم هوية الأم المتوفية يجب أن يكون 9 أرقام بالضبط.',
-                'document_file.*.mimes' => 'يجب أن تكون صيغة الملف jpg أو jpeg أو png أو pdf أو heic.',
+                'document_file.*.mimes' => $imagesOnly
+                    ? 'يجب أن تكون صيغة الملف صورة فقط (jpg، jpeg، png، webp، gif، bmp، avif، tiff، heic).'
+                    : 'يجب أن تكون صيغة الملف jpg أو jpeg أو png أو pdf أو heic.',
                 'document_file.*.max' => 'حجم الملف لا يجوز أن يتجاوز 5 ميغابايت.',
-                'attachments.*.file.mimetypes' => 'صيغة المرفق غير مدعومة. الصور تُقبل بكل صيغها وتُحوَّل تلقائياً إلى JPG، كما يُقبل PDF.',
+                'attachments.*.file.mimetypes' => $imagesOnly
+                    ? 'صيغة المرفق غير مدعومة. تُقبل الصور فقط وتُحوَّل تلقائياً إلى JPG، ولا تُقبل ملفات PDF أو الفيديو أو المستندات.'
+                    : 'صيغة المرفق غير مدعومة. الصور تُقبل بكل صيغها وتُحوَّل تلقائياً إلى JPG، كما يُقبل PDF.',
                 'attachments.*.file.max' => 'حجم المرفق لا يجوز أن يتجاوز 5 ميغابايت.',
                 'attachments.*.temp_path.regex' => 'مسار الرفع المؤقت غير صالح.',
                 'family_members.required' => 'يجب إضافة فرد أسرة واحد على الأقل قبل الحفظ.',
@@ -1313,6 +1331,12 @@ class GeneralRegistrationController extends Controller
                         continue;
                     }
 
+                    // صفحة التسجيل العامة: صور فقط حتى لو تلاعب أحدهم بامتداد أو نوع الملف
+                    if ($imagesOnly && !in_array($extension, self::IMAGE_EXTENSIONS, true)) {
+                        $this->recordSkippedAttachment($skippedAttachments, $index, $data, 'unsupported_type', 'يُسمح بالصور فقط في نموذج التسجيل العام.');
+                        continue;
+                    }
+
                     $fileSize = (int) @filesize($absolutePath);
 
                     // 🔒 بصمة محتوى الملف (SHA-1) — تُحسب على المحتوى الأصلي لتوافق السجلات السابقة
@@ -1681,9 +1705,9 @@ class GeneralRegistrationController extends Controller
                 return response()->json(['success' => false, 'error' => 'رقم الملف غير صالح للرفع'], 422);
             }
 
-            // كل صيغ الصور الشائعة + PDF (الصور تُحوَّل إلى JPG عند الحفظ)
+            // الصور فقط (تُحوَّل إلى JPG عند الحفظ) — لا PDF ولا فيديو ولا مستندات
             $extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
-            if (!in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'tif', 'tiff', 'ico', 'heic', 'heif', 'jfif', 'pdf'], true)) {
+            if (!in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'tif', 'tiff', 'ico', 'heic', 'heif', 'jfif'], true)) {
                 return response()->json(['success' => false, 'error' => 'نوع الملف غير مسموح'], 422);
             }
 
@@ -1837,6 +1861,9 @@ class GeneralRegistrationController extends Controller
         'image/vnd.microsoft.icon' => 'ico',
         'application/pdf' => 'pdf',
     ];
+
+    /** امتدادات الصور فقط — تُستخدم لفرض «صور فقط» على صفحة التسجيل العامة. */
+    private const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'avif', 'heic', 'tif', 'ico'];
 
     /** كل صورة غير JPEG تُحوَّل إلى JPG قبل الحفظ. */
     private const JPEG_CONVERSION_EXTENSIONS = ['png', 'webp', 'gif', 'bmp', 'avif', 'heic', 'tif', 'ico'];

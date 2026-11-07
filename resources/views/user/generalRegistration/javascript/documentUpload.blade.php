@@ -275,6 +275,24 @@
                     return null;
                 }
 
+                // 📷 صور فقط: رفض المستندات وملفات PDF والفيديو حتى عند الاستدعاء المباشر
+                const attachmentName = (file.name || '').toLowerCase();
+                const attachmentIsImage = (file.type && file.type.startsWith('image/'))
+                    || attachmentName.endsWith('.heic')
+                    || attachmentName.endsWith('.heif')
+                    || /\.(jpe?g|png|webp|gif|bmp|avif|tiff?|ico|jfif)$/.test(attachmentName);
+
+                if (!attachmentIsImage) {
+                    console.warn('[addAttachmentTask] نوع ملف غير مسموح (صور فقط):', file.name);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'نوع الملف غير مدعوم',
+                        text: 'يُسمح بالصور فقط (JPG، PNG، WEBP، HEIC...). لا تُقبل ملفات PDF أو الفيديو أو المستندات.',
+                        confirmButtonText: 'حسناً'
+                    });
+                    return null;
+                }
+
                 // التأكد من أن منطقة الرفع موجودة فعلياً في الصفحة
                 const uploadZone = document.querySelector(`[data-upload-zone="${personKey}"]`);
                 if (!uploadZone) {
@@ -1284,6 +1302,25 @@
                             text: 'يجب اختيار نوع الوثيقة أولاً قبل رفع الملف.',
                             confirmButtonText: 'حسناً'
                         });
+                        return;
+                    }
+
+                    // 📷 صور فقط: منع أي مستند أو PDF أو فيديو قبل إضافته للمهمة
+                    const fileNameLower = (file && file.name ? file.name : '').toLowerCase();
+                    const isImageFile = (file && file.type && file.type.startsWith('image/'))
+                        || isHeicFile(file)
+                        || /\.(jpe?g|png|webp|gif|bmp|avif|tiff?|ico|jfif)$/.test(fileNameLower);
+
+                    if (!isImageFile) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'نوع الملف غير مدعوم',
+                            text: 'يُسمح بالصور فقط (JPG، PNG، WEBP، HEIC...). لا تُقبل ملفات PDF أو الفيديو أو المستندات.',
+                            confirmButtonText: 'حسناً'
+                        });
+                        if (fileInput && fileInput.value) {
+                            fileInput.value = '';
+                        }
                         return;
                     }
 

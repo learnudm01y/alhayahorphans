@@ -105,6 +105,7 @@
         <input type="file"
                class="mainDocumentFileInput document-file-input"
                id="mainDocumentFileInput_{{ $idx }}"
+               accept="image/*,.heic,.heif"
                style="display:none !important; visibility:hidden !important; width:0; height:0; pointer-events:none; opacity:0; position:absolute; left:-9999px;">
         <div class="mainDocumentPreview mt-2" id="mainDocumentPreview_{{ $idx }}"></div>
         <div class="mainDocumentNames mt-2" id="mainDocumentNames_{{ $idx }}"></div>
