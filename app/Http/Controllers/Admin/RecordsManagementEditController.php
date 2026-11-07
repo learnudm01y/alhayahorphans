@@ -258,7 +258,32 @@ class RecordsManagementEditController extends Controller
         // 🪦 جلب المتوفين الإضافيين
         $additionalDeceased = \App\Models\AdditionalDeceased::where('re_file_id', $data->file_id_number)->get();
 
-        return view('admin.dashboard.records_management.show', compact('data', 'guardianSponsorships', 'guardianPortalFields', 'liveMother', 'motherPortalFields', 'livingMotherFields', 'additionalDeceased'));
+        // الجمعيات الكافلة للمعيل والأب والأم والمتوفين الإضافيين في استعلام واحد
+        $cardIdentities = collect([
+            $data->data_id_number,
+            $data->deadPepole->father_id ?? null,
+            $data->deadPepole->mother_id ?? null,
+        ])->merge($additionalDeceased->pluck('person_id'))
+            ->filter(fn($identity) => trim((string) $identity) !== '')
+            ->unique()
+            ->values();
+
+        $personSponsors = collect();
+        if ($cardIdentities->isNotEmpty()) {
+            $sponsorRows = DB::table('sponsorships')
+                ->join('sponsors', 'sponsorships.sponsor_id', '=', 'sponsors.id')
+                ->whereIn('sponsorships.identity_number', $cardIdentities)
+                ->select('sponsorships.identity_number', 'sponsors.id', 'sponsors.sponsor_name')
+                ->distinct()
+                ->get();
+
+            // المفتاح هو هوية البطاقة نفسها حتى لا يختلف تنسيق الرقم المخزن في sponsorships
+            foreach ($cardIdentities as $identity) {
+                $personSponsors->put($identity, $sponsorRows->where('identity_number', $identity)->values());
+            }
+        }
+
+        return view('admin.dashboard.records_management.show', compact('data', 'guardianSponsorships', 'guardianPortalFields', 'liveMother', 'motherPortalFields', 'livingMotherFields', 'additionalDeceased', 'personSponsors'));
     }
 
     /**
@@ -302,7 +327,7 @@ class RecordsManagementEditController extends Controller
 
     public function getAdditionalInfo(Request $request)
     {
-        $type = $request->input('type'); // 'family_member' فقط
+        $type = $request->input('type');
         $personId = $request->input('person_id');
         $fileId = $request->input('file_id');
 
@@ -311,8 +336,11 @@ class RecordsManagementEditController extends Controller
             'sponsorships' => []
         ];
 
-        if ($type === 'family_member') {
-            // جلب البيانات الإضافية لفرد الأسرة فقط
+        // كل الأنواع تُجلب بالهوية نفسها؛ الاختلاف في مصدر البطاقة فقط
+        $allowedTypes = ['family_member', 'guardian', 'father', 'mother', 'additional_deceased'];
+
+        if (in_array($type, $allowedTypes, true) && trim((string) $personId) !== '') {
+            // جلب البيانات الإضافية للشخص
             $portalFields = \App\Models\PortalGeneralRegistrationFieldValue::where('identity_number', $personId)->get();
             foreach ($portalFields as $field) {
                 $response['portal_fields'][] = [
@@ -325,7 +353,7 @@ class RecordsManagementEditController extends Controller
                 ];
             }
 
-            // جلب معلومات الكفالة لفرد الأسرة
+            // جلب معلومات الكفالة للشخص
             $sponsorships = \App\Models\Sponsorship::with(['sponsorshipType', 'sponsorshipStatus', 'sponsors'])
                 ->where('identity_number', $personId)
                 ->get();
@@ -518,7 +546,7 @@ class RecordsManagementEditController extends Controller
      */
     private function formatSponsorshipData($sponsorship, $personId)
     {
-        $isGuardian = $sponsorship->guardian_identity_number === $personId;
+        $isGuardian = (string) $sponsorship->guardian_identity_number === (string) $personId;
         $role = $isGuardian ? 'معيل' : 'مكفول';
 
         return [
@@ -1932,6 +1960,82 @@ class RecordsManagementEditController extends Controller
     }
 
     /**
+     * بناء شخص غير فرد أسرة (معيل/أب/أم/متوفى إضافي) بنفس شكل الفرد ليقرأه قالب التقرير
+     */
+    private function buildExportPerson(string $personType, Data $data, $deadPeople, $additionalId): ?object
+    {
+        if ($personType === 'guardian') {
+            $person = (object) [
+                'id' => 'guardian_' . $data->id,
+                'first_name' => $data->data_first_name,
+                'second_name' => $data->data_father_name,
+                'third_name' => $data->data_grand_father_name,
+                'last_name' => $data->data_family_name,
+                'person_id' => $data->data_id_number,
+                'person_birth_date' => $data->data_birth_date,
+                'person_gender' => $data->data_gender,
+                'healthStatus' => $data->healthStatus,
+                'acadimic_degree' => optional($data->academicQualification)->description,
+                'attachments' => $data->attachments ?? collect(),
+            ];
+        } elseif (in_array($personType, ['father', 'mother'], true)) {
+            if (!$deadPeople) {
+                return null;
+            }
+
+            $person = (object) [
+                'id' => $personType . '_' . $data->id,
+                'first_name' => $deadPeople->{$personType . '_first_name'},
+                'second_name' => $deadPeople->{$personType . '_second_name'},
+                'third_name' => $deadPeople->{$personType . '_third_name'},
+                'last_name' => $deadPeople->{$personType . '_last_name'},
+                'person_id' => $deadPeople->{$personType . '_id'},
+                'person_birth_date' => null,
+                'person_gender' => $personType === 'father' ? 1 : 2,
+                'healthStatus' => null,
+                'acadimic_degree' => null,
+                'attachments' => collect(),
+            ];
+        } elseif ($personType === 'additional_deceased') {
+            $deceased = \App\Models\AdditionalDeceased::where('re_file_id', $data->file_id_number)
+                ->where('id', $additionalId)
+                ->first();
+
+            if (!$deceased) {
+                return null;
+            }
+
+            $person = (object) [
+                'id' => 'ad_' . $deceased->id,
+                'first_name' => $deceased->first_name,
+                'second_name' => $deceased->second_name,
+                'third_name' => $deceased->third_name,
+                'last_name' => $deceased->last_name,
+                'person_id' => $deceased->person_id,
+                'person_birth_date' => null,
+                'person_gender' => null,
+                'healthStatus' => null,
+                'acadimic_degree' => null,
+                'attachments' => collect(),
+            ];
+        } else {
+            return null;
+        }
+
+        if (trim((string) $person->person_id) === '') {
+            return null;
+        }
+
+        if ($personType !== 'guardian') {
+            $person->attachments = \App\Models\Attachment::where('person_identity_number', $person->person_id)->get();
+        }
+
+        $person->is_sponsored = \App\Models\Sponsorship::where('identity_number', $person->person_id)->exists();
+
+        return $person;
+    }
+
+    /**
      * تصدير تقرير الأسرة بصيغة PDF
      */
     public function exportFamilyReport($id, Request $request)
@@ -1959,6 +2063,7 @@ class RecordsManagementEditController extends Controller
             'requestStatus',
             'categoryOfRelation',
             'healthStatus',
+            'academicQualification',
             'city',
             'province',
             'attachments',
@@ -1971,19 +2076,40 @@ class RecordsManagementEditController extends Controller
         // جلب أفراد الأسرة
         $allFamilyMembers = $data->rePeople;
 
-        // البحث عن الفرد المحدد
-        $selectedMember = $allFamilyMembers->firstWhere('id', $memberId);
+        // جلب بيانات المتوفين (الأب/الأم) مع أسباب الوفاة
+        $deadPeople = \App\Models\DeadPepole::with(['fatherDeathReason', 'motherDeathReason'])
+            ->where('re_file_id', $data->file_id_number)
+            ->first();
 
-        if (!$selectedMember) {
-            abort(404, 'الفرد المحدد غير موجود');
+        $personType = (string) $request->query('person_type', 'family_member');
+        $nonMemberTypes = ['guardian', 'father', 'mother', 'additional_deceased'];
+        $isNonMemberExport = in_array($personType, $nonMemberTypes, true);
+
+        if ($isNonMemberExport) {
+            // هوية الشخص تُؤخذ من السجل نفسه لا من الرابط، فلا يمكن تصدير شخص من ملف آخر
+            $selectedMember = $this->buildExportPerson($personType, $data, $deadPeople, $request->query('additional_id'));
+
+            if (!$selectedMember) {
+                abort(404, 'الشخص المحدد غير موجود في هذا الملف أو لا يملك رقم هوية');
+            }
+
+            // لا يُضاف الشخص إلى قائمة الأفراد حتى يبقى «عدد من يعيلهم» صحيحاً
+            $familyMembers = $allFamilyMembers;
+        } else {
+            // البحث عن الفرد المحدد
+            $selectedMember = $allFamilyMembers->firstWhere('id', $memberId);
+
+            if (!$selectedMember) {
+                abort(404, 'الفرد المحدد غير موجود');
+            }
+
+            // ترتيب الأفراد: الفرد المحدد أولاً، ثم الباقي
+            $familyMembers = collect([$selectedMember])->merge(
+                $allFamilyMembers->filter(function($member) use ($memberId) {
+                    return $member->id != $memberId;
+                })
+            );
         }
-
-        // ترتيب الأفراد: الفرد المحدد أولاً، ثم الباقي
-        $familyMembers = collect([$selectedMember])->merge(
-            $allFamilyMembers->filter(function($member) use ($memberId) {
-                return $member->id != $memberId;
-            })
-        );
 
         // حساب عدد الأفراد الذين يعيلهم المعيل عندما تكون القيمة غير متوفرة
         // يتضمن العدد اليتيم الأساسي والموجودين في جدول الإخوة المعروض
@@ -1999,10 +2125,11 @@ class RecordsManagementEditController extends Controller
         $guardianHasSponsorship = \App\Models\Sponsorship::where('identity_number', $data->data_id_number)->exists();
         $data->is_sponsored = $guardianHasSponsorship;
 
-        // جلب بيانات المتوفين (الأب/الأم) مع أسباب الوفاة
-        $deadPeople = \App\Models\DeadPepole::with(['fatherDeathReason', 'motherDeathReason'])
-            ->where('re_file_id', $data->file_id_number)
-            ->first();
+        // يُستبعد الشخص المُصدَّر من الإخوة بالمعرّف أو بالهوية (قد يكون المعيل/المتوفى مدرجاً ضمن الأفراد أيضاً)
+        $siblingMembers = $familyMembers->filter(function ($member) use ($selectedMember) {
+            return $member->id != $selectedMember->id
+                && (string) $member->person_id !== (string) $selectedMember->person_id;
+        })->values();
 
         // جلب بيانات الأم الحية من portal_general_registration_field_values (عند توفرها فقط)
         $liveMother = null;
@@ -2066,6 +2193,11 @@ class RecordsManagementEditController extends Controller
                 $deceasedAttachments = \App\Models\Attachment::whereIn('person_identity_number', $deceasedIdentityNumbers)->get();
                 $allAttachments = $allAttachments->merge($deceasedAttachments);
             }
+        }
+
+        // مرفقات الشخص المُصدَّر عندما لا يكون فرد أسرة (المتوفى الإضافي غير مشمول أعلاه)
+        if ($isNonMemberExport && $selectedMember->attachments) {
+            $allAttachments = $allAttachments->merge($selectedMember->attachments)->unique('id')->values();
         }
 
         // تنظيم الوثائق حسب نوعها
@@ -2174,10 +2306,19 @@ class RecordsManagementEditController extends Controller
             Log::warning('No report design found for sponsor', ['sponsor_id' => $sponsorId]);
         }
 
+        $reportLabels = [
+            'family_member' => 'بيانات اليتيم',
+            'guardian' => 'بيانات المعيل',
+            'father' => 'بيانات الأب المتوفى',
+            'mother' => 'بيانات الأم المتوفية',
+            'additional_deceased' => 'بيانات المتوفى',
+        ];
+
         $viewData = [
             'guardian' => $data,
             'selectedMember' => $selectedMember,
             'familyMembers' => $familyMembers,
+            'siblingMembers' => $siblingMembers,
             'deadPeople' => $deadPeople,
             'liveMother' => $liveMother,
             'documentImages' => $documentImages,
@@ -2187,6 +2328,8 @@ class RecordsManagementEditController extends Controller
             'backgroundBase64' => $backgroundBase64,
             'customDesign' => $customDesign,
             'additionalDeceased' => \App\Models\AdditionalDeceased::where('re_file_id', $data->file_id_number)->get(),
+            'reportLabel' => $reportLabels[$isNonMemberExport ? $personType : 'family_member'],
+            'isGuardianExport' => $personType === 'guardian',
         ];
 
         $fileName = 'family_report_' . $selectedMember->person_id . '.pdf';

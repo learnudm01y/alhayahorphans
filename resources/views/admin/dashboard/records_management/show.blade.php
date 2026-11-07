@@ -568,6 +568,16 @@
                 <span class="text-muted">لا يوجد</span>
             @endif
         </div>
+
+        @include('admin.dashboard.records_management.partials.sponsor_actions', [
+            'personKey' => 'guardian_' . $data->id,
+            'personType' => 'guardian',
+            'personIdentity' => $data->data_id_number,
+            'personName' => trim(($data->data_first_name ?? '') . ' ' . ($data->data_father_name ?? '') . ' ' . ($data->data_grand_father_name ?? '') . ' ' . ($data->data_family_name ?? '')),
+            'recordId' => $data->id,
+            'fileId' => $data->file_id_number,
+            'sponsors' => $personSponsors->get($data->data_id_number, collect()),
+        ])
     </div>
 
     {{-- أفراد الأسرة --}}
@@ -738,6 +748,16 @@
                                         <span class="text-muted">لا يوجد</span>
                                     @endif
                                 </div>
+
+                                @include('admin.dashboard.records_management.partials.sponsor_actions', [
+                                    'personKey' => 'father_' . $data->id,
+                                    'personType' => 'father',
+                                    'personIdentity' => $data->deadPepole->father_id,
+                                    'personName' => trim(($data->deadPepole->father_first_name ?? '') . ' ' . ($data->deadPepole->father_second_name ?? '') . ' ' . ($data->deadPepole->father_third_name ?? '') . ' ' . ($data->deadPepole->father_last_name ?? '')),
+                                    'recordId' => $data->id,
+                                    'fileId' => $data->file_id_number,
+                                    'sponsors' => $personSponsors->get($data->deadPepole->father_id, collect()),
+                                ])
                             </div>
                         </div>
                     </div>
@@ -789,6 +809,16 @@
                                         <span class="text-muted">لا يوجد</span>
                                     @endif
                                 </div>
+
+                                @include('admin.dashboard.records_management.partials.sponsor_actions', [
+                                    'personKey' => 'mother_' . $data->id,
+                                    'personType' => 'mother',
+                                    'personIdentity' => $data->deadPepole->mother_id,
+                                    'personName' => trim(($data->deadPepole->mother_first_name ?? '') . ' ' . ($data->deadPepole->mother_second_name ?? '') . ' ' . ($data->deadPepole->mother_third_name ?? '') . ' ' . ($data->deadPepole->mother_last_name ?? '')),
+                                    'recordId' => $data->id,
+                                    'fileId' => $data->file_id_number,
+                                    'sponsors' => $personSponsors->get($data->deadPepole->mother_id, collect()),
+                                ])
                             </div>
                         </div>
                     </div>
@@ -822,6 +852,17 @@
                                                 <span class="info-value">{{ $adDeceased->death_date }}</span>
                                             </div>
                                         @endif
+
+                                        @include('admin.dashboard.records_management.partials.sponsor_actions', [
+                                            'personKey' => 'ad_' . $adDeceased->id,
+                                            'personType' => 'additional_deceased',
+                                            'personIdentity' => $adDeceased->person_id,
+                                            'personName' => trim(($adDeceased->first_name ?? '') . ' ' . ($adDeceased->second_name ?? '') . ' ' . ($adDeceased->third_name ?? '') . ' ' . ($adDeceased->last_name ?? '')),
+                                            'recordId' => $data->id,
+                                            'fileId' => $data->file_id_number,
+                                            'sponsors' => $personSponsors->get($adDeceased->person_id, collect()),
+                                            'additionalId' => $adDeceased->id,
+                                        ])
                                     </div>
                                 </div>
                             </div>
@@ -1339,22 +1380,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // معالج لتحديث رابط التصدير عند اختيار جمعية
 document.addEventListener('DOMContentLoaded', function() {
-    function updateExportUrl(memberId) {
-        const exportBtn = document.querySelector(`.export-report-btn[data-member-id="${memberId}"]`);
+    function updateExportUrl(key) {
+        const exportBtn = document.querySelector(`.export-report-btn[data-export-key="${key}"]`)
+            || document.querySelector(`.export-report-btn[data-member-id="${key}"]`);
         if (!exportBtn) {
             return;
         }
 
         const originalUrl = new URL(exportBtn.getAttribute('data-original-url') || exportBtn.href, window.location.origin);
         const baseUrl = originalUrl.origin + originalUrl.pathname;
-        const memberIdParam = originalUrl.searchParams.get('member_id');
 
-        const sponsorSelect = document.getElementById(`sponsor_select_${memberId}`);
-
-        const params = new URLSearchParams();
-        if (memberIdParam) {
-            params.set('member_id', memberIdParam);
-        }
+        // تُحفظ كل بارامترات الرابط الأصلي: member_id للأفراد، وperson_type/additional_id لغيرهم
+        const params = new URLSearchParams(originalUrl.searchParams);
+        const sponsorSelect = document.getElementById(`sponsor_select_${key}`);
 
         if (sponsorSelect && sponsorSelect.value) {
             params.set('sponsor_id', sponsorSelect.value);
@@ -1367,20 +1405,20 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     document.querySelectorAll('.export-report-btn').forEach(function(btn) {
-        const memberId = btn.getAttribute('data-member-id');
-        if (!memberId) {
+        const key = btn.getAttribute('data-export-key') || btn.getAttribute('data-member-id');
+        if (!key) {
             return;
         }
 
-        const sponsorSelect = document.getElementById(`sponsor_select_${memberId}`);
+        const sponsorSelect = document.getElementById(`sponsor_select_${key}`);
 
         if (sponsorSelect) {
             sponsorSelect.addEventListener('change', function() {
-                updateExportUrl(memberId);
+                updateExportUrl(key);
             });
         }
 
-        updateExportUrl(memberId);
+        updateExportUrl(key);
     });
 });
 </script>

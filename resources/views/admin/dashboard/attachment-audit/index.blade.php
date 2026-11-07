@@ -44,6 +44,11 @@
             </button>
         </li>
         <li class="nav-item" role="presentation">
+            <button class="nav-link fw-bold" data-bs-toggle="tab" data-bs-target="#deceased-members-tab" type="button" role="tab">
+                <i class="fas fa-user-slash me-2"></i>المتوفون المسجلون كأفراد
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
             <button class="nav-link fw-bold" data-bs-toggle="tab" data-bs-target="#orphan-tab" type="button" role="tab">
                 <i class="fas fa-file-upload me-2"></i>ملفات بدون سجل
             </button>
@@ -758,6 +763,111 @@
                     <div id="mg-empty" class="text-center py-10 text-muted">
                         <i class="fas fa-user-shield text-muted" style="font-size: 3rem;"></i>
                         <p class="mt-3">اضغط "فحص المعيلين" للكشف عن الكفالات بدون بيانات معيل متطابقة</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{-- ===== تبويب المتوفين المسجلين كأفراد ===== --}}
+        <div class="tab-pane fade" id="deceased-members-tab" role="tabpanel">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h5 class="fw-bold mb-0">
+                        <i class="fas fa-user-slash me-2 text-danger"></i>
+                        المتوفون المسجلون أيضاً في جدول الأفراد
+                    </h5>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button class="btn btn-danger" id="btn-delete-deceased-members" style="display:none;">
+                            <i class="fas fa-trash-alt me-2"></i>حذف جماعي من الأفراد
+                            <span class="badge bg-white text-danger ms-1" id="dm-selected-count">0</span>
+                        </button>
+                        <button class="btn btn-primary" id="btn-find-deceased-members">
+                            <i class="fas fa-search me-2"></i>بدء الفحص
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info py-2 px-3 mb-4">
+                        <i class="fas fa-info-circle me-2"></i>
+                        يكشف كل متوفى (أب / أم / متوفى إضافي) له صف أيضاً في <b>الأفراد</b>، في أي ملف.
+                        الحذف يزيل صف الأفراد فقط مع <b>الحفاظ على المرفقات</b> والكفالات وسجلات المتوفين كما هي.
+                        <br>
+                        الصفوف التي <b>لا يطابق اسمها اسم المتوفى</b> تُستثنى من الحذف الجماعي وتبقى في قسم المراجعة اليدوية أدناه.
+                    </div>
+
+                    <div id="dm-loading" class="text-center py-10" style="display:none;">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-3 text-muted">جاري فحص المتوفين المسجلين كأفراد...</p>
+                    </div>
+
+                    <div id="dm-stats" style="display:none;">
+                        <div class="row g-4 mb-4">
+                            <div class="col-md-3">
+                                <div class="card border-danger border-2">
+                                    <div class="card-body text-center py-3">
+                                        <h3 class="fw-bold text-danger mb-0" id="dm-total-rows">0</h3>
+                                        <small class="text-muted">صف متوفى في الأفراد</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card border-success border-2">
+                                    <div class="card-body text-center py-3">
+                                        <h3 class="fw-bold text-success mb-0" id="dm-total-deletable">0</h3>
+                                        <small class="text-muted">مطابق الاسم (قابل للحذف)</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card border-warning border-2">
+                                    <div class="card-body text-center py-3">
+                                        <h3 class="fw-bold text-warning mb-0" id="dm-total-review">0</h3>
+                                        <small class="text-muted">للمراجعة اليدوية</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card border-info border-2">
+                                    <div class="card-body text-center py-3">
+                                        <h3 class="fw-bold text-info mb-0" id="dm-total-files">0</h3>
+                                        <small class="text-muted">ملفات متأثرة</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-warning py-2 px-3 mb-4" id="dm-warning" style="display:none;">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <span id="dm-warning-text"></span>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                            <h6 class="fw-bold mb-0">
+                                <i class="fas fa-check-double me-2 text-success"></i>
+                                صفوف مطابقة الاسم — محددة افتراضياً للحذف الجماعي
+                            </h6>
+                            <div class="form-check mb-0">
+                                <input class="form-check-input" type="checkbox" id="dm-select-all" checked>
+                                <label class="form-check-label fw-bold" for="dm-select-all">تحديد الكل</label>
+                            </div>
+                        </div>
+
+                        <div id="dm-container" class="table-responsive"></div>
+
+                        <div id="dm-review-section" class="mt-5" style="display:none;">
+                            <div class="alert alert-danger py-2 px-3 mb-3">
+                                <i class="fas fa-hand-paper me-2"></i>
+                                <b>مراجعة يدوية مطلوبة.</b>
+                                هذه صفوف هويتها تطابق متوفى لكن <b>اسمها مختلف</b>، وقد تكون لأفراد أحياء أُدخل رقم هوية المتوفى لهم خطأً.
+                                <b>لا يوجد زر حذف لها</b> — افتح الملف وصحّح البيانات يدوياً.
+                            </div>
+                            <div id="dm-review-container" class="table-responsive"></div>
+                        </div>
+                    </div>
+
+                    <div id="dm-empty" class="text-center py-10 text-muted">
+                        <i class="fas fa-user-slash text-muted" style="font-size: 3rem;"></i>
+                        <p class="mt-3">اضغط "بدء الفحص" لاكتشاف المتوفين المسجلين أيضاً في جدول الأفراد</p>
                     </div>
                 </div>
             </div>
@@ -2472,6 +2582,257 @@ $(document).ready(function() {
 
             Swal.fire('تم', 'تم حذف ' + deleted + ' من ' + rows.length + ' صفوف مع الحفاظ على المرفقات', 'success').then(function() {
                 $('#btn-find-dup-persons').trigger('click');
+            });
+        });
+    });
+
+    // =====================================================================
+    // تبويب المتوفين المسجلين كأفراد - فحص + حذف جماعي مع الحفاظ على المرفقات
+    // =====================================================================
+    let deceasedMembersRows = [];
+    const DM_SHOW_URL = '{{ route("admin.records.management.show", ["id" => "__DMID__"]) }}';
+
+    function dmGenderText(value) {
+        if (value === 1 || value === '1') return 'ذكر';
+        if (value === 2 || value === '2') return 'أنثى';
+        return '—';
+    }
+
+    function dmDeceasedCell(row) {
+        return (row.deceased || []).map(function(d) {
+            const fileBadge = d.same_file
+                ? '<span class="badge bg-success">نفس الملف</span>'
+                : '<span class="badge bg-warning text-dark">ملف آخر: ' + mgEscape(d.file) + '</span>';
+            return '<div class="mb-2">' +
+                '<span class="badge bg-secondary me-1">' + mgEscape(d.label) + '</span>' +
+                '<span class="fw-bold">' + mgEscape(d.name || '—') + '</span>' +
+                '<br><small class="text-muted">الوفاة: ' + mgEscape(d.death_date || 'غير مسجلة') + '</small> ' +
+                fileBadge +
+                '</div>';
+        }).join('');
+    }
+
+    function dmFileCell(row) {
+        const willEmpty = !row.name_mismatch && row.file_members_count <= 1;
+        return '<span class="badge bg-secondary">' + mgEscape(row.registration_id) + '</span>' +
+            '<br><small class="text-muted">عدد الأفراد: ' + row.file_members_count + '</small>' +
+            (willEmpty ? '<br><span class="badge bg-danger mt-1">سيصبح بلا أفراد</span>' : '');
+    }
+
+    function dmOpenFileCell(row) {
+        if (!row.data_id) return '<span class="text-muted">—</span>';
+        return '<a href="' + DM_SHOW_URL.replace('__DMID__', row.data_id) + '" target="_blank" class="btn btn-sm btn-outline-primary">' +
+            '<i class="fas fa-external-link-alt"></i> فتح الملف</a>';
+    }
+
+    function buildDeceasedMembersTable(rows, forReview) {
+        if (!rows.length) {
+            return '<p class="text-muted text-center py-4 mb-0">لا توجد صفوف في هذا القسم</p>';
+        }
+
+        let body = '';
+        rows.forEach(function(row) {
+            const firstCell = forReview
+                ? '<td class="text-center"><span class="badge bg-danger">مراجعة يدوية</span></td>'
+                : '<td class="text-center"><input type="checkbox" class="form-check-input dm-row-check" data-row-id="' + row.id + '" checked></td>';
+
+            body += '<tr' + (forReview ? ' class="table-warning"' : '') + '>' +
+                firstCell +
+                '<td class="text-center fw-bold">' + row.id + '</td>' +
+                '<td class="text-center">' + dmFileCell(row) + '</td>' +
+                '<td>' + mgEscape(row.person_id) + '</td>' +
+                '<td class="fw-bold">' + mgEscape(row.full_name || '—') + '</td>' +
+                '<td class="text-center">' + dmGenderText(row.person_gender) + '</td>' +
+                '<td class="text-center">' + mgEscape(row.person_birth_date || '—') + '</td>' +
+                '<td><small>' + mgEscape(row.person_note || '—') + '</small></td>' +
+                '<td>' + dmDeceasedCell(row) + '</td>' +
+                '<td class="text-center">' +
+                '<span class="badge bg-info">' + row.attachments_count + '</span> / ' +
+                '<span class="badge bg-primary">' + row.sponsorships_count + '</span>' +
+                '</td>' +
+                '<td class="text-center">' + dmOpenFileCell(row) + '</td>' +
+                '</tr>';
+        });
+
+        const firstHeader = forReview ? 'الحالة' : 'حذف';
+
+        return '<table class="table table-sm table-hover mb-0 align-middle">' +
+            '<thead class="table-light"><tr>' +
+            '<th class="text-center" style="width:110px;">' + firstHeader + '</th>' +
+            '<th class="text-center" style="width:90px;">معرّف الصف</th>' +
+            '<th class="text-center" style="width:130px;">رقم الملف</th>' +
+            '<th style="width:120px;">رقم الهوية</th>' +
+            '<th>اسم الفرد</th>' +
+            '<th class="text-center" style="width:70px;">الجنس</th>' +
+            '<th class="text-center" style="width:110px;">الميلاد</th>' +
+            '<th style="width:130px;">ملاحظات</th>' +
+            '<th style="width:280px;">سجل المتوفى</th>' +
+            '<th class="text-center" style="width:120px;">مرفقات / كفالات</th>' +
+            '<th class="text-center" style="width:120px;">الملف</th>' +
+            '</tr></thead><tbody>' + body + '</tbody></table>';
+    }
+
+    function dmSelectedIds() {
+        return $('.dm-row-check:checked').map(function() {
+            return parseInt($(this).attr('data-row-id'), 10);
+        }).get();
+    }
+
+    function updateDmSelectedCount() {
+        const count = dmSelectedIds().length;
+        $('#dm-selected-count').text(count);
+        $('#btn-delete-deceased-members').prop('disabled', count === 0);
+    }
+
+    function renderDeceasedMembers(data) {
+        deceasedMembersRows = data.rows || [];
+
+        if (!data.total_rows) {
+            $('#dm-empty').show().html(
+                '<i class="fas fa-check-circle text-success" style="font-size: 3rem;"></i>' +
+                '<p class="mt-3 fw-bold text-success">لا يوجد متوفون مسجلون في جدول الأفراد</p>'
+            );
+            $('#btn-delete-deceased-members').hide();
+            return;
+        }
+
+        const deletable = deceasedMembersRows.filter(function(row) { return !row.name_mismatch; });
+        const review = deceasedMembersRows.filter(function(row) { return row.name_mismatch; });
+
+        $('#dm-total-rows').text(data.total_rows);
+        $('#dm-total-deletable').text(data.total_deletable);
+        $('#dm-total-review').text(data.total_review);
+        $('#dm-total-files').text(data.total_files);
+
+        let warning = 'سيبقى <b>' + data.total_attachments + '</b> مرفقاً و<b>' + data.total_sponsorships + '</b> كفالة كما هي (مرتبطة برقم الهوية).';
+        if (data.total_files_emptied > 0) {
+            warning += '<br><span class="text-danger fw-bold"><i class="fas fa-exclamation-circle me-1"></i>' +
+                data.total_files_emptied + ' ملف سيصبح بلا أي فرد بعد الحذف الجماعي.</span>';
+        }
+        $('#dm-warning-text').html(warning);
+        $('#dm-warning').show();
+
+        $('#dm-container').html(buildDeceasedMembersTable(deletable, false));
+
+        if (review.length) {
+            $('#dm-review-container').html(buildDeceasedMembersTable(review, true));
+            $('#dm-review-section').show();
+        } else {
+            $('#dm-review-container').empty();
+            $('#dm-review-section').hide();
+        }
+
+        $('#dm-select-all').prop('checked', true);
+        $('#dm-stats').show();
+        $('#btn-delete-deceased-members').toggle(deletable.length > 0);
+        updateDmSelectedCount();
+    }
+
+    $('#btn-find-deceased-members').on('click', function() {
+        const $btn = $(this);
+        $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>جاري الفحص...');
+        $('#dm-loading').show();
+        $('#dm-stats').hide();
+        $('#dm-empty').hide();
+        $('#dm-container').empty();
+        $('#dm-review-container').empty();
+        $('#btn-delete-deceased-members').hide();
+
+        $.ajax({
+            url: '{{ route("attachment-audit.deceased-members") }}',
+            method: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    renderDeceasedMembers(response.data);
+                } else {
+                    Swal.fire('خطأ', response.message || 'تعذر الفحص', 'error');
+                }
+            },
+            error: function() {
+                Swal.fire('خطأ', 'حدث خطأ أثناء فحص المتوفين المسجلين كأفراد', 'error');
+            },
+            complete: function() {
+                resetBtnSearch($btn);
+                $('#dm-loading').hide();
+            }
+        });
+    });
+
+    $('#dm-container').on('change', '.dm-row-check', updateDmSelectedCount);
+
+    $('#dm-select-all').on('change', function() {
+        $('.dm-row-check').prop('checked', $(this).is(':checked'));
+        updateDmSelectedCount();
+    });
+
+    function dmSkippedText(skipped) {
+        return (skipped || []).map(function(item) {
+            return 'صف ' + item.id + ': ' + mgEscape(item.reason);
+        }).join('<br>');
+    }
+
+    $('#btn-delete-deceased-members').on('click', function() {
+        const $btn = $(this);
+        const ids = dmSelectedIds();
+
+        if (!ids.length) return;
+
+        const originalHtml = $btn.html();
+        const willEmpty = deceasedMembersRows.filter(function(row) {
+            return !row.name_mismatch && row.file_members_count <= 1 && ids.indexOf(row.id) !== -1;
+        }).length;
+
+        let html = 'سيتم حذف <b>' + ids.length + '</b> صف من جدول الأفراد.' +
+            '<br><span class="text-success">المرفقات والكفالات وسجلات المتوفين محفوظة كما هي.</span>' +
+            '<br><span class="text-danger">بيانات الميلاد والعمر والملاحظات في هذه الصفوف ستُحذف نهائياً.</span>';
+
+        if (willEmpty > 0) {
+            html += '<br><span class="text-danger fw-bold">' + willEmpty + ' ملف سيصبح بلا أي فرد.</span>';
+        }
+
+        Swal.fire({
+            title: 'حذف جماعي من الأفراد',
+            html: html,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، احذف',
+            cancelButtonText: 'إلغاء',
+            confirmButtonColor: '#f64e60'
+        }).then(function(result) {
+            if (!result.isConfirmed) return;
+
+            $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>جاري الحذف...');
+
+            $.ajax({
+                url: '{{ route("attachment-audit.deceased-members.delete") }}',
+                method: 'POST',
+                data: { row_ids: ids },
+                success: function(response) {
+                    if (!response.success) {
+                        Swal.fire('خطأ', response.message || 'تعذر الحذف', 'error');
+                        return;
+                    }
+                    const payload = response.data || {};
+                    let message = response.message || 'تم الحذف';
+                    if (payload.skipped && payload.skipped.length) {
+                        message += '<br><br><b>تم تخطي ' + payload.skipped.length + ' صف:</b><br>' + dmSkippedText(payload.skipped);
+                    }
+                    Swal.fire({ title: 'تم', html: message, icon: 'success' }).then(function() {
+                        $('#btn-find-deceased-members').trigger('click');
+                    });
+                },
+                error: function(xhr) {
+                    const payload = xhr.responseJSON || {};
+                    let message = payload.message || 'تعذر حذف السجلات';
+                    if (payload.data && payload.data.skipped && payload.data.skipped.length) {
+                        message += '<br><br>' + dmSkippedText(payload.data.skipped);
+                    }
+                    Swal.fire('لم يُحذف شيء', message, 'error');
+                },
+                complete: function() {
+                    $btn.html(originalHtml);
+                    updateDmSelectedCount();
+                }
             });
         });
     });

@@ -640,12 +640,12 @@ table.compact-live-mother-table thead th:nth-child(6) {
                 <table class="layout-table">
                     <tr>
                         <!-- Orphan Table (Right Side in RTL) -->
-                        <td>
+                        <td @if($isGuardianExport ?? false) colspan="2" @endif>
                             <div class="table-block orphan-block">
                                 <table class="styled-table">
                                     <thead>
                                         <tr>
-                                            <th colspan="3" class="main-header">بيانات اليتيم</th>
+                                            <th colspan="3" class="main-header">{{ $reportLabel ?? 'بيانات اليتيم' }}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -711,7 +711,7 @@ table.compact-live-mother-table thead th:nth-child(6) {
                                                     }
                                                 @endphp
                                                 @if($orphanPhotoPath)
-                                                    <img src="{{ $orphanPhotoPath }}" alt="صورة اليتيم">
+                                                    <img src="{{ $orphanPhotoPath }}" alt="صورة الشخص">
                                                 @else
                                                     <div class="orphan-photo-placeholder">لا توجد صورة</div>
                                                 @endif
@@ -723,7 +723,7 @@ table.compact-live-mother-table thead th:nth-child(6) {
                                         </tr>
                                         <tr>
                                             <td class="label">الجنس</td>
-                                            <td class="value">{{ $selectedMember->sex_id == 1 ? 'ذكر' : ('انثى' ?? 'غير محدد') }}</td>
+                                            <td class="value">{{ $selectedMember->person_gender == 1 ? 'ذكر' : ($selectedMember->person_gender == 2 ? 'أنثى' : 'غير متوفر') }}</td>
                                         </tr>
                                         <tr>
                                             <td class="label">الحالة الصحية</td>
@@ -754,6 +754,7 @@ table.compact-live-mother-table thead th:nth-child(6) {
                                 </table>
                             </div>
                         </td>
+                        @if(!($isGuardianExport ?? false))
                         <!-- Guardian Table (Left Side in RTL) -->
                         <td>
                             <div class="table-block guardian-block">
@@ -854,6 +855,7 @@ table.compact-live-mother-table thead th:nth-child(6) {
                                 </table>
                             </div>
                         </td>
+                        @endif
                     </tr>
                 </table>
             </div>
@@ -875,20 +877,18 @@ table.compact-live-mother-table thead th:nth-child(6) {
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($familyMembers as $index => $member)
-                            @if($member->id != $selectedMember->id)
+                        @foreach($siblingMembers as $index => $member)
                             <tr>
                                 <td>{{ $member->first_name }} {{ $member->second_name }} {{ $member->third_name }} {{ $member->last_name }}</td>
                                 <td>{{ $member->person_id }}</td>
-                                <td>{{ $member->sex_id == 1 ? 'ذكر' : 'انثى' }}</td>
+                                <td>{{ $member->person_gender == 1 ? 'ذكر' : ($member->person_gender == 2 ? 'أنثى' : 'غير متوفر') }}</td>
                                 <td>{{ $member->person_birth_date ? \Carbon\Carbon::parse($member->person_birth_date)->format('d/m/Y') : 'غير متوفر' }}</td>
                                 <td>{{ $member->acadimic_degree ?? 'غير متوفر' }}</td>
                                 <td>{{ $member->healthStatus->description ?? 'غير متوفر' }}</td>
                                 <td>{{ $member->is_sponsored ? 'مكفول' : 'غير مكفول' }}</td>
                             </tr>
-                            @endif
                         @endforeach
-                        @if($familyMembers->count() <= 1)
+                        @if($siblingMembers->isEmpty())
                             <tr>
                                 <td colspan="7" style="text-align: center; padding: 20px;">لا يوجد إخوة آخرون</td>
                             </tr>
@@ -1025,10 +1025,7 @@ table.compact-live-mother-table thead th:nth-child(6) {
             <div class="photos-grid">
                 <table>
                     @php
-                        $photoMembers = $familyMembers->filter(function($m) use ($selectedMember) {
-                            return $m->id != $selectedMember->id;
-                        });
-                        $chunks = $photoMembers->chunk(6);
+                        $chunks = $siblingMembers->chunk(6);
                     @endphp
                     @foreach($chunks as $chunk)
                     <tr>
@@ -1094,7 +1091,7 @@ table.compact-live-mother-table thead th:nth-child(6) {
                         @endif
                     </tr>
                     @endforeach
-                    @if($photoMembers->count() == 0)
+                    @if($siblingMembers->isEmpty())
                         <tr>
                             <td colspan="6" style="text-align: center; padding: 30px;">لا توجد صور إضافية</td>
                         </tr>

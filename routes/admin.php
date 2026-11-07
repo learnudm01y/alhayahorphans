@@ -480,6 +480,8 @@ Route::prefix('admin')->group(function () {
     Route::post('attachment-audit/duplicate-guardians/merge-all', [AttachmentAuditController::class, 'mergeAllDuplicateGuardians'])->name('attachment-audit.duplicate-guardians.merge-all');
     Route::get('attachment-audit/duplicate-persons', [AttachmentAuditController::class, 'findDuplicatePersons'])->name('attachment-audit.duplicate-persons');
     Route::post('attachment-audit/duplicate-persons/delete', [AttachmentAuditController::class, 'deleteDuplicatePerson'])->name('attachment-audit.duplicate-persons.delete');
+    Route::get('attachment-audit/deceased-members', [AttachmentAuditController::class, 'findDeceasedMembers'])->name('attachment-audit.deceased-members');
+    Route::post('attachment-audit/deceased-members/delete', [AttachmentAuditController::class, 'deleteDeceasedMembers'])->name('attachment-audit.deceased-members.delete');
     Route::get('attachment-audit/missing-guardians', [AttachmentAuditController::class, 'findMissingGuardians'])->name('attachment-audit.missing-guardians');
     Route::post('attachment-audit/missing-guardians/fix', [AttachmentAuditController::class, 'fixGuardian'])->name('attachment-audit.missing-guardians.fix');
     Route::post('attachment-audit/missing-guardians/fix-all', [AttachmentAuditController::class, 'fixAllGuardians'])->name('attachment-audit.missing-guardians.fix-all');

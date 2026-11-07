@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log;
 
 class AttachmentAuditService
 {
@@ -292,6 +294,408 @@ class AttachmentAuditService
             'remaining_count' => count($remaining),
             'remaining' => $remaining,
         ];
+    }
+
+    /**
+     * فحص المتوفين المسجلين أيضاً كأفراد في re_people (قراءة فقط)
+     * المطابقة على رقم الهوية في أي ملف، مع تمييز الصفوف التي لا يطابق اسمها اسم المتوفى
+     */
+    public function findDeceasedMembers(): array
+    {
+        $result = [
+            'total_rows' => 0,
+            'total_deletable' => 0,
+            'total_review' => 0,
+            'total_files' => 0,
+            'total_files_emptied' => 0,
+            'total_attachments' => 0,
+            'total_sponsorships' => 0,
+            'rows' => [],
+        ];
+
+        if (!Schema::hasTable('re_people') || !Schema::hasTable('dead_people')) {
+            return $result;
+        }
+
+        $deceased = $this->collectDeceasedIdentities();
+
+        if (empty($deceased)) {
+            return $result;
+        }
+
+        $members = collect();
+
+        foreach (array_chunk(array_keys($deceased), 500) as $chunk) {
+            $members = $members->merge(
+                DB::table('re_people')->whereIn('person_id', $chunk)->orderBy('id')->get()
+            );
+        }
+
+        if ($members->isEmpty()) {
+            return $result;
+        }
+
+        $identities = $members->pluck('person_id')->map(fn ($value) => trim((string) $value))->unique()->values()->all();
+        $files = $members->pluck('registration_id')->map(fn ($value) => (string) $value)->unique()->values()->all();
+
+        $attachmentCounts = $this->countRowsByIdentity('attachments', 'person_identity_number', $identities);
+        $sponsorshipCounts = $this->countRowsByIdentity('sponsorships', 'identity_number', $identities);
+        $dataIdsByFile = $this->mapDataIdsByFile($files);
+        $memberCountsByFile = $this->countMembersByFile($files);
+
+        $rows = [];
+        $deletableByFile = [];
+        $reviewCount = 0;
+
+        foreach ($members as $member) {
+            $identity = trim((string) $member->person_id);
+            $sources = array_values($deceased[$identity] ?? []);
+
+            if (empty($sources)) {
+                continue;
+            }
+
+            $file = (string) $member->registration_id;
+            $fullName = $this->personFullName($member);
+            $nameMismatch = !$this->deceasedNameMatches($fullName, $sources);
+
+            foreach ($sources as $index => $source) {
+                $sources[$index]['same_file'] = $source['file'] === $file;
+            }
+
+            if ($nameMismatch) {
+                $reviewCount++;
+            } else {
+                $deletableByFile[$file] = ($deletableByFile[$file] ?? 0) + 1;
+            }
+
+            $rows[] = [
+                'id' => (int) $member->id,
+                'registration_id' => $file,
+                'person_id' => $identity,
+                'full_name' => $fullName,
+                'person_birth_date' => $member->person_birth_date,
+                'person_gender' => $member->person_gender,
+                'person_note' => $member->person_note,
+                'attachments_count' => $attachmentCounts[$identity] ?? 0,
+                'sponsorships_count' => $sponsorshipCounts[$identity] ?? 0,
+                'name_mismatch' => $nameMismatch,
+                'data_id' => $dataIdsByFile[$file] ?? null,
+                'file_members_count' => $memberCountsByFile[$file] ?? 0,
+                'deceased' => $sources,
+            ];
+        }
+
+        $filesEmptied = 0;
+
+        foreach ($deletableByFile as $file => $count) {
+            if (($memberCountsByFile[$file] ?? 0) - $count <= 0) {
+                $filesEmptied++;
+            }
+        }
+
+        $identityKeys = array_flip($identities);
+
+        $result['total_rows'] = count($rows);
+        $result['total_deletable'] = count($rows) - $reviewCount;
+        $result['total_review'] = $reviewCount;
+        $result['total_files'] = count($files);
+        $result['total_files_emptied'] = $filesEmptied;
+        $result['total_attachments'] = array_sum(array_intersect_key($attachmentCounts, $identityKeys));
+        $result['total_sponsorships'] = array_sum(array_intersect_key($sponsorshipCounts, $identityKeys));
+        $result['rows'] = $rows;
+
+        return $result;
+    }
+
+    /**
+     * حذف صفوف المتوفين من re_people فقط
+     * المرفقات والكفالات وسجلات المتوفين مرتبطة برقم الهوية لا بمعرّف الصف، فلا يمسها الحذف
+     * الصفوف التي لا يطابق اسمها اسم المتوفى تُرفض حتى لو طُلبت صراحةً
+     */
+    public function deleteDeceasedMemberRows(array $rowIds): array
+    {
+        $ids = array_values(array_filter(array_unique(array_map('intval', $rowIds)), fn ($id) => $id > 0));
+
+        if (empty($ids)) {
+            return ['deleted' => 0, 'requested' => 0, 'skipped' => [], 'message' => 'لا توجد صفوف صالحة للحذف'];
+        }
+
+        if (count($ids) > 500) {
+            return ['deleted' => 0, 'requested' => count($ids), 'skipped' => [], 'message' => 'الحد الأقصى 500 صف في الدفعة الواحدة'];
+        }
+
+        if (!Schema::hasTable('re_people') || !Schema::hasTable('dead_people')) {
+            return ['deleted' => 0, 'requested' => count($ids), 'skipped' => [], 'message' => 'الجداول المطلوبة غير موجودة'];
+        }
+
+        $deceased = $this->collectDeceasedIdentities();
+
+        $rowsById = [];
+
+        foreach (DB::table('re_people')->whereIn('id', $ids)->get() as $row) {
+            $rowsById[(int) $row->id] = $row;
+        }
+
+        $deleteIds = [];
+        $skipped = [];
+
+        foreach ($ids as $id) {
+            if (!isset($rowsById[$id])) {
+                $skipped[] = ['id' => $id, 'reason' => 'السجل غير موجود'];
+                continue;
+            }
+
+            $row = $rowsById[$id];
+            $identity = trim((string) $row->person_id);
+
+            if ($identity === '' || !isset($deceased[$identity])) {
+                $skipped[] = ['id' => $id, 'reason' => 'لم يعد هذا الصف مطابقاً لسجل متوفى'];
+                continue;
+            }
+
+            if (!$this->deceasedNameMatches($this->personFullName($row), array_values($deceased[$identity]))) {
+                $skipped[] = ['id' => $id, 'reason' => 'اسم الفرد لا يطابق اسم المتوفى — يتطلب مراجعة يدوية'];
+                continue;
+            }
+
+            $deleteIds[] = $id;
+        }
+
+        if (empty($deleteIds)) {
+            return [
+                'deleted' => 0,
+                'requested' => count($ids),
+                'skipped' => $skipped,
+                'message' => 'لم يُحذف أي صف: كل الصفوف المطلوبة غير مؤهلة للحذف',
+            ];
+        }
+
+        DB::transaction(function () use ($deleteIds) {
+            DB::table('re_people')->whereIn('id', $deleteIds)->delete();
+        });
+
+        Log::info('AttachmentAudit: deceased member rows deleted', [
+            'user_id' => auth()->id(),
+            'requested' => count($ids),
+            'deleted' => count($deleteIds),
+            'row_ids' => $deleteIds,
+            'skipped' => $skipped,
+        ]);
+
+        return [
+            'deleted' => count($deleteIds),
+            'requested' => count($ids),
+            'deleted_row_ids' => $deleteIds,
+            'skipped' => $skipped,
+            'message' => 'تم حذف ' . count($deleteIds) . ' صف من الأفراد مع الحفاظ على المرفقات وسجلات المتوفين',
+        ];
+    }
+
+    /**
+     * خريطة هوية => مصادر الوفاة، منزوعة التكرار لأن dead_people يحمل صفوفاً مكررة لكل ملف
+     */
+    private function collectDeceasedIdentities(): array
+    {
+        $map = [];
+        $roles = [];
+        $deathColumns = [];
+
+        foreach (['father', 'mother'] as $role) {
+            if (Schema::hasColumn('dead_people', $role . '_id')) {
+                $roles[] = $role;
+                $deathColumns[$role] = Schema::hasColumn('dead_people', $role . '_death_date');
+            }
+        }
+
+        if (!empty($roles)) {
+            foreach (DB::table('dead_people')->get() as $row) {
+                foreach ($roles as $role) {
+                    $column = $role . '_id';
+                    $identity = trim((string) ($row->$column ?? ''));
+
+                    if ($identity === '' || $identity === '0') {
+                        continue;
+                    }
+
+                    $deathColumn = $role . '_death_date';
+                    $this->pushDeceasedSource(
+                        $map,
+                        $identity,
+                        $role,
+                        (string) ($row->re_file_id ?? ''),
+                        $this->personFullName($row, $role . '_'),
+                        $deathColumns[$role] ? ($row->$deathColumn ?? null) : null
+                    );
+                }
+            }
+        }
+
+        if (Schema::hasTable('additional_deceased') && Schema::hasColumn('additional_deceased', 'person_id')) {
+            foreach (DB::table('additional_deceased')->get() as $row) {
+                $identity = trim((string) ($row->person_id ?? ''));
+
+                if ($identity === '' || $identity === '0') {
+                    continue;
+                }
+
+                $this->pushDeceasedSource(
+                    $map,
+                    $identity,
+                    'additional',
+                    (string) ($row->re_file_id ?? ''),
+                    $this->personFullName($row),
+                    $row->death_date ?? null
+                );
+            }
+        }
+
+        return $map;
+    }
+
+    private function pushDeceasedSource(array &$map, string $identity, string $source, string $file, string $name, $deathDate): void
+    {
+        $labels = ['father' => 'الأب', 'mother' => 'الأم', 'additional' => 'متوفى إضافي'];
+        $key = $source . '|' . $file . '|' . $name . '|' . (string) $deathDate;
+
+        if (isset($map[$identity][$key])) {
+            return;
+        }
+
+        $map[$identity][$key] = [
+            'source' => $source,
+            'label' => $labels[$source] ?? $source,
+            'file' => $file,
+            'name' => $name,
+            'death_date' => $deathDate,
+        ];
+    }
+
+    private function personFullName($row, string $prefix = ''): string
+    {
+        $parts = [];
+
+        foreach (['first_name', 'second_name', 'third_name', 'last_name'] as $part) {
+            $column = $prefix . $part;
+            $value = trim((string) ($row->$column ?? ''));
+
+            if ($value !== '') {
+                $parts[] = $value;
+            }
+        }
+
+        return implode(' ', $parts);
+    }
+
+    /**
+     * توحيد الهمزات والتاء المربوطة والألف المقصورة وإزالة التشكيل والتطويل
+     * حتى لا يُعتبر اختلاف الرسم الإملائي شخصاً مختلفاً
+     */
+    private function normalizeArabicName(string $name): string
+    {
+        $name = trim(preg_replace('/\s+/u', ' ', $name));
+        $name = str_replace(
+            ['أ', 'إ', 'آ', 'ٱ', 'ى', 'ة', 'ؤ', 'ئ'],
+            ['ا', 'ا', 'ا', 'ا', 'ي', 'ه', 'و', 'ي'],
+            $name
+        );
+
+        return preg_replace('/[\x{064B}-\x{065F}\x{0670}\x{0640}]/u', '', $name);
+    }
+
+    private function deceasedNameMatches(string $memberName, array $sources): bool
+    {
+        $member = $this->normalizeArabicName($memberName);
+
+        if ($member === '') {
+            return false;
+        }
+
+        $memberParts = explode(' ', $member);
+        $memberLast = end($memberParts);
+
+        foreach ($sources as $source) {
+            $deceased = $this->normalizeArabicName((string) ($source['name'] ?? ''));
+
+            if ($deceased === '') {
+                continue;
+            }
+
+            if ($deceased === $member) {
+                return true;
+            }
+
+            $deceasedParts = explode(' ', $deceased);
+
+            if ($memberParts[0] === $deceasedParts[0] && $memberLast === end($deceasedParts)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function countRowsByIdentity(string $table, string $column, array $identities): array
+    {
+        if (empty($identities) || !Schema::hasTable($table) || !Schema::hasColumn($table, $column)) {
+            return [];
+        }
+
+        $counts = [];
+
+        foreach (array_chunk($identities, 500) as $chunk) {
+            $rows = DB::table($table)
+                ->selectRaw($column . ' AS identity_value, COUNT(*) AS total')
+                ->whereIn($column, $chunk)
+                ->groupBy($column)
+                ->get();
+
+            foreach ($rows as $row) {
+                $counts[trim((string) $row->identity_value)] = (int) $row->total;
+            }
+        }
+
+        return $counts;
+    }
+
+    private function mapDataIdsByFile(array $files): array
+    {
+        if (empty($files) || !Schema::hasTable('data')) {
+            return [];
+        }
+
+        $map = [];
+
+        foreach (array_chunk($files, 500) as $chunk) {
+            foreach (DB::table('data')->whereIn('file_id_number', $chunk)->get(['id', 'file_id_number']) as $row) {
+                $map[(string) $row->file_id_number] = (int) $row->id;
+            }
+        }
+
+        return $map;
+    }
+
+    private function countMembersByFile(array $files): array
+    {
+        if (empty($files)) {
+            return [];
+        }
+
+        $counts = [];
+
+        foreach (array_chunk($files, 500) as $chunk) {
+            $rows = DB::table('re_people')
+                ->selectRaw('registration_id, COUNT(*) AS total')
+                ->whereIn('registration_id', $chunk)
+                ->groupBy('registration_id')
+                ->get();
+
+            foreach ($rows as $row) {
+                $counts[(string) $row->registration_id] = (int) $row->total;
+            }
+        }
+
+        return $counts;
     }
 
     /**

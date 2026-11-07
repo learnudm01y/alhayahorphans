@@ -120,6 +120,61 @@ class AttachmentAuditController extends Controller
     }
 
     /**
+     * كشف المتوفين المسجلين أيضاً كأفراد في re_people (للقراءة فقط)
+     */
+    public function findDeceasedMembers()
+    {
+        try {
+            $results = $this->auditService->findDeceasedMembers();
+
+            return response()->json([
+                'success' => true,
+                'data' => $results,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('AttachmentAudit: Error finding deceased members', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء فحص المتوفين المسجلين كأفراد: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * حذف جماعي لصفوف المتوفين من re_people مع الحفاظ على المرفقات وسجلات المتوفين
+     */
+    public function deleteDeceasedMembers(Request $request)
+    {
+        $data = $request->validate([
+            'row_ids' => 'required|array|min:1|max:500',
+            'row_ids.*' => 'integer|min:1',
+        ]);
+
+        try {
+            $result = $this->auditService->deleteDeceasedMemberRows($data['row_ids']);
+
+            return response()->json([
+                'success' => $result['deleted'] > 0,
+                'message' => $result['message'],
+                'data' => $result,
+            ], $result['deleted'] > 0 ? 200 : 422);
+        } catch (\Exception $e) {
+            Log::error('AttachmentAudit: Error deleting deceased member rows', [
+                'error' => $e->getMessage(),
+                'row_ids' => $data['row_ids'] ?? [],
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'حدث خطأ أثناء حذف السجلات: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * كشف المكررات حسب المسار
      */
     public function findDuplicatePaths()
