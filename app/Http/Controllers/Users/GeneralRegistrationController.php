@@ -352,7 +352,173 @@ class GeneralRegistrationController extends Controller
         );
     }
 
+    /** مدة اعتبار الطلب «قيد المعالجة» (ثوانٍ) وبعدها يُسمح بإعادة المحاولة بنفس المعرّف */
+    private const REQUEST_ID_PROCESSING_TTL = 600;
+    /** مدة حفظ نتيجة الطلب الناجح لإعادتها عند تكرار الإرسال بنفس المعرّف */
+    private const REQUEST_ID_DONE_TTL = 3600;
+
+    /** تتبّع تقدّم الحفظ (يُقرأ عبر مسار save-progress بنفس معرّف الطلب) */
+    private ?\App\Support\PortalSaveProgress $saveProgress = null;
+
+    /**
+     * نقطة الدخول لحفظ التسجيل العام.
+     *
+     * إن وصل معرّف طلب فريد (الترويسة X-Request-Id أو الحقل request_id) يُعالَج الطلب مرة واحدة فقط:
+     *  - نفس المعرّف بعد نجاح الطلب الأول: تُعاد النتيجة السابقة دون إعادة معالجة (لا مرفقات مكررة).
+     *  - نفس المعرّف والطلب الأول ما زال يعمل: 409 «قيد المعالجة».
+     *  - بعد أي فشل يُحرَّر المعرّف فيُسمح بإعادة المحاولة.
+     * بدون معرّف (مثل مسار واتساب الداخلي) يبقى السلوك القديم كما هو.
+     */
     public function store(Request $request)
+    {
+        $requestId = $this->sanitizeRequestId($request->header('X-Request-Id') ?: $request->input('request_id'));
+
+        if ($requestId === null) {
+            return $this->storeInternal($request);
+        }
+
+        $key = 'public_reg_req:' . $requestId;
+        $wantsJson = $request->ajax() || $request->wantsJson();
+
+        if (!Cache::add($key, ['status' => 'processing', 'at' => time()], self::REQUEST_ID_PROCESSING_TTL)) {
+            $existing = Cache::get($key);
+
+            if (is_array($existing) && ($existing['status'] ?? null) === 'done') {
+                Log::info('♻️ طلب تسجيل مكرر بنفس المعرّف: إعادة النتيجة السابقة دون معالجة', [
+                    'request_id_prefix' => substr($requestId, 0, 8),
+                ]);
+
+                $redirect = (string) ($existing['redirect'] ?? route('user.thank.you.page'));
+                if ($wantsJson) {
+                    return response()->json([
+                        'success' => true,
+                        'duplicate' => true,
+                        'redirect' => $redirect,
+                        'warnings' => $existing['warnings'] ?? [],
+                        'skipped_attachments' => $existing['warnings'] ?? [],
+                        'pending_transfers_count' => $existing['pending_transfers_count'] ?? 0,
+                    ]);
+                }
+
+                return redirect($redirect);
+            }
+
+            Log::info('⏳ طلب تسجيل مكرر بنفس المعرّف والطلب الأول قيد المعالجة', [
+                'request_id_prefix' => substr($requestId, 0, 8),
+            ]);
+
+            $processingMessage = 'طلبك قيد الحفظ حالياً، يرجى الانتظار وعدم إعادة الإرسال.';
+            if ($wantsJson) {
+                return response()->json([
+                    'success' => false,
+                    'processing' => true,
+                    'message' => $processingMessage,
+                ], 409);
+            }
+
+            return redirect()->back()->withInput()->with('error', $processingMessage);
+        }
+
+        $this->saveProgress = class_exists(\App\Support\PortalSaveProgress::class)
+            ? new \App\Support\PortalSaveProgress($requestId)
+            : null;
+        $this->progressUpdate(2, 'جاري استلام البيانات...');
+
+        try {
+            $response = $this->storeInternal($request);
+        } catch (\Throwable $e) {
+            Cache::forget($key);
+            $this->progressFail('تعذّر إكمال الحفظ، يرجى المحاولة مرة أخرى.');
+            throw $e;
+        }
+
+        $this->settleRequest($key, $response);
+
+        return $response;
+    }
+
+    private function sanitizeRequestId($value): ?string
+    {
+        $value = is_string($value) ? trim($value) : '';
+
+        return preg_match('/^[A-Za-z0-9\-]{16,64}$/', $value) === 1 ? $value : null;
+    }
+
+    /** يحسم نتيجة الطلب: النجاح يُخزَّن لإعادته عند التكرار، والفشل يُحرّر المعرّف. */
+    private function settleRequest(string $key, $response): void
+    {
+        $success = false;
+        $redirect = null;
+        $extra = [];
+        $failureMessage = 'تعذّر إكمال الحفظ، يرجى المحاولة مرة أخرى.';
+
+        if ($response instanceof \Illuminate\Http\JsonResponse) {
+            $data = $response->getData(true);
+            $success = $response->getStatusCode() < 400 && !empty($data['success']);
+            $redirect = $data['redirect'] ?? null;
+            $extra = [
+                'warnings' => $data['warnings'] ?? [],
+                'pending_transfers_count' => $data['pending_transfers_count'] ?? 0,
+            ];
+            if (!empty($data['message']) && is_string($data['message'])) {
+                $failureMessage = $data['message'];
+            }
+        } elseif ($response instanceof \Illuminate\Http\RedirectResponse) {
+            $thankYou = route('user.thank.you.page');
+            $success = $response->getTargetUrl() === $thankYou;
+            $redirect = $success ? $thankYou : null;
+        }
+
+        if ($success) {
+            Cache::put($key, array_merge([
+                'status' => 'done',
+                'redirect' => $redirect,
+            ], $extra), self::REQUEST_ID_DONE_TTL);
+            $this->progressDone($redirect);
+            return;
+        }
+
+        Cache::forget($key);
+        $this->progressFail($failureMessage);
+    }
+
+    private function progressUpdate(int $percent, string $message): void
+    {
+        if ($this->saveProgress !== null) {
+            $this->saveProgress->update($percent, $message);
+        }
+    }
+
+    private function progressStartFiles(int $total): void
+    {
+        if ($this->saveProgress !== null && $total > 0) {
+            $this->saveProgress->startFiles($total, 0);
+        }
+    }
+
+    private function progressAttachmentStep(string $label): void
+    {
+        if ($this->saveProgress !== null) {
+            $this->saveProgress->fileStart($label);
+            $this->saveProgress->fileDone(0);
+        }
+    }
+
+    private function progressDone(?string $redirect): void
+    {
+        if ($this->saveProgress !== null) {
+            $this->saveProgress->done('تم حفظ الطلب بنجاح', ['redirect' => $redirect]);
+        }
+    }
+
+    private function progressFail(string $message): void
+    {
+        if ($this->saveProgress !== null) {
+            $this->saveProgress->fail($message);
+        }
+    }
+
+    private function storeInternal(Request $request)
     {
         $maxRetries = 3;
         $retryCount = 0;
@@ -635,6 +801,7 @@ class GeneralRegistrationController extends Controller
             }
 
             DB::beginTransaction();
+            $this->progressUpdate(10, 'جاري إنشاء وحفظ بيانات الاستمارة...');
 
             // ================================================
             // 🔄 إعادة فحص تكرار رقم الملف نفسه داخل المعاملة
@@ -1213,8 +1380,14 @@ class GeneralRegistrationController extends Controller
             // 🛡️ منع التكرار داخل نفس الطلب: مفتاح فريد = شخص + نوع الوثيقة + بصمة المحتوى
             $seenAttachments = [];
             $pendingStores = [];
+            // مصادر مؤقتة أصلية لا تُحذف إلا بعد نجاح الـ commit (وإلا ضاعت عند إعادة المحاولة/التراجع)
+            $deferredTempCleanup = [];
+
+            $this->progressUpdate(40, 'تم حفظ بيانات الاستمارة — جاري معالجة المرفقات...');
+            $this->progressStartFiles(is_array($attachmentsData) ? count($attachmentsData) : 0);
 
             foreach ($attachmentsData as $index => $data) {
+                $this->progressAttachmentStep('مرفق ' . (is_numeric($index) ? ((int) $index + 1) : $index));
                 // استقبال الملف بشكل صحيح
                 $file = $request->hasFile("attachments.$index.file") ? $request->file("attachments.$index.file") : null;
                 $tempPath = $data['temp_path'] ?? null;
@@ -1222,23 +1395,34 @@ class GeneralRegistrationController extends Controller
                 // 🛡️ (2.2) temp_path يُستقبل من العميل: صيغة صارمة + احتواء فعلي داخل مجلد الرفع المؤقت
                 $tempPath = is_string($tempPath) ? trim($tempPath) : null;
                 $tempPathRejected = false;
+                $tempPathRejection = null;
                 if ($tempPath === '') {
                     $tempPath = null;
-                } elseif ($tempPath !== null && !$this->isAllowedTempPath($tempPath)) {
-                    Log::warning('🚫 تجاهل temp_path غير صالح أو خارج مجلد الرفع المؤقت', ['index' => $index]);
+                } elseif ($tempPath !== null && ($tempPathRejection = $this->tempPathRejection($tempPath)) !== null) {
+                    // السبب يُسجَّل بدقة؛ وإن وصل مع المرفق ملف حقيقي يُستخدم الملف ولا يُسقط المرفق
+                    Log::warning('🚫 تجاهل temp_path غير صالح أو خارج مجلد الرفع المؤقت', [
+                        'index' => $index,
+                        'rejection' => $tempPathRejection,
+                        'has_uploaded_file' => (bool) $file,
+                    ]);
                     $tempPath = null;
                     $tempPathRejected = true;
                 }
 
                 if (!$file && !$tempPath) {
+                    // الملف المؤقت المفقود غالباً نُقل/حُذف (طلب سابق أو تنظيف دوري) فيُطلب من المستخدم إعادة رفعه
+                    $tempMissing = in_array($tempPathRejection, ['file_not_found', 'not_a_file'], true);
                     $this->recordSkippedAttachment(
                         $skippedAttachments,
                         $index,
                         $data,
                         $tempPathRejected ? 'invalid_temp_path' : 'missing_file',
                         $tempPathRejected
-                            ? 'مسار الرفع المؤقت غير صالح، ولم يصل الملف مع الطلب.'
-                            : 'لم يتم استقبال ملف المرفق.'
+                            ? ($tempMissing
+                                ? 'انتهت صلاحية الملف المؤقت أو نُقل بطلب سابق ولم يصل الملف مع الطلب، يرجى إعادة رفعه.'
+                                : 'مسار الرفع المؤقت غير صالح، ولم يصل الملف مع الطلب.')
+                            : 'لم يتم استقبال ملف المرفق.',
+                        $tempPathRejection
                     );
                     continue;
                 }
@@ -1274,11 +1458,13 @@ class GeneralRegistrationController extends Controller
                     continue;
                 }
                 $realPersonId = null;
-                if ($personType === 'main') {
+                // الواجهة تضع default_main/default_father/default_mother مؤقتاً لمن رفع وثائقه قبل إدخال الهوية؛
+                // نعاملها كوسوم البوابات نفسها بدل إسقاط المرفق
+                if ($personType === 'main' || $personType === 'default_main') {
                     $realPersonId = $request->input('data_id_number');
-                } elseif ($personType === 'deceased_father') {
+                } elseif ($personType === 'deceased_father' || $personType === 'default_father') {
                     $realPersonId = $request->input('father_id');
-                } elseif ($personType === 'deceased_mother') {
+                } elseif ($personType === 'deceased_mother' || $personType === 'default_mother') {
                     // (2.4) الأولوية لهوية الأم المتوفاة، ثم هوية الأم الحية كاحتياط
                     $realPersonId = $request->input('deceased_mother_id') ?: $request->input('mother_id');
                 } elseif (strpos($personType, 'family_') === 0) {
@@ -1403,9 +1589,11 @@ class GeneralRegistrationController extends Controller
                             'file_name' => $newFileName,
                         ];
 
-                        // لم يعد المصدر المؤقت مطلوباً بعد التحويل
+                        // المصدر المؤقت الأصلي لا يُحذف هنا (قبل الـ commit): لو تراجعت المعاملة أو أُعيدت
+                        // المحاولة (Deadlock أو إعادة إرسال المستخدم) لوجد الطلب التالي الملف مفقوداً (invalid_temp_path).
+                        // يُحذف بعد نجاح الحفظ النهائي.
                         if ($tempPath) {
-                            $this->deleteTempUploadIfEmpty($tempPath);
+                            $deferredTempCleanup[] = $tempPath;
                         }
                     } elseif ($file) {
                         $fileSize = (int) $file->getSize();
@@ -1533,6 +1721,7 @@ class GeneralRegistrationController extends Controller
             ]);
 
             DB::commit();
+            $this->progressUpdate(92, 'جاري نقل الملفات إلى مكانها النهائي...');
 
             // (3.3) انتهى استخدام الرقم المحجوز لهذه الجلسة
             if ($request->hasSession()) {
@@ -1542,6 +1731,13 @@ class GeneralRegistrationController extends Controller
             // (2.3) اكتملت كتابة السجلات — ننقل ملفات المرفقات إلى مكانها النهائي الآن فقط
             $attachmentsSaved = $this->finalizePendingAttachmentStores($pendingStores, $skippedAttachments);
             $pendingStores = [];
+
+            // اكتمل الحفظ: نحذف الآن المصادر المؤقتة الأصلية التي حُوِّلت إلى JPG
+            foreach (array_unique($deferredTempCleanup) as $deferredTemp) {
+                $this->deleteTempUploadIfEmpty($deferredTemp);
+            }
+            $deferredTempCleanup = [];
+            $this->progressUpdate(97, 'جاري إنهاء الطلب...');
 
             // 📋 ملخص التسجيل — للتأكد من دخول جميع الأقسام (قراءة فقط بعد الحفظ)
             try {
@@ -2059,14 +2255,25 @@ class GeneralRegistrationController extends Controller
      */
     private function isAllowedTempPath(string $tempPath): bool
     {
-        if (strpos($tempPath, '..') !== false
-            || !preg_match(self::TEMP_ATTACHMENT_PATH_PATTERN, $tempPath)) {
-            return false;
+        return $this->tempPathRejection($tempPath) === null;
+    }
+
+    /**
+     * سبب رفض مسار الرفع المؤقت (null = مقبول):
+     *  pattern_mismatch | temp_root_missing | file_not_found | not_a_file | outside_temp_root
+     *
+     * لا حاجة لفحص «..» نصياً: الصيغة تمنع الشرطات في اسم الملف، وأي مسار يخرج من المجلد
+     * يُرفض بفحص realpath والاحتواء. (اسم مثل «scan..jpg» آمن ولا يُرفض.)
+     */
+    private function tempPathRejection(string $tempPath): ?string
+    {
+        if (!preg_match(self::TEMP_ATTACHMENT_PATH_PATTERN, $tempPath)) {
+            return 'pattern_mismatch';
         }
 
         $tempRoot = realpath(storage_path('app/public/temp_uploads'));
         if ($tempRoot === false) {
-            return false;
+            return 'temp_root_missing';
         }
 
         // ذاكرة realpath تبقى بين الطلبات في php-fpm؛ نمسحها لئلا يُرفض ملف أُنشئ للتوّ
@@ -2074,9 +2281,17 @@ class GeneralRegistrationController extends Controller
         clearstatcache(true, $absolute);
         $resolved = realpath($absolute);
 
-        return $resolved !== false
-            && is_file($resolved)
-            && strpos($resolved, $tempRoot . DIRECTORY_SEPARATOR) === 0;
+        if ($resolved === false) {
+            return 'file_not_found';
+        }
+        if (!is_file($resolved)) {
+            return 'not_a_file';
+        }
+        if (strpos($resolved, $tempRoot . DIRECTORY_SEPARATOR) !== 0) {
+            return 'outside_temp_root';
+        }
+
+        return null;
     }
 
     /**
@@ -2176,7 +2391,7 @@ class GeneralRegistrationController extends Controller
     /**
      * (2.4) تسجيل مرفق لم يُحفظ مع سبب مفهوم، وإعادته للواجهة ضمن warnings.
      */
-    private function recordSkippedAttachment(array &$skipped, $index, $data, string $reason, string $message): void
+    private function recordSkippedAttachment(array &$skipped, $index, $data, string $reason, string $message, ?string $detail = null): void
     {
         $fileType = is_array($data) ? ($data['file_type'] ?? null) : null;
         $personIdentity = is_array($data) ? ($data['person_identity_number'] ?? null) : null;
@@ -2194,6 +2409,7 @@ class GeneralRegistrationController extends Controller
             'file_type' => $fileType,
             'person_identity_masked' => $this->maskTail((string) $personIdentity, 3),
             'reason' => $reason,
+            'detail' => $detail,
         ]);
     }
 

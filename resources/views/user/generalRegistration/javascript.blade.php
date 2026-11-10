@@ -330,7 +330,7 @@ async function validateAllIds(e) {
 // ...existing code...
 
 // تحديث رقم الهوية في جميع المرفقات عند تغيير رقم الهوية لأي شخص
-document.addEventListener('input', function(e) {
+function syncDocsPersonId(e) {
     // تحديث رقم الهوية للبيانات الأساسية
     if (e.target.name === 'data_id_number') {
         const newId = e.target.value.trim();
@@ -349,8 +349,8 @@ document.addEventListener('input', function(e) {
             });
         }
     }
-    // تحديث رقم هوية الأم المتوفاة
-    if (e.target.name === 'mother_id') {
+    // تحديث رقم هوية الأم المتوفاة (حقلها deceased_mother_id؛ حقل mother_id يخص الأم الحية)
+    if (e.target.name === 'deceased_mother_id') {
         const newId = e.target.value.trim();
         if (window.allDocs && window.allDocs.has('deceased_mother')) {
             window.allDocs.get('deceased_mother').forEach(doc => {
@@ -376,5 +376,7 @@ document.addEventListener('input', function(e) {
             }
         }
     }
-});
+}
+document.addEventListener('input', syncDocsPersonId);
+document.addEventListener('change', syncDocsPersonId);
     </script>

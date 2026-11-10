@@ -83,6 +83,7 @@
         </div>
     </div>
     @include('user.generalRegistration.style')
+	<script src="{{ asset('js/public-registration-guard.js') }}"></script>
     @include('user.generalRegistration.javascript')
 
     <script>

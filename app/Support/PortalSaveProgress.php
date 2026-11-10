@@ -106,8 +106,12 @@ class PortalSaveProgress
         $this->update(45 + (int) round(45 * min(1, $fraction)), $this->state['message']);
     }
 
-    public function done(string $message = 'تم الحفظ بنجاح'): void
+    public function done(string $message = 'تم الحفظ بنجاح', array $extra = []): void
     {
+        // بيانات إضافية اختيارية (مثل رابط التحويل redirect) تصل للواجهة مع حالة done
+        foreach ($extra as $key => $value) {
+            $this->state[$key] = $value;
+        }
         $this->state['status'] = 'done';
         $this->state['percent'] = 100;
         $this->state['message'] = $message;
