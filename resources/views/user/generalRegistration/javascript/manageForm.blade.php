@@ -1062,7 +1062,285 @@
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const mainForm = document.getElementById('main_form');
-            if (!mainForm) return;
+            if (!mainForm || mainForm.dataset.finalValidationBound === '1') return;
+            mainForm.dataset.finalValidationBound = '1';
+
+            const isTemplate = el => !!el.closest('template, #familyMemberTemplate, [data-member-index="template"], [data-index="template"]');
+            const field = name => Array.from(mainForm.querySelectorAll('[name]')).find(el => el.name === name && !el.disabled && !isTemplate(el)) || null;
+            const value = el => String(el?.value ?? '').trim();
+            const namedValue = name => value(field(name));
+            const cardField = (card, name) => card.querySelector(`[name$="[${name}]"]`);
+            const familyCards = () => Array.from(typeof window.getActiveFamilyMemberForms === 'function'
+                ? window.getActiveFamilyMemberForms() : mainForm.querySelectorAll('.family-member-form'))
+                .filter(card => mainForm.contains(card) && !isTemplate(card));
+            const additionalCards = () => Array.from(mainForm.querySelectorAll('.additional-deceased-form')).filter(card => !isTemplate(card));
+            const motherNames = ['deceased_mother_id', 'deceased_mother_first_name', 'deceased_mother_second_name',
+                'deceased_mother_third_name', 'deceased_mother_last_name', 'mother_death_date', 'mother_death_reason'];
+            const docsFor = key => {
+                const docs = window.allDocs instanceof Map ? window.allDocs.get(key) : null;
+                return Array.isArray(docs) ? docs : [];
+            };
+            const context = () => {
+                const motherSection = document.getElementById('motherInfoSection');
+                const motherShown = !!motherSection && !motherSection.hidden && !motherSection.classList.contains('d-none')
+                    && window.getComputedStyle(motherSection).display !== 'none';
+                const motherPopulated = motherNames.some(name => namedValue(name)) || docsFor('deceased_mother').length > 0;
+                return {
+                    deceased: namedValue('data_section_id') === '1',
+                    guardianIsMother: namedValue('data_relationship') === '1',
+                    motherAlive: namedValue('mother_is_alive'),
+                    motherPopulated,
+                    motherActive: motherShown || motherPopulated || namedValue('mother_is_alive') === '0'
+                };
+            };
+            const cardLabel = (card, index, deceased = false) => {
+                const raw = card.getAttribute(deceased ? 'data-index' : 'data-member-index');
+                const number = /^\d+$/.test(raw || '') ? Number(raw) + 1 : index + 1;
+                return `${deceased ? 'المتوفى الإضافي' : 'فرد الأسرة'} رقم ${number}`;
+            };
+
+            window.collectRegistrationDuplicateErrors = function() {
+                const state = context();
+                const entries = [];
+                const add = (el, label, role) => {
+                    if (el && /^\d{9}$/.test(value(el))) entries.push({ field: el, label, role });
+                };
+                add(field('data_id_number'), 'الوصي (المعيل)', 'guardian');
+                add(field('mother_id'), 'الأم في البيانات الأساسية', 'mother');
+                if (state.deceased) {
+                    add(field('father_id'), 'الأب المتوفى', 'father');
+                    if (state.motherActive) add(field('deceased_mother_id'), 'الأم المتوفاة', 'deceasedMother');
+                    additionalCards().forEach((card, index) => add(cardField(card, 'id_number'), cardLabel(card, index, true), 'additional'));
+                }
+                familyCards().forEach((card, index) => add(cardField(card, 'person_id'), cardLabel(card, index), 'family'));
+                const errors = [];
+                entries.forEach((entry, index) => entries.slice(0, index).forEach(previous => {
+                    if (value(entry.field) !== value(previous.field)) return;
+                    const roles = [entry.role, previous.role];
+                    if (state.guardianIsMother && roles.includes('guardian') && roles.includes('mother')) return;
+                    if (!state.guardianIsMother && state.motherAlive === '0' && roles.includes('mother') && roles.includes('deceasedMother')) return;
+                    errors.push({ field: previous.field, fields: [previous.field, entry.field],
+                        message: `رقم الهوية مكرر بين ${previous.label} و${entry.label}.` });
+                }));
+                return errors;
+            };
+
+            window.collectRegistrationErrors = function() {
+                const errors = [];
+                const state = context();
+                const add = (el, message) => errors.push({ field: el, message });
+                const requireField = (el, label) => {
+                    if (!value(el)) add(el, `يرجى استكمال ${label}.`);
+                };
+                const requireNamed = (name, label) => requireField(field(name), label);
+                const checkId = (el, label) => {
+                    if (value(el) && !/^\d{9}$/.test(value(el))) add(el, `${label} يجب أن يتكون من تسعة أرقام بالضبط.`);
+                };
+                const checkDate = (el, label) => {
+                    const dateValue = value(el);
+                    if (!dateValue) return;
+                    const date = new Date(`${dateValue}T00:00:00`);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const parts = dateValue.split('-').map(Number);
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue) || Number.isNaN(date.getTime())
+                        || date.getFullYear() !== parts[0] || date.getMonth() + 1 !== parts[1] || date.getDate() !== parts[2]) {
+                        add(el, `${label} غير صحيح.`);
+                    } else if (date > today) {
+                        add(el, `${label} لا يمكن أن يكون في المستقبل.`);
+                    }
+                };
+                const mainRequired = {
+                    data_section_id: 'قسم الوصي (المعيل)', data_id_number: 'رقم هوية الوصي (المعيل)',
+                    data_first_name: 'الاسم الأول للوصي (المعيل)', data_father_name: 'اسم الأب للوصي (المعيل)',
+                    data_grand_father_name: 'اسم الجد للوصي (المعيل)', data_family_name: 'اسم العائلة للوصي (المعيل)',
+                    data_relationship: 'صلة قرابة الوصي (المعيل)', data_birth_date: 'تاريخ ميلاد الوصي (المعيل)',
+                    data_gender: 'جنس الوصي (المعيل)', data_phone_number: 'رقم هاتف الوصي (المعيل)',
+                    data_marital_status: 'الحالة الاجتماعية للوصي (المعيل)', data_displacement_status: 'حالة النزوح للوصي (المعيل)',
+                    data_current_address: 'العنوان الحالي للوصي (المعيل)', data_city: 'مدينة الوصي (المعيل)',
+                    data_health_status: 'الحالة الصحية للوصي (المعيل)', data_province: 'محافظة الوصي (المعيل) باختيار المدينة'
+                };
+                Object.entries(mainRequired).forEach(([name, label]) => requireNamed(name, label));
+                checkId(field('data_id_number'), 'رقم هوية الوصي (المعيل)');
+                checkDate(field('data_birth_date'), 'تاريخ ميلاد الوصي (المعيل)');
+                [['data_phone_number', 'رقم هاتف الوصي (المعيل)'], ['data_alt_phone_number', 'رقم الهاتف البديل']].forEach(([name, label]) => {
+                    const el = field(name);
+                    if ((value(el) && !/^05\d{8}$/.test(value(el))) || el?.validity?.badInput) {
+                        add(el, `${label} يجب أن يتكون من عشرة أرقام ويبدأ بصفر ثم خمسة.`);
+                    }
+                });
+
+                if (!state.guardianIsMother) {
+                    Object.entries({ mother_id: 'رقم هوية الأم', mother_first_name: 'الاسم الأول للأم',
+                        mother_second_name: 'اسم الأب للأم', mother_third_name: 'اسم الجد للأم',
+                        mother_last_name: 'اسم عائلة الأم', mother_is_alive: 'حالة الأم على قيد الحياة' })
+                        .forEach(([name, label]) => requireNamed(name, label));
+                }
+                checkId(field('mother_id'), 'رقم هوية الأم');
+                if (state.guardianIsMother && namedValue('mother_id') && namedValue('data_id_number')
+                    && namedValue('mother_id') !== namedValue('data_id_number')) {
+                    add(field('data_id_number'), 'رقم هوية الأم في البيانات الأساسية يجب أن يطابق رقم هوية الوصي عندما تكون الوصية هي الأم.');
+                }
+
+                const family = familyCards();
+                if (!family.length) add(document.getElementById('addFamilyMember'), 'يرجى إضافة فرد واحد على الأقل إلى أفراد الأسرة.');
+                family.forEach((card, index) => {
+                    const label = cardLabel(card, index);
+                    Object.entries({ first_name: 'الاسم الأول', last_name: 'اسم العائلة', person_birth_date: 'تاريخ الميلاد', person_gender: 'الجنس' })
+                        .forEach(([name, title]) => requireField(cardField(card, name), `${title} — ${label}`));
+                    checkId(cardField(card, 'person_id'), `رقم الهوية — ${label}`);
+                    checkDate(cardField(card, 'person_birth_date'), `تاريخ الميلاد — ${label}`);
+                });
+
+                if (state.deceased) {
+                    Object.entries({ father_id: 'رقم هوية الأب المتوفى', father_first_name: 'الاسم الأول للأب المتوفى',
+                        father_last_name: 'اسم عائلة الأب المتوفى', father_death_date: 'تاريخ وفاة الأب', father_death_reason: 'سبب وفاة الأب' })
+                        .forEach(([name, label]) => requireNamed(name, label));
+                    checkId(field('father_id'), 'رقم هوية الأب المتوفى');
+                    checkDate(field('father_death_date'), 'تاريخ وفاة الأب');
+                    if (state.motherPopulated && (state.motherAlive === '1' || state.guardianIsMother)
+                        || state.guardianIsMother && state.motherAlive === '0') {
+                        add(field('data_relationship'), 'بيانات الأم المتوفاة تتعارض مع كون الأم على قيد الحياة أو كون الوصية هي الأم.');
+                    }
+                    if (state.motherActive) {
+                        Object.entries({ deceased_mother_id: 'رقم هوية الأم المتوفاة', deceased_mother_first_name: 'الاسم الأول للأم المتوفاة',
+                            deceased_mother_last_name: 'اسم عائلة الأم المتوفاة', mother_death_date: 'تاريخ وفاة الأم', mother_death_reason: 'سبب وفاة الأم' })
+                            .forEach(([name, label]) => requireNamed(name, label));
+                        checkId(field('deceased_mother_id'), 'رقم هوية الأم المتوفاة');
+                        checkDate(field('mother_death_date'), 'تاريخ وفاة الأم');
+                        if (state.motherAlive === '0' && namedValue('mother_id') && namedValue('deceased_mother_id')
+                            && namedValue('mother_id') !== namedValue('deceased_mother_id')) {
+                            add(field('deceased_mother_id'), 'رقم هوية الأم المتوفاة يجب أن يطابق رقم هوية الأم في البيانات الأساسية.');
+                        }
+                    }
+                    additionalCards().forEach((card, index) => {
+                        const label = cardLabel(card, index, true);
+                        Object.entries({ id_number: 'رقم الهوية', first_name: 'الاسم الأول', last_name: 'اسم العائلة',
+                            relationship: 'صلة القرابة', death_date: 'تاريخ الوفاة', death_reason: 'سبب الوفاة' })
+                            .forEach(([name, title]) => requireField(cardField(card, name), `${title} — ${label}`));
+                        checkId(cardField(card, 'id_number'), `رقم الهوية — ${label}`);
+                        checkDate(cardField(card, 'death_date'), `تاريخ الوفاة — ${label}`);
+                    });
+                }
+                errors.push(...window.collectRegistrationDuplicateErrors());
+
+                const validTempPath = path => typeof path === 'string' && path === path.trim()
+                    && path.includes('/') && !/^[\/\\]|[:<>\x00-\x1f?#]/.test(path)
+                    && path.split(/[\/\\]/).every(part => part && part !== '.' && part !== '..');
+                const usableDocument = (doc, key, personId) => {
+                    if (!doc || doc.status !== 'completed' || !doc.processedFile) return false;
+                    if (['pending', 'processing', 'uploading'].includes(doc.uploadStatus)) return false;
+                    if (doc.personKey && doc.personKey !== key) return false;
+                    if (personId && doc.personId && String(doc.personId).trim() !== personId) return false;
+                    if (doc.tempPath) return validTempPath(doc.tempPath);
+                    return doc.processedFile instanceof Blob && doc.processedFile.size > 0;
+                };
+                const people = new Map([['main', { label: 'الوصي (المعيل)', id: namedValue('data_id_number') }]]);
+                family.forEach((card, index) => {
+                    const zone = card.querySelector('[data-upload-zone]');
+                    if (zone) people.set(zone.dataset.uploadZone, { label: cardLabel(card, index), id: value(cardField(card, 'person_id')) });
+                });
+                if (state.deceased) {
+                    people.set('deceased_father', { label: 'الأب المتوفى', id: namedValue('father_id') });
+                    if (state.motherActive) people.set('deceased_mother', { label: 'الأم المتوفاة', id: namedValue('deceased_mother_id') });
+                    additionalCards().forEach((card, index) => {
+                        const zone = card.querySelector('[data-upload-zone]');
+                        if (zone) people.set(zone.dataset.uploadZone, { label: cardLabel(card, index, true), id: value(cardField(card, 'id_number')) });
+                    });
+                }
+                mainForm.querySelectorAll('[data-upload-zone]').forEach(zone => {
+                    if (isTemplate(zone)) return;
+                    const key = zone.dataset.uploadZone;
+                    const person = people.get(key);
+                    const select = zone.querySelector('.mainDocumentTypeSelect');
+                    if (!person || !select) return;
+                    const options = Array.from(select.options).filter(option => option.value && !option.disabled
+                        && !option.closest('optgroup[disabled]') && option.dataset.enabled !== 'false' && option.dataset.enabled !== '0');
+                    const tasks = docsFor(key);
+                    const enabledTasks = tasks.filter(doc => doc && options.some(option => option.value === String(doc.type || doc.docType || '')));
+                    if (tasks.some(doc => !usableDocument(doc, key, person.id))) {
+                        add(select, `يرجى إكمال معالجة ورفع المرفقات أو حذف المرفق غير الصالح وإعادة رفعه — ${person.label}.`);
+                    }
+                    options.filter(option => option.dataset.required === 'true').forEach(option => {
+                        const matching = enabledTasks.filter(doc => String(doc.type || doc.docType || '') === option.value);
+                        if (matching.length) return;
+                        const title = option.textContent.replace(/[★*]/g, '').replace(/\(إجباري\)/g, '').trim();
+                        add(select, `يرجى رفع الوثيقة المطلوبة: ${title || 'وثيقة إلزامية'} — ${person.label}.`);
+                    });
+                });
+                return errors;
+            };
+
+            const markedFields = new Set();
+            let validationModalOpen = false;
+            const focusInvalidField = el => {
+                if (!el || !el.isConnected) return;
+                if (el.type === 'hidden' || el.disabled) el = field('data_city') || field('data_id_number');
+                const motherSection = el.closest('#motherInfoSection, #motherSection');
+                if (motherSection) {
+                    motherSection.hidden = false;
+                    motherSection.classList.remove('d-none');
+                    motherSection.style.display = 'block';
+                    motherSection.style.opacity = '1';
+                }
+                const focus = () => { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.focus({ preventScroll: true }); };
+                const pane = el.closest('.tab-pane');
+                const tab = pane && document.getElementById(pane.getAttribute('aria-labelledby'));
+                if (pane && !pane.classList.contains('active') && tab && window.bootstrap?.Tab) {
+                    tab.addEventListener('shown.bs.tab', focus, { once: true });
+                    (window.bootstrap.Tab.getInstance(tab) || new window.bootstrap.Tab(tab)).show();
+                } else {
+                    focus();
+                }
+            };
+            window.showRegistrationValidationErrors = function(errors) {
+                if (!errors.length) return;
+                errors.forEach(error => (error.fields || [error.field]).filter(Boolean).forEach(el => {
+                    if (!el.classList.contains('is-invalid')) markedFields.add(el);
+                    el.classList.add('is-invalid');
+                    el.classList.remove('is-valid');
+                }));
+                if (validationModalOpen) return;
+                const list = document.createElement('ul');
+                list.dir = 'rtl';
+                list.style.textAlign = 'right';
+                errors.forEach(error => {
+                    const item = document.createElement('li');
+                    item.textContent = error.message;
+                    list.appendChild(item);
+                });
+                validationModalOpen = true;
+                Swal.fire({ icon: 'warning', title: 'يرجى استكمال التسجيل', html: list, confirmButtonText: 'حسناً',
+                    returnFocus: false,
+                    didClose: () => {
+                        validationModalOpen = false;
+                        focusInvalidField(errors.find(error => error.field)?.field);
+                    }
+                });
+            };
+            window.validateRegistrationBeforeSubmit = function() {
+                markedFields.forEach(el => el.classList.remove('is-invalid'));
+                markedFields.clear();
+                const errors = window.collectRegistrationErrors();
+                if (!errors.length) return true;
+                if (mainForm.dataset.inflight !== '1') window.isSubmitting = false;
+                window.showRegistrationValidationErrors(errors);
+                return false;
+            };
+
+            // الالتقاط قبل معالجات الحفظ الأخرى، دون التدخل في حفظ المسودة.
+            const guardFinalSubmit = e => {
+                if (mainForm.dataset.inflight === '1' || !window.validateRegistrationBeforeSubmit()) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                }
+            };
+            window.addEventListener('submit', e => {
+                if (e.target === mainForm) guardFinalSubmit(e);
+            }, true);
+            window.addEventListener('click', e => {
+                if (e.target instanceof Element && e.target.closest('#finalSaveBtn, #submitFormBtn')) guardFinalSubmit(e);
+            }, true);
 
             // 🔒 تحرير قفل الإرسال — يُستدعى في جميع مسارات الخطأ للسماح بمحاولة جديدة
             const releaseSubmitLock = function() {
@@ -1075,6 +1353,10 @@
             mainForm.addEventListener('submit', function(e) {
                 // منع الإرسال الافتراضي
                 e.preventDefault();
+                if (!window.validateRegistrationBeforeSubmit()) {
+                    e.stopImmediatePropagation();
+                    return;
+                }
 
                 // 🛑 طلب سابق ما يزال قيد التنفيذ — تجاهل النقرات المتكررة (منع الإرسال المزدوج)
                 if (mainForm.dataset.inflight === '1') {
@@ -1178,7 +1460,7 @@
                                 formData.append(`attachments[${attachIndex}][file]`, doc.processedFile);
                                 formData.append(`attachments[${attachIndex}][stored_file_name]`, doc.processedFile.name);
                             }
-                            formData.append(`attachments[${attachIndex}][person_identity_number]`, doc.personId);
+                            formData.append(`attachments[${attachIndex}][person_identity_number]`, personKey);
                             formData.append(`attachments[${attachIndex}][file_type]`, docTypeVal);
                             formData.append(`attachments[${attachIndex}][file_id_number]`, doc.fileId || '');
                             attachmentsDebug.push({
@@ -1220,7 +1502,11 @@
                     }
                 }
 
-                // إرسال البيانات عبر AJAX
+                const escapeResponseText = text => {
+                    const element = document.createElement('span');
+                    element.textContent = window.portalSafeMessage(text, 'تعذر حفظ الطلب. يرجى مراجعة البيانات وإعادة المحاولة.');
+                    return element.innerHTML;
+                };
                 fetch(mainForm.action, {
                         method: 'POST',
                         body: formData,
@@ -1253,12 +1539,12 @@
 
                         // معالجة أخطاء المرفقات الإجبارية (missing_documents)
                         if (typeof data === 'object' && data && data.success === false && data.missing_documents && data.missing_documents.length > 0) {
-                            let docsList = data.missing_documents.map(doc => `<li style="margin: 5px 0; padding: 4px 8px; background: #fff3cd; border-radius: 4px; border-right: 3px solid #ffc107;">${doc}</li>`).join('');
+                            let docsList = data.missing_documents.map(doc => `<li style="margin: 5px 0; padding: 4px 8px; background: #fff3cd; border-radius: 4px; border-right: 3px solid #ffc107;">${escapeResponseText(doc)}</li>`).join('');
                             Swal.fire({
                                 icon: 'warning',
                                 title: 'مرفقات ناقصة',
                                 html: `<div style="text-align: right;">
-                                    <p style="margin-bottom: 10px; font-weight: bold;">${data.message || 'يجب رفع ملف واحد على الأقل لكل نوع وثيقة:'}</p>
+                                    <p style="margin-bottom: 10px; font-weight: bold;">${escapeResponseText(data.message || 'يجب رفع ملف واحد على الأقل لكل نوع وثيقة:')}</p>
                                     <ul style="list-style: none; padding: 0; margin: 0;">${docsList}</ul>
                                 </div>`,
                                 confirmButtonText: 'حسناً',
@@ -1283,15 +1569,15 @@
                                 errors.forEach(errorArray => {
                                     if (Array.isArray(errorArray)) {
                                         errorArray.forEach(error => {
-                                            errorDetails += `<li>${error}</li>`;
+                                            errorDetails += `<li>${escapeResponseText(error)}</li>`;
                                         });
                                     }
                                 });
                                 errorDetails += '</ul>';
                             } else if (typeof data === 'object' && data.message) {
-                                errorDetails = data.message;
+                                errorDetails = escapeResponseText(data.message);
                             } else if (typeof data === 'object' && data.error) {
-                                errorDetails = data.error;
+                                errorDetails = escapeResponseText(data.error);
                             }
 
                             Swal.fire({
@@ -1321,7 +1607,7 @@
                             Swal.fire({
                                 icon: 'error',
                                 title: 'خطأ في السيرفر',
-                                text: errorMsg,
+                                text: window.portalSafeMessage(errorMsg, 'تعذر حفظ الطلب الآن. يرجى إعادة المحاولة لاحقاً.'),
                                 confirmButtonText: 'حسناً'
                             });
 
@@ -1331,8 +1617,13 @@
                         }
 
                         // إذا كانت الاستجابة JSON وبها success=true
-                        if (typeof data === 'object' && data && data.success) {
-                            if (data && data.success && data.redirect) {
+                        if (typeof data === 'object' && data && data.success === true && ok) {
+                            window.registrationSavedSuccessfully = true;
+                            if (window.RegDraft) {
+                                window.RegDraft.markSubmitting();
+                                window.RegDraft.forget(window.RegDraft.pageKey());
+                            }
+                            if (data.redirect) {
                                 window.location.href = data.redirect;
                                 return;
                             }
@@ -1348,7 +1639,7 @@
                             Swal.fire({
                                 icon: 'error',
                                 title: 'خطأ',
-                                text: (typeof data === 'object' && data.error) ? data.error : (typeof data === 'object' && data.message) ? data.message : 'حدث خطأ أثناء الحفظ'
+                                text: window.portalSafeMessage(data?.error || data?.message, 'تعذر حفظ الطلب. يرجى إعادة المحاولة.')
                             });
 
                             // إعادة تعيين isSubmitting للسماح بإعادة المحاولة
@@ -1359,7 +1650,7 @@
                             Swal.fire({
                                 icon: 'error',
                                 title: 'خطأ',
-                                text: (typeof data === 'object' && data.error) ? data.error : 'حدث خطأ أثناء الحفظ'
+                                text: window.portalSafeMessage(data?.error, 'تعذر التأكد من حفظ الطلب. بياناتك باقية؛ يرجى إعادة المحاولة.')
                             });
 
                             // إعادة تعيين isSubmitting للسماح بإعادة المحاولة

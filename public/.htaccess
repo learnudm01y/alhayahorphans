@@ -42,6 +42,11 @@
     RewriteCond %{REQUEST_URI} (.+)/$
     RewriteRule ^ %1 [L,R=301]
 
+    # سد الرابط العام للمرفقات المؤقتة: لا تُخدم أي صورة رفع مباشرة من /storage/temp_uploads
+    # (الملفات المؤقتة تُقرأ من السيرفر فقط عبر نقاط التحكم التي تتحقق من الملكية)
+    RewriteCond %{REQUEST_URI} ^(.*)?/storage/temp_uploads(/|$) [NC]
+    RewriteRule ^ - [F,L]
+
     # Send Requests To Front Controller...
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_FILENAME} !-f

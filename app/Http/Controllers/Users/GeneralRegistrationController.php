@@ -34,6 +34,7 @@ use Illuminate\Support\Facades\Log;
 use App\Models\GuardianBankAccount;
 use App\Services\BankAccountValidationService;
 use App\Services\GuardianFileService;
+use App\Support\PortalErrorMessages;
 
 class GeneralRegistrationController extends Controller
 {
@@ -408,15 +409,18 @@ class GeneralRegistrationController extends Controller
             ]);
 
             $processingMessage = 'طلبك قيد الحفظ حالياً، يرجى الانتظار وعدم إعادة الإرسال.';
+            $processingPayload = PortalErrorMessages::payload($processingMessage);
             if ($wantsJson) {
                 return response()->json([
                     'success' => false,
                     'processing' => true,
                     'message' => $processingMessage,
+                    'error_reference' => $processingPayload['reference'],
+                    'error_fields' => [],
                 ], 409);
             }
 
-            return redirect()->back()->withInput()->with('error', $processingMessage);
+            return redirect()->back()->withInput()->with('registration_error', $processingPayload);
         }
 
         $this->saveProgress = class_exists(\App\Support\PortalSaveProgress::class)
@@ -428,8 +432,12 @@ class GeneralRegistrationController extends Controller
             $response = $this->storeInternal($request);
         } catch (\Throwable $e) {
             Cache::forget($key);
-            $this->progressFail('تعذّر إكمال الحفظ، يرجى المحاولة مرة أخرى.');
-            throw $e;
+
+            return $this->failUnexpected(
+                $request,
+                $e,
+                'تعذّر حفظ الطلب بسبب عطل مؤقت. يرجى المحاولة مرة أخرى، وإن تكرر العطل تواصل مع الإدارة وأخبرهم برمز المتابعة.'
+            );
         }
 
         $this->settleRequest($key, $response);
@@ -467,6 +475,13 @@ class GeneralRegistrationController extends Controller
             $thankYou = route('user.thank.you.page');
             $success = $response->getTargetUrl() === $thankYou;
             $redirect = $success ? $thankYou : null;
+
+            // سبب الرفض يُقرأ من الجلسة نفسها التي ستعرضه الصفحة، حتى لا يظهر شريط التقدم برسالة عامة
+            $session = $response->getSession();
+            $registrationError = $session !== null ? $session->get('registration_error') : null;
+            if (!$success && is_array($registrationError) && !empty($registrationError['message'])) {
+                $failureMessage = (string) $registrationError['message'];
+            }
         }
 
         if ($success) {
@@ -518,32 +533,249 @@ class GeneralRegistrationController extends Controller
         }
     }
 
+    /**
+     * بوابة الرفض الوحيدة للتسجيل العام.
+     *
+     * تُنتج رسالة عربية واضحة مع أسباب مرتبطة بحقولها (التسمية والتبويب ورقم البطاقة)
+     * ورمز متابعة قصير. لا يصل أي نص تقني إلى المستخدم: التفاصيل تُسجَّل في اللوغ
+     * تحت الرمز نفسه ليراجعها المطوّر عند الشكوى.
+     */
+    private function rejectRegistration(
+        Request $request,
+        string $message,
+        array $fields = [],
+        int $status = 422,
+        ?string $technical = null,
+        ?string $reference = null
+    ) {
+        $payload = PortalErrorMessages::payload($message, $fields, $reference);
+
+        Log::warning('⛔ رفض التسجيل العام', [
+            'reference' => $payload['reference'],
+            'status' => $status,
+            'reason' => PortalErrorMessages::maskTechnical($message),
+            'field_keys' => array_column($fields, 'field'),
+            'technical' => $technical === null ? null : PortalErrorMessages::maskTechnical($technical),
+        ]);
+
+        $this->progressFail($message);
+
+        if ($request->ajax() || $request->wantsJson()) {
+            $errors = [];
+            foreach ($fields as $field) {
+                $errors[$field['field']][] = $field['message'];
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => $message,
+                'errors' => $errors,
+                'error_reference' => $payload['reference'],
+                'error_fields' => $payload['fields'],
+            ], $status);
+        }
+
+        return redirect()->back()->withInput()->with('registration_error', $payload);
+    }
+
+    /** عطل غير متوقع: رسالة عامة للمستخدم، والاستثناء كامل في اللوغ مع رمز المتابعة. */
+    private function failUnexpected(Request $request, \Throwable $e, string $message)
+    {
+        $reference = PortalErrorMessages::reference();
+
+        Log::error('💥 عطل أثناء التسجيل العام', [
+            'reference' => $reference,
+            'exception' => get_class($e),
+            'detail' => PortalErrorMessages::maskTechnical($e->getMessage()),
+            'at' => $e->getFile() . ':' . $e->getLine(),
+            'file_id_number' => $request->input('file_id_number'),
+        ]);
+
+        return $this->rejectRegistration($request, $message, [], 500, $e->getMessage(), $reference);
+    }
+
+    private function validatePublicRegistration(Request $request): void
+    {
+        $numericRows = static function ($attribute, $value, $fail) {
+            if (is_array($value)) {
+                foreach (array_keys($value) as $index) {
+                    if (!ctype_digit((string) $index)) {
+                        $fail('ترتيب البطاقات غير صالح. احذف البطاقة وأضفها من جديد.');
+                        break;
+                    }
+                }
+            }
+        };
+        $rules = [
+            'data_section_id' => ['required', 'integer', \Illuminate\Validation\Rule::exists('general_category', 'id')->where('status', 1)],
+            'data_id_number' => 'required|string|digits:9',
+            'data_first_name' => 'required|string|max:30',
+            'data_father_name' => 'required|string|max:30',
+            'data_grand_father_name' => 'required|string|max:30',
+            'data_family_name' => 'required|string|max:30',
+            'data_relationship' => 'required|integer|exists:category_of_relations,id',
+            'data_birth_date' => 'required|date_format:Y-m-d|before_or_equal:today',
+            'data_gender' => 'required|in:1,2',
+            'data_phone_number' => ['required', 'string', 'regex:/^05[0-9]{8}$/'],
+            'data_alt_phone_number' => ['nullable', 'string', 'regex:/^05[0-9]{8}$/'],
+            'data_marital_status' => 'required|integer|exists:ci_personal_cd,id',
+            'data_displacement_status' => 'required|integer|exists:displacement_statuses,id',
+            'data_current_address' => 'required|string|max:30',
+            'data_address_before_displacement' => 'nullable|string|max:30',
+            'data_city' => 'required|integer|exists:city,id',
+            'data_province' => 'required|integer|exists:provinces,id',
+            'data_health_status' => 'required|integer|exists:health_statuses,id',
+            'data_description_needs' => 'nullable|string',
+            'mother_is_alive' => 'nullable|in:0,1',
+            'mother_id' => 'nullable|string|digits:9',
+            'family_members' => ['required', 'array', 'min:1', $numericRows],
+            'family_members.*' => 'required|array',
+            'family_members.*.person_id' => 'nullable|string|digits:9',
+            'family_members.*.first_name' => 'required|string|max:30',
+            'family_members.*.second_name' => 'nullable|string|max:30',
+            'family_members.*.third_name' => 'nullable|string|max:30',
+            'family_members.*.last_name' => 'required|string|max:30',
+            'family_members.*.person_birth_date' => 'required|date_format:Y-m-d|before_or_equal:today',
+            'family_members.*.person_gender' => 'required|in:1,2',
+            'family_members.*.person_health_status' => 'nullable|integer|exists:health_statuses,id',
+            'family_members.*.person_note' => 'nullable|string',
+            'additional_deceased' => ['nullable', 'array', $numericRows],
+            'additional_deceased.*' => 'required|array',
+            'additional_deceased.*.id_number' => 'required|string|digits:9',
+            'additional_deceased.*.first_name' => 'required|string|max:30',
+            'additional_deceased.*.second_name' => 'nullable|string|max:30',
+            'additional_deceased.*.third_name' => 'nullable|string|max:30',
+            'additional_deceased.*.last_name' => 'required|string|max:30',
+            'additional_deceased.*.relationship' => 'required|string|in:father,mother,brother,sister,grandfather,grandmother,uncle,aunt,other',
+            'additional_deceased.*.death_date' => 'required|date_format:Y-m-d|before_or_equal:today',
+            'additional_deceased.*.death_reason' => 'required|integer|exists:death_reasons,id',
+            'attachments' => ['nullable', 'array', $numericRows],
+            'attachments.*' => 'required|array',
+            'attachments.*.file_type' => 'required|string|max:64',
+            'attachments.*.person_identity_number' => 'required|string|max:32',
+        ];
+        $needsMother = !in_array($request->input('data_relationship'), ['1', 1], true);
+        foreach (['first_name', 'second_name', 'third_name', 'last_name'] as $name) {
+            $rules['mother_' . $name] = ($needsMother ? 'required' : 'nullable') . '|string|max:30';
+        }
+        if ($needsMother) {
+            $rules['mother_id'] = 'required|string|digits:9';
+            $rules['mother_is_alive'] = 'required|in:0,1';
+        }
+        $deceasedSection = in_array($request->input('data_section_id'), ['1', 1], true);
+        $motherDeceased = $deceasedSection && (
+            in_array($request->input('mother_is_alive'), ['0', 0], true)
+            || $request->anyFilled(['deceased_mother_id', 'deceased_mother_first_name', 'deceased_mother_second_name',
+                'deceased_mother_third_name', 'deceased_mother_last_name', 'mother_death_date', 'mother_death_reason'])
+        );
+        foreach (['father' => $deceasedSection, 'deceased_mother' => $motherDeceased] as $prefix => $required) {
+            $presence = $required ? 'required' : 'nullable';
+            $rules[$prefix . '_id'] = $presence . '|string|digits:9';
+            $rules[$prefix . '_first_name'] = $presence . '|string|max:30';
+            $rules[$prefix . '_last_name'] = $presence . '|string|max:30';
+            $rules[$prefix . '_second_name'] = 'nullable|string|max:30';
+            $rules[$prefix . '_third_name'] = 'nullable|string|max:30';
+            $deathPrefix = $prefix === 'father' ? 'father' : 'mother';
+            $rules[$deathPrefix . '_death_date'] = $presence . '|date_format:Y-m-d|before_or_equal:today';
+            $rules[$deathPrefix . '_death_reason'] = $presence . '|integer|exists:death_reasons,id';
+        }
+        foreach ($rules as &$rule) {
+            $rule = is_array($rule) ? array_merge(['bail'], $rule) : 'bail|' . $rule;
+        }
+        unset($rule);
+        $validator = \Illuminate\Support\Facades\Validator::make($request->all(), $rules, [
+            'required' => ':attribute مطلوب.',
+            'array' => 'بيانات :attribute غير صالحة.',
+            'string' => ':attribute يجب أن يكون نصاً صالحاً.',
+            'integer' => 'يرجى اختيار قيمة صحيحة لحقل :attribute.',
+            'exists' => 'القيمة المختارة لحقل :attribute غير متاحة، يرجى اختيار قيمة من القائمة الحالية.',
+            'in' => 'القيمة المختارة لحقل :attribute غير صحيحة.',
+            'digits' => ':attribute يجب أن يتكون من تسعة أرقام.',
+            'date_format' => ':attribute غير صالح، يرجى اختيار تاريخ صحيح.',
+            'before_or_equal' => ':attribute لا يمكن أن يكون في المستقبل.',
+            'regex' => ':attribute يجب أن يتكون من عشرة أرقام ويبدأ بصفر وخمسة.',
+            'family_members.required' => 'يجب إضافة فرد أسرة واحد على الأقل واستكمال بياناته.',
+        ]);
+        $attributes = [];
+        foreach (array_keys($validator->getRules()) as $key) {
+            $attributes[$key] = PortalErrorMessages::label($key);
+        }
+        $validator->setAttributeNames($attributes);
+        $validator->after(function ($validator) use ($request, $needsMother, $deceasedSection, $motherDeceased) {
+            if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
+            $city = City::find($request->input('data_city'));
+            if ($city && (string) $city->province_id !== (string) $request->input('data_province')) {
+                $validator->errors()->add('data_city', 'المدينة لا تتبع المحافظة المحددة، يرجى إعادة اختيار المدينة.');
+            }
+            if (!$deceasedSection && $request->filled('additional_deceased')) {
+                $validator->errors()->add('additional_deceased', 'بيانات المتوفين متاحة في قسم الأيتام فقط.');
+            }
+            if ($motherDeceased && (!$needsMother || in_array($request->input('mother_is_alive'), ['1', 1], true))) {
+                $validator->errors()->add('mother_is_alive', 'حالة الأم تتعارض مع بيانات الأم المتوفاة. يرجى تصحيح الحالة.');
+            }
+            if ($motherDeceased && $needsMother && $request->input('mother_id') !== $request->input('deceased_mother_id')) {
+                $validator->errors()->add('deceased_mother_id', 'رقم هوية الأم في البيانات الأساسية لا يطابق رقمها في بيانات المتوفين.');
+            }
+            $identities = ['data_id_number' => $request->input('data_id_number')];
+            if ($needsMother) {
+                $identities['mother_id'] = $request->input('mother_id');
+            }
+            if ($deceasedSection) {
+                $identities['father_id'] = $request->input('father_id');
+                if ($motherDeceased && !$needsMother) {
+                    $identities['deceased_mother_id'] = $request->input('deceased_mother_id');
+                }
+                foreach ($request->input('additional_deceased', []) ?? [] as $index => $person) {
+                    $identities["additional_deceased.{$index}.id_number"] = $person['id_number'];
+                }
+            }
+            foreach ($request->input('family_members') as $index => $member) {
+                $identities["family_members.{$index}.person_id"] = $member['person_id'] ?? '';
+            }
+            $seen = [];
+            foreach ($identities as $key => $identity) {
+                if ($identity === '' || $identity === null) {
+                    continue;
+                }
+                if (isset($seen[$identity])) {
+                    $first = $seen[$identity];
+                    $message = 'رقم الهوية مكرر بين ' . PortalErrorMessages::label($first) . ' و' . PortalErrorMessages::label($key) . '. لا يمكن إدخال الشخص مرتين.';
+                    $validator->errors()->add($first, $message);
+                    $validator->errors()->add($key, $message);
+                } else {
+                    $seen[$identity] = $key;
+                }
+            }
+        });
+        $validator->validate();
+    }
+
     private function storeInternal(Request $request)
     {
         $maxRetries = 3;
         $retryCount = 0;
-        // (2.3) الملفات المرحّلة حتى ما بعد commit (لا تُكتب ملفات نهائية داخل المعاملة)
         $pendingStores = [];
+        $preparedFiles = [];
+        $publicSubmission = $request->route()?->getName() === 'store.generalRegistration';
 
         // (3.1) قفل لكل هوية معيل: يمنع حفظين متزامنين لنفس الشخص
-        $lockIdentity = trim((string) $request->input('data_id_number'));
+        $lockIdentity = is_scalar($request->input('data_id_number'))
+            ? trim((string) $request->input('data_id_number')) : '';
         $storeLock = null;
         if ($lockIdentity !== '') {
             $storeLock = Cache::lock('guardian:' . sha1($lockIdentity), 30);
             try {
                 $storeLock->block(5);
             } catch (\Illuminate\Contracts\Cache\LockTimeoutException $lockTimeout) {
-                Log::warning('⏳ تعذر الحصول على قفل الحفظ لهوية معيل (طلب متزامن)', [
-                    'identity_masked' => $this->maskTail($lockIdentity, 3),
-                ]);
-                $lockMessage = 'يوجد طلب آخر قيد الحفظ لنفس الشخص. يرجى الانتظار قليلاً ثم إعادة المحاولة.';
-                if ($request->ajax() || $request->wantsJson()) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => $lockMessage,
-                    ], 409);
-                }
-                return redirect()->back()->withInput()->with('error', $lockMessage);
+                return $this->rejectRegistration(
+                    $request,
+                    'يوجد طلب آخر قيد الحفظ لنفس الشخص. يرجى الانتظار قليلاً ثم إعادة المحاولة.',
+                    [PortalErrorMessages::field('data_id_number', 'عليه طلب حفظ آخر قيد التنفيذ الآن.')],
+                    409,
+                    $lockTimeout->getMessage()
+                );
             }
         }
 
@@ -553,7 +785,13 @@ class GeneralRegistrationController extends Controller
                 // 🔹 استبعاد بطاقات أفراد الأسرة الفارغة تماماً (بلا هوية ولا أسماء)
                 //    مع الحفاظ على أرقامها الأصلية حتى لا تتغير مطابقة مرفقات family_{idx}
                 $rawFamilyMembers = $request->input('family_members');
-                if (is_array($rawFamilyMembers)) {
+                if ($publicSubmission) {
+                    if (is_array($rawFamilyMembers)) {
+                        unset($rawFamilyMembers['template']);
+                        $request->merge(['family_members' => $rawFamilyMembers]);
+                    }
+                    $this->validatePublicRegistration($request);
+                } elseif (is_array($rawFamilyMembers)) {
                     $rawFamilyMembers = array_filter($rawFamilyMembers, function ($member) {
                         if (!is_array($member)) {
                             return false;
@@ -708,12 +946,14 @@ class GeneralRegistrationController extends Controller
 
             // 2️⃣ ثانياً: التحقق من عدم ارتباط المعيل بمعيل آخر
             if (!$useExistingGuardian && !empty($guardianIdentity)) {
-                if ($this->findOtherFileForIdentity((string) $guardianIdentity, $fileIdNumber) !== null) {
-                    $errorMsg = 'هذا الشخص مسجل مسبقاً في النظام ومرتبط بمعيل آخر. لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.';
-                    if ($request->ajax() || $request->wantsJson()) {
-                        return response()->json(['success' => false, 'message' => $errorMsg], 422);
-                    }
-                    return redirect()->back()->withInput()->with('error', $errorMsg);
+                $otherFile = $this->findOtherFileForIdentity((string) $guardianIdentity, $fileIdNumber);
+                if ($otherFile !== null) {
+                    return $this->rejectRegistration(
+                        $request,
+                        'هذا الشخص مسجل مسبقاً في النظام ومرتبط بمعيل آخر (رقم ملف ' . $otherFile . '). لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.',
+                        [PortalErrorMessages::field('data_id_number', 'مسجل مسبقاً في ملف آخر برقم ' . $otherFile . '.')],
+                        422
+                    );
                 }
             }
 
@@ -727,6 +967,11 @@ class GeneralRegistrationController extends Controller
                     ->first();
 
                 if ($conflictingFileData) {
+                    if ($publicSubmission && (string) $conflictingFileData->data_id_number !== (string) $guardianIdentity) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'file_id_number' => 'رقم الملف مرتبط بشخص آخر. أعد فتح صفحة التسجيل للحصول على رقم ملف جديد؛ لم تُعدّل بيانات أي شخص.',
+                        ]);
+                    }
                     $useExistingGuardian = true;
                     $existingGuardianData = $conflictingFileData;
                     $existingFileIdNumber = $conflictingFileData->file_id_number;
@@ -752,34 +997,31 @@ class GeneralRegistrationController extends Controller
                     if (!empty($member['person_id'])) {
                         // التحقق من أن رقم الهوية 9 أرقام
                         if (!preg_match('/^\d{9}$/', $member['person_id'])) {
-                            if ($request->ajax() || $request->wantsJson()) {
-                                return response()->json([
-                                    'success' => false,
-                                    'errors' => [
-                                        "family_members.{$index}.person_id" => [
-                                            "رقم هوية فرد الأسرة رقم " . ($index + 1) . " يجب أن يكون 9 أرقام بالضبط"
-                                        ]
-                                    ]
-                                ], 422);
-                            }
-                            return redirect()->back()
-                                ->withInput()
-                                ->with('error', "رقم هوية فرد الأسرة رقم " . ($index + 1) . " يجب أن يكون 9 أرقام بالضبط");
+                            $reason = 'رقم الهوية يجب أن يكون 9 أرقام بالضبط.';
+                            return $this->rejectRegistration(
+                                $request,
+                                'فرد الأسرة رقم ' . ($index + 1) . ': ' . $reason,
+                                [PortalErrorMessages::field("family_members.{$index}.person_id", $reason)],
+                                422
+                            );
                         }
 
                         // 🆕 منع تكرار نفس الرقم داخل الطلب الواحد (وإلا ضاع فرد بصمت)
                         $memberIdentityKey = (string) $member['person_id'];
                         if (isset($seenFamilyIdentities[$memberIdentityKey])) {
-                            $errorMsg = "الشخص برقم هوية " . $memberIdentityKey . " مُدخل أكثر من مرة في أفراد الأسرة. يرجى تصحيح التكرار قبل الحفظ.";
-                            if ($request->ajax() || $request->wantsJson()) {
-                                return response()->json([
-                                    'success' => false,
-                                    'message' => $errorMsg
-                                ], 422);
-                            }
-                            return redirect()->back()->withInput()->with('error', $errorMsg);
+                            $firstIndex = $seenFamilyIdentities[$memberIdentityKey];
+                            $reason = 'نفس رقم الهوية مسجّل في البطاقة ' . ($firstIndex + 1) . ' وفي هذه البطاقة. احذف إحدى البطاقتين.';
+                            return $this->rejectRegistration(
+                                $request,
+                                'رقم الهوية ' . $memberIdentityKey . ' مكرر في أفراد الأسرة: البطاقة ' . ($firstIndex + 1) . ' والبطاقة ' . ($index + 1) . '. لا يمكن حفظ الشخص نفسه مرتين.',
+                                [
+                                    PortalErrorMessages::field("family_members.{$firstIndex}.person_id", $reason),
+                                    PortalErrorMessages::field("family_members.{$index}.person_id", $reason),
+                                ],
+                                422
+                            );
                         }
-                        $seenFamilyIdentities[$memberIdentityKey] = true;
+                        $seenFamilyIdentities[$memberIdentityKey] = $index;
 
                         // 🆕 الشخص مرتبط بملف معيل آخر:
                         //    - معيل لملف آخر: يبقى رفضاً، فضمّه فرداً يعني تجريده من ملفه (قرار إداري)
@@ -787,17 +1029,20 @@ class GeneralRegistrationController extends Controller
                         $memberLink = $this->classifyIdentityLink($memberIdentityKey, $fileIdNumber);
 
                         if ($memberLink !== null && $memberLink['type'] === 'guardian') {
-                            $errorMsg = "الشخص برقم هوية " . $memberIdentityKey . " مسجل كمعيل لملف آخر (رقم ملف " . $memberLink['file_id_number'] . "). لا يمكن ضمه كفرد أسرة. يرجى التواصل مع إدارة المؤسسة.";
-                            if ($request->ajax() || $request->wantsJson()) {
-                                return response()->json([
-                                    'success' => false,
-                                    'message' => $errorMsg
-                                ], 422);
-                            }
-                            return redirect()->back()->withInput()->with('error', $errorMsg);
+                            $reason = 'مسجّل كمعيل لملف آخر برقم ' . $memberLink['file_id_number'] . '. لا يمكن ضمّه كفرد أسرة.';
+                            return $this->rejectRegistration(
+                                $request,
+                                'الشخص برقم هوية ' . $memberIdentityKey . ' (البطاقة ' . ($index + 1) . ') مسجل كمعيل لملف آخر (رقم ملف ' . $memberLink['file_id_number'] . '). لا يمكن ضمه كفرد أسرة. يرجى التواصل مع إدارة المؤسسة.',
+                                [PortalErrorMessages::field("family_members.{$index}.person_id", $reason)],
+                                422
+                            );
                         }
                     }
                 }
+            }
+
+            if ($publicSubmission) {
+                $this->validatePublicAttachmentSources($request, $fileIdNumber);
             }
 
             DB::beginTransaction();
@@ -818,11 +1063,13 @@ class GeneralRegistrationController extends Controller
 
                     if (empty($regeneratedFileIdNumber) || $regeneratedFileIdNumber === $fileIdNumber) {
                         DB::rollBack();
-                        $errorMsg = 'تعذر حفظ الطلب: رقم الملف مستخدم في سجل آخر ولم ينجح توليد رقم بديل. يرجى إعادة تحميل الصفحة والمحاولة مرة أخرى.';
-                        if ($request->ajax() || $request->wantsJson()) {
-                            return response()->json(['success' => false, 'message' => $errorMsg], 422);
-                        }
-                        return redirect()->back()->withInput()->with('error', $errorMsg);
+                        return $this->rejectRegistration(
+                            $request,
+                            'تعذر حفظ الطلب: رقم الملف مستخدم في سجل آخر ولم ينجح توليد رقم بديل. يرجى إعادة تحميل الصفحة والمحاولة مرة أخرى.',
+                            [PortalErrorMessages::field('file_id_number', 'مستخدم في سجل آخر، وتعذّر توليد رقم بديل.')],
+                            422,
+                            'conflict_table=' . $fileNumberConflictTable
+                        );
                     }
 
                     Log::warning('♻️ رقم ملف مكرر داخل المعاملة - تم توليد رقم بديل', [
@@ -846,16 +1093,20 @@ class GeneralRegistrationController extends Controller
             //      - فرد أسرة مرتبط بملف آخر ⇒ الطلب يُقبل، ويُصف الفرد في طابور نقل معلّق حتى موافقة الإدارة
             // ================================================
             $inTransactionConflictMsg = null;
+            $inTransactionConflictField = 'data_id_number';
+            $inTransactionConflictReason = '';
             $pendingTransfers = [];
 
             if (!$useExistingGuardian && !empty($guardianIdentity)) {
-                if ($this->findOtherFileForIdentity((string) $guardianIdentity, $fileIdNumber) !== null) {
-                    $inTransactionConflictMsg = 'هذا الشخص مسجل مسبقاً في النظام ومرتبط بمعيل آخر. لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.';
+                $otherFile = $this->findOtherFileForIdentity((string) $guardianIdentity, $fileIdNumber);
+                if ($otherFile !== null) {
+                    $inTransactionConflictMsg = 'هذا الشخص مسجل مسبقاً في النظام ومرتبط بمعيل آخر (رقم ملف ' . $otherFile . '). لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.';
+                    $inTransactionConflictReason = 'مسجّل مسبقاً في ملف آخر برقم ' . $otherFile . '.';
                 }
             }
 
             if ($inTransactionConflictMsg === null && is_array($familyMembers)) {
-                foreach ($familyMembers as $member) {
+                foreach ($familyMembers as $memberIndex => $member) {
                     $memberIdentity = trim((string) ($member['person_id'] ?? ''));
                     if ($memberIdentity === '') {
                         continue;
@@ -868,13 +1119,17 @@ class GeneralRegistrationController extends Controller
                     }
 
                     if ($memberLink['type'] === 'guardian') {
-                        $inTransactionConflictMsg = "الشخص برقم هوية " . $memberIdentity . " مسجل كمعيل لملف آخر (رقم ملف " . $memberLink['file_id_number'] . "). لا يمكن ضمه كفرد أسرة. يرجى التواصل مع إدارة المؤسسة.";
+                        $inTransactionConflictMsg = 'الشخص برقم هوية ' . $memberIdentity . ' (البطاقة ' . ($memberIndex + 1) . ') مسجل كمعيل لملف آخر (رقم ملف ' . $memberLink['file_id_number'] . '). لا يمكن ضمه كفرد أسرة. يرجى التواصل مع إدارة المؤسسة.';
+                        $inTransactionConflictField = "family_members.{$memberIndex}.person_id";
+                        $inTransactionConflictReason = 'مسجّل كمعيل لملف آخر برقم ' . $memberLink['file_id_number'] . '.';
                         break;
                     }
 
                     // جدول الطابور غير مثبَّت: لا نكتب طلباً ولا نسقط الفرد بصمت، بل نعود للسلوك القديم
                     if (!MemberTransferRequest::tableExists()) {
-                        $inTransactionConflictMsg = "الشخص برقم هوية " . $memberIdentity . " مرتبط بمعيل آخر (رقم ملف " . $memberLink['file_id_number'] . "). لا يمكن ضمّه الآن. يرجى التواصل مع إدارة المؤسسة.";
+                        $inTransactionConflictMsg = 'الشخص برقم هوية ' . $memberIdentity . ' (البطاقة ' . ($memberIndex + 1) . ') مرتبط بمعيل آخر (رقم ملف ' . $memberLink['file_id_number'] . '). لا يمكن ضمّه الآن. يرجى التواصل مع إدارة المؤسسة.';
+                        $inTransactionConflictField = "family_members.{$memberIndex}.person_id";
+                        $inTransactionConflictReason = 'مرتبط بمعيل آخر برقم ' . $memberLink['file_id_number'] . '، وطابور النقل غير متاح.';
                         break;
                     }
 
@@ -887,10 +1142,12 @@ class GeneralRegistrationController extends Controller
 
             if ($inTransactionConflictMsg !== null) {
                 DB::rollBack();
-                if ($request->ajax() || $request->wantsJson()) {
-                    return response()->json(['success' => false, 'message' => $inTransactionConflictMsg], 422);
-                }
-                return redirect()->back()->withInput()->with('error', $inTransactionConflictMsg);
+                return $this->rejectRegistration(
+                    $request,
+                    $inTransactionConflictMsg,
+                    [PortalErrorMessages::field($inTransactionConflictField, $inTransactionConflictReason)],
+                    422
+                );
             }
 
             if (!empty($pendingTransfers)) {
@@ -911,6 +1168,12 @@ class GeneralRegistrationController extends Controller
                 $existingNorm = ltrim((string) $existingFileIdNumber, '0');
 
                 if ($requestedNorm !== $existingNorm) {
+                    if ($publicSubmission && Data::where('file_id_number', $requestedFileIdNumber)
+                        ->where('data_id_number', '!=', $guardianIdentity)->exists()) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'file_id_number' => 'رقم الملف مرتبط بشخص آخر. لم يتم حفظ الطلب أو نقل بيانات أي شخص؛ يرجى إعادة فتح التسجيل.',
+                        ]);
+                    }
                     $relinkCounts = app(GuardianFileService::class)->relinkFile(
                         (string) $requestedFileIdNumber,
                         (string) $existingFileIdNumber,
@@ -1023,7 +1286,7 @@ class GeneralRegistrationController extends Controller
                                 $isDuplicate = true;
                                 $duplicateBankErrors[] = [
                                     'index' => $index + 1,
-                                    'message' => 'الحساب البنكي مكرر - نفس الـ IBAN مسجّل مسبقاً في هذا الملف.',
+                                    'message' => 'الحساب البنكي رقم ' . ($index + 1) . ' مكرر — رقم الحساب نفسه مسجّل مسبقاً في هذا الملف، ولم يُضف مرة أخرى.',
                                 ];
                                 Log::warning('⚠️ محاولة إضافة حساب بنكي مكرر في التسجيل العام', [
                                     'index' => $index,
@@ -1460,7 +1723,11 @@ class GeneralRegistrationController extends Controller
                 $realPersonId = null;
                 // الواجهة تضع default_main/default_father/default_mother مؤقتاً لمن رفع وثائقه قبل إدخال الهوية؛
                 // نعاملها كوسوم البوابات نفسها بدل إسقاط المرفق
-                if ($personType === 'main' || $personType === 'default_main') {
+                if ($publicSubmission) {
+                    $groups = $this->publicDocumentGroups($request, $fileIdNumber);
+                    $group = $groups[$personType] ?? collect($groups)->first(fn ($group) => (string) $group['identity'] === $personType);
+                    $realPersonId = $group['identity'] ?? null;
+                } elseif ($personType === 'main' || $personType === 'default_main') {
                     $realPersonId = $request->input('data_id_number');
                 } elseif ($personType === 'deceased_father' || $personType === 'default_father') {
                     $realPersonId = $request->input('father_id');
@@ -1693,12 +1960,23 @@ class GeneralRegistrationController extends Controller
                     'missing_count' => count($missingRequiredAttachments),
                 ]);
 
-                if (config('portal.strict_attachments', false)) {
-                    $missingTypeNames = array_values(array_unique(array_column($missingRequiredAttachments, 'file_type')));
+                if ($publicSubmission || config('portal.strict_attachments', false)) {
                     throw \Illuminate\Validation\ValidationException::withMessages([
-                        'attachments' => 'وثائق إلزامية ناقصة: ' . implode('، ', $missingTypeNames),
+                        'attachments' => array_column($missingRequiredAttachments, 'message'),
                     ]);
                 }
+            }
+            if ($publicSubmission) {
+                $attachmentErrors = [];
+                foreach ($skippedAttachments as $skipped) {
+                    if (!in_array($skipped['reason'], ['duplicate_in_request', 'duplicate_in_db'], true)) {
+                        $attachmentErrors['attachments.' . ($skipped['index'] ?? 0) . '.file'][] = $skipped['message'];
+                    }
+                }
+                if ($attachmentErrors !== []) {
+                    throw \Illuminate\Validation\ValidationException::withMessages($attachmentErrors);
+                }
+                $attachmentsSaved = $this->preparePublicAttachmentStores($pendingStores, $preparedFiles);
             }
 
             // إضافة مستخدم جديد عند التسجيل العام
@@ -1721,6 +1999,7 @@ class GeneralRegistrationController extends Controller
             ]);
 
             DB::commit();
+            $preparedFiles = [];
             $this->progressUpdate(92, 'جاري نقل الملفات إلى مكانها النهائي...');
 
             // (3.3) انتهى استخدام الرقم المحجوز لهذه الجلسة
@@ -1729,7 +2008,16 @@ class GeneralRegistrationController extends Controller
             }
 
             // (2.3) اكتملت كتابة السجلات — ننقل ملفات المرفقات إلى مكانها النهائي الآن فقط
-            $attachmentsSaved = $this->finalizePendingAttachmentStores($pendingStores, $skippedAttachments);
+            if ($publicSubmission) {
+                $this->cleanupPendingAttachmentTemps($pendingStores);
+                foreach ($pendingStores as $pending) {
+                    if ($pending['type'] === 'temp_path') {
+                        $deferredTempCleanup[] = $pending['source'];
+                    }
+                }
+            } else {
+                $attachmentsSaved = $this->finalizePendingAttachmentStores($pendingStores, $skippedAttachments);
+            }
             $pendingStores = [];
 
             // اكتمل الحفظ: نحذف الآن المصادر المؤقتة الأصلية التي حُوِّلت إلى JPG
@@ -1789,6 +2077,7 @@ class GeneralRegistrationController extends Controller
                     'redirect' => route('user.thank.you.page'),
                     'warnings' => $skippedAttachments,
                     'skipped_attachments' => $skippedAttachments,
+                    'bank_warnings' => $duplicateBankErrors,
                     'pending_transfers_count' => $pendingTransfersCount,
                 ]);
             }
@@ -1797,28 +2086,27 @@ class GeneralRegistrationController extends Controller
             if (!empty($skippedAttachments)) {
                 $thankYouRedirect->with('attachment_warnings', $skippedAttachments);
             }
+            if (!empty($duplicateBankErrors)) {
+                $thankYouRedirect->with('bank_warnings', $duplicateBankErrors);
+            }
             return $thankYouRedirect;
 
             } catch (\Illuminate\Validation\ValidationException $e) {
-                // فشل تحقق (ValidationException) ليس عطلاً في الخادم:
-                // يُعاد بـ 422 مع أخطاء الحقول الصحيحة بدل 500
+                $this->cleanupPreparedAttachmentFiles($preparedFiles);
+                $preparedFiles = [];
                 $this->cleanupPendingAttachmentTemps($pendingStores);
                 $pendingStores = [];
                 DB::rollBack();
-                Log::warning('⚠️ فشل تحقق أثناء حفظ السجل العام: ' . $e->getMessage());
 
-                if ($request->ajax() || $request->wantsJson()) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => $e->getMessage(),
-                        'errors' => $e->errors(),
-                    ], 422);
-                }
-                return redirect()->back()
-                    ->withInput()
-                    ->withErrors($e->errors())
-                    ->with('error', $e->getMessage());
-            } catch (\Exception $e) {
+                $errorFields = PortalErrorMessages::fieldsFromErrors($e->errors());
+                $summary = count($errorFields) > 0
+                    ? 'لم يتم حفظ الطلب: يرجى تصحيح الحقول التالية (' . count($errorFields) . ') ثم إعادة الإرسال.'
+                    : 'لم يتم حفظ الطلب: البيانات المُدخلة غير مكتملة أو غير صحيحة. يرجى مراجعتها ثم إعادة الإرسال.';
+
+                return $this->rejectRegistration($request, $summary, $errorFields, 422, $e->getMessage());
+            } catch (\Throwable $e) {
+                $this->cleanupPreparedAttachmentFiles($preparedFiles);
+                $preparedFiles = [];
                 $this->cleanupPendingAttachmentTemps($pendingStores);
                 $pendingStores = [];
                 DB::rollBack();
@@ -1829,21 +2117,13 @@ class GeneralRegistrationController extends Controller
                     $driverCode = (int) ($e->errorInfo[1] ?? 0);
 
                     if ($sqlState === '23000' || $driverCode === 1062) {
-                        Log::warning('⚠️ تكرار في قاعدة البيانات أثناء حفظ التسجيل العام', [
-                            'sql_state' => $sqlState,
-                            'driver_code' => $driverCode,
-                        ]);
-
-                        $duplicateMessage = 'يبدو أن هذا الطلب مسجّل مسبقاً في النظام (تكرار في البيانات). يرجى مراجعة البيانات والمحاولة مرة أخرى، أو التواصل مع الإدارة.';
-
-                        if ($request->ajax() || $request->wantsJson()) {
-                            return response()->json([
-                                'success' => false,
-                                'message' => $duplicateMessage,
-                            ], 409);
-                        }
-
-                        return redirect()->back()->withInput()->with('error', $duplicateMessage);
+                        return $this->rejectRegistration(
+                            $request,
+                            'لم يتم حفظ الطلب: إحدى البيانات مسجّلة مسبقاً في النظام (تكرار). يرجى مراجعة البيانات والمحاولة مرة أخرى، أو التواصل مع الإدارة.',
+                            PortalErrorMessages::fieldsFromDuplicate($e->getMessage()),
+                            409,
+                            'sql_state=' . $sqlState . '; driver_code=' . $driverCode . '; ' . $e->getMessage()
+                        );
                     }
                 }
 
@@ -1859,16 +2139,11 @@ class GeneralRegistrationController extends Controller
                     continue;
                 }
 
-                Log::error('خطأ في تخزين السجل: ' . $e->getMessage());
-                if ($request->ajax() || $request->wantsJson()) {
-                    return response()->json([
-                        'success' => false,
-                        'error' => $e->getMessage()
-                    ], 500);
-                }
-                return redirect()->back()
-                    ->withInput()
-                    ->with('error', 'حدث خطأ أثناء حفظ السجل: ' . $e->getMessage());
+                return $this->failUnexpected(
+                    $request,
+                    $e,
+                    'تعذّر حفظ الطلب بسبب عطل مؤقت. يرجى المحاولة مرة أخرى، وإن تكرر العطل تواصل مع الإدارة وأخبرهم برمز المتابعة.'
+                );
             }
         } // end while
         } finally {
@@ -2294,9 +2569,46 @@ class GeneralRegistrationController extends Controller
         return null;
     }
 
-    /**
-     * (2.3) نقل ملفات المرفقات بعد commit. أي فشل يتراجع عن سجل المرفق ويُعاد في warnings.
-     */
+    private function preparePublicAttachmentStores(array $pendingStores, array &$preparedFiles): int
+    {
+        $disk = \Storage::disk('public');
+        foreach ($pendingStores as $pending) {
+            $source = $pending['type'] === 'uploaded'
+                ? $pending['file']->getRealPath()
+                : ($pending['type'] === 'temp_path' ? $disk->path($pending['source']) : $pending['source']);
+            $preparedFiles[] = $pending['final_path'];
+            $handle = @fopen($source, 'rb');
+            $stored = false;
+            try {
+                $stored = $handle !== false && $disk->put($pending['final_path'], $handle)
+                    && $disk->size($pending['final_path']) === filesize($source);
+            } catch (\Throwable $exception) {
+                Log::warning('تعذر حفظ صورة التسجيل قبل اعتماد المعاملة', ['error' => PortalErrorMessages::maskTechnical($exception->getMessage())]);
+            } finally {
+                if (is_resource($handle)) {
+                    fclose($handle);
+                }
+            }
+            if (!$stored) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'attachments.' . $pending['index'] . '.file' => 'تعذر حفظ صورة المرفق. لم يتم حفظ الطلب؛ يرجى إعادة المحاولة، ولن تحتاج إلى إعادة تعبئة البيانات.',
+                ]);
+            }
+        }
+        return count($pendingStores);
+    }
+
+    private function cleanupPreparedAttachmentFiles(array $paths): void
+    {
+        foreach ($paths as $path) {
+            try {
+                \Storage::disk('public')->delete($path);
+            } catch (\Throwable $exception) {
+                Log::warning('تعذر تنظيف صورة طلب لم يُحفظ', ['error' => PortalErrorMessages::maskTechnical($exception->getMessage())]);
+            }
+        }
+    }
+
     private function finalizePendingAttachmentStores(array $pendingStores, array &$skippedAttachments): int
     {
         $disk = \Storage::disk('public');
@@ -2423,15 +2735,138 @@ class GeneralRegistrationController extends Controller
             . str_pad((string) max(0, min($familyIndex, 99)), 2, '0', STR_PAD_LEFT);
     }
 
-    /**
-     * (2.4) الوثائق الإلزامية الناقصة لكل شخص في الطلب.
-     * تحذير فقط افتراضياً؛ الحجب يحتاج تفعيل config('portal.strict_attachments').
-     */
-    private function collectMissingRequiredAttachments(Request $request, string $fileIdNumber, array $coveredAttachments): array
+    private function publicDocumentGroups(Request $request, string $fileIdNumber): array
+    {
+        $groups = [
+            'main' => ['identity' => $request->input('data_id_number'), 'label' => 'الوصي (المعيل)', 'context' => 'basic'],
+        ];
+        foreach ($request->input('family_members', []) as $index => $member) {
+            $groups['family_' . $index] = [
+                'identity' => $member['person_id'] ?? null ?: $this->buildFamilyFallbackIdentity($fileIdNumber, (int) $index),
+                'label' => 'فرد الأسرة رقم ' . ((int) $index + 1), 'context' => 'family',
+            ];
+        }
+        if ((string) $request->input('data_section_id') === '1') {
+            $groups['deceased_father'] = ['identity' => $request->input('father_id'), 'label' => 'الأب المتوفى', 'context' => 'deceased'];
+            if ($request->filled('deceased_mother_id')) {
+                $groups['deceased_mother'] = ['identity' => $request->input('deceased_mother_id'), 'label' => 'الأم المتوفاة', 'context' => 'deceased'];
+            }
+            foreach ($request->input('additional_deceased', []) ?? [] as $index => $person) {
+                $groups['additional_deceased_' . $index] = [
+                    'identity' => $person['id_number'], 'label' => 'المتوفى الإضافي رقم ' . ((int) $index + 1), 'context' => 'deceased',
+                ];
+            }
+        }
+        return $groups;
+    }
+
+    private function publicDocumentTypes()
     {
         try {
+            return \App\Models\DocumentType::query()->get([
+                'pref', 'description', 'basic_enabled', 'basic_required',
+                'family_enabled', 'family_required', 'deceased_enabled', 'deceased_required',
+            ]);
+        } catch (\Throwable $exception) {
+            Log::warning('تعذر التحقق من قائمة الوثائق الإلزامية', ['error' => PortalErrorMessages::maskTechnical($exception->getMessage())]);
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'attachments' => 'تعذر التحقق من قائمة الوثائق الإلزامية الآن. لم يتم حفظ الطلب؛ يرجى المحاولة لاحقاً أو التواصل مع الإدارة.',
+            ]);
+        }
+    }
+
+    private function validatePublicAttachmentSources(Request $request, string $fileIdNumber): void
+    {
+        $groups = $this->publicDocumentGroups($request, $fileIdNumber);
+        $types = $this->publicDocumentTypes();
+        $covered = [];
+        $errors = [];
+        foreach ($request->input('attachments', []) ?? [] as $index => $attachment) {
+            $person = $attachment['person_identity_number'];
+            $group = $groups[$person] ?? collect($groups)->first(fn ($group) => (string) $group['identity'] === $person);
+            $type = $types->first(fn ($type) => (string) $type->pref === $attachment['file_type']);
+            $field = 'attachments.' . $index . '.file';
+            $label = 'المرفق رقم ' . ((int) $index + 1);
+            if (!$group || !$type || !(int) $type->{$group['context'] . '_enabled'} || $type->description === 'Unknown') {
+                $errors[$field] = $label . ': نوع الوثيقة أو الشخص المرتبط بها غير صالح. أعد اختيار المرفق من بطاقة الشخص الصحيح.';
+                continue;
+            }
+            $file = $request->file('attachments.' . $index . '.file');
+            $temp = $attachment['temp_path'] ?? '';
+            $path = $file && $file->isValid() ? $file->getRealPath() : null;
+            if (!$path && $temp !== '' && $this->isAllowedTempPath($temp)) {
+                $allowedDirectories = array_filter([
+                    $request->input('original_file_id_number'), $request->input('file_id_number'), $fileIdNumber,
+                ]);
+                if (in_array(basename(dirname($temp)), $allowedDirectories, true)) {
+                    $path = storage_path('app/public/' . $temp);
+                }
+            }
+            if (!$path || !is_file($path) || !is_readable($path)) {
+                $errors[$field] = $label . ': لم يصل الملف أو انتهت صلاحية رفعه. يرجى إعادة إرفاق الصورة.';
+                continue;
+            }
+            $size = filesize($path);
+            $extension = $this->resolveAttachmentExtension($this->detectUploadMime($path), $path);
+            if (!$size || $size > self::MAX_ATTACHMENT_BYTES || !in_array($extension, self::IMAGE_EXTENSIONS, true)) {
+                $errors[$field] = $label . ': يجب إرفاق صورة صالحة لا تتجاوز خمسة ميغابايت.';
+                continue;
+            }
+            if ($extension === 'jpg' && @getimagesize($path) === false) {
+                $errors[$field] = $label . ': الصورة تالفة أو لم يكتمل رفعها، يرجى إعادة إرفاقها.';
+                continue;
+            }
+            $covered[(string) $group['identity']][strtolower(trim($attachment['file_type']))] = true;
+        }
+        foreach ($this->missingPublicDocuments($request, $fileIdNumber, $covered) as $missing) {
+            $errors['attachments'][] = $missing['message'];
+        }
+        if ($errors !== []) {
+            throw \Illuminate\Validation\ValidationException::withMessages($errors);
+        }
+    }
+
+    private function missingPublicDocuments(Request $request, string $fileIdNumber, array $covered): array
+    {
+        $types = $this->publicDocumentTypes();
+        $groups = $this->publicDocumentGroups($request, $fileIdNumber);
+        $disk = \Storage::disk('public');
+        $existing = Attachment::whereIn('person_identity_number', array_column($groups, 'identity'))->get();
+        foreach ($existing as $attachment) {
+            $path = preg_replace('#^/?storage/#', '', (string) $attachment->file_path);
+            if (str_starts_with($path, 'uploads/') && !str_contains($path, '..') && $disk->exists($path) && $disk->size($path) > 0) {
+                $covered[(string) $attachment->person_identity_number][strtolower(trim($attachment->file_type))] = true;
+            }
+        }
+        $missing = [];
+        foreach ($groups as $group) {
+            foreach ($types as $type) {
+                $context = $group['context'];
+                if (!(int) $type->{$context . '_enabled'} || !(int) $type->{$context . '_required'} || $type->description === 'Unknown') {
+                    continue;
+                }
+                $pref = strtolower(trim((string) $type->pref));
+                if (!empty($covered[(string) $group['identity']][$pref])) {
+                    continue;
+                }
+                $missing[] = [
+                    'index' => null, 'file_type' => $type->pref, 'person_identity_number' => $group['identity'],
+                    'reason' => 'missing_required_document',
+                    'message' => $group['label'] . ': الوثيقة الإلزامية «' . ($type->description ?: 'الوثيقة المطلوبة') . '» غير مرفقة أو لم يكتمل حفظها.',
+                ];
+            }
+        }
+        return $missing;
+    }
+
+    private function collectMissingRequiredAttachments(Request $request, string $fileIdNumber, array $coveredAttachments): array
+    {
+        if ($request->route()?->getName() === 'store.generalRegistration') {
+            return $this->missingPublicDocuments($request, $fileIdNumber, $coveredAttachments);
+        }
+        try {
             $documentTypes = \App\Models\DocumentType::query()
-                ->get(['pref', 'basic_required', 'deceased_required', 'family_required']);
+                ->get(['pref', 'description', 'basic_required', 'deceased_required', 'family_required']);
         } catch (\Throwable $exception) {
             Log::warning('تعذر جلب أنواع الوثائق لفحص المرفقات الإلزامية: ' . $exception->getMessage());
             return [];
@@ -2500,12 +2935,15 @@ class GeneralRegistrationController extends Controller
                     continue;
                 }
 
+                // الوصف العربي للوثيقة بدل رمزها التقني (pref)
+                $documentLabel = trim((string) ($documentType->description ?? ''));
+
                 $missing[] = [
                     'index' => null,
                     'file_type' => (string) $documentType->pref,
                     'person_identity_number' => (string) $identity,
                     'reason' => 'missing_required_document',
-                    'message' => "وثيقة إلزامية غير مرفوعة ({$documentType->pref}) — {$group['label']}.",
+                    'message' => 'وثيقة إلزامية غير مرفوعة: ' . ($documentLabel !== '' ? $documentLabel : 'إحدى الوثائق المطلوبة') . ' — ' . $group['label'] . '.',
                 ];
             }
         }
@@ -2739,10 +3177,10 @@ class GeneralRegistrationController extends Controller
             return response()->json($results);
 
         } catch (\Exception $e) {
-            Log::error('خطأ في البحث: ' . $e->getMessage());
+            Log::error('خطأ في البحث: ' . PortalErrorMessages::maskTechnical($e->getMessage()));
             return response()->json([
                 'success' => false,
-                'message' => 'حدث خطأ أثناء البحث: ' . $e->getMessage(),
+                'message' => 'تعذّر إكمال البحث حالياً. يرجى المحاولة مرة أخرى.',
                 'search_time' => round((microtime(true) - $startTime) * 1000, 2) . ' ms'
             ], 500);
         }
@@ -2990,10 +3428,10 @@ class GeneralRegistrationController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('خطأ في جلب البيانات من السجل المدني: ' . $e->getMessage());
+            Log::error('خطأ في جلب البيانات من السجل المدني: ' . PortalErrorMessages::maskTechnical($e->getMessage()));
             return response()->json([
                 'success' => false,
-                'message' => 'حدث خطأ أثناء جلب البيانات: ' . $e->getMessage()
+                'message' => 'تعذّر جلب البيانات من السجل المدني حالياً. يرجى إدخال البيانات يدوياً أو المحاولة لاحقاً.'
             ], 500);
         }
     }
@@ -3172,14 +3610,14 @@ class GeneralRegistrationController extends Controller
 
         } catch (\Exception $e) {
             Log::error('❌ خطأ في التحقق من وجود المعيل', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error' => PortalErrorMessages::maskTechnical($e->getMessage()),
+                'at' => $e->getFile() . ':' . $e->getLine(),
             ]);
 
             return response()->json([
                 'success' => false,
                 'exists' => false,
-                'message' => 'حدث خطأ أثناء البحث: ' . $e->getMessage()
+                'message' => 'تعذّر التحقق من البيانات حالياً. يرجى المحاولة مرة أخرى.'
             ], 500);
         }
     }
@@ -3259,10 +3697,10 @@ class GeneralRegistrationController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('خطأ في البحث عن المعيل: ' . $e->getMessage());
+            Log::error('خطأ في البحث عن المعيل: ' . PortalErrorMessages::maskTechnical($e->getMessage()));
             return response()->json([
                 'success' => false,
-                'message' => 'حدث خطأ أثناء البحث: ' . $e->getMessage()
+                'message' => 'تعذّر البحث عن بيانات المعيل حالياً. يرجى المحاولة مرة أخرى.'
             ], 500);
         }
     }
@@ -3321,10 +3759,10 @@ class GeneralRegistrationController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            Log::error('خطأ في البحث عن الأم: ' . $e->getMessage());
+            Log::error('خطأ في البحث عن الأم: ' . PortalErrorMessages::maskTechnical($e->getMessage()));
             return response()->json([
                 'success' => false,
-                'message' => 'حدث خطأ أثناء البحث: ' . $e->getMessage()
+                'message' => 'تعذّر البحث عن بيانات الأم حالياً. يرجى المحاولة مرة أخرى.'
             ], 500);
         }
     }
@@ -3455,12 +3893,12 @@ class GeneralRegistrationController extends Controller
 
         } catch (\Exception $e) {
             Log::error('خطأ في جلب بيانات المعيل مع الحسابات البنكية', [
-                'error' => $e->getMessage()
+                'error' => PortalErrorMessages::maskTechnical($e->getMessage())
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'حدث خطأ: ' . $e->getMessage()
+                'message' => 'تعذّر جلب بيانات المعيل حالياً. يرجى المحاولة مرة أخرى.'
             ], 500);
         }
     }

@@ -8,6 +8,12 @@
 @include('user.generalRegistration.javascript.autoComplete')
 @include('user.generalRegistration.javascript.showInsertedData')
 @include('user.generalRegistration.javascript.manageForm')
+{{-- استرجاع البطاقات والصفوف المولّدة في المتصفح بعد رفض الطلب --}}
+@include('user.generalRegistration.javascript.restoreOldInput')
+{{-- نظام المسودة المحلية: التخزين ثم الالتقاط التلقائي ثم الاسترجاع — يجب أن يبقى بعد استرجاع الرفض --}}
+@include('user.generalRegistration.javascript.draftStore')
+@include('user.generalRegistration.javascript.draftAutosave')
+@include('user.generalRegistration.javascript.draftRestore')
 
 <script>
     // ...existing code...
@@ -212,75 +218,21 @@ document.addEventListener('DOMContentLoaded', function() {
 // }, true);
 // new code
 function checkDuplicateIdsInForm(input) {
-    // جمع جميع حقول رقم الهوية من جميع البوابات (فقط المرئية)
-    const idInputs = [
-        ...document.querySelectorAll('input[name="data_id_number"]'), // البيانات الأساسية
-        ...document.querySelectorAll('input[name="father_id"]'), // الأب المتوفى
-        ...document.querySelectorAll('input[name="deceased_mother_id"]'), // الأم المتوفاة
-        ...document.querySelectorAll('input[name^="additional_deceased"][name$="[id_number]"]'), // المتوفين الإضافيين
-        ...document.querySelectorAll('input[name^="family_members"][name$="[person_id]"]') // أفراد الأسرة
-    ].filter(el => el.offsetParent !== null); // تصفية الحقول غير المرئية
-
-    const ids = {};
-    let duplicate = null;
-    let isCurrentDuplicate = false;
-    let duplicateInputs = []; // لتتبع جميع الحقول المكررة
-
-    idInputs.forEach(inp => {
-        const val = inp.value.trim();
-        if (!val || val.length < 9) return; // تجاهل القيم الفارغة أو القصيرة
-
-        if (ids[val]) {
-            // وجدنا تكرار
-            if (input && inp === input) isCurrentDuplicate = true;
-            inp.classList.add('is-invalid');
-            inp.classList.remove('is-valid');
-            duplicate = val;
-            duplicateInputs.push(inp);
-
-            // أضف الحقل الأول المكرر أيضاً
-            if (ids[val].input) {
-                ids[val].input.classList.add('is-invalid');
-                ids[val].input.classList.remove('is-valid');
-                if (!duplicateInputs.includes(ids[val].input)) {
-                    duplicateInputs.push(ids[val].input);
-                }
-            }
-        } else {
-            ids[val] = { input: inp };
-            // فقط أزل is-invalid، لا تضف is-valid حتى يتم التحقق من قاعدة البيانات
-            inp.classList.remove('is-invalid');
-        }
+    if (typeof window.collectRegistrationDuplicateErrors !== 'function') return true;
+    const errors = window.collectRegistrationDuplicateErrors();
+    document.querySelectorAll('[data-registration-duplicate]').forEach(el => {
+        el.classList.remove('is-invalid');
+        el.removeAttribute('data-registration-duplicate');
     });
-
-    if (input && isCurrentDuplicate) {
-        input.classList.add('is-invalid');
-        input.classList.remove('is-valid');
-        Swal.fire({
-            icon: 'error',
-            title: 'رقم هوية مكرر',
-            text: `رقم الهوية ${input.value.trim()} مكرر في النموذج! يجب أن يكون كل رقم هوية فريداً.`,
-            confirmButtonText: 'حسناً'
-        });
-        return false;
+    errors.forEach(error => error.fields.forEach(el => {
+        if (!el.classList.contains('is-invalid')) el.setAttribute('data-registration-duplicate', '1');
+        el.classList.add('is-invalid');
+        el.classList.remove('is-valid');
+    }));
+    if (!input && errors.length && typeof window.showRegistrationValidationErrors === 'function') {
+        window.showRegistrationValidationErrors(errors);
     }
-
-    if (duplicate) {
-        Swal.fire({
-            icon: 'error',
-            title: 'رقم هوية مكرر',
-            text: `رقم الهوية ${duplicate} مكرر في النموذج! يجب أن يكون كل رقم هوية فريداً.`,
-            confirmButtonText: 'حسناً',
-            didClose: () => {
-                // ركز على أول حقل مكرر
-                if (duplicateInputs.length > 0) {
-                    duplicateInputs[0].focus();
-                }
-            }
-        });
-        return false;
-    }
-    return true;
+    return errors.length === 0;
 }
 
 // التحقق على مستوى قاعدة البيانات — معطل حسب الطلب

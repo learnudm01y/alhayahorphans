@@ -118,6 +118,34 @@
             line-height: 1.8;
         }
 
+        .flash-warning {
+            text-align: right;
+            font-size: 20px;
+            color: #92400e;
+            background: #fffbeb;
+            border: 1px solid #fcd34d;
+            border-radius: 12px;
+            padding: 18px 22px;
+            margin: 0 auto 25px;
+            line-height: 1.9;
+        }
+
+        .flash-warning-title {
+            font-weight: 700;
+            font-size: 22px;
+            margin-bottom: 10px;
+        }
+
+        .flash-warning ul {
+            padding-right: 24px;
+            margin-bottom: 10px;
+        }
+
+        .flash-warning-note {
+            font-size: 18px;
+            color: #78350f;
+        }
+
         .success-icon {
             width: 120px;
             height: 120px;
@@ -213,10 +241,46 @@
             <div class="flash-success">{{ session('success') }}</div>
         @endif
 
+        @php
+            $warningMessages = [];
+            foreach (['attachment_warnings', 'bank_warnings'] as $warningKey) {
+                $warnings = session($warningKey);
+                foreach (is_array($warnings) ? $warnings : [] as $warning) {
+                    $warningText = is_array($warning) ? trim((string) ($warning['message'] ?? '')) : '';
+                    if ($warningText !== '' && !in_array($warningText, $warningMessages, true)) {
+                        $warningMessages[] = $warningText;
+                    }
+                }
+            }
+        @endphp
+
+        @if (count($warningMessages) > 0)
+            <div class="flash-warning" role="alert">
+                <p class="flash-warning-title">تم حفظ الطلب، مع الملاحظات التالية</p>
+                <ul>
+                    @foreach ($warningMessages as $warningMessage)
+                        <li>{{ $warningMessage }}</li>
+                    @endforeach
+                </ul>
+                <p class="flash-warning-note">يرجى التواصل مع الإدارة لاستكمال ما لم يُحفظ.</p>
+            </div>
+        @endif
+
         <div class="footer">
             <p>تم استلام طلبكم بنجاح</p>
             <p>...شكراً...</p>
         </div>
     </div>
+
+    {{-- مسح مسودة المتصفح بعد الإرسال الناجح: الوحدة نفسها تُستخدم في صفحة التسجيل --}}
+    @include('user.generalRegistration.javascript.draftStore')
+    <script>
+        window.addEventListener('load', function () {
+            try {
+                window.RegDraft.clearSubmitted();
+                window.RegDraft.purgeExpired();
+            } catch (error) {}
+        });
+    </script>
 </body>
 </html>

@@ -3,6 +3,22 @@
     <script>
         window.documentTypes = window.documentTypes || @json($documentTypes ?? []);
     </script>
+    {{-- ما يراه المستخدم عند أي خلل: رسالة عربية فقط، والنص التقني يُستبدل برسالة عامة --}}
+    <script>
+        window.PORTAL_DEBUG = @json(app()->environment('local'));
+
+        window.portalSafeMessage = function(error, fallback) {
+            const raw = error && error.message !== undefined ? error.message : error;
+            const text = String(raw === undefined || raw === null ? '' : raw).trim();
+            const technical = /SQLSTATE|Stack trace|Exception|Undefined|https?:\/\/|\.php|\.js|[#{}<>]|\bat\s+\w/i;
+
+            if (text !== '' && /[\u0600-\u06FF]/.test(text) && !technical.test(text)) {
+                return text;
+            }
+
+            return fallback || 'حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.';
+        };
+    </script>
     {{-- تتبع الأخطاء على مستوى النظام --}}
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -44,7 +60,7 @@
                         Swal.fire({
                             icon: 'error',
                             title: 'خطأ في العملية',
-                            text: error.message || ' انتهى الوقت المحدد لتنفيذ عملية قص الصورة ',
+                            text: window.portalSafeMessage(error, 'انتهى الوقت المحدد لتنفيذ عملية قص الصورة. يرجى المحاولة مرة أخرى.'),
                             confirmButtonText: 'نعم'
                         });
                     }
@@ -52,6 +68,17 @@
                 },
 
                 showDetails: function(logIndex) {
+                    // التفاصيل التقنية للمطوّر في بيئة التطوير فقط، ولا تُعرض في الإنتاج
+                    if (!window.PORTAL_DEBUG) {
+                        Swal.fire({
+                            icon: 'info',
+                            title: 'تم تسجيل الخطأ',
+                            text: 'يرجى إعادة المحاولة، وإن تكرر الخطأ تواصل مع الإدارة.',
+                            confirmButtonText: 'حسناً'
+                        });
+                        return;
+                    }
+
                     const error = this.logs[logIndex];
                     if (!error) return;
 
@@ -325,7 +352,7 @@
                         Swal.fire({
                             icon: 'error',
                             title: 'خطأ في رفع الملف',
-                            text: error.message
+                            text: window.portalSafeMessage(error, 'تعذّر رفع الملف. يرجى المحاولة مرة أخرى.')
                         });
                     }
                 });
@@ -376,7 +403,7 @@
                         Swal.fire({
                             icon: 'error',
                             title: 'خطأ في إرسال النموذج',
-                            text: error.message || 'حدث خطأ أثناء الإرسال'
+                            text: window.portalSafeMessage(error, 'حدث خطأ أثناء إرسال النموذج. يرجى المحاولة مرة أخرى.')
                         });
                     }
                 });

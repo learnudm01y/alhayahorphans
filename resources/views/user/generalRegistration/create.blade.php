@@ -25,6 +25,8 @@
 
                     <div class="card-body bg-light">
 
+                        @include('user.generalRegistration.component.rejectionNotice')
+
                         <form action="{{ route('store.generalRegistration') }}" method="POST"
                             enctype="multipart/form-data" autocomplete="off" id="main_form" novalidate>
                             @csrf

@@ -15,26 +15,26 @@
         </div>
         <div class="col-md-4">
             <label class="form-label">رقم الهوية الوصي (المعيل) <span class="text-danger">*</span></label>
-            <input type="text" name="data_id_number" id="data_id_number" class="form-control" inputmode="numeric" minlength="9" maxlength="10" pattern="[0-9]{9,10}" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+            <input type="text" name="data_id_number" id="data_id_number" class="form-control" inputmode="numeric" minlength="9" maxlength="10" pattern="[0-9]{9,10}" value="{{ old('data_id_number') }}" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
         </div>
 
         <div class="col-12">
             <div class="row g-3">
                 <div class="col-md-3">
                     <label class="form-label">الاسم الأول الوصي (المعيل) <span class="text-danger">*</span></label>
-                    <input type="text" name="data_first_name" class="form-control" maxlength="30">
+                    <input type="text" name="data_first_name" class="form-control" maxlength="30" value="{{ old('data_first_name') }}">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">اسم الأب الوصي (المعيل) <span class="text-danger">*</span></label>
-                    <input type="text" name="data_father_name" class="form-control" maxlength="30">
+                    <input type="text" name="data_father_name" class="form-control" maxlength="30" value="{{ old('data_father_name') }}">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">اسم الجد الوصي (المعيل) <span class="text-danger">*</span></label>
-                    <input type="text" name="data_grand_father_name" class="form-control" maxlength="30">
+                    <input type="text" name="data_grand_father_name" class="form-control" maxlength="30" value="{{ old('data_grand_father_name') }}">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">اسم العائلة الوصي (المعيل) <span class="text-danger">*</span></label>
-                    <input type="text" name="data_family_name" class="form-control" maxlength="30">
+                    <input type="text" name="data_family_name" class="form-control" maxlength="30" value="{{ old('data_family_name') }}">
                 </div>
             </div>
         </div>
@@ -43,32 +43,32 @@
             <select name="data_relationship" id="data_relationship" class="form-select">
                 <option value="">اختر صلة القرابة</option>
                 @foreach ($category_of_relationship->where('attribute', '!=', 'Unknown') as $category)
-                    <option value="{{ $category->id }}">{{ $category->attribute }}</option>
+                    <option value="{{ $category->id }}" @selected(old('data_relationship') == $category->id)>{{ $category->attribute }}</option>
                 @endforeach
             </select>
         </div>
         <div class="col-md-4">
             <label class="form-label">تاريخ الميلاد الوصي (المعيل) <span class="text-danger">*</span></label>
-            <input type="date" name="data_birth_date" class="form-control">
+            <input type="date" name="data_birth_date" class="form-control" value="{{ old('data_birth_date') }}">
         </div>
         <div class="col-md-4">
             <label class="form-label">الجنس الوصي (المعيل) <span class="text-danger">*</span></label>
             <select name="data_gender" class="form-select">
                 <option value="">اختر الجنس</option>
-                <option value="1">ذكر</option>
-                <option value="2">أنثى</option>
+                <option value="1" @selected(old('data_gender') == '1')>ذكر</option>
+                <option value="2" @selected(old('data_gender') == '2')>أنثى</option>
             </select>
         </div>
         <div class="col-md-4">
             <label class="form-label">رقم الهاتف الوصي (المعيل) <span class="text-danger">*</span></label>
-            <input type="number" name="data_phone_number" class="form-control" maxlength="10"
+            <input type="number" name="data_phone_number" class="form-control" maxlength="10" value="{{ old('data_phone_number') }}"
                 oninput="if(this.value.length>10)this.value=this.value.slice(0,10);"
                 placeholder="مثال: 0599905588">
             <small class="text-muted">أدخل رقم الجوال بهذا الشكل: 0599905588</small>
         </div>
         <div class="col-md-4">
             <label class="form-label">رقم هاتف بديل الوصي (المعيل) <span class="text-primary">(اختياري)</span></label>
-            <input type="number" name="data_alt_phone_number" class="form-control" maxlength="10"
+            <input type="number" name="data_alt_phone_number" class="form-control" maxlength="10" value="{{ old('data_alt_phone_number') }}"
                 oninput="if(this.value.length>10)this.value=this.value.slice(0,10);"
                 placeholder="مثال: 0599905588">
             <small class="text-muted">أدخل رقم الجوال بهذا الشكل: 0599905588</small>
@@ -78,7 +78,8 @@
             <select name="data_marital_status" class="form-select">
                 <option value="">اختر الحالة</option>
                 @foreach ($ci_personal_cd as $status)
-                    <option value="{{ $status->id }}">{{ $status->CI_PERSONAL_CD }}
+                    <option value="{{ $status->id }}" @selected(old('data_marital_status') == $status->id)>
+                        {{ $status->CI_PERSONAL_CD }}
                     </option>
                 @endforeach
             </select>
@@ -88,7 +89,7 @@
             <select name="data_displacement_status" class="form-select">
                 <option value="">اختر الحالة</option>
                 @foreach ($displacement_status->where('description', '!=', 'Unknown') as $displacement_status_item)
-                    <option value="{{ $displacement_status_item->id }}">
+                    <option value="{{ $displacement_status_item->id }}" @selected(old('data_displacement_status') == $displacement_status_item->id)>
                         {{ $displacement_status_item->description }}</option>
                 @endforeach
             </select>
@@ -97,29 +98,29 @@
             <div class="row g-3">
                 <div class="col-md-3">
                     <label class="form-label">العنوان قبل النزوح الوصي (المعيل) <span class="text-primary">(اختياري)</span></label>
-                    <input type="text" name="data_address_before_displacement" class="form-control" maxlength="30">
+                    <input type="text" name="data_address_before_displacement" class="form-control" maxlength="30" value="{{ old('data_address_before_displacement') }}">
                 </div>
                 <div class="col-md-3">
                     <label class="form-label">العنوان الحالي الوصي (المعيل) <span class="text-danger">*</span></label>
-                    <input type="text" name="data_current_address" class="form-control" maxlength="30">
+                    <input type="text" name="data_current_address" class="form-control" maxlength="30" value="{{ old('data_current_address') }}">
                 </div>
                 <div class="col-md-6">
                     <label class="form-label">المدينة الوصي (المعيل) <span class="text-danger">*</span></label>
                     <select name="data_city" class="form-select">
                         <option value="">اختر المدينة</option>
                         @foreach ($city->where('city', '!=', 'Unknown') as $city_item)
-                            <option value="{{ $city_item->id }}">{{ $city_item->city }}
+                            <option value="{{ $city_item->id }}" @selected(old('data_city') == $city_item->id)>{{ $city_item->city }}
                             </option>
                         @endforeach
                     </select>
                 </div>
                 <div class="col-md-6 d-none">
                     <label class="form-label">المحافظة الوصي (المعيل) <span class="text-danger">*</span></label>
-                    <input type="hidden" name="data_province" value="">
+                    <input type="hidden" name="data_province" value="{{ old('data_province') }}">
                     <select name="data_province_visible" class="form-select" disabled aria-label="المحافظة" title="المحافظة يتم تحديدها تلقائياً">
                         <option value="">المحافظة تضاف تلقائياً</option>
                         @foreach ($province->where('description', '!=', 'Unknown') as $province_item)
-                            <option value="{{ $province_item->id }}">
+                            <option value="{{ $province_item->id }}" @selected(old('data_province') == $province_item->id)>
                                 {{ $province_item->description }}</option>
                         @endforeach
                     </select>
@@ -133,14 +134,14 @@
                     <select name="data_health_status" class="form-select">
                         <option value="">اختر الحالة</option>
                         @foreach ($health_status->where('description', '!=', 'Unknown') as $health_status_item)
-                            <option value="{{ $health_status_item->id }}">
+                            <option value="{{ $health_status_item->id }}" @selected(old('data_health_status') == $health_status_item->id)>
                                 {{ $health_status_item->description }}</option>
                         @endforeach
                     </select>
                 </div>
                 <div class="col-md-8">
                     <label class="form-label">وصف الإحتياجات الوصي (المعيل) <span class="text-primary">(اختياري)</span></label>
-                    <textarea name="data_description_needs" class="form-control"></textarea>
+                    <textarea name="data_description_needs" class="form-control">{{ old('data_description_needs') }}</textarea>
                 </div>
             </div>
         </div>
@@ -166,13 +167,17 @@
         <div class="col-md-4 mt-3">
 
             <!-- قسم بيانات الأم (يظهر/يختفي حسب صلة القرابة) -->
-            <div id="motherSection" class="mt-4 d-none" style="border: 2px solid #6f42c1; border-radius: 10px; padding: 15px; background: #f8f0ff;">
+            @php
+                // صلة القرابة غير الأم تعني أن بيانات الأم مطلوبة، فيظهر القسم بعد الرفض كما كان
+                $oldGuardianRelationship = (string) old('data_relationship', '');
+            @endphp
+            <div id="motherSection" class="mt-4 {{ $oldGuardianRelationship === '' || $oldGuardianRelationship === '1' ? 'd-none' : '' }}" style="border: 2px solid #6f42c1; border-radius: 10px; padding: 15px; background: #f8f0ff;">
                 <h6 class="text-purple fw-bold mb-3"><i class="fas fa-female me-2"></i>بيانات الأم</h6>
                 <div class="row g-3">
                     <div class="col-md-4">
                         <label class="form-label">رقم هوية الأم <span class="text-danger">*</span></label>
                         <div class="input-group">
-                            <input type="text" name="mother_id" id="mother_id" class="form-control" inputmode="numeric" maxlength="9" pattern="[0-9]{9}" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
+                            <input type="text" name="mother_id" id="mother_id" class="form-control" inputmode="numeric" maxlength="9" pattern="[0-9]{9}" value="{{ old('mother_id') }}" oninput="this.value = this.value.replace(/[^0-9]/g, '');">
                             <span class="input-group-text" id="motherLookupStatus" style="display:none;">
                                 <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
                             </span>
@@ -181,30 +186,30 @@
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">اسم الأم الأول <span class="text-danger">*</span></label>
-                        <input type="text" name="mother_first_name" id="mother_first_name" class="form-control" maxlength="30">
+                        <input type="text" name="mother_first_name" id="mother_first_name" class="form-control" maxlength="30" value="{{ old('mother_first_name') }}">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">اسم الأب (اسم ثاني الأم) <span class="text-danger">*</span></label>
-                        <input type="text" name="mother_second_name" id="mother_second_name" class="form-control" maxlength="30">
+                        <input type="text" name="mother_second_name" id="mother_second_name" class="form-control" maxlength="30" value="{{ old('mother_second_name') }}">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">اسم الجد (اسم ثالث الأم) <span class="text-danger">*</span></label>
-                        <input type="text" name="mother_third_name" id="mother_third_name" class="form-control" maxlength="30">
+                        <input type="text" name="mother_third_name" id="mother_third_name" class="form-control" maxlength="30" value="{{ old('mother_third_name') }}">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">اسم عائلة الأم <span class="text-danger">*</span></label>
-                        <input type="text" name="mother_last_name" id="mother_last_name" class="form-control" maxlength="30">
+                        <input type="text" name="mother_last_name" id="mother_last_name" class="form-control" maxlength="30" value="{{ old('mother_last_name') }}">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">هل الأم على قيد الحياة؟ <span class="text-danger">*</span></label>
                         <select name="mother_is_alive" id="mother_is_alive" class="form-select">
                             <option value="">اختر</option>
-                            <option value="1">نعم</option>
-                            <option value="0">لا</option>
+                            <option value="1" @selected(old('mother_is_alive') == '1')>نعم</option>
+                            <option value="0" @selected(old('mother_is_alive') === '0')>لا</option>
                         </select>
                     </div>
                 </div>
-                <input type="hidden" name="mother_from_civil_registry" id="mother_from_civil_registry" value="0">
+                <input type="hidden" name="mother_from_civil_registry" id="mother_from_civil_registry" value="{{ old('mother_from_civil_registry', '0') }}">
             </div>
             <!-- ملاحظة توضيحية لرفع الملفات -->
             <div class="alert alert-primary py-2 mb-2 mt-3" style="font-size: 0.97rem;">
@@ -212,7 +217,7 @@
                 المطلوبة.
             </div>
             <!-- منطقة رفع الملفات للبيانات الأساسية -->
-            <div data-upload-zone="main" data-person-id="{{ $data_id_number ?? '' }}">
+            <div data-upload-zone="main" data-person-id="{{ old('data_id_number', $data_id_number ?? '') }}">
                 <label class="form-label fw-bold"> رفع الملفات <span class="text-danger">*</span></label>
                 <div class="alert alert-warning py-2 mb-2" style="font-size: 0.9rem;">
                     <i class="fas fa-star text-danger me-1"></i>

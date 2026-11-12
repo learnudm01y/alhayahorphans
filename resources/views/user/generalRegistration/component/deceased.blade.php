@@ -20,7 +20,7 @@
                           <div class="col-md-4">
                               <label class="form-label">رقم الهوية <span class="text-danger">*</span></label>
                               <div class="input-group">
-                                  <input type="text" name="father_id" class="form-control deceased-id-input" data-target="father" inputmode="numeric" minlength="9" maxlength="10" pattern="[0-9]{9,10}" oninput="this.value = this.value.replace(/[^0-9]/g, '');" placeholder="أدخل رقم الهوية لجلب البيانات">
+                                  <input type="text" name="father_id" class="form-control deceased-id-input" data-target="father" inputmode="numeric" minlength="9" maxlength="10" pattern="[0-9]{9,10}" value="{{ old('father_id') }}" oninput="this.value = this.value.replace(/[^0-9]/g, '');" placeholder="أدخل رقم الهوية لجلب البيانات">
                                   <span class="input-group-text deceased-search-status" data-target="father" style="display:none;">
                                       <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
                                   </span>
@@ -29,32 +29,32 @@
                           </div>
                           <div class="col-md-2">
                               <label class="form-label">الاسم الأول <span class="text-danger">*</span></label>
-                              <input type="text" name="father_first_name" class="form-control" maxlength="30">
+                              <input type="text" name="father_first_name" class="form-control" maxlength="30" value="{{ old('father_first_name') }}">
                           </div>
                           <div class="col-md-2">
                               <label class="form-label">الاسم الثاني <span class="text-primary"
                                       style="color:#6c757d !important;">(اختياري)</span></label>
-                              <input type="text" name="father_second_name" class="form-control" maxlength="30">
+                              <input type="text" name="father_second_name" class="form-control" maxlength="30" value="{{ old('father_second_name') }}">
                           </div>
                           <div class="col-md-2">
                               <label class="form-label">الاسم الثالث <span class="text-primary"
                                       style="color:#6c757d !important;">(اختياري)</span></label>
-                              <input type="text" name="father_third_name" class="form-control" maxlength="30">
+                              <input type="text" name="father_third_name" class="form-control" maxlength="30" value="{{ old('father_third_name') }}">
                           </div>
                           <div class="col-md-2">
                               <label class="form-label">اسم العائلة <span class="text-danger">*</span></label>
-                              <input type="text" name="father_last_name" class="form-control" maxlength="30">
+                              <input type="text" name="father_last_name" class="form-control" maxlength="30" value="{{ old('father_last_name') }}">
                           </div>
                           <div class="col-md-4">
                               <label class="form-label">تاريخ الوفاة <span class="text-danger">*</span></label>
-                              <input type="date" name="father_death_date" class="form-control">
+                              <input type="date" name="father_death_date" class="form-control" value="{{ old('father_death_date') }}">
                           </div>
                           <div class="col-md-4">
                               <label class="form-label">سبب الوفاة <span class="text-danger">*</span></label>
                               <select name="father_death_reason" class="form-select">
                                   <option value="">اختر سبب الوفاة</option>
                                   @foreach ($death_reasons->where('description', '!=', 'Unknown') as $deathReason)
-                                      <option value="{{ $deathReason->id }}">
+                                      <option value="{{ $deathReason->id }}" @selected(old('father_death_reason') == $deathReason->id)>
                                           {{ $deathReason->description }}</option>
                                   @endforeach
                               </select>
@@ -106,7 +106,7 @@
                           <div class="col-md-4">
                               <label class="form-label">رقم الهوية <span class="text-danger">*</span></label>
                               <div class="input-group">
-                                   <input type="text" name="deceased_mother_id" class="form-control deceased-id-input" data-target="deceased_mother" inputmode="numeric" minlength="9" maxlength="10" pattern="[0-9]{9,10}" oninput="this.value = this.value.replace(/[^0-9]/g, '');" placeholder="أدخل رقم الهوية لجلب البيانات">
+                                   <input type="text" name="deceased_mother_id" class="form-control deceased-id-input" data-target="deceased_mother" inputmode="numeric" minlength="9" maxlength="10" pattern="[0-9]{9,10}" value="{{ old('deceased_mother_id') }}" oninput="this.value = this.value.replace(/[^0-9]/g, '');" placeholder="أدخل رقم الهوية لجلب البيانات">
                                    <span class="input-group-text deceased-search-status" data-target="deceased_mother" style="display:none;">
                                       <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
                                   </span>
@@ -115,32 +115,32 @@
                           </div>
                           <div class="col-md-2">
                               <label class="form-label">الاسم الأول <span class="text-danger">*</span></label>
-                               <input type="text" name="deceased_mother_first_name" class="form-control" maxlength="30">
+                               <input type="text" name="deceased_mother_first_name" class="form-control" maxlength="30" value="{{ old('deceased_mother_first_name') }}">
                            </div>
                            <div class="col-md-2">
                                <label class="form-label">الاسم الثاني <span class="text-primary"
                                        style="color:#6c757d !important;">(اختياري)</span></label>
-                               <input type="text" name="deceased_mother_second_name" class="form-control" maxlength="30">
+                               <input type="text" name="deceased_mother_second_name" class="form-control" maxlength="30" value="{{ old('deceased_mother_second_name') }}">
                            </div>
                            <div class="col-md-2">
                                <label class="form-label">الاسم الثالث <span class="text-primary"
                                        style="color:#6c757d !important;">(اختياري)</span></label>
-                               <input type="text" name="deceased_mother_third_name" class="form-control" maxlength="30">
+                               <input type="text" name="deceased_mother_third_name" class="form-control" maxlength="30" value="{{ old('deceased_mother_third_name') }}">
                            </div>
                            <div class="col-md-2">
                                <label class="form-label">اسم العائلة <span class="text-danger">*</span></label>
-                               <input type="text" name="deceased_mother_last_name" class="form-control" maxlength="30">
+                               <input type="text" name="deceased_mother_last_name" class="form-control" maxlength="30" value="{{ old('deceased_mother_last_name') }}">
                           </div>
                           <div class="col-md-4">
                               <label class="form-label">تاريخ الوفاة <span class="text-danger">*</span></label>
-                              <input type="date" name="mother_death_date" class="form-control">
+                              <input type="date" name="mother_death_date" class="form-control" value="{{ old('mother_death_date') }}">
                           </div>
                           <div class="col-md-4">
                               <label class="form-label">سبب الوفاة <span class="text-danger">*</span></label>
                               <select name="mother_death_reason" class="form-select">
                                   <option value="">اختر سبب الوفاة</option>
                                   @foreach ($death_reasons->where('description', '!=', 'Unknown') as $deathReason)
-                                      <option value="{{ $deathReason->id }}">
+                                      <option value="{{ $deathReason->id }}" @selected(old('mother_death_reason') == $deathReason->id)>
                                           {{ $deathReason->description }}</option>
                                   @endforeach
                               </select>
@@ -200,6 +200,7 @@
 
               // 🆕 متغيرات المتوفين الإضافيين
               let additionalDeceasedCount = 0;
+              let nextAdditionalDeceasedIndex = 0;
               const maxAdditionalDeceased = 10;
               const additionalDeceasedContainer = document.getElementById('additionalDeceasedContainer');
               const addAnotherDeceasedBtn = document.getElementById('addAnotherDeceasedBtn');
@@ -432,14 +433,14 @@
               if (addAnotherDeceasedBtn) {
                   addAnotherDeceasedBtn.addEventListener('click', function() {
                       if (additionalDeceasedCount < maxAdditionalDeceased) {
-                          additionalDeceasedContainer.insertAdjacentHTML('beforeend', createAdditionalDeceasedForm(additionalDeceasedCount));
+                          additionalDeceasedContainer.insertAdjacentHTML('beforeend', createAdditionalDeceasedForm(nextAdditionalDeceasedIndex));
+                          setupAdditionalDeceasedFileUpload(nextAdditionalDeceasedIndex);
+                          nextAdditionalDeceasedIndex++;
                           additionalDeceasedCount++;
                           updateAdditionalDeceasedRemoveButtons();
                           attachDeceasedIdListeners();
                           // تفعيل مراقبة رقم الهوية للنماذج المولدة
                           setupAdditionalDeceasedValidation();
-                          // 🆕 ربط event listeners لرفع الملفات
-                          setupAdditionalDeceasedFileUpload(additionalDeceasedCount - 1);
                           if (additionalDeceasedCount >= maxAdditionalDeceased) {
                               addAnotherDeceasedBtn.disabled = true;
                           }

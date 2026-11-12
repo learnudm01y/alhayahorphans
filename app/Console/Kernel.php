@@ -161,9 +161,49 @@ class Kernel extends ConsoleKernel
             }
         }
 
+        $removed += $this->sweepPortalTempUploads();
+
         if ($removed > 0) {
             \Illuminate\Support\Facades\Log::info("🧹 كنس الرفع: أُزيل {$removed} عنصر مهجور");
         }
+    }
+
+    private function sweepPortalTempUploads(?string $rootPath = null): int
+    {
+        $root = $rootPath ?: storage_path('app/public/temp_uploads');
+        if (!is_dir($root)) {
+            return 0;
+        }
+
+        $cutoff = now()->subHours(48)->getTimestamp();
+        $removed = 0;
+
+        $items = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ($items as $item) {
+            $name = $item->getFilename();
+            if ($name === '' || str_starts_with($name, '.') || $item->isLink()) {
+                continue;
+            }
+
+            if ($item->isDir()) {
+                $remaining = @scandir($item->getPathname());
+                if (is_array($remaining) && count($remaining) <= 2 && @rmdir($item->getPathname())) {
+                    $removed++;
+                }
+
+                continue;
+            }
+
+            if ($item->isFile() && $item->getMTime() < $cutoff && @unlink($item->getPathname())) {
+                $removed++;
+            }
+        }
+
+        return $removed;
     }
 
     /**

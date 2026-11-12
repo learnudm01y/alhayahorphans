@@ -257,11 +257,11 @@
                 }
 
                 // اسمح بـ personId فارغ لبوابات معينة (البيانات الأساسية والمتوفين)
-                const allowEmptyPersonId = ['main', 'deceased_father', 'deceased_mother'].includes(personKey);
+                const allowEmptyPersonId = ['main', 'deceased_father', 'deceased_mother'].includes(personKey) || /^family_\d+$/.test(personKey);
 
-                // إذا كان personId فارغًا وهذه بوابة تسمح بذلك، استخدم قيمة افتراضية
+                // يبقى مفتاح البطاقة صالحاً للشخص الذي لم يُدخل رقم هوية اختياريًا.
                 if ((!personId || personId.trim() === '') && allowEmptyPersonId) {
-                    personId = 'default_' + personKey;
+                    personId = personKey;
                     console.log('[addAttachmentTask] استخدام قيمة افتراضية لـ personId:', personId, 'للبوابة:', personKey);
                 }
                 // لا تسمح بـ personId فارغ للبوابات الأخرى
@@ -1354,21 +1354,11 @@
                             const personIdInput = form.querySelector('input[name$="[person_id]"]');
                             personId = personIdInput ? personIdInput.value.trim() : '';
 
-                            if (!personId) {
+                            if (personId && !/^[0-9]{9}$/.test(personId)) {
                                 Swal.fire({
                                     icon: 'warning',
                                     title: 'تنبيه',
-                                    text: 'يرجى إدخال رقم هوية فرد الأسرة أولاً قبل رفع الملف.',
-                                    confirmButtonText: 'حسناً'
-                                });
-                                return;
-                            }
-
-                            if (!/^[0-9]{9,10}$/.test(personId)) {
-                                Swal.fire({
-                                    icon: 'warning',
-                                    title: 'تنبيه',
-                                    text: 'رقم الهوية يجب أن يكون مكوناً من 9-10 أرقام فقط.',
+                                    text: 'رقم الهوية يجب أن يكون مكوناً من تسعة أرقام فقط.',
                                     confirmButtonText: 'حسناً'
                                 });
                                 return;
