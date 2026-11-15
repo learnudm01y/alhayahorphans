@@ -69,11 +69,18 @@
                         <i class="fas fa-copy me-2 text-warning"></i>
                         كشف المكررات حسب رقم الهوية + نوع الوثيقة
                     </h5>
-                    <button class="btn btn-primary" id="btn-find-duplicates">
-                        <i class="fas fa-search me-2"></i>بدء الفحص
-                    </button>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#face-matching-panel" aria-expanded="false" aria-controls="face-matching-panel">
+                            <i class="fas fa-user-check me-2"></i>فحص تطابق الوجوه
+                        </button>
+                        <button class="btn btn-primary" id="btn-find-duplicates">
+                            <i class="fas fa-search me-2"></i>بدء الفحص
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
+                    @include('admin.dashboard.attachment-audit.face-matching-panel')
+
                     <div id="duplicates-loading" class="text-center py-10" style="display:none;">
                         <div class="spinner-border text-primary" role="status"></div>
                         <p class="mt-3 text-muted">جاري فحص المكررات...</p>

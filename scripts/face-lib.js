@@ -53,6 +53,7 @@ export const CFG = {
 };
 
 let modelsLoaded = false;
+let recognitionModelLoaded = false;
 
 export async function initFaceApi(modelsDir) {
   if (modelsLoaded) return true;
@@ -65,6 +66,15 @@ export async function initFaceApi(modelsDir) {
   await faceapi.nets.ssdMobilenetv1.loadFromDisk(modelsDir);
   await faceapi.nets.faceLandmark68Net.loadFromDisk(modelsDir);
   modelsLoaded = true;
+  return true;
+}
+
+export async function initFaceRecognition(modelsDir) {
+  await initFaceApi(modelsDir);
+  if (!recognitionModelLoaded) {
+    await faceapi.nets.faceRecognitionNet.loadFromDisk(modelsDir);
+    recognitionModelLoaded = true;
+  }
   return true;
 }
 
@@ -102,12 +112,13 @@ async function rgbRotated(rgb, w, h, deg) {
   return { rgb: out.data, w: out.info.width, h: out.info.height };
 }
 
-async function detectAll(rgb, w, h, minConfidence) {
+async function detectAll(rgb, w, h, minConfidence, withDescriptor = false) {
   const tensor = faceapi.tf.tensor3d(new Uint8Array(rgb), [h, w, 3]);
   try {
-    const detections = await faceapi
+    const landmarkTask = faceapi
       .detectAllFaces(tensor, new faceapi.SsdMobilenetv1Options({ minConfidence }))
       .withFaceLandmarks();
+    const detections = withDescriptor ? await landmarkTask.withFaceDescriptors() : await landmarkTask;
     if (!detections || !detections.length) return [];
     return detections.map((d) => ({
       x: d.detection.box.x,
@@ -116,6 +127,7 @@ async function detectAll(rgb, w, h, minConfidence) {
       height: d.detection.box.height,
       score: d.detection.score,
       landmarks: d.landmarks.positions.map((p) => ({ x: p.x, y: p.y })),
+      descriptor: withDescriptor ? Array.from(d.descriptor) : null,
     }));
   } finally {
     tensor.dispose();
@@ -172,33 +184,38 @@ function dedupe(list) {
 }
 
 /** تنفيذ مرحلة مسح واحدة؛ يُرجع أول وجه مطابق أو null، ويجمع كل المرشّحين في sink */
-async function runSweep(rgb, w, h, sweep, deadline, sink) {
+async function runSweep(rgb, w, h, sweep, deadline, sink, withDescriptor = false) {
   const shortSide = Math.min(w, h);
 
   if (sweep.kind === 'frame') {
     if (Date.now() > deadline) return null;
-    const found = await detectAll(rgb, w, h, sweep.confidence);
+    const found = await detectAll(rgb, w, h, sweep.confidence, withDescriptor);
     sink.push(...found);
     if (!found.length) return null;
     return found.sort((a, b) => b.score - a.score)[0];
   }
 
   const tileSide = Math.max(64, Math.min(shortSide, Math.round(shortSide * sweep.scale)));
-  if (tileSide >= Math.max(w, h)) return runSweep(rgb, w, h, { kind: 'frame', confidence: sweep.confidence }, deadline, sink);
+  if (tileSide >= Math.max(w, h)) return runSweep(rgb, w, h, { kind: 'frame', confidence: sweep.confidence }, deadline, sink, withDescriptor);
 
+  let best = null;
   for (const [tx, ty] of centerOutTiles(w, h, tileSide, sweep.maxTiles || 4)) {
     if (Date.now() > deadline) return null;
     const tile = await cropRgb(rgb, w, h, tx, ty, tileSide, tileSide);
-    const found = await detectAll(tile, tileSide, tileSide, sweep.confidence);
+    const found = await detectAll(tile, tileSide, tileSide, sweep.confidence, withDescriptor);
     for (const d of found) {
       d.x += tx; d.y += ty;
       if (d.landmarks) d.landmarks = d.landmarks.map((p) => ({ x: p.x + tx, y: p.y + ty }));
       sink.push(d);
     }
-    if (found.length) return found.sort((a, b) => b.score - a.score)[0];
+    if (found.length) {
+      const current = found.sort((a, b) => b.score - a.score)[0];
+      if (!withDescriptor) return current;
+      if (!best || current.score > best.score) best = current;
+    }
   }
 
-  return null;
+  return best;
 }
 
 /** تحقّق هندسي حقيقي (تباعد/ميل/زاوية/تعادل/حجم) بدل عدّ النقاط فقط */
@@ -337,5 +354,103 @@ export async function verifyFaceInRgb(rgb, w, h, {
 export async function verifyFaceFile(file, opts = {}) {
   const src = await loadWorkRgb(file, opts.maxWorkSide);
   const check = await verifyFaceInRgb(src.rgb, src.w, src.h, opts);
+  return { ...check, work: { w: src.w, h: src.h } };
+}
+
+export async function extractFaceEmbeddingInRgb(rgb, w, h, {
+  timeBudgetMs = CFG.timeBudgetMs,
+  minDetScore = 0.50,
+  minFaceWidthPx = 60,
+  dominantFaceRatio = 1.5,
+} = {}) {
+  const t0 = Date.now();
+  const deadline = t0 + timeBudgetMs;
+  let lastCode = 'no-face';
+  let lastDetail = 'لم يتم العثور على وجه صالح للمقارنة';
+
+  for (const step of CFG.rotationPlan) {
+    if (Date.now() > deadline) break;
+
+    const frame = await rgbRotated(rgb, w, h, step.deg);
+    const plan = CFG.sweeps[step.sweep] || CFG.sweeps.full;
+    const sink = [];
+    let face = null;
+
+    for (const sweep of plan) {
+      if (Date.now() > deadline) break;
+      face = await runSweep(frame.rgb, frame.w, frame.h, sweep, deadline, sink, true);
+      if (face) break;
+    }
+
+    if (!face) continue;
+
+    const allCandidates = dedupe(sink);
+    const candidates = allCandidates
+      .filter((d) => d.score >= minDetScore && d.descriptor && d.descriptor.length === 128)
+      .sort((a, b) => (b.width * b.height) - (a.width * a.height));
+
+    if (!candidates.length) {
+      lastCode = 'low-detection-score';
+      lastDetail = 'ثقة كشف الوجه أقل من الحد المطلوب للمقارنة';
+      continue;
+    }
+
+    const selected = candidates[0];
+    const second = [...allCandidates]
+      .sort((a, b) => (b.width * b.height) - (a.width * a.height))
+      .find((d) => d !== selected);
+    if (second) {
+      const areaRatio = (selected.width * selected.height) / Math.max(1, second.width * second.height);
+      if (areaRatio < dominantFaceRatio) {
+        return {
+          pass: false,
+          code: 'multi-face',
+          detail: 'أكثر من وجه دون فارق واضح في الحجم',
+          face_count: allCandidates.length,
+          score: +selected.score.toFixed(4),
+          rotated: step.deg,
+          ms: Date.now() - t0,
+        };
+      }
+    }
+
+    const geometry = validateGeometry(selected, frame.w, frame.h);
+    if (!geometry.ok || selected.width < minFaceWidthPx) {
+      lastCode = geometry.ok ? 'face-too-small' : geometry.code;
+      lastDetail = geometry.ok ? 'حجم الوجه أقل من الحد المطلوب للمقارنة' : geometry.detail;
+      if (step.deg === 0) continue;
+      return {
+        pass: false,
+        code: lastCode,
+        detail: lastDetail,
+        face_count: allCandidates.length,
+        score: +selected.score.toFixed(4),
+        rotated: step.deg,
+        ms: Date.now() - t0,
+      };
+    }
+
+    return {
+      pass: true,
+      code: 'ok',
+      face_count: allCandidates.length,
+      score: +selected.score.toFixed(4),
+      rotated: step.deg,
+      metrics: geometry.metrics,
+      box: {
+        x: Math.round(selected.x), y: Math.round(selected.y),
+        width: Math.round(selected.width), height: Math.round(selected.height),
+      },
+      embedding: selected.descriptor,
+      ms: Date.now() - t0,
+    };
+  }
+
+  return { pass: false, code: lastCode, detail: lastDetail, ms: Date.now() - t0 };
+}
+
+export async function extractFaceEmbeddingFile(file, opts = {}) {
+  const src = await loadWorkRgb(file, opts.maxWorkSide);
+  const check = await extractFaceEmbeddingInRgb(src.rgb, src.w, src.h, opts);
   return { ...check, work: { w: src.w, h: src.h } };
 }

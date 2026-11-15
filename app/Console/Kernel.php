@@ -21,6 +21,12 @@ class Kernel extends ConsoleKernel
                      \Illuminate\Support\Facades\Log::error('SyncSponsorshipStatusJob: فشل التنفيذ اليومي');
                  });
 
+        // تنظيف نهائي لعناصر سلة فحص الوجوه المتجاوزة مدة الاسترجاع (محلي فقط)
+        $schedule->command('attachments:face-trash-purge')
+                 ->dailyAt('04:00')
+                 ->withoutOverlapping()
+                 ->name('face-trash-purge');
+
         // تنظيف الأكواد القديمة غير المستخدمة كل 5 دقائق (تقليل التنافس مع طلبات الويب)
         // ⏳ عتبة الاحتفاظ: 24 ساعة بدل 5 دقائق — الأكواد المحجوزة لصفحات
         //    مفتوحة قد لا تُحفظ خلال دقائق، وحذفها المبكر يسمح بإعادة إصدار

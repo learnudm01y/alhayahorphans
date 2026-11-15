@@ -42,6 +42,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Admin\ManageTheUserRequestController;
 use App\Http\Controllers\Admin\MemberTransferRequestController;
 use App\Http\Controllers\AttachmentAuditController;
+use App\Http\Controllers\AttachmentFaceScanController;
 use App\Http\Controllers\Admin\BackupController;
 use App\Http\Controllers\DuplicateFileController;
 use App\Http\Controllers\CivilRegistrySearchController;
@@ -466,6 +467,28 @@ Route::prefix('admin')->group(function () {
     Route::get('attachment-audit/duplicate-paths', [AttachmentAuditController::class, 'findDuplicatePaths'])->name('attachment-audit.duplicate-paths');
     Route::delete('attachment-audit/duplicates/delete', [AttachmentAuditController::class, 'deleteDuplicates'])->name('attachment-audit.duplicates.delete');
     Route::delete('attachment-audit/duplicates/delete-single', [AttachmentAuditController::class, 'deleteSingleDuplicate'])->name('attachment-audit.duplicates.delete-single');
+    Route::post('attachment-audit/face-scans', [AttachmentFaceScanController::class, 'store'])
+        ->middleware('verified')->name('attachment-audit.face-scans.store');
+    Route::get('attachment-audit/face-scans/latest', [AttachmentFaceScanController::class, 'latest'])
+        ->middleware('verified')->name('attachment-audit.face-scans.latest');
+    Route::get('attachment-audit/face-scans/{scan}', [AttachmentFaceScanController::class, 'show'])
+        ->middleware('verified')->name('attachment-audit.face-scans.show');
+    Route::post('attachment-audit/face-scans/{scan}/stop', [AttachmentFaceScanController::class, 'stop'])
+        ->middleware('verified')->name('attachment-audit.face-scans.stop');
+    Route::post('attachment-audit/face-scans/{scan}/resume', [AttachmentFaceScanController::class, 'resume'])
+        ->middleware('verified')->name('attachment-audit.face-scans.resume');
+    Route::get('attachment-audit/face-scans/{scan}/results', [AttachmentFaceScanController::class, 'results'])
+        ->middleware('verified')->name('attachment-audit.face-scans.results');
+    Route::get('attachment-audit/face-scans/{scan}/image/{attachment}', [AttachmentFaceScanController::class, 'image'])
+        ->middleware('verified')->name('attachment-audit.face-scans.image');
+    Route::post('attachment-audit/face-trash/{trash}/restore', [AttachmentFaceScanController::class, 'restoreTrash'])
+        ->middleware('verified')->name('attachment-audit.face-trash.restore');
+    Route::get('attachment-audit/face-trash', [AttachmentFaceScanController::class, 'trashIndex'])
+        ->middleware('verified')->name('attachment-audit.face-trash.index');
+    Route::get('attachment-audit/face-trash/{trash}/image', [AttachmentFaceScanController::class, 'trashImage'])
+        ->middleware('verified')->name('attachment-audit.face-trash.image');
+    Route::post('attachment-audit/face-trash/empty', [AttachmentFaceScanController::class, 'emptyTrash'])
+        ->middleware('verified')->name('attachment-audit.face-trash.empty');
     Route::get('attachment-audit/broken-links', [AttachmentAuditController::class, 'checkBrokenLinks'])->name('attachment-audit.broken-links');
     Route::delete('attachment-audit/broken-links/delete', [AttachmentAuditController::class, 'deleteBrokenLink'])->name('attachment-audit.broken-links.delete');
     Route::delete('attachment-audit/broken-links/delete-all', [AttachmentAuditController::class, 'deleteAllBrokenLinks'])->name('attachment-audit.broken-links.delete-all');
