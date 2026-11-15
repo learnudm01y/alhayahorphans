@@ -5,8 +5,8 @@ return [
     'node_binary' => env('FACE_MATCH_NODE_BINARY', 'node'),
     'queue' => 'faces',
 
-    'auto_threshold' => (float) env('FACE_MATCH_AUTO_THRESHOLD', 0.32),
-    'review_threshold' => (float) env('FACE_MATCH_REVIEW_THRESHOLD', 0.45),
+    'auto_threshold' => (float) env('FACE_MATCH_AUTO_THRESHOLD', 0.44),
+    'review_threshold' => (float) env('FACE_MATCH_REVIEW_THRESHOLD', 0.55),
 
     'process' => [
         'timeout_seconds' => (int) env('FACE_MATCH_TIMEOUT_SECONDS', 60),

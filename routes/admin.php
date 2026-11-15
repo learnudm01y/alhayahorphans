@@ -481,6 +481,10 @@ Route::prefix('admin')->group(function () {
         ->middleware('verified')->name('attachment-audit.face-scans.results');
     Route::get('attachment-audit/face-scans/{scan}/image/{attachment}', [AttachmentFaceScanController::class, 'image'])
         ->middleware('verified')->name('attachment-audit.face-scans.image');
+    Route::post('attachment-audit/face-scans/{scan}/results/{result}/confirm', [AttachmentFaceScanController::class, 'confirmReview'])
+        ->middleware('verified')->name('attachment-audit.face-scans.results.confirm');
+    Route::post('attachment-audit/face-scans/{scan}/results/{result}/dismiss', [AttachmentFaceScanController::class, 'dismissReview'])
+        ->middleware('verified')->name('attachment-audit.face-scans.results.dismiss');
     Route::post('attachment-audit/face-trash/{trash}/restore', [AttachmentFaceScanController::class, 'restoreTrash'])
         ->middleware('verified')->name('attachment-audit.face-trash.restore');
     Route::get('attachment-audit/face-trash', [AttachmentFaceScanController::class, 'trashIndex'])

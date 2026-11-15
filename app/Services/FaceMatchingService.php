@@ -8,8 +8,8 @@ class FaceMatchingService
         private ?float $autoThreshold = null,
         private ?float $reviewThreshold = null,
     ) {
-        $this->autoThreshold ??= (float) config('face_matching.auto_threshold', 0.32);
-        $this->reviewThreshold ??= (float) config('face_matching.review_threshold', 0.45);
+        $this->autoThreshold ??= (float) config('face_matching.auto_threshold', 0.44);
+        $this->reviewThreshold ??= (float) config('face_matching.review_threshold', 0.55);
     }
 
     public function analyze(iterable $attachments): array

@@ -87,9 +87,17 @@ class AttachmentFaceScanController extends Controller
         $this->ensureAvailable($scan);
         $data = $request->validate([
             'decision' => ['nullable', 'in:auto_duplicate,review'],
+            'review_filter' => ['nullable', 'in:pending,reviewed'],
         ]);
+        $hasReviewColumns = Schema::hasColumn('attachment_face_results', 'review_status');
+        $reviewFilter = $data['review_filter'] ?? 'pending';
         $results = AttachmentFaceResult::where('scan_id', $scan->id)
             ->when($data['decision'] ?? null, fn ($query, $decision) => $query->where('decision', $decision))
+            ->when(($data['decision'] ?? null) === 'review' && $hasReviewColumns, function ($query) use ($reviewFilter): void {
+                $reviewFilter === 'reviewed'
+                    ? $query->whereNotNull('review_status')
+                    : $query->whereNull('review_status');
+            })
             ->orderBy('id')
             ->paginate(20);
         $ids = $results->getCollection()
@@ -108,10 +116,15 @@ class AttachmentFaceScanController extends Controller
                 ->get()
                 ->keyBy('attachment_id')
             : collect();
-        $items = $results->getCollection()->map(function (AttachmentFaceResult $result) use ($attachments, $scan, $trashMap): array {
+        $items = $results->getCollection()->map(function (AttachmentFaceResult $result) use ($attachments, $scan, $trashMap, $hasReviewColumns): array {
             return [
                 'id' => $result->id,
                 'decision' => $result->decision,
+                'review_status' => $hasReviewColumns ? $result->review_status : null,
+                'confirm_url' => $result->decision === 'review'
+                    ? route('attachment-audit.face-scans.results.confirm', [$scan, $result]) : null,
+                'dismiss_url' => $result->decision === 'review'
+                    ? route('attachment-audit.face-scans.results.dismiss', [$scan, $result]) : null,
                 'person' => $this->maskIdentity($result->person_identity_number),
                 'distance' => $result->distance,
                 'display_similarity' => round(max(0, 1 - $result->distance), 4),
@@ -138,6 +151,87 @@ class AttachmentFaceScanController extends Controller
                 'last_page' => $results->lastPage(),
                 'total' => $results->total(),
             ],
+        ]);
+    }
+
+    public function confirmReview(
+        AttachmentFaceScan $scan,
+        AttachmentFaceResult $result,
+        Request $request,
+        AttachmentTrashService $trash,
+    ): JsonResponse {
+        $this->ensureAvailable($scan);
+        $error = $this->reviewActionGuard($scan, $result);
+        if ($error) {
+            return $error;
+        }
+
+        $first = Attachment::find($result->attachment_id);
+        $second = Attachment::find($result->matched_attachment_id);
+
+        if (!$first && !$second) {
+            return response()->json(['success' => false, 'message' => 'المرفقان لم يعودا موجودين.'], 422);
+        }
+
+        $older = $first && $second ? $this->olderOf($first, $second) : null;
+        $outcome = $older !== null
+            ? $trash->trash($older, (int) $request->user()->id, 'face-review-confirmed', $scan->id, $result->id)
+            : ['status' => 'single-remaining'];
+
+        if ($older === null || in_array($outcome['status'], ['trashed', 'already-trashed'], true)) {
+            $result->update([
+                'review_status' => 'confirmed',
+                'reviewed_by' => (int) $request->user()->id,
+                'reviewed_at' => now(),
+            ]);
+
+            $message = match ($outcome['status']) {
+                'already-trashed' => 'المرفق الأقدم موجود أصلاً في السلة؛ سُجّل التأكيد.',
+                'single-remaining' => 'أحد المرفقين لم يعد موجوداً؛ سُجّل التأكيد دون نقل جديد.',
+                default => 'نُقل المرفق الأقدم إلى السلة (قابل للاسترجاع)، وبقي الأحدث.',
+            };
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'data' => ['id' => $result->id, 'review_status' => $result->review_status],
+            ]);
+        }
+
+        $messages = [
+            'disabled' => 'الحذف غير مفعّل أو جدول السلة غير متوفر.',
+            'remote-skipped' => 'الملف ليس على التخزين المحلي (Google Drive أو تخزين خارجي) — لا يُحذف.',
+            'move-failed' => 'تعذر نقل الملف إلى السلة.',
+            'db-failed' => 'تعذر تسجيل عملية السلة.',
+        ];
+
+        return response()->json([
+            'success' => false,
+            'message' => $messages[$outcome['status']] ?? 'تعذر تنفيذ التأكيد.',
+        ], 422);
+    }
+
+    public function dismissReview(
+        AttachmentFaceScan $scan,
+        AttachmentFaceResult $result,
+        Request $request,
+    ): JsonResponse {
+        $this->ensureAvailable($scan);
+        $error = $this->reviewActionGuard($scan, $result);
+        if ($error) {
+            return $error;
+        }
+
+        $result->update([
+            'review_status' => 'dismissed',
+            'reviewed_by' => (int) $request->user()->id,
+            'reviewed_at' => now(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'سُجّل أن الصورتين ليستا مكررتين؛ لم يُحذف أي ملف.',
+            'data' => ['id' => $result->id, 'review_status' => $result->review_status],
         ]);
     }
 
@@ -313,6 +407,37 @@ class AttachmentFaceScanController extends Controller
             'created_at' => $attachment->created_at?->toDateTimeString(),
             'image_url' => route('attachment-audit.face-scans.image', [$scan, $attachment]),
         ];
+    }
+
+    private function reviewActionGuard(AttachmentFaceScan $scan, AttachmentFaceResult $result): ?JsonResponse
+    {
+        abort_unless((int) $result->scan_id === (int) $scan->id, 404);
+
+        if (!Schema::hasColumn('attachment_face_results', 'review_status')) {
+            return response()->json(['success' => false, 'message' => 'هجرة المراجعة اليدوية غير مشغلة بعد.'], 503);
+        }
+
+        if ($result->decision !== 'review') {
+            return response()->json(['success' => false, 'message' => 'هذا الإجراء مخصص لنتائج المراجعة اليدوية فقط.'], 422);
+        }
+
+        if ($result->review_status !== null) {
+            return response()->json(['success' => false, 'message' => 'رُوجعت هذه النتيجة مسبقاً.'], 422);
+        }
+
+        return null;
+    }
+
+    private function olderOf(Attachment $a, Attachment $b): Attachment
+    {
+        $aDate = $a->created_at?->getTimestamp() ?? 0;
+        $bDate = $b->created_at?->getTimestamp() ?? 0;
+
+        if ($aDate !== $bDate) {
+            return $aDate < $bDate ? $a : $b;
+        }
+
+        return $a->id < $b->id ? $a : $b;
     }
 
     private function ensureAvailable(AttachmentFaceScan $scan): void

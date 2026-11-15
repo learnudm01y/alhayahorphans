@@ -218,6 +218,11 @@
                 <a href="{{ route('admin.records.management.edit', $data->id) }}" class="btn btn-primary btn-sm" style="white-space: nowrap; min-width: 80px;">
                     <i class="bi bi-pencil-square"></i> تعديل
                 </a>
+                @can('إرسال رسائل نصية')
+                    <button type="button" class="btn btn-success btn-sm" id="sms-record-open" style="white-space: nowrap; min-width: 80px;">
+                        <i class="bi bi-chat-dots"></i> رسالة نصية
+                    </button>
+                @endcan
                 <form action="{{ route('admin.records.management.delete', $data->id) }}" method="POST" style="display:inline;" onsubmit="return confirm('هل أنت متأكد من حذف السجل؟');">
                     @csrf
                     @method('DELETE')
@@ -1423,4 +1428,5 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 @endpush
+@include('admin.dashboard.records_management.partials.sms-quick-send')
 @endsection

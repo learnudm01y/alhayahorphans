@@ -15,9 +15,12 @@ class AttachmentFaceResult extends Model
         'attachment_id',
         'matched_attachment_id',
         'distance',
+        'review_status',
+        'reviewed_by',
+        'reviewed_at',
     ];
 
-    protected $casts = ['distance' => 'float'];
+    protected $casts = ['distance' => 'float', 'reviewed_at' => 'datetime'];
 
     public function scan(): BelongsTo
     {

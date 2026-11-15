@@ -58,7 +58,8 @@
                         <h6 class="fw-bold mb-0">نتائج الفحص</h6>
                         <div class="btn-group" role="group" aria-label="تصفية النتائج">
                             <button type="button" class="btn btn-sm btn-primary face-result-filter" data-decision="auto_duplicate">تطابق مؤكد</button>
-                            <button type="button" class="btn btn-sm btn-outline-primary face-result-filter" data-decision="review">مراجعة يدوية</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary face-result-filter" data-decision="review" data-review-filter="pending">مراجعة يدوية</button>
+                            <button type="button" class="btn btn-sm btn-outline-primary face-result-filter" data-decision="review" data-review-filter="reviewed">تمت مراجعتها</button>
                         </div>
                     </div>
                     <div id="face-results-loading" class="text-center py-3" style="display:none;"><span class="spinner-border spinner-border-sm"></span></div>
@@ -84,6 +85,7 @@ $(document).ready(function() {
     let faceScan = null;
     let facePollTimer = null;
     let faceDecision = 'auto_duplicate';
+    let faceReviewFilter = 'pending';
     let faceResultPage = 1;
     let faceResultLastPage = 1;
     let faceRenderedGroups = -1;
@@ -220,6 +222,7 @@ $(document).ready(function() {
 
     $('.face-result-filter').on('click', function() {
         faceDecision = $(this).data('decision');
+        faceReviewFilter = $(this).data('review-filter') || 'pending';
         $('.face-result-filter').removeClass('btn-primary').addClass('btn-outline-primary');
         $(this).removeClass('btn-outline-primary').addClass('btn-primary');
         loadFaceResults(1, false);
@@ -241,12 +244,47 @@ $(document).ready(function() {
         });
     });
 
+    $('#face-results').on('click', '.face-confirm-btn', function() {
+        const $btn = $(this);
+        Swal.fire({
+            title: 'تأكيد تطابق الوجهين؟',
+            text: 'ستُنقل الصورة الأقدم إلى سلة المحذوفات وتبقى الأحدث. الاسترجاع متاح 30 يوماً، ولن يُحذف أي ملف نهائياً الآن.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'نعم، انقل الأقدم',
+            cancelButtonText: 'إلغاء',
+            reverseButtons: true
+        }).then(function(choice) {
+            if (!choice.isConfirmed) return;
+            $btn.prop('disabled', true);
+            $.post($btn.data('url')).done(function(response) {
+                Swal.fire('تم التأكيد', response.message || '', 'success');
+                loadFaceResults(faceResultPage, false);
+            }).fail(function(xhr) {
+                Swal.fire('تعذر التأكيد', xhr.responseJSON?.message || 'حدث خطأ غير متوقع', 'error');
+                $btn.prop('disabled', false);
+            });
+        });
+    });
+
+    $('#face-results').on('click', '.face-dismiss-btn', function() {
+        const $btn = $(this);
+        $btn.prop('disabled', true);
+        $.post($btn.data('url')).done(function(response) {
+            Swal.fire('تم التسجيل', response.message || '', 'success');
+            loadFaceResults(faceResultPage, false);
+        }).fail(function(xhr) {
+            Swal.fire('تعذر التسجيل', xhr.responseJSON?.message || 'حدث خطأ غير متوقع', 'error');
+            $btn.prop('disabled', false);
+        });
+    });
+
     function loadFaceResults(page, append) {
         if (!faceScan || faceScan.expired) return;
         $('#face-results-loading').show();
         $('#face-results-more').hide();
 
-        $.get(faceScan.results_url, { decision: faceDecision, page: page }).done(function(response) {
+        $.get(faceScan.results_url, { decision: faceDecision, review_filter: faceReviewFilter, page: page }).done(function(response) {
             const html = response.data.map(faceResultHtml).join('');
             if (append) {
                 $('#face-results').append(html);
@@ -276,6 +314,26 @@ $(document).ready(function() {
                 <div class="col-md-6">${faceAttachmentHtml(result.attachment, firstLabel, automatic ? 'bg-light-danger text-danger' : 'bg-light-warning text-warning')}</div>
                 <div class="col-md-6">${faceAttachmentHtml(result.matched_attachment, secondLabel, automatic ? 'bg-light-success text-success' : 'bg-light-warning text-warning')}</div>
             </div>
+            ${faceReviewActionsHtml(result)}
+        </div>`;
+    }
+
+    function faceReviewActionsHtml(result) {
+        if (result.decision !== 'review') return '';
+        if (result.review_status === 'confirmed') {
+            return '<div class="mt-2"><span class="badge bg-success">أُكّد يدوياً — نُقل الأقدم إلى السلة</span></div>';
+        }
+        if (result.review_status === 'dismissed') {
+            return '<div class="mt-2"><span class="badge bg-secondary">سُجّلت: ليسا مكررين — لم يُحذف شيء</span></div>';
+        }
+
+        return `<div class="d-flex flex-wrap gap-2 mt-3">
+            <button type="button" class="btn btn-sm btn-outline-danger face-confirm-btn" data-url="${faceEscape(result.confirm_url)}">
+                <i class="fas fa-user-check me-1"></i>نفس الطفل — انقل الأقدم للسلة
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary face-dismiss-btn" data-url="${faceEscape(result.dismiss_url)}">
+                <i class="fas fa-times me-1"></i>ليسا مكررين
+            </button>
         </div>`;
     }
 
