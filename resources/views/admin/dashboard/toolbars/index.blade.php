@@ -44,7 +44,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
 
     <!-- Profile Search Suggestions CSS -->
-    <link href="{{ asset('css/profile-search-suggestions.css') }}" rel="stylesheet" type="text/css" />
+    <link href="{{ asset('css/profile-search-suggestions.css') }}?v={{ filemtime(public_path('css/profile-search-suggestions.css')) }}" rel="stylesheet" type="text/css" />
 
     <script>
         // Frame-busting to prevent site from being loaded within a frame without permission (click-jacking)
@@ -562,7 +562,8 @@
                                 <!--begin::Toolbar end-->
                                 <div class="d-flex align-items-center overflow-visible">
                                     <!--begin::Search-->
-                                    <div class="position-relative my-1 profile-search-container" style="min-width: 300px; z-index: 1;">
+                                    @canany(['عرض قسم إدارة التسجيلات', 'عرض البيانات المدخلة'])
+                                    <div class="position-relative my-1 profile-search-container" style="width: 300px; max-width: calc(100vw - 60px); z-index: 1;">
                                         <i
                                             class="ki-duotone ki-magnifier fs-2 text-gray-500 position-absolute top-50 translate-middle ps-10">
                                             <span class="path1"></span>
@@ -571,8 +572,11 @@
                                         <input type="text"
                                             class="form-control form-control-lg form-control-solid ps-10"
                                             name="search_profiles" value="" placeholder="البحث عن الملفات..."
-                                            autocomplete="off" style="width: 300px; font-size: 14px;" />
+                                            data-search-url="{{ route('profile.search') }}" maxlength="255"
+                                            aria-label="البحث عن الملفات بالاسم أو الهوية أو الجوال في جميع الحالات"
+                                            autocomplete="off" style="width: 100%; font-size: 14px;" />
                                     </div>
+                                    @endcanany
                                     <!--end::Actions-->
                                 </div>
                                 <!--end::Toolbar end-->
@@ -761,7 +765,7 @@
     @include('admin.dashboard.javascript.cropper')
 
     <!-- Profile Search Suggestions JS -->
-    <script src="{{ asset('js/profile-search-suggestions.js') }}"></script>
+    <script src="{{ asset('js/profile-search-suggestions.js') }}?v={{ filemtime(public_path('js/profile-search-suggestions.js')) }}"></script>
 
 
     <!--end::Theme Mode Script-->

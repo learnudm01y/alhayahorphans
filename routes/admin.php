@@ -663,19 +663,16 @@ Route::prefix('admin')->group(function () {
         }
     })->name('admin.openspeedtest.cleanup');
 
-    // Search Routes - البحث الشامل في السجلات
-    Route::get('search-records', [\App\Http\Controllers\Admin\SearchOnRecordsController::class, 'index'])->name('search.records.index');
-    Route::get('search-records/modal', [\App\Http\Controllers\Admin\SearchOnRecordsController::class, 'modalContent'])->name('search.records.modal');
-    Route::get('search-test', function() { return view('search_test'); })->name('search.test'); // للاختبار
-    Route::post('search-records', [\App\Http\Controllers\Admin\SearchOnRecordsController::class, 'search'])
-        ->middleware('search.rate.limit')
-        ->name('search.records');
-    Route::get('search-records/stats', [\App\Http\Controllers\Admin\SearchOnRecordsController::class, 'getSearchStats'])->name('search.stats');
-    Route::get('search-records/suggestions', [\App\Http\Controllers\Admin\SearchOnRecordsController::class, 'getSearchSuggestions'])->name('search.suggestions');
-    Route::post('search-records/clear-cache', [\App\Http\Controllers\Admin\SearchOnRecordsController::class, 'clearSearchCache'])->name('search.clear.cache');
-
-    // Profile Search Routes - البحث السريع في الملفات مع الاقتراحات
-    Route::get('profile-search', [\App\Http\Controllers\Admin\ProfileSearchController::class, 'quickSearch'])->name('profile.search');
+    Route::middleware(['permission:عرض قسم إدارة التسجيلات|عرض البيانات المدخلة', 'throttle:60,1'])->group(function () {
+        Route::get('search-records', [\App\Http\Controllers\Admin\SearchOnRecordsController::class, 'index'])->name('search.records.index');
+        Route::get('search-records/modal', [\App\Http\Controllers\Admin\SearchOnRecordsController::class, 'modalContent'])->name('search.records.modal');
+        Route::get('search-test', function () { return view('search_test'); })->name('search.test');
+        Route::post('search-records', [\App\Http\Controllers\Admin\SearchOnRecordsController::class, 'search'])->name('search.records');
+        Route::get('search-records/stats', [\App\Http\Controllers\Admin\SearchOnRecordsController::class, 'getSearchStats'])->name('search.stats');
+        Route::get('search-records/suggestions', [\App\Http\Controllers\Admin\SearchOnRecordsController::class, 'getSearchSuggestions'])->name('search.suggestions');
+        Route::post('search-records/clear-cache', [\App\Http\Controllers\Admin\SearchOnRecordsController::class, 'clearSearchCache'])->name('search.clear.cache');
+        Route::get('profile-search', [\App\Http\Controllers\Admin\ProfileSearchController::class, 'quickSearch'])->name('profile.search');
+    });
 
     // Sponsorships Routes - مسارات الكفالات
     Route::prefix('sponsorships')->name('sponsorships.')->group(function () {

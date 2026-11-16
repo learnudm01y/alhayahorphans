@@ -1,231 +1,101 @@
-/**
- * تصميم بسيط لقائمة اقتراحات البحث
- * لون واحد وتصميم نظيف
- */
+.profile-search-container {
+    position: relative;
+    display: inline-block;
+}
 
 .profile-search-suggestions {
-    position: absolute !important;
-    top: 100% !important;
-    left: 0 !important;
-    right: 0 !important;
-    background: #ffffff;
-    border: 1px solid #ddd;
-    border-top: none;
-    border-radius: 0 0 8px 8px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-    z-index: 999 !important; /* z-index عالي لضمان الظهور */
-    max-height: 450px;
+    position: absolute;
+    top: 100%;
+    inset-inline-end: 0;
+    width: 400px;
+    max-width: calc(100vw - 40px);
+    max-height: min(450px, 65vh);
     overflow-y: auto;
-    font-family: inherit;
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    display: none;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .15);
+    z-index: 100;
+    direction: rtl;
+    text-align: right;
 }
 
-/* عنصر الاقتراح الواحد */
-.suggestion-item {
+.profile-search-suggestions[hidden] {
+    display: none !important;
+}
+
+.profile-search-suggestions .suggestion-item {
+    display: block;
     padding: 15px 18px;
     border-bottom: 1px solid #f0f0f0;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+.profile-search-suggestions a.suggestion-item {
     cursor: pointer;
-    transition: background-color 0.2s ease;
 }
 
-.suggestion-item:last-child {
-    border-bottom: none;
+.profile-search-suggestions .suggestion-item:hover,
+.profile-search-suggestions .suggestion-item.active {
+    background: #f8f9fa;
 }
 
-.suggestion-item:hover,
-.suggestion-item.active {
-    background-color: #f8f9fa;
+.profile-search-suggestions .suggestion-item:focus {
+    outline: 2px solid #007bff;
+    outline-offset: -2px;
 }
 
-/* عنوان الاقتراح */
-.suggestion-title {
+.profile-search-suggestions .suggestion-title {
     font-weight: 600;
     color: #333;
     margin-bottom: 4px;
     font-size: 15px;
 }
 
-/* العنوان الفرعي */
-.suggestion-subtitle {
+.profile-search-suggestions .suggestion-subtitle {
     color: #666;
     font-size: 13px;
     margin-bottom: 3px;
 }
 
-/* الوصف */
-.suggestion-description {
-    color: #888;
+.profile-search-suggestions .suggestion-description {
+    color: #666;
     font-size: 12px;
     margin-bottom: 4px;
 }
 
-/* نوع السجل */
-.suggestion-type {
+.profile-search-suggestions .suggestion-type {
     color: #007bff;
     font-size: 11px;
     font-weight: 500;
-    text-transform: uppercase;
 }
 
-/* حالة التحميل */
-.suggestion-loading {
+.profile-search-suggestions .suggestion-loading,
+.profile-search-suggestions .suggestion-no-results,
+.profile-search-suggestions .suggestion-error {
     padding: 25px 18px;
     text-align: center;
     color: #666;
-}
-
-.loading-text {
     font-size: 14px;
 }
 
-/* عدم وجود نتائج */
-.suggestion-no-results {
-    padding: 25px 18px;
-    text-align: center;
-    color: #999;
-}
-
-.no-results-text {
-    font-size: 14px;
-}
-
-/* رسالة الخطأ */
-.suggestion-error {
-    padding: 25px 18px;
-    text-align: center;
+.profile-search-suggestions .suggestion-error {
     color: #dc3545;
 }
 
-.error-text {
-    font-size: 14px;
-}
-
-/* تحسين موضع حقل البحث */
-.profile-search-container {
-    position: relative !important;
-    display: inline-block;
-    width: 100%;
-    z-index: 1 !important; /* z-index منخفض لتجنب التداخل مع sidebar */
-}
-
-/* قواعد إظهار الاقتراحات عند التركيز */
-.profile-search-container input:focus + .profile-search-suggestions,
-.profile-search-container .profile-search-suggestions:hover,
-.profile-search-container .profile-search-suggestions.show {
-    display: block !important;
-}
-
-.profile-search-container input:focus ~ .profile-search-suggestions {
-    display: block !important;
-}
-
-/* قاعدة عامة لإظهار الاقتراحات */
-.profile-search-suggestions.visible {
-    display: block !important;
-}
-
-/* تحسين شريط التمرير */
-.profile-search-suggestions::-webkit-scrollbar {
-    width: 6px;
-}
-
-.profile-search-suggestions::-webkit-scrollbar-track {
-    background: #f1f1f1;
-}
-
-.profile-search-suggestions::-webkit-scrollbar-thumb {
-    background: #ccc;
-    border-radius: 3px;
-}
-
-.profile-search-suggestions::-webkit-scrollbar-thumb:hover {
-    background: #bbb;
-}
-
-/* تحسينات للشاشات الصغيرة */
 @media (max-width: 768px) {
     .profile-search-suggestions {
-        max-height: 350px;
-        min-width: 280px;
-        max-width: calc(100vw - 40px);
-        left: 20px !important;
-        right: 20px !important;
-        width: auto !important;
-        z-index: 50 !important; /* أقل من sidebar في الجوال */
+        width: 100%;
+        max-height: 50vh;
     }
 
-    .profile-search-container {
-        z-index: 1 !important; /* منخفض جداً في الجوال */
-    }
-
-    .suggestion-item {
-        padding: 12px 15px;
-    }
-
-    .suggestion-title {
-        font-size: 14px;
-    }
-
-    .suggestion-subtitle {
-        font-size: 12px;
-    }
-
-    .suggestion-description {
-        font-size: 11px;
-    }
-
-    .suggestion-type {
-        font-size: 10px;
-    }
-
-    .loading-text,
-    .no-results-text,
-    .error-text {
-        font-size: 13px;
-    }
-}
-
-/* إخفاء الاقتراحات عند فتح sidebar في الجوال فقط */
-@media (max-width: 768px) {
-    /* إخفاء الاقتراحات عند فتح الـ sidebar في الجوال فقط */
     body[data-kt-drawer-shown="true"] .profile-search-suggestions,
-    .app-sidebar-enabled .profile-search-suggestions,
     .drawer-on .profile-search-suggestions {
         display: none !important;
     }
-
-    .profile-search-container {
-        z-index: 1 !important;
-    }
-
-    .profile-search-suggestions {
-        z-index: 50 !important; /* أقل من sidebar */
-    }
 }
 
-/* تحسين التباين للوضوح */
-.suggestion-item:focus {
-    outline: 2px solid #007bff;
-    outline-offset: -2px;
-}
-
-/* تحسين النص العربي */
-.profile-search-suggestions {
-    direction: rtl;
-    text-align: right;
-}
-
-.suggestion-title,
-.suggestion-subtitle,
-.suggestion-description {
-    direction: rtl;
-    text-align: right;
-}
-
-/* إخفاء قائمة الاقتراحات عند الطباعة */
 @media print {
     .profile-search-suggestions {
         display: none !important;
