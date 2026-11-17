@@ -207,7 +207,7 @@ class GeneralRegistrationController extends Controller
      *
      * @return string|null اسم الجدول المتعارض مع الرقم، أو null إذا كان الرقم حراً
      */
-    private function findFileNumberConflict(string $fileIdNumber): ?string
+    private function findFileNumberConflict(string $fileIdNumber, ?string $guardianIdentity = null): ?string
     {
         $fileIdNumber = trim($fileIdNumber);
 
@@ -222,6 +222,14 @@ class GeneralRegistrationController extends Controller
         ], static function ($value) {
             return $value !== '';
         })));
+
+        if (MemberTransferRequest::tableExists() && MemberTransferRequest::pending()
+            ->where('file_id_number', (int) $fileIdNumber)
+            ->where('member_snapshot->request_type', MemberTransferRequest::TYPE_GUARDIAN_PROMOTION)
+            ->when($guardianIdentity !== null, fn ($query) => $query->where('identity_number', '!=', $guardianIdentity))
+            ->exists()) {
+            return 'member_transfer_requests';
+        }
 
         if (Data::whereIn('file_id_number', $fileIdVariants)->exists()) {
             return 'data';
@@ -473,8 +481,8 @@ class GeneralRegistrationController extends Controller
             }
         } elseif ($response instanceof \Illuminate\Http\RedirectResponse) {
             $thankYou = route('user.thank.you.page');
-            $success = $response->getTargetUrl() === $thankYou;
-            $redirect = $success ? $thankYou : null;
+            $success = explode('?', $response->getTargetUrl(), 2)[0] === $thankYou;
+            $redirect = $success ? $response->getTargetUrl() : null;
 
             // سبب الرفض يُقرأ من الجلسة نفسها التي ستعرضه الصفحة، حتى لا يظهر شريط التقدم برسالة عامة
             $session = $response->getSession();
@@ -752,7 +760,103 @@ class GeneralRegistrationController extends Controller
         $validator->validate();
     }
 
-    private function storeInternal(Request $request)
+    public function approveGuardianPromotion(MemberTransferRequest $transfer, ?int $reviewerId)
+    {
+        if (!$transfer->isGuardianPromotion() || $transfer->status !== MemberTransferRequest::STATUS_PENDING) {
+            throw new \RuntimeException('هذا الطلب ليس طلب تحويل معلقاً إلى معيل.');
+        }
+
+        $snapshot = $transfer->member_snapshot;
+        $request = Request::create('/', 'POST', $snapshot['registration']);
+        $request->headers->set('Accept', 'application/json');
+        $request->setRouteResolver(fn () => (new \Illuminate\Routing\Route('POST', '/', []))->name('store.generalRegistration'));
+        foreach ($snapshot['files'] ?? [] as $index => $file) {
+            $request->files->set('attachments', array_replace($request->files->get('attachments', []), [
+                $index => ['file' => new \Illuminate\Http\UploadedFile(
+                    $transfer->promotionAttachmentPath((int) $index), $file['name'], $file['mime'], null, true
+                )],
+            ]));
+        }
+
+        return $this->storeInternal($request, $transfer, $reviewerId);
+    }
+
+    private function queueGuardianPromotion(Request $request, string $fileIdNumber, array $link)
+    {
+        $existing = MemberTransferRequest::pending()
+            ->where('identity_number', $request->input('data_id_number'))
+            ->where('member_snapshot->request_type', MemberTransferRequest::TYPE_GUARDIAN_PROMOTION)
+            ->lockForUpdate()->first();
+        $createdPaths = [];
+
+        try {
+            if (!$existing) {
+                $registration = $request->input();
+                unset($registration['_token'], $registration['request_id'], $registration['document_file']);
+                $registration['file_id_number'] = $fileIdNumber;
+                $registration['original_file_id_number'] = $fileIdNumber;
+                $files = [];
+                $directory = 'pending_guardian_promotions/' . bin2hex(random_bytes(16));
+                foreach ($registration['attachments'] ?? [] as $index => $attachment) {
+                    $file = $request->file("attachments.$index.file");
+                    $source = $file ? $file->getRealPath() : \Storage::disk('public')->path($attachment['temp_path']);
+                    $mime = $this->detectUploadMime($source);
+                    $extension = $this->resolveAttachmentExtension($mime, $source);
+                    $path = $directory . '/' . $index . '.' . $extension;
+                    $createdPaths[] = $path;
+                    $stream = fopen($source, 'rb');
+                    try {
+                        if (!is_resource($stream) || !\Storage::disk('local')->put($path, $stream)
+                            || \Storage::disk('local')->size($path) !== filesize($source)) {
+                            throw new \RuntimeException('تعذر حفظ مرفقات طلب التحويل.');
+                        }
+                    } finally {
+                        if (is_resource($stream)) fclose($stream);
+                    }
+                    $files[$index] = ['path' => $path, 'name' => $file ? $file->getClientOriginalName() : basename($source), 'mime' => $mime];
+                    unset($registration['attachments'][$index]['temp_path'], $registration['attachments'][$index]['file']);
+                }
+                $existing = MemberTransferRequest::create([
+                    'data_id' => null,
+                    'file_id_number' => (int) $fileIdNumber,
+                    'source_file_id_number' => (int) $link['file_id_number'],
+                    'identity_number' => (int) $request->input('data_id_number'),
+                    'status' => MemberTransferRequest::STATUS_PENDING,
+                    'member_snapshot' => [
+                        'request_type' => MemberTransferRequest::TYPE_GUARDIAN_PROMOTION,
+                        'first_name' => $request->input('data_first_name'),
+                        'second_name' => $request->input('data_father_name'),
+                        'third_name' => $request->input('data_grand_father_name'),
+                        'last_name' => $request->input('data_family_name'),
+                        'registration' => $registration,
+                        'files' => $files,
+                    ],
+                ]);
+                markCodeAsUsed($fileIdNumber);
+            }
+            DB::commit();
+        } catch (\Throwable $error) {
+            \Storage::disk('local')->delete($createdPaths);
+            throw $error;
+        }
+
+        if ($request->hasSession()) {
+            $request->session()->forget(['reserved_code', 'reserved_code_at']);
+        }
+        $redirect = route('user.thank.you.page', ['guardian_promotion' => 'pending']);
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'تم استلام طلب التسجيل، وتحويلك إلى معيل مستقل بانتظار موافقة الإدارة. لم يتغير ارتباطك بالأسرة الحالية.',
+                'redirect' => $redirect,
+                'pending_transfers_count' => 1,
+            ]);
+        }
+
+        return redirect()->to($redirect);
+    }
+
+    private function storeInternal(Request $request, ?MemberTransferRequest $promotion = null, ?int $reviewerId = null)
     {
         $maxRetries = 3;
         $retryCount = 0;
@@ -944,10 +1048,15 @@ class GeneralRegistrationController extends Controller
                 $fileIdNumber = $requestedFileIdNumber;
             }
 
-            // 2️⃣ ثانياً: التحقق من عدم ارتباط المعيل بمعيل آخر
-            if (!$useExistingGuardian && !empty($guardianIdentity)) {
-                $otherFile = $this->findOtherFileForIdentity((string) $guardianIdentity, $fileIdNumber);
-                if ($otherFile !== null) {
+            if ($promotion && $useExistingGuardian) {
+                return $this->rejectRegistration($request, 'أصبح لهذا الشخص ملف معيل مستقل؛ لم يتم تنفيذ التحويل.', [], 422);
+            }
+
+            $guardianLink = null;
+            if (!$useExistingGuardian && !$promotion && !empty($guardianIdentity)) {
+                $guardianLink = $this->classifyIdentityLink((string) $guardianIdentity, $fileIdNumber);
+                if ($guardianLink !== null && !($publicSubmission && $guardianLink['type'] === 'member' && MemberTransferRequest::tableExists())) {
+                    $otherFile = $guardianLink['file_id_number'];
                     return $this->rejectRegistration(
                         $request,
                         'هذا الشخص مسجل مسبقاً في النظام ومرتبط بمعيل آخر (رقم ملف ' . $otherFile . '). لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.',
@@ -1046,6 +1155,23 @@ class GeneralRegistrationController extends Controller
             }
 
             DB::beginTransaction();
+            $promotionMember = null;
+            if ($promotion) {
+                $lockedPromotion = MemberTransferRequest::whereKey($promotion->id)->lockForUpdate()->first();
+                if (!$lockedPromotion || $lockedPromotion->status !== MemberTransferRequest::STATUS_PENDING
+                    || !$lockedPromotion->isGuardianPromotion() || $lockedPromotion->member_snapshot !== $promotion->member_snapshot) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(['data_id_number' => 'لم يعد طلب التحويل معلقاً أو تغيّرت بياناته؛ أعد تحميل الصفحة.']);
+                }
+                $promotion = $lockedPromotion;
+                $members = RePeople::where('person_id', $guardianIdentity)->lockForUpdate()->get();
+                $promotionMember = $members->first(fn ($member) => (int) $member->registration_id === $promotion->source_file_id_number);
+                if (!$promotionMember || $members->count() !== 1) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(['data_id_number' => 'تغيّر ارتباط الفرد أو أصبح مكرراً في الأسر؛ لم يتم تنفيذ التحويل.']);
+                }
+                if (Data::where('data_id_number', $guardianIdentity)->lockForUpdate()->exists()) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(['data_id_number' => 'أصبح لهذا الشخص ملف معيل مستقل؛ لم يتم تنفيذ التحويل.']);
+                }
+            }
             $this->progressUpdate(10, 'جاري إنشاء وحفظ بيانات الاستمارة...');
 
             // ================================================
@@ -1056,7 +1182,7 @@ class GeneralRegistrationController extends Controller
             //    (سجل المعيل، الأفراد، المتوفون، البنك، المرفقات، الملخص).
             // ================================================
             if (!$useExistingGuardian) {
-                $fileNumberConflictTable = $this->findFileNumberConflict($fileIdNumber);
+                $fileNumberConflictTable = $this->findFileNumberConflict($fileIdNumber, (string) $guardianIdentity);
 
                 if ($fileNumberConflictTable !== null) {
                     $regeneratedFileIdNumber = generateUniqueReservedCode('data', 'file_id_number');
@@ -1097,9 +1223,11 @@ class GeneralRegistrationController extends Controller
             $inTransactionConflictReason = '';
             $pendingTransfers = [];
 
-            if (!$useExistingGuardian && !empty($guardianIdentity)) {
-                $otherFile = $this->findOtherFileForIdentity((string) $guardianIdentity, $fileIdNumber);
-                if ($otherFile !== null) {
+            if (!$useExistingGuardian && !$promotion && !empty($guardianIdentity)) {
+                RePeople::where('person_id', $guardianIdentity)->lockForUpdate()->get();
+                $guardianLink = $this->classifyIdentityLink((string) $guardianIdentity, $fileIdNumber);
+                if ($guardianLink !== null && !($publicSubmission && $guardianLink['type'] === 'member' && MemberTransferRequest::tableExists())) {
+                    $otherFile = $guardianLink['file_id_number'];
                     $inTransactionConflictMsg = 'هذا الشخص مسجل مسبقاً في النظام ومرتبط بمعيل آخر (رقم ملف ' . $otherFile . '). لا يمكن ربطه بهذا الطلب. يرجى التواصل مع إدارة المؤسسة.';
                     $inTransactionConflictReason = 'مسجّل مسبقاً في ملف آخر برقم ' . $otherFile . '.';
                 }
@@ -1148,6 +1276,10 @@ class GeneralRegistrationController extends Controller
                     [PortalErrorMessages::field($inTransactionConflictField, $inTransactionConflictReason)],
                     422
                 );
+            }
+
+            if ($guardianLink !== null && !$promotion) {
+                return $this->queueGuardianPromotion($request, $fileIdNumber, $guardianLink);
             }
 
             if (!empty($pendingTransfers)) {
@@ -1997,6 +2129,21 @@ class GeneralRegistrationController extends Controller
             Log::info($userCreated ? 'ℹ️ تم إنشاء حساب مستخدم جديد' : 'ℹ️ المستخدم مسجل مسبقاً، تخطي إنشاء حساب جديد', [
                 'file_id_number' => $fileIdNumber,
             ]);
+
+            if ($promotion) {
+                $snapshot = $promotion->member_snapshot;
+                $snapshot['source_member'] = $promotionMember->getAttributes();
+                $promotionMember->delete();
+                $promotion->update([
+                    'data_id' => $registrationDataId,
+                    'file_id_number' => (int) $fileIdNumber,
+                    'member_snapshot' => $snapshot,
+                    'status' => MemberTransferRequest::STATUS_APPROVED,
+                    'reason' => null,
+                    'reviewed_by' => $reviewerId,
+                    'reviewed_at' => now(),
+                ]);
+            }
 
             DB::commit();
             $preparedFiles = [];

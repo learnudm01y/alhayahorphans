@@ -89,6 +89,20 @@ class MemberTransferRequestController extends Controller
         }
 
         try {
+            if ($transfer->isGuardianPromotion()) {
+                $result = app(\App\Http\Controllers\Users\GeneralRegistrationController::class)
+                    ->approveGuardianPromotion($transfer, auth()->id());
+                if ($result->getStatusCode() >= 400) {
+                    return $result;
+                }
+                $transfer->refresh();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'تم تحويل الفرد إلى معيل مستقل في ملف ' . str_pad((string) $transfer->file_id_number, 6, '0', STR_PAD_LEFT) . ' وحفظ بيانات تسجيله. بقيت حالة التسجيل خاضعة للمراجعة المعتادة.',
+                ]);
+            }
+
             $moved = $transferService->approvePendingTransfer($transfer, auth()->id());
 
             $remaining = MemberTransferRequest::pending()
@@ -127,6 +141,22 @@ class MemberTransferRequestController extends Controller
                 'message' => 'حدث خطأ أثناء تنفيذ النقل: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    public function attachment(MemberTransferRequest $transfer, int $index)
+    {
+        abort_unless($transfer->isGuardianPromotion(), 404);
+        try {
+            $path = $transfer->promotionAttachmentPath($index);
+        } catch (\RuntimeException $error) {
+            abort(404);
+        }
+
+        return response()->file($path, [
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+            'Content-Security-Policy' => "default-src 'none'; sandbox",
+        ]);
     }
 
     public function reject(Request $request, MemberTransferRequest $transfer): JsonResponse

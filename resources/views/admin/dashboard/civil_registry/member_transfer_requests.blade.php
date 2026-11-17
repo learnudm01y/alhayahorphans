@@ -4,7 +4,7 @@
     <div class="w-100 px-3 py-4">
         <div class="card shadow border-0 rounded-lg animate__animated animate__fadeIn">
             <div class="card-header bg-primary text-white d-flex align-items-center justify-content-between" style="border-top-right-radius: .5rem; border-top-left-radius: .5rem;">
-                <h5 class="mb-0 text-white"><i class="fas fa-exchange-alt me-2 text-white"></i> طلبات نقل الأفراد بين المعيلين</h5>
+                <h5 class="mb-0 text-white"><i class="fas fa-exchange-alt me-2 text-white"></i> طلبات نقل الأفراد والتحويل إلى معيل</h5>
                 <a href="{{ route('admin.manage.user.requests.index') }}" class="btn btn-light btn-sm">
                     <i class="fas fa-list"></i> إدارة التسجيلات
                 </a>
@@ -63,6 +63,8 @@
                             @foreach($requests as $row)
                                 @php
                                     $snapshot = is_array($row->member_snapshot) ? $row->member_snapshot : [];
+                                    $isPromotion = $row->isGuardianPromotion();
+                                    $registration = $isPromotion ? ($snapshot['registration'] ?? []) : [];
                                     $memberName = trim(collect([
                                         $snapshot['first_name'] ?? null,
                                         $snapshot['second_name'] ?? null,
@@ -80,13 +82,37 @@
                                     <td>
                                         <div class="fw-bold">{{ $memberName !== '' ? $memberName : 'بدون اسم مُرسل' }}</div>
                                         <small class="text-muted">الهوية: {{ $row->identity_number }}</small>
+                                        <div><span class="badge {{ $isPromotion ? 'badge-primary' : 'badge-info' }}">{{ $isPromotion ? 'تحويل فرد إلى معيل مستقل' : 'نقل فرد بين معيلين' }}</span></div>
+                                        @if($isPromotion)
+                                            <details class="mt-2">
+                                                <summary>بيانات طلب التسجيل</summary>
+                                                <div class="small mt-2">
+                                                    <div>الجوال: <bdi>{{ $registration['data_phone_number'] ?? '—' }}</bdi></div>
+                                                    <div>الجوال البديل: <bdi>{{ $registration['data_alt_phone_number'] ?? '—' }}</bdi></div>
+                                                    <div>تاريخ الميلاد: {{ $registration['data_birth_date'] ?? '—' }}</div>
+                                                    <div>العنوان: {{ $registration['data_current_address'] ?? '—' }}</div>
+                                                    <div>الاحتياجات: {{ $registration['data_description_needs'] ?? '—' }}</div>
+                                                    <div class="fw-bold mt-2">أفراد الأسرة في الطلب</div>
+                                                    @foreach($registration['family_members'] ?? [] as $member)
+                                                        <div>{{ trim(implode(' ', [$member['first_name'] ?? '', $member['second_name'] ?? '', $member['third_name'] ?? '', $member['last_name'] ?? ''])) }} — {{ $member['person_id'] ?? 'بلا هوية' }}</div>
+                                                    @endforeach
+                                                    <div class="mt-2">الحسابات البنكية: {{ is_array($registration['bank_accounts'] ?? null) ? count($registration['bank_accounts']) : 0 }}</div>
+                                                    @foreach($snapshot['files'] ?? [] as $index => $file)
+                                                        <div><a href="{{ route('admin.member-transfer-requests.attachment', [$row->id, $index]) }}" target="_blank" rel="noopener">عرض المرفق {{ (int) $index + 1 }} — {{ $registration['attachments'][$index]['file_type'] ?? '' }}</a></div>
+                                                    @endforeach
+                                                </div>
+                                            </details>
+                                        @endif
                                     </td>
                                     <td>
                                         <div>{{ $source ? $source->display_name : '—' }}</div>
                                         <small class="text-muted">ملف {{ str_pad((string) $row->source_file_id_number, 6, '0', STR_PAD_LEFT) }}</small>
                                     </td>
                                     <td>
-                                        <div>{{ $target ? $target->display_name : '—' }}</div>
+                                        <div>{{ $target ? $target->display_name : ($isPromotion ? $memberName : '—') }}</div>
+                                        @if($isPromotion && !$row->data_id)
+                                            <small class="text-muted d-block">لم يُنشأ ملف المعيل بعد؛ الإنشاء عند الموافقة فقط.</small>
+                                        @endif
                                         <small class="text-muted">
                                             ملف {{ str_pad((string) $row->file_id_number, 6, '0', STR_PAD_LEFT) }}
                                             @if($row->data_id)
@@ -100,7 +126,7 @@
                                                 <span class="badge badge-warning">معلّق</span>
                                                 @break
                                             @case('approved')
-                                                <span class="badge badge-success">منقول</span>
+                                                <span class="badge badge-success">{{ $isPromotion ? 'تم التحويل إلى معيل' : 'منقول' }}</span>
                                                 @break
                                             @case('rejected')
                                                 <span class="badge badge-danger">مرفوض</span>
@@ -121,18 +147,21 @@
                                     <td><small>{{ $row->reason ?? '—' }}</small></td>
                                     <td>
                                         @if($canAct)
+                                            @can('تعديل سجل')
                                             <button type="button" class="btn btn-sm btn-success approve-transfer"
+                                                    data-promotion="{{ $isPromotion ? '1' : '0' }}"
                                                     data-id="{{ $row->id }}"
                                                     data-member="{{ $memberName !== '' ? $memberName : $row->identity_number }}"
                                                     data-from="{{ str_pad((string) $row->source_file_id_number, 6, '0', STR_PAD_LEFT) }}"
                                                     data-to="{{ str_pad((string) $row->file_id_number, 6, '0', STR_PAD_LEFT) }}">
-                                                <i class="fas fa-check"></i> موافقة ونقل
+                                                <i class="fas fa-check"></i> {{ $isPromotion ? 'موافقة وتحويل إلى معيل' : 'موافقة ونقل' }}
                                             </button>
                                             <button type="button" class="btn btn-sm btn-danger reject-transfer"
                                                     data-id="{{ $row->id }}"
                                                     data-member="{{ $memberName !== '' ? $memberName : $row->identity_number }}">
                                                 <i class="fas fa-times"></i> رفض
                                             </button>
+                                            @endcan
                                         @else
                                             <span class="text-muted small">لا إجراء</span>
                                         @endif
@@ -166,7 +195,7 @@
         }
     </style>
     <script>
-        toastr.options = { "positionClass": "toast-top-left", "closeButton": true, "progressBar": true };
+        toastr.options = { "positionClass": "toast-top-left", "closeButton": true, "progressBar": true, "escapeHtml": true };
 
         var csrfToken = '{{ csrf_token() }}';
         var approveUrl = '{{ route("admin.member-transfer-requests.approve", ":id") }}';
@@ -193,12 +222,15 @@
             var button = $(this);
             var id = button.data('id');
 
+            var promotion = String(button.data('promotion')) === '1';
             Swal.fire({
-                title: 'تأكيد النقل',
-                text: 'سيُنقل الرابط فقط: الفرد «' + button.data('member') + '» من ملف ' + button.data('from') + ' إلى ملف ' + button.data('to') + '. لا تُعدَّل أي بيانات أخرى.',
+                title: promotion ? 'تأكيد التحويل إلى معيل مستقل' : 'تأكيد النقل',
+                text: promotion
+                    ? 'سيُفك ارتباط «' + button.data('member') + '» كفرد من ملف ' + button.data('from') + ' ويُنشأ له ملف معيل مستقل ببيانات التسجيل ومرفقاته. نقل أفراد أسرته المرتبطين بملفات أخرى يحتاج موافقات منفصلة.'
+                    : 'سيُنقل الرابط فقط: الفرد «' + button.data('member') + '» من ملف ' + button.data('from') + ' إلى ملف ' + button.data('to') + '. لا تُعدَّل أي بيانات أخرى.',
                 icon: 'warning',
                 showCancelButton: true,
-                confirmButtonText: 'نعم، انقل',
+                confirmButtonText: promotion ? 'نعم، حوّل إلى معيل' : 'نعم، انقل',
                 cancelButtonText: 'إلغاء'
             }).then(function (result) {
                 if (!result.isConfirmed) return;
@@ -211,7 +243,8 @@
                         return;
                     }
                     button.prop('disabled', false);
-                    toastr.error(res.body.message || 'تعذّر تنفيذ النقل.');
+                    var errors = Object.values(res.body.errors || {}).flat().join(' ');
+                    toastr.error(errors || res.body.message || 'تعذّر تنفيذ النقل.');
                 }).catch(function () {
                     button.prop('disabled', false);
                     toastr.error('تعذّر الاتصال بالخادم.');

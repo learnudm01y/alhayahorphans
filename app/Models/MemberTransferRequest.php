@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class MemberTransferRequest extends Model
 {
+    public const TYPE_GUARDIAN_PROMOTION = 'guardian_promotion';
     public const STATUS_PENDING = 'pending';
     public const STATUS_APPROVED = 'approved';
     public const STATUS_REJECTED = 'rejected';
@@ -59,6 +60,26 @@ class MemberTransferRequest extends Model
         'member_snapshot' => 'array',
         'reviewed_at' => 'datetime',
     ];
+
+    public function isGuardianPromotion(): bool
+    {
+        return ($this->member_snapshot['request_type'] ?? null) === self::TYPE_GUARDIAN_PROMOTION;
+    }
+
+    public function promotionAttachmentPath(int $index): string
+    {
+        $path = $this->member_snapshot['files'][$index]['path'] ?? '';
+        if (!$this->isGuardianPromotion() || !preg_match('#^pending_guardian_promotions/[a-f0-9]{32}/[0-9]+\\.[a-z0-9]+$#', $path)) {
+            throw new \RuntimeException('مرفق طلب التحويل غير صالح.');
+        }
+
+        $disk = \Illuminate\Support\Facades\Storage::disk('local');
+        if (!$disk->exists($path)) {
+            throw new \RuntimeException('مرفق طلب التحويل غير موجود؛ لم يتم تنفيذ التحويل.');
+        }
+
+        return $disk->path($path);
+    }
 
     public function data()
     {

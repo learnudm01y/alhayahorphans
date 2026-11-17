@@ -11,6 +11,7 @@ use App\Services\FaceEmbeddingService;
 use App\Services\FaceScanService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -121,6 +122,9 @@ class AttachmentFaceScanController extends Controller
                 'id' => $result->id,
                 'decision' => $result->decision,
                 'review_status' => $hasReviewColumns ? $result->review_status : null,
+                'review_target' => $this->reviewTarget($result, $attachments, $trashMap),
+                'newer_attachment_id' => $result->decision === 'review'
+                    ? $this->newerId($result, $attachments) : null,
                 'confirm_url' => $result->decision === 'review'
                     ? route('attachment-audit.face-scans.results.confirm', [$scan, $result]) : null,
                 'dismiss_url' => $result->decision === 'review'
@@ -173,12 +177,19 @@ class AttachmentFaceScanController extends Controller
             return response()->json(['success' => false, 'message' => 'المرفقان لم يعودا موجودين.'], 422);
         }
 
-        $older = $first && $second ? $this->olderOf($first, $second) : null;
-        $outcome = $older !== null
-            ? $trash->trash($older, (int) $request->user()->id, 'face-review-confirmed', $scan->id, $result->id)
+        $target = $request->input('target') === 'newest' ? 'newest' : 'older';
+        $moved = $target === 'newest' ? 'الأحدث' : 'الأقدم';
+        $kept = $target === 'newest' ? 'الأقدم' : 'الأحدث';
+
+        $victim = $first && $second
+            ? ($target === 'newest' ? $this->newerOf($first, $second) : $this->olderOf($first, $second))
+            : null;
+
+        $outcome = $victim !== null
+            ? $trash->trash($victim, (int) $request->user()->id, 'face-review-confirmed', $scan->id, $result->id)
             : ['status' => 'single-remaining'];
 
-        if ($older === null || in_array($outcome['status'], ['trashed', 'already-trashed'], true)) {
+        if ($victim === null || in_array($outcome['status'], ['trashed', 'already-trashed'], true)) {
             $result->update([
                 'review_status' => 'confirmed',
                 'reviewed_by' => (int) $request->user()->id,
@@ -186,15 +197,19 @@ class AttachmentFaceScanController extends Controller
             ]);
 
             $message = match ($outcome['status']) {
-                'already-trashed' => 'المرفق الأقدم موجود أصلاً في السلة؛ سُجّل التأكيد.',
+                'already-trashed' => "المرفق {$moved} موجود أصلاً في السلة؛ سُجّل التأكيد.",
                 'single-remaining' => 'أحد المرفقين لم يعد موجوداً؛ سُجّل التأكيد دون نقل جديد.',
-                default => 'نُقل المرفق الأقدم إلى السلة (قابل للاسترجاع)، وبقي الأحدث.',
+                default => "نُقل المرفق {$moved} إلى السلة (قابل للاسترجاع)، وبقي {$kept}.",
             };
 
             return response()->json([
                 'success' => true,
                 'message' => $message,
-                'data' => ['id' => $result->id, 'review_status' => $result->review_status],
+                'data' => [
+                    'id' => $result->id,
+                    'review_status' => $result->review_status,
+                    'review_target' => $target,
+                ],
             ]);
         }
 
@@ -438,6 +453,62 @@ class AttachmentFaceScanController extends Controller
         }
 
         return $a->id < $b->id ? $a : $b;
+    }
+
+    private function newerOf(Attachment $a, Attachment $b): Attachment
+    {
+        return $this->olderOf($a, $b) === $a ? $b : $a;
+    }
+
+    private function newerId(AttachmentFaceResult $result, Collection $attachments): ?int
+    {
+        $first = $attachments->get($result->attachment_id);
+        $second = $attachments->get($result->matched_attachment_id);
+
+        return $first && $second ? $this->newerOf($first, $second)->id : null;
+    }
+
+    /** أي طرف نُقل إلى السلة عند تأكيد هذه المراجعة يدوياً (يُستنتج من السلة لأن الصف المحذوف لم يعد في attachments). */
+    private function reviewTarget(AttachmentFaceResult $result, Collection $attachments, Collection $trashMap): ?string
+    {
+        if ($result->decision !== 'review' || $result->review_status !== 'confirmed') {
+            return null;
+        }
+
+        $movedTrashed = $trashMap->has($result->attachment_id);
+        $keptTrashed = $trashMap->has($result->matched_attachment_id);
+
+        if ($movedTrashed === $keptTrashed) {
+            return null;
+        }
+
+        $movedId = $movedTrashed ? (int) $result->attachment_id : (int) $result->matched_attachment_id;
+        $keptId = $movedTrashed ? (int) $result->matched_attachment_id : (int) $result->attachment_id;
+        $movedAt = $this->createdAtOf($movedId, $attachments, $trashMap);
+        $keptAt = $this->createdAtOf($keptId, $attachments, $trashMap);
+
+        if ($movedAt === null || $keptAt === null) {
+            return null;
+        }
+
+        if ($movedAt !== $keptAt) {
+            return $movedAt > $keptAt ? 'newest' : 'older';
+        }
+
+        return $movedId > $keptId ? 'newest' : 'older';
+    }
+
+    private function createdAtOf(int $attachmentId, Collection $attachments, Collection $trashMap): ?int
+    {
+        $attachment = $attachments->get($attachmentId);
+        if ($attachment) {
+            return $attachment->created_at?->getTimestamp();
+        }
+
+        $snapshot = $trashMap->get($attachmentId)?->snapshot;
+        $raw = is_array($snapshot) ? ($snapshot['created_at'] ?? null) : null;
+
+        return $raw ? (strtotime((string) $raw) ?: null) : null;
     }
 
     private function ensureAvailable(AttachmentFaceScan $scan): void

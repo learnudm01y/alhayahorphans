@@ -244,20 +244,22 @@ $(document).ready(function() {
         });
     });
 
-    $('#face-results').on('click', '.face-confirm-btn', function() {
-        const $btn = $(this);
+    function faceConfirmPair($btn, target) {
+        const newest = target === 'newest';
         Swal.fire({
             title: 'تأكيد تطابق الوجهين؟',
-            text: 'ستُنقل الصورة الأقدم إلى سلة المحذوفات وتبقى الأحدث. الاسترجاع متاح 30 يوماً، ولن يُحذف أي ملف نهائياً الآن.',
+            text: newest
+                ? 'ستُنقل الصورة الأحدث إلى سلة المحذوفات وتبقى الأقدم. الاسترجاع متاح 30 يوماً، ولن يُحذف أي ملف نهائياً الآن.'
+                : 'ستُنقل الصورة الأقدم إلى سلة المحذوفات وتبقى الأحدث. الاسترجاع متاح 30 يوماً، ولن يُحذف أي ملف نهائياً الآن.',
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonText: 'نعم، انقل الأقدم',
+            confirmButtonText: newest ? 'نعم، انقل الأحدث' : 'نعم، انقل الأقدم',
             cancelButtonText: 'إلغاء',
             reverseButtons: true
         }).then(function(choice) {
             if (!choice.isConfirmed) return;
             $btn.prop('disabled', true);
-            $.post($btn.data('url')).done(function(response) {
+            $.post($btn.data('url'), { target: target }).done(function(response) {
                 Swal.fire('تم التأكيد', response.message || '', 'success');
                 loadFaceResults(faceResultPage, false);
             }).fail(function(xhr) {
@@ -265,6 +267,14 @@ $(document).ready(function() {
                 $btn.prop('disabled', false);
             });
         });
+    }
+
+    $('#face-results').on('click', '.face-confirm-btn', function() {
+        faceConfirmPair($(this), 'older');
+    });
+
+    $('#face-results').on('click', '.face-confirm-newest-btn', function() {
+        faceConfirmPair($(this), 'newest');
     });
 
     $('#face-results').on('click', '.face-dismiss-btn', function() {
@@ -301,8 +311,11 @@ $(document).ready(function() {
 
     function faceResultHtml(result) {
         const automatic = result.decision === 'auto_duplicate';
-        const firstLabel = automatic ? 'الأقدم' : 'مراجعة يدوية — يبقى';
-        const secondLabel = automatic ? 'الأحدث — يبقى' : 'مراجعة يدوية — يبقى';
+        const sideLabel = (attachment) => {
+            if (automatic) return attachment.id === result.attachment.id ? 'الأقدم' : 'الأحدث — يبقى';
+            if (!result.newer_attachment_id) return 'مراجعة يدوية';
+            return attachment.id === result.newer_attachment_id ? 'الأحدث' : 'الأقدم';
+        };
         const similarity = (result.display_similarity * 100).toFixed(1);
 
         return `<div class="face-match-result" data-result-id="${result.id}">
@@ -311,8 +324,8 @@ $(document).ready(function() {
                 <small class="text-muted">الشخص ${faceEscape(result.person)} | المسافة ${faceEscape(result.distance)} | تشابه العرض ${similarity}% وليس احتمالاً</small>
             </div>
             <div class="row g-3">
-                <div class="col-md-6">${faceAttachmentHtml(result.attachment, firstLabel, automatic ? 'bg-light-danger text-danger' : 'bg-light-warning text-warning')}</div>
-                <div class="col-md-6">${faceAttachmentHtml(result.matched_attachment, secondLabel, automatic ? 'bg-light-success text-success' : 'bg-light-warning text-warning')}</div>
+                <div class="col-md-6">${faceAttachmentHtml(result.attachment, sideLabel(result.attachment), automatic ? 'bg-light-danger text-danger' : 'bg-light-warning text-warning')}</div>
+                <div class="col-md-6">${faceAttachmentHtml(result.matched_attachment, sideLabel(result.matched_attachment), automatic ? 'bg-light-success text-success' : 'bg-light-warning text-warning')}</div>
             </div>
             ${faceReviewActionsHtml(result)}
         </div>`;
@@ -321,7 +334,9 @@ $(document).ready(function() {
     function faceReviewActionsHtml(result) {
         if (result.decision !== 'review') return '';
         if (result.review_status === 'confirmed') {
-            return '<div class="mt-2"><span class="badge bg-success">أُكّد يدوياً — نُقل الأقدم إلى السلة</span></div>';
+            const moved = result.review_target === 'newest' ? 'الأحدث' : 'الأقدم';
+            const kept = result.review_target === 'newest' ? 'الأقدم' : 'الأحدث';
+            return `<div class="mt-2"><span class="badge bg-success">أُكّد يدوياً — نُقل ${moved} إلى السلة وبقي ${kept}</span></div>`;
         }
         if (result.review_status === 'dismissed') {
             return '<div class="mt-2"><span class="badge bg-secondary">سُجّلت: ليسا مكررين — لم يُحذف شيء</span></div>';
@@ -330,6 +345,9 @@ $(document).ready(function() {
         return `<div class="d-flex flex-wrap gap-2 mt-3">
             <button type="button" class="btn btn-sm btn-outline-danger face-confirm-btn" data-url="${faceEscape(result.confirm_url)}">
                 <i class="fas fa-user-check me-1"></i>نفس الطفل — انقل الأقدم للسلة
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-warning face-confirm-newest-btn" data-url="${faceEscape(result.confirm_url)}">
+                <i class="fas fa-user-clock me-1"></i>نفس الطفل — انقل الأحدث للسلة
             </button>
             <button type="button" class="btn btn-sm btn-outline-secondary face-dismiss-btn" data-url="${faceEscape(result.dismiss_url)}">
                 <i class="fas fa-times me-1"></i>ليسا مكررين
@@ -340,7 +358,7 @@ $(document).ready(function() {
     function faceAttachmentHtml(attachment, label, badgeClass) {
         if (attachment.trashed) {
             return `<div class="face-match-card text-center">
-                <span class="badge bg-secondary mb-2">${label === 'الأقدم' ? 'الأقدم — حُذف إلى السلة' : 'حُذف إلى السلة'} — قابل للاسترجاع</span>
+                <span class="badge bg-secondary mb-2">${label} — حُذف إلى السلة — قابل للاسترجاع</span>
                 <div class="text-muted small mb-2">الملف محفوظ في السلة حتى ${faceEscape(attachment.restore_deadline_at || '')}<br>ولم يُحذف نهائياً.</div>
                 <button type="button" class="btn btn-sm btn-outline-primary face-restore-btn" data-restore-url="${faceEscape(attachment.restore_url)}">
                     <i class="fas fa-undo me-1"></i>استرجاع الآن

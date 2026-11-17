@@ -237,6 +237,12 @@
         <h2 class="sub-message">بوابة تسجيل الأيتام والمستفيدين</h2>
         <a class="registration-link" href="{{ url('/') }}">الانتقال إلى صفحة التسجيل الرئيسية</a>
 
+        @if(request('guardian_promotion') === 'pending')
+            <div class="flash-warning" role="status">
+                تم استلام طلب تسجيلك. تحويلك من فرد أسرة إلى معيل مستقل بانتظار موافقة الإدارة؛ لم يتغير ارتباطك بالأسرة الحالية.
+            </div>
+        @endif
+
         @if(session('success'))
             <div class="flash-success">{{ session('success') }}</div>
         @endif

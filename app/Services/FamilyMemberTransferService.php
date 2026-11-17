@@ -118,6 +118,9 @@ class FamilyMemberTransferService
             if (!$locked || $locked->status !== MemberTransferRequest::STATUS_PENDING) {
                 throw new \RuntimeException('هذا الطلب غير معلّق، لا يمكن الموافقة عليه.');
             }
+            if ($locked->isGuardianPromotion()) {
+                throw new \RuntimeException('طلب التحويل إلى معيل يجب اعتماده مع بيانات التسجيل كاملة.');
+            }
 
             $member = $this->lockMemberByIdentityAndSourceFile(
                 (string) $request->identity_number,

@@ -79,6 +79,10 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::get('member-transfer-requests', [MemberTransferRequestController::class, 'index'])
         ->middleware('permission:عرض قسم إدارة التسجيلات|إدارة طلبات المستخدمين|تعديل سجل')
         ->name('member-transfer-requests.index');
+    Route::get('member-transfer-requests/{transfer}/attachments/{index}', [MemberTransferRequestController::class, 'attachment'])
+        ->whereNumber('index')
+        ->middleware('permission:عرض قسم إدارة التسجيلات|إدارة طلبات المستخدمين|تعديل سجل')
+        ->name('member-transfer-requests.attachment');
     Route::post('member-transfer-requests/{transfer}/approve', [MemberTransferRequestController::class, 'approve'])
         ->middleware('permission:تعديل سجل')
         ->name('member-transfer-requests.approve');
