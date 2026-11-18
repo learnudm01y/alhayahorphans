@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_dashboard" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;family=Noto+Kufi+Arabic:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;font-family:'Noto Kufi Arabic',sans-serif;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{colors:{"secondary":"#226a53","surface-container-lowest":"#ffffff","on-secondary":"#ffffff","error-container":"#ffdad6","on-primary":"#ffffff","secondary-fixed":"#aaf1d4","surface-container-low":"#f3f2ff","surface-variant":"#dce1ff","surface-tint":"#006d37","secondary-fixed-dim":"#8ed5b9","surface":"#faf8ff","on-primary-container":"#b6ffc5","on-primary-fixed-variant":"#005228","surface-bright":"#faf8ff","on-tertiary-fixed-variant":"#574500","on-surface-variant":"#3f4940","surface-container":"#ebedff","primary-fixed-dim":"#7ada95","on-background":"#00164e","on-surface":"#00164e","inverse-on-surface":"#eff0ff","surface-container-high":"#e3e7ff","tertiary-fixed-dim":"#e9c349","on-primary-fixed":"#00210c","primary":"#006130","on-secondary-fixed":"#002117","primary-container":"#107c41","tertiary-container":"#cca72f","on-tertiary":"#ffffff","primary-fixed":"#96f7af","surface-dim":"#d0d8ff","inverse-surface":"#05297a","outline":"#6f7a6f","secondary-container":"#a7eed1","on-error-container":"#93000a","on-secondary-container":"#276e57","tertiary-fixed":"#ffe088","on-tertiary-container":"#4e3d00","on-tertiary-fixed":"#241a00","surface-container-highest":"#dce1ff","outline-variant":"#becabd","tertiary":"#735c00","on-secondary-fixed-variant":"#00513d","inverse-primary":"#7ada95","background":"#faf8ff","on-error":"#ffffff","error":"#ba1a1a"},borderRadius:{"DEFAULT":"0.125rem","lg":"0.25rem","xl":"0.5rem","full":"0.75rem"},spacing:{"margin":"1.5rem","space-xs":"0.25rem","space-sm":"0.5rem","space-xl":"1.75rem","space-lg":"1.25rem","gutter":"1rem","space-md":"0.75rem"},fontFamily:{"label-md":["Inter"],"body-md":["Inter"],"headline-xl":["Plus Jakarta Sans"],"numeric-table":["Inter"],"title-sm":["Plus Jakarta Sans"],"headline-md":["Plus Jakarta Sans"],"label-sm":["Inter"],"body-sm":["Inter"],"body-lg":["Inter"],"headline-lg":["Plus Jakarta Sans"]},fontSize:{"label-md":["0.8125rem",{"lineHeight":"1.125rem","fontWeight":"500"}],"body-md":["0.875rem",{"lineHeight":"1.375rem","fontWeight":"400"}],"headline-xl":["2rem",{"lineHeight":"2.5rem","fontWeight":"700"}],"numeric-table":["0.8125rem",{"lineHeight":"1.25rem","fontWeight":"500"}],"title-sm":["1rem",{"lineHeight":"1.5rem","fontWeight":"600"}],"headline-md":["1.25rem",{"lineHeight":"1.75rem","fontWeight":"600"}],"label-sm":["0.6875rem",{"lineHeight":"0.875rem","fontWeight":"600"}],"body-sm":["0.75rem",{"lineHeight":"1.125rem","fontWeight":"400"}],"body-lg":["1rem",{"lineHeight":"1.625rem","fontWeight":"400"}],"headline-lg":["1.5rem",{"lineHeight":"2rem","fontWeight":"600"}]}}}}</script></head><body class="bg-surface font-body-md text-on-surface antialiased min-h-screen selection:bg-secondary-container selection:text-on-secondary-container"><aside class="fixed right-0 top-0 h-full w-72 bg-surface-container-lowest shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-50 flex flex-col justify-between transition-all duration-300"><div class="flex flex-col h-full"><div class="h-16 px-space-lg flex items-center justify-between bg-surface-container-lowest shadow-[0_1px_4px_rgba(0,0,0,0.02)]"><div class="flex items-center gap-space-md min-w-0"><img alt="Logo" class="h-9 w-auto object-contain flex-shrink-0" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCMktUA5jvMA0Dq9Ypb2Jj2HlRNSVrcfoph1Trigk3KcCdODqPCLsAcwDTFAuPkqR-HPdHZVox5_ydj_0pdDTfKnrgSQqEi67y7sXQG4I7IknK1eio6NA7zLkonFnyqakxAEZTja-dDCqmiBcfQXR2p9135lqmSLEjqzto1w7xODvB4v16lxFwD1Uemm91_gVneqKFT58GZ2nQimz_74yFfmXNgYbJD9pn4C6nS7yxJ"/><div class="flex flex-col min-w-0"><span class="font-title-sm text-title-sm text-primary leading-tight truncate">منظومة ريم الإغاثية</span><span class="font-label-sm text-label-sm text-on-surface-variant truncate">Reem Relief ERP v4.2</span></div></div><button class="p-space-xs rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">dock_to_right</span></button></div><div class="px-space-md py-space-sm"><div class="bg-surface-container-low rounded-xl p-space-sm flex items-center justify-between text-on-surface"><div class="flex items-center gap-space-xs"><span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span><span class="font-label-sm text-label-sm text-secondary font-semibold">النظام الموحد: نشط ومحدث</span></div><span class="font-label-sm text-label-sm text-on-surface-variant bg-surface-container-lowest px-space-xs py-0.5 rounded shadow-sm">RTL</span></div></div><nav class="flex-1 px-space-md py-space-xs space-y-1 overflow-y-auto" data-active-classes="bg-primary-container text-on-primary font-semibold shadow-sm"><div class="px-space-sm py-space-xs"><span class="font-label-sm text-label-sm text-outline font-semibold uppercase tracking-wider">الإدارات والبرامج</span></div><a class="flex items-center justify-between px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all group" data-path="dashboard" href="#"><span class="font-body-md text-body-md leading-none">لوحة التحكم والمؤشرات</span></a><a class="flex items-center justify-between px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all group" data-path="beneficiaries-orphans" href="#"><span class="font-body-md text-body-md leading-none">سجل الأسر والأيتام</span><span class="font-label-sm text-label-sm bg-secondary-container text-on-secondary-container px-space-xs py-0.5 rounded-full">3,840</span></a><a aria-current="page" class="flex items-center justify-between px-space-md py-space-sm rounded-lg transition-all group bg-primary-container text-on-primary font-semibold shadow-sm" data-path="advanced-search-filtering" href="#"><span class="font-body-md text-body-md leading-none">البحث والفرز المتقدم للحالات</span><span class="font-label-sm text-label-sm bg-surface-container-highest text-primary px-space-xs py-0.5 rounded">جديد</span></a><a class="flex items-center justify-between px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all group" data-path="kafalah-sponsorships" href="#"><span class="font-body-md text-body-md leading-none">إدارة الكفالات والمستحقات</span></a><a class="flex items-center justify-between px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all group" data-path="aid-vouchers" href="#"><span class="font-body-md text-body-md leading-none">المساعدات والقسائم الشرائية</span><span class="font-label-sm text-label-sm bg-tertiary-container text-on-tertiary px-space-xs py-0.5 rounded-full">دورة رمضان</span></a><div class="pt-space-md px-space-sm py-space-xs"><span class="font-label-sm text-label-sm text-outline font-semibold uppercase tracking-wider">الشركاء والجهات المعنية</span></div><a class="flex items-center justify-between px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all group" data-path="partner-associations-donors" href="#"><span class="font-body-md text-body-md leading-none">الجمعيات والمنظمات الشريكة</span><span class="font-label-sm text-label-sm bg-secondary-container text-on-secondary-container px-space-xs py-0.5 rounded-full">48 جهة</span></a><a class="flex items-center justify-between px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all group" data-path="suppliers-vendors" href="#"><span class="font-body-md text-body-md leading-none">الموردون والمراكز التموينية</span></a><a class="flex items-center justify-between px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all group" data-path="field-researchers" href="#"><span class="font-body-md text-body-md leading-none">الباحث الميداني والمندوبون</span></a><div class="pt-space-md px-space-sm py-space-xs"><span class="font-label-sm text-label-sm text-outline font-semibold uppercase tracking-wider">الإحصاء والإعدادات</span></div><a class="flex items-center justify-between px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all group" data-path="reports-exports" href="#"><span class="font-body-md text-body-md leading-none">التقارير وتصدير الكشوفات</span></a><a class="flex items-center justify-between px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all group" data-path="settings-variables" href="#"><span class="font-body-md text-body-md leading-none">الإعدادات وثوابت النظام</span></a></nav><div class="p-space-md bg-surface-container-low m-space-md rounded-xl shadow-[0_1px_4px_rgba(0,0,0,0.02)]"><div class="flex items-center justify-between mb-space-xs"><span class="font-label-sm text-label-sm text-on-surface font-semibold">صندوق المساعدات العاجل</span><span class="font-numeric-table text-numeric-table text-primary font-bold">82%</span></div><div class="w-full bg-surface-container-highest h-1.5 rounded-full overflow-hidden"><div class="bg-primary h-full rounded-full" style="width: 82%"></div></div><div class="flex items-center justify-between mt-space-xs text-on-surface-variant font-label-sm text-label-sm"><span>المتبقي: 24,500 د.أ</span><span class="material-symbols-outlined text-[16px] text-secondary">volunteer_activism</span></div></div></div></aside><div class="pr-72"><header class="fixed top-0 right-72 left-0 h-16 bg-surface-container-lowest/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-40 flex items-center justify-between px-space-lg"><div class="flex items-center gap-space-lg flex-1 max-w-2xl"><div class="relative w-full max-w-md"><span class="material-symbols-outlined absolute right-space-md top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span><input class="w-full pl-space-md pr-10 py-1.5 bg-surface-container-low text-on-surface font-body-sm text-body-sm rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:bg-surface-container-lowest transition-all placeholder:text-outline" placeholder="بحث برقم الهوية، الاسم، كود المستفيد، أو رقم الهاتف..." type="text"/></div><div class="hidden xl:flex items-center gap-space-xs bg-surface-container-low px-space-md py-1.5 rounded-xl"><span class="material-symbols-outlined text-secondary text-[18px]">corporate_fare</span><select class="bg-transparent text-on-surface font-label-md text-label-md focus:outline-none cursor-pointer pr-1"><option value="all">كافة الفروع والمشاريع</option><option value="central">حملة إغاثة الشمال والوسط</option><option value="orphans">مكتب كفالة الأيتام المركزي</option><option value="food">مشروع الطرود وقسائم الغذاء</option></select></div></div><div class="flex items-center gap-space-md"><div class="hidden md:flex items-center gap-space-xs px-space-md py-1.5 rounded-xl bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm"><span class="material-symbols-outlined text-primary text-[18px]">cloud_done</span><span class="font-medium">متزامن: السحابة المركزية</span></div><button class="p-2 text-on-surface-variant hover:bg-surface-container hover:text-on-surface rounded-xl transition-colors relative" title="تقويم التوزيع" type="button"><span class="material-symbols-outlined text-[22px]">calendar_today</span></button><button class="p-2 text-on-surface-variant hover:bg-surface-container hover:text-on-surface rounded-xl transition-colors relative" title="التنبيهات الإغاثية" type="button"><span class="material-symbols-outlined text-[22px]">notifications</span><span class="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-error rounded-full ring-2 ring-surface-container-lowest"></span></button><div class="h-6 w-px bg-surface-container-highest mx-space-xs"></div><div class="flex items-center gap-space-md pr-space-xs"><div class="flex flex-col text-left"><span class="font-label-md text-label-md font-semibold text-on-surface leading-tight">أحمد النجار</span><span class="font-label-sm text-label-sm text-on-surface-variant leading-tight">مدير العمليات والإغاثة</span></div><img alt="Profile" class="w-9 h-9 rounded-full object-cover shadow-sm ring-1 ring-surface-container-high" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAHHf5cgEbYSWisHkDOGKTagU1p2UwzEjxxTsvJqA-Y-dk6Oq87BHkLOCxftWzaCXS47hWUYyTsNPCJZhleMrBbXREdbtFdtWitgfbM9GhF7XvadDjBDJccaaIkF0iiiEZYW_K5Nk5w3V7pajwXvHa0dU23e-GL2hCGeFoR6i1QTIYP8nhH36A_VdpWL_m3w2qYG6_B3Qe9ZHEWdzRIjBmN8y3c786Ni09PUtxdvKas"/></div></div></header><main class="w-full pt-16 bg-surface min-h-screen p-space-lg"><div class="flex flex-col w-full">
+<!-- Top Operational Banner & Dynamic KPI Bar -->
+<div class="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-space-md mb-space-lg bg-surface-container-lowest p-space-md rounded-xl shadow-sm">
+<div class="flex items-center gap-space-md">
+<div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1;">manage_search</span>
+</div>
+<div>
+<div class="flex items-center gap-space-xs">
+<h1 class="font-headline-md text-headline-md text-on-surface">مركز الفرز والبحث المتقدم وتصنيف السجلات</h1>
+<span class="bg-primary/10 text-primary font-label-sm text-label-sm px-space-xs py-0.5 rounded font-semibold">ERP Data Query v4.2</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">محرك الفرز المتقدم لقواعد بيانات المستفيدين والأيتام، وإدارة مؤشرات الحالات العاجلة والقوائم الرقابية</p>
+</div>
+</div>
+<!-- Live Batch Statistics Pills -->
+<div class="flex flex-wrap items-center gap-space-xs bg-surface-container-low p-1.5 rounded-xl">
+<div class="flex items-center gap-2 px-space-md py-1 bg-surface-container-lowest rounded-lg shadow-sm">
+<span class="w-2.5 h-2.5 rounded-full bg-primary animate-pulse"></span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">إجمالي السجلات:</span>
+<span class="font-numeric-table text-numeric-table font-bold text-primary" id="kpi-total-records">3,842</span>
+</div>
+<div class="flex items-center gap-2 px-space-md py-1 bg-surface-container-lowest rounded-lg shadow-sm">
+<span class="w-2.5 h-2.5 rounded-full bg-error"></span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">حالات طارئة (Urgent):</span>
+<span class="font-numeric-table text-numeric-table font-bold text-error">128</span>
+</div>
+<div class="flex items-center gap-2 px-space-md py-1 bg-surface-container-lowest rounded-lg shadow-sm">
+<span class="w-2.5 h-2.5 rounded-full bg-tertiary"></span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">بحاجة مرفقات:</span>
+<span class="font-numeric-table text-numeric-table font-bold text-tertiary">342</span>
+</div>
+<div class="flex items-center gap-2 px-space-md py-1 bg-surface-container-lowest rounded-lg shadow-sm">
+<span class="w-2.5 h-2.5 rounded-full bg-secondary"></span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">أيتام بانتظار كفالة:</span>
+<span class="font-numeric-table text-numeric-table font-bold text-secondary">516</span>
+</div>
+</div>
+</div>
+<!-- Main Multi-Zone Split: Classification Workflow Sidebar + Comprehensive Search Form -->
+<div class="grid grid-cols-1 xl:grid-cols-12 gap-space-lg mb-space-lg">
+<!-- Zone 1: MS Access Inspired Operational Action Badges & Case Toggles (Col 1-2 Desktop) -->
+<div class="xl:col-span-2 flex flex-col gap-space-xs bg-surface-container-lowest p-space-md rounded-xl shadow-sm">
+<div class="flex items-center justify-between pb-space-xs mb-space-xs border-b border-surface-container-high">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-outline font-semibold">تصنيف وإجراءات الحالات</span>
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant">tune</span>
+</div>
+<!-- Action Button 1: Add & Edit (إضافة وتعديل) -->
+<button class="w-full flex items-center justify-between px-space-md py-2.5 rounded-lg bg-primary text-on-primary hover:bg-secondary transition-all shadow-sm group" type="button">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[18px]">person_add</span>
+<span class="font-title-sm text-title-sm">إضافة وتعديل</span>
+</div>
+<span class="material-symbols-outlined text-[16px] opacity-70 group-hover:translate-x-[-2px] transition-transform">arrow_back_ios</span>
+</button>
+<!-- Action Button 2: Urgent (عاجل) -->
+<button class="w-full flex items-center justify-between px-space-md py-2 rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-all shadow-sm" onclick="toggleFilterBadge(this, 'urgent')" type="button">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[18px]">warning</span>
+<span class="font-body-md text-body-md font-semibold">عاجل / Urgent</span>
+</div>
+<span class="font-numeric-table text-numeric-table bg-white/20 px-1.5 py-0.5 rounded text-white font-bold">128</span>
+</button>
+<!-- Action Button 3: BlackList (القائمة السوداء) -->
+<button class="w-full flex items-center justify-between px-space-md py-2 rounded-lg bg-rose-700 text-white hover:bg-rose-800 transition-all shadow-sm" onclick="toggleFilterBadge(this, 'blacklist')" type="button">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[18px]">block</span>
+<span class="font-body-md text-body-md font-semibold">القائمة السوداء</span>
+</div>
+<span class="font-numeric-table text-numeric-table bg-white/20 px-1.5 py-0.5 rounded text-white font-bold">19</span>
+</button>
+<!-- Action Button 4: Delete File (حذف الملف كامل) -->
+<button class="w-full flex items-center justify-between px-space-md py-2 rounded-lg bg-error-container text-on-error-container hover:bg-error hover:text-on-error transition-all" onclick="confirmFullDelete()" type="button">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[18px]">delete_forever</span>
+<span class="font-body-md text-body-md font-medium">حذف الملف كامل</span>
+</div>
+<span class="material-symbols-outlined text-[16px]">lock</span>
+</button>
+<!-- Action Button 5: Advanced Search (بحث متقدم) -->
+<button class="w-full flex items-center justify-between px-space-md py-2 rounded-lg bg-sky-700 text-white hover:bg-sky-800 transition-all shadow-sm mt-1" onclick="executeAdvancedFilter()" type="button">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[18px]">search</span>
+<span class="font-body-md text-body-md font-semibold">تنفيذ الاستعلام</span>
+</div>
+<kbd class="font-numeric-table text-label-sm bg-white/20 px-1 rounded">F5</kbd>
+</button>
+<!-- Action Button 6: Medical Cases (حالات مرضية) -->
+<button class="w-full flex items-center justify-between px-space-md py-2 rounded-lg bg-cyan-700 text-white hover:bg-cyan-800 transition-all shadow-sm" onclick="toggleFilterBadge(this, 'medical')" type="button">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[18px]">medical_services</span>
+<span class="font-body-md text-body-md font-medium">حالات مرضية</span>
+</div>
+<span class="font-numeric-table text-numeric-table bg-white/20 px-1.5 py-0.5 rounded text-white font-bold">640</span>
+</button>
+<!-- Action Button 7: Archived (مؤرشف) -->
+<button class="w-full flex items-center justify-between px-space-md py-2 rounded-lg bg-emerald-800 text-white hover:bg-emerald-900 transition-all shadow-sm" onclick="toggleFilterBadge(this, 'archived')" type="button">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[18px]">archive</span>
+<span class="font-body-md text-body-md font-medium">سجلات مؤرشفة</span>
+</div>
+<span class="font-numeric-table text-numeric-table bg-white/20 px-1.5 py-0.5 rounded text-white font-bold">1.2K</span>
+</button>
+<!-- Action Button 8: Auditing & Review (مراجعة) -->
+<button class="w-full flex items-center justify-between px-space-md py-2 rounded-lg bg-purple-700 text-white hover:bg-purple-800 transition-all shadow-sm" onclick="toggleFilterBadge(this, 'review')" type="button">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[18px]">fact_check</span>
+<span class="font-body-md text-body-md font-medium">قيد المراجعة</span>
+</div>
+<span class="font-numeric-table text-numeric-table bg-white/20 px-1.5 py-0.5 rounded text-white font-bold">89</span>
+</button>
+<!-- Action Button 9: New Batch/Roster (كشف جديد) -->
+<button class="w-full flex items-center justify-between px-space-md py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-sm" type="button">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[18px]">post_add</span>
+<span class="font-body-md text-body-md font-medium">توليد كشف جديد</span>
+</div>
+<span class="material-symbols-outlined text-[16px]">library_add</span>
+</button>
+<!-- Action Button 10: Deceased Register (وفيات مسجلين) -->
+<button class="w-full flex items-center justify-between px-space-md py-2 rounded-lg bg-red-800 text-white hover:bg-red-900 transition-all shadow-sm" onclick="toggleFilterBadge(this, 'deceased')" type="button">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[18px]">heart_broken</span>
+<span class="font-body-md text-body-md font-medium">وفيات مسجلين</span>
+</div>
+<span class="font-numeric-table text-numeric-table bg-white/20 px-1.5 py-0.5 rounded text-white font-bold">47</span>
+</button>
+<!-- Action Button 11: New Sponsorship Pipeline (كفالات جديدة) -->
+<button class="w-full flex items-center justify-between px-space-md py-2 rounded-lg bg-teal-800 text-white hover:bg-teal-900 transition-all shadow-sm" type="button">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[18px]">volunteer_activism</span>
+<span class="font-body-md text-body-md font-medium">كفالات جديدة</span>
+</div>
+<span class="font-numeric-table text-numeric-table bg-white/20 px-1.5 py-0.5 rounded text-white font-bold">310</span>
+</button>
+<!-- Fast Quick Action: Needs Attachments -->
+<div class="mt-space-xs p-2 bg-fuchsia-50 rounded-lg flex items-center justify-between text-fuchsia-900">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[18px] text-fuchsia-700">attachment</span>
+<span class="font-label-sm text-label-sm font-semibold">بحاجة إلى مرفقات</span>
+</div>
+<span class="font-numeric-table text-label-sm font-bold bg-fuchsia-200 px-1.5 py-0.5 rounded text-fuchsia-950">214</span>
+</div>
+</div>
+<!-- Zone 2: Detailed MS Access Style Parametric Search Engine (Col 3-12 Desktop) -->
+<div class="xl:col-span-10 flex flex-col gap-space-md bg-surface-container-lowest p-space-lg rounded-xl shadow-sm">
+<!-- Top Criteria Bar: ID, FullName, File ID, Needs Attachment Banner -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-space-md items-end">
+<div class="md:col-span-3">
+<label class="block font-label-md text-label-md font-bold text-on-surface mb-1">
+            رقم الهوية الوطنية <span class="text-error">*</span>
+</label>
+<div class="relative">
+<input class="w-full pl-8 pr-3 py-1.5 bg-surface-container-low font-numeric-table text-numeric-table text-on-surface rounded-lg focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary focus:outline-none transition-all placeholder:text-outline" id="filter-national-id" placeholder="أدخل 9 أرقام..." type="text" value="901654426"/>
+<span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">badge</span>
+</div>
+</div>
+<div class="md:col-span-4">
+<label class="block font-label-md text-label-md font-bold text-on-surface mb-1">
+            الاسم الرباعي الكامل لرب الأسرة
+          </label>
+<div class="relative">
+<input class="w-full pl-8 pr-3 py-1.5 bg-surface-container-low font-body-md text-body-md text-on-surface rounded-lg focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary focus:outline-none transition-all placeholder:text-outline" id="filter-fullname" placeholder="الاسم كما في الهوية..." type="text" value="غاليه سليمان حماد حجازي"/>
+<span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">person</span>
+</div>
+</div>
+<div class="md:col-span-2">
+<label class="block font-label-md text-label-md font-bold text-on-surface mb-1">
+            رقم الملف الداخلي
+          </label>
+<input class="w-full px-3 py-1.5 bg-surface-container-low font-numeric-table text-numeric-table text-on-surface rounded-lg focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary focus:outline-none transition-all" id="filter-file-no" placeholder="مثال: 1204" type="text" value="FL-2024-001"/>
+</div>
+<div class="md:col-span-3">
+<label class="block font-label-md text-label-md font-bold text-on-surface mb-1">
+            نوع تصنيف الملف الإغاثي
+          </label>
+<select class="w-full px-3 py-1.5 bg-surface-container-low font-body-md text-body-md text-on-surface rounded-lg focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary focus:outline-none transition-all cursor-pointer" id="filter-file-type">
+<option value="all">كافة الأنواع والتصنيفات</option>
+<option selected="" value="orphans">ملفات الأيتام المكفولين</option>
+<option value="needy">أسر أشد حاجة وفقر مدقع</option>
+<option value="disabled">ذوي الاحتياجات الخاصة وإعاقات</option>
+<option value="elderly">كبار سن وأمراض مستعصية</option>
+<option value="students">كفالات طلاب الجامعات</option>
+</select>
+</div>
+</div>
+<!-- Second Row: Social Status, Gender, DOB, Phone Numbers, Work Status, Health -->
+<div class="grid grid-cols-2 md:grid-cols-6 lg:grid-cols-12 gap-space-md">
+<div class="col-span-2 lg:col-span-2">
+<label class="block font-label-md text-label-md font-medium text-on-surface-variant mb-1">الحالة الاجتماعية</label>
+<select class="w-full px-2.5 py-1.5 bg-surface-container-low font-body-sm text-body-sm text-on-surface rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+<option selected="" value="widow">أرمل / أرملة</option>
+<option value="married">متزوج / رب أسرة</option>
+<option value="divorced">مطلق / مطلقة</option>
+<option value="abandoned">مهجورة / فاقد المعيل</option>
+<option value="single">أعزب / يتيم بالغ</option>
+</select>
+</div>
+<div class="col-span-2 lg:col-span-1">
+<label class="block font-label-md text-label-md font-medium text-on-surface-variant mb-1">الجنس</label>
+<select class="w-full px-2 py-1.5 bg-surface-container-low font-body-sm text-body-sm text-on-surface rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+<option value="all">الكل</option>
+<option selected="" value="female">أنثى</option>
+<option value="male">ذكر</option>
+</select>
+</div>
+<div class="col-span-2 lg:col-span-2">
+<label class="block font-label-md text-label-md font-medium text-on-surface-variant mb-1">تاريخ الميلاد</label>
+<input class="w-full px-2.5 py-1.5 bg-surface-container-low font-numeric-table text-numeric-table text-on-surface rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" type="text" value="27/03/1977"/>
+</div>
+<div class="col-span-2 lg:col-span-2">
+<label class="block font-label-md text-label-md font-medium text-on-surface-variant mb-1">رقم الجوال الأساسي</label>
+<input class="w-full px-2.5 py-1.5 bg-surface-container-low font-numeric-table text-numeric-table text-on-surface rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-left" dir="ltr" type="text" value="0592561322"/>
+</div>
+<div class="col-span-2 lg:col-span-2">
+<label class="block font-label-md text-label-md font-medium text-on-surface-variant mb-1">الجوال البديل (2)</label>
+<input class="w-full px-2.5 py-1.5 bg-surface-container-low font-numeric-table text-numeric-table text-on-surface rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-left" dir="ltr" placeholder="جوال بديل..." type="text" value="0569882104"/>
+</div>
+<div class="col-span-2 lg:col-span-3">
+<label class="block font-label-md text-label-md font-medium text-on-surface-variant mb-1">الحالة الصحية والبدنية</label>
+<select class="w-full px-2.5 py-1.5 bg-surface-container-low font-body-sm text-body-sm text-on-surface rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+<option value="healthy">سليم تماماً</option>
+<option selected="" value="chronic">يعاني من مرض مزمن</option>
+<option value="handicapped">إعاقة حركية / عجز تام</option>
+<option value="war_injured">جريح حرب / عمليات</option>
+</select>
+</div>
+</div>
+<!-- Third Row: Geographic Details (City, Current Address, Displacement Address, Housing Type) -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-space-md">
+<div class="md:col-span-2">
+<label class="block font-label-md text-label-md font-medium text-on-surface-variant mb-1">المحافظة / المدينة</label>
+<select class="w-full px-2.5 py-1.5 bg-surface-container-low font-body-sm text-body-sm text-on-surface rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+<option selected="" value="khanyounis">خانيونس</option>
+<option value="gaza">غزة</option>
+<option value="north">شمال غزة</option>
+<option value="central">دير البلح والوسطى</option>
+<option value="rafah">رفح</option>
+</select>
+</div>
+<div class="md:col-span-4">
+<label class="block font-label-md text-label-md font-medium text-on-surface-variant mb-1">العنوان الحالي (مكان الإقامة أو الإيواء)</label>
+<input class="w-full px-3 py-1.5 bg-surface-container-low font-body-sm text-body-sm text-on-surface rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" type="text" value="مواصي خانيونس، الإقليمي - بجوار بئر مياه النور"/>
+</div>
+<div class="md:col-span-4">
+<label class="block font-label-md text-label-md font-medium text-on-surface-variant mb-1">العنوان الأصلي قبل النزوح</label>
+<input class="w-full px-3 py-1.5 bg-surface-container-low font-body-sm text-body-sm text-on-surface rounded-lg focus:outline-none focus:ring-2 focus:ring-primary" type="text" value="غزة، حي الشجاعية - شارع النزاز القديم"/>
+</div>
+<div class="md:col-span-2">
+<label class="block font-label-md text-label-md font-medium text-on-surface-variant mb-1">طبيعة السكن</label>
+<select class="w-full px-2.5 py-1.5 bg-surface-container-low font-body-sm text-body-sm text-on-surface rounded-lg focus:outline-none focus:ring-2 focus:ring-primary">
+<option selected="" value="tent">خيمة إيواء قماشية</option>
+<option value="rent">إيجار متضرر</option>
+<option value="center">مركز إيواء جماعي</option>
+<option value="host">استضافة عند أقارب</option>
+</select>
+</div>
+</div>
+<!-- Fourth Row: Detailed Family & Demographic Breakdown Inputs (Exact Match to Access Form in Image 1 & 2) -->
+<div class="p-space-md bg-surface-container-low rounded-xl">
+<div class="flex items-center justify-between mb-space-sm">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[18px] text-primary">diversity_3</span>
+<span class="font-label-md text-label-md font-bold text-on-surface">إحصائيات وحصر أفراد الأسرة والفئات العمرية التفصيلية</span>
+</div>
+<span class="font-label-sm text-label-sm text-on-surface-variant">الفرز استناداً للمسح الميداني الأخير</span>
+</div>
+<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-space-sm">
+<div class="bg-surface-container-lowest p-2 rounded-lg text-center shadow-xs">
+<span class="block font-label-sm text-label-sm text-on-surface-variant mb-1">إجمالي الأفراد</span>
+<input class="w-full text-center font-numeric-table text-title-sm font-bold text-primary bg-transparent focus:outline-none" type="number" value="7"/>
+</div>
+<div class="bg-surface-container-lowest p-2 rounded-lg text-center shadow-xs">
+<span class="block font-label-sm text-label-sm text-on-surface-variant mb-1">عدد الذكور</span>
+<input class="w-full text-center font-numeric-table text-title-sm font-bold text-on-surface bg-transparent focus:outline-none" type="number" value="3"/>
+</div>
+<div class="bg-surface-container-lowest p-2 rounded-lg text-center shadow-xs">
+<span class="block font-label-sm text-label-sm text-on-surface-variant mb-1">عدد الإناث</span>
+<input class="w-full text-center font-numeric-table text-title-sm font-bold text-on-surface bg-transparent focus:outline-none" type="number" value="4"/>
+</div>
+<div class="bg-surface-container-lowest p-2 rounded-lg text-center shadow-xs">
+<span class="block font-label-sm text-label-sm text-on-surface-variant mb-1">عدد الأيتام</span>
+<input class="w-full text-center font-numeric-table text-title-sm font-bold text-secondary bg-transparent focus:outline-none" type="number" value="5"/>
+</div>
+<div class="bg-surface-container-lowest p-2 rounded-lg text-center shadow-xs">
+<span class="block font-label-sm text-label-sm text-on-surface-variant mb-1">حتى 6 سنوات</span>
+<input class="w-full text-center font-numeric-table text-title-sm font-bold text-on-surface bg-transparent focus:outline-none" type="number" value="1"/>
+</div>
+<div class="bg-surface-container-lowest p-2 rounded-lg text-center shadow-xs">
+<span class="block font-label-sm text-label-sm text-on-surface-variant mb-1">من 7 - 12 سنة</span>
+<input class="w-full text-center font-numeric-table text-title-sm font-bold text-on-surface bg-transparent focus:outline-none" type="number" value="2"/>
+</div>
+<div class="bg-surface-container-lowest p-2 rounded-lg text-center shadow-xs">
+<span class="block font-label-sm text-label-sm text-on-surface-variant mb-1">من 13 - 18 سنة</span>
+<input class="w-full text-center font-numeric-table text-title-sm font-bold text-on-surface bg-transparent focus:outline-none" type="number" value="2"/>
+</div>
+<div class="bg-surface-container-lowest p-2 rounded-lg text-center shadow-xs">
+<span class="block font-label-sm text-label-sm text-on-surface-variant mb-1">طلاب مدارس وجامعات</span>
+<input class="w-full text-center font-numeric-table text-title-sm font-bold text-on-surface bg-transparent focus:outline-none" type="number" value="3"/>
+</div>
+</div>
+</div>
+<!-- Action Commands Bar (Export PDF, View Form, Add Member, Google Sync, Reset) -->
+<div class="flex flex-wrap items-center justify-between gap-space-sm pt-space-xs border-t border-surface-container-high">
+<div class="flex flex-wrap items-center gap-space-xs">
+<button class="px-space-md py-1.5 rounded-lg bg-primary text-on-primary font-body-sm text-body-sm font-semibold hover:bg-secondary flex items-center gap-1.5 shadow-sm" onclick="executeAdvancedFilter()" type="button">
+<span class="material-symbols-outlined text-[18px]">search</span>
+<span>تطبيق الفلترة (Query Run)</span>
+</button>
+<button class="px-space-md py-1.5 rounded-lg bg-surface-container text-on-surface font-body-sm text-body-sm font-medium hover:bg-surface-container-high flex items-center gap-1.5 transition-colors" onclick="printFilteredRoster()" type="button">
+<span class="material-symbols-outlined text-[18px]">picture_as_pdf</span>
+<span>تصدير PDF</span>
+</button>
+<button class="px-space-md py-1.5 rounded-lg bg-surface-container text-on-surface font-body-sm text-body-sm font-medium hover:bg-surface-container-high flex items-center gap-1.5 transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">badge</span>
+<span>عرض الاستمارة الورقية</span>
+</button>
+<button class="px-space-md py-1.5 rounded-lg bg-surface-container text-on-surface font-body-sm text-body-sm font-medium hover:bg-surface-container-high flex items-center gap-1.5 transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">group_add</span>
+<span>إضافة أفراد من السجل المدني</span>
+</button>
+</div>
+<div class="flex items-center gap-space-xs">
+<button class="px-space-sm py-1.5 rounded-lg bg-secondary-container text-on-secondary-container font-label-md text-label-md font-semibold hover:bg-secondary-fixed transition-colors flex items-center gap-1" type="button">
+<span class="material-symbols-outlined text-[18px]">sync</span>
+<span>مزامنة استبانة Google Forms</span>
+</button>
+<button class="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface" onclick="resetFilterForm()" title="إعادة تعيين الحقول" type="button">
+<span class="material-symbols-outlined text-[20px]">restart_alt</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Zone 3: Active Beneficiary Quick Card Preview (Image 2 style with Verified ID Card & Bank / PalPay details) -->
+<div class="mb-space-lg bg-surface-container-lowest p-space-md rounded-xl shadow-sm">
+<div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-space-md pb-space-sm mb-space-sm border-b border-surface-container-high">
+<div class="flex items-center gap-space-md">
+<!-- Photo Container from verified ID -->
+<div class="relative w-28 h-20 rounded-lg overflow-hidden bg-surface-container flex-shrink-0 shadow-sm border border-surface-container-high">
+<img class="w-full h-full object-cover" data-alt="Close-up archival Palestinian national identity card paper document with photo ID stamp and green plastic cover, clean humanitarian filing record photograph, soft natural desk lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBIdd4rsLT0J2uT3XhmO4qBDTEybBbt2jPw7Xf-yAORVeW0-nn5aFplwTX886GU_KM1KOTNklG0EaVL1vkbZO6nWWTuPuZp22MZxLnnSfBN2PNjds2dtbE6sUhVdhVgYw-meX3TOi1MIC99Q3AMYBJc-EcABgBonwUO5ndDKDsSnPU6D9-x9KPYs_bxKQSO2H-KBeQ1Vl8-P4o7mAzQoDEwcjVT07aW_X-0Jm2pzJT6"/>
+<div class="absolute bottom-0 inset-x-0 bg-primary/90 text-on-primary text-[10px] text-center font-bold py-0.5">
+            هوية موثقة
+          </div>
+</div>
+<div>
+<div class="flex items-center gap-space-xs">
+<h3 class="font-headline-md text-headline-md text-on-surface">غاليه سليمان حماد حجازي</h3>
+<span class="bg-secondary-container text-on-secondary-container font-label-sm text-label-sm px-2 py-0.5 rounded-full font-bold">ملف يتيم نشط #1</span>
+<span class="bg-amber-100 text-amber-900 font-label-sm text-label-sm px-2 py-0.5 rounded-full font-bold">حالة عاجلة</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
+            رقم الهوية: <span class="font-numeric-table font-semibold text-on-surface">901654426</span> | 
+            تاريخ الميلاد: <span class="font-numeric-table">27/03/1977</span> | 
+            المسكن: مواصي خانيونس | 
+            المتوفى: <span class="text-error font-medium">عمر محمد حماد حجازي (الأب)</span>
+</p>
+</div>
+</div>
+<!-- Financial & Banking Dispersal Channels -->
+<div class="flex flex-wrap items-center gap-space-sm">
+<div class="px-space-md py-1.5 rounded-xl bg-surface-container-low flex flex-col text-left" dir="ltr">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Palpay E-Wallet</span>
+<span class="font-numeric-table text-numeric-table font-bold text-primary">059-256-1322</span>
+</div>
+<div class="px-space-md py-1.5 rounded-xl bg-surface-container-low flex flex-col text-left" dir="ltr">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Bank of Palestine (NIS)</span>
+<span class="font-numeric-table text-numeric-table font-bold text-on-surface">PS34 0002 0451 9016 5442 6001</span>
+</div>
+<button class="px-space-md py-2 rounded-lg bg-primary text-on-primary hover:bg-secondary font-label-md text-label-md font-semibold flex items-center gap-1 shadow-sm" type="button">
+<span class="material-symbols-outlined text-[18px]">account_balance_wallet</span>
+<span>إصدار سند صرف نقدي</span>
+</button>
+</div>
+</div>
+<!-- Secondary Tab Strip: Deceased Info (بيانات المتوفى) / Sub-family ledger -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-space-md bg-surface-container-low p-space-sm rounded-lg text-on-surface">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-error text-[20px]">person_off</span>
+<div>
+<span class="block font-label-sm text-label-sm text-on-surface-variant">اسم المتوفى (المعيل):</span>
+<span class="font-body-md text-body-md font-bold text-error">عمر محمد حماد حجازي</span>
+</div>
+</div>
+<div>
+<span class="block font-label-sm text-label-sm text-on-surface-variant">صلة القرابة وتاريخ الوفاة:</span>
+<span class="font-body-md text-body-md font-semibold text-on-surface">الأب (30/03/2019 - استشهاد / مرض)</span>
+</div>
+<div>
+<span class="block font-label-sm text-label-sm text-on-surface-variant">الابنة الكبرى (يتيمة):</span>
+<span class="font-body-md text-body-md font-semibold text-on-surface">غادة عمر محمد حجازي (ثانوي - معاق)</span>
+</div>
+<div class="flex items-center justify-end gap-space-xs">
+<button class="px-2.5 py-1 rounded bg-surface-container-lowest text-primary text-label-sm font-bold shadow-xs hover:bg-surface-container" type="button">
+          عرض شهادة الوفاة
+        </button>
+<button class="px-2.5 py-1 rounded bg-surface-container-lowest text-secondary text-label-sm font-bold shadow-xs hover:bg-surface-container" type="button">
+          سجل التحديثات
+        </button>
+</div>
+</div>
+</div>
+<!-- Zone 4: Search Results Data Grid & Query Table (جداول بيانات الاستعلام) -->
+<div class="flex flex-col bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
+<!-- Table Header Toolbar -->
+<div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-space-sm p-space-md bg-surface-container-lowest border-b border-surface-container-high">
+<div class="flex items-center gap-space-sm">
+<span class="font-title-sm text-title-sm text-on-surface font-bold">نتائج الفرز والاستعلام المباشر</span>
+<span class="bg-primary-container text-on-primary font-numeric-table text-label-sm px-2 py-0.5 rounded-full font-bold">5 حالات مطابقة</span>
+<span class="text-on-surface-variant font-label-sm text-label-sm hidden md:inline">مرتب حسب: تاريخ التحديث الأخير (الأحدث أولاً)</span>
+</div>
+<div class="flex items-center gap-space-xs w-full sm:w-auto justify-end">
+<button class="px-space-md py-1.5 rounded-lg bg-surface-container-low text-on-surface font-body-sm text-body-sm font-semibold hover:bg-surface-container-high flex items-center gap-1.5 transition-colors" onclick="exportToExcel()" type="button">
+<span class="material-symbols-outlined text-primary text-[18px]">table_view</span>
+<span>تصدير Excel (كشف الموردين)</span>
+</button>
+<button class="px-space-md py-1.5 rounded-lg bg-surface-container-low text-on-surface font-body-sm text-body-sm font-semibold hover:bg-surface-container-high flex items-center gap-1.5 transition-colors" onclick="window.print()" type="button">
+<span class="material-symbols-outlined text-[18px]">print</span>
+<span>طباعة</span>
+</button>
+<div class="relative">
+<input class="w-36 pl-7 pr-2.5 py-1.5 bg-surface-container-low font-body-sm text-body-sm text-on-surface rounded-lg focus:outline-none focus:ring-1 focus:ring-primary" placeholder="تصفية سريعة..." type="text"/>
+<span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[16px]">filter_list</span>
+</div>
+</div>
+</div>
+<!-- Responsive Dense Enterprise Data Grid Table -->
+<div class="w-full overflow-x-auto">
+<table class="w-full text-right border-collapse">
+<thead>
+<tr class="bg-secondary text-on-secondary font-label-md text-label-md select-none">
+<th class="p-space-sm pr-space-md font-semibold text-center w-12">#</th>
+<th class="p-space-sm font-semibold">رقم الملف</th>
+<th class="p-space-sm font-semibold">رقم الهوية</th>
+<th class="p-space-sm font-semibold">الاسم الرباعي الكامل</th>
+<th class="p-space-sm font-semibold">حالة الملف</th>
+<th class="p-space-sm font-semibold">الحالة الصحية</th>
+<th class="p-space-sm font-semibold">المحافظة / العنوان</th>
+<th class="p-space-sm font-semibold text-center">أفراد</th>
+<th class="p-space-sm font-semibold text-center">أيتام</th>
+<th class="p-space-sm font-semibold">رقم الجوال</th>
+<th class="p-space-sm font-semibold">المندوب الميداني</th>
+<th class="p-space-sm pl-space-md font-semibold text-center w-36">إجراءات سريعة</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container-high font-body-md text-body-md text-on-surface">
+<!-- Row 1: Selected Record -->
+<tr class="bg-primary/5 hover:bg-primary/10 transition-colors">
+<td class="p-space-sm pr-space-md text-center font-numeric-table text-label-sm font-bold text-primary">1</td>
+<td class="p-space-sm font-numeric-table font-semibold text-primary">FL-2024-001</td>
+<td class="p-space-sm font-numeric-table font-bold">901654426</td>
+<td class="p-space-sm font-semibold">
+<div class="flex items-center gap-1.5">
+<span>غاليه سليمان حماد حجازي</span>
+<span class="w-2 h-2 rounded-full bg-amber-500" title="عاجل"></span>
+</div>
+</td>
+<td class="p-space-sm">
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-label-sm text-label-sm bg-amber-100 text-amber-900 font-bold">
+<span class="material-symbols-outlined text-[14px]">priority_high</span>
+                عاجل / طوارئ
+              </span>
+</td>
+<td class="p-space-sm">
+<span class="font-label-sm text-label-sm bg-cyan-100 text-cyan-900 px-2 py-0.5 rounded font-medium">مرض مزمن</span>
+</td>
+<td class="p-space-sm text-on-surface-variant font-body-sm text-body-sm">خانيونس - مواصي الإقليمي</td>
+<td class="p-space-sm text-center font-numeric-table font-bold">7</td>
+<td class="p-space-sm text-center font-numeric-table font-bold text-secondary">5</td>
+<td class="p-space-sm font-numeric-table text-left" dir="ltr">059-256-1322</td>
+<td class="p-space-sm font-body-sm text-body-sm text-on-surface-variant">أبو يوسف المصري</td>
+<td class="p-space-sm pl-space-md text-center">
+<div class="flex items-center justify-center gap-1">
+<button class="p-1 rounded bg-surface-container hover:bg-primary hover:text-on-primary transition-colors text-on-surface" title="عرض الاستمارة" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+<button class="p-1 rounded bg-surface-container hover:bg-secondary hover:text-on-secondary transition-colors text-on-surface" title="تعديل السجل" type="button">
+<span class="material-symbols-outlined text-[18px]">edit_note</span>
+</button>
+<button class="p-1 rounded bg-surface-container hover:bg-tertiary hover:text-on-tertiary transition-colors text-on-surface" title="كفالة أيتام" type="button">
+<span class="material-symbols-outlined text-[18px]">volunteer_activism</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="p-space-sm pr-space-md text-center font-numeric-table text-label-sm text-on-surface-variant">2</td>
+<td class="p-space-sm font-numeric-table font-semibold text-on-surface">FL-2024-004</td>
+<td class="p-space-sm font-numeric-table font-bold">904812390</td>
+<td class="p-space-sm font-semibold">
+<div class="flex items-center gap-1.5">
+<span>فاطمة عبد الرحيم عبد القادر</span>
+</div>
+</td>
+<td class="p-space-sm">
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-label-sm text-label-sm bg-emerald-100 text-emerald-900 font-bold">
+<span class="material-symbols-outlined text-[14px]">check_circle</span>
+                مكفول ومحدث
+              </span>
+</td>
+<td class="p-space-sm">
+<span class="font-label-sm text-label-sm bg-surface-container-high text-on-surface px-2 py-0.5 rounded font-medium">سليم</span>
+</td>
+<td class="p-space-sm text-on-surface-variant font-body-sm text-body-sm">الوسطى - دير البلح مخيم 2</td>
+<td class="p-space-sm text-center font-numeric-table font-bold">4</td>
+<td class="p-space-sm text-center font-numeric-table font-bold text-secondary">3</td>
+<td class="p-space-sm font-numeric-table text-left" dir="ltr">059-881-4491</td>
+<td class="p-space-sm font-body-sm text-body-sm text-on-surface-variant">خالد القصاص</td>
+<td class="p-space-sm pl-space-md text-center">
+<div class="flex items-center justify-center gap-1">
+<button class="p-1 rounded bg-surface-container hover:bg-primary hover:text-on-primary transition-colors text-on-surface" title="عرض الاستمارة" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+<button class="p-1 rounded bg-surface-container hover:bg-secondary hover:text-on-secondary transition-colors text-on-surface" title="تعديل السجل" type="button">
+<span class="material-symbols-outlined text-[18px]">edit_note</span>
+</button>
+<button class="p-1 rounded bg-surface-container hover:bg-tertiary hover:text-on-tertiary transition-colors text-on-surface" title="كفالة أيتام" type="button">
+<span class="material-symbols-outlined text-[18px]">volunteer_activism</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="p-space-sm pr-space-md text-center font-numeric-table text-label-sm text-on-surface-variant">3</td>
+<td class="p-space-sm font-numeric-table font-semibold text-on-surface">FL-2024-018</td>
+<td class="p-space-sm font-numeric-table font-bold">410174643</td>
+<td class="p-space-sm font-semibold">
+<div class="flex items-center gap-1.5">
+<span>يوسف إبراهيم خليل الدحدوح</span>
+<span class="w-2 h-2 rounded-full bg-purple-500" title="بحاجة مراجعة"></span>
+</div>
+</td>
+<td class="p-space-sm">
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-label-sm text-label-sm bg-purple-100 text-purple-900 font-bold">
+<span class="material-symbols-outlined text-[14px]">find_in_page</span>
+                قيد التدقيق
+              </span>
+</td>
+<td class="p-space-sm">
+<span class="font-label-sm text-label-sm bg-indigo-100 text-indigo-900 px-2 py-0.5 rounded font-medium">إعاقة وبتر</span>
+</td>
+<td class="p-space-sm text-on-surface-variant font-body-sm text-body-sm">غزة - حي الرمال الجنوبي</td>
+<td class="p-space-sm text-center font-numeric-table font-bold">9</td>
+<td class="p-space-sm text-center font-numeric-table font-bold text-secondary">6</td>
+<td class="p-space-sm font-numeric-table text-left" dir="ltr">056-911-0023</td>
+<td class="p-space-sm font-body-sm text-body-sm text-on-surface-variant">علاء البيطار</td>
+<td class="p-space-sm pl-space-md text-center">
+<div class="flex items-center justify-center gap-1">
+<button class="p-1 rounded bg-surface-container hover:bg-primary hover:text-on-primary transition-colors text-on-surface" title="عرض الاستمارة" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+<button class="p-1 rounded bg-surface-container hover:bg-secondary hover:text-on-secondary transition-colors text-on-surface" title="تعديل السجل" type="button">
+<span class="material-symbols-outlined text-[18px]">edit_note</span>
+</button>
+<button class="p-1 rounded bg-surface-container hover:bg-tertiary hover:text-on-tertiary transition-colors text-on-surface" title="كفالة أيتام" type="button">
+<span class="material-symbols-outlined text-[18px]">volunteer_activism</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="p-space-sm pr-space-md text-center font-numeric-table text-label-sm text-on-surface-variant">4</td>
+<td class="p-space-sm font-numeric-table font-semibold text-on-surface">FL-2024-035</td>
+<td class="p-space-sm font-numeric-table font-bold">801294819</td>
+<td class="p-space-sm font-semibold">
+<div class="flex items-center gap-1.5">
+<span>سعاد منير حسن البردويل</span>
+</div>
+</td>
+<td class="p-space-sm">
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-label-sm text-label-sm bg-fuchsia-100 text-fuchsia-900 font-bold">
+<span class="material-symbols-outlined text-[14px]">attach_file</span>
+                نقص مرفقات
+              </span>
+</td>
+<td class="p-space-sm">
+<span class="font-label-sm text-label-sm bg-cyan-100 text-cyan-900 px-2 py-0.5 rounded font-medium">فشل كلوي</span>
+</td>
+<td class="p-space-sm text-on-surface-variant font-body-sm text-body-sm">رفح - تل السلطان بلوك J</td>
+<td class="p-space-sm text-center font-numeric-table font-bold">5</td>
+<td class="p-space-sm text-center font-numeric-table font-bold text-secondary">4</td>
+<td class="p-space-sm font-numeric-table text-left" dir="ltr">059-338-7102</td>
+<td class="p-space-sm font-body-sm text-body-sm text-on-surface-variant">محمود صقر</td>
+<td class="p-space-sm pl-space-md text-center">
+<div class="flex items-center justify-center gap-1">
+<button class="p-1 rounded bg-surface-container hover:bg-primary hover:text-on-primary transition-colors text-on-surface" title="عرض الاستمارة" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+<button class="p-1 rounded bg-surface-container hover:bg-secondary hover:text-on-secondary transition-colors text-on-surface" title="تعديل السجل" type="button">
+<span class="material-symbols-outlined text-[18px]">edit_note</span>
+</button>
+<button class="p-1 rounded bg-surface-container hover:bg-tertiary hover:text-on-tertiary transition-colors text-on-surface" title="كفالة أيتام" type="button">
+<span class="material-symbols-outlined text-[18px]">volunteer_activism</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 5: Blacklist Case Demo -->
+<tr class="bg-rose-50/50 hover:bg-rose-100/50 transition-colors">
+<td class="p-space-sm pr-space-md text-center font-numeric-table text-label-sm font-bold text-rose-800">5</td>
+<td class="p-space-sm font-numeric-table font-semibold text-rose-900">FL-2023-992</td>
+<td class="p-space-sm font-numeric-table font-bold text-rose-900">920391204</td>
+<td class="p-space-sm font-semibold text-rose-950">
+<div class="flex items-center gap-1.5">
+<span>تيسير عبد الله عودة شاهين</span>
+<span class="material-symbols-outlined text-rose-700 text-[16px]">do_not_disturb</span>
+</div>
+</td>
+<td class="p-space-sm">
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-label-sm text-label-sm bg-rose-200 text-rose-900 font-bold">
+<span class="material-symbols-outlined text-[14px]">block</span>
+                قائمة سوداء (تكرار كفالة)
+              </span>
+</td>
+<td class="p-space-sm">
+<span class="font-label-sm text-label-sm bg-surface-container-high text-on-surface px-2 py-0.5 rounded font-medium">سليم</span>
+</td>
+<td class="p-space-sm text-rose-900 font-body-sm text-body-sm">خانيونس - معسكر خان يونس</td>
+<td class="p-space-sm text-center font-numeric-table font-bold">6</td>
+<td class="p-space-sm text-center font-numeric-table font-bold text-secondary">0</td>
+<td class="p-space-sm font-numeric-table text-left" dir="ltr">059-000-1129</td>
+<td class="p-space-sm font-body-sm text-body-sm text-on-surface-variant">لجنة الرقابة والتدقيق</td>
+<td class="p-space-sm pl-space-md text-center">
+<div class="flex items-center justify-center gap-1">
+<button class="p-1 rounded bg-surface-container hover:bg-rose-700 hover:text-white transition-colors text-rose-900" title="تفاصيل الحظر" type="button">
+<span class="material-symbols-outlined text-[18px]">gavel</span>
+</button>
+<button class="p-1 rounded bg-surface-container hover:bg-surface-container-high transition-colors text-on-surface" title="عرض الاستمارة" type="button">
+<span class="material-symbols-outlined text-[18px]">visibility</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Data Grid Footer with MS Access Style Record Navigation (Record: 1 of 5 | Filtered | Search) -->
+<div class="flex flex-col sm:flex-row items-center justify-between gap-space-sm p-space-sm bg-surface-container-low border-t border-surface-container-high text-on-surface">
+<div class="flex items-center gap-1 font-numeric-table text-body-sm">
+<span class="font-label-sm text-label-sm text-on-surface-variant ml-2">سجلات الحالات:</span>
+<button class="p-1 rounded hover:bg-surface-container text-on-surface-variant hover:text-on-surface" title="السجل الأول" type="button">
+<span class="material-symbols-outlined text-[18px]">first_page</span>
+</button>
+<button class="p-1 rounded hover:bg-surface-container text-on-surface-variant hover:text-on-surface" title="السابق" type="button">
+<span class="material-symbols-outlined text-[18px]">chevron_right</span>
+</button>
+<span class="px-2 font-bold bg-surface-container-lowest py-0.5 rounded shadow-xs">1 من 5</span>
+<button class="p-1 rounded hover:bg-surface-container text-on-surface-variant hover:text-on-surface" title="التالي" type="button">
+<span class="material-symbols-outlined text-[18px]">chevron_left</span>
+</button>
+<button class="p-1 rounded hover:bg-surface-container text-on-surface-variant hover:text-on-surface" title="السجل الأخير" type="button">
+<span class="material-symbols-outlined text-[18px]">last_page</span>
+</button>
+<span class="inline-flex items-center gap-1 text-primary font-bold text-label-sm mr-2 bg-primary/10 px-2 py-0.5 rounded">
+<span class="material-symbols-outlined text-[14px]">filter_alt</span>
+          تم الفرز والتصفية (Filtered)
+        </span>
+</div>
+<div class="flex items-center gap-space-md text-label-sm text-on-surface-variant">
+<span>مدخل البيانات الحالي: <strong>أحمد النجار (مدير الإغاثة)</strong></span>
+<span>تاريخ التصدير: <strong class="font-numeric-table">15/03/2025</strong></span>
+</div>
+</div>
+</div>
+<!-- Notification Toast Simulation -->
+<div class="fixed bottom-6 left-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none bg-primary text-on-primary px-space-md py-space-sm rounded-xl shadow-lg flex items-center gap-space-xs font-label-md" id="filter-toast">
+<span class="material-symbols-outlined text-[20px]">check_circle</span>
+<span id="toast-text">تم تطبيق معايير الفلترة وتحديث كشف الحالات بنجاح</span>
+</div>
+</div>
+<script>
+  function showToast(message) {
+    const toast = document.getElementById('filter-toast');
+    const toastText = document.getElementById('toast-text');
+    if (!toast || !toastText) return;
+    toastText.innerText = message;
+    toast.classList.remove('translate-y-20', 'opacity-0');
+    setTimeout(() => {
+      toast.classList.add('translate-y-20', 'opacity-0');
+    }, 2800);
+  }
+
+  function executeAdvancedFilter() {
+    const idVal = document.getElementById('filter-national-id')?.value || 'الكل';
+    const nameVal = document.getElementById('filter-fullname')?.value || '';
+    showToast(`تم تنفيذ الاستعلام للهوية: ${idVal} - تم حصر 5 حالات مطابقة`);
+  }
+
+  function resetFilterForm() {
+    const idInput = document.getElementById('filter-national-id');
+    const nameInput = document.getElementById('filter-fullname');
+    if (idInput) idInput.value = '';
+    if (nameInput) nameInput.value = '';
+    showToast('تمت إعادة ضبط حقول الفرز والبحث المتقدم');
+  }
+
+  function toggleFilterBadge(btn, type) {
+    const allButtons = btn.parentElement.querySelectorAll('button');
+    showToast(`تم تصفية السجلات حسب تصنيف: ${type.toUpperCase()}`);
+  }
+
+  function exportToExcel() {
+    showToast('جاري تصدير كشف الحالات المحددة بصيغة XLSX المتوافقة مع أكسس...');
+  }
+
+  function printFilteredRoster() {
+    window.print();
+  }
+
+  function confirmFullDelete() {
+    if (confirm('تنبيه أمني: هل أنت متأكد من رغبتك في حذف ملف الحالة بالكامل مع كافة التابعين والأرشيف الميداني؟')) {
+      alert('تم إرسال طلب الحذف إلى مدير النظام للموافقة الرقابية.');
+    }
+  }
+</script></main></div></body></html>

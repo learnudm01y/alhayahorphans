@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_dashboard" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;family=Noto+Kufi+Arabic:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;font-family:'Noto Kufi Arabic',sans-serif;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{colors:{"secondary":"#226a53","surface-container-lowest":"#ffffff","on-secondary":"#ffffff","error-container":"#ffdad6","on-primary":"#ffffff","secondary-fixed":"#aaf1d4","surface-container-low":"#f3f2ff","surface-variant":"#dce1ff","surface-tint":"#006d37","secondary-fixed-dim":"#8ed5b9","surface":"#faf8ff","on-primary-container":"#b6ffc5","on-primary-fixed-variant":"#005228","surface-bright":"#faf8ff","on-tertiary-fixed-variant":"#574500","on-surface-variant":"#3f4940","surface-container":"#ebedff","primary-fixed-dim":"#7ada95","on-background":"#00164e","on-surface":"#00164e","inverse-on-surface":"#eff0ff","surface-container-high":"#e3e7ff","tertiary-fixed-dim":"#e9c349","on-primary-fixed":"#00210c","primary":"#006130","on-secondary-fixed":"#002117","primary-container":"#107c41","tertiary-container":"#cca72f","on-tertiary":"#ffffff","primary-fixed":"#96f7af","surface-dim":"#d0d8ff","inverse-surface":"#05297a","outline":"#6f7a6f","secondary-container":"#a7eed1","on-error-container":"#93000a","on-secondary-container":"#276e57","tertiary-fixed":"#ffe088","on-tertiary-container":"#4e3d00","on-tertiary-fixed":"#241a00","surface-container-highest":"#dce1ff","outline-variant":"#becabd","tertiary":"#735c00","on-secondary-fixed-variant":"#00513d","inverse-primary":"#7ada95","background":"#faf8ff","on-error":"#ffffff","error":"#ba1a1a"},borderRadius:{"DEFAULT":"0.125rem","lg":"0.25rem","xl":"0.5rem","full":"0.75rem"},spacing:{"margin":"1.5rem","space-xs":"0.25rem","space-sm":"0.5rem","space-xl":"1.75rem","space-lg":"1.25rem","gutter":"1rem","space-md":"0.75rem"},fontFamily:{"label-md":["Inter"],"body-md":["Inter"],"headline-xl":["Plus Jakarta Sans"],"numeric-table":["Inter"],"title-sm":["Plus Jakarta Sans"],"headline-md":["Plus Jakarta Sans"],"label-sm":["Inter"],"body-sm":["Inter"],"body-lg":["Inter"],"headline-lg":["Plus Jakarta Sans"]},fontSize:{"label-md":["0.8125rem",{"lineHeight":"1.125rem","fontWeight":"500"}],"body-md":["0.875rem",{"lineHeight":"1.375rem","fontWeight":"400"}],"headline-xl":["2rem",{"lineHeight":"2.5rem","fontWeight":"700"}],"numeric-table":["0.8125rem",{"lineHeight":"1.25rem","fontWeight":"500"}],"title-sm":["1rem",{"lineHeight":"1.5rem","fontWeight":"600"}],"headline-md":["1.25rem",{"lineHeight":"1.75rem","fontWeight":"600"}],"label-sm":["0.6875rem",{"lineHeight":"0.875rem","fontWeight":"600"}],"body-sm":["0.75rem",{"lineHeight":"1.125rem","fontWeight":"400"}],"body-lg":["1rem",{"lineHeight":"1.625rem","fontWeight":"400"}],"headline-lg":["1.5rem",{"lineHeight":"2rem","fontWeight":"600"}]}}}}</script></head><body class="bg-surface font-body-md text-on-surface antialiased min-h-screen selection:bg-secondary-container selection:text-on-secondary-container"><aside class="fixed right-0 top-0 h-full w-72 bg-surface-container-lowest shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-50 flex flex-col justify-between transition-all duration-300"><div class="flex flex-col h-full"><div class="h-16 px-space-lg flex items-center justify-between bg-surface-container-lowest shadow-[0_1px_4px_rgba(0,0,0,0.02)]"><div class="flex items-center gap-space-md min-w-0"><img alt="Logo" class="h-9 w-auto object-contain flex-shrink-0" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCMktUA5jvMA0Dq9Ypb2Jj2HlRNSVrcfoph1Trigk3KcCdODqPCLsAcwDTFAuPkqR-HPdHZVox5_ydj_0pdDTfKnrgSQqEi67y7sXQG4I7IknK1eio6NA7zLkonFnyqakxAEZTja-dDCqmiBcfQXR2p9135lqmSLEjqzto1w7xODvB4v16lxFwD1Uemm91_gVneqKFT58GZ2nQimz_74yFfmXNgYbJD9pn4C6nS7yxJ"/><div class="flex flex-col min-w-0"><span class="font-title-sm text-title-sm text-primary leading-tight truncate">منظومة ريم الإغاثية</span><span class="font-label-sm text-label-sm text-on-surface-variant truncate">Reem Relief ERP v4.2</span></div></div><button class="p-space-xs rounded-lg text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">dock_to_right</span></button></div><div class="px-space-md py-space-sm"><div class="bg-surface-container-low rounded-xl p-space-sm flex items-center justify-between text-on-surface"><div class="flex items-center gap-space-xs"><span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span><span class="font-label-sm text-label-sm text-secondary font-semibold">النظام الموحد: نشط ومحدث</span></div><span class="font-label-sm text-label-sm text-on-surface-variant bg-surface-container-lowest px-space-xs py-0.5 rounded shadow-sm">RTL</span></div></div><nav class="flex-1 px-space-md py-space-xs space-y-1 overflow-y-auto" data-active-classes="bg-primary-container text-on-primary font-semibold shadow-sm"><div class="px-space-sm py-space-xs"><span class="font-label-sm text-label-sm text-outline font-semibold uppercase tracking-wider">الإدارات والبرامج</span></div><a class="flex items-center justify-between px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all group" data-path="dashboard" href="#"><span class="font-body-md text-body-md leading-none">لوحة التحكم والمؤشرات</span></a><a class="flex items-center justify-between px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all group" data-path="beneficiaries-orphans" href="#"><span class="font-body-md text-body-md leading-none">سجل الأسر والأيتام</span><span class="font-label-sm text-label-sm bg-secondary-container text-on-secondary-container px-space-xs py-0.5 rounded-full">3,840</span></a><a class="flex items-center justify-between px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all group" data-path="advanced-search-filtering" href="#"><span class="font-body-md text-body-md leading-none">البحث والفرز المتقدم للحالات</span><span class="font-label-sm text-label-sm bg-surface-container-highest text-primary px-space-xs py-0.5 rounded">جديد</span></a><a class="flex items-center justify-between px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all group" data-path="kafalah-sponsorships" href="#"><span class="font-body-md text-body-md leading-none">إدارة الكفالات والمستحقات</span></a><a class="flex items-center justify-between px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all group" data-path="aid-vouchers" href="#"><span class="font-body-md text-body-md leading-none">المساعدات والقسائم الشرائية</span><span class="font-label-sm text-label-sm bg-tertiary-container text-on-tertiary px-space-xs py-0.5 rounded-full">دورة رمضان</span></a><div class="pt-space-md px-space-sm py-space-xs"><span class="font-label-sm text-label-sm text-outline font-semibold uppercase tracking-wider">الشركاء والجهات المعنية</span></div><a class="flex items-center justify-between px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all group" data-path="partner-associations-donors" href="#"><span class="font-body-md text-body-md leading-none">الجمعيات والمنظمات الشريكة</span><span class="font-label-sm text-label-sm bg-secondary-container text-on-secondary-container px-space-xs py-0.5 rounded-full">48 جهة</span></a><a class="flex items-center justify-between px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all group" data-path="suppliers-vendors" href="#"><span class="font-body-md text-body-md leading-none">الموردون والمراكز التموينية</span></a><a class="flex items-center justify-between px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all group" data-path="field-researchers" href="#"><span class="font-body-md text-body-md leading-none">الباحث الميداني والمندوبون</span></a><div class="pt-space-md px-space-sm py-space-xs"><span class="font-label-sm text-label-sm text-outline font-semibold uppercase tracking-wider">الإحصاء والإعدادات</span></div><a class="flex items-center justify-between px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all group" data-path="reports-exports" href="#"><span class="font-body-md text-body-md leading-none">التقارير وتصدير الكشوفات</span></a><a class="flex items-center justify-between px-space-md py-space-sm rounded-lg text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all group" data-path="settings-variables" href="#"><span class="font-body-md text-body-md leading-none">الإعدادات وثوابت النظام</span></a></nav><div class="p-space-md bg-surface-container-low m-space-md rounded-xl shadow-[0_1px_4px_rgba(0,0,0,0.02)]"><div class="flex items-center justify-between mb-space-xs"><span class="font-label-sm text-label-sm text-on-surface font-semibold">صندوق المساعدات العاجل</span><span class="font-numeric-table text-numeric-table text-primary font-bold">82%</span></div><div class="w-full bg-surface-container-highest h-1.5 rounded-full overflow-hidden"><div class="bg-primary h-full rounded-full" style="width: 82%"></div></div><div class="flex items-center justify-between mt-space-xs text-on-surface-variant font-label-sm text-label-sm"><span>المتبقي: 24,500 د.أ</span><span class="material-symbols-outlined text-[16px] text-secondary">volunteer_activism</span></div></div></div></aside><div class="pr-72"><header class="fixed top-0 right-72 left-0 h-16 bg-surface-container-lowest/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-40 flex items-center justify-between px-space-lg"><div class="flex items-center gap-space-lg flex-1 max-w-2xl"><div class="relative w-full max-w-md"><span class="material-symbols-outlined absolute right-space-md top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span><input class="w-full pl-space-md pr-10 py-1.5 bg-surface-container-low text-on-surface font-body-sm text-body-sm rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:bg-surface-container-lowest transition-all placeholder:text-outline" placeholder="بحث برقم الهوية، الاسم، كود المستفيد، أو رقم الهاتف..." type="text"/></div><div class="hidden xl:flex items-center gap-space-xs bg-surface-container-low px-space-md py-1.5 rounded-xl"><span class="material-symbols-outlined text-secondary text-[18px]">corporate_fare</span><select class="bg-transparent text-on-surface font-label-md text-label-md focus:outline-none cursor-pointer pr-1"><option value="all">كافة الفروع والمشاريع</option><option value="central">حملة إغاثة الشمال والوسط</option><option value="orphans">مكتب كفالة الأيتام المركزي</option><option value="food">مشروع الطرود وقسائم الغذاء</option></select></div></div><div class="flex items-center gap-space-md"><div class="hidden md:flex items-center gap-space-xs px-space-md py-1.5 rounded-xl bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm"><span class="material-symbols-outlined text-primary text-[18px]">cloud_done</span><span class="font-medium">متزامن: السحابة المركزية</span></div><button class="p-2 text-on-surface-variant hover:bg-surface-container hover:text-on-surface rounded-xl transition-colors relative" title="تقويم التوزيع" type="button"><span class="material-symbols-outlined text-[22px]">calendar_today</span></button><button class="p-2 text-on-surface-variant hover:bg-surface-container hover:text-on-surface rounded-xl transition-colors relative" title="التنبيهات الإغاثية" type="button"><span class="material-symbols-outlined text-[22px]">notifications</span><span class="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-error rounded-full ring-2 ring-surface-container-lowest"></span></button><div class="h-6 w-px bg-surface-container-highest mx-space-xs"></div><div class="flex items-center gap-space-md pr-space-xs"><div class="flex flex-col text-left"><span class="font-label-md text-label-md font-semibold text-on-surface leading-tight">أحمد النجار</span><span class="font-label-sm text-label-sm text-on-surface-variant leading-tight">مدير العمليات والإغاثة</span></div><img alt="Profile" class="w-9 h-9 rounded-full object-cover shadow-sm ring-1 ring-surface-container-high" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAHHf5cgEbYSWisHkDOGKTagU1p2UwzEjxxTsvJqA-Y-dk6Oq87BHkLOCxftWzaCXS47hWUYyTsNPCJZhleMrBbXREdbtFdtWitgfbM9GhF7XvadDjBDJccaaIkF0iiiEZYW_K5Nk5w3V7pajwXvHa0dU23e-GL2hCGeFoR6i1QTIYP8nhH36A_VdpWL_m3w2qYG6_B3Qe9ZHEWdzRIjBmN8y3c786Ni09PUtxdvKas"/></div></div></header><main class="w-full pt-16 bg-surface min-h-screen p-space-lg"><div class="flex flex-col w-full gap-space-lg">
+<!-- PAGE HEADER & ACTION CONTROLS -->
+<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-space-md bg-surface-container-lowest p-space-lg rounded-xl shadow-sm">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center gap-space-sm text-on-surface-variant font-label-sm text-label-sm">
+<span>الإعدادات وثوابت النظام</span>
+<span class="material-symbols-outlined text-[14px]">arrow_back_ios</span>
+<span class="text-primary font-semibold">إدارة المتغيرات والجداول المرجعية (Lookups Ledger)</span>
+<span class="bg-surface-container-high px-space-xs py-0.5 rounded text-on-surface text-[10px] font-mono">v4.2-STABLE</span>
+</div>
+<div class="flex items-center gap-space-md">
+<div class="w-10 h-10 rounded-xl bg-secondary-container flex items-center justify-center text-on-secondary-container shadow-sm">
+<span class="material-symbols-outlined text-[24px]">database</span>
+</div>
+<div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface leading-tight">إدارة المتغيرات وثوابت الصرف والقوائم</h1>
+<p class="font-body-sm text-body-sm text-on-surface-variant">تحرير القواميس التشغيلية لقواعد بيانات Access / SQL الموحدة وتعيين محددات الكفالات وتصنيفات المساعدات الميدانية</p>
+</div>
+</div>
+</div>
+<!-- Actions & Global Search -->
+<div class="flex flex-wrap items-center gap-space-sm">
+<div class="relative min-w-[240px]">
+<span class="material-symbols-outlined absolute right-space-sm top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">filter_alt</span>
+<input class="w-full pl-space-md pr-9 py-1.5 bg-surface-container text-on-surface font-body-sm text-body-sm rounded-lg focus:outline-none focus:bg-surface-container-lowest transition-all" id="globalLookupSearch" placeholder="تصفية سريعة في كافة الجداول..." type="text"/>
+</div>
+<button class="flex items-center gap-space-xs px-space-md py-2 bg-surface-container hover:bg-surface-container-high text-on-surface rounded-lg transition-colors font-label-md text-label-md" type="button">
+<span class="material-symbols-outlined text-[18px] text-secondary">file_download</span>
+<span>تصدير Excel</span>
+</button>
+<button class="flex items-center gap-space-xs px-space-md py-2 bg-surface-container hover:bg-surface-container-high text-on-surface rounded-lg transition-colors font-label-md text-label-md" type="button">
+<span class="material-symbols-outlined text-[18px] text-on-surface-variant">upload_file</span>
+<span>استيراد كشف</span>
+</button>
+<button class="flex items-center gap-space-xs px-space-md py-2 bg-primary-container text-on-primary rounded-lg shadow-sm hover:opacity-95 transition-opacity font-label-md text-label-md font-semibold" type="button">
+<span class="material-symbols-outlined text-[18px]">save</span>
+<span>حفظ التعديلات (Ctrl+S)</span>
+</button>
+</div>
+</div>
+<!-- KPI SUMMARY ROW -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-space-md">
+<!-- Card 1: Aid Types -->
+<div class="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant">أنواع المساعدات والطرود</span>
+<div class="flex items-baseline gap-space-xs mt-1">
+<span class="font-headline-xl text-headline-xl text-primary">32</span>
+<span class="font-label-sm text-label-sm text-secondary font-medium">بنداً معتمداً</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">كسوة، طرود، عيدية، قسائم</span>
+</div>
+<div class="w-12 h-12 rounded-xl bg-secondary-container/50 text-secondary flex items-center justify-center">
+<span class="material-symbols-outlined text-[26px]">inventory_2</span>
+</div>
+</div>
+<!-- Card 2: Countries -->
+<div class="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant">الدول والجهات المانحة</span>
+<div class="flex items-baseline gap-space-xs mt-1">
+<span class="font-headline-xl text-headline-xl text-secondary">10</span>
+<span class="font-label-sm text-label-sm text-secondary font-medium">دول نشطة</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">الخليج، أوروبا، كندا وإقليمي</span>
+</div>
+<div class="w-12 h-12 rounded-xl bg-primary-fixed/40 text-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[26px]">public</span>
+</div>
+</div>
+<!-- Card 3: File Classifications -->
+<div class="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant">تصنيفات ملفات الحالات</span>
+<div class="flex items-baseline gap-space-xs mt-1">
+<span class="font-headline-xl text-headline-xl text-on-surface">6</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant font-medium">فئات رئيسية</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">أيتام، كبار سن، إعاقة، أسر</span>
+</div>
+<div class="w-12 h-12 rounded-xl bg-surface-container-high text-on-surface flex items-center justify-center">
+<span class="material-symbols-outlined text-[26px]">folder_shared</span>
+</div>
+</div>
+<!-- Card 4: Sponsorship Cycles -->
+<div class="bg-surface-container-lowest p-space-md rounded-xl shadow-sm flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant">دورات وأشهر الكفالات</span>
+<div class="flex items-baseline gap-space-xs mt-1">
+<span class="font-headline-xl text-headline-xl text-tertiary">23</span>
+<span class="font-label-sm text-label-sm text-tertiary font-medium">دورة صرف</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">أحدثها دورة أغسطس 2026</span>
+</div>
+<div class="w-12 h-12 rounded-xl bg-tertiary-fixed/40 text-on-tertiary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-[26px]">event_repeat</span>
+</div>
+</div>
+</div>
+<!-- THE 4-COLUMN PARALLEL LOOKUP LEDGERS (DIRECT MODERNIZATION OF ACCESS DB VIEW) -->
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-space-md items-start">
+<!-- LEDGER 1: FILE TYPES (نوع الملف) -->
+<div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden flex flex-col h-[740px]">
+<!-- Header -->
+<div class="bg-secondary p-space-md text-on-secondary flex items-center justify-between select-none">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[18px]">badge</span>
+<h2 class="font-title-sm text-title-sm font-bold">نوع الملف (File Types)</h2>
+</div>
+<span class="font-numeric-table text-numeric-table bg-surface-container-lowest/20 px-space-xs py-0.5 rounded text-on-secondary">6 سجلات</span>
+</div>
+<!-- Quick Action / Add Row Form -->
+<div class="p-space-sm bg-surface-container-low flex flex-col gap-space-xs">
+<div class="flex items-center gap-space-xs">
+<input class="flex-1 px-space-sm py-1.5 bg-surface-container-lowest text-on-surface font-body-sm text-body-sm rounded focus:outline-none" placeholder="اسم التصنيف الجديد..." type="text"/>
+<input class="w-14 px-space-xs py-1.5 bg-surface-container-lowest text-center text-on-surface font-body-sm text-body-sm rounded focus:outline-none" placeholder="كود" type="text"/>
+<button class="p-1.5 bg-primary-container text-on-primary rounded hover:opacity-90 flex-shrink-0" title="إضافة سريع" type="button">
+<span class="material-symbols-outlined text-[18px]">add</span>
+</button>
+</div>
+</div>
+<!-- Ledger Table -->
+<div class="flex-1 overflow-y-auto">
+<table class="w-full text-right">
+<thead class="bg-surface-container text-on-surface-variant font-label-sm text-label-sm sticky top-0 z-10 shadow-sm">
+<tr>
+<th class="p-space-sm w-12 text-center">ID</th>
+<th class="p-space-sm">نوع الملف</th>
+<th class="p-space-sm w-16 text-center">الرمز</th>
+<th class="p-space-sm w-16 text-left">إجراء</th>
+</tr>
+</thead>
+<tbody class="font-body-sm text-body-sm divide-y-0">
+<!-- Row 1 -->
+<tr class="hover:bg-secondary-container/20 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">1</td>
+<td class="p-space-sm">
+<div class="flex items-center gap-space-xs">
+<span class="w-2 h-2 rounded-full bg-primary"></span>
+<span class="font-semibold text-on-surface">أيتام</span>
+</div>
+</td>
+<td class="p-space-sm text-center font-mono text-xs bg-surface-container-low text-secondary font-bold rounded">ORP</td>
+<td class="p-space-sm text-left">
+<div class="flex items-center justify-end gap-1">
+<button class="p-1 text-on-surface-variant hover:text-primary transition-colors" title="تعديل"><span class="material-symbols-outlined text-[16px]">edit</span></button>
+<button class="p-1 text-on-surface-variant hover:text-error transition-colors" title="قفل"><span class="material-symbols-outlined text-[16px]">lock</span></button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-secondary-container/20 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">2</td>
+<td class="p-space-sm">
+<div class="flex items-center gap-space-xs">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span class="font-semibold text-on-surface">كبير سن</span>
+</div>
+</td>
+<td class="p-space-sm text-center font-mono text-xs bg-surface-container-low text-secondary font-bold rounded">ELD</td>
+<td class="p-space-sm text-left">
+<div class="flex items-center justify-end gap-1">
+<button class="p-1 text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[16px]">edit</span></button>
+<button class="p-1 text-on-surface-variant hover:text-error transition-colors"><span class="material-symbols-outlined text-[16px]">delete</span></button>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-secondary-container/20 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">3</td>
+<td class="p-space-sm">
+<div class="flex items-center gap-space-xs">
+<span class="w-2 h-2 rounded-full bg-tertiary"></span>
+<span class="font-semibold text-on-surface">معاق</span>
+</div>
+</td>
+<td class="p-space-sm text-center font-mono text-xs bg-surface-container-low text-secondary font-bold rounded">DIS</td>
+<td class="p-space-sm text-left">
+<div class="flex items-center justify-end gap-1">
+<button class="p-1 text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[16px]">edit</span></button>
+<button class="p-1 text-on-surface-variant hover:text-error transition-colors"><span class="material-symbols-outlined text-[16px]">delete</span></button>
+</div>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-secondary-container/20 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">4</td>
+<td class="p-space-sm">
+<div class="flex items-center gap-space-xs">
+<span class="w-2 h-2 rounded-full bg-primary-container"></span>
+<span class="font-semibold text-on-surface">أسرة</span>
+</div>
+</td>
+<td class="p-space-sm text-center font-mono text-xs bg-surface-container-low text-secondary font-bold rounded">FAM</td>
+<td class="p-space-sm text-left">
+<div class="flex items-center justify-end gap-1">
+<button class="p-1 text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[16px]">edit</span></button>
+<button class="p-1 text-on-surface-variant hover:text-error transition-colors"><span class="material-symbols-outlined text-[16px]">delete</span></button>
+</div>
+</td>
+</tr>
+<!-- Row 5 -->
+<tr class="hover:bg-secondary-container/20 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">5</td>
+<td class="p-space-sm">
+<div class="flex items-center gap-space-xs">
+<span class="w-2 h-2 rounded-full bg-outline"></span>
+<span class="font-semibold text-on-surface">مساعدات</span>
+</div>
+</td>
+<td class="p-space-sm text-center font-mono text-xs bg-surface-container-low text-secondary font-bold rounded">AID</td>
+<td class="p-space-sm text-left">
+<div class="flex items-center justify-end gap-1">
+<button class="p-1 text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[16px]">edit</span></button>
+<button class="p-1 text-on-surface-variant hover:text-error transition-colors"><span class="material-symbols-outlined text-[16px]">delete</span></button>
+</div>
+</td>
+</tr>
+<!-- Row 6 -->
+<tr class="hover:bg-secondary-container/20 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">6</td>
+<td class="p-space-sm">
+<div class="flex items-center gap-space-xs">
+<span class="w-2 h-2 rounded-full bg-secondary-fixed-dim"></span>
+<span class="font-semibold text-on-surface">طالب علم</span>
+</div>
+</td>
+<td class="p-space-sm text-center font-mono text-xs bg-surface-container-low text-secondary font-bold rounded">STU</td>
+<td class="p-space-sm text-left">
+<div class="flex items-center justify-end gap-1">
+<button class="p-1 text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[16px]">edit</span></button>
+<button class="p-1 text-on-surface-variant hover:text-error transition-colors"><span class="material-symbols-outlined text-[16px]">delete</span></button>
+</div>
+</td>
+</tr>
+<!-- Prompting New Access Entry Row -->
+<tr class="bg-primary/5">
+<td class="p-space-sm text-center font-numeric-table text-primary font-bold">(New)</td>
+<td class="p-space-sm italic text-on-surface-variant">انقر للإضافة المباشرة...</td>
+<td class="p-space-sm text-center text-outline">---</td>
+<td class="p-space-sm text-left text-primary font-bold"><span class="material-symbols-outlined text-[18px]">add_circle</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Access-style record navigation status bar -->
+<div class="bg-surface-container p-space-xs text-on-surface-variant font-numeric-table text-numeric-table flex items-center justify-between">
+<div class="flex items-center gap-1">
+<button class="p-1 hover:bg-surface-container-high rounded text-on-surface"><span class="material-symbols-outlined text-[14px]">first_page</span></button>
+<button class="p-1 hover:bg-surface-container-high rounded text-on-surface"><span class="material-symbols-outlined text-[14px]">chevron_right</span></button>
+<span>1 من 6</span>
+<button class="p-1 hover:bg-surface-container-high rounded text-on-surface"><span class="material-symbols-outlined text-[14px]">chevron_left</span></button>
+<button class="p-1 hover:bg-surface-container-high rounded text-on-surface"><span class="material-symbols-outlined text-[14px]">last_page</span></button>
+</div>
+<span class="font-label-sm text-label-sm text-secondary font-medium">سجل متزامن</span>
+</div>
+</div>
+<!-- LEDGER 2: AID CATEGORIES (نوع المساعدة) - The Core Table in Image -->
+<div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden flex flex-col h-[740px]">
+<!-- Header -->
+<div class="bg-primary-container p-space-md text-on-primary flex items-center justify-between select-none">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[18px]">volunteer_activism</span>
+<h2 class="font-title-sm text-title-sm font-bold">نوع المساعدة (Category)</h2>
+</div>
+<span class="font-numeric-table text-numeric-table bg-on-primary/20 px-space-xs py-0.5 rounded text-on-primary">32 مساعدة</span>
+</div>
+<!-- Filter Subbar -->
+<div class="p-space-sm bg-surface-container-low flex flex-col gap-space-xs">
+<div class="relative">
+<span class="material-symbols-outlined absolute right-space-sm top-1/2 -translate-y-1/2 text-on-surface-variant text-[16px]">search</span>
+<input class="w-full pl-space-sm pr-8 py-1 bg-surface-container-lowest text-on-surface font-body-sm text-body-sm rounded focus:outline-none" placeholder="بحث سريع في بنود المساعدات..." type="text"/>
+</div>
+</div>
+<!-- Ledger Table (Long scroll like Access form) -->
+<div class="flex-1 overflow-y-auto">
+<table class="w-full text-right">
+<thead class="bg-surface-container text-on-surface-variant font-label-sm text-label-sm sticky top-0 z-10 shadow-sm">
+<tr>
+<th class="p-space-sm w-10 text-center">ID</th>
+<th class="p-space-sm">المساعدة (Category)</th>
+<th class="p-space-sm w-16 text-center">المختصر</th>
+<th class="p-space-sm w-12 text-left">تحكم</th>
+</tr>
+</thead>
+<tbody class="font-body-sm text-body-sm divide-y-0">
+<!-- Items matching image -->
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">1</td>
+<td class="p-space-sm font-semibold text-primary">كفالات أسر (1)</td>
+<td class="p-space-sm text-center font-mono text-xs text-on-surface-variant">FAM-1</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">2</td>
+<td class="p-space-sm font-semibold text-on-surface">بدل إيجار</td>
+<td class="p-space-sm text-center font-mono text-xs text-on-surface-variant">RENT</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">3</td>
+<td class="p-space-sm font-semibold text-primary">كفالات أسر (2)</td>
+<td class="p-space-sm text-center font-mono text-xs text-on-surface-variant">FAM-2</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">4</td>
+<td class="p-space-sm font-semibold text-on-surface">طرود غذائية (1)</td>
+<td class="p-space-sm text-center font-mono text-xs text-on-surface-variant">FOOD-1</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">5</td>
+<td class="p-space-sm font-semibold text-on-surface">حليب</td>
+<td class="p-space-sm text-center font-mono text-xs text-on-surface-variant">MILK</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">7</td>
+<td class="p-space-sm font-semibold text-outline italic">Empty (مفرغ)</td>
+<td class="p-space-sm text-center font-mono text-xs text-outline">EMP</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">8</td>
+<td class="p-space-sm font-semibold text-on-surface">كسوة شتاء 310 شيكل</td>
+<td class="p-space-sm text-center font-mono text-xs text-secondary font-bold">WNT-310</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">9</td>
+<td class="p-space-sm font-semibold text-on-surface">كسوة شتاء</td>
+<td class="p-space-sm text-center font-mono text-xs text-on-surface-variant">WINT</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">10</td>
+<td class="p-space-sm font-semibold text-on-surface">كسوة شتاء 150 شيكل</td>
+<td class="p-space-sm text-center font-mono text-xs text-secondary font-bold">WNT-150</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">11</td>
+<td class="p-space-sm font-semibold text-on-surface">كسوة</td>
+<td class="p-space-sm text-center font-mono text-xs text-on-surface-variant">CLOTH</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">12</td>
+<td class="p-space-sm font-semibold text-on-surface">بطانيات</td>
+<td class="p-space-sm text-center font-mono text-xs text-on-surface-variant">BLNK</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">13</td>
+<td class="p-space-sm font-semibold text-on-surface">طرود غذائية وحطب</td>
+<td class="p-space-sm text-center font-mono text-xs text-on-surface-variant">FD-WD</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">14</td>
+<td class="p-space-sm font-semibold text-on-surface">طرود خضرة</td>
+<td class="p-space-sm text-center font-mono text-xs text-on-surface-variant">VEG</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">15</td>
+<td class="p-space-sm font-semibold text-on-surface">دقيق</td>
+<td class="p-space-sm text-center font-mono text-xs text-on-surface-variant">FLR</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">16</td>
+<td class="p-space-sm font-semibold text-tertiary">مشروع زكاة عيد الفطر</td>
+<td class="p-space-sm text-center font-mono text-xs text-tertiary font-bold">FITR</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">17</td>
+<td class="p-space-sm font-semibold text-on-surface">طرد صحي</td>
+<td class="p-space-sm text-center font-mono text-xs text-on-surface-variant">HYG</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">18</td>
+<td class="p-space-sm font-semibold text-on-surface">شادر</td>
+<td class="p-space-sm text-center font-mono text-xs text-on-surface-variant">SHD</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">19</td>
+<td class="p-space-sm font-semibold text-on-surface">شادر + حزام</td>
+<td class="p-space-sm text-center font-mono text-xs text-on-surface-variant">SH-BLT</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">20</td>
+<td class="p-space-sm font-semibold text-on-surface">كسوة شتاء 200 شيكل</td>
+<td class="p-space-sm text-center font-mono text-xs text-secondary font-bold">WNT-200</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">21</td>
+<td class="p-space-sm font-semibold text-on-surface">كسوة + طرود + هدية عيد</td>
+<td class="p-space-sm text-center font-mono text-xs text-on-surface-variant">PKG-EID</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">22</td>
+<td class="p-space-sm font-semibold text-on-surface">طرد غذائي</td>
+<td class="p-space-sm text-center font-mono text-xs text-on-surface-variant">FD-STD</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">23</td>
+<td class="p-space-sm font-semibold text-on-surface">وجبات</td>
+<td class="p-space-sm text-center font-mono text-xs text-on-surface-variant">MEAL</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">24</td>
+<td class="p-space-sm font-semibold text-on-surface">حطب</td>
+<td class="p-space-sm text-center font-mono text-xs text-on-surface-variant">WOOD</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">25</td>
+<td class="p-space-sm font-semibold text-tertiary">عيدية عيد الفطر</td>
+<td class="p-space-sm text-center font-mono text-xs text-tertiary font-bold">EID-FITR</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">26</td>
+<td class="p-space-sm font-semibold text-on-surface">سيريلاك</td>
+<td class="p-space-sm text-center font-mono text-xs text-on-surface-variant">CERL</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">27</td>
+<td class="p-space-sm font-semibold text-secondary font-bold">قسيمة شرائية</td>
+<td class="p-space-sm text-center font-mono text-xs text-secondary font-bold">VOUCH</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">28</td>
+<td class="p-space-sm font-semibold text-tertiary">عيدية عيد الأضحى</td>
+<td class="p-space-sm text-center font-mono text-xs text-tertiary font-bold">EID-ADHA</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">29</td>
+<td class="p-space-sm font-semibold text-on-surface">كسوة عيد</td>
+<td class="p-space-sm text-center font-mono text-xs text-on-surface-variant">EID-CLTH</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<tr class="hover:bg-primary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">30</td>
+<td class="p-space-sm font-semibold text-on-surface">مخدة</td>
+<td class="p-space-sm text-center font-mono text-xs text-on-surface-variant">PILW</td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-on-surface-variant hover:text-primary cursor-pointer">tune</span></td>
+</tr>
+<!-- New entry prompt -->
+<tr class="bg-primary/5">
+<td class="p-space-sm text-center font-numeric-table text-primary font-bold">(New)</td>
+<td class="p-space-sm italic text-on-surface-variant">إضافة نوع مساعدة جديد...</td>
+<td class="p-space-sm text-center text-outline">---</td>
+<td class="p-space-sm text-left text-primary font-bold"><span class="material-symbols-outlined text-[18px]">add_circle</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Access-style record navigation status bar -->
+<div class="bg-surface-container p-space-xs text-on-surface-variant font-numeric-table text-numeric-table flex items-center justify-between">
+<div class="flex items-center gap-1">
+<button class="p-1 hover:bg-surface-container-high rounded text-on-surface"><span class="material-symbols-outlined text-[14px]">first_page</span></button>
+<button class="p-1 hover:bg-surface-container-high rounded text-on-surface"><span class="material-symbols-outlined text-[14px]">chevron_right</span></button>
+<span>1 من 32</span>
+<button class="p-1 hover:bg-surface-container-high rounded text-on-surface"><span class="material-symbols-outlined text-[14px]">chevron_left</span></button>
+<button class="p-1 hover:bg-surface-container-high rounded text-on-surface"><span class="material-symbols-outlined text-[14px]">last_page</span></button>
+</div>
+<span class="font-label-sm text-label-sm text-primary font-medium">بحث مفهرس</span>
+</div>
+</div>
+<!-- LEDGER 3: COUNTRIES / ORIGINS (الدول) -->
+<div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden flex flex-col h-[740px]">
+<!-- Header -->
+<div class="bg-secondary p-space-md text-on-secondary flex items-center justify-between select-none">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[18px]">flag</span>
+<h2 class="font-title-sm text-title-sm font-bold">الدول والجهات المانحة (Contry)</h2>
+</div>
+<span class="font-numeric-table text-numeric-table bg-surface-container-lowest/20 px-space-xs py-0.5 rounded text-on-secondary">10 دول</span>
+</div>
+<!-- Quick Add Row -->
+<div class="p-space-sm bg-surface-container-low flex flex-col gap-space-xs">
+<div class="flex items-center gap-space-xs">
+<input class="flex-1 px-space-sm py-1.5 bg-surface-container-lowest text-on-surface font-body-sm text-body-sm rounded focus:outline-none" placeholder="اسم الدولة / المانح..." type="text"/>
+<button class="px-space-md py-1.5 bg-secondary text-on-secondary rounded hover:opacity-90 font-label-sm text-label-sm flex items-center gap-1" type="button">
+<span class="material-symbols-outlined text-[16px]">add</span>
+<span>إدراج</span>
+</button>
+</div>
+</div>
+<!-- Ledger Table -->
+<div class="flex-1 overflow-y-auto">
+<table class="w-full text-right">
+<thead class="bg-surface-container text-on-surface-variant font-label-sm text-label-sm sticky top-0 z-10 shadow-sm">
+<tr>
+<th class="p-space-sm w-12 text-center">ID</th>
+<th class="p-space-sm">الدولة (Country)</th>
+<th class="p-space-sm w-20 text-center">العملة</th>
+<th class="p-space-sm w-14 text-left">إجراء</th>
+</tr>
+</thead>
+<tbody class="font-body-sm text-body-sm divide-y-0">
+<!-- As seen in the Access DB: ألمانيا (6), البحرين (2), الدنمارك (7), العراق (3), الكويت (1), النمسا (5), تركيا (8), فنلندا (9), كندا (4) -->
+<tr class="hover:bg-secondary-container/20 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">6</td>
+<td class="p-space-sm font-semibold text-on-surface">ألمانيا</td>
+<td class="p-space-sm text-center font-mono text-xs bg-surface-container-low text-secondary font-bold rounded">EUR (€)</td>
+<td class="p-space-sm text-left">
+<button class="p-1 text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[16px]">edit</span></button>
+</td>
+</tr>
+<tr class="hover:bg-secondary-container/20 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">2</td>
+<td class="p-space-sm font-semibold text-on-surface">البحرين</td>
+<td class="p-space-sm text-center font-mono text-xs bg-surface-container-low text-secondary font-bold rounded">BHD (د.ب)</td>
+<td class="p-space-sm text-left">
+<button class="p-1 text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[16px]">edit</span></button>
+</td>
+</tr>
+<tr class="hover:bg-secondary-container/20 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">7</td>
+<td class="p-space-sm font-semibold text-on-surface">الدنمارك</td>
+<td class="p-space-sm text-center font-mono text-xs bg-surface-container-low text-secondary font-bold rounded">DKK (kr)</td>
+<td class="p-space-sm text-left">
+<button class="p-1 text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[16px]">edit</span></button>
+</td>
+</tr>
+<tr class="hover:bg-secondary-container/20 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">3</td>
+<td class="p-space-sm font-semibold text-on-surface">العراق</td>
+<td class="p-space-sm text-center font-mono text-xs bg-surface-container-low text-secondary font-bold rounded">IQD (د.ع)</td>
+<td class="p-space-sm text-left">
+<button class="p-1 text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[16px]">edit</span></button>
+</td>
+</tr>
+<tr class="hover:bg-secondary-container/20 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">1</td>
+<td class="p-space-sm font-semibold text-primary">الكويت</td>
+<td class="p-space-sm text-center font-mono text-xs bg-surface-container-low text-secondary font-bold rounded">KWD (د.ك)</td>
+<td class="p-space-sm text-left">
+<button class="p-1 text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[16px]">edit</span></button>
+</td>
+</tr>
+<tr class="hover:bg-secondary-container/20 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">5</td>
+<td class="p-space-sm font-semibold text-on-surface">النمسا</td>
+<td class="p-space-sm text-center font-mono text-xs bg-surface-container-low text-secondary font-bold rounded">EUR (€)</td>
+<td class="p-space-sm text-left">
+<button class="p-1 text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[16px]">edit</span></button>
+</td>
+</tr>
+<tr class="hover:bg-secondary-container/20 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">8</td>
+<td class="p-space-sm font-semibold text-on-surface">تركيا</td>
+<td class="p-space-sm text-center font-mono text-xs bg-surface-container-low text-secondary font-bold rounded">TRY (₺)</td>
+<td class="p-space-sm text-left">
+<button class="p-1 text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[16px]">edit</span></button>
+</td>
+</tr>
+<tr class="hover:bg-secondary-container/20 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">9</td>
+<td class="p-space-sm font-semibold text-on-surface">فنلندا</td>
+<td class="p-space-sm text-center font-mono text-xs bg-surface-container-low text-secondary font-bold rounded">EUR (€)</td>
+<td class="p-space-sm text-left">
+<button class="p-1 text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[16px]">edit</span></button>
+</td>
+</tr>
+<tr class="hover:bg-secondary-container/20 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">4</td>
+<td class="p-space-sm font-semibold text-on-surface">كندا</td>
+<td class="p-space-sm text-center font-mono text-xs bg-surface-container-low text-secondary font-bold rounded">CAD ($)</td>
+<td class="p-space-sm text-left">
+<button class="p-1 text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[16px]">edit</span></button>
+</td>
+</tr>
+<tr class="hover:bg-secondary-container/20 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">10</td>
+<td class="p-space-sm font-semibold text-on-surface">قطر</td>
+<td class="p-space-sm text-center font-mono text-xs bg-surface-container-low text-secondary font-bold rounded">QAR (ر.ق)</td>
+<td class="p-space-sm text-left">
+<button class="p-1 text-on-surface-variant hover:text-primary transition-colors"><span class="material-symbols-outlined text-[16px]">edit</span></button>
+</td>
+</tr>
+<!-- New entry prompt -->
+<tr class="bg-primary/5">
+<td class="p-space-sm text-center font-numeric-table text-primary font-bold">(New)</td>
+<td class="p-space-sm italic text-on-surface-variant">دولة / ممول جديد...</td>
+<td class="p-space-sm text-center text-outline">---</td>
+<td class="p-space-sm text-left text-primary font-bold"><span class="material-symbols-outlined text-[18px]">add_circle</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Access-style record navigation status bar -->
+<div class="bg-surface-container p-space-xs text-on-surface-variant font-numeric-table text-numeric-table flex items-center justify-between">
+<div class="flex items-center gap-1">
+<button class="p-1 hover:bg-surface-container-high rounded text-on-surface"><span class="material-symbols-outlined text-[14px]">first_page</span></button>
+<button class="p-1 hover:bg-surface-container-high rounded text-on-surface"><span class="material-symbols-outlined text-[14px]">chevron_right</span></button>
+<span>10 من 10</span>
+<button class="p-1 hover:bg-surface-container-high rounded text-on-surface"><span class="material-symbols-outlined text-[14px]">chevron_left</span></button>
+<button class="p-1 hover:bg-surface-container-high rounded text-on-surface"><span class="material-symbols-outlined text-[14px]">last_page</span></button>
+</div>
+<span class="font-label-sm text-label-sm text-secondary font-medium">مكتمل</span>
+</div>
+</div>
+<!-- LEDGER 4: SPONSORSHIP MONTHS / CYCLES (أشهر الكفالات) -->
+<div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden flex flex-col h-[740px]">
+<!-- Header -->
+<div class="bg-tertiary-container p-space-md text-on-tertiary flex items-center justify-between select-none">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[18px]">date_range</span>
+<h2 class="font-title-sm text-title-sm font-bold">أشهر ودورات الكفالات (Months)</h2>
+</div>
+<span class="font-numeric-table text-numeric-table bg-on-tertiary/20 px-space-xs py-0.5 rounded text-on-tertiary">23 دورة</span>
+</div>
+<!-- Quick Add Row -->
+<div class="p-space-sm bg-surface-container-low flex flex-col gap-space-xs">
+<div class="flex items-center gap-space-xs">
+<input class="flex-1 px-space-sm py-1.5 bg-surface-container-lowest text-on-surface font-body-sm text-body-sm rounded focus:outline-none" placeholder="اسم الدورة (عن شهر)..." type="text"/>
+<button class="p-1.5 bg-tertiary-container text-on-tertiary rounded hover:opacity-90 flex-shrink-0" type="button">
+<span class="material-symbols-outlined text-[18px]">add</span>
+</button>
+</div>
+</div>
+<!-- Ledger Table (Exact items from Access Screen) -->
+<div class="flex-1 overflow-y-auto">
+<table class="w-full text-right">
+<thead class="bg-surface-container text-on-surface-variant font-label-sm text-label-sm sticky top-0 z-10 shadow-sm">
+<tr>
+<th class="p-space-sm w-12 text-center">Auto</th>
+<th class="p-space-sm">عن شهر / الدورة</th>
+<th class="p-space-sm w-20 text-center">الحالة</th>
+<th class="p-space-sm w-10 text-left">قفل</th>
+</tr>
+</thead>
+<tbody class="font-body-sm text-body-sm divide-y-0">
+<tr class="hover:bg-tertiary-container/10 transition-colors bg-secondary-container/20">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">1</td>
+<td class="p-space-sm font-bold text-primary">يونيو 2025</td>
+<td class="p-space-sm text-center"><span class="bg-secondary-container text-on-secondary-container px-1.5 py-0.5 rounded font-label-sm text-[10px]">مفتوحة</span></td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-primary cursor-pointer">lock_open</span></td>
+</tr>
+<tr class="hover:bg-tertiary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">2</td>
+<td class="p-space-sm font-semibold text-on-surface">يناير - يونيو 2023</td>
+<td class="p-space-sm text-center"><span class="bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded font-label-sm text-[10px]">مغلقة</span></td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-outline">lock</span></td>
+</tr>
+<tr class="hover:bg-tertiary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">3</td>
+<td class="p-space-sm font-semibold text-on-surface">فبراير 2023</td>
+<td class="p-space-sm text-center"><span class="bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded font-label-sm text-[10px]">مغلقة</span></td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-outline">lock</span></td>
+</tr>
+<tr class="hover:bg-tertiary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">4</td>
+<td class="p-space-sm font-semibold text-on-surface">ابريل 2023</td>
+<td class="p-space-sm text-center"><span class="bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded font-label-sm text-[10px]">مغلقة</span></td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-outline">lock</span></td>
+</tr>
+<tr class="hover:bg-tertiary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">5</td>
+<td class="p-space-sm font-semibold text-on-surface">مايو 2023</td>
+<td class="p-space-sm text-center"><span class="bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded font-label-sm text-[10px]">مغلقة</span></td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-outline">lock</span></td>
+</tr>
+<tr class="hover:bg-tertiary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">6</td>
+<td class="p-space-sm font-semibold text-on-surface">يونيو 2023</td>
+<td class="p-space-sm text-center"><span class="bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded font-label-sm text-[10px]">مغلقة</span></td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-outline">lock</span></td>
+</tr>
+<tr class="hover:bg-tertiary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">7</td>
+<td class="p-space-sm font-semibold text-on-surface">يوليو 2023</td>
+<td class="p-space-sm text-center"><span class="bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded font-label-sm text-[10px]">مغلقة</span></td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-outline">lock</span></td>
+</tr>
+<tr class="hover:bg-tertiary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">8</td>
+<td class="p-space-sm font-semibold text-on-surface">مارس - ابريل 2025</td>
+<td class="p-space-sm text-center"><span class="bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded font-label-sm text-[10px]">مغلقة</span></td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-outline">lock</span></td>
+</tr>
+<tr class="hover:bg-tertiary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">9</td>
+<td class="p-space-sm font-semibold text-on-surface">إير حتى ابريل 2025</td>
+<td class="p-space-sm text-center"><span class="bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded font-label-sm text-[10px]">مغلقة</span></td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-outline">lock</span></td>
+</tr>
+<tr class="hover:bg-tertiary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">10</td>
+<td class="p-space-sm font-semibold text-on-surface">يو حتى يوليو 2025</td>
+<td class="p-space-sm text-center"><span class="bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded font-label-sm text-[10px]">مغلقة</span></td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-outline">lock</span></td>
+</tr>
+<tr class="hover:bg-tertiary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">11</td>
+<td class="p-space-sm font-semibold text-on-surface">أكتوبر 2025</td>
+<td class="p-space-sm text-center"><span class="bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded font-label-sm text-[10px]">مغلقة</span></td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-outline">lock</span></td>
+</tr>
+<tr class="hover:bg-tertiary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">12</td>
+<td class="p-space-sm font-semibold text-on-surface">نوفمبر 2025</td>
+<td class="p-space-sm text-center"><span class="bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded font-label-sm text-[10px]">مغلقة</span></td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-outline">lock</span></td>
+</tr>
+<tr class="hover:bg-tertiary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">13</td>
+<td class="p-space-sm font-semibold text-on-surface">ديسمبر 2025</td>
+<td class="p-space-sm text-center"><span class="bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded font-label-sm text-[10px]">مغلقة</span></td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-outline">lock</span></td>
+</tr>
+<tr class="hover:bg-tertiary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">14</td>
+<td class="p-space-sm font-semibold text-on-surface">يناير 2026</td>
+<td class="p-space-sm text-center"><span class="bg-tertiary-fixed text-on-tertiary-container px-1.5 py-0.5 rounded font-label-sm text-[10px]">تجهيز</span></td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-tertiary cursor-pointer">lock_open</span></td>
+</tr>
+<tr class="hover:bg-tertiary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">15</td>
+<td class="p-space-sm font-semibold text-tertiary">عيدية عيد الفطر</td>
+<td class="p-space-sm text-center"><span class="bg-tertiary-fixed text-on-tertiary-container px-1.5 py-0.5 rounded font-label-sm text-[10px]">تجهيز</span></td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-tertiary cursor-pointer">lock_open</span></td>
+</tr>
+<tr class="hover:bg-tertiary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">16</td>
+<td class="p-space-sm font-semibold text-on-surface">ابريل 2026</td>
+<td class="p-space-sm text-center"><span class="bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded font-label-sm text-[10px]">قادمة</span></td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-outline">schedule</span></td>
+</tr>
+<tr class="hover:bg-tertiary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">17</td>
+<td class="p-space-sm font-semibold text-on-surface">مايو 2026</td>
+<td class="p-space-sm text-center"><span class="bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded font-label-sm text-[10px]">قادمة</span></td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-outline">schedule</span></td>
+</tr>
+<tr class="hover:bg-tertiary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">18</td>
+<td class="p-space-sm font-semibold text-tertiary">عيدية عيد الأضحى</td>
+<td class="p-space-sm text-center"><span class="bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded font-label-sm text-[10px]">قادمة</span></td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-outline">schedule</span></td>
+</tr>
+<tr class="hover:bg-tertiary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">19</td>
+<td class="p-space-sm font-semibold text-on-surface">فبراير 2026</td>
+<td class="p-space-sm text-center"><span class="bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded font-label-sm text-[10px]">قادمة</span></td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-outline">schedule</span></td>
+</tr>
+<tr class="hover:bg-tertiary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">20</td>
+<td class="p-space-sm font-semibold text-on-surface">مارس 2026</td>
+<td class="p-space-sm text-center"><span class="bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded font-label-sm text-[10px]">قادمة</span></td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-outline">schedule</span></td>
+</tr>
+<tr class="hover:bg-tertiary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">21</td>
+<td class="p-space-sm font-semibold text-on-surface">مايو 2026</td>
+<td class="p-space-sm text-center"><span class="bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded font-label-sm text-[10px]">قادمة</span></td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-outline">schedule</span></td>
+</tr>
+<tr class="hover:bg-tertiary-container/10 transition-colors bg-surface-container-low/40">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">22</td>
+<td class="p-space-sm font-semibold text-on-surface">يوليو 2026</td>
+<td class="p-space-sm text-center"><span class="bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded font-label-sm text-[10px]">قادمة</span></td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-outline">schedule</span></td>
+</tr>
+<tr class="hover:bg-tertiary-container/10 transition-colors bg-surface-container-lowest">
+<td class="p-space-sm text-center font-numeric-table text-on-surface-variant font-semibold">23</td>
+<td class="p-space-sm font-semibold text-on-surface">أغسطس 2026</td>
+<td class="p-space-sm text-center"><span class="bg-surface-container-high text-on-surface-variant px-1.5 py-0.5 rounded font-label-sm text-[10px]">قادمة</span></td>
+<td class="p-space-sm text-left"><span class="material-symbols-outlined text-[16px] text-outline">schedule</span></td>
+</tr>
+<!-- New entry prompt -->
+<tr class="bg-primary/5">
+<td class="p-space-sm text-center font-numeric-table text-primary font-bold">(New)</td>
+<td class="p-space-sm italic text-on-surface-variant">تعريف دورة صرف جديدة...</td>
+<td class="p-space-sm text-center text-outline">---</td>
+<td class="p-space-sm text-left text-primary font-bold"><span class="material-symbols-outlined text-[18px]">add_circle</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Access-style record navigation status bar -->
+<div class="bg-surface-container p-space-xs text-on-surface-variant font-numeric-table text-numeric-table flex items-center justify-between">
+<div class="flex items-center gap-1">
+<button class="p-1 hover:bg-surface-container-high rounded text-on-surface"><span class="material-symbols-outlined text-[14px]">first_page</span></button>
+<button class="p-1 hover:bg-surface-container-high rounded text-on-surface"><span class="material-symbols-outlined text-[14px]">chevron_right</span></button>
+<span>1 من 23</span>
+<button class="p-1 hover:bg-surface-container-high rounded text-on-surface"><span class="material-symbols-outlined text-[14px]">chevron_left</span></button>
+<button class="p-1 hover:bg-surface-container-high rounded text-on-surface"><span class="material-symbols-outlined text-[14px]">last_page</span></button>
+</div>
+<span class="font-label-sm text-label-sm text-tertiary font-medium">سلسلة زمنية</span>
+</div>
+</div>
+</div>
+<!-- BOTTOM OPERATIONAL PANEL: SYSTEM CONSTANTS & SYNC CONTROL -->
+<div class="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm flex flex-col xl:flex-row items-center justify-between gap-space-lg">
+<!-- Fast Field Parameters -->
+<div class="flex flex-wrap items-center gap-space-lg w-full xl:w-auto">
+<div class="flex items-center gap-space-sm">
+<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[20px]">currency_exchange</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant">العملة الافتراضية للتقارير:</span>
+<span class="font-label-md text-label-md font-bold text-on-surface">الشيكل الجديد (ILS ₪) / الدينار (JOD)</span>
+</div>
+</div>
+<div class="h-8 w-px bg-surface-container-highest hidden sm:block"></div>
+<div class="flex items-center gap-space-sm">
+<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">pin</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant">توليد أكواد المستفيدين:</span>
+<span class="font-label-md text-label-md font-bold text-on-surface">تلقائي [رمز الدولة - نوع الملف - الرقم التسلسلي]</span>
+</div>
+</div>
+<div class="h-8 w-px bg-surface-container-highest hidden sm:block"></div>
+<div class="flex items-center gap-space-sm">
+<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined text-[20px]">history</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant">آخر تحديث للقاعدة المرجعية:</span>
+<span class="font-numeric-table text-numeric-table font-semibold text-on-surface">اليوم، 11:42 ص بواسطة أ. النجار</span>
+</div>
+</div>
+</div>
+<!-- DB Synchronization Actions (From image: خلفية التقارير / 6_AHUDAM) -->
+<div class="flex items-center gap-space-sm w-full xl:w-auto justify-end">
+<div class="px-space-md py-2 rounded-lg bg-surface-container-low flex items-center gap-space-xs text-on-surface-variant font-label-sm text-label-sm">
+<span class="w-2.5 h-2.5 rounded-full bg-primary animate-ping"></span>
+<span class="font-mono text-xs font-semibold text-secondary">MSSQL_ADMIN.ACCDB (SYNCED)</span>
+</div>
+<button class="px-space-md py-2 bg-secondary text-on-secondary hover:bg-secondary/90 transition-colors rounded-lg font-label-md text-label-md font-medium flex items-center gap-space-xs shadow-sm" type="button">
+<span class="material-symbols-outlined text-[18px]">sync</span>
+<span>تعميم التعديلات على كافة الفروع</span>
+</button>
+<button class="px-space-md py-2 bg-primary-container text-on-primary hover:opacity-95 transition-all rounded-lg font-label-md text-label-md font-medium flex items-center gap-space-xs shadow-sm" type="button">
+<span class="material-symbols-outlined text-[18px]">article</span>
+<span>خلفية التقارير (Reports Preview)</span>
+</button>
+</div>
+</div>
+</div>
+<script>
+  // Simple quick filter logic for the Aid Categories and Lookups
+  document.getElementById('globalLookupSearch')?.addEventListener('input', function(e) {
+    const term = e.target.value.toLowerCase().trim();
+    const rows = document.querySelectorAll('tbody tr');
+    rows.forEach(row => {
+      const text = row.innerText.toLowerCase();
+      if(text.includes(term) || term === '') {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  });
+</script></main></div></body></html>
