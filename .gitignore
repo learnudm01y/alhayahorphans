@@ -89,3 +89,15 @@ temp_check/check_db.js
 .envbak
 tests/Feature/WhatsAppAdminPanelTest.php
 /tests
+!/laravel-worker-documents.conf
+!/tests/
+/tests/*
+!/tests/Feature/
+/tests/Feature/*
+!/tests/Feature/DocumentEnhancementTest.php
+!/tests/Feature/AdminDocumentEnhancementTest.php
+!/tests/python/
+/tests/python/*
+!/tests/python/test_document_enhance.py
+!/tests/document-enhancement-browser.mjs
+/scripts/__pycache__/

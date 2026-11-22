@@ -586,6 +586,33 @@
                 }
             }
 
+            const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+
+            // المستندات تُرفع كما هي؛ الخادم يرفض ما يتجاوز 5 ميغابايت، فيُضغط هنا فقط عند تجاوز الحد
+            async function fitDocumentToUploadLimit(file) {
+                const bitmap = await createImageBitmap(file);
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                let scale = Math.min(1, Math.sqrt(MAX_UPLOAD_BYTES / file.size));
+                try {
+                    for (let step = 0; step < 6; step++) {
+                        canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+                        canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+                        context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+                        for (const quality of [0.92, 0.85]) {
+                            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+                            if (blob && blob.size <= MAX_UPLOAD_BYTES) {
+                                return new File([blob], file.name.replace(/\.[^.]*$/, '') + '.jpg', { type: 'image/jpeg' });
+                            }
+                        }
+                        scale *= 0.8;
+                    }
+                } finally {
+                    if (bitmap.close) bitmap.close();
+                }
+                throw new Error('document-compression-failed');
+            }
+
             window.processAttachment = async function processAttachment(id) {
                 let task;
                 let personKey;
@@ -623,6 +650,23 @@
 
                 // تحديث الحالة إلى "processing"
                 updateAttachmentTaskStatus(id, 'processing');
+
+                if (task.fileType === 'document') {
+                    let uploadFile = task.originalFile;
+                    if (uploadFile.size > MAX_UPLOAD_BYTES && uploadFile.type && uploadFile.type.startsWith('image/')) {
+                        try {
+                            uploadFile = await fitDocumentToUploadLimit(uploadFile);
+                        } catch (error) {
+                            console.error('[processAttachment] تعذر ضغط المستند الكبير:', id, error);
+                            hideProcessingAlert();
+                            updateAttachmentTaskStatus(id, 'failed', null, 'حجم الصورة يتجاوز الحد المسموح ولم يتمكّن النظام من ضغطها. يرجى إعادة التصوير بشكل أصغر.');
+                            return;
+                        }
+                    }
+                    hideProcessingAlert();
+                    updateAttachmentTaskStatus(id, 'completed', uploadFile, null);
+                    return;
+                }
 
                 if (task.originalFile.type && task.originalFile.type.startsWith('image/')) {
                     console.log('[processAttachment] 📸 بدء معالجة الصورة:', id, task.originalFile.name);

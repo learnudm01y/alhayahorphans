@@ -197,10 +197,26 @@
       <div class="modal-body">
         <div id="attachmentsModalContent" class="d-flex flex-wrap justify-content-center align-items-center" style="gap: 16px;"></div>
         <div id="attachmentPreview" class="mt-4 text-center"></div>
+        <div id="attachmentActions" class="mt-3 d-flex flex-wrap justify-content-center gap-2"></div>
       </div>
     </div>
   </div>
 </div>
+@php
+    $attachmentPayload = function ($attachments) use ($documentKind) {
+        return $attachments->map(function ($a) use ($documentKind) {
+            $fileName = $a->stored_file_name ?: basename($a->file_path);
+
+            return [
+                'id' => $a->id,
+                'file_path' => route('admin.file.show', ['filename' => $fileName]),
+                'stored_file_name' => $a->stored_file_name,
+                'is_document' => (bool) ($documentKind[(string) $a->file_type] ?? false),
+                'enhancement_status' => $a->document_enhancement_status,
+            ];
+        })->values();
+    };
+@endphp
 <div class="container">
 
     <h2 class="mb-4 text-center" style="font-family: 'Cairo', Arial, Tahoma, sans-serif;">عرض تفاصيل السجل</h2>
@@ -549,10 +565,7 @@
                             $isImage = Str::endsWith(strtolower($att->stored_file_name), ['jpg','jpeg','png','gif']);
                         @endphp
                         <a href="javascript:void(0);" class="open-attachments-modal"
-                            data-attachments='@json($data->attachments->map(function($a){return [
-                                "file_path" => route("admin.file.show", ["filename" => $a->stored_file_name ?: basename($a->file_path)]),
-                                "stored_file_name" => $a->stored_file_name
-                            ];}))'
+                            data-attachments='@json($attachmentPayload($data->attachments))'
                             data-index="{{ $loop->index }}">
                             @if($isImage)
                                 <img src="{{ route('admin.file.show', ['filename' => $att->stored_file_name ?: basename($att->file_path)]) }}"
@@ -617,10 +630,7 @@
                                                     $isImage = Str::endsWith(strtolower($att->stored_file_name), ['jpg','jpeg','png','gif']);
                                                 @endphp
                                                 <a href="javascript:void(0);" class="open-attachments-modal"
-                                                    data-attachments='@json($member->attachments->map(function($a){return [
-                                                        "file_path" => route("admin.file.show", ["filename" => $a->stored_file_name ?: basename($a->file_path)]),
-                                                        "stored_file_name" => $a->stored_file_name
-                                                    ];}))'
+                                                    data-attachments='@json($attachmentPayload($member->attachments))'
                                                     data-index="{{ $loop->index }}">
                                                     @if($isImage)
                                                         <img src="{{ route('admin.file.show', ['filename' => $att->stored_file_name ?: basename($att->file_path)]) }}"
@@ -729,10 +739,7 @@
                                                     $isImage = Str::endsWith(strtolower($att->stored_file_name), ['jpg','jpeg','png','gif']);
                                                 @endphp
                                                 <a href="javascript:void(0);" class="open-attachments-modal"
-                                                    data-attachments='@json($fatherAttachments->map(function($a){return [
-                                                        "file_path" => route("admin.file.show", ["filename" => $a->stored_file_name ?: basename($a->file_path)]),
-                                                        "stored_file_name" => $a->stored_file_name
-                                                    ];}))'
+                                                    data-attachments='@json($attachmentPayload($fatherAttachments))'
                                                     data-index="{{ $loop->index }}">
                                                     @if($isImage)
                                                         <img src="{{ route('admin.file.show', ['filename' => $att->stored_file_name ?: basename($att->file_path)]) }}"
@@ -790,10 +797,7 @@
                                                     $isImage = Str::endsWith(strtolower($att->stored_file_name), ['jpg','jpeg','png','gif']);
                                                 @endphp
                                                 <a href="javascript:void(0);" class="open-attachments-modal"
-                                                    data-attachments='@json($motherAttachments->map(function($a){return [
-                                                        "file_path" => route("admin.file.show", ["filename" => $a->stored_file_name ?: basename($a->file_path)]),
-                                                        "stored_file_name" => $a->stored_file_name
-                                                    ];}))'
+                                                    data-attachments='@json($attachmentPayload($motherAttachments))'
                                                     data-index="{{ $loop->index }}">
                                                     @if($isImage)
                                                         <img src="{{ route('admin.file.show', ['filename' => $att->stored_file_name ?: basename($att->file_path)]) }}"
@@ -1330,11 +1334,114 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    const ATTACHMENT_ENHANCE_URL = @json(url('admin/records-management/enhance-attachment'));
+    const ATTACHMENT_ENHANCE_STATUS_URL = @json(url('admin/records-management/enhancement-status'));
+    const ATTACHMENT_CSRF = @json(csrf_token());
+    const CAN_ENHANCE_ATTACHMENTS = @json(\Illuminate\Support\Facades\Gate::allows('تعديل سجل'));
+    const attachmentPolling = new Set();
+
+    function withAttachmentVersion(url, version) {
+        return url + (url.indexOf('?') === -1 ? '?' : '&') + 'v=' + encodeURIComponent(version);
+    }
+
+    function refreshAttachmentImages(oldUrl, version) {
+        document.querySelectorAll('img').forEach(function(img) {
+            const src = img.getAttribute('src') || '';
+            if (src === oldUrl || src.indexOf(oldUrl + '?') === 0) {
+                img.setAttribute('src', withAttachmentVersion(oldUrl, version));
+            }
+        });
+    }
+
+    function startAttachmentEnhancement(att, button) {
+        if (attachmentPolling.has(att.id)) {
+            return;
+        }
+        attachmentPolling.add(att.id);
+        att.enhancement_status = 'queued';
+        button.disabled = true;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جارٍ التحسين...';
+
+        fetch(ATTACHMENT_ENHANCE_URL + '/' + att.id, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': ATTACHMENT_CSRF }
+        })
+        .then(function(response) { return response.json().catch(function() { return {}; }); })
+        .then(function(data) {
+            if (data.status === 'queued' || data.status === 'processing') {
+                pollAttachmentEnhancement(att, button);
+                return;
+            }
+            attachmentPolling.delete(att.id);
+            button.disabled = false;
+            button.innerHTML = '<i class="bi bi-magic"></i> تحسين المستند';
+            _showToast(data.message || 'تعذر بدء التحسين', 'error');
+        })
+        .catch(function() {
+            attachmentPolling.delete(att.id);
+            button.disabled = false;
+            button.innerHTML = '<i class="bi bi-magic"></i> تحسين المستند';
+            _showToast('حدث خطأ أثناء إرسال طلب التحسين', 'error');
+        });
+    }
+
+    function pollAttachmentEnhancement(att, button) {
+        let attempts = 0;
+        const finish = function() {
+            attachmentPolling.delete(att.id);
+            if (button) {
+                button.disabled = false;
+                button.innerHTML = '<i class="bi bi-magic"></i> تحسين المستند';
+            }
+        };
+        const tick = function() {
+            attempts++;
+            fetch(ATTACHMENT_ENHANCE_STATUS_URL + '/' + att.id, { headers: { 'Accept': 'application/json' } })
+                .then(function(response) { return response.json().catch(function() { return {}; }); })
+                .then(function(data) {
+                    if (data.status === 'queued' || data.status === 'processing') {
+                        if (attempts >= 40) {
+                            finish();
+                            _showToast('التحسين ما زال جارياً، أعد فتح المرفقات لاحقاً', 'warning');
+                            return;
+                        }
+                        setTimeout(tick, 2500);
+                        return;
+                    }
+                    finish();
+                    att.enhancement_status = data.status;
+                    if (data.status === 'enhanced') {
+                        const base = String(att.file_path).split('?')[0];
+                        refreshAttachmentImages(base, data.version);
+                        document.querySelectorAll('#attachmentActions a[href]').forEach(function(link) {
+                            const href = link.getAttribute('href') || '';
+                            if (href === base || href.indexOf(base + '?') === 0) {
+                                link.setAttribute('href', withAttachmentVersion(base, data.version));
+                            }
+                        });
+                        att.file_path = withAttachmentVersion(base, data.version);
+                        _showToast('تم تحسين المستند بنجاح', 'success');
+                    } else if (data.status === 'unchanged') {
+                        _showToast('لم يلزم تحسين هذا المستند', 'warning');
+                    } else if (data.status === 'failed') {
+                        _showToast('تعذر تحسين المستند، بقي الملف كما هو', 'error');
+                    }
+                })
+                .catch(function() {
+                    finish();
+                    _showToast('انتهت متابعة حالة التحسين', 'error');
+                });
+        };
+        setTimeout(tick, 1500);
+    }
+
     function showAttachmentsModal(attachments, activeIndex) {
         const modalContent = document.getElementById('attachmentsModalContent');
         const preview = document.getElementById('attachmentPreview');
+        const actions = document.getElementById('attachmentActions');
         modalContent.innerHTML = '';
         preview.innerHTML = '';
+        actions.innerHTML = '';
 
         attachments.forEach(function(att, idx) {
             let isImage = /\.(jpg|jpeg|png|gif)$/i.test(att.stored_file_name);
@@ -1348,6 +1455,41 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             modalContent.innerHTML += `<a href="javascript:void(0);" data-preview-index="${idx}" class="me-2">${thumb}</a>`;
         });
+
+        function renderActions(idx) {
+            const att = attachments[idx];
+            const isImage = /\.(jpg|jpeg|png|gif)$/i.test(att.stored_file_name || '');
+            actions.innerHTML = '';
+
+            if (isImage) {
+                const openLink = document.createElement('a');
+                openLink.className = 'btn btn-sm btn-outline-primary';
+                openLink.href = att.file_path;
+                openLink.target = '_blank';
+                openLink.rel = 'noopener';
+                openLink.innerHTML = '<i class="bi bi-box-arrow-up-right"></i> فتح في تبويب جديد';
+                actions.appendChild(openLink);
+            }
+
+            if (att.is_document && isImage && CAN_ENHANCE_ATTACHMENTS) {
+                const enhanceButton = document.createElement('button');
+                enhanceButton.type = 'button';
+                enhanceButton.className = 'btn btn-sm btn-success';
+                enhanceButton.innerHTML = '<i class="bi bi-magic"></i> تحسين المستند';
+                enhanceButton.addEventListener('click', function() {
+                    startAttachmentEnhancement(att, enhanceButton);
+                });
+                actions.appendChild(enhanceButton);
+
+                if ((att.enhancement_status === 'queued' || att.enhancement_status === 'processing')
+                    && !attachmentPolling.has(att.id)) {
+                    attachmentPolling.add(att.id);
+                    enhanceButton.disabled = true;
+                    enhanceButton.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جارٍ التحسين...';
+                    pollAttachmentEnhancement(att, enhanceButton);
+                }
+            }
+        }
 
         function renderPreview(idx) {
             let att = attachments[idx];
@@ -1368,6 +1510,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 `;
             }
+            renderActions(idx);
         }
 
         renderPreview(activeIndex);

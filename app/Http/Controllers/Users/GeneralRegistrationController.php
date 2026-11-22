@@ -2147,6 +2147,9 @@ class GeneralRegistrationController extends Controller
 
             DB::commit();
             $preparedFiles = [];
+            if ($publicSubmission) {
+                app(\App\Services\DocumentEnhancementService::class)->enqueue(array_column($pendingStores, 'attachment_id'));
+            }
             $this->progressUpdate(92, 'جاري نقل الملفات إلى مكانها النهائي...');
 
             // (3.3) انتهى استخدام الرقم المحجوز لهذه الجلسة

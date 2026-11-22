@@ -16,6 +16,12 @@ class Attachment extends Model
         'file_type',
         'file_size',
         'file_hash',
+        'document_enhancement_status',
+        'document_enhancement_metadata',
+    ];
+
+    protected $casts = [
+        'document_enhancement_metadata' => 'array',
     ];
 
     protected $table = 'attachments';

@@ -197,6 +197,14 @@ Route::group(['prefix' => 'admin', 'as' => 'admin.'], function () {
     Route::post('records-management/delete-attachment/{id}', [RecordsManagementEditController::class, 'deleteAttachment'])
         ->name('records-management.delete-attachment');
 
+    // تحسين مستند المرفق (يستبدل الملف الأصلي في مكانه) ومتابعة حالته
+    Route::post('records-management/enhance-attachment/{id}', [RecordsManagementEditController::class, 'enhanceAttachment'])
+        ->middleware('permission:تعديل سجل')
+        ->name('records-management.enhance-attachment');
+    Route::get('records-management/enhancement-status/{id}', [RecordsManagementEditController::class, 'enhancementStatus'])
+        ->middleware('permission:تعديل سجل')
+        ->name('records-management.enhancement-status');
+
     // مسار إنشاء سجل جديد (upload via AJAX optional أو ضمن create form)
     Route::post('records-management/upload', [RecordsManagementEditController::class, 'upload'])
         ->name('records.management.upload');

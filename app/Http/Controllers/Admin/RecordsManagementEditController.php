@@ -283,7 +283,16 @@ class RecordsManagementEditController extends Controller
             }
         }
 
-        return view('admin.dashboard.records_management.show', compact('data', 'guardianSponsorships', 'guardianPortalFields', 'liveMother', 'motherPortalFields', 'livingMotherFields', 'additionalDeceased', 'personSponsors'));
+        // تصنيف أنواع الوثائق مرة واحدة لعرض زر التحسين على المرفقات المؤهلة فقط
+        $documentKind = [];
+        if (\Illuminate\Support\Facades\Schema::hasColumns('document_types', ['pref', 'file_type'])) {
+            foreach (DocumentType::get(['id', 'pref', 'file_type']) as $type) {
+                $documentKind[(string) $type->id] = $type->file_type === 'document';
+                $documentKind[(string) $type->pref] = $type->file_type === 'document';
+            }
+        }
+
+        return view('admin.dashboard.records_management.show', compact('data', 'guardianSponsorships', 'guardianPortalFields', 'liveMother', 'motherPortalFields', 'livingMotherFields', 'additionalDeceased', 'personSponsors', 'documentKind'));
     }
 
     /**
@@ -1526,6 +1535,41 @@ class RecordsManagementEditController extends Controller
                 'message' => 'حدث خطأ أثناء حذف المرفق: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * تحسين مستند المرفق: يستبدل الملف نفسه في مكانه دون إنشاء نسخة جديدة.
+     */
+    public function enhanceAttachment($id)
+    {
+        if (!\Illuminate\Support\Facades\Gate::allows('تعديل سجل')) {
+            return response()->json(['success' => false, 'status' => 'forbidden', 'message' => 'غير مصرح لك بتحسين المرفقات.'], 403);
+        }
+
+        $result = app(\App\Services\DocumentEnhancementService::class)->requestEnhancement((int) $id);
+
+        return response()->json($result, $result['success'] ? 200 : 422);
+    }
+
+    /**
+     * حالة تحسين المرفق لمتابعة إتمام المهمة من الواجهة.
+     */
+    public function enhancementStatus($id)
+    {
+        if (!\Illuminate\Support\Facades\Gate::allows('تعديل سجل')) {
+            return response()->json(['success' => false, 'status' => 'forbidden', 'message' => 'غير مصرح لك بعرض حالة التحسين.'], 403);
+        }
+
+        $status = app(\App\Services\DocumentEnhancementService::class)->status((int) $id);
+        if ($status === null) {
+            return response()->json(['success' => false, 'status' => 'missing', 'message' => 'المرفق غير موجود.'], 404);
+        }
+
+        return response()->json($status + [
+            'success' => true,
+            'file_url' => route('admin.file.show', ['filename' => $status['file_name']]),
+            'version' => now()->getTimestampMs(),
+        ]);
     }
 
     public function delete($id)
