@@ -191,6 +191,12 @@ class DocumentTests(unittest.TestCase):
         page = self.page()
         self.assertIs(doc.trim_borders(page), page)
 
+    def test_tall_scene_exposure_uses_a_mask_sized_like_its_pixels(self):
+        scene = cv2.resize(self.letterboxed_scene()[500:1300], (760, 1100))
+        result, operations = doc.photometric(scene, doc.text_evidence(scene))
+        self.assertEqual(result.shape, scene.shape)
+        self.assertIn("scene_exposure", operations)
+
     def test_saturated_stamp_color_is_not_whitened(self):
         before = self.shadow_page()
         before[30:65, 40:80] = (185, 30, 45)

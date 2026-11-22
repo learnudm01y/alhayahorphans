@@ -457,6 +457,8 @@ def photometric(rgb, evidence, rectified=False):
     if not scene:
         return rgb, []
     operations = []
+    small = smaller(rgb, 800)
+    gray = cv2.cvtColor(small, cv2.COLOR_RGB2GRAY)
     work = leveled.astype(np.float32) if paper and normalized else rgb.astype(np.float32)
     if paper and normalized:
         operations.append("illumination_normalization")
@@ -464,15 +466,12 @@ def photometric(rgb, evidence, rectified=False):
         # Level only the exposure of a multi-document scene. Local paper
         # levelling here would bleach cloth, skin and coloured card sleeves.
         mask = paper_pixels(rgb)
-        gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
         if float(mask.mean()) >= 0.03:
             paper_level = float(np.percentile(gray[mask], 75))
             gain = float(np.clip(245 / max(paper_level, 1), 1, 1.65))
             if gain > 1.025:
                 work = np.clip(work * gain, 0, 255)
                 operations.append("scene_exposure")
-    small = smaller(rgb, 800)
-    gray = cv2.cvtColor(small, cv2.COLOR_RGB2GRAY)
     neutral = (small.max(axis=2).astype(int) - small.min(axis=2) < 28) & (gray > 165)
     needs_paper_tone = normalized or float(np.percentile(gray, 97)) < 235
     if paper and needs_paper_tone and neutral.mean() > 0.5:
