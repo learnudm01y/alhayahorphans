@@ -777,6 +777,7 @@ class RecordsManagementEditController extends Controller
             Log::info('Updated Data basic info');
 
             // 5. معالجة نقل/إعادة تسمية مرفقات قديمة عند تغيير رقم الهوية الرئيسي
+            $duplicateAttachmentFilesToDelete = [];
             if ($oldDataIdNumber && (string) $oldDataIdNumber !== (string) $newDataIdNumber) {
                 Log::info('Updating attachments for changed data_id_number', ['old'=>$oldDataIdNumber,'new'=>$newDataIdNumber]);
                 $fileService = app(\App\Services\GuardianFileService::class);
@@ -812,9 +813,43 @@ class RecordsManagementEditController extends Controller
                     );
                     $oldStoragePath = str_replace('storage/', '', $attachment->file_path);
                     $newRelativePath = "uploads/{$fileIdNumber}/{$newFileName}";
+                    $sourceFileExists = $oldStoragePath !== '' && Storage::disk('public')->exists($oldStoragePath);
+                    $duplicateAttachment = $attachment->file_hash !== null
+                        ? Attachment::where('person_identity_number', $newDataIdNumber)
+                            ->where('file_type', $attachment->file_type)
+                            ->where('file_hash', $attachment->file_hash)
+                            ->where('id', '!=', $attachment->id)
+                            ->lockForUpdate()
+                            ->first()
+                        : null;
+
+                    if ($duplicateAttachment) {
+                        $duplicateStoragePath = str_replace('storage/', '', (string) $duplicateAttachment->file_path);
+                        $duplicateFileExists = $duplicateStoragePath !== ''
+                            && Storage::disk('public')->exists($duplicateStoragePath);
+
+                        if (!$duplicateFileExists && $sourceFileExists) {
+                            $duplicateAttachment->delete();
+                        } else {
+                            if ($duplicateFileExists && $oldStoragePath !== $duplicateStoragePath) {
+                                $duplicateAttachmentFilesToDelete[] = [
+                                    'source_path' => $oldStoragePath,
+                                    'stored_file_name' => $storedName,
+                                    'keep_attachment_id' => $duplicateAttachment->id,
+                                ];
+                            }
+                            $attachment->delete();
+                            Log::info('Skipped duplicate guardian attachment during identity merge', [
+                                'attachment_id' => $attachment->id,
+                                'keep_attachment_id' => $duplicateAttachment->id,
+                            ]);
+                            continue;
+                        }
+                    }
+
                     $updates = ['person_identity_number' => $newDataIdNumber];
 
-                    if (Storage::disk('public')->exists($oldStoragePath)) {
+                    if ($sourceFileExists) {
                         Storage::disk('public')->move($oldStoragePath, $newRelativePath);
                         $updates['stored_file_name'] = $newFileName;
                         $updates['file_path'] = "storage/{$newRelativePath}";
@@ -1127,6 +1162,47 @@ class RecordsManagementEditController extends Controller
             }
 
             DB::commit();
+
+            foreach ($duplicateAttachmentFilesToDelete as $duplicateFile) {
+                try {
+                    $keepAttachment = Attachment::find($duplicateFile['keep_attachment_id']);
+                    $keepPath = $keepAttachment
+                        ? ltrim(str_replace('storage/', '', (string) $keepAttachment->file_path), '/')
+                        : '';
+                    if ($keepPath === '' || !Storage::disk('public')->exists($keepPath)) {
+                        continue;
+                    }
+
+                    $sourcePaths = collect([
+                        $duplicateFile['source_path'],
+                        'uploads/' . $data->file_id_number . '/' . $duplicateFile['stored_file_name'],
+                    ])->map(fn ($path) => ltrim(str_replace('storage/', '', (string) $path), '/'))
+                        ->filter()
+                        ->unique();
+
+                    foreach ($sourcePaths as $sourcePath) {
+                        if ($sourcePath === $keepPath || !Storage::disk('public')->exists($sourcePath)) {
+                            continue;
+                        }
+
+                        $stillReferenced = Attachment::whereIn('file_path', [
+                            $sourcePath,
+                            'storage/' . $sourcePath,
+                            '/' . $sourcePath,
+                            '/storage/' . $sourcePath,
+                        ])->exists();
+                        if (!$stillReferenced) {
+                            Storage::disk('public')->delete($sourcePath);
+                        }
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('Unable to remove duplicate attachment file after guardian merge', [
+                        'keep_attachment_id' => $duplicateFile['keep_attachment_id'],
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
             Log::info('--- Update success ---');
             $successMessage = $guardianMergeReport
                 ? 'تم تحديث السجل ودمج ملفي المعيل بنجاح'
