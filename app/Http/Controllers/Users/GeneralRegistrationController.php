@@ -1964,11 +1964,12 @@ class GeneralRegistrationController extends Controller
                         $fileSize = (int) @filesize($convertedTempPath);
                     }
 
-                    // اسم الملف: نوع الوثيقة _ رقم الملف الخاص بالشخص _ رقم هوية الشخص _ تاريخ ووقت اليوم + مُعرّف فريد
-                    // المعرّف الفريد ضروري: الطابع الزمني دقيقته الثانية فقط، فكانت محاولات متعددة داخل نفس الثانية
-                    // تُنشئ نفس الاسم وتكتب فوق الملف الفعلي على القرص مع بقاء سجلات مكررة في قاعدة البيانات.
-                    $safeFileType = preg_replace('/[^A-Za-z0-9_-]/', '_', (string) $fileType) ?: 'doc';
-                    $newFileName = "{$safeFileType}_{$fileIdNumberAttach}_{$realPersonId}_" . date('Ymd_His') . '_' . uniqid() . ".{$extension}";
+                    $newFileName = app(\App\Services\AttachmentFilenameGenerator::class)->generate(
+                        $fileType,
+                        $fileIdNumberAttach,
+                        $realPersonId,
+                        $extension
+                    );
                     $folder = 'uploads/' . $fileIdNumberAttach;
                     if ($folder === 'public' || $folder === 'public/') {
                         throw new \Exception('خطأ في مسار التخزين: يجب تحديد مجلد فرعي داخل uploads');

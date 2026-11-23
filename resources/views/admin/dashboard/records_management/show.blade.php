@@ -833,6 +833,7 @@
                     </div>
                 @endif
             </div>
+            @endif
 
             {{-- المتوفون الإضافيون في صفحة العرض --}}
             @if(isset($additionalDeceased) && $additionalDeceased->count() > 0)
@@ -862,6 +863,40 @@
                                             </div>
                                         @endif
 
+                                        @php
+                                            $adAttachments = $adDeceased->attachments ?? collect();
+                                        @endphp
+                                        <div class="mt-2 w-100">
+                                            <div class="info-label mb-1">المرفقات:</div>
+                                            @if($adAttachments->isNotEmpty())
+                                                <div class="d-flex flex-wrap">
+                                                    @foreach($adAttachments as $att)
+                                                        @php
+                                                            $isImage = Str::endsWith(strtolower($att->stored_file_name), ['jpg','jpeg','png','gif']);
+                                                        @endphp
+                                                        <a href="javascript:void(0);" class="open-attachments-modal"
+                                                            data-attachments='@json($attachmentPayload($adAttachments))'
+                                                            data-index="{{ $loop->index }}">
+                                                            @if($isImage)
+                                                                <img src="{{ route('admin.file.show', ['filename' => $att->stored_file_name ?: basename($att->file_path)]) }}"
+                                                                     class="attachment-thumb"
+                                                                     alt="مرفق"
+                                                                     oncontextmenu="return false;"
+                                                                     ondragstart="return false;"
+                                                                     style="user-select: none; -webkit-user-select: none;">
+                                                            @else
+                                                                <span class="attachment-thumb d-flex align-items-center justify-content-center bg-light">
+                                                                    <i class="bi bi-file-earmark-pdf" style="font-size: 1.5rem; color: #d9534f;"></i>
+                                                                </span>
+                                                            @endif
+                                                        </a>
+                                                    @endforeach
+                                                </div>
+                                            @else
+                                                <span class="text-muted">لا يوجد</span>
+                                            @endif
+                                        </div>
+
                                         @include('admin.dashboard.records_management.partials.sponsor_actions', [
                                             'personKey' => 'ad_' . $adDeceased->id,
                                             'personType' => 'additional_deceased',
@@ -880,7 +915,7 @@
                 </div>
             @endif
 
-        @else
+        @if(!$data->deadPepole && (!isset($additionalDeceased) || $additionalDeceased->isEmpty()))
             <p class="text-muted">لا توجد بيانات متوفين.</p>
         @endif
     </div>

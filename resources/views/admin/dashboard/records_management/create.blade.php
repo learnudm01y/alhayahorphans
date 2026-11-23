@@ -775,6 +775,7 @@
                                                                         الأم المتوفية
                                                                     </option>
                                                                 </optgroup>
+                                                                <optgroup label="المتوفون الإضافيون" id="additional_deceased_options"></optgroup>
                                                             </select>
 
                                                             <!-- حقل مخفي لإرسال رقم الهوية -->
@@ -877,6 +878,12 @@
                                                                                 class="documents-flex-container">
                                                                                 <!-- وثائق الأم المتوفية ستظهر هنا -->
                                                                             </div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="col-12" id="additional_deceased_docs">
+                                                                        <div class="deceased-docs-section">
+                                                                            <h6 class="text-primary mb-3">وثائق المتوفين الإضافيين</h6>
+                                                                            <div id="additional_deceased_docs_list"></div>
                                                                         </div>
                                                                     </div>
                                                                 </div>

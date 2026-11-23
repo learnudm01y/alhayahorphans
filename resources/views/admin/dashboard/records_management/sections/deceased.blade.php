@@ -277,6 +277,47 @@
         return opts;
     }
 
+    function syncAdditionalDeceasedAttachmentOptions() {
+        var selector = document.getElementById('person_selector');
+        var group = document.getElementById('additional_deceased_options');
+        if (!selector || !group) return;
+
+        var activeKeys = new Set();
+        var fileIdInput = document.querySelector('input[name="file_id_number"]');
+        var mainOption = selector.querySelector('option[value="main"]');
+        var fileId = fileIdInput ? fileIdInput.value : (mainOption ? mainOption.dataset.id : '');
+
+        document.querySelectorAll('#additionalDeceasedContainer .additional-deceased-form').forEach(function (form) {
+            var index = form.dataset.index;
+            if (!/^\d+$/.test(index || '')) return;
+
+            var key = 'additional_deceased_' + index;
+            activeKeys.add(key);
+            var option = Array.from(group.querySelectorAll('option')).find(function (item) {
+                return item.value === key;
+            });
+            if (!option) {
+                option = document.createElement('option');
+                option.value = key;
+                group.appendChild(option);
+            }
+
+            var idInput = form.querySelector('input[name$="[id_number]"]');
+            var name = ['first_name', 'second_name', 'third_name', 'last_name'].map(function (field) {
+                var input = form.querySelector('input[name$="[' + field + ']"]');
+                return input ? input.value.trim() : '';
+            }).filter(Boolean).join(' ');
+
+            option.dataset.id = fileId || '';
+            option.dataset.idNumber = idInput ? idInput.value.trim() : '';
+            option.textContent = name || 'متوفى إضافي رقم ' + (Number(index) + 1);
+        });
+
+        Array.from(group.querySelectorAll('option')).forEach(function (option) {
+            if (!activeKeys.has(option.value)) option.remove();
+        });
+    }
+
     function buildAdditionalDeceasedForm(index) {
         return `
         <div class="additional-deceased-form border rounded p-3 mb-3 position-relative"
@@ -360,6 +401,7 @@
                 var html = buildAdditionalDeceasedForm(AdditionalDeceasedCount);
                 container.insertAdjacentHTML('beforeend', html);
                 var newForm = container.lastElementChild;
+                syncAdditionalDeceasedAttachmentOptions();
                 var idInput = newForm.querySelector('.additional-deceased-id-input');
                 if (idInput && window.setupAdditionalDeceasedLookup) {
                     window.setupAdditionalDeceasedLookup(idInput, AdditionalDeceasedCount);
@@ -368,18 +410,22 @@
             });
         }
 
-        // حذف متوفي إضافي
         if (container) {
             container.addEventListener('click', function (e) {
                 var btn = e.target.closest('.remove-additional-deceased');
                 if (btn) {
                     btn.closest('.additional-deceased-form').remove();
+                    syncAdditionalDeceasedAttachmentOptions();
                     if (container.querySelectorAll('.additional-deceased-form').length === 0 && noMsg) {
                         noMsg.style.display = 'block';
                     }
                 }
             });
+            container.addEventListener('input', syncAdditionalDeceasedAttachmentOptions);
+            container.addEventListener('change', syncAdditionalDeceasedAttachmentOptions);
         }
+
+        syncAdditionalDeceasedAttachmentOptions();
 
         // ربط البحث بالهوية للمتوفين الموجودين مسبقاً
         document.querySelectorAll('.additional-deceased-id-input').forEach(function (inp) {

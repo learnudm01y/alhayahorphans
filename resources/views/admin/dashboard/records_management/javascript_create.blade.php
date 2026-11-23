@@ -215,9 +215,14 @@
                     });
                     return;
                 }
+            } else if (selectedPerson.startsWith('additional_deceased_')) {
+                const deceasedIndex = selectedPerson.replace('additional_deceased_', '');
+                const idInput = document.querySelector(`input[name="additional_deceased[${deceasedIndex}][id_number]"]`);
+                idNumber = idInput ? idInput.value.trim() : '';
             } else {
                 const familyIndex = selectedPerson.split('_')[1];
-                idNumber = document.querySelector(`input[name="family_members[${familyIndex}][person_id]"]`).value;
+                const idInput = document.querySelector(`input[name="family_members[${familyIndex}][person_id]"]`);
+                idNumber = idInput ? idInput.value.trim() : '';
             }
 
             // تحديث التحقق من رقم الهوية
@@ -280,6 +285,27 @@
                 document.getElementById('father_docs').insertAdjacentHTML('beforeend', docHTML);
             } else if (selectedPerson === 'deceased_mother') {
                 document.getElementById('mother_docs').insertAdjacentHTML('beforeend', docHTML);
+            } else if (selectedPerson.startsWith('additional_deceased_')) {
+                const containerId = `docs_container_${selectedPerson}`;
+                let docContainer = document.getElementById(containerId);
+                if (!docContainer) {
+                    const section = document.createElement('div');
+                    section.className = 'mb-4';
+                    section.id = `${selectedPerson}_section`;
+
+                    const heading = document.createElement('div');
+                    heading.className = 'fw-bold text-danger mb-2';
+                    heading.textContent = personName.trim();
+                    section.appendChild(heading);
+
+                    docContainer = document.createElement('div');
+                    docContainer.id = containerId;
+                    docContainer.className = 'documents-flex-container d-flex flex-nowrap overflow-auto gap-3 py-2';
+                    section.appendChild(docContainer);
+                    document.getElementById('additional_deceased_docs_list').appendChild(section);
+                }
+                docContainer.querySelector('.no-documents-message')?.remove();
+                docContainer.insertAdjacentHTML('beforeend', docHTML);
             } else if (selectedPerson === 'main') {
                 document.getElementById('main_person_docs').insertAdjacentHTML('beforeend', docHTML);
             } else {
@@ -1812,6 +1838,45 @@
         return opts;
     }
 
+    function syncCreateAdditionalDeceasedOptions() {
+        var selector = document.getElementById('person_selector');
+        var group = document.getElementById('additional_deceased_options');
+        if (!selector || !group) return;
+
+        var activeKeys = new Set();
+        var fileIdInput = document.querySelector('input[name="file_id_number"]');
+        var fileId = fileIdInput ? fileIdInput.value : '';
+        document.querySelectorAll('#additionalDeceasedContainerCreate .additional-deceased-form').forEach(function (form) {
+            var index = form.dataset.index;
+            if (!/^\d+$/.test(index || '')) return;
+
+            var key = 'additional_deceased_' + index;
+            activeKeys.add(key);
+            var option = Array.from(group.querySelectorAll('option')).find(function (item) {
+                return item.value === key;
+            });
+            if (!option) {
+                option = document.createElement('option');
+                option.value = key;
+                group.appendChild(option);
+            }
+
+            var idInput = form.querySelector('input[name$="[id_number]"]');
+            var name = ['first_name', 'second_name', 'third_name', 'last_name'].map(function (field) {
+                var input = form.querySelector('input[name$="[' + field + ']"]');
+                return input ? input.value.trim() : '';
+            }).filter(Boolean).join(' ');
+
+            option.dataset.id = fileId || '';
+            option.dataset.idNumber = idInput ? idInput.value.trim() : '';
+            option.textContent = name || 'متوفى إضافي رقم ' + (Number(index) + 1);
+        });
+
+        Array.from(group.querySelectorAll('option')).forEach(function (option) {
+            if (!activeKeys.has(option.value)) option.remove();
+        });
+    }
+
     function buildCreateAdditionalDeceasedForm(index) {
         return `
         <div class="additional-deceased-form border rounded p-3 mb-3 position-relative"
@@ -1882,6 +1947,7 @@
             addBtn.addEventListener('click', function () {
                 if (noMsg) noMsg.style.display = 'none';
                 container.insertAdjacentHTML('beforeend', buildCreateAdditionalDeceasedForm(createDeceasedCount));
+                syncCreateAdditionalDeceasedOptions();
                 var newForm = container.lastElementChild;
                 var idInput = newForm.querySelector('.additional-deceased-id-input');
                 if (idInput && window.setupAdditionalDeceasedLookup) {
@@ -1894,11 +1960,14 @@
                 var btn = e.target.closest('.remove-additional-deceased-create');
                 if (btn) {
                     btn.closest('.additional-deceased-form').remove();
+                    syncCreateAdditionalDeceasedOptions();
                     if (container.querySelectorAll('.additional-deceased-form').length === 0 && noMsg) {
                         noMsg.style.display = 'block';
                     }
                 }
             });
+            container.addEventListener('input', syncCreateAdditionalDeceasedOptions);
+            container.addEventListener('change', syncCreateAdditionalDeceasedOptions);
         }
     });
 })();

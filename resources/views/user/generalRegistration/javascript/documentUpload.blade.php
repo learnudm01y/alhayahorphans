@@ -1392,6 +1392,19 @@
                             personId = 'default_mother';
                             console.log('[handleFileSelection] استخدام قيمة افتراضية للأم المتوفية:', personId);
                         }
+                    } else if (/^additional_deceased_\d+$/.test(personKey)) {
+                        const form = zone.closest('.additional-deceased-form');
+                        const personIdInput = form ? form.querySelector('input[name$="[id_number]"]') : null;
+                        personId = personIdInput ? personIdInput.value.trim() : '';
+                        if (!/^[0-9]{9}$/.test(personId)) {
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'تنبيه',
+                                text: 'أدخل رقم هوية المتوفى المكوّن من تسعة أرقام قبل رفع الوثيقة.',
+                                confirmButtonText: 'حسناً'
+                            });
+                            return;
+                        }
                     } else if (personKey.startsWith('family_')) {
                         const form = zone.closest('.family-member-form');
                         if (form) {
@@ -1500,6 +1513,8 @@
                     window.renderAttachmentTasksUI(personKey);
                 });
             }
+
+            window.initUploadZone = initUploadZone;
 
             // تهيئة جميع مناطق الرفع الموجودة عند تحميل الصفحة
             function initializeAllUploadZones() {

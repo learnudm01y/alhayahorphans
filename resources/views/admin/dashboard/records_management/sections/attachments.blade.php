@@ -43,6 +43,17 @@
                     الأم المتوفية
                 </option>
             </optgroup>
+            <optgroup label="المتوفون الإضافيون" id="additional_deceased_options">
+                @if(isset($additionalDeceased))
+                    @foreach($additionalDeceased as $index => $adDeceased)
+                        <option value="additional_deceased_{{ $index }}"
+                                data-id="{{ $data->file_id_number ?? $file_id_number ?? '' }}"
+                                data-id-number="{{ $adDeceased->person_id ?? '' }}">
+                            {{ $adDeceased->full_name ?: 'متوفى إضافي رقم ' . ($index + 1) }}
+                        </option>
+                    @endforeach
+                @endif
+            </optgroup>
         </select>
     </div>
 
@@ -300,6 +311,55 @@
                                         @endforelse
                                     @else
                                         <span class="text-muted">لا توجد مرفقات للأم المتوفية.</span>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12" id="additional_deceased_docs">
+                            <div class="deceased-docs-section">
+                                <div class="bg-primary bg-opacity-10 border border-primary rounded-top px-3 py-2 mb-2 text-primary fw-bold text-center">
+                                    المتوفون الإضافيون
+                                </div>
+                                <div id="additional_deceased_docs_list">
+                                    @if(isset($additionalDeceased))
+                                        @foreach($additionalDeceased as $index => $adDeceased)
+                                            <div class="mb-4" id="additional_deceased_{{ $index }}_section">
+                                                <div class="fw-bold text-danger mb-2">{{ $adDeceased->full_name ?: 'متوفى إضافي رقم ' . ($index + 1) }}</div>
+                                                <div id="docs_container_additional_deceased_{{ $index }}" class="documents-flex-container d-flex flex-nowrap overflow-auto gap-3 py-2">
+                                                    @forelse($adDeceased->attachments as $attachment)
+                                                        <div class="document-card card">
+                                                            <div class="card-header d-flex justify-content-center align-items-center gap-2 p-2" style="min-height: 70px;">
+                                                                <h6 class="mb-1 small">{{ $attachment->file_type }}</h6>
+                                                                <div class="d-flex gap-2">
+                                                                    <a href="{{ route('admin.file.show', ['filename' => basename($attachment->file_path)]) }}"
+                                                                        @if(Str::endsWith($attachment->file_path, ['jpg','jpeg','png']))
+                                                                            class="btn btn-sm btn-primary btn-preview-image"
+                                                                            data-img-src="{{ route('admin.file.show', ['filename' => basename($attachment->file_path)]) }}"
+                                                                            data-bs-toggle="modal"
+                                                                            data-bs-target="#imagePreviewModal"
+                                                                            onclick="event.preventDefault(); document.getElementById('imagePreviewModalImg').src=this.getAttribute('data-img-src');"
+                                                                        @else
+                                                                            class="btn btn-sm btn-primary"
+                                                                            target="_blank"
+                                                                        @endif
+                                                                    >عرض</a>
+                                                                    <button type="button" class="btn btn-sm btn-danger delete-attachment" data-id="{{ $attachment->id }}">حذف</button>
+                                                                </div>
+                                                            </div>
+                                                            <div class="card-body text-center">
+                                                                @if(Str::endsWith($attachment->file_path, ['jpg','jpeg','png']))
+                                                                    <img src="{{ route('admin.file.show', ['filename' => basename($attachment->file_path)]) }}" class="img-fluid" style="max-height:120px;">
+                                                                @else
+                                                                    <span class="text-muted">{{ $attachment->stored_file_name }}</span>
+                                                                @endif
+                                                            </div>
+                                                        </div>
+                                                    @empty
+                                                        <span class="text-muted no-documents-message">لا توجد مرفقات لهذا المتوفى.</span>
+                                                    @endforelse
+                                                </div>
+                                            </div>
+                                        @endforeach
                                     @endif
                                 </div>
                             </div>

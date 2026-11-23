@@ -345,6 +345,28 @@
                     if (motherNoDocsMsg && motherNoDocsMsg.textContent.includes('لا توجد مرفقات')) {
                         motherNoDocsMsg.remove();
                     }
+                } else if (personKey.startsWith('additional_deceased_')) {
+                    const safeKey = personKey.replace(/[^a-zA-Z0-9_-]/g, '_');
+                    const containerId = `docs_container_${safeKey}`;
+                    let container = document.getElementById(containerId);
+                    if (!container) {
+                        const section = document.createElement('div');
+                        section.className = 'mb-4';
+                        section.id = `${safeKey}_section`;
+
+                        const heading = document.createElement('div');
+                        heading.className = 'fw-bold text-danger mb-2';
+                        heading.textContent = personName.trim();
+                        section.appendChild(heading);
+
+                        container = document.createElement('div');
+                        container.id = containerId;
+                        container.className = 'documents-flex-container d-flex flex-nowrap overflow-auto gap-3 py-2';
+                        section.appendChild(container);
+                        document.getElementById('additional_deceased_docs_list')?.appendChild(section);
+                    }
+                    container?.querySelector('.no-documents-message')?.remove();
+                    container?.insertAdjacentHTML('beforeend', cardHtml);
                 } else if (personKey.startsWith('family_')) {
                     const safeKey = personKey.replace(/[^a-zA-Z0-9_-]/g, '_');
                     let section = document.getElementById(`family_member_${safeKey}`);
@@ -450,6 +472,157 @@
             }
         }
 
+        function showGuardianMergeDialog(payload) {
+            const files = (payload.files || []).filter(Boolean);
+            const container = document.createElement('div');
+            container.className = 'text-end';
+            container.style.maxHeight = '55vh';
+            container.style.overflowY = 'auto';
+
+            const explanation = document.createElement('p');
+            explanation.className = 'alert alert-warning';
+            explanation.textContent = 'اختر الملف الذي سيبقى. سيتم نقل الارتباطات والمرفقات إليه وحذف ملف المعيل الآخر، ولا يمكن التراجع عن الدمج.';
+            container.appendChild(explanation);
+
+            files.forEach((file, index) => {
+                const card = document.createElement('label');
+                card.className = 'd-flex align-items-start gap-3 border rounded p-3 mb-2 cursor-pointer';
+
+                const radio = document.createElement('input');
+                radio.type = 'radio';
+                radio.name = 'guardian_merge_survivor';
+                radio.value = file.file_id_number || '';
+                radio.className = 'form-check-input mt-1';
+                radio.checked = index === 0;
+
+                const details = document.createElement('div');
+                details.className = 'flex-grow-1';
+                const title = document.createElement('div');
+                title.className = 'fw-bold mb-2';
+                title.textContent = file.full_name || 'بدون اسم';
+                details.appendChild(title);
+
+                const rows = [
+                    ['رقم الملف', file.file_id_number],
+                    ['رقم الهوية', file.data_id_number],
+                    ['رقم الجوال', file.phone || '—'],
+                    ['عدد الارتباطات', Object.values(file.counts || {}).reduce((sum, count) => sum + Number(count || 0), 0)],
+                ];
+                rows.forEach(([label, value]) => {
+                    const row = document.createElement('div');
+                    row.className = 'small mb-1';
+                    const strong = document.createElement('strong');
+                    strong.textContent = `${label}: `;
+                    row.appendChild(strong);
+                    row.appendChild(document.createTextNode(value === null || value === undefined || value === '' ? '—' : value));
+                    details.appendChild(row);
+                });
+
+                card.appendChild(radio);
+                card.appendChild(details);
+                container.appendChild(card);
+            });
+
+            return Swal.fire({
+                title: 'يوجد ملف معيل بنفس رقم الهوية',
+                html: container,
+                icon: 'warning',
+                width: 720,
+                showCancelButton: true,
+                confirmButtonText: 'نعم، دمج الملفين',
+                cancelButtonText: 'إلغاء',
+                confirmButtonColor: '#d33',
+                focusCancel: true,
+                preConfirm: () => {
+                    const selected = container.querySelector('input[name="guardian_merge_survivor"]:checked');
+                    if (!selected?.value) {
+                        Swal.showValidationMessage('اختر الملف الذي سيبقى بعد الدمج.');
+                        return false;
+                    }
+                    return selected.value;
+                },
+            }).then(result => result.isConfirmed ? result.value : null);
+        }
+
+        async function submitFormData(formData) {
+            const submitBtn = mainForm.querySelector('[type="submit"]');
+            const originalBtnHtml = mainForm.dataset.originalSubmitHtml || submitBtn?.innerHTML || '';
+            mainForm.dataset.originalSubmitHtml = originalBtnHtml;
+            mainForm.dataset.submitting = 'true';
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> جاري الحفظ...';
+            }
+
+            try {
+                clearValidationErrors();
+                const actionUrl = mainForm.getAttribute('action') || window.location.href;
+                const csrfTokenMeta = document.querySelector('meta[name="csrf-token"]');
+                const headers = {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                };
+                if (csrfTokenMeta) headers['X-CSRF-TOKEN'] = csrfTokenMeta.getAttribute('content');
+
+                const response = await fetch(actionUrl, {
+                    method: 'POST',
+                    headers,
+                    body: formData,
+                });
+                const resultData = await response.json().catch(() => null);
+
+                if (response.status === 409 && resultData?.code === 'guardian_duplicate') {
+                    const keepFile = await showGuardianMergeDialog(resultData);
+                    if (!keepFile) return;
+
+                    formData.set('guardian_merge_confirmed', '1');
+                    formData.set('guardian_merge_identity', resultData.identity || '');
+                    formData.set('guardian_merge_keep_file', keepFile);
+                    formData.set('guardian_merge_expected_ids', JSON.stringify(resultData.expected_record_ids || []));
+                    await submitFormData(formData);
+                    return;
+                }
+
+                if (!response.ok) {
+                    if (response.status === 422) {
+                        displayValidationErrors(resultData?.errors || {});
+                        const messages = Object.values(resultData?.errors || {}).flat();
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'لا يمكن الحفظ',
+                            text: messages.join('\n') || 'يرجى تصحيح الأخطاء المعروضة في النموذج.',
+                        });
+                        return;
+                    }
+                    throw new Error(resultData?.message || `خطأ على الخادم (${response.status})`);
+                }
+
+                const warnings = resultData?.warnings || [];
+                await Swal.fire({
+                    icon: warnings.length ? 'warning' : 'success',
+                    title: resultData?.merged ? 'تم الحفظ والدمج' : 'تم الحفظ',
+                    text: [resultData?.message || 'تم حفظ البيانات بنجاح', ...warnings].join('\n'),
+                });
+                if (resultData?.merged && resultData.redirect_url) {
+                    window.location.href = resultData.redirect_url;
+                }
+                logInfo('Form submission success', { resultData });
+            } catch (err) {
+                logError('Error submitting form', { error: err });
+                Swal.fire({
+                    icon: 'error',
+                    title: 'خطأ',
+                    text: err.message || 'حدث خطأ أثناء الحفظ',
+                });
+            } finally {
+                mainForm.dataset.submitting = 'false';
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalBtnHtml;
+                }
+            }
+        }
+
         // ==========================
         // Main Form Submission
         if (mainForm) {
@@ -472,140 +645,37 @@
                     }
                 }
 
-                (async function() {
-                    clearValidationErrors();
+                if (mainForm.dataset.submitting === 'true') return;
 
-                    const submitBtn = mainForm.querySelector('[type="submit"]');
-                    const originalBtnHtml = submitBtn ? submitBtn.innerHTML : '';
-                    if (submitBtn) {
-                        submitBtn.disabled = true;
-                        submitBtn.innerHTML =
-                            '<span class="spinner-border spinner-border-sm"></span> جاري الحفظ...';
-                    }
+                const formData = new FormData(mainForm);
+                let pIndex = 0;
+                for (const [personKey, entry] of attachmentsByPerson.entries()) {
+                    formData.append(
+                        `attachmentsByPerson[${pIndex}][person_identity_number]`,
+                        entry.personIdentityNumber);
+                    formData.append(`attachmentsByPerson[${pIndex}][file_id_number]`,
+                        entry.fileIdNumber);
+                    formData.append(`attachmentsByPerson[${pIndex}][person_key]`, personKey);
 
-                    try {
-                        const formData = new FormData(mainForm);
-                        let pIndex = 0;
-
-                        for (const [personKey, entry] of attachmentsByPerson.entries()) {
+                    entry.documents.forEach((docObj, j) => {
+                        if (docObj.file instanceof File) {
                             formData.append(
-                                `attachmentsByPerson[${pIndex}][person_identity_number]`,
-                                entry.personIdentityNumber);
-                            formData.append(`attachmentsByPerson[${pIndex}][file_id_number]`,
-                                entry.fileIdNumber);
-                            formData.append(`attachmentsByPerson[${pIndex}][person_key]`,
-                                personKey);
-
-                            entry.documents.forEach((docObj, j) => {
-                                // ✅ إضافة الملف فقط لو docObj.file هو نسخة من File
-                                if (docObj.file instanceof File) {
-                                    console.log(`[INFO] الملف الحالي: `, {
-                                        name: docObj.file.name,
-                                        type: docObj.file.type,
-                                        size: docObj.file.size,
-                                        isFileInstance: docObj.file instanceof File,
-                                    });
-                                    formData.append(
-                                        `attachmentsByPerson[${pIndex}][documents][${j}][file]`,
-                                        docObj.file
-                                    );
-                                } else {
-                                    console.warn(`تم تجاوز الملف لأن docObj.file ليست File، بل:`, docObj.file);
-                                }
-
-                                // ✅ القيم النصية يتم إرسالها على كل حال
-                                formData.append(
-                                    `attachmentsByPerson[${pIndex}][documents][${j}][file_type]`,
-                                    docObj.fileType ?? ''
-                                );
-                                formData.append(
-                                    `attachmentsByPerson[${pIndex}][documents][${j}][stored_file_name]`,
-                                    docObj.storedFileName ?? ''
-                                );
-                            });
-                            pIndex++;
+                                `attachmentsByPerson[${pIndex}][documents][${j}][file]`,
+                                docObj.file
+                            );
                         }
-
-                        const actionUrl = mainForm.getAttribute('action') || window.location
-                            .href;
-                        const methodInput = mainForm.querySelector('input[name="_method"]');
-                        const fetchMethod = methodInput ? 'POST' : (mainForm.getAttribute(
-                            'method')?.toUpperCase() || 'POST');
-                        const csrfTokenMeta = document.querySelector('meta[name="csrf-token"]');
-                        const headers = csrfTokenMeta ? {
-                            'X-CSRF-TOKEN': csrfTokenMeta.getAttribute('content'),
-                        } : {};
-
-                        const response = await fetch(actionUrl, {
-                            method: fetchMethod,
-                            headers,
-                            body: formData,
-                        });
-
-                        if (submitBtn) {
-                            submitBtn.disabled = false;
-                            submitBtn.innerHTML = originalBtnHtml;
-                        }
-
-                        if (!response.ok) {
-                            if (response.status === 422) {
-                                const data = await response.json();
-                                displayValidationErrors(data.errors || {});
-
-                                // عرض رسالة خطأ واضحة للمستخدم
-                                const errMessages = Object.values(data.errors || {}).flat();
-                                Swal.fire({
-                                    icon: 'error',
-                                    title: 'لا يمكن الحفظ',
-                                    html: 'يرجى تصحيح الأخطاء التالية:<br><ul style="text-align:right">' +
-                                        errMessages.map(m => `<li>${m}</li>`).join('') + '</ul>',
-                                    confirmButtonText: 'حسناً',
-                                    confirmButtonColor: '#d33'
-                                });
-                                return;
-                            }
-                            let errText = '';
-                            try {
-                                errText = await response.text();
-                            } catch (_) {}
-
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'خطأ',
-                                text: `خطأ على الخادم (${response.status})${errText ? ': ' + errText : ''}`
-                            });
-                            logError('Error submitting form', {
-                                status: response.status,
-                                error: errText,
-                            });
-                            return;
-                        }
-
-                        const resultData = await response.json().catch(() => null);
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'تم الحفظ',
-                            text: resultData?.message || 'تم حفظ البيانات بنجاح',
-                        });
-                        logInfo('Form submission success', {
-                            resultData
-                        });
-
-                    } catch (err) {
-                        if (submitBtn) {
-                            submitBtn.disabled = false;
-                            submitBtn.innerHTML = originalBtnHtml;
-                        }
-                        logError('Error submitting form', {
-                            error: err
-                        });
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'خطأ',
-                            text: err.message || 'حدث خطأ أثناء الحفظ',
-                        });
-                    }
-                })();
+                        formData.append(
+                            `attachmentsByPerson[${pIndex}][documents][${j}][file_type]`,
+                            docObj.fileType ?? ''
+                        );
+                        formData.append(
+                            `attachmentsByPerson[${pIndex}][documents][${j}][stored_file_name]`,
+                            docObj.storedFileName ?? ''
+                        );
+                    });
+                    pIndex++;
+                }
+                submitFormData(formData);
             });
         }
 

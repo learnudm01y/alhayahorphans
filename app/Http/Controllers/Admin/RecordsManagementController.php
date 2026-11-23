@@ -456,23 +456,22 @@ class RecordsManagementController extends Controller
 
             if ($request->hasFile('document_file')) {
                 $files = $request->file('document_file');
-                $names = $request->input('stored_file_name', []);
                 $types = $request->input('file_type', []);
                 $personIds = $request->input('person_identity_number', []);
 
                 foreach ($files as $index => $file) {
-                    $storedFileName = $names[$index] ?? $file->getClientOriginalName();
                     $personId = $personIds[$index] ?? null;
                     $type = $types[$index] ?? null;
-
-                    // تحقق من وجود اسم ملف صالح
-                    if (!$storedFileName) {
-                        $storedFileName = $file->getClientOriginalName();
-                    }
-                    // إذا بقي الاسم فارغًا لأي سبب، تجاهل التخزين
-                    if (!$file || !$storedFileName) {
+                    if (!$file) {
                         continue;
                     }
+
+                    $storedFileName = app(\App\Services\AttachmentFilenameGenerator::class)->generate(
+                        $type,
+                        $fileIdNumber,
+                        (string) $personId,
+                        $file->getClientOriginalExtension()
+                    );
 
                     $folder = 'uploads/' . $fileIdNumber; // يجب أن يكون دائماً مجلد فرعي
                     // منع أي محاولة لتخزين في مجلد public مباشرة
@@ -504,14 +503,7 @@ class RecordsManagementController extends Controller
                 $fileIdNumberAttach = isset($attachmentsData[$index]['file_id_number'])
                     ? str_pad($attachmentsData[$index]['file_id_number'], 6, '0', STR_PAD_LEFT)
                     : $fileIdNumber;
-                $storedFileName = $attachmentsData[$index]['stored_file_name'] ?? ($file ? $file->getClientOriginalName() : null);
-
-                // تحقق من وجود اسم ملف صالح
-                if (!$storedFileName && $file) {
-                    $storedFileName = $file->getClientOriginalName();
-                }
-                // إذا بقي الاسم فارغًا لأي سبب، تجاهل التخزين
-                if (!$file || !$storedFileName) {
+                if (!$file) {
                     continue;
                 }
 
@@ -527,15 +519,22 @@ class RecordsManagementController extends Controller
                     $familyIndex = (int)str_replace('family_', '', $personType);
                     $familyMembers = $request->input('family_members', []);
                     $realPersonId = isset($familyMembers[$familyIndex]['person_id']) ? $familyMembers[$familyIndex]['person_id'] : null;
+                } elseif (preg_match('/^additional_deceased_(\d+)$/', $personType, $matches)) {
+                    $realPersonId = $request->input("additional_deceased.{$matches[1]}.id_number");
                 } else {
                     // إذا كان رقم فعلي بالفعل
                     $realPersonId = is_numeric($personType) ? $personType : null;
                 }
 
                 // فقط إذا كان رقم الهوية رقمي وغير فارغ
-                if ($file && $realPersonId && $fileType && $fileIdNumberAttach && $storedFileName && preg_match('/^\d+$/', $realPersonId)) {
+                if ($file && $realPersonId && $fileType && $fileIdNumberAttach && preg_match('/^\d+$/', $realPersonId)) {
                     $extension = $file->getClientOriginalExtension();
-                    $newFileName = "{$fileType}_{$fileIdNumberAttach}_{$realPersonId}.{$extension}";
+                    $newFileName = app(\App\Services\AttachmentFilenameGenerator::class)->generate(
+                        $fileType,
+                        $fileIdNumberAttach,
+                        $realPersonId,
+                        $extension
+                    );
 
                     $folder = 'uploads/' . $fileIdNumberAttach; // يجب أن يكون دائماً مجلد فرعي
                     if ($folder === 'public' || $folder === 'public/') {

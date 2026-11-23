@@ -418,7 +418,12 @@
                               cancelButtonText: 'إلغاء'
                           }).then((result) => {
                               if (result.isConfirmed) {
-                                  btn.closest('.additional-deceased-form').remove();
+                                  const form = btn.closest('.additional-deceased-form');
+                                  const personKey = `additional_deceased_${form.dataset.index}`;
+                                  if (typeof window.removeAllAttachmentTasksForPersonKey === 'function') {
+                                      window.removeAllAttachmentTasksForPersonKey(personKey);
+                                  }
+                                  form.remove();
                                   additionalDeceasedCount--;
                                   if (additionalDeceasedCount < maxAdditionalDeceased) {
                                       addAnotherDeceasedBtn.disabled = false;
@@ -448,64 +453,10 @@
                   });
               }
 
-              // 🆕 دالة ربط رفع الملفات للنماذج المولدة ديناميكياً
               function setupAdditionalDeceasedFileUpload(index) {
-                  const docSelect = document.getElementById(`mainDocumentTypeSelect_additional_${index}`);
-                  const fileInput = document.getElementById(`mainDocumentFileInput_additional_${index}`);
                   const uploadZone = document.querySelector(`[data-upload-zone="additional_deceased_${index}"]`);
-
-                  if (docSelect && fileInput && uploadZone) {
-                      console.log(`🔧 [setupAdditionalDeceasedFileUpload] ربط event listeners للمتوفي الإضافي #${index}`);
-
-                      // عند اختيار نوع وثيقة، افتح متصفح الملفات
-                      docSelect.addEventListener('change', function() {
-                          if (this.value && !this.disabled) {
-                              console.log(`📂 [setupAdditionalDeceasedFileUpload] فتح متصفح الملفات للمتوفي #${index}, نوع الوثيقة:`, this.value);
-                              // تم إيقاف الفتح التلقائي هنا لمنع تكرار فتح النافذة
-                              // fileInput.click();
-                          }
-                      });
-
-                      // عند اختيار ملف، قم برفعه
-                      fileInput.addEventListener('change', function(e) {
-                          if (e.target.files && e.target.files.length > 0) {
-                              const file = e.target.files[0];
-                              const personKey = `additional_deceased_${index}`;
-                              const docTypeValue = docSelect.value;
-                              const idInput = document.querySelector(`[name="additional_deceased[${index}][id_number]"]`);
-                              const personId = idInput ? idInput.value.trim() : '';
-
-                              // الحصول على اسم الوثيقة من النص المعروض
-                              const docTypeName = docSelect.options[docSelect.selectedIndex]?.text || docTypeValue;
-
-                              console.log(`📤 [setupAdditionalDeceasedFileUpload] رفع ملف:`, {
-                                  file: file.name,
-                                  personKey: personKey,
-                                  docType: docTypeValue,
-                                  docTypeName: docTypeName,
-                                  personId: personId
-                              });
-
-                              if (typeof window.addAttachmentTask === 'function') {
-                                  window.addAttachmentTask(personKey, file, docTypeValue, personId, fileIdNumber, docTypeName);
-                              } else {
-                                  console.error('❌ window.addAttachmentTask غير متوفرة');
-                              }
-
-                              // إعادة تعيين القائمة المنسدلة
-                              docSelect.selectedIndex = 0;
-                              // إعادة تعيين input الملف
-                              fileInput.value = '';
-                          }
-                      });
-
-                      console.log(`✅ [setupAdditionalDeceasedFileUpload] تم ربط event listeners بنجاح للمتوفي #${index}`);
-                  } else {
-                      console.error(`❌ [setupAdditionalDeceasedFileUpload] لم يتم العثور على العناصر للمتوفي #${index}:`, {
-                          hasDocSelect: !!docSelect,
-                          hasFileInput: !!fileInput,
-                          hasUploadZone: !!uploadZone
-                      });
+                  if (uploadZone && typeof window.initUploadZone === 'function') {
+                      window.initUploadZone(uploadZone);
                   }
               }
 

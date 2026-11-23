@@ -336,9 +336,198 @@ class GuardianDuplicateMergeService
 
     protected function moveAllRecords(string $fromFile, string $toFile, string $identity): array
     {
-        $counts = $this->guardianFileService->relinkFile($fromFile, $toFile, null, $identity);
+        $counts = $this->mergeDeceasedRecords($fromFile, $toFile);
+        $counts = $this->sumCounts(
+            $counts,
+            $this->guardianFileService->relinkFile($fromFile, $toFile, null, $identity) ?: []
+        );
 
-        return $this->sumCounts($counts ?: [], $this->moveExtendedRecords($fromFile, $toFile));
+        return $this->sumCounts($counts, $this->moveExtendedRecords($fromFile, $toFile));
+    }
+
+    protected function mergeDeceasedRecords(string $fromFile, string $toFile): array
+    {
+        $fromCandidates = $this->guardianFileService->fileCandidates($fromFile);
+        $toCandidates = $this->guardianFileService->fileCandidates($toFile);
+        $normalizedTo = $this->guardianFileService->normalizeFileNumber($toFile);
+        $counts = [
+            'dead_people' => 0,
+            'additional_deceased' => 0,
+            'deceased_converted' => 0,
+            'deceased_duplicates_skipped' => 0,
+        ];
+
+        if (empty($fromCandidates) || empty($toCandidates)) {
+            return $counts;
+        }
+
+        $sourcePrimary = DB::table('dead_people')
+            ->whereIn('re_file_id', $fromCandidates)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+        $hasAdditionalTable = Schema::hasTable('additional_deceased');
+        $sourceAdditional = $hasAdditionalTable
+            ? DB::table('additional_deceased')->whereIn('re_file_id', $fromCandidates)->orderBy('id')->lockForUpdate()->get()
+            : collect();
+
+        if ($sourcePrimary->isEmpty() && $sourceAdditional->isEmpty()) {
+            return $counts;
+        }
+
+        $targetPrimary = DB::table('dead_people')
+            ->whereIn('re_file_id', $toCandidates)
+            ->lockForUpdate()
+            ->get();
+        $targetAdditional = $hasAdditionalTable
+            ? DB::table('additional_deceased')->whereIn('re_file_id', $toCandidates)->lockForUpdate()->get()
+            : collect();
+        $targetIdentities = [];
+
+        foreach ($targetPrimary as $row) {
+            foreach (['father', 'mother'] as $role) {
+                $identity = trim((string) ($row->{$role . '_id'} ?? ''));
+                if ($identity !== '') {
+                    $targetIdentities[$identity] = true;
+                }
+            }
+        }
+
+        foreach ($targetAdditional as $row) {
+            $identity = trim((string) ($row->person_id ?? ''));
+            if ($identity !== '') {
+                $targetIdentities[$identity] = true;
+            }
+        }
+
+        $targetHasPrimary = $targetPrimary->isNotEmpty();
+
+        foreach ($sourcePrimary as $row) {
+            $presentRoles = [];
+            $duplicateRoles = [];
+            $rowIdentities = [];
+
+            foreach (['father', 'mother'] as $role) {
+                if (!$this->hasDeceasedPerson($row, $role)) {
+                    continue;
+                }
+
+                $presentRoles[] = $role;
+                $identity = trim((string) ($row->{$role . '_id'} ?? ''));
+                if ($identity !== '' && (isset($targetIdentities[$identity]) || isset($rowIdentities[$identity]))) {
+                    $duplicateRoles[] = $role;
+                    continue;
+                }
+
+                if ($identity !== '') {
+                    $rowIdentities[$identity] = $role;
+                }
+            }
+
+            if (!$targetHasPrimary) {
+                $nonDuplicateRoles = array_diff($presentRoles, $duplicateRoles);
+                if (!empty($presentRoles) && empty($nonDuplicateRoles)) {
+                    DB::table('dead_people')->where('id', $row->id)->delete();
+                    $counts['dead_people']++;
+                    $counts['deceased_duplicates_skipped'] += count($duplicateRoles);
+                    continue;
+                }
+
+                $update = ['re_file_id' => $normalizedTo];
+                foreach ($duplicateRoles as $role) {
+                    foreach ($this->deceasedRoleColumns($role) as $column) {
+                        $update[$column] = null;
+                    }
+                    $counts['deceased_duplicates_skipped']++;
+                }
+
+                DB::table('dead_people')->where('id', $row->id)
+                    ->update($this->withTimestamp('dead_people', $update));
+                foreach ($rowIdentities as $identity => $role) {
+                    if (!in_array($role, $duplicateRoles, true)) {
+                        $targetIdentities[$identity] = true;
+                    }
+                }
+                $targetHasPrimary = true;
+                $counts['dead_people']++;
+                continue;
+            }
+
+            foreach ($presentRoles as $role) {
+                $identity = trim((string) ($row->{$role . '_id'} ?? ''));
+                if ($identity !== '' && isset($targetIdentities[$identity])) {
+                    $counts['deceased_duplicates_skipped']++;
+                    continue;
+                }
+
+                if (!$hasAdditionalTable) {
+                    throw new \RuntimeException('لا يمكن نقل المتوفين الإضافيين لأن الجدول غير متوفر.');
+                }
+
+                $payload = [
+                    're_file_id' => $normalizedTo,
+                    'person_id' => $row->{$role . '_id'},
+                    'first_name' => $row->{$role . '_first_name'},
+                    'second_name' => $row->{$role . '_second_name'},
+                    'third_name' => $row->{$role . '_third_name'},
+                    'last_name' => $row->{$role . '_last_name'},
+                    'relationship' => $role,
+                    'death_date' => $row->{$role . '_death_date'},
+                    'death_reason' => $row->{$role . '_death_reason'},
+                    'created_at' => now(),
+                ];
+                DB::table('additional_deceased')->insert($this->withTimestamp('additional_deceased', $payload));
+                if ($identity !== '') {
+                    $targetIdentities[$identity] = true;
+                }
+                $counts['additional_deceased']++;
+                $counts['deceased_converted']++;
+            }
+
+            DB::table('dead_people')->where('id', $row->id)->delete();
+            $counts['dead_people']++;
+        }
+
+        foreach ($sourceAdditional as $row) {
+            $identity = trim((string) ($row->person_id ?? ''));
+            if ($identity !== '' && isset($targetIdentities[$identity])) {
+                DB::table('additional_deceased')->where('id', $row->id)->delete();
+                $counts['deceased_duplicates_skipped']++;
+            } else {
+                DB::table('additional_deceased')->where('id', $row->id)
+                    ->update($this->withTimestamp('additional_deceased', ['re_file_id' => $normalizedTo]));
+                if ($identity !== '') {
+                    $targetIdentities[$identity] = true;
+                }
+            }
+            $counts['additional_deceased']++;
+        }
+
+        return $counts;
+    }
+
+    protected function hasDeceasedPerson(object $row, string $role): bool
+    {
+        foreach ($this->deceasedRoleColumns($role) as $column) {
+            if (trim((string) ($row->{$column} ?? '')) !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected function deceasedRoleColumns(string $role): array
+    {
+        return [
+            $role . '_first_name',
+            $role . '_second_name',
+            $role . '_third_name',
+            $role . '_last_name',
+            $role . '_id',
+            $role . '_death_date',
+            $role . '_death_reason',
+        ];
     }
 
     protected function moveExtendedRecords(string $fromFile, string $toFile): array

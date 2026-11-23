@@ -49,6 +49,11 @@ class AdditionalDeceased extends Model
         return $this->belongsTo(DeathReason::class, 'death_reason', 'id');
     }
 
+    public function attachments()
+    {
+        return $this->hasMany(Attachment::class, 'person_identity_number', 'person_id');
+    }
+
     /**
      * الحصول على الاسم الكامل
      */

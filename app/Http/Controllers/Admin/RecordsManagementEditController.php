@@ -106,7 +106,9 @@ class RecordsManagementEditController extends Controller
         $bankAccounts = GuardianBankAccount::where('guardian_registration', $data->file_id_number)->get();
 
         // 🪦 جلب المتوفين الإضافيين
-        $additionalDeceased = \App\Models\AdditionalDeceased::where('re_file_id', $data->file_id_number)->get();
+        $additionalDeceased = \App\Models\AdditionalDeceased::with('attachments')
+            ->where('re_file_id', $data->file_id_number)
+            ->get();
 
         return view('admin.dashboard.records_management.edit', compact(
             'data',
@@ -256,7 +258,9 @@ class RecordsManagementEditController extends Controller
         }
 
         // 🪦 جلب المتوفين الإضافيين
-        $additionalDeceased = \App\Models\AdditionalDeceased::where('re_file_id', $data->file_id_number)->get();
+        $additionalDeceased = \App\Models\AdditionalDeceased::with('attachments')
+            ->where('re_file_id', $data->file_id_number)
+            ->get();
 
         // الجمعيات الكافلة للمعيل والأب والأم والمتوفين الإضافيين في استعلام واحد
         $cardIdentities = collect([
@@ -665,8 +669,45 @@ class RecordsManagementEditController extends Controller
             DB::beginTransaction();
 
             // جلب السجل الرئيسي
-            $data = Data::findOrFail($id);
+            $data = Data::where('id', $id)->lockForUpdate()->findOrFail($id);
             Log::info('Loaded Data for update:', $data->toArray());
+
+            $newDataIdNumber = trim((string) $request->input('data_id_number'));
+            $guardianDuplicates = Data::where('data_id_number', $newDataIdNumber)
+                ->where('id', '!=', $data->id)
+                ->lockForUpdate()
+                ->orderBy('id')
+                ->get();
+            $guardianMergeKeepFile = null;
+
+            if ($guardianDuplicates->isNotEmpty() && (string) $data->data_id_number !== $newDataIdNumber) {
+                $conflict = $this->guardianMergeConflictPayload($data, $guardianDuplicates, $newDataIdNumber);
+                $mergeConfirmed = $request->boolean('guardian_merge_confirmed');
+                $expectedIds = json_decode((string) $request->input('guardian_merge_expected_ids', ''), true);
+                $currentIds = $conflict['expected_record_ids'];
+                if (is_array($expectedIds)) {
+                    $expectedIds = array_map('intval', $expectedIds);
+                    sort($expectedIds);
+                }
+
+                $keepFile = (string) $request->input('guardian_merge_keep_file', '');
+                $validKeepFile = collect($conflict['files'])->contains(
+                    fn ($file) => (string) $file['file_id_number'] === $keepFile
+                );
+
+                if (!$mergeConfirmed
+                    || (string) $request->input('guardian_merge_identity') !== $newDataIdNumber
+                    || $expectedIds !== $currentIds
+                    || !$validKeepFile) {
+                    DB::rollBack();
+                    if ($mergeConfirmed) {
+                        $conflict['message'] = 'تغيرت بيانات أحد الملفين بعد ظهور رسالة الدمج. راجع البيانات وأكد من جديد.';
+                    }
+                    return response()->json($conflict, 409);
+                }
+
+                $guardianMergeKeepFile = $keepFile;
+            }
 
             // 3. حذف المرفقات المطلوبة (existing attachments_to_delete)
             $attachmentsToDelete = $request->input('attachments_to_delete', []);
@@ -687,7 +728,6 @@ class RecordsManagementEditController extends Controller
             $fileIdNumberRaw = $request->input('file_id_number');
             $fileIdNumber = str_pad($fileIdNumberRaw, 6, '0', STR_PAD_LEFT);
             $oldDataIdNumber = $data->getOriginal('data_id_number');
-            $newDataIdNumber = $request->input('data_id_number');
 
             // التحقق من عدم تكرار رقم الملف إذا تم تغييره
             if ($fileIdNumber !== $data->getOriginal('file_id_number')) {
@@ -737,25 +777,50 @@ class RecordsManagementEditController extends Controller
             Log::info('Updated Data basic info');
 
             // 5. معالجة نقل/إعادة تسمية مرفقات قديمة عند تغيير رقم الهوية الرئيسي
-            if ($oldDataIdNumber && $oldDataIdNumber !== $newDataIdNumber) {
+            if ($oldDataIdNumber && (string) $oldDataIdNumber !== (string) $newDataIdNumber) {
                 Log::info('Updating attachments for changed data_id_number', ['old'=>$oldDataIdNumber,'new'=>$newDataIdNumber]);
+                $fileService = app(\App\Services\GuardianFileService::class);
+                $fileCandidates = collect([$data->getOriginal('file_id_number'), $fileIdNumber])
+                    ->filter()
+                    ->flatMap(fn ($fileNumber) => $fileService->fileCandidates((string) $fileNumber))
+                    ->unique()
+                    ->values();
                 $oldAttachments = Attachment::where('person_identity_number', $oldDataIdNumber)->get();
                 foreach ($oldAttachments as $attachment) {
-                    $extension = pathinfo($attachment->stored_file_name, PATHINFO_EXTENSION);
-                    $parts = explode('_', $attachment->stored_file_name);
+                    $storedName = basename((string) $attachment->stored_file_name);
+                    $normalizedPath = str_replace('\\', '/', (string) $attachment->file_path);
+                    $belongsToCurrentFile = $fileCandidates->contains(function ($candidate) use ($storedName, $normalizedPath, $oldDataIdNumber) {
+                        $candidate = (string) $candidate;
+                        return str_contains($storedName, "_{$candidate}_{$oldDataIdNumber}")
+                            || str_contains($normalizedPath, "/uploads/{$candidate}/")
+                            || str_contains($normalizedPath, "/attachments/{$candidate}/")
+                            || str_starts_with($normalizedPath, "uploads/{$candidate}/")
+                            || str_starts_with($normalizedPath, "attachments/{$candidate}/");
+                    });
+                    if (!$belongsToCurrentFile) {
+                        continue;
+                    }
+
+                    $extension = pathinfo($storedName, PATHINFO_EXTENSION);
+                    $parts = explode('_', $storedName);
                     $docType = $parts[0] ?? 'doc';
-                    $newFileName = "{$docType}_{$fileIdNumber}_{$newDataIdNumber}.{$extension}";
+                    $newFileName = app(\App\Services\AttachmentFilenameGenerator::class)->generate(
+                        $docType,
+                        $fileIdNumber,
+                        (string) $newDataIdNumber,
+                        $extension
+                    );
                     $oldStoragePath = str_replace('storage/', '', $attachment->file_path);
-                    $newRelativePath = "attachments/{$fileIdNumber}/{$newFileName}";
+                    $newRelativePath = "uploads/{$fileIdNumber}/{$newFileName}";
+                    $updates = ['person_identity_number' => $newDataIdNumber];
+
                     if (Storage::disk('public')->exists($oldStoragePath)) {
                         Storage::disk('public')->move($oldStoragePath, $newRelativePath);
+                        $updates['stored_file_name'] = $newFileName;
+                        $updates['file_path'] = "storage/{$newRelativePath}";
                     }
-                    $attachment->update([
-                        'person_identity_number' => $newDataIdNumber,
-                        'stored_file_name' => $newFileName,
-                        'file_path' => "storage/{$newRelativePath}",
-                    ]);
-                    Log::info("Renamed old attachment to {$newFileName}");
+                    $attachment->update($updates);
+                    Log::info("Updated guardian attachment identity to {$newDataIdNumber}");
                 }
             }
 
@@ -904,15 +969,20 @@ class RecordsManagementEditController extends Controller
             }
 
             // حفظ المتوفين الإضافيين (additional_deceased)
-            if ($request->input('additional_deceased_submitted') == '1') {
-                // حذف القديم وإعادة الإدراج
+            if ($request->input('additional_deceased_submitted') == '1' || $request->has('additional_deceased')) {
+                $oldAdditionalDeceased = \App\Models\AdditionalDeceased::where('re_file_id', $fileIdNumber)
+                    ->get()
+                    ->keyBy('id');
                 \App\Models\AdditionalDeceased::where('re_file_id', $fileIdNumber)->delete();
+
                 foreach ($request->input('additional_deceased', []) as $adDeceased) {
                     $personId = $adDeceased['id_number'] ?? $adDeceased['person_id'] ?? null;
-                    // تخطي الصفوف الفارغة
                     if (empty($adDeceased['first_name']) && empty($adDeceased['last_name']) && empty($personId)) {
                         continue;
                     }
+
+                    $existingId = $adDeceased['existing_id'] ?? null;
+                    $oldPersonId = $existingId ? $oldAdditionalDeceased->get($existingId)?->person_id : null;
                     \App\Models\AdditionalDeceased::create([
                         're_file_id'   => $fileIdNumber,
                         'person_id'    => $personId,
@@ -924,26 +994,18 @@ class RecordsManagementEditController extends Controller
                         'death_date'   => $adDeceased['death_date'] ?? null,
                         'death_reason' => $adDeceased['death_reason'] ?? null,
                     ]);
-                }
-            } elseif ($request->has('additional_deceased')) {
-                // fallback: إذا لم يوجد الحقل المخفي لكن يوجد المصفوفة
-                \App\Models\AdditionalDeceased::where('re_file_id', $fileIdNumber)->delete();
-                foreach ($request->input('additional_deceased', []) as $adDeceased) {
-                    $personId = $adDeceased['id_number'] ?? $adDeceased['person_id'] ?? null;
-                    if (empty($adDeceased['first_name']) && empty($adDeceased['last_name']) && empty($personId)) {
-                        continue;
+
+                    if ($oldPersonId && $personId && (string) $oldPersonId !== (string) $personId) {
+                        Attachment::where('person_identity_number', $oldPersonId)
+                            ->where(function ($query) use ($fileIdNumber) {
+                                $query->where('file_path', 'LIKE', "%/uploads/{$fileIdNumber}/%")
+                                    ->orWhere('file_path', 'LIKE', "uploads/{$fileIdNumber}/%")
+                                    ->orWhere('file_path', 'LIKE', "%/attachments/{$fileIdNumber}/%")
+                                    ->orWhere('file_path', 'LIKE', "attachments/{$fileIdNumber}/%")
+                                    ->orWhere('stored_file_name', 'LIKE', "%_{$fileIdNumber}_%");
+                            })
+                            ->update(['person_identity_number' => $personId]);
                     }
-                    \App\Models\AdditionalDeceased::create([
-                        're_file_id'   => $fileIdNumber,
-                        'person_id'    => $personId,
-                        'first_name'   => $adDeceased['first_name'] ?? null,
-                        'second_name'  => $adDeceased['second_name'] ?? null,
-                        'third_name'   => $adDeceased['third_name'] ?? null,
-                        'last_name'    => $adDeceased['last_name'] ?? null,
-                        'relationship' => $adDeceased['relationship'] ?? 'other',
-                        'death_date'   => $adDeceased['death_date'] ?? null,
-                        'death_reason' => $adDeceased['death_reason'] ?? null,
-                    ]);
                 }
             }
 
@@ -952,6 +1014,12 @@ class RecordsManagementEditController extends Controller
                 foreach ($request->input('attachmentsByPerson') as $pIndex => $personData) {
                     $personKey = $personData['person_key'] ?? null;
                     $personIdentityNumber = $personData['person_identity_number'];
+                    if (preg_match('/^additional_deceased_(\d+)$/', (string) $personKey, $matches)) {
+                        $personIdentityNumber = $request->input("additional_deceased.{$matches[1]}.id_number");
+                        if (!$personIdentityNumber) {
+                            continue;
+                        }
+                    }
                     // استخدم دومًا رقم الملف الحالي للمجلد
                     $fileIdNumberPadded = $fileIdNumber;
 
@@ -968,10 +1036,12 @@ class RecordsManagementEditController extends Controller
                                 throw new \Exception("صيغة الملف غير مدعومة ({$ext})");
                             }
                             $fileType = $docMeta['file_type'];
-                            $storedFileName = $docMeta['stored_file_name'];
-                            if (!str_ends_with($storedFileName, ".{$ext}")) {
-                                $storedFileName = "{$fileType}_{$fileIdNumberPadded}_{$personIdentityNumber}.{$ext}";
-                            }
+                            $storedFileName = app(\App\Services\AttachmentFilenameGenerator::class)->generate(
+                                $fileType,
+                                $fileIdNumberPadded,
+                                $personIdentityNumber,
+                                $ext
+                            );
                             // استخدم مجلد uploads وليس attachments
                             $folder = "uploads/{$fileIdNumberPadded}";
                             $path = $uploadedFile->storeAs("public/{$folder}", $storedFileName);
@@ -1046,16 +1116,33 @@ class RecordsManagementEditController extends Controller
                 }
             }
 
+            $guardianMergeReport = null;
+            if ($guardianMergeKeepFile !== null) {
+                $guardianMergeReport = app(\App\Services\GuardianDuplicateMergeService::class)
+                    ->mergeGroup($newDataIdNumber, $guardianMergeKeepFile);
+                if (empty($guardianMergeReport['merged'])) {
+                    throw new \RuntimeException($guardianMergeReport['message'] ?? 'فشل دمج ملفي المعيل.');
+                }
+                $data = Data::where('file_id_number', $guardianMergeReport['keep_file'])->firstOrFail();
+            }
+
             DB::commit();
             Log::info('--- Update success ---');
+            $successMessage = $guardianMergeReport
+                ? 'تم تحديث السجل ودمج ملفي المعيل بنجاح'
+                : 'تم تحديث السجل والمرفقات بنجاح';
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json([
                     'success' => true,
-                    'message' => 'تم تحديث السجل والمرفقات بنجاح'
+                    'message' => $successMessage,
+                    'merged' => (bool) $guardianMergeReport,
+                    'keep_file_id_number' => $guardianMergeReport['keep_file'] ?? $data->file_id_number,
+                    'redirect_url' => route('admin.records.management.edit', $data->id),
+                    'warnings' => $guardianMergeReport['warnings'] ?? [],
                 ]);
             }
             return redirect()->route('admin.records.management.edit', $data->id)
-                             ->with('success', 'تم تحديث السجل بنجاح');
+                             ->with('success', $successMessage);
         } catch (\Exception $e) {
             Log::error('Exception in update:', ['message'=>$e->getMessage(), 'trace'=>$e->getTraceAsString()]);
             DB::rollBack();
@@ -1068,6 +1155,42 @@ class RecordsManagementEditController extends Controller
             return redirect()->back()->withInput()->with('error', 'حدث خطأ أثناء تحديث السجل: ' . $e->getMessage());
         }
     }
+    private function guardianMergeConflictPayload(Data $current, $duplicates, string $identity): array
+    {
+        $mergeService = app(\App\Services\GuardianDuplicateMergeService::class);
+        $fileService = app(\App\Services\GuardianFileService::class);
+        $files = collect([$current])->merge($duplicates)->map(function ($record) use ($current, $mergeService, $fileService) {
+            $candidates = $fileService->fileCandidates((string) $record->file_id_number);
+
+            return [
+                'id' => (int) $record->id,
+                'is_current' => $record->id === $current->id,
+                'file_id_number' => (string) $record->file_id_number,
+                'data_id_number' => (string) $record->data_id_number,
+                'full_name' => trim(implode(' ', array_filter([
+                    $record->data_first_name,
+                    $record->data_father_name,
+                    $record->data_grand_father_name,
+                    $record->data_family_name,
+                ]))),
+                'phone' => $record->data_phone_number ? (string) $record->data_phone_number : null,
+                'created_at' => $record->created_at?->toDateTimeString(),
+                'source' => $record->data_user_insert_data,
+                'counts' => $mergeService->countReferences($candidates),
+            ];
+        })->values();
+        $expectedIds = $files->pluck('id')->map(fn ($id) => (int) $id)->sort()->values()->all();
+
+        return [
+            'success' => false,
+            'code' => 'guardian_duplicate',
+            'message' => 'رقم هوية المعيل مستخدم في ملف آخر. راجع البيانات واختر ما إذا كنت تريد دمج الملفين.',
+            'identity' => $identity,
+            'files' => $files->all(),
+            'expected_record_ids' => $expectedIds,
+        ];
+    }
+
     /**
      * حذف فرد الأسرة عبر AJAX
      */
@@ -1575,89 +1698,134 @@ class RecordsManagementEditController extends Controller
     public function delete($id)
     {
         try {
-            Log::info("🗑️ Starting deletion process for record ID: {$id}");
-
             $record = \App\Models\Data::findOrFail($id);
-            Log::info("📋 Record found", ['file_id' => $record->file_id_number, 'name' => $record->data_first_name]);
-
-            // جمع جميع أرقام الهوية المرتبطة بالسجل
-            $allIdentityNumbers = [];
-
-            // إضافة رقم الهوية الرئيسي ورقم الملف
-            if (preg_match('/^\d+$/', $record->data_id_number)) {
-                $allIdentityNumbers[] = (string) $record->data_id_number;
-            }
-            if (preg_match('/^\d+$/', $record->file_id_number)) {
-                $allIdentityNumbers[] = (string) $record->file_id_number;
+            $fileIdNumber = (string) $record->file_id_number;
+            $personIdentityNumbers = collect([$record->data_id_number])
+                ->merge(\App\Models\RePeople::where('registration_id', $fileIdNumber)->pluck('person_id'));
+            $deadRecords = \App\Models\DeadPepole::where('re_file_id', $fileIdNumber)->get();
+            foreach ($deadRecords as $dead) {
+                $personIdentityNumbers->push($dead->father_id, $dead->mother_id);
             }
 
-            // جلب جميع أفراد الأسرة المرتبطين
-            $familyMembers = \App\Models\RePeople::where('registration_id', $record->file_id_number)->get();
-            $familyPeopleIds = $familyMembers->pluck('person_id')
-                ->filter(function($id) {
-                    return preg_match('/^\d+$/', $id);
-                })
-                ->map(function($id) { return (string) $id; })
+            if (\Illuminate\Support\Facades\Schema::hasTable('additional_deceased')) {
+                $personIdentityNumbers = $personIdentityNumbers->merge(
+                    \App\Models\AdditionalDeceased::where('re_file_id', $fileIdNumber)->pluck('person_id')
+                );
+            }
+
+            $personIdentityNumbers = $personIdentityNumbers
+                ->map(fn ($identity) => trim((string) $identity))
+                ->filter(fn ($identity) => preg_match('/^\d+$/', $identity))
+                ->unique()
+                ->values();
+
+            $protectedIdentities = $personIdentityNumbers->filter(function ($identity) use ($fileIdNumber) {
+                if (\App\Models\Data::where('data_id_number', $identity)
+                    ->where('file_id_number', '!=', $fileIdNumber)->exists()) {
+                    return true;
+                }
+
+                if (\App\Models\RePeople::where('person_id', $identity)
+                    ->where('registration_id', '!=', $fileIdNumber)->exists()) {
+                    return true;
+                }
+
+                if (\App\Models\DeadPepole::where('re_file_id', '!=', $fileIdNumber)
+                    ->where(function ($query) use ($identity) {
+                        $query->where('father_id', $identity)->orWhere('mother_id', $identity);
+                    })->exists()) {
+                    return true;
+                }
+
+                return \Illuminate\Support\Facades\Schema::hasTable('additional_deceased')
+                    && \App\Models\AdditionalDeceased::where('person_id', $identity)
+                        ->where('re_file_id', '!=', $fileIdNumber)->exists();
+            })->values()->all();
+
+            $attachmentIdentities = $personIdentityNumbers
+                ->push($fileIdNumber)
+                ->filter()
+                ->unique()
                 ->values()
                 ->all();
 
-            $allIdentityNumbers = array_merge($allIdentityNumbers, $familyPeopleIds);
-            Log::info("👨‍👩‍👧‍👦 Family members IDs", $familyPeopleIds);
-
-            // جلب بيانات المتوفين المرتبطة
-            $dead = \App\Models\DeadPepole::where('re_file_id', $record->file_id_number)->first();
-            $deadIds = [];
-            if ($dead) {
-                if (preg_match('/^\d+$/', $dead->father_id)) {
-                    $deadIds[] = (string) $dead->father_id;
-                }
-                if (preg_match('/^\d+$/', $dead->mother_id)) {
-                    $deadIds[] = (string) $dead->mother_id;
-                }
-                $allIdentityNumbers = array_merge($allIdentityNumbers, $deadIds);
-            }
-            Log::info("⚰️ Deceased IDs", $deadIds);
-
-            // جلب جميع المرفقات المرتبطة بهذه الأرقام قبل الحذف
-            $attachments = [];
-            if (!empty($allIdentityNumbers)) {
-                $attachments = \App\Models\Attachment::whereIn('person_identity_number', $allIdentityNumbers)->get();
-                Log::info("📎 Found attachments", ['count' => $attachments->count()]);
+            $attachments = collect();
+            if (!empty($attachmentIdentities)) {
+                $attachments = Attachment::whereIn('person_identity_number', $attachmentIdentities)->get();
             }
 
-            // إضافة: البحث عن المرفقات بناءً على file_id_number في file_path أيضاً
-            $additionalAttachments = \App\Models\Attachment::where('file_path', 'LIKE', "%{$record->file_id_number}%")
-                ->orWhere('stored_file_name', 'LIKE', "%{$record->file_id_number}%")
-                ->get();
+            $attachments = $attachments->merge(
+                Attachment::where(function ($query) use ($fileIdNumber) {
+                    $query->where('file_path', 'LIKE', "%/uploads/{$fileIdNumber}/%")
+                        ->orWhere('file_path', 'LIKE', "uploads/{$fileIdNumber}/%")
+                        ->orWhere('file_path', 'LIKE', "%/attachments/{$fileIdNumber}/%")
+                        ->orWhere('file_path', 'LIKE', "attachments/{$fileIdNumber}/%")
+                        ->orWhere('stored_file_name', 'LIKE', "%_{$fileIdNumber}_%");
+                })->get()
+            )->unique('id')->values();
 
-            if ($additionalAttachments->count() > 0) {
-                Log::info("📎 Found additional attachments by file_id", ['count' => $additionalAttachments->count()]);
-                $attachments = $attachments->merge($additionalAttachments)->unique('id');
-                Log::info("📎 Total unique attachments", ['count' => $attachments->count()]);
-            }
+            [$protectedAttachments, $attachmentsToDelete] = $attachments->partition(
+                fn ($attachment) => in_array((string) $attachment->person_identity_number, $protectedIdentities, true)
+            );
 
-            // حذف الملفات الفيزيائية من التخزين أولاً
+            Log::info('Record deletion attachment protection', [
+                'record_id' => $record->id,
+                'file_id' => $fileIdNumber,
+                'protected_identities' => $protectedIdentities,
+                'protected_attachments' => $protectedAttachments->count(),
+                'deletable_attachments' => $attachmentsToDelete->count(),
+            ]);
+
             $deletedFiles = 0;
             $failedFiles = 0;
-            foreach ($attachments as $attachment) {
+            $attachmentIdsToDelete = $attachmentsToDelete->pluck('id')->all();
+            $normalizePath = fn ($path) => ltrim(str_replace(['storage/', '\\'], ['', '/'], (string) $path), '/');
+            $remainingNamedAttachments = collect();
+            $storedFileNames = $attachmentsToDelete->pluck('stored_file_name')->filter()->unique()->values()->all();
+            $pathsToCheck = $attachmentsToDelete->flatMap(fn ($attachment) => [
+                'uploads/' . $fileIdNumber . '/' . $attachment->stored_file_name,
+                $attachment->file_path,
+                'uploads/' . $attachment->person_identity_number . '/' . $attachment->stored_file_name,
+            ])->map($normalizePath)->filter()->unique()->values();
+            $databasePaths = $pathsToCheck->flatMap(fn ($path) => [$path, 'storage/' . $path, '/' . $path])
+                ->unique()->values()->all();
+            if (!empty($storedFileNames) || !empty($databasePaths)) {
+                $remainingNamedAttachments = Attachment::whereNotIn('id', $attachmentIdsToDelete ?: [0])
+                    ->where(function ($query) use ($storedFileNames, $databasePaths) {
+                        if (!empty($storedFileNames)) {
+                            $query->whereIn('stored_file_name', $storedFileNames);
+                        }
+                        if (!empty($databasePaths)) {
+                            $query->orWhereIn('file_path', $databasePaths);
+                        }
+                    })
+                    ->get(['id', 'file_path', 'stored_file_name']);
+            }
+
+            foreach ($attachmentsToDelete as $attachment) {
                 try {
-                    // بناء مسار الملف بطرق مختلفة للتأكد من العثور عليه
-                    $possiblePaths = [
-                        // المسار الصحيح الأكثر احتمالاً بناءً على file_id_number
-                        'uploads/' . $record->file_id_number . '/' . $attachment->stored_file_name,
-                        // المسار المباشر من file_path
+                    $possiblePaths = collect([
+                        'uploads/' . $fileIdNumber . '/' . $attachment->stored_file_name,
                         str_replace('storage/', '', $attachment->file_path ?? ''),
-                        // مسار بناءً على person_identity_number و stored_file_name (احتياطي)
                         'uploads/' . $attachment->person_identity_number . '/' . $attachment->stored_file_name,
-                        // مسار بناءً على file_path الكامل
                         ltrim($attachment->file_path ?? '', '/'),
-                    ];
+                    ])->map($normalizePath)->filter()->unique()->values();
 
                     $fileDeleted = false;
                     foreach ($possiblePaths as $path) {
-                        if ($path && Storage::disk('public')->exists($path)) {
+                        $referencedByRemainingAttachment = $remainingNamedAttachments->contains(
+                            fn ($remaining) => $normalizePath($remaining->file_path) === $path
+                        );
+                        if ($referencedByRemainingAttachment) {
+                            Log::info('Preserving shared attachment file during record deletion', [
+                                'attachment_id' => $attachment->id,
+                                'path' => $path,
+                            ]);
+                            continue;
+                        }
+
+                        if (Storage::disk('public')->exists($path)) {
                             Storage::disk('public')->delete($path);
-                            Log::info("✅ Deleted file", ['path' => $path, 'attachment_id' => $attachment->id]);
                             $deletedFiles++;
                             $fileDeleted = true;
                             break;
@@ -1665,125 +1833,59 @@ class RecordsManagementEditController extends Controller
                     }
 
                     if (!$fileDeleted) {
-                        // محاولة حذف مجلد كامل بناءً على file_id_number (الطريقة الصحيحة)
-                        $folderPath = 'uploads/' . $record->file_id_number;
-                        if (Storage::disk('public')->exists($folderPath)) {
-                            Storage::disk('public')->deleteDirectory($folderPath);
-                            Log::info("📁 Deleted entire folder using file_id", ['folder' => $folderPath]);
-                            $deletedFiles++;
-                        } else {
-                            // محاولة أخيرة بناءً على person_identity_number كخطة احتياطية
-                            $fallbackFolderPath = 'uploads/' . $attachment->person_identity_number;
-                            if (Storage::disk('public')->exists($fallbackFolderPath)) {
-                                Storage::disk('public')->deleteDirectory($fallbackFolderPath);
-                                Log::info("📁 Deleted entire folder using person_identity_number", ['folder' => $fallbackFolderPath]);
-                                $deletedFiles++;
-                            } else {
-                                Log::warning("⚠️ File not found in any expected path", [
-                                    'attachment_id' => $attachment->id,
-                                    'file_path' => $attachment->file_path,
-                                    'stored_file_name' => $attachment->stored_file_name,
-                                    'person_identity_number' => $attachment->person_identity_number,
-                                    'file_id_number' => $record->file_id_number,
-                                    'tried_paths' => $possiblePaths,
-                                    'tried_folders' => [$folderPath, $fallbackFolderPath]
-                                ]);
-                                $failedFiles++;
-                            }
-                        }
+                        $failedFiles++;
                     }
                 } catch (\Exception $e) {
-                    Log::error("❌ Error deleting file for attachment ID {$attachment->id}: " . $e->getMessage());
                     $failedFiles++;
+                    Log::error('Error deleting attachment file during record deletion', [
+                        'attachment_id' => $attachment->id,
+                        'error' => $e->getMessage(),
+                    ]);
                 }
             }
 
-            Log::info("📊 File deletion summary", [
-                'deleted_files' => $deletedFiles,
-                'failed_files' => $failedFiles,
-                'total_attachments' => $attachments->count()
-            ]);
-
-            // محاولة أخيرة لحذف مجلد السجل الرئيسي إذا كان موجوداً وفارغاً
-            $mainFolderPath = 'uploads/' . $record->file_id_number;
-            if (Storage::disk('public')->exists($mainFolderPath)) {
-                try {
-                    $remainingFiles = Storage::disk('public')->allFiles($mainFolderPath);
-                    if (empty($remainingFiles)) {
-                        Storage::disk('public')->deleteDirectory($mainFolderPath);
-                        Log::info("📁 Final cleanup: Deleted main record folder", ['folder' => $mainFolderPath]);
-                    } else {
-                        // إذا كانت هناك ملفات متبقية، احذفها بالقوة
-                        Log::warning("📁 Forcing deletion of remaining files", [
-                            'folder' => $mainFolderPath,
-                            'remaining_files' => $remainingFiles
-                        ]);
-
-                        foreach ($remainingFiles as $file) {
-                            try {
-                                Storage::disk('public')->delete($file);
-                                Log::info("🗑️ Force deleted file", ['file' => $file]);
-                                $deletedFiles++;
-                            } catch (\Exception $e) {
-                                Log::error("❌ Could not force delete file: {$file} - " . $e->getMessage());
-                                $failedFiles++;
-                            }
-                        }
-
-                        // محاولة حذف المجلد مرة أخيرة
-                        if (Storage::disk('public')->exists($mainFolderPath)) {
-                            Storage::disk('public')->deleteDirectory($mainFolderPath);
-                            Log::info("📁 Force deleted main record folder after cleanup", ['folder' => $mainFolderPath]);
-                        }
-                    }
-                } catch (\Exception $e) {
-                    Log::warning("⚠️ Could not perform final folder cleanup: " . $e->getMessage());
-                }
-            } else {
-                Log::info("📁 Main record folder already deleted or not found", ['folder' => $mainFolderPath]);
+            $mainFolderPath = 'uploads/' . $fileIdNumber;
+            if (Storage::disk('public')->exists($mainFolderPath)
+                && empty(Storage::disk('public')->allFiles($mainFolderPath))) {
+                Storage::disk('public')->deleteDirectory($mainFolderPath);
             }
 
-            // حذف المرفقات من قاعدة البيانات (بما في ذلك الإضافية التي وُجدت)
-            if ($attachments->count() > 0) {
-                $attachmentIds = $attachments->pluck('id')->toArray();
-                $deletedAttachmentsCount = \App\Models\Attachment::whereIn('id', $attachmentIds)->delete();
-                Log::info("🗄️ Deleted all related attachments from database", ['count' => $deletedAttachmentsCount]);
-            }
-
-            // الآن حذف البيانات من قاعدة البيانات
             DB::beginTransaction();
 
-            // حذف أفراد الأسرة
-            $deletedFamilyCount = \App\Models\RePeople::where('registration_id', $record->file_id_number)->delete();
-            Log::info("👥 Deleted family members", ['count' => $deletedFamilyCount]);
+            if (!empty($attachmentIdsToDelete)) {
+                Attachment::whereIn('id', $attachmentIdsToDelete)->delete();
+            }
 
-            // حذف بيانات المتوفين
-            $deletedDeadCount = \App\Models\DeadPepole::where('re_file_id', $record->file_id_number)->delete();
-            Log::info("⚰️ Deleted deceased records", ['count' => $deletedDeadCount]);
-
-            // حذف بيانات portal_general_registration_field_values
-            $deletedPortalFieldValues = DB::table('portal_general_registration_field_values')
-                ->where('file_id_number', $record->file_id_number)
+            \App\Models\RePeople::where('registration_id', $fileIdNumber)->delete();
+            \App\Models\DeadPepole::where('re_file_id', $fileIdNumber)->delete();
+            if (\Illuminate\Support\Facades\Schema::hasTable('additional_deceased')) {
+                \App\Models\AdditionalDeceased::where('re_file_id', $fileIdNumber)->delete();
+            }
+            DB::table('portal_general_registration_field_values')
+                ->where('file_id_number', $fileIdNumber)
                 ->delete();
-            Log::info("🌐 Deleted portal field values", ['count' => $deletedPortalFieldValues, 'file_id' => $record->file_id_number]);
-
-            // حذف السجل الرئيسي
             $record->delete();
-            Log::info("📋 Deleted main record");
 
             DB::commit();
-            Log::info("✅ Deletion process completed successfully");
 
-            return redirect()->route('admin.records.management')->with('success', "تم حذف السجل وجميع البيانات المرتبطة به بنجاح. تم حذف {$deletedFiles} ملف من التخزين.");
+            $message = "تم حذف السجل والبيانات المرتبطة به. تم حذف {$deletedFiles} ملف من التخزين.";
+            if ($protectedAttachments->isNotEmpty()) {
+                $message .= ' تم الحفاظ على ' . $protectedAttachments->count() . ' مرفق مرتبط بأشخاص موجودين في ملفات أخرى.';
+            }
 
+            return redirect()->route('admin.records.management')->with('success', $message);
         } catch (\Exception $e) {
-            if (isset($record)) {
+            if (DB::transactionLevel() > 0) {
                 DB::rollBack();
             }
-            Log::error("❌ Error during deletion process: " . $e->getMessage());
-            Log::error("📍 Error trace: " . $e->getTraceAsString());
+            Log::error('Error during record deletion', [
+                'record_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
 
-            return redirect()->route('admin.records.management')->with('error', 'حدث خطأ أثناء حذف السجل: ' . $e->getMessage());
+            return redirect()->route('admin.records.management')
+                ->with('error', 'حدث خطأ أثناء حذف السجل: ' . $e->getMessage());
         }
     }
 
