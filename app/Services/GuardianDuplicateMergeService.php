@@ -387,7 +387,7 @@ class GuardianDuplicateMergeService
         foreach ($targetPrimary as $row) {
             foreach (['father', 'mother'] as $role) {
                 $identity = trim((string) ($row->{$role . '_id'} ?? ''));
-                if ($identity !== '') {
+                if (!$this->isEmptyValue($identity)) {
                     $targetIdentities[$identity] = true;
                 }
             }
@@ -395,12 +395,19 @@ class GuardianDuplicateMergeService
 
         foreach ($targetAdditional as $row) {
             $identity = trim((string) ($row->person_id ?? ''));
-            if ($identity !== '') {
+            if (!$this->isEmptyValue($identity)) {
                 $targetIdentities[$identity] = true;
             }
         }
 
-        $targetHasPrimary = $targetPrimary->isNotEmpty();
+        $blankTargetPrimaryIds = $targetPrimary->filter(function ($row) {
+            return !$this->hasDeceasedPerson($row, 'father')
+                && !$this->hasDeceasedPerson($row, 'mother');
+        })->pluck('id');
+        if ($blankTargetPrimaryIds->isNotEmpty()) {
+            DB::table('dead_people')->whereIn('id', $blankTargetPrimaryIds)->delete();
+        }
+        $targetHasPrimary = $targetPrimary->count() > $blankTargetPrimaryIds->count();
 
         foreach ($sourcePrimary as $row) {
             $presentRoles = [];
@@ -414,14 +421,20 @@ class GuardianDuplicateMergeService
 
                 $presentRoles[] = $role;
                 $identity = trim((string) ($row->{$role . '_id'} ?? ''));
-                if ($identity !== '' && (isset($targetIdentities[$identity]) || isset($rowIdentities[$identity]))) {
+                if (!$this->isEmptyValue($identity) && (isset($targetIdentities[$identity]) || isset($rowIdentities[$identity]))) {
                     $duplicateRoles[] = $role;
                     continue;
                 }
 
-                if ($identity !== '') {
+                if (!$this->isEmptyValue($identity)) {
                     $rowIdentities[$identity] = $role;
                 }
+            }
+
+            if (empty($presentRoles)) {
+                DB::table('dead_people')->where('id', $row->id)->delete();
+                $counts['dead_people']++;
+                continue;
             }
 
             if (!$targetHasPrimary) {
@@ -434,6 +447,13 @@ class GuardianDuplicateMergeService
                 }
 
                 $update = ['re_file_id' => $normalizedTo];
+                foreach (['father', 'mother'] as $role) {
+                    if (!in_array($role, $presentRoles, true)) {
+                        foreach ($this->deceasedRoleColumns($role) as $column) {
+                            $update[$column] = null;
+                        }
+                    }
+                }
                 foreach ($duplicateRoles as $role) {
                     foreach ($this->deceasedRoleColumns($role) as $column) {
                         $update[$column] = null;
@@ -455,7 +475,7 @@ class GuardianDuplicateMergeService
 
             foreach ($presentRoles as $role) {
                 $identity = trim((string) ($row->{$role . '_id'} ?? ''));
-                if ($identity !== '' && isset($targetIdentities[$identity])) {
+                if (!$this->isEmptyValue($identity) && isset($targetIdentities[$identity])) {
                     $counts['deceased_duplicates_skipped']++;
                     continue;
                 }
@@ -477,7 +497,7 @@ class GuardianDuplicateMergeService
                     'created_at' => now(),
                 ];
                 DB::table('additional_deceased')->insert($this->withTimestamp('additional_deceased', $payload));
-                if ($identity !== '') {
+                if (!$this->isEmptyValue($identity)) {
                     $targetIdentities[$identity] = true;
                 }
                 $counts['additional_deceased']++;
@@ -489,14 +509,20 @@ class GuardianDuplicateMergeService
         }
 
         foreach ($sourceAdditional as $row) {
+            if (!$this->hasAdditionalDeceasedPerson($row)) {
+                DB::table('additional_deceased')->where('id', $row->id)->delete();
+                $counts['additional_deceased']++;
+                continue;
+            }
+
             $identity = trim((string) ($row->person_id ?? ''));
-            if ($identity !== '' && isset($targetIdentities[$identity])) {
+            if (!$this->isEmptyValue($identity) && isset($targetIdentities[$identity])) {
                 DB::table('additional_deceased')->where('id', $row->id)->delete();
                 $counts['deceased_duplicates_skipped']++;
             } else {
                 DB::table('additional_deceased')->where('id', $row->id)
                     ->update($this->withTimestamp('additional_deceased', ['re_file_id' => $normalizedTo]));
-                if ($identity !== '') {
+                if (!$this->isEmptyValue($identity)) {
                     $targetIdentities[$identity] = true;
                 }
             }
@@ -509,7 +535,18 @@ class GuardianDuplicateMergeService
     protected function hasDeceasedPerson(object $row, string $role): bool
     {
         foreach ($this->deceasedRoleColumns($role) as $column) {
-            if (trim((string) ($row->{$column} ?? '')) !== '') {
+            if (!$this->isEmptyValue($row->{$column} ?? null)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected function hasAdditionalDeceasedPerson(object $row): bool
+    {
+        foreach (['first_name', 'second_name', 'third_name', 'last_name', 'person_id', 'death_date', 'death_reason'] as $column) {
+            if (!$this->isEmptyValue($row->{$column} ?? null)) {
                 return true;
             }
         }

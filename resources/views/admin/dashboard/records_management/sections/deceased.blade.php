@@ -93,7 +93,7 @@
                     <div class="row g-3">
                         <input type="hidden" name="re_file_id" value="{{ $data->file_id_number ?? $file_id_number ?? '' }}">
                         <div class="col-12">
-                            <label class="form-label fw-semibold">رقم الهوية <span class="text-danger">*</span></label>
+                            <label class="form-label fw-semibold">رقم الهوية</label>
                             <div class="input-group" style="max-width:320px;">
                                 <input type="text" name="mother_id" class="form-control" inputmode="numeric" pattern="[0-9]*" maxlength="10"
                                        oninput="this.value = this.value.replace(/[^0-9]/g, '');"
@@ -102,7 +102,7 @@
                             </div>
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label">الاسم الأول <span class="text-danger">*</span></label>
+                            <label class="form-label">الاسم الأول</label>
                             <input type="text" name="mother_first_name" class="form-control"
                                    value="{{ old('mother_first_name', $dead ? $dead->mother_first_name : '') }}">
                         </div>
@@ -117,17 +117,17 @@
                                    value="{{ old('mother_third_name', $dead ? $dead->mother_third_name : '') }}">
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label">اسم العائلة <span class="text-danger">*</span></label>
+                            <label class="form-label">اسم العائلة</label>
                             <input type="text" name="mother_last_name" class="form-control"
                                    value="{{ old('mother_last_name', $dead ? $dead->mother_last_name : '') }}">
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">تاريخ الوفاة <span class="text-danger">*</span></label>
+                            <label class="form-label">تاريخ الوفاة</label>
                             <input type="date" name="mother_death_date" class="form-control"
                                    value="{{ old('mother_death_date', $dead ? $dead->mother_death_date : '') }}">
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">سبب الوفاة <span class="text-danger">*</span></label>
+                            <label class="form-label">سبب الوفاة</label>
                             <select name="mother_death_reason" class="form-select">
                                 <option value="">اختر سبب الوفاة</option>
                                 @foreach ($death_reasons as $deathReason)

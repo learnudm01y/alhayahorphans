@@ -184,15 +184,6 @@
             'father_death_reason': 'سبب وفاة الأب'
         };
 
-        // التحقق من الحقول الإجبارية للأم المتوفية
-        const motherRequiredFields = {
-            'mother_first_name': 'الاسم الأول للأم',
-            'mother_last_name': 'اسم عائلة الأم',
-            'mother_id': 'رقم هوية الأم',
-            'mother_death_date': 'تاريخ وفاة الأم',
-            'mother_death_reason': 'سبب وفاة الأم'
-        };
-
         // دالة للتحقق من تاريخ الوفاة
         function validateDeathDate(deathDateInput) {
             const deathDate = new Date(deathDateInput.value);
@@ -258,26 +249,6 @@
                         bootstrap.Tab.getInstance(document.querySelector('#deceased-tab')).show();
                         input.focus();
                         return;
-                    }
-                }
-
-                // التحقق من بيانات الأم إذا كانت مضافة
-                const motherSection = document.getElementById('motherInfoSection');
-                if (motherSection && motherSection.style.display !== 'none') {
-                    for (const [field, label] of Object.entries(motherRequiredFields)) {
-                        const input = this.querySelector(`[name="${field}"]`);
-                        if (!input || (!input.value || !input.value.trim())) {
-                            e.preventDefault();
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'حقل مطلوب',
-                                text: `الرجاء إدخال ${label}`
-                            });
-                            // تفعيل تبويب المتوفين
-                            bootstrap.Tab.getInstance(document.querySelector('#deceased-tab')).show();
-                            input.focus();
-                            return;
-                        }
                     }
                 }
             }

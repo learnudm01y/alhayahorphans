@@ -795,15 +795,6 @@
                 'father_death_reason': 'سبب وفاة الأب'
             };
 
-            // التحقق من الحقول الإجبارية للأم المتوفية
-            const motherRequiredFields = {
-                'mother_first_name': 'الاسم الأول للأم',
-                'mother_last_name': 'اسم عائلة الأم',
-                'mother_id': 'رقم هوية الأم',
-                'mother_death_date': 'تاريخ وفاة الأم',
-                'mother_death_reason': 'سبب وفاة الأم'
-            };
-
             // دالة للتحقق من تاريخ الوفاة
             function validateDeathDate(deathDateInput) {
                 const deathDate = new Date(deathDateInput.value);
@@ -833,8 +824,8 @@
             // دالة للتحقق من رقم الهوية
             function validateIdNumber(input) {
                 const idNumber = input.value;
-                if (idNumber.length !== 9) {
-                    input.setCustomValidity('يجب أن يتكون رقم الهوية من 10 أرقام');
+                if (idNumber.length > 0 && idNumber.length !== 9) {
+                    input.setCustomValidity('يجب أن يتكون رقم الهوية من 9 أرقام');
                     return false;
                 }
                 input.setCustomValidity('');
@@ -873,31 +864,6 @@
                                 if (deceasedTabEl) bootstrap.Tab.getInstance(deceasedTabEl)?.show();
                                 if (input) input.focus();
                                 return;
-                            }
-                        }
-                    }
-
-                    // التحقق من بيانات الأم إذا كانت مضافة وأدخل المستخدم رقم هويتها
-                    const motherSection = document.getElementById('motherInfoSection');
-                    if (motherSection && motherSection.style.display !== 'none') {
-                        const motherIdInput = this.querySelector('[name="mother_id"]');
-                        const motherIdValue = motherIdInput ? motherIdInput.value.trim() : '';
-
-                        if (motherIdValue) {
-                            for (const [field, label] of Object.entries(motherRequiredFields)) {
-                                const input = this.querySelector(`[name="${field}"]`);
-                                if (!input || !input.value || !input.value.trim()) {
-                                    e.preventDefault();
-                                    Swal.fire({
-                                        icon: 'error',
-                                        title: 'حقل مطلوب',
-                                        text: `الرجاء إدخال ${label}`
-                                    });
-                                    const deceasedTabEl = document.querySelector('#deceased-tab');
-                                    if (deceasedTabEl) bootstrap.Tab.getInstance(deceasedTabEl)?.show();
-                                    if (input) input.focus();
-                                    return;
-                                }
                             }
                         }
                     }
